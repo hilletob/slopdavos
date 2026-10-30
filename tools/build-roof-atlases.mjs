@@ -9,7 +9,8 @@
 //   { source, res, fetched, tiles: { <b3dm tile u>: [{ f, w, h, rects: [[x0, z0, x1, z1, px, py, pw, ph], ...] }] } }
 // rects in world coordinates (z0 the north edge), [px, py, pw, ph] their pixel box (top-left, the top row north).
 // Raw JPEGs are cached in tools/data/cache/roofs/.
-// usage: node tools/build-roof-atlases.mjs   (needs python3 with PIL)
+// usage: node tools/build-roof-atlases.mjs [--hires]   (needs python3 with PIL)
+// --hires: 0.1 m crops into data/hires/roofs/ (not committed; the browser prefers them when present, js/swissbuildings3d.js)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -20,10 +21,11 @@ import { DAVOS_DATA } from '../js/davos-geodata.js';
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(DIR, '..');
 const BUILDINGS = path.join(ROOT, 'data', 'swissbuildings3d');
-const OUT = path.join(ROOT, 'data', 'roofs');
+const HIRES = process.argv.includes('--hires');
+const OUT = path.join(ROOT, 'data', ...(HIRES ? ['hires', 'roofs'] : ['roofs']));
 const CACHE = path.join(DIR, 'data', 'cache', 'roofs');
 const WMS = 'https://wms.geo.admin.ch/';
-const RES = 0.125, MARGIN = 2, DEFAULT = 24, MAX_REQUEST = 4000, PAGE = 2048, QUALITY = 70, CONCURRENCY = 6;
+const RES = HIRES ? 0.1 : 0.125, MARGIN = 2, DEFAULT = 24, MAX_REQUEST = 4000, PAGE = 2048, QUALITY = 70, CONCURRENCY = 6;
 const log = (...a) => console.log('[roofs]', ...a);
 fs.mkdirSync(CACHE, { recursive: true });
 const started = Date.now();
@@ -117,7 +119,7 @@ for (const job of jobs) {
   }
   job.requests = groups.map((g, i) => {
     const box = union(g), id = job.u.replace(/\.b3dm$/, '').replace(/[/]/g, '-');
-    const req = { file: path.join(CACHE, `${id}-${i}.jpg`), box, rects: g };
+    const req = { file: path.join(CACHE, `${id}-${i}${HIRES ? '-hires' : ''}.jpg`), box, rects: g };
     requests.push(req);
     return req;
   });

@@ -2441,6 +2441,11 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     { bg: '#101318', border: '#e0e6ed', text: 'BECK · BÄCKEREI', color: '#f5f9ff' }
   ];
   const MAX_SIGNS_PER_THEME = Math.ceil(MAX_AWNINGS / signThemes.length) + 32;
+  // Davos's real businesses carry their own signs (js/shops.js): the made-up fascia signs over the awnings stay off
+  const GENERIC_SIGNS = false;
+  // The awnings hang on the OSM footprints, which the swissBUILDINGS3D facades often stand in front of or behind:
+  // in Davos they floated in front of the shop fronts, so they're off too (the businesses' signs are js/shops.js)
+  const GENERIC_AWNINGS = false;
   const signInsts = signThemes.map((st) => {
     const c = document.createElement('canvas');
     c.width = 512;
@@ -2596,7 +2601,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (const fe of blk.fireEscapes) fireEscapeSystem.add(fe, focusX, focusZ);
 
       // 5. Retail awnings & illuminated storefront fascia signs
-      for (let i = 0; i < blk.awnings.length && awningCount < MAX_AWNINGS; i++) {
+      for (let i = 0; GENERIC_AWNINGS && i < blk.awnings.length && awningCount < MAX_AWNINGS; i++) {
         const a = blk.awnings[i];
         dummy.rotation.set(0, a.ry ?? blk.ry ?? 0, 0);
         dummy.position.set(a.x, ground(a) + a.y, a.z);
@@ -2606,7 +2611,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         awningInst.setColorAt(awningCount, awningPalette[a.colorIdx % awningPalette.length]);
 
         const themeIdx = awningCount % signInsts.length;
-        if (signCounts[themeIdx] < MAX_SIGNS_PER_THEME) {
+        if (GENERIC_SIGNS && signCounts[themeIdx] < MAX_SIGNS_PER_THEME) {
           dummy.position.set(a.x, ground(a) + 4.68, a.z);
           dummy.scale.set(0.28, 0.86, a.d * 0.92);
           dummy.updateMatrix();

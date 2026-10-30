@@ -21,6 +21,7 @@
   --taxi: #ffc21a;
   --taxi-ink: #17140a;
   --sign-green: #0b6a46;
+  --sign-blue: #0d4e9b; /* Swiss street name plate: traffic blue */
   --highway: #c08a3e;
   --ok: #5ee08f;
   --warn: #ffc857;
@@ -783,22 +784,23 @@ body.hud-minimized .icon-show {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
-/* Green blade, white inset border, Highway Gothic lettering: the sign on every Manhattan corner */
+/* Swiss street name plate: traffic-blue enamel, a thin white rule inset from the edge, white lettering in a plain
+   grotesque (the Frutiger-like signage face), slightly rounded corners, a faint sheen of the enamel */
 .street-sign {
-  max-width: 210px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 9px 13px 7px;
-  font-family: var(--font-sign);
+  padding: 8px 14px 7px;
+  font-family: 'Frutiger', 'Helvetica Neue', 'Inter', Arial, sans-serif;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.05;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.015em;
   color: #ffffff;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%), var(--sign-green);
-  border-radius: 6px;
-  outline: 1.5px solid rgba(255, 255, 255, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 50%), var(--sign-blue);
+  border-radius: 3px;
+  outline: 1.5px solid rgba(255, 255, 255, 0.95);
   outline-offset: -4px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 10px 22px -10px rgba(0, 0, 0, 0.75);
 }

@@ -7,7 +7,10 @@
 // Writes data/swissimage/index.json ({ chunk, margin, tiles: [{ f, i0, j0, x0, z0, x1, z1, res }] }: the image extents in
 // world coordinates, margin included) and
 // data/swissimage/<i0>-<j0>.webp. Raw JPEGs are cached in tools/data/cache/swissimage/.
-// usage: node tools/fetch-swissimage.mjs   (needs cwebp: brew install webp)
+// usage: node tools/fetch-swissimage.mjs [--hires]   (needs cwebp: brew install webp)
+// --hires: the high-resolution profile, generated locally and not committed (data/hires/ is ignored by git): 0.25 m on
+// the valley floor, 0.5 m on the lower slopes, 1 m higher up, into data/hires/swissimage/. The browser prefers it near
+// the camera when it is there (js/swissimage.js) and falls back to data/swissimage/ otherwise.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -16,7 +19,8 @@ import { FRAME, worldToLv95 } from '../js/davos-frame.js';
 import { parseTerrain } from '../js/terrain-grid.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(DIR, '..', 'data', 'swissimage');
+const HIRES = process.argv.includes('--hires');
+const OUT = path.join(DIR, '..', 'data', ...(HIRES ? ['hires', 'swissimage'] : ['swissimage']));
 const CACHE = path.join(DIR, 'data', 'cache', 'swissimage');
 const WMS = 'https://wms.geo.admin.ch/';
 const CHUNK = 64, MARGIN = 32, QUALITY = 65, CONCURRENCY = 6;
@@ -32,10 +36,10 @@ for (let j0 = 0; j0 < T.rows - 1; j0 += CHUNK) for (let i0 = 0; i0 < T.cols - 1;
   const i1 = Math.min(i0 + CHUNK, T.cols - 1), j1 = Math.min(j0 + CHUNK, T.rows - 1);
   let lo = Infinity;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) lo = Math.min(lo, T.heights[j * T.cols + i] + FRAME.H0);
-  const res = lo < 1650 ? 0.5 : lo < 1900 ? 1 : 2;
+  const res = (lo < 1650 ? 0.5 : lo < 1900 ? 1 : 2) / (HIRES ? 2 : 1);
   tiles.push({ f: `${i0}-${j0}.webp`, i0, j0, x0: T.minX + i0 * T.cell - MARGIN, z0: T.minZ + j0 * T.cell - MARGIN, x1: T.minX + i1 * T.cell + MARGIN, z1: T.minZ + j1 * T.cell + MARGIN, res });
 }
-log(`${tiles.length} chunks:`, ['0.5', '1', '2'].map((r) => `${tiles.filter((t) => String(t.res) === r).length} at ${r} m`).join(', '));
+log(`${tiles.length} chunks:`, (HIRES ? ['0.25', '0.5', '1'] : ['0.5', '1', '2']).map((r) => `${tiles.filter((t) => String(t.res) === r).length} at ${r} m`).join(', '));
 
 async function fetchRetry(url) {
   for (let attempt = 1; ; attempt++) {

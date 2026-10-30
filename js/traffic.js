@@ -34,7 +34,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // - The player's vehicle or character pushes and is pushed by the traffic (SAT contact, impulses, sparks).
 
 const NUM_CARS = 200;
-const NUM_BUSES = 16;
+const NUM_BUSES = 0; // Davos: the VBD buses run their real lines (js/vbd.js) instead of the generic ones
 const NUM_BIKES = 450;
 
 // Intelligent Driver Model: max acceleration, comfortable braking, time headway, standstill gap; and the sideways
@@ -284,7 +284,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // =========================================================================
   const busBodyGeo = buildLoftedBusBodyGeometry();
   // Per-instance lamp state the bus material reads: brake lights, left (+x) & right (-x) turn signals (renderBus)
-  const busStates = new THREE.InstancedBufferAttribute(new Float32Array(NUM_BUSES * 4), 4);
+  // (buffers of at least one instance: WebGPU rejects zero-sized buffers, and a rejected one blanks the whole frame)
+  const BUS_CAPACITY = Math.max(1, NUM_BUSES);
+  const busStates = new THREE.InstancedBufferAttribute(new Float32Array(BUS_CAPACITY * 4), 4);
   busBodyGeo.setAttribute('busState', busStates);
   // Destination signs above the windshield, by the front door & above the rear window
   const busHeaderGeo = buildBusSignGeometry();
@@ -295,12 +297,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   });
 
   const busWheelMat = createBusWheelMaterial();
-  const busBodyInst = new THREE.InstancedMesh(busBodyGeo, busBodyMat, NUM_BUSES);
-  const busHeaderInst = new THREE.InstancedMesh(busHeaderGeo, busDestMat, NUM_BUSES);
-  const busWheelLeftInst = new THREE.InstancedMesh(buildBusWheelGeo(-1), busWheelMat, NUM_BUSES * 2);
-  const busWheelRightInst = new THREE.InstancedMesh(buildBusWheelGeo(1), busWheelMat, NUM_BUSES * 2);
-  const busShadowInst = new THREE.InstancedMesh(unitPlane, contactShadowMat, NUM_BUSES);
+  const busBodyInst = new THREE.InstancedMesh(busBodyGeo, busBodyMat, BUS_CAPACITY);
+  const busHeaderInst = new THREE.InstancedMesh(busHeaderGeo, busDestMat, BUS_CAPACITY);
+  const busWheelLeftInst = new THREE.InstancedMesh(buildBusWheelGeo(-1), busWheelMat, BUS_CAPACITY * 2);
+  const busWheelRightInst = new THREE.InstancedMesh(buildBusWheelGeo(1), busWheelMat, BUS_CAPACITY * 2);
+  const busShadowInst = new THREE.InstancedMesh(unitPlane, contactShadowMat, BUS_CAPACITY);
   busShadowInst.renderOrder = 998;
+  for (const mesh of [busBodyInst, busHeaderInst, busShadowInst]) mesh.count = NUM_BUSES;
+  busWheelLeftInst.count = busWheelRightInst.count = NUM_BUSES * 2;
 
   busBodyInst.castShadow = busBodyInst.receiveShadow = true;
   busWheelLeftInst.castShadow = busWheelLeftInst.receiveShadow = true;

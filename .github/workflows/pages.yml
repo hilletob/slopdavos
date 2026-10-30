@@ -27,6 +27,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # Optional: the high-resolution imagery (npm run data:hires, ~0.4 GB, not in git: the browser prefers it when it is
+      # there). Building it here downloads from swisstopo's public WMS on every deploy (~10-15 min; cwebp and PIL needed);
+      # GitHub Pages sites are limited to 1 GB. Uncomment to publish it, or host data/hires/ on object storage instead.
+      # - run: sudo apt-get install -y webp python3-pil
+      # - run: npm run data:hires
       - name: Assemble the site
         run: |
           mkdir _site

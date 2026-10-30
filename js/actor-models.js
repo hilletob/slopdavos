@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { cityUniforms } from './tsl-materials.js';
+import { plateAtlasTexture, PLATE_COUNT, PLATE_ATLAS } from './plates.js';
 import {
   Fn,
   float,
@@ -20,6 +21,7 @@ import {
   fwidth,
   uniform,
   texture,
+  select,
   time,
   instanceIndex
 } from 'three/tsl';
@@ -968,27 +970,6 @@ const coverage = (d) => {
 };
 
 const _carMaterialCache = new Map();
-let _carPlateTexture;
-
-// One small generated atlas serves every rear plate, with mipmaps for distant traffic.
-function carPlateTexture() {
-  if (_carPlateTexture) return _carPlateTexture;
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#f2b718';
-  ctx.fillRect(0, 0, 128, 256);
-  ctx.fillStyle = '#17212c';
-  ctx.font = 'bold 25px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ['4KM 728', '7TR 319', '2BJ 506', '6XL 842'].forEach((label, row) => ctx.fillText(label, 64, row * 64 + 33));
-  _carPlateTexture = new THREE.CanvasTexture(canvas);
-  _carPlateTexture.colorSpace = THREE.SRGBColorSpace;
-  return _carPlateTexture;
-}
-
 /**
  * Creates the TSL material for lofted vehicles.
  * Instanced traffic reads the per-instance `paintColor` (vec3) and `carState` (vec4: brake, left (+x) & right (-x)
@@ -1100,7 +1081,8 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const drl = smoothstep(drlEdge, 0.0, drlDist).mul(headlight).mul(one.sub(turnFront));
   const grille = roundedRect(vec2(p.x, p.y.sub(grY)), vec2(grW, grH), 0.015).mul(front);
   const intake = roundedRect(vec2(p.x, p.y.sub(inY)), vec2(inW, inH), 0.04).mul(front);
-  const plateFront = roundedRect(vec2(p.x, p.y.sub(plateF)), vec2(0.155, 0.055), 0.008).mul(front);
+  // Swiss plates (plates.js): front 300 × 80 mm, rear long format 500 × 110 mm
+  const plateFront = roundedRect(vec2(p.x, p.y.sub(plateF)), vec2(0.15, 0.04), 0.006).mul(front);
   const tlUV = vec2(ax.sub(tlX), p.y.sub(tlY));
   const taillight = roundedRect(tlUV, vec2(tlW, tlH), 0.022)
     .mul(smoothstep(0.02, 0.25, n.z.negate()))
@@ -1115,12 +1097,12 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const reverseRearSection = smoothstep(-0.53, -0.57, tailAxis);
   const turnRear = turnRearSection.mul(tailLens);
   const redLens = tailLens.mul(one.sub(max(turnRearSection, reverseRearSection)));
-  const plateRear = roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.155, 0.06), 0.008).mul(rear);
-  const platePocket = roundedRect(vec2(p.x, p.y.sub(plateR + 0.01)), vec2(0.235, 0.105), 0.03).mul(rear);
+  const plateRear = roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.25, 0.055), 0.006).mul(rear);
+  const platePocket = roundedRect(vec2(p.x, p.y.sub(plateR + 0.01)), vec2(0.29, 0.1), 0.03).mul(rear);
   const trunkHandle = roundedRect(vec2(p.x, p.y.sub(plateR + 0.125)), vec2(0.18, 0.012), 0.008).mul(rear);
   const plateRecess = max(
-    roundedRect(vec2(p.x, p.y.sub(plateF)), vec2(0.175, 0.072), 0.012).mul(front),
-    roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.185, 0.082), 0.02).mul(rear)
+    roundedRect(vec2(p.x, p.y.sub(plateF)), vec2(0.168, 0.056), 0.01).mul(front),
+    roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.27, 0.073), 0.016).mul(rear)
   );
   const rearValance = smoothstep(rearSill + 0.07, rearSill + 0.015, p.y).mul(rear);
   const reflector = roundedRect(vec2(ax.sub(0.64), p.y.sub(spec.bumpers[1][0] + 0.065)), vec2(0.065, 0.012), 0.006).mul(rear);
@@ -1230,11 +1212,17 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   body = mix(body, body.mul(pocketShade), platePocket);
   body = mix(body, color(0x303438), trunkHandle);
   body = mix(body, color(0x24292d), plateRecess);
-  body = mix(body, color(0xf2b718), plates);
-  const plateVariant = floor(fract(paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17))).mul(4));
-  const plateUV = vec2(p.x.div(-0.31).add(0.5), p.y.sub(plateR).div(0.12).add(0.5));
-  const plateColor = texture(carPlateTexture(), vec2(plateUV.x, plateUV.y.add(plateVariant).div(4))).rgb;
-  body = mix(body, plateColor, plateRear);
+  // One of the atlas's plates per car (from its paint; the player's car carries plate 0, from Graubünden): the rear plate
+  // read from behind (x mirrored), the front one from ahead
+  const plateVariant = fixed ? float(0) : floor(fract(paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17))).mul(PLATE_COUNT));
+  const plateRow = floor(plateVariant.div(PLATE_ATLAS.cols)), plateCol = plateVariant.sub(plateRow.mul(PLATE_ATLAS.cols));
+  const atlasUV = (u, v, top, h) => vec2(plateCol.add(u).div(PLATE_ATLAS.cols), one.sub(plateRow.add(one.sub(v)).mul(h).add(top).div(PLATE_ATLAS.size)));
+  const plateAtlas = plateAtlasTexture();
+  const rearPlateColor = texture(plateAtlas, atlasUV(p.x.div(-0.5).add(0.5), p.y.sub(plateR).div(0.11).add(0.5), 0, PLATE_ATLAS.rearH)).rgb;
+  const frontPlateColor = texture(plateAtlas, atlasUV(p.x.div(0.3).add(0.5), p.y.sub(plateF).div(0.08).add(0.5), PLATE_ATLAS.frontY, PLATE_ATLAS.frontH)).rgb;
+  body = mix(body, color(0xf2f2ee), plates);
+  body = mix(body, rearPlateColor, plateRear);
+  body = mix(body, frontPlateColor, plateFront);
   body = mix(body, color(0x0e1013), under);
 
   // Glasshouse: tinted glass, black seals & B / C pillars, painted roof & A pillars, chrome sill strip, CHMSL
@@ -1825,9 +1813,9 @@ function buildHelicopterMainRotorGeometry() {
     part(hubCap, HELI_PARTS.ROTOR)
   );
 
-  // 4 Tapered Airfoil Main Rotor Blades with pitch cuff grips
-  for (let b = 0; b < 4; b++) {
-    const angle = (b * Math.PI) / 2;
+  // 5 tapered main rotor blades with pitch cuff grips (the H145 D3's five-bladed bearingless rotor, 11 m across)
+  for (let b = 0; b < 5; b++) {
+    const angle = (b * Math.PI * 2) / 5;
     const cuff = new THREE.BoxGeometry(0.65, 0.045, 0.14)
       .translate(0.52, 0, 0)
       .rotateY(angle);
@@ -1845,19 +1833,43 @@ function buildHelicopterMainRotorGeometry() {
  * Builds the 4-Bladed Tail Rotor Assembly.
  */
 function buildHelicopterTailRotorGeometry() {
+  // The H145's Fenestron: a ten-bladed fan in a shroud in the fin (the shroud is built with the entity, it doesn't spin)
   const parts = [];
-  const hub = new THREE.CylinderGeometry(0.09, 0.09, 0.18, 12)
+  const hub = new THREE.CylinderGeometry(0.1, 0.1, 0.16, 12)
     .rotateZ(Math.PI * 0.5);
   parts.push(part(hub, HELI_PARTS.EXHAUST));
-
-  for (let b = 0; b < 4; b++) {
-    const angle = (b * Math.PI) / 2;
-    const blade = new THREE.BoxGeometry(0.022, 0.76, 0.13)
-      .translate(0, 0.42, 0)
+  for (let b = 0; b < 10; b++) {
+    const angle = (b * Math.PI * 2) / 10;
+    const blade = new THREE.BoxGeometry(0.02, 0.42, 0.09)
+      .rotateY(0.35)
+      .translate(0, 0.27, 0)
       .rotateX(angle);
     parts.push(part(blade, HELI_PARTS.ROTOR));
   }
   return mergeGeometries(parts);
+}
+
+// Rega's markings, drawn (no logo artwork is copied): "REGA" for the tail boom, a white Swiss cross for the cabin and
+// the registration of one of the five-bladed H145s (HB-ZQO). Rows of a 1024 x 256 canvas: lettering (top half), the
+// cross (bottom left), the registration (bottom right). White where painted (alpha).
+function createRegaDecalTexture() {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.font = '900 118px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('REGA', 512, 66);
+  // Swiss cross in the lower left quarter (arms 1/6 longer than wide, as in the federal coat of arms)
+  const cx = 128, cy = 192, a = 44, w = 15;
+  g.fillRect(cx - w, cy - a, 2 * w, 2 * a);
+  g.fillRect(cx - a, cy - w, 2 * a, 2 * w);
+  g.font = '700 56px Arial, Helvetica, sans-serif';
+  g.fillText('HB-ZQO', 700, 192);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 8;
+  return t;
 }
 
 let _heliLoftedMat = null;
@@ -1874,6 +1886,7 @@ function createLoftedHelicopterMaterial() {
   if (_heliLoftedMat) return _heliLoftedMat;
 
   const mat = new THREE.MeshStandardNodeMaterial();
+  const regaDecals = createRegaDecalTexture();
 
   const evaluateHeliSurface = Fn(() => {
     const partId = attribute('partId', 'float');
@@ -1944,40 +1957,55 @@ function createLoftedHelicopterMaterial() {
       .mul(smoothstep(0.55, 0.62, p.y))
       .mul(smoothstep(1.75, 1.65, p.y));
 
-    const whitePaint = color(0xf4f7fb);
-    const navyPaint = color(0x132c58);
-    const goldPaint = color(0xffbe28);
-    const redPaint = color(0xd8222b);
-
-    const baseLivery = mix(
-      mix(mix(whitePaint, navyPaint, isLowerNavy), goldPaint, isGoldStripe),
-      redPaint,
-      isRedPin
-    ).mul(float(1.0).sub(panelLines.mul(0.45)));
+    // Rega livery (Airbus H145 D3): signal red all over with a thin white pinstripe, "REGA" in white on both sides of
+    // the tail boom, a white Swiss cross aft of the cabin and the registration near the fin
+    const whitePaint = color(0xf4f6f8);
+    const regaRed = color(0xd2101c);
+    const greyPaint = color(0x2a2e33);
+    const isWhiteStripe = smoothstep(0.03, 0.018, goldStripeDist);
+    let baseLivery = mix(regaRed, whitePaint, isWhiteStripe).mul(float(1.0).sub(panelLines.mul(0.45)));
+    if (regaDecals) {
+      // Readable on both sides: on the port side (+x) the text runs nose to tail, on the starboard side tail to nose
+      const side = step(0.45, abs(n.x));
+      // "REGA": tail boom z -2.3 .. -4.1, centred at y 1.47
+      const uR = select(p.x.greaterThan(0), p.z.negate().sub(2.3).div(1.8), p.z.add(4.1).div(1.8));
+      const vR = p.y.sub(1.29).div(0.36);
+      const inR = step(0, uR).mul(step(uR, 1)).mul(step(0, vR)).mul(step(vR, 1));
+      const lettering = texture(regaDecals, vec2(uR, vR.mul(0.5).add(0.5))).a.mul(inR);
+      // Swiss cross aft of the cabin: z -1.25 .. -1.85, y 0.98 .. 1.58
+      const uC = select(p.x.greaterThan(0), p.z.negate().sub(1.25).div(0.6), p.z.add(1.85).div(0.6));
+      const vC = p.y.sub(0.98).div(0.6);
+      const inC = step(0, uC).mul(step(uC, 1)).mul(step(0, vC)).mul(step(vC, 1));
+      const cross = texture(regaDecals, vec2(uC.mul(0.25), vC.mul(0.5))).a.mul(inC);
+      // Registration: tail boom z -4.45 .. -5.25, y 1.43 .. 1.6
+      const uG = select(p.x.greaterThan(0), p.z.negate().sub(4.45).div(0.8), p.z.add(5.25).div(0.8));
+      const vG = p.y.sub(1.43).div(0.17);
+      const inG = step(0, uG).mul(step(uG, 1)).mul(step(0, vG)).mul(step(vG, 1));
+      const reg = texture(regaDecals, vec2(uG.mul(0.5).add(0.45), vG.mul(0.3).add(0.1))).a.mul(inG);
+      baseLivery = mix(baseLivery, whitePaint, lettering.max(cross).max(reg).mul(side));
+    }
 
     const glassCol = mix(color(0x102234), color(0x1e3c58), clamp(n.y.mul(0.5).add(0.5), 0.0, 1.0));
     const fuselageCol = mix(mix(baseLivery, color(0x14181e), rawSealMask), glassCol, rawWindowMask);
 
-    // 3. Engine Cowling: Aviation White with Dark Slatted Turbine Intake Grille
+    // 3. Engine Cowling: red, with dark slatted turbine intake grilles
     const intakeGrille = roundedRect(vec2(p.z.sub(-0.45), p.y.sub(2.18)), vec2(0.52, 0.13), 0.04)
       .mul(step(0.35, abs(n.x)));
     const louverSlats = step(0.45, fract(p.y.mul(55.0))).mul(0.4).add(0.35);
-    const cowlingCol = mix(
-      mix(whitePaint, goldPaint, smoothstep(2.02, 1.97, p.y)),
-      color(0x181c22).mul(louverSlats),
-      intakeGrille
-    );
+    const cowlingCol = mix(regaRed, color(0x181c22).mul(louverSlats), intakeGrille);
 
-    // 4. Swept Tail Fin & Stabilizer: Deep Navy with Gold Tip Accent
-    const finGoldBand = smoothstep(2.42, 2.45, p.y).mul(smoothstep(2.62, 2.59, p.y));
-    const finCol = mix(navyPaint, goldPaint, finGoldBand);
+    // 4. Fin & stabilizer: red, a white band near the top
+    const finWhiteBand = smoothstep(2.42, 2.45, p.y).mul(smoothstep(2.62, 2.59, p.y));
+    const finCol = mix(regaRed, whitePaint, finWhiteBand);
+    const goldPaint = whitePaint; // (blade tips: white on Rega's grey blades)
+    void greyPaint;
 
     // 5. Rotor Blades: Matte Anthracite Carbon with High-Visibility Yellow Safety Tips
     const radialDist = length(vec2(p.x, p.z));
     const isBladeTip = smoothstep(4.35, 4.42, radialDist).add(
       smoothstep(0.65, 0.68, abs(p.y)).mul(step(radialDist, 0.35))
     );
-    const rotorCol = mix(color(0x1e232a), goldPaint, clamp(isBladeTip, 0.0, 1.0));
+    const rotorCol = mix(color(0x3a3f45), goldPaint, clamp(isBladeTip, 0.0, 1.0));
 
     const skidCol = color(0x22272e);
     const exhaustBore = step(0.65, n.z.negate());

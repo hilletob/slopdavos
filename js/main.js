@@ -13,7 +13,10 @@ import { drapeTerrainOrthophotos } from './swissimage.js';
 import { buildSurroundings } from './surroundings.js';
 import { buildTrams } from './trams.js';
 import { buildRhB } from './rhb.js';
+import { buildVBD } from './vbd.js';
 import { buildLoipen } from './loipen.js';
+import { buildShops } from './shops.js';
+import { buildBergbahnen } from './bergbahnen.js';
 import { placeOnTerrain, liftColliders } from './terrain.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
@@ -92,6 +95,7 @@ async function initApp() {
   const flatWorld = new Set(scene.children);
   const cityGrid = buildCityGrid(scene);
   buildLoipen(scene); // cross-country ski trails, shown in winter
+  const shops = buildShops(scene); // the businesses' signs (js/shops-data.js)
   markInit('cityGrid');
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
@@ -102,6 +106,8 @@ async function initApp() {
   markInit('surroundings');
   const trams = buildTrams(scene);
   const rhb = buildRhB(scene);
+  const bergbahnen = buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
+  const vbd = buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
   markInit('trams');
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
@@ -121,6 +127,8 @@ async function initApp() {
       onProgress: (done, total) => { if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Loading swissBUILDINGS3D ${done}/${total}…`; }
     });
     swissBuildings = await stream.ready;
+    // Once every building tile is in, the shop signs move onto the real facades (the OSM footprints differ)
+    stream.done.then(() => shops.refine(stream.group)).catch((error) => console.warn('[shops] facades:', error));
   } catch (error) {
     console.warn('[swissbuildings3d] falling back to OSM buildings:', error);
   }
@@ -143,7 +151,7 @@ async function initApp() {
     ...allColliders.filter((c) => !c.obb && (c.minY ?? 0) - (c.baseY ?? 0) < 3.5)
   ], streetDetails.signalIntersections);
   markInit('traffic');
-  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies]);
+  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies, ...vbd.bodies]);
   const highwayTraffic = createHighwayTraffic(scene, cityGrid.highwayLanes);
   const beforePaint = new Set(scene.children);
   buildRoadPaint(scene, trafficSystem.network);
@@ -748,6 +756,8 @@ async function initApp() {
     gamepadControls.update(dt);
     // The trains first: in the rhb mode the player rides in one, and the controllers follow its cab this frame
     rhb.update(dt, { player: controllerManager.getActiveEntity().position });
+    bergbahnen.update(dt);
+    vbd.update(dt, { player: controllerManager.getActiveEntity().position });
     controllerManager.update(dt, elapsed);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
@@ -763,6 +773,7 @@ async function initApp() {
     trams.update(dt, { vehicles: [trafficSystem.cars, trafficSystem.buses, trafficSystem.bikes], player: controllerManager.getActiveEntity().position });
     trams.collidePlayer(controllerManager.getActiveEntity(), controllerManager.activeMode, controllerManager);
     rhb.collidePlayer(controllerManager.getActiveEntity(), controllerManager.activeMode, controllerManager);
+    vbd.collidePlayer(controllerManager.getActiveEntity(), controllerManager.activeMode, controllerManager);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
@@ -813,7 +824,7 @@ async function initApp() {
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },

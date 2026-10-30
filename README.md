@@ -90,6 +90,13 @@ npm run update:buildings   # tools/update-swissbuildings3d.mjs: the newest relea
 
 It downloads and checks every tile before replacing the stored copy; look at the town, then commit.
 
+**High-resolution profile (optional, not committed).** `npm run data:hires` writes sharper imagery to `data/hires/`
+(ignored by git): the terrain orthophotos at 0.25 m on the valley floor, 0.5 m on the lower slopes and 1 m higher up,
+and the roof crops at 0.1 m. The browser uses them when they are there and falls back to the committed data otherwise:
+the roof atlases of the tiles near the camera, and the high-resolution terrain images of the chunks within 700 m (an
+image is ~28 MB on the GPU, so only those near the camera are held). To publish them, uncomment the step in
+`.github/workflows/pages.yml` or host `data/hires/` next to the site.
+
 ## How the relief fits a flat-world engine
 
 The engine was written for Manhattan at `y = 0`. `js/terrain.js` provides `groundHeight`, `deckHeight` and

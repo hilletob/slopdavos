@@ -34,7 +34,7 @@ import { bryantParkLawn } from './landmarks.js';
 // 2. Car (Aerodynamic Sculpted NYC Medallion Yellow Taxi with Sloped Windshield & Clearcoat)
 // 3. Cyclist (Sculpted Road Cyclist with Drop-Bar Frame & Aero Helmet)
 // 4. Cargo Bike (front-loader frame with an upright rider)
-// 5. Helicopter (Manhattan Sightseeing Twin-Turbine Chopper)
+// 5. Helicopter (Rega rescue helicopter, Airbus H145 D3)
 // 6. Pistenfahrzeug (snow groomer: tracks, front blade, rear tiller; tank steering, climbs off-road up to ~45°)
 
 // Spawn on 5th Ave at 37th St, facing south down the avenue toward the Empire State Building (34th St)
@@ -1563,7 +1563,7 @@ class ThirdPersonControllerManager {
   }
 
   // =========================================================================
-  // 5. HELICOPTER (3D LOFTED MANHATTAN SIGHTSEEING TWIN-TURBINE CHOPPER)
+  // 5. HELICOPTER: Rega's Airbus H145 D3 (five-bladed rotor, Fenestron, skids, rescue winch; lofted body from the upstream chopper)
   // =========================================================================
   createHelicopterEntity() {
     const root = new THREE.Group();
@@ -1600,37 +1600,64 @@ class ThirdPersonControllerManager {
     mainRotorPivot.add(blurDisc);
     tiltPivot.add(mainRotorPivot);
 
-    // 3. 4-Blade Tail Rotor Assembly on Swept Vertical Fin
+    // 3. Fenestron: the ten-bladed fan spins inside a shroud set into the fin
     const tailRotorPivot = new THREE.Group();
-    tailRotorPivot.position.set(0.18, 2.02, -5.62);
+    tailRotorPivot.position.set(0, 2.02, -5.62);
     const tailRotorGeo = buildHelicopterTailRotorGeometry();
     const tailRotorMesh = new THREE.Mesh(tailRotorGeo, heliLoftMat);
     tailRotorPivot.add(tailRotorMesh);
     tiltPivot.add(tailRotorPivot);
+    const regaRed = new THREE.MeshStandardNodeMaterial({ color: 0xd2101c, roughness: 0.3, metalness: 0.05, side: THREE.DoubleSide });
+    const darkMetal = new THREE.MeshStandardNodeMaterial({ color: 0x2a2e33, roughness: 0.45, metalness: 0.6 });
+    const shroud = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.11, 10, 28).rotateY(Math.PI * 0.5), regaRed);
+    shroud.position.copy(tailRotorPivot.position);
+    const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.24, 28, 1, true).rotateZ(Math.PI * 0.5), darkMetal);
+    duct.position.copy(tailRotorPivot.position);
+    tiltPivot.add(shroud, duct);
 
-    // 4. FAA Port (Red), Starboard (Green) & Anti-Collision Fin Beacon (Red) Navigation Strobes
-    const navRed = new THREE.Mesh(
-      new THREE.SphereGeometry(0.036, 8, 8),
-      new THREE.MeshBasicNodeMaterial({ color: 0xff2b2b })
+    // 4. Rescue winch above the starboard (right, -x) cabin door, the hook hanging under its arm
+    const winch = new THREE.Group();
+    const winchArm = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, 0.16).translate(-0.31, 0, 0), darkMetal);
+    const winchDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.34, 12).rotateX(Math.PI * 0.5), darkMetal);
+    winchDrum.position.set(-0.58, -0.06, 0);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 4).translate(0, -0.16, 0), darkMetal);
+    cable.position.set(-0.58, -0.17, 0);
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 10, Math.PI * 1.4), darkMetal);
+    hook.position.set(-0.58, -0.52, 0);
+    winch.add(winchArm, winchDrum, cable, hook);
+    winch.position.set(-0.78, 1.86, 0.55);
+    tiltPivot.add(winch);
+
+    // 5. Searchlight under the nose (lit)
+    const searchlight = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.1, 0.12, 14),
+      new THREE.MeshStandardNodeMaterial({ color: 0x22262b, emissive: 0xfff4dc, emissiveIntensity: 2.2, roughness: 0.3 })
     );
-    navRed.position.set(-1.09, 1.54, -4.35);
-    const navGreen = new THREE.Mesh(
-      new THREE.SphereGeometry(0.036, 8, 8),
-      new THREE.MeshBasicNodeMaterial({ color: 0x22ff66 })
-    );
-    navGreen.position.set(1.09, 1.54, -4.35);
-    const navTail = new THREE.Mesh(
-      new THREE.SphereGeometry(0.042, 8, 8),
-      new THREE.MeshBasicNodeMaterial({ color: 0xff3b2b })
-    );
-    navTail.position.set(0, 2.84, -6.04);
-    tiltPivot.add(navRed, navGreen, navTail);
+    searchlight.rotation.x = 0.5;
+    searchlight.position.set(-0.28, 0.6, 2.05);
+    tiltPivot.add(searchlight);
+
+    // 6. Navigation lights: red to port (left, +x), green to starboard (right, -x), white at the tail; white strobes
+    const navRed = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0xff2b2b }));
+    navRed.position.set(1.09, 1.54, -4.35);
+    const navGreen = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0x22ff66 }));
+    navGreen.position.set(-1.09, 1.54, -4.35);
+    const navTail = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0xffffff }));
+    navTail.position.set(0, 1.62, -6.0);
+    const strobeMat = new THREE.MeshBasicNodeMaterial({ color: 0xffffff });
+    const strobes = [[0, 2.98, -6.0], [0, 0.42, -0.4]].map(([x, y, z]) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), strobeMat);
+      m.position.set(x, y, z);
+      return m;
+    });
+    tiltPivot.add(navRed, navGreen, navTail, ...strobes);
 
     this.scene.add(root);
 
     return {
       type: 'helicopter',
-      label: 'Sightseeing Helicopter',
+      label: 'Rega',
+      strobes,
       mesh: root,
       tiltPivot,
       mainRotorPivot,
@@ -1959,6 +1986,8 @@ class ThirdPersonControllerManager {
     const heli = this.entities.helicopter;
     heli.mainRotorPivot.rotation.y += dt * 24.0;
     heli.tailRotorPivot.rotation.x += dt * 32.0;
+    // Anti-collision strobes: a double flash every 1.2 s
+    if (heli.strobes) { const t = (elapsed ?? performance.now() / 1000) % 1.2; const on = t < 0.05 || (t > 0.12 && t < 0.17); for (const m of heli.strobes) m.visible = on; }
 
     if (this.activeMode === 'person') {
       this.updatePerson(dt, elapsed);

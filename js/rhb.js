@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { float, mix, normalGeometry, positionGeometry, smoothstep, step, vec3 } from 'three/tsl';
+import { attribute, float, fract, mix, normalGeometry, positionGeometry, smoothstep, step, texture, vec2, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { surfaceHeight, groundHeight, deckHeight } from './terrain.js';
@@ -13,88 +13,201 @@ import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './ve
 // only when no other train holds it, so opposing trains wait for each other and cross on the loops, each on its own
 // track. Beyond the map's edge a train turns back after a while. Every car is a solid body: the player bounces off it,
 // and the traffic (traffic.js) brakes behind it. (No freely licensed model of the real units exists: the cars are built
-// here from an extruded body profile, the end cars with a raked nose.)
+// here in code, see Rolling stock.)
 // The player can take over one train (the "RhB" mode, takeOver): no steering, bound to the rails, the throttle and the
 // brake are the player's, but the train protection is not: it reserves the next block in good time and, when it cannot,
 // brakes the train to a stop at the passing loop until the opposing train is through. At the edge of the map the driver
 // changes ends and the train goes back.
 
-const END = 19.6, MID = 18.4, GAP = 0.5;
-// The cars from the front: an end car, two intermediate cars (pantograph on the first), the other end car turned round
-const CARS = [{ len: END, end: true, flip: false }, { len: MID, end: false }, { len: MID, end: false }, { len: END, end: true, flip: true }];
+const END = 19.2, MID = 17.9, GAP = 0.5; // 74.9 m over the couplers, like the ABe 4/16
+// The cars from the front: the powered end car (Bo'Bo', the pantograph behind its cab), two trailers (2'2'), the other
+// end car turned round; every car runs on its own two bogies
+const CARS = [{ len: END, end: true, lead: true }, { len: MID, end: false }, { len: MID, end: false }, { len: END, end: true, flip: true }];
 const WIDTH = 2.65, HALF_WIDTH = WIDTH / 2, MASS = 4e4;
 const MAX_SPEED = 16.7, ACCEL = 0.55, BRAKE = 0.7, DWELL = [35, 55], TURN = [60, 120]; // 60 km/h; seconds
 const TRAIN_LENGTH = CARS.reduce((a, c) => a + c.len + GAP, 0);
 const TRAINS = 2;
+// Destinations on the front displays: southbound towards Filisur, northbound towards Landquart
+const DESTINATIONS = ['Filisur', 'Landquart'];
 
 // --- Rolling stock -----------------------------------------------------------------------------------------------------------
-// A car body along +z (centred), floor 0.42 m and roof 3.72 m above the rails: the cross-section is extruded, with
-// slightly sloping sides under the roof's shoulders. An end car's front (+z) is raked back and narrowed over 3.4 m into
-// the nose; an intermediate car may carry a pantograph.
-function carGeometry(length, { nose = false, pantograph = false } = {}) {
-  const profile = [[-1.2, 0.42], [1.2, 0.42], [HALF_WIDTH, 0.78], [HALF_WIDTH, 2.95], [1.17, 3.5], [0.7, 3.72], [-0.7, 3.72], [-1.17, 3.5], [-HALF_WIDTH, 2.95], [-HALF_WIDTH, 0.78]];
-  const shape = new THREE.Shape();
-  shape.moveTo(...profile[0]);
-  for (const p of profile.slice(1)) shape.lineTo(...p);
-  shape.closePath();
-  let g = new THREE.ExtrudeGeometry(shape, { depth: length, steps: Math.ceil(length / 0.7), bevelEnabled: false });
-  g.clearGroups();
-  g.translate(0, 0, -length / 2);
-  if (nose) {
-    const pos = g.attributes.position, N = 3.4;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      const u = Math.min(1, Math.max(0, (z - (length / 2 - N)) / N)), t = u * u * (3 - 2 * u);
-      if (t <= 0) continue;
-      const up = Math.max(0, y - 1.1);
-      pos.setXYZ(i, x * (1 - 0.1 * t * (up / 2.6)), y - 0.3 * t * t * up, z - 1.35 * t * (up / 2.6));
-    }
-  }
-  g.computeVertexNormals();
-  if (pantograph) {
-    // Base frame, arms and the collector bow, raised against the contact wire (CONTACT_WIRE above the rails)
-    const parts = [[1.6, 0.18, 2.2, 0, 3.82, 0], [0.08, 0.08, 2.0, -0.5, 4.25, 0.2], [0.08, 0.08, 2.0, 0.5, 4.25, 0.2], [1.9, 0.06, 0.12, 0, 4.72, 0.9]];
-    const boxes = parts.map(([w, h, d, x, y, z], k) => {
-      const b = new THREE.BoxGeometry(w, h, d);
-      if (k === 1 || k === 2) b.rotateX(-0.45);
-      b.translate(x, y, z - length / 4);
-      return b.toNonIndexed();
-    });
-    g = mergeGeometries([g.index ? g.toNonIndexed() : g, ...boxes], false);
-  }
+// After the Stadler ABe 4/16 "Capricorn" (RhB, 2019-): built here in code, as no freely licensed model of it exists.
+// One geometry per car type, merged from parts tagged by `aPart` for the material: 0 the body, 1 bogies, skirts and
+// underframe gear, 2 the gangway bellows, 3 roof gear and the pantograph, 4 the wheels.
+// The body runs along +z (centred), from 0.45 m above the rails to the 3.76 m roof: a rounded cross-section extruded
+// over the car's length. An end car's front (+z) curves in plan to the nose and its windscreen is raked back and wraps
+// round the corners.
+const PROFILE = [[-1.18, 0.45], [1.18, 0.45], [1.31, 0.68], [1.325, 1.0], [1.325, 2.86], [1.3, 3.06], [1.22, 3.32], [1.05, 3.55],
+  [0.76, 3.7], [0.3, 3.76], [-0.3, 3.76], [-0.76, 3.7], [-1.05, 3.55], [-1.22, 3.32], [-1.3, 3.06], [-1.325, 2.86], [-1.325, 1.0], [-1.31, 0.68]];
+const NOSE = 3.2;
+
+function tagged(geometry, part) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (!g.attributes.normal) g.computeVertexNormals();
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(part), 1));
   return g;
 }
+const boxAt = (w, h, d, x, y, z, part) => tagged(new THREE.BoxGeometry(w, h, d).translate(x, y, z), part);
 
-// RhB livery: carmine body, a black glazed band with the door leaves set in it, a dark underframe skirt, a grey roof and
-// roof gear, a black raked windscreen and white headlights on the nose (colours in linear space)
-function createCarMaterial(length, nose) {
+function carGeometry(length, { nose = false, pantograph = false } = {}) {
+  const half = length / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(...PROFILE[0]);
+  for (const p of PROFILE.slice(1)) shape.lineTo(...p);
+  shape.closePath();
+  let body = new THREE.ExtrudeGeometry(shape, { depth: length, steps: Math.ceil(length / 0.5), bevelEnabled: false });
+  body.clearGroups();
+  body.translate(0, 0, -half);
+  if (nose) {
+    const pos = body.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const u = Math.min(1, Math.max(0, (z - (half - NOSE)) / NOSE)), t = u * u * (3 - 2 * u);
+      if (t <= 0) continue;
+      const up = Math.min(1, Math.max(0, (y - 1.2) / 2.56));
+      // Rounded in plan towards the front, the windscreen raked back, the roof's leading edge drawn down
+      const nx = x * (1 - 0.2 * Math.pow(t, 2.2) * (0.4 + 0.6 * up));
+      const nz = z - t * Math.pow(up, 1.25) * 1.75 + t * (1 - up) * 0.12;
+      const ny = y - t * t * Math.max(0, y - 3.0) * 0.55;
+      pos.setXYZ(i, nx, ny, nz);
+    }
+  }
+  body.computeVertexNormals();
+  const parts = [tagged(body, 0)];
+  // Bogies (side frames, springs) and wheel sets, 2.4 m in from each end
+  for (const bz of [half - 2.6, -(half - 2.6)]) {
+    for (const sx of [-1, 1]) parts.push(boxAt(0.22, 0.42, 2.5, sx * 0.88, 0.5, bz, 1));
+    parts.push(boxAt(1.9, 0.2, 0.9, 0, 0.62, bz, 1));
+    for (const wz of [-0.9, 0.9]) {
+      for (const sx of [-1, 1]) {
+        const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.12, 14).rotateZ(Math.PI / 2).translate(sx * 0.56, 0.34, bz + wz);
+        parts.push(tagged(wheel, 4));
+      }
+    }
+  }
+  // Underframe gear between the bogies (converters, tanks), set back from the side
+  parts.push(boxAt(2.1, 0.32, length - 8.6, 0, 0.52, 0, 1));
+  // Gangway bellows at the inner ends, reaching to meet the next car's
+  for (const [zs, inner] of [[1, !nose], [-1, true]]) {
+    if (!inner) continue;
+    const bellows = boxAt(2.05, 2.75, GAP / 2 + 0.08, 0, 0.55 + 2.75 / 2, zs * (half + GAP / 4 - 0.04), 2);
+    parts.push(bellows);
+  }
+  // Roof: the air-conditioning fairings, and on the powered car the pantograph behind the cab
+  parts.push(tagged(new THREE.BoxGeometry(1.5, 0.26, length * 0.42, 1, 1, 1).translate(0, 3.86, nose ? -half * 0.35 : 0), 3));
+  if (nose) parts.push(boxAt(1.2, 0.2, 2.2, 0, 3.84, half - NOSE - 2.4, 3)); // the cab's own unit
+  if (pantograph) {
+    const z0 = half - NOSE - 6.2;
+    parts.push(boxAt(1.7, 0.16, 2.4, 0, 3.86, z0, 3)); // base frame on its insulators
+    for (const sx of [-0.45, 0.45]) {
+      parts.push(tagged(new THREE.BoxGeometry(0.07, 0.07, 1.6).rotateX(-0.62).translate(sx, 4.28, z0 + 0.2), 3)); // lower arms
+      parts.push(tagged(new THREE.BoxGeometry(0.05, 0.05, 1.3).rotateX(0.55).translate(sx * 0.6, 4.63, z0 - 0.05), 3)); // upper arms
+    }
+    parts.push(boxAt(1.9, 0.06, 0.14, 0, 4.82, z0 - 0.45, 3)); // the collector bow against the contact wire
+  }
+  // The coupler and the snow plough under the nose
+  if (nose) parts.push(boxAt(2.3, 0.4, 0.5, 0, 0.3, half - 0.1, 1));
+  return mergeGeometries(parts, false);
+}
+
+// The front display: the destinations, orange LED text on black, one per row
+function destinationTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = '#ffb21e'; ctx.font = 'bold 44px Arial, Helvetica, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  DESTINATIONS.forEach((d, i) => ctx.fillText(d, 256, 32 + i * 64));
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// The "RhB" lettering on the sides (white on transparent)
+function letteringTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 96;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold italic 72px Arial, Helvetica, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('RhB', 128, 52);
+  return new THREE.CanvasTexture(c);
+}
+
+// RhB livery as on the Capricorn: carmine body, a continuous black glazed band with the panoramic windows' frames, the
+// door leaves set in it with their tall windows and push buttons, a dark grey underframe and skirt, a grey roof; the
+// nose in a black mask round the wrap-around windscreen, the destination display above it, three headlights (two low,
+// one high) and the red tail lights. `lead`: this end car leads (headlights) or trails (tail lights).
+function createCarMaterial(length, { nose = false, lead = false, dest = null, lettering = null } = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.38, metalness: 0.2 });
   const x = positionGeometry.x, y = positionGeometry.y, z = positionGeometry.z;
-  const side = step(0.6, normalGeometry.x.abs()), front = step(0.35, normalGeometry.z);
+  const part = attribute('aPart', 'float');
+  const isBody = step(part, 0.5);
+  const side = step(0.6, normalGeometry.x.abs()), front = step(0.25, normalGeometry.z).mul(nose ? 1 : 0);
   const half = length / 2;
-  const band = smoothstep(1.5, 1.55, y).mul(smoothstep(2.78, 2.73, y));
-  // Door leaves: two per side, a quarter in from each end; their glazing reaches lower than the windows
-  const doorAt = z.abs().sub(half - 3.6).abs();
-  const door = smoothstep(0.72, 0.68, doorAt).mul(side).mul(step(y, 2.9));
-  const doorGlass = door.mul(smoothstep(1.05, 1.1, y)).mul(smoothstep(2.62, 2.57, y)).mul(smoothstep(0.5, 0.45, doorAt));
-  const ends = smoothstep(half - 0.5, half - 0.6, z.abs());
+  const noseZone = nose ? smoothstep(half - NOSE - 0.2, half - NOSE + 0.3, z) : float(0);
+  // Side glazing: a band from 1.45 to 2.78 m, cut into panoramic panes by slim frames every 1.9 m
+  const band = smoothstep(1.45, 1.5, y).mul(smoothstep(2.78, 2.73, y));
+  const pane = fract(z.div(1.9).add(0.5));
+  const mullion = smoothstep(0.035, 0.0, pane.min(float(1).sub(pane))).mul(band); // ~7 cm frames between the panes
+  // Door leaves: two per side (end cars: near the inner end and behind the cab; trailers: a quarter in from each end)
+  const doorCentres = nose ? [-(half - 3.3), half - NOSE - 3.4] : [-(half - 3.2), half - 3.2];
+  let doorAt = z.sub(doorCentres[0]).abs();
+  doorAt = doorAt.min(z.sub(doorCentres[1]).abs());
+  const door = smoothstep(0.72, 0.68, doorAt).mul(side).mul(step(y, 2.95)).mul(step(0.5, y));
+  const doorSeam = smoothstep(0.02, 0.0, doorAt.sub(0.7).abs()).max(smoothstep(0.015, 0.0, doorAt)).mul(door);
+  const doorGlass = door.mul(smoothstep(1.0, 1.05, y)).mul(smoothstep(2.65, 2.6, y)).mul(smoothstep(0.6, 0.55, doorAt)).mul(smoothstep(0.03, 0.06, doorAt));
+  const button = side.mul(smoothstep(0.08, 0.05, doorAt.sub(0.9).abs())).mul(smoothstep(1.2, 1.25, y)).mul(smoothstep(1.45, 1.4, y));
+  const ends = smoothstep(half - 0.5, half - 0.65, z.abs());
   let glass = band.mul(side).mul(ends).max(doorGlass);
-  let lights = float(0);
+  // The nose: black mask, windscreen wrapping round the corners, display, lights
+  let mask = float(0), lights = float(0), tail = float(0), display = float(0);
   if (nose) {
-    glass = glass.max(front.mul(smoothstep(1.75, 1.8, y)).mul(step(half - 3.0, z))); // the raked windscreen
-    lights = front.mul(smoothstep(0.32, 0.28, x.abs().sub(0.85).abs())).mul(smoothstep(0.95, 1.0, y)).mul(smoothstep(1.25, 1.2, y));
+    const faceUp = smoothstep(1.0, 1.08, y).mul(smoothstep(3.55, 3.45, y));
+    mask = front.max(noseZone.mul(side).mul(smoothstep(half - 1.6, half - 1.0, z))).mul(faceUp);
+    const screen = smoothstep(1.7, 1.78, y).mul(smoothstep(2.92, 2.86, y));
+    glass = glass.max(mask.mul(screen)).max(noseZone.mul(side).mul(band).mul(smoothstep(half - 2.6, half - 2.2, z)));
+    display = front.mul(smoothstep(2.96, 3.0, y)).mul(smoothstep(3.2, 3.16, y)).mul(smoothstep(0.62, 0.58, x.abs()));
+    const lamp = (cx, cy, r) => front.mul(smoothstep(r, r * 0.6, vec2(x.sub(cx), y.sub(cy)).length()));
+    const head = lamp(0.78, 1.28, 0.13).max(lamp(-0.78, 1.28, 0.13)).max(lamp(0, 3.29, 0.08));
+    const red = lamp(1.04, 1.28, 0.07).max(lamp(-1.04, 1.28, 0.07));
+    lights = lead ? head : float(0);
+    tail = lead ? float(0) : red;
+    mask = mask.max(head).max(red);
   }
-  const skirt = smoothstep(0.82, 0.78, y);
-  const roof = step(0.6, normalGeometry.y).max(step(3.75, y));
-  const red = vec3(0.45, 0.01, 0.016), black = vec3(0.012, 0.014, 0.018);
-  let body = mix(red, red.mul(0.82), door.mul(0.6)); // the door leaves' seams darken them a little
-  body = mix(body, black, glass);
-  body = mix(body, vec3(0.04, 0.04, 0.045), skirt);
-  body = mix(body, vec3(0.28, 0.29, 0.3), roof);
-  m.colorNode = mix(body, vec3(1, 0.97, 0.9), lights);
-  m.emissiveNode = vec3(1, 0.95, 0.85).mul(lights).mul(2);
-  m.roughnessNode = mix(float(0.36), float(0.06), glass);
-  m.metalnessNode = mix(float(0.2), float(0.7), glass.max(roof.mul(0.5)));
+  const skirt = smoothstep(0.78, 0.72, y);
+  const roof = step(0.55, normalGeometry.y).mul(step(3.3, y));
+  const red = vec3(0.47, 0.012, 0.018), black = vec3(0.012, 0.013, 0.016), grey = vec3(0.2, 0.205, 0.21);
+  let body = mix(red, red.mul(0.85), door.mul(0.5));
+  body = mix(body, red.mul(0.55), doorSeam);
+  body = mix(body, black, mask.mul(0.92));
+  body = mix(body, vec3(0.012, 0.016, 0.022), glass);
+  body = mix(body, vec3(0.08, 0.085, 0.09), mullion.mul(side));
+  body = mix(body, vec3(0.75, 0.6, 0.1), button);
+  body = mix(body, vec3(0.05, 0.05, 0.055), skirt);
+  body = mix(body, vec3(0.32, 0.33, 0.34), roof);
+  if (lettering) {
+    // "RhB" on the sides, below the windows by the cab (end cars) or mid-car (trailers)
+    const lx = nose ? half - NOSE - 5.0 : 0;
+    // (read left to right from either side: along -z on the right-hand side, +z on the left)
+    const lu = z.sub(lx).div(2.4).mul(normalGeometry.x.sign().negate()).add(0.5), lv = y.sub(0.98).div(0.4);
+    const inBox = side.mul(step(0, lu)).mul(step(lu, 1)).mul(step(0, lv)).mul(step(lv, 1));
+    body = mix(body, vec3(0.9, 0.9, 0.9), texture(lettering, vec2(lu, lv)).a.mul(inBox));
+  }
+  if (dest) {
+    const du = x.div(1.2).add(0.5), dv = y.sub(2.98).div(0.22).mul(0.5).add(float(1).sub(attribute('aDest', 'float')).mul(0.5));
+    body = mix(body, texture(dest, vec2(du, dv)).rgb, display);
+  }
+  // Parts: bogies and gear dark grey, bellows black with pleats, roof gear grey, wheels steel
+  const pleat = smoothstep(0.3, 0.5, fract(y.mul(9)).sub(0.5).abs());
+  let colour = mix(body, grey.mul(0.5), step(0.5, part).mul(step(part, 1.5)));
+  colour = mix(colour, vec3(0.02, 0.02, 0.022).mul(pleat.mul(0.6).add(0.6)), step(1.5, part).mul(step(part, 2.5)));
+  colour = mix(colour, vec3(0.36, 0.37, 0.38), step(2.5, part).mul(step(part, 3.5)));
+  colour = mix(colour, vec3(0.28, 0.27, 0.26), step(3.5, part));
+  m.colorNode = mix(mix(colour, vec3(1, 0.97, 0.9), lights.mul(isBody)), vec3(0.9, 0.05, 0.03), tail.mul(isBody));
+  m.emissiveNode = vec3(1, 0.95, 0.85).mul(lights).mul(3).add(vec3(1, 0.05, 0.02).mul(tail).mul(2))
+    .add(dest ? texture(dest, vec2(x.div(1.2).add(0.5), y.sub(2.98).div(0.22).mul(0.5).add(float(1).sub(attribute('aDest', 'float')).mul(0.5)))).rgb.mul(display).mul(1.5) : vec3(0)).mul(isBody);
+  m.roughnessNode = mix(mix(float(0.34), float(0.05), glass.mul(isBody)), float(0.6), step(0.5, part).mul(step(part, 2.5)));
+  m.metalnessNode = mix(float(0.2), float(0.75), glass.mul(isBody).max(step(3.5, part)));
   return m;
 }
 
@@ -215,11 +328,18 @@ export function buildRhB(scene) {
     dir: i % 2 ? 'north' : 'south', s: -40, speed: 0, dwell: 0, off: 10 + i * 240, served: -Infinity, block: -1
   }));
 
-  // Instances: the end cars (two per train, the rear one turned round) and the intermediate cars (one with a pantograph)
+  // Instances: the leading end cars (powered, with the pantograph), the trailing end cars (turned round) and the
+  // trailers; the end cars' front display shows the train's destination (aDest, per instance: 0 Filisur, 1 Landquart)
+  const dest = destinationTexture(), lettering = letteringTexture();
+  const endGeometry = (pantograph) => {
+    const g = carGeometry(END, { nose: true, pantograph });
+    g.setAttribute('aDest', new THREE.InstancedBufferAttribute(new Float32Array(TRAINS), 1));
+    return g;
+  };
   const meshes = {
-    end: new THREE.InstancedMesh(carGeometry(END, { nose: true }), createCarMaterial(END, true), TRAINS * 2),
-    pan: new THREE.InstancedMesh(carGeometry(MID, { pantograph: true }), createCarMaterial(MID, false), TRAINS),
-    mid: new THREE.InstancedMesh(carGeometry(MID), createCarMaterial(MID, false), TRAINS)
+    lead: new THREE.InstancedMesh(endGeometry(true), createCarMaterial(END, { nose: true, lead: true, dest, lettering }), TRAINS),
+    trail: new THREE.InstancedMesh(endGeometry(false), createCarMaterial(END, { nose: true, lead: false, dest, lettering }), TRAINS),
+    mid: new THREE.InstancedMesh(carGeometry(MID), createCarMaterial(MID, { lettering }), TRAINS * 2)
   };
   for (const mesh of Object.values(meshes)) {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -397,7 +517,8 @@ export function buildRhB(scene) {
         const len = car.len, body = bodies[k++];
         const s0 = t.s - offset, s1 = s0 - len;
         offset += len + GAP;
-        const [mesh, index] = car.end ? [meshes.end, i * 2 + (c ? 1 : 0)] : c === 1 ? [meshes.pan, i] : [meshes.mid, i];
+        const [mesh, index] = car.end ? [car.lead ? meshes.lead : meshes.trail, i] : [meshes.mid, i * 2 + (c - 1)];
+        if (car.end) mesh.geometry.attributes.aDest.array[i] = t.dir === 'south' ? 0 : 1;
         const visible = t.off <= 0 && s1 > 0 && s0 < route.len;
         routePoint(route, s0, a); routePoint(route, s1, b);
         if (!visible || (a.tunnel && b.tunnel) || !line.inside((a.x + b.x) / 2, (a.z + b.z) / 2)) {
@@ -417,6 +538,7 @@ export function buildRhB(scene) {
       });
     });
     for (const mesh of Object.values(meshes)) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [meshes.lead, meshes.trail]) mesh.geometry.attributes.aDest.needsUpdate = true;
   }
   // Seven minutes of service before the start, so that both trains are already out on the line
   for (let i = 0; i < 4200; i++) step(0.1, null);

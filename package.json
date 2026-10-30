@@ -11,12 +11,16 @@
     "data:decks": "node tools/fetch-bridge-decks.mjs",
     "data:geo": "node tools/build-davos-geodata.mjs",
     "data:surroundings": "node tools/build-davos-surroundings.mjs",
-    "data": "npm run data:osm && npm run data:areas && npm run data:terrain && npm run data:decks && npm run data:geo && npm run data:surroundings && npm run data:swissimage && npm run data:roofs",
+    "data": "npm run data:osm && npm run data:areas && npm run data:terrain && npm run data:decks && npm run data:geo && npm run data:surroundings && npm run data:swissimage && npm run data:roofs && npm run data:bergbahnen",
     "update:buildings": "node tools/update-swissbuildings3d.mjs",
     "serve": "python3 tools/serve.py 8765",
     "test": "node --test tests/*.cjs tests/*.mjs",
     "data:swissimage": "node tools/fetch-swissimage.mjs",
-    "data:roofs": "node tools/build-roof-atlases.mjs"
+    "data:roofs": "node tools/build-roof-atlases.mjs",
+    "data:vbd": "node tools/fetch-vbd.mjs",
+    "data:shops": "node tools/fetch-shops.mjs",
+    "data:hires": "node tools/fetch-swissimage.mjs --hires && node tools/build-roof-atlases.mjs --hires",
+    "data:bergbahnen": "node tools/fetch-bergbahnen.mjs"
   },
   "devDependencies": {
     "geotiff": "^2.1.3"
