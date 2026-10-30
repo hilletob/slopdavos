@@ -64,6 +64,7 @@ import {
 import { GEO } from './nyc-geodata.js';
 import { LANDMARK_EXCLUSIONS, BERGHAIN_TREE_SITES } from './landmarks.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, berlinStrip, berlinRoadSegments, berlinGeometryGroups } from './berlin-geometry.js';
+import { freezeWater, snowyStreet } from './season.js';
 import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear } from './terrain.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
@@ -78,13 +79,14 @@ let berlinStreetSites = [];
 function buildBerlinCityGrid(scene) {
   const group = new THREE.Group();
   group.name = 'BerlinMitteCityGrid';
-  const roadMat = createRoadSurfaceMaterial();
-  const sidewalkMat = createSidewalkMaterial();
-  const curbMat = createCurbMaterial();
-  const waterMat = createWaterMaterial();
+  // In winter (season.js) the streets lie under packed snow and slush, the lakes freeze over
+  const roadMat = snowyStreet(createRoadSurfaceMaterial(), { cover: 0.7 });
+  const sidewalkMat = snowyStreet(createSidewalkMaterial(), { cover: 0.9 });
+  const curbMat = snowyStreet(createCurbMaterial(), { cover: 0.95, top: true });
+  const waterMat = freezeWater(createWaterMaterial());
   const lawnMat = createParkLawnMaterial(false);
-  const pavingMat = createParkPavingMaterial();
-  const paintMat = createRoadPaintMaterial();
+  const pavingMat = snowyStreet(createParkPavingMaterial(), { cover: 0.9 });
+  const paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true });
   const collections = new Map();
   // Everything is built flat (small y offsets above y = 0) and laid on the terrain before merging: ground layers are
   // draped, solids displaced; geometry of a bridge follows its deck; `absolute` geometry is already in world heights.
@@ -138,6 +140,8 @@ function buildBerlinCityGrid(scene) {
     if (!park.ring || park.ring.length < 6) continue;
     const ring = berlinPoints(park.ring), holes = (park.holes || []).map(berlinPoints);
     const paved = ['square', 'pedestrian', 'plaza'].includes(park.kind);
+    // Meadows, woods and lawns are in the orthophoto draped on the terrain (swissimage.js); only plazas are paved over
+    if (!paved) continue;
     const geometry = berlinPolygonGeometry(ring, holes, paved ? 0.055 : 0.045);
     if (paved) setPavingStyle(geometry, 2);
     collect(geometry, paved ? pavingMat : lawnMat);
@@ -446,13 +450,15 @@ function buildBerlinCityGrid(scene) {
         if (LANDMARK_EXCLUSIONS.some(b => x > b.minX - 4 && x < b.maxX + 4 && z > b.minZ - 4 && z < b.maxZ + 4)) continue;
         if (nearestRoads(x, z, 20).some(q => q.dist < q.road.w / 2 + 3)) continue;
         const block = blockAt(x, z); if (block && !block.park && !block.sidewalk) continue;
-        const h = hash(gx, gz, 3), tree = { x, z, y: 0.09, scale: 0.7 + h * 0.5, species: h < 0.5 ? 0 : h < 0.8 ? 1 : 2, yaw: h * Math.PI * 2 };
+        // Davos's woods: spruce, with larch scattered through them (trees.js species 3 & 4)
+        const h = hash(gx, gz, 3), tree = { x, z, y: 0.09, scale: 0.7 + h * 0.5, species: hash(gx, gz, 5) < 0.82 ? 3 : 4, yaw: h * Math.PI * 2 };
         parkTreeSites.push(tree); indexTree(tree);
       }
     }
   }
   const depths = carveDepths(carveStrips);
-  for (const mesh of buildTerrainMeshes(sidewalkMat, { depths, carve: (x, z) => (waterAt(x, z) ? 2.5 : 0) })) {
+  const terrainMeshes = buildTerrainMeshes(sidewalkMat, { depths, carve: (x, z) => (waterAt(x, z) ? 2.5 : 0) });
+  for (const mesh of terrainMeshes) {
     mesh.userData.sharesPipelineWith = group.children[0];
     group.add(mesh);
   }
@@ -489,7 +495,7 @@ function buildBerlinCityGrid(scene) {
   group.userData = { terrain: 'absolute', city: BERLIN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets, mappedTrees: mappedTreeCount, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
     clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, junctionClippedCurbs: true, junctionClippedSidewalks: true };
   scene.add(group);
-  return { group, sidewalks, footprints, highwayLanes: [], colliders };
+  return { group, sidewalks, footprints, highwayLanes: [], colliders, terrainMeshes };
 }
 
 // js/city-grid.js

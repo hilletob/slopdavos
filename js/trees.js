@@ -1,10 +1,15 @@
 import * as THREE from 'three/webgpu';
+import { vec4 } from 'three/tsl';
 import { createTreeMaterial } from './tsl-materials.js';
+import { snowyRoof } from './season.js';
+import { surfaceHeight } from './terrain.js';
 
 // js/trees.js
-// Procedural NYC street & park trees, planted by street-details.js (section 7):
-// - London plane, honey locust & American elm grown from seeded per-species rules: a flared trunk / leader carrying
-//   scaffold limbs, branches and twigs as tapered, curving bark tubes (uv in metres for the bark shader)
+// Procedural street, park & forest trees, planted by street-details.js (section 7) and city-grid.js (the woods):
+// - Norway spruce & European larch (most of Davos's trees: the valley's spruce-larch forest), and for a minority of
+//   town trees London plane, honey locust & American elm, grown from seeded per-species rules: a flared trunk /
+//   leader carrying scaffold limbs (on the conifers whorls of near-horizontal limbs shortening up the leader into a
+//   narrow cone), branches and twigs as tapered, curving bark tubes (uv in metres for the bark shader)
 // - Leaf sprays on alpha-tested cards hung from the twigs, cut from a generated leaf atlas (palmate plane leaves,
 //   feathery locust fronds, toothed elm leaves and a dense far-canopy clump) whose mipmaps keep their coverage, so
 //   distant crowns don't thin out
@@ -34,15 +39,19 @@ const smooth = (e0, e1, x) => {
 };
 
 // =====================================================================================================================
-// 1. LEAF ATLAS: 2x2 tiles of leaf sprays drawn in metres and fitted to their tile (tileMeters = the card's world size)
+// 1. LEAF ATLAS: 3x3 tiles of leaf sprays drawn in metres and fitted to their tile (tileMeters = the card's world size)
 //    0 London plane · 1 honey locust · 2 American elm · 3 dense far-canopy clump (whole-crown cards of the far level)
+//    4 spruce shoot (dense needles, side shoots) · 5 larch twig (tufts of soft needles) · 6 whole conifer silhouette
+//    (tiered cone: the crossed cards of a distant spruce or larch)
 //    Texels: r = leaf brightness, g = per-leaf hue jitter, b = twig / stalk mask, a = coverage
 // =====================================================================================================================
-const ATLAS_SIZE = 1024;
-const TILE = ATLAS_SIZE / 2;
+const TILES = 3;
+const ATLAS_SIZE = 1536; // 3 x 512: every mip level down to 3 px still splits evenly into the tiles
+const TILE = ATLAS_SIZE / TILES;
 const GUTTER = 8; // px kept clear round every tile, so mip levels don't bleed between tiles
 const TILE_FAR = 3;
-const tileOrigin = (k) => [(k % 2) * TILE, (k >> 1) * TILE];
+const TILE_CONIFER_FAR = 6;
+const tileOrigin = (k) => [(k % TILES) * TILE, Math.floor(k / TILES) * TILE];
 
 // Spray primitives in metres (x right, y up from the card's attachment point): twigs (polylines) & leaves
 function buildSprays(rng) {
@@ -159,6 +168,73 @@ function buildSprays(rng) {
     }
     sprays.push(prims);
   }
+
+  // Needles in two ranks along a shoot, swept forward (stiff spruce needles or soft larch ones)
+  const needles = (prims, pts, from, spacing, len, angle, t0) => {
+    for (let t = from; t <= 1; t += spacing) {
+      const { p, a } = at(pts, t);
+      // the needle mass itself (solid enough for the alpha test at any distance), then the needles at its edges
+      prims.push({ type: 'oval', p, a: a + R(-0.5, 0.5), len: len * 1.9, wid: 0.62, t: Math.min(1, t0 + t * 0.4) * 0.85 });
+      for (const sd of [-1, 1]) {
+        const na = a + sd * (angle + R(-0.18, 0.18));
+        const l = len * R(0.8, 1.15) * (1 - t * 0.25);
+        prims.push({ type: 'needle', a: p, b: [p[0] + Math.sin(na) * l, p[1] + Math.cos(na) * l], w: 0.0042, t: Math.min(1, t0 + t * 0.4) });
+      }
+    }
+  };
+
+  // 4. Norway spruce: a shoot with alternate side shoots, sweeping down a little, all densely clad in short needles
+  {
+    const prims = [];
+    const main = twig(0, 0, R(-0.08, 0.08), 0.78, R(-0.15, 0.15), 16);
+    prims.push({ type: 'twig', pts: main, w0: 0.013, w1: 0.004 });
+    needles(prims, main, 0.02, 0.011, 0.034, 0.75, 0.3);
+    let side = rng() < 0.5 ? 1 : -1;
+    for (let t = 0.1; t < 0.9; t += R(0.08, 0.11)) {
+      const { p, a } = at(main, t);
+      side = -side;
+      const shoot = twig(p[0], p[1], a + side * R(0.75, 1.05), R(0.2, 0.3) * (1 - t * 0.55), side * 0.35, 8);
+      prims.push({ type: 'twig', pts: shoot, w0: 0.007, w1: 0.003 });
+      needles(prims, shoot, 0.06, 0.05, 0.03, 0.8, t);
+    }
+    sprays.push(prims);
+  }
+
+  // 5. European larch: a twig set with short shoots, each a tuft of fine soft needles radiating forward
+  {
+    const prims = [];
+    const main = twig(0, 0, R(-0.1, 0.1), 0.66, R(-0.25, 0.25), 14);
+    prims.push({ type: 'twig', pts: main, w0: 0.011, w1: 0.004 });
+    let side = 1;
+    for (let t = 0.08; t <= 1; t += R(0.07, 0.1)) {
+      const { p, a } = at(main, t);
+      side = -side;
+      const c = [p[0] + Math.sin(a + side * 1.2) * 0.012, p[1] + Math.cos(a + side * 1.2) * 0.012];
+      for (let k = 0; k < 16; k++) {
+        const na = a + side * 0.5 + R(-1.15, 1.15);
+        const l = R(0.03, 0.045);
+        prims.push({ type: 'needle', a: c, b: [c[0] + Math.sin(na) * l, c[1] + Math.cos(na) * l], w: 0.0032, t });
+      }
+    }
+    sprays.push(prims);
+  }
+
+  // 6. Whole conifer, 10 m tall: tiers of drooping limbs, each a fringe of needle clumps, narrowing to the leader
+  {
+    const prims = [];
+    for (let y = 0.4; y < 9.8; y += R(0.32, 0.42)) {
+      const w = 1.85 * Math.pow(1 - y / 10, 0.95) + 0.1;
+      for (let k = 0; k < 26 + w * 22; k++) {
+        const u = R(-1, 1);
+        const x = u * w;
+        const droop = -0.45 * Math.pow(Math.abs(u), 1.6);
+        const py = y + droop + R(-0.05, 0.38) * (1 - Math.abs(u) * 0.5);
+        prims.push({ type: 'oval', p: [x, py], a: R(-Math.PI, Math.PI), len: R(0.22, 0.32), wid: 0.6, t: Math.min(1, 0.35 + y / 14 + (1 - Math.abs(u)) * 0.1) });
+      }
+    }
+    prims.push({ type: 'oval', p: [0, 9.6], a: 0, len: 0.5, wid: 0.35, t: 1 }); // the leader
+    sprays.push(prims);
+  }
   return sprays;
 }
 
@@ -176,7 +252,7 @@ function sprayBounds(prims) {
   };
   for (const q of prims) {
     if (q.type === 'twig' || (q.type === 'stalk' && q.pts)) for (const p of q.pts) add(p[0], p[1]);
-    else if (q.type === 'stalk') {
+    else if (q.type === 'stalk' || q.type === 'needle') {
       add(q.a[0], q.a[1]);
       add(q.b[0], q.b[1]);
     } else {
@@ -275,6 +351,10 @@ function createLeafAtlas() {
     for (const q of prims) {
       if (q.type === 'twig') stroke(q.pts, q.w0, q.w1, rgb(110, 128, 255));
       else if (q.type === 'stalk') stroke(q.pts || [q.a, q.b], q.w, q.w * 0.7, rgb(120, 128, 150));
+      else if (q.type === 'needle') {
+        const [r, g] = leafRGB(q.t);
+        stroke([q.a, q.b], q.w, q.w * 0.6, rgb(Math.round(r * 0.9), g));
+      }
       else if (q.type === 'oval') {
         const [r, g] = leafRGB(q.t);
         const f = frame(q.p, q.a, q.len, q.len * q.wid);
@@ -313,7 +393,7 @@ function createLeafAtlas() {
     level0[i + 3] = mask[i + 3];
   }
   const tex = new THREE.DataTexture(level0, ATLAS_SIZE, ATLAS_SIZE, THREE.RGBAFormat, THREE.UnsignedByteType);
-  tex.mipmaps = coverageMips(level0, ATLAS_SIZE, 2);
+  tex.mipmaps = coverageMips(level0, ATLAS_SIZE, TILES);
   tex.generateMipmaps = false;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
@@ -422,6 +502,26 @@ const SPECIES = [
     twigs: { n: 3, t: [0.3, 1.0], angle: [0.5, 0.95], len: [1.3, 0.85], up: 0, out: 0, droop: 0.16, jitter: 0.12, segs: 2 },
     cards: { perTwig: 2, scale: [0.85, 1.1], droop: 0.4 },
     tints: [0x44622a, 0x53702e, 0x3a5724]
+  },
+  { // 3: Norway spruce (Fichte): a straight leader to the very top, whorls of near-horizontal limbs shortening up it
+    //    into a narrow spire, side shoots and hanging twigs densely clad in dark blue-green needles
+    name: 'spruce', tile: 4, conifer: true,
+    trunk: { r: 0.3, top: 19, lean: 0.012, segs: 10 },
+    limbs: { n: 20, y: [2.0, 18.2], tilt: [1.82, 1.12], len: [3.3, 0.55], r: 0.34, up: 0.07, out: 0, droop: 0.02, jitter: 0.05, segs: 5 },
+    branches: { n: 2, t: [0.25, 0.95], angle: [0.85, 1.2], len: [0.5, 0.32], up: 0, out: 0.02, droop: 0.14, jitter: 0.08, segs: 3 },
+    twigs: { n: 2, t: [0.3, 1.0], angle: [0.55, 0.95], len: [0.6, 0.42], up: 0, out: 0, droop: 0.3, jitter: 0.1, segs: 2 },
+    cards: { perTwig: 2, scale: [1.7, 2.2], droop: 0.3, alongLimbs: 6 },
+    tints: [0x23402a, 0x2a4a30, 0x1f3826]
+  },
+  { // 4: European larch (Lärche): a lighter, more open cone of upswept limbs with hanging side twigs and soft, bright
+    //    green needle tufts
+    name: 'larch', tile: 5, conifer: true,
+    trunk: { r: 0.27, top: 17, lean: 0.03, segs: 9 },
+    limbs: { n: 14, y: [3.0, 16.2], tilt: [1.5, 0.85], len: [3.6, 0.8], r: 0.36, up: 0.12, out: 0, droop: 0, jitter: 0.07, segs: 5 },
+    branches: { n: 3, t: [0.25, 0.95], angle: [0.6, 1.0], len: [0.55, 0.35], up: 0, out: 0.02, droop: 0.18, jitter: 0.1, segs: 3 },
+    twigs: { n: 2, t: [0.3, 1.0], angle: [0.5, 0.95], len: [0.55, 0.38], up: 0, out: 0, droop: 0.28, jitter: 0.12, segs: 2 },
+    cards: { perTwig: 2, scale: [1.6, 2.0], droop: 0.25, alongLimbs: 5 },
+    tints: [0x5f7f33, 0x6c8a3a, 0x52702d]
   }
 ];
 
@@ -682,6 +782,37 @@ function makeCrown(points) {
   };
 }
 
+// Conifer crown: a cone round the leader (base radius at the lowest foliage, apex at the top), for shell normals that
+// slope up the cone and occlusion growing toward the leader
+function makeCone(points) {
+  const box = new THREE.Box3().setFromPoints(points);
+  const C = box.getCenter(new V3());
+  const Rr = box.getSize(new V3()).multiplyScalar(0.5).max(new V3(0.5, 0.5, 0.5));
+  const bottom = box.min.y, top = box.max.y, H = Math.max(1, top - bottom);
+  const base = Math.max(Rr.x, Rr.z);
+  const slope = base / H; // the cone's normal tilts up by its half-angle
+  const ratio = (p) => {
+    const h = Math.min(1, Math.max(0, (p.y - bottom) / H));
+    return { h, e: Math.hypot(p.x, p.z) / (base * (1 - h) + 0.35) };
+  };
+  return {
+    C, R: Rr, bottom, top, conifer: true,
+    shade(p, face) {
+      const { h, e } = ratio(p);
+      const r = Math.hypot(p.x, p.z) || 1e-3;
+      const sn = new V3(p.x / r, slope, p.z / r).normalize();
+      const f = face.dot(sn) < 0 ? face.clone().negate() : face.clone();
+      const n = sn.multiplyScalar(0.7).addScaledVector(f, 0.3).normalize();
+      const ao = (0.2 + 0.8 * smooth(0.2, 1.0, e)) * (0.8 + 0.2 * h);
+      return { n, ao };
+    },
+    barkAO(p) {
+      if (p.y < bottom) return 0.85;
+      return lerp(0.3, 0.75, smooth(0.2, 1.0, ratio(p).e));
+    }
+  };
+}
+
 // Sway weight along the hierarchy: 0 on the trunk (whole-tree bend is height based), rising to 1 at the twig tips
 function swayWeight(b, t) {
   switch (b.level) {
@@ -697,7 +828,10 @@ function swayWeight(b, t) {
 function placeCards(sp, branches, lod, tileMeters, rng, crown) {
   const R = (a, b) => a + (b - a) * rng();
   const cards = [];
-  const outward = (p) => new V3(p.x - crown.C.x, (p.y - crown.C.y) * 0.6, p.z - crown.C.z).normalize();
+  // (conifers: out from the leader, level)
+  const outward = crown.conifer
+    ? (p) => new V3(p.x, 0.15, p.z).normalize()
+    : (p) => new V3(p.x - crown.C.x, (p.y - crown.C.y) * 0.6, p.z - crown.C.z).normalize();
   const orient = (p, d, droop) => {
     const o = outward(p);
     const up = d.clone().multiplyScalar(0.55).addScaledVector(o, 0.45)
@@ -710,6 +844,29 @@ function placeCards(sp, branches, lod, tileMeters, rng, crown) {
     return { up, face: face.normalize() };
   };
   const size = tileMeters[sp.tile];
+  // A conifer's leader ends in an upright shoot
+  if (sp.conifer && lod === 0) {
+    const trunk = branches[0];
+    for (const t of [0.9, 0.96]) {
+      const a = along(trunk, t);
+      const up = new V3(R(-0.15, 0.15), 1, R(-0.15, 0.15)).normalize();
+      let face = new V3(R(-1, 1), 0, R(-1, 1)).normalize();
+      face.addScaledVector(up, -face.dot(up)).normalize();
+      cards.push({ at: a.p, up, face, size: size * 0.9, tile: sp.tile });
+    }
+  }
+  if (lod >= 1 && sp.conifer) {
+    // Crossed upright cards of the whole tree, scaled to the crown's height: a full, dense cone from mid range on
+    // (three at the far level, six at mid range)
+    const scale = (crown.top - crown.bottom) / 10;
+    const n = lod === 1 ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const ang = (i * Math.PI) / n + R(-0.1, 0.1);
+      const face = new V3(Math.cos(ang), 0, Math.sin(ang));
+      cards.push({ at: new V3(0, crown.bottom - 0.4 * scale, 0), up: new V3(0, 1, 0), face, size: tileMeters[TILE_CONIFER_FAR] * scale, tile: TILE_CONIFER_FAR });
+    }
+    return cards;
+  }
   if (lod === 0) {
     for (const b of branches) {
       if (b.level !== 3) continue;
@@ -719,6 +876,17 @@ function placeCards(sp, branches, lod, tileMeters, rng, crown) {
         const a = along(b, t);
         const { up, face } = orient(a.p, a.d, sp.cards.droop);
         cards.push({ at: a.p, up, face, size: size * R(sp.cards.scale[0], sp.cards.scale[1]), tile: sp.tile });
+      }
+    }
+    // conifers: foliage all along the limbs, not only out at the twigs
+    if (sp.cards.alongLimbs) {
+      for (const b of branches) {
+        if (b.level !== 1) continue;
+        for (let k = 0; k < sp.cards.alongLimbs; k++) {
+          const a = along(b, lerp(0.25, 0.95, (k + R(0.2, 0.8)) / sp.cards.alongLimbs));
+          const { up, face } = orient(a.p, a.d, sp.cards.droop);
+          cards.push({ at: a.p, up, face, size: size * R(sp.cards.scale[0], sp.cards.scale[1]), tile: sp.tile });
+        }
       }
     }
     // a card at the end of every branch fills the gap between its twigs
@@ -770,14 +938,14 @@ function buildTreeGeometries(speciesIndex, variant, tileMeters) {
   const rngC = mulberry32(seed ^ 0x5bd1e995);
   const tips = [];
   for (const b of branches) if (b.level === 3) tips.push(b.pts[b.pts.length - 1]);
-  const roughCrown = makeCrown(tips);
+  const roughCrown = (sp.conifer ? makeCone : makeCrown)(tips);
   const cards0 = placeCards(sp, branches, 0, tileMeters, rngC, roughCrown);
   const pts = [];
   for (const c of cards0) {
     pts.push(c.at.clone().addScaledVector(c.up, c.size * 0.5));
     pts.push(c.at.clone().addScaledVector(c.up, c.size));
   }
-  const crown = makeCrown(pts);
+  const crown = (sp.conifer ? makeCone : makeCrown)(pts);
 
   const geos = [];
   const levels = variant === 0 ? [0, 1, 2] : [0, 1];
@@ -790,16 +958,17 @@ function buildTreeGeometries(speciesIndex, variant, tileMeters) {
       if (lod === 0) {
         const radial = [9, 6, 4, 3][b.level];
         addTube(gb, b, radial, 1, aoAt, swayWeight);
-      } else if (lod === 1 && b.level <= 2) {
-        addTube(gb, b, [6, 5, 3][b.level], 2, aoAt, swayWeight);
-      } else if (lod === 2 && b.level <= 1) {
+      } else if (lod === 1 && b.level <= (sp.conifer ? 0 : 2)) {
+        addTube(gb, b, sp.conifer ? 6 : [6, 5, 3][b.level], 2, aoAt, swayWeight);
+      } else if (lod === 2 && b.level <= (sp.conifer ? 0 : 1)) { // (a conifer's limbs hide behind its cards)
         addTube(gb, b, b.level === 0 ? 5 : 3, b.level === 0 ? 4 : 6, aoAt, swayWeight);
       }
     }
     // Close trees add the coarse branch cards and the whole-crown shell on top of the twig cards, so a crown seen
     // from above (helicopter) stays as full as the distant levels
+    // (a conifer's crossed whole-tree cards would show as flat sheets up close: its near levels do without them)
     const cards = lod === 0
-      ? [...cards0, ...placeCards(sp, branches, 1, tileMeters, rng, crown), ...placeCards(sp, branches, 2, tileMeters, rng, crown)]
+      ? [...cards0, ...placeCards(sp, branches, 1, tileMeters, rng, crown), ...(sp.conifer ? [] : placeCards(sp, branches, 2, tileMeters, rng, crown))]
       : placeCards(sp, branches, lod, tileMeters, rng, crown);
     for (const c of cards) addCard(gb, c.at, c.up, c.face, c.size, c.tile, rng() < 0.5, rng(), crown);
     const g = gb.build();
@@ -834,8 +1003,17 @@ function hashPos(x, y, z) {
 function createTreeField(scene, sites) {
   const group = new THREE.Group();
   group.name = 'Trees';
+  // The instances are repacked from `mats` whenever their level of detail changes, so the trees stand on the terrain
+  // in `mats` already (sites come with flat-world heights) and placeOnTerrain must leave the field alone
+  group.userData.terrain = 'absolute';
   const atlas = createLeafAtlas();
   const material = createTreeMaterial(atlas.texture);
+  // Winter (season.js): snow caught on the upward faces of the crowns
+  // (on the colour only: the card coverage in the alpha channel must stay as it is, or whole cards turn opaque)
+  if (material.colorNode) {
+    const base = material.colorNode;
+    material.colorNode = vec4(snowyRoof(base.rgb, 0.6), base.a);
+  }
 
   // Geometries: [species][variant][lod]
   const geos = SPECIES.map((_, s) => [0, 1].map((v) => buildTreeGeometries(s, v, atlas.tileMeters)));
@@ -874,13 +1052,20 @@ function createTreeField(scene, sites) {
   const dummy = new THREE.Object3D();
   const tint = new THREE.Color();
   sites.forEach((t, i) => {
-    const sp = Math.min(SPECIES.length - 1, Math.max(0, t.species || 0));
+    // Davos: the street & park trees planted as broadleaves (species 0-2) are mostly spruces (70 %) and larches
+    // (15 %); the woods come as conifers already (city-grid.js)
+    let sp = Math.min(SPECIES.length - 1, Math.max(0, t.species || 0));
+    if (sp <= 2) {
+      const h = hashPos(t.x, 9.7, t.z);
+      sp = h < 0.7 ? 3 : h < 0.85 ? 4 : sp;
+    }
     const r1 = hashPos(t.x, 1.3, t.z);
     const r2 = hashPos(t.z, 7.1, t.x);
     const r3 = hashPos(t.x + t.z, 3.3, 0.7);
     const variant = hashPos(t.x, 5.9, t.z) < 0.5 ? 0 : 1;
     const s = t.scale * (0.9 + r1 * 0.2);
-    dummy.position.set(t.x, t.y || 0, t.z);
+    const ground = surfaceHeight(t.x, t.z);
+    dummy.position.set(t.x, ground + (t.y || 0), t.z);
     dummy.rotation.set(0, t.yaw ?? r2 * Math.PI * 2, 0);
     dummy.scale.set(s * (0.9 + r3 * 0.2) * (t.sx || 1), s * (0.88 + r1 * 0.24), s * (0.9 + r2 * 0.2) * (t.sz || 1));
     dummy.updateMatrix();
@@ -888,7 +1073,7 @@ function createTreeField(scene, sites) {
     tint.setHex(SPECIES[sp].tints[Math.floor(r3 * 2.999)]).multiplyScalar(0.82 + r1 * 0.36);
     data.set([tint.r, tint.g, tint.b, sp + r2 * 0.999], i * 4);
     px[i] = t.x;
-    py[i] = (t.y || 0) + 6 * s;
+    py[i] = ground + (t.y || 0) + 6 * s;
     pz[i] = t.z;
     tier[i] = Math.min(2, t.tier || 0);
     const key = Math.floor(t.x / TREE_CELL_SIZE) + ',' + Math.floor(t.z / TREE_CELL_SIZE);

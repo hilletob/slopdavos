@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { float, fract, mix, positionGeometry, smoothstep, uniform, vec3 } from 'three/tsl';
 import { surfaceHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP } from './terrain.js';
 import {
   ISLAND_BOUNDS,
@@ -34,6 +35,7 @@ import { bryantParkLawn } from './landmarks.js';
 // 3. Cyclist (Sculpted Road Cyclist with Drop-Bar Frame & Aero Helmet)
 // 4. Cargo Bike (front-loader frame with an upright rider)
 // 5. Helicopter (Manhattan Sightseeing Twin-Turbine Chopper)
+// 6. Pistenfahrzeug (snow groomer: tracks, front blade, rear tiller; tank steering, climbs off-road up to ~45°)
 
 // Spawn on 5th Ave at 37th St, facing south down the avenue toward the Empire State Building (34th St)
 const SPAWN_Z = defaultSpawn?.z ?? streetZ(37);
@@ -51,6 +53,13 @@ const CAR_DRIVE = {
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
   wheelbase: 2.76, grip: 9.5, cornering: 10.5 // Wheelbase (m), tire and steering acceleration limits (m/s²).
 };
+// Snow groomer: 25 km/h flat out, strong low-speed torque, turns on the spot (tracks driven in opposite directions),
+// climbs anything up to ~45° (tan 1) with its speed falling off with the grade
+const SNOWCAT_DRIVE = {
+  speed: 6.9, reverseSpeed: 3.6, acceleration: 2.4, brake: 5.5, coast: 1.6,
+  turnRate: 1.05, maxGrade: 1.0, length: 2.3, track: 1.5 // half length & half track width over which it pitches & rolls (m)
+};
+const SNOWCAT_START = { x: 785, z: -1006.6, heading: 1.956 }; // world frame, heading = atan2(dx, dz)
 const BICYCLE_DRIVE = {
   speed: 19, reverseSpeed: 4.5, acceleration: 9,
   rolling: 0.08, drag: 0.004, coast: 0.2, brake: 7.5 // Backward input is scaled to 0.6, giving 4.5 m/s² braking.
@@ -278,16 +287,17 @@ const personGround = (controllers, x, z, nearY) => controllers.getGroundHeight(x
 function collisionBody(mode, radius, heading, margin = 0) {
   const car = mode === 'car';
   const cargoBike = mode === 'cargobike';
-  const oriented = car || cargoBike;
+  const snowcat = mode === 'snowcat';
+  const oriented = car || cargoBike || snowcat;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  const hx = (car ? 0.86 : cargoBike ? 0.38 : radius) + margin;
-  const hz = (car ? 2.18 : cargoBike ? 1.34 : radius) + margin;
+  const hx = (car ? 0.86 : cargoBike ? 0.38 : snowcat ? 2.15 : radius) + margin;
+  const hz = (car ? 2.18 : cargoBike ? 1.34 : snowcat ? 3.25 : radius) + margin;
   return {
     car, oriented, sin, cos, hx, hz, radius: radius + margin,
     extX: oriented ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: oriented ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: mode === 'helicopter' ? -0.25 : 0,
-    top: mode === 'helicopter' ? 3.2 : car ? 1.8 : 1.9
+    top: mode === 'helicopter' ? 3.2 : car ? 1.8 : snowcat ? 2.9 : 1.9
   };
 }
 
@@ -366,9 +376,9 @@ function createTaxiDoorDecalTexture() {
   ctx.font = '900 26px Inter, Arial, sans-serif';
   ctx.fillText('ZÜRI TAXI', 112, 42);
   ctx.font = '700 15px JetBrains Mono, monospace';
-  ctx.fillText('ZÜRICH · TAXI', 112, 68);
+  ctx.fillText('DAVOS · TAXI', 112, 68);
   ctx.font = '600 13px Inter, Arial, sans-serif';
-  ctx.fillText('TAXI ZÜRICH', 112, 90);
+  ctx.fillText('TAXI DAVOS', 112, 90);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -403,7 +413,8 @@ class ThirdPersonControllerManager {
     this.scene = scene;
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
-    this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter'
+    this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter' | 'snowcat' | 'rhb'
+    this.railway = null; // js/rhb.js, for the rhb mode (setRailway)
 
     this.keys = {
       forward: false,
@@ -419,7 +430,9 @@ class ThirdPersonControllerManager {
       car: this.createCarEntity(),
       cyclist: this.createCyclistEntity(),
       cargobike: this.createCargoBikeEntity(),
-      helicopter: this.createHelicopterEntity()
+      helicopter: this.createHelicopterEntity(),
+      snowcat: this.createSnowcatEntity(),
+      rhb: this.createRhBEntity()
     };
 
     Object.values(this.entities).forEach((ent) => {
@@ -531,9 +544,17 @@ class ThirdPersonControllerManager {
     for (const action of Object.keys(this.keys)) this.keys[action] = false;
   }
 
+  // The RhB trains (js/rhb.js buildRhB): in the rhb mode the player drives one of them
+  setRailway(railway) {
+    this.railway = railway;
+  }
+
   setMode(mode) {
     if (!this.entities[mode]) return;
+    if (mode === 'rhb' && !this.railway?.takeOver(true)) return; // no train to take over
+    if (this.activeMode === 'rhb' && mode !== 'rhb') this.railway?.takeOver(false);
     this.activeMode = mode;
+    if (mode === 'rhb') this.updateRhB(0);
     const car = this.entities.car;
     if (mode !== 'car' && car?.carState) car.carState.value.x = car.carState.value.w = 0;
   }
@@ -544,6 +565,7 @@ class ThirdPersonControllerManager {
 
   teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null) {
     const ent = this.getActiveEntity();
+    if (this.activeMode === 'rhb') return { x: ent.position.x, z: ent.position.z }; // bound to the rails
     this.resetInput();
     if (!Number.isFinite(heading)) heading = ent.heading;
     const heli = this.activeMode === 'helicopter';
@@ -578,6 +600,8 @@ class ThirdPersonControllerManager {
       if (ent.frontSteerPivot) ent.frontSteerPivot.rotation.y = 0;
       if (ent.handlebarPivot) ent.handlebarPivot.rotation.y = 0;
       if (ent.bikeFrame) ent.bikeFrame.steerAngle = 0;
+    } else if (this.activeMode === 'snowcat') {
+      ent.slopePitch = ent.slopeRoll = undefined;
     } else if (heli) {
       ent.verticalSpeed = ent.pitchAngle = ent.rollAngle = 0;
       ent.tiltPivot.rotation.x = ent.tiltPivot.rotation.z = 0;
@@ -600,7 +624,7 @@ class ThirdPersonControllerManager {
     const margin = heli ? 6000 : 0;
     const entity = this.getActiveEntity();
     // Conservative body cylinders, including the taxi's corners, bicycle wheels and helicopter tail/rotor.
-    const body = { person: [0.48, 1.9], car: [2.4, 1.9], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [6.2, 3.2] };
+    const body = { person: [0.48, 1.9], car: [2.4, 1.9], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [6.2, 3.2], snowcat: [3.9, 2.9], rhb: [0.1, 0.1] };
     const others = Object.values(this.entities).filter(e => e !== entity).map(e => ({
       x: e.position.x, z: e.position.z, radius: body[e.type][0],
       bottom: e.position.y - (e.type === 'helicopter' ? 0.7 : 0), top: e.position.y + body[e.type][1]
@@ -781,7 +805,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'car',
-      label: 'Züri Taxi',
+      label: 'Davos Taxi',
       mesh: root,
       chassisPivot,
       carState,
@@ -942,7 +966,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'cyclist',
-      label: 'Zürich Cyclist',
+      label: 'Davos Cyclist',
       mesh: root,
       leanPivot,
       frontWheel,
@@ -1624,6 +1648,135 @@ class ThirdPersonControllerManager {
   }
 
   // On a raised curb island (city-config.js BLOCKS: the real blocks, malls & plazas), not in a park
+  // =========================================================================
+  // 6. PISTENFAHRZEUG (snow groomer, built in code: no external model)
+  // =========================================================================
+  // Red body on two wide rubber tracks (4.2 m over both), a cab with large dark windows, a white light bar with an
+  // orange beacon, the hydraulic blade in front and the tiller with its finisher behind. +z is forward.
+  createSnowcatEntity() {
+    const root = new THREE.Group();
+    root.name = 'PlayerSnowcat';
+    const std = (color, roughness = 0.5, metalness = 0.2) => new THREE.MeshStandardNodeMaterial({ color, roughness, metalness });
+    const red = std(0xb3121b, 0.42, 0.25), glass = std(0x0d1216, 0.08, 0.6), steel = std(0x8e959b, 0.45, 0.65);
+    const dark = std(0x26292c, 0.7, 0.3), white = std(0xeef0f2, 0.4, 0.1);
+    const box = (w, h, d, material, x, y, z, parent = root) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+      mesh.position.set(x, y, z);
+      parent.add(mesh);
+      return mesh;
+    };
+
+    // Tracks: rubber belts with cleats that run with the ground (trackPhase uniforms, see animateSnowcat), over the
+    // drive sprocket and idler at their ends
+    const trackPhases = [];
+    for (const side of [-1, 1]) {
+      const phase = uniform(0);
+      trackPhases.push(phase);
+      const rubber = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+      const cleat = smoothstep(0.55, 0.6, fract(positionGeometry.z.add(positionGeometry.y).add(phase).mul(2.6)));
+      rubber.colorNode = mix(vec3(0.03, 0.032, 0.035), vec3(0.11, 0.115, 0.12), cleat);
+      box(1.25, 0.82, 3.9, rubber, side * 1.48, 0.47, 0);
+      for (const z of [-1.95, 1.95]) {
+        const end = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.25, 20).rotateZ(Math.PI / 2), rubber);
+        end.position.set(side * 1.48, 0.47, z);
+        root.add(end);
+      }
+      // Road wheels between the belts
+      for (let k = -1; k <= 1; k++) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16).rotateZ(Math.PI / 2), steel);
+        wheel.position.set(side * 0.83, 0.42, k * 1.2);
+        root.add(wheel);
+      }
+    }
+    // Hull, cab (glazed all round under a red roof), engine hood behind it
+    box(2.5, 0.55, 4.3, red, 0, 1.1, 0);
+    box(1.95, 0.4, 2.0, red, 0, 1.58, 0.65);
+    box(1.97, 0.88, 1.9, glass, 0, 2.2, 0.65);
+    for (const x of [-0.97, 0.97]) for (const z of [-0.28, 1.58]) box(0.08, 0.9, 0.08, red, x, 2.2, z); // pillars
+    box(2.08, 0.12, 2.1, red, 0, 2.7, 0.62);
+    box(2.25, 0.75, 1.75, red, 0, 1.68, -1.25);
+    box(1.8, 0.06, 1.4, dark, 0, 2.07, -1.3); // engine grille
+    // Light bar and the orange beacon (pulsed in animateSnowcat), work lights on the cab's front corners
+    box(1.7, 0.12, 0.26, white, 0, 2.82, 0.55);
+    const beaconMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xff8a00, roughness: 0.3 });
+    const beaconGlow = uniform(0);
+    beaconMaterial.emissiveNode = vec3(1.0, 0.45, 0.0).mul(beaconGlow.mul(3).add(0.15));
+    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.2, 14), beaconMaterial);
+    beacon.position.set(0, 2.98, 0.55);
+    root.add(beacon);
+    const lampMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xfff6e0, roughness: 0.2 });
+    lampMaterial.emissiveNode = vec3(1.0, 0.95, 0.82).mul(0.8);
+    for (const x of [-0.75, 0.75]) box(0.28, 0.14, 0.06, lampMaterial, x, 2.62, 1.66);
+    for (const x of [-0.9, 0.9]) box(0.22, 0.16, 0.06, lampMaterial, x, 1.2, 2.17);
+    // Front blade on its push arms (light grey, wider than the tracks, its edge slightly forward)
+    const blade = box(4.4, 1.05, 0.12, std(0xc7cbcf, 0.45, 0.5), 0, 0.72, 3.05);
+    blade.rotation.x = -0.12;
+    box(4.4, 0.08, 0.3, steel, 0, 0.2, 3.12); // cutting edge
+    for (const x of [-0.85, 0.85]) {
+      const arm = box(0.16, 0.16, 1.1, steel, x, 0.85, 2.55);
+      arm.rotation.x = 0.25;
+    }
+    // Rear tiller and its finisher comb on a short hitch
+    box(0.5, 0.3, 0.5, steel, 0, 0.8, -2.4);
+    box(4.0, 0.55, 0.85, std(0x5d6368, 0.6, 0.4), 0, 0.45, -2.95);
+    box(4.0, 0.05, 0.55, dark, 0, 0.12, -3.55);
+
+    const shadowGeo = new THREE.PlaneGeometry(4.3, 6.6);
+    shadowGeo.rotateX(-Math.PI * 0.5);
+    const shadow = new THREE.Mesh(shadowGeo, createContactShadowMaterial());
+    shadow.position.set(0, 0.02, 0);
+    shadow.renderOrder = 998;
+    root.add(shadow);
+
+    this.scene.add(root);
+    return {
+      type: 'snowcat',
+      label: 'Pistenfahrzeug',
+      mesh: root,
+      trackPhases,
+      beaconGlow,
+      // Parked on the cross-country trail (OSM "City-Trail Davos", DAVOS_DATA.loipen) between the Bünda and the
+      // Dischmastrasse in Davos Dorf, along its track
+      position: new THREE.Vector3(SNOWCAT_START.x, surfaceHeight(SNOWCAT_START.x, SNOWCAT_START.z) + ROAD_TOP, SNOWCAT_START.z),
+      heading: SNOWCAT_START.heading,
+      speed: 0,
+      turnRate: 0,
+      cameraTargetOffset: new THREE.Vector3(0, 1.4, 0),
+      chaseDistance: 10.5,
+      chaseHeight: 3.6
+    };
+  }
+
+  // The train driver: no model of its own (the train is the vehicle, js/rhb.js); it rides in the driven train's cab
+  createRhBEntity() {
+    const root = new THREE.Group();
+    root.name = 'RhBDriver';
+    this.scene.add(root);
+    return {
+      type: 'rhb',
+      label: 'RhB',
+      mesh: root,
+      position: new THREE.Vector3(),
+      heading: 0,
+      speed: 0,
+      cameraTargetOffset: new THREE.Vector3(0, 2.6, 0),
+      chaseDistance: 26,
+      chaseHeight: 9
+    };
+  }
+
+  // Bound to the rails: W is the throttle, S the brake, no steering; the train protection (rhb.js) has the last word.
+  // The entity follows the driven train's cab.
+  updateRhB(dt) {
+    const e = this.entities.rhb;
+    this.railway?.setControls(this.keys.forward ? Number(this.keys.forward) : 0, this.keys.backward ? Number(this.keys.backward) : 0);
+    const cab = this.railway?.cab();
+    if (!cab) return;
+    e.position.set(cab.x, cab.y, cab.z);
+    e.heading = cab.heading;
+    e.speed = cab.speed;
+  }
+
   isPointOnSidewalk(x, z) {
     const b = blockAt(x, z);
     return !!b && !(b.park > 0.6 && !b.median);
@@ -1636,7 +1789,7 @@ class ThirdPersonControllerManager {
     return !(deck === deck && (y === undefined || y > deck - 1));
   }
 
-  // Height of what stands at (x, z): Zurich's terrain or a bridge deck (whichever is nearest `nearY`, the entity's current
+  // Height of what stands at (x, z): Davos' terrain or a bridge deck (whichever is nearest `nearY`, the entity's current
   // height, so that streets under the Hardbrücke stay under it), on the sidewalk or on the roadway laid over it.
   getGroundHeight(x, z, mode = 'person', nearY) {
     return surfaceHeight(x, z, nearY) + (this.isPointOnSidewalk(x, z) ? SIDEWALK_TOP : ROAD_TOP);
@@ -1828,16 +1981,22 @@ class ThirdPersonControllerManager {
       this.updateCyclist(dt, this.entities.cargobike, 'cargobike');
     } else if (this.activeMode === 'helicopter') {
       this.updateHelicopter(dt, elapsed);
+    } else if (this.activeMode === 'snowcat') {
+      this.updateSnowcat(dt);
+    } else if (this.activeMode === 'rhb') {
+      this.updateRhB(dt);
     }
+    this.animateSnowcat(elapsed);
 
     for (const key of Object.keys(this.entities)) {
       const e = this.entities[key];
       e.mesh.position.copy(e.position);
       e.mesh.rotation.order = 'YXZ';
       e.mesh.rotation.y = e.heading;
-      // Wheeled vehicles follow the slope of Zurich's streets: pitch over the wheelbase, roll over the track
-      if (e.type === 'car' || e.type === 'cyclist' || e.type === 'cargobike') {
-        const half = e.type === 'car' ? 1.35 : 0.55, track = e.type === 'car' ? 0.8 : 0;
+      // Wheeled vehicles follow the slope of Davos' streets: pitch over the wheelbase, roll over the track
+      if (e.type === 'car' || e.type === 'cyclist' || e.type === 'cargobike' || e.type === 'snowcat') {
+        const half = e.type === 'car' ? 1.35 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
+        const track = e.type === 'car' ? 0.8 : e.type === 'snowcat' ? SNOWCAT_DRIVE.track : 0;
         const fx = Math.sin(e.heading), fz = Math.cos(e.heading), y = e.position.y;
         const front = surfaceHeight(e.position.x + fx * half, e.position.z + fz * half, y);
         const back = surfaceHeight(e.position.x - fx * half, e.position.z - fz * half, y);
@@ -1993,6 +2152,61 @@ class ThirdPersonControllerManager {
     }
   }
 
+  // Tracked, so: no steering geometry and no sideways slip. Turning works at a standstill; the speed falls off with the
+  // grade up to ~45° (beyond, it no longer climbs) and rises a little downhill; it goes anywhere on the relief, off the
+  // roads as well, and stops at buildings and water like the others.
+  updateSnowcat(dt) {
+    if (dt <= 0) return;
+    const s = this.entities.snowcat, D = SNOWCAT_DRIVE;
+    let throttle = 0;
+    if (this.keys.forward) throttle = this.keys.forward;
+    else if (this.keys.backward) throttle = -this.keys.backward;
+    let steer = 0;
+    if (this.keys.left) steer = this.keys.left;
+    if (this.keys.right) steer = -this.keys.right;
+
+    // Grade along the heading (rise over run, positive uphill in the direction of travel)
+    const sin = Math.sin(s.heading), cos = Math.cos(s.heading), y = s.position.y;
+    const front = surfaceHeight(s.position.x + sin * D.length, s.position.z + cos * D.length, y);
+    const back = surfaceHeight(s.position.x - sin * D.length, s.position.z - cos * D.length, y);
+    const grade = (front - back) / (2 * D.length) * Math.sign(throttle || s.speed || 1);
+    const climb = grade > 0 ? Math.max(0, 1 - grade / D.maxGrade) : Math.min(1.25, 1 - grade * 0.4);
+    const target = throttle >= 0 ? throttle * D.speed * climb : throttle * D.reverseSpeed * climb;
+    const rate = throttle === 0 ? D.coast : target * s.speed < 0 ? D.brake : D.acceleration;
+    s.speed += Math.max(-rate * dt, Math.min(rate * dt, target - s.speed));
+
+    // Turning on the spot at full rate, a little slower at speed
+    s.turnRate += (steer * D.turnRate * (1 - 0.35 * Math.min(1, Math.abs(s.speed) / D.speed)) - s.turnRate) * Math.min(1, dt * 6);
+    s.heading += s.turnRate * dt;
+
+    const x0 = s.position.x, z0 = s.position.z;
+    s.position.x += Math.sin(s.heading) * s.speed * dt;
+    s.position.z += Math.cos(s.heading) * s.speed * dt;
+    const wantX = s.position.x, wantZ = s.position.z;
+    this.resolveHorizontalCollision(s.position, 2.0, null, s);
+    // Pushed back by a wall (or the shore): the push eats the speed into it
+    const pushed = Math.hypot(s.position.x - wantX, s.position.z - wantZ);
+    if (pushed > 0.01) {
+      const moved = (s.position.x - x0) * Math.sin(s.heading) + (s.position.z - z0) * Math.cos(s.heading);
+      s.speed = Math.abs(moved) < Math.abs(s.speed * dt) * 0.5 ? s.speed * 0.3 : s.speed;
+    }
+    s.position.y = this.getGroundHeight(s.position.x, s.position.z, 'snowcat', s.position.y);
+
+    // The belts run with the ground; turning drives them in opposite directions
+    const forward = (s.position.x - x0) * Math.sin(s.heading) + (s.position.z - z0) * Math.cos(s.heading);
+    const spin = s.turnRate * dt * D.track;
+    s.trackPhases[0].value -= forward + spin; // left
+    s.trackPhases[1].value -= forward - spin; // right
+  }
+
+  // The beacon flashes whatever the mode (it is parked with its beacon on)
+  animateSnowcat(elapsed = 0) {
+    const s = this.entities.snowcat;
+    if (!s?.beaconGlow) return;
+    const t = (elapsed * 1.6) % 1;
+    s.beaconGlow.value = t < 0.12 ? 1 : t < 0.2 ? 0.3 : t < 0.32 ? 1 : 0.05;
+  }
+
   updateCyclist(dt, bike = this.entities.cyclist, mode = null) {
     if (!bike || typeof bike !== 'object') bike = this.entities.cyclist;
     mode ||= bike.type === 'cargobike' ? 'cargobike' : 'cyclist';
@@ -2090,7 +2304,7 @@ class ThirdPersonControllerManager {
     h.position.z += Math.cos(h.heading) * h.speed * dt;
     h.position.y += h.verticalSpeed * dt;
 
-    // Zurich's relief (and the bridge decks) is the floor; the ceiling stays 420 m above it
+    // Davos' relief (and the bridge decks) is the floor; the ceiling stays 420 m above it
     const floor = surfaceHeight(h.position.x, h.position.z) + 0.25;
     if (h.position.y < floor) {
       this.reportCollision(h, groundCollider, 'ground', h.position.x, floor, h.position.z, 0, 1, 0, -h.verticalSpeed);

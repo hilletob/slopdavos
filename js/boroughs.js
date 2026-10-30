@@ -3399,7 +3399,7 @@ function buildBoroughs(scene, { sidewalks = [] } = {}) {
 function ridgeHeightAt() { return 0; }
 function boroughLandAt(x, z) {
   if (waterAt(x, z)) return null;
-  return { id: 'berlin', name: 'Zürich', top: 0, bounds: ISLAND_BOUNDS };
+  return { id: 'berlin', name: 'Davos', top: 0, bounds: ISLAND_BOUNDS };
 }
 function buildBoroughs(scene) {
   // The irregular city uses the complete mapped area in city-grid/buildings. Do not

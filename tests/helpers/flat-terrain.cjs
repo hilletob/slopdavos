@@ -1,4 +1,4 @@
-// Import stubs for js/terrain.js and js/zurich-frame.js: a flat world at y = 0 without bridges, so that the engine's
+// Import stubs for js/terrain.js and js/davos-frame.js: a flat world at y = 0 without bridges, so that the engine's
 // unit tests keep testing behaviour (the relief has its own tests: terrain-grid.test.mjs, zurich.test.mjs).
 const terrain = {
   groundHeight: () => 0,
@@ -14,4 +14,4 @@ const frame = {
   FRAME: { E0: 2683000, N0: 1247700, H0: 406 },
   lv95ToWorld: (E, N) => ({ x: E - 2683000, z: 1247700 - N })
 };
-module.exports = { flatTerrainImports: { './terrain.js': terrain, './zurich-frame.js': frame } };
+module.exports = { flatTerrainImports: { './terrain.js': terrain, './davos-frame.js': frame } };

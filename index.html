@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Slop Zürich</title>
+  <title>Slop Davos</title>
   <link rel="icon" href="data:," />
-  <meta name="description" content="Slop Zürich: the inner city of Zurich at 1:1 on its real relief, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, Cargo bike, Helicopter), and 11 cinematic cameras at 60 FPS." />
-  <script defer data-domain="zurich.pocketswitzerland.ch" src="https://plausible.colorfield.dev/js/script.js"></script>
+  <meta name="description" content="Slop Davos: Davos Platz, Davos Dorf, the Davosersee, Frauenkirch and the Dischma valley at 1:1 on their real alpine relief, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D, SWISSIMAGE) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, RhB train, Helicopter, snow groomer), and 11 cinematic cameras at 60 FPS." />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <!-- three.js dev branch pinned to a commit (builds committed to mrdoob/three.js@dev, served by jsDelivr) -->
   <script type="importmap">
@@ -20,9 +19,9 @@
     }
   </script>
   <!-- Fetch the city modules in parallel before stylesheets; the module graph controls evaluation order. -->
-  <link rel="modulepreload" href="./js/zurich-geodata.js" />
+  <link rel="modulepreload" href="./js/davos-geodata.js" />
   <link rel="modulepreload" href="./js/swiss-projection.js" />
-  <link rel="modulepreload" href="./js/zurich-frame.js" />
+  <link rel="modulepreload" href="./js/davos-frame.js" />
   <link rel="modulepreload" href="./js/terrain-grid.js" />
   <link rel="modulepreload" href="./js/terrain.js" />
   <link rel="modulepreload" href="./js/nyc-geodata.js" />
@@ -59,8 +58,13 @@
   <link rel="modulepreload" href="./js/audio-acoustics.js" />
   <link rel="modulepreload" href="./js/audio-system.js" />
   <link rel="modulepreload" href="./js/swissbuildings3d.js" />
+  <link rel="modulepreload" href="./js/swissimage.js" />
+  <link rel="modulepreload" href="./js/season.js" />
   <link rel="modulepreload" href="./js/surroundings.js" />
   <link rel="modulepreload" href="./js/trams.js" />
+  <link rel="modulepreload" href="./js/rhb.js" />
+  <link rel="modulepreload" href="./js/rhb-route.js" />
+  <link rel="modulepreload" href="./js/loipen.js" />
   <link rel="modulepreload" href="./js/main.js" />
   <script type="module" src="./js/main.js"></script>
   <!-- Inter (UI) & Overpass (street-name signs: modelled on Highway Gothic, the US road sign typeface) -->
@@ -76,10 +80,13 @@
       <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.4" r="2"/><path d="M12.3 8.2 10.8 13.8M10.8 13.8 9.2 17.2 7.2 20.5M10.8 13.8l2.4 3 1.6 3.8M12.3 8.6 9.6 10.2l-.8 2.6M12.3 8.6l2.1 2.4 2.4.8"/></symbol>
       <symbol id="i-car" viewBox="0 0 24 24"><path d="M9.6 4.8V3.4a.6.6 0 0 1 .6-.6h3.6a.6.6 0 0 1 .6.6v1.4"/><path d="m5.2 10.5 1.4-4.1A2.2 2.2 0 0 1 8.7 4.8h6.6a2.2 2.2 0 0 1 2.1 1.6l1.4 4.1"/><rect x="3" y="10.5" width="18" height="6.5" rx="2"/><path d="M6 17v2.6M18 17v2.6M6.6 13.8h1.6M15.8 13.8h1.6"/></symbol>
       <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="5.5" cy="16.5" r="3.6"/><circle cx="18.5" cy="16.5" r="3.6"/><path d="M5.5 16.5 9.3 9.6h6.3M11.6 16.5 9.3 9.6M11.6 16.5l4-6.9M5.5 16.5h6.1M15.6 9.6l2.9 6.9M15.6 9.6 14.8 7h2.4M8 8.4h2.8"/></symbol>
+      <symbol id="i-train" viewBox="0 0 24 24"><path d="M7 3.5h10a2.5 2.5 0 0 1 2.5 2.5v9a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 15V6A2.5 2.5 0 0 1 7 3.5z"/><path d="M4.5 10h15M8 14h.01M16 14h.01M8 17.5 5.5 21M16 17.5l2.5 3.5M10 3.5V2M14 3.5V2"/></symbol>
+      <symbol id="i-snowcat" viewBox="0 0 24 24"><path d="M6 13V9.2a1.2 1.2 0 0 1 1.2-1.2h5.6l2.2 5"/><path d="M9.6 8v5M11 5.6h2M12 5.6V8"/><rect x="3" y="13" width="15" height="5" rx="2.5"/><circle cx="6.5" cy="15.5" r="1"/><circle cx="14.5" cy="15.5" r="1"/><path d="M18 11.5h2.4l.6 6.5h-3"/></symbol>
       <symbol id="i-heli" viewBox="0 0 24 24"><path d="M3.5 4h15M11 4v3.2"/><path d="M6 12.2a5 5 0 0 1 5-5h1.6a4.4 4.4 0 0 1 4.4 4.4V15H8.8A2.8 2.8 0 0 1 6 12.2z"/><path d="M17 11h4.2M21.2 8.8v4.4M7 19h10.5M9.5 15v4M15 15v4"/></symbol>
       <symbol id="i-golden" viewBox="0 0 24 24"><path d="M3 17.5h18M7 17.5a5 5 0 0 1 10 0M12 5v3M5.6 9.6l2 1.6M18.4 9.6l-2 1.6M7.5 21h9"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5 7 7M17 17l1.5 1.5M5.5 18.5 7 17M17 7l1.5-1.5"/></symbol>
       <symbol id="i-twilight" viewBox="0 0 24 24"><path d="M3 15.5h18M7.5 19h9M8 15.5a4 4 0 0 1 8 0M17.5 4v3.2M15.9 5.6h3.2M7 7.4v1.8M6.1 8.3h1.8"/></symbol>
+      <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4M4.3 11.2l3.2.9-.9 3.2M19.7 12.8l-3.2-.9.9-3.2"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/></symbol>
       <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.2s-6.6-5.7-6.6-11.2a6.6 6.6 0 0 1 13.2 0c0 5.5-6.6 11.2-6.6 11.2z"/><circle cx="12" cy="10" r="2.4"/></symbol>
       <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.6v13l5.5-2.1 6 2.1 5.5-2.1v-13L15 6.6 9 4.5zM9 4.5v13M15 6.6v13"/></symbol>
@@ -103,24 +110,24 @@
   <!-- Loading Screen -->
   <div id="loading-overlay" role="status" aria-live="polite">
     <div class="loader">
-      <img class="loader-logo" src="./assets/zurich-flag.svg" alt="Zürich flag" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet loader-bullet',textContent:'Z'}))" />
-      <div class="loader-title">Slop Zürich</div>
+      <img class="loader-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet loader-bullet',textContent:'D'}))" />
+      <div class="loader-title">Slop Davos</div>
       <div class="loader-track is-indeterminate" aria-hidden="true"><span id="loading-progress" class="loader-fill"></span></div>
       <div id="loading-status">Initializing WebGPURenderer &amp; TSL Shaders...</div>
     </div>
   </div>
 
   <!-- 3D WebGPU Viewport Container -->
-  <main id="canvas-container" aria-label="3D Interactive Slop Zürich Viewport"></main>
+  <main id="canvas-container" aria-label="3D Interactive Slop Davos Viewport"></main>
 
   <!-- Top-Left: Brand & Renderer Telemetry -->
   <header class="hud hud-top-left">
     <div class="panel brand">
-      <img class="brand-logo" src="./assets/zurich-flag.svg" alt="Zürich flag" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'Z'}))" />
+      <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
       <div class="brand-titles">
         <div class="brand-heading">
-          <h1>Slop Zürich</h1>
-          <a class="repo-link" href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer" aria-label="Slop Zürich on GitHub (opens in a new tab)">GitHub <span aria-hidden="true">↗</span></a>
+          <h1>Slop Davos</h1>
+          <a class="repo-link" href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer" aria-label="Based on Slop Zürich on GitHub (opens in a new tab)" title="Based on colorfield/slop-zurich">GitHub <span aria-hidden="true">↗</span></a>
         </div>
         <div class="brand-subtitle">three.js · WebGPU · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
       </div>
@@ -144,11 +151,14 @@
           <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span class="seg-label">Night</span>
         </button>
       </div>
+      <button id="btn-winter" class="time-btn season-btn" type="button" title="Winter" aria-label="Winter" aria-pressed="false">
+        <svg class="icon" aria-hidden="true"><use href="#i-snow"/></svg><span class="seg-label">Winter</span>
+      </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="Teleport the active player">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">Teleport</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
-      <button id="btn-open-map" class="tool-btn" type="button" title="Full Zürich city street map [M]">
+      <button id="btn-open-map" class="tool-btn" type="button" title="Full Davos street map [M]">
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">Map</span><kbd>M</kbd>
       </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
@@ -164,24 +174,24 @@
   <!-- Teleport Destinations (native popover: light-dismiss & Esc) -->
   <div id="teleport-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" aria-label="Teleport the active player">
     <div class="pop-title">Teleport to</div>
-    <button id="tp-hb" class="pop-item tp-btn" data-teleport="hb" type="button"><span class="pop-name">Zürich HB</span><span class="pop-sub">Bahnhofquai · City</span></button>
-    <button id="tp-paradeplatz" class="pop-item tp-btn" data-teleport="paradeplatz" type="button"><span class="pop-name">Paradeplatz</span><span class="pop-sub">Bahnhofstrasse · City</span></button>
-    <button id="tp-grossmuenster" class="pop-item tp-btn" data-teleport="grossmuenster" type="button"><span class="pop-name">Grossmünster</span><span class="pop-sub">Limmatquai · Rathaus</span></button>
-    <button id="tp-fraumuenster" class="pop-item tp-btn" data-teleport="fraumuenster" type="button"><span class="pop-name">Fraumünster</span><span class="pop-sub">Stadthausquai · Lindenhof</span></button>
-    <button id="tp-niederdorf" class="pop-item tp-btn" data-teleport="niederdorf" type="button"><span class="pop-name">Niederdorf</span><span class="pop-sub">Limmatquai · Rathaus</span></button>
-    <button id="tp-bellevue" class="pop-item tp-btn" data-teleport="bellevue" type="button"><span class="pop-name">Bellevue &amp; Opernhaus</span><span class="pop-sub">Utoquai · Hochschulen</span></button>
-    <button id="tp-buerkliplatz" class="pop-item tp-btn" data-teleport="buerkliplatz" type="button"><span class="pop-name">Bürkliplatz &amp; Quaibrücke</span><span class="pop-sub">General-Guisan-Quai · City</span></button>
-    <button id="tp-utoquai" class="pop-item tp-btn" data-teleport="utoquai" type="button"><span class="pop-name">Utoquai</span><span class="pop-sub">Seefeld · Mühlebach</span></button>
-    <button id="tp-kunsthaus" class="pop-item tp-btn" data-teleport="kunsthaus" type="button"><span class="pop-name">Kunsthaus</span><span class="pop-sub">Heimplatz · Hochschulen</span></button>
-    <button id="tp-eth" class="pop-item tp-btn" data-teleport="eth" type="button"><span class="pop-name">ETH Zürich</span><span class="pop-sub">Rämistrasse · Hochschulen</span></button>
-    <button id="tp-langstrasse" class="pop-item tp-btn" data-teleport="langstrasse" type="button"><span class="pop-name">Langstrasse</span><span class="pop-sub">Kreis 4 · Langstrasse</span></button>
-    <button id="tp-enge" class="pop-item tp-btn" data-teleport="enge" type="button"><span class="pop-name">Tessinerplatz</span><span class="pop-sub">Bahnhof Enge · Enge</span></button>
-    <button id="tp-primetower" class="pop-item tp-btn" data-teleport="primetower" type="button"><span class="pop-name">Prime Tower</span><span class="pop-sub">Hardstrasse · Escher Wyss</span></button>
+    <button id="tp-platz" class="pop-item tp-btn" data-teleport="platz" type="button"><span class="pop-name">Bahnhof Davos Platz</span><span class="pop-sub">Talstrasse · Davos Platz</span></button>
+    <button id="tp-promenade" class="pop-item tp-btn" data-teleport="promenade" type="button"><span class="pop-name">Promenade</span><span class="pop-sub">Davos Platz</span></button>
+    <button id="tp-schatzalp" class="pop-item tp-btn" data-teleport="schatzalp" type="button"><span class="pop-name">Schatzalpbahn</span><span class="pop-sub">Promenade · Davos Platz</span></button>
+    <button id="tp-eisstadion" class="pop-item tp-btn" data-teleport="eisstadion" type="button"><span class="pop-name">Eisstadion &amp; Vaillant Arena</span><span class="pop-sub">Eisbahnstrasse · Davos Platz</span></button>
+    <button id="tp-kirchner" class="pop-item tp-btn" data-teleport="kirchner" type="button"><span class="pop-name">Kirchner Museum</span><span class="pop-sub">Promenade · Davos Platz</span></button>
+    <button id="tp-kongress" class="pop-item tp-btn" data-teleport="kongress" type="button"><span class="pop-name">Kongresszentrum</span><span class="pop-sub">Promenade · Davos Platz</span></button>
+    <button id="tp-jakobshorn" class="pop-item tp-btn" data-teleport="jakobshorn" type="button"><span class="pop-name">Talstation Jakobshornbahn</span><span class="pop-sub">Skistrasse · Davos Platz</span></button>
+    <button id="tp-parsenn" class="pop-item tp-btn" data-teleport="parsenn" type="button"><span class="pop-name">Talstation Parsennbahn</span><span class="pop-sub">Promenade · Davos Dorf</span></button>
+    <button id="tp-dorf" class="pop-item tp-btn" data-teleport="dorf" type="button"><span class="pop-name">Bahnhof Davos Dorf</span><span class="pop-sub">Bahnhofstrasse · Davos Dorf</span></button>
+    <button id="tp-see" class="pop-item tp-btn" data-teleport="see" type="button"><span class="pop-name">Davosersee &amp; Strandbad</span><span class="pop-sub">Davos Dorf</span></button>
+    <button id="tp-frauenkirch" class="pop-item tp-btn" data-teleport="frauenkirch" type="button"><span class="pop-name">Frauenkirch</span><span class="pop-sub">Landwasserstrasse · Frauenkirch</span></button>
+    <button id="tp-teufi" class="pop-item tp-btn" data-teleport="teufi" type="button"><span class="pop-name">Teufi</span><span class="pop-sub">Dischmastrasse · Dischma</span></button>
+    <button id="tp-duerrboden" class="pop-item tp-btn" data-teleport="duerrboden" type="button"><span class="pop-name">Dürrboden</span><span class="pop-sub">Dischmastrasse · Dischma</span></button>
   </div>
 
   <!-- Bottom edge: data attribution, always on screen (swisstopo terms, OSM attribution guidelines) -->
   <div class="hud hud-attribution">
-    © swisstopo · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> · Stadt Zürich ·
+    © swisstopo · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> ·
     <button id="btn-credits" class="attribution-btn" type="button">Data &amp; credits</button>
   </div>
 
@@ -190,11 +200,12 @@
       <h2 id="credits-title">Data &amp; credits</h2>
       <form method="dialog"><button class="credits-close" type="submit" aria-label="Close">×</button></form>
     </div>
-    <p>Slop Zürich is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the City of Zürich.</p>
+    <p>Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.</p>
     <ul class="credits-list">
       <li>
         <b>swissBUILDINGS3D 3.0</b>: buildings and roofs.<br>
         <b>swissALTI3D</b>: the terrain.<br>
+        <b>SWISSIMAGE</b>: the orthophotos on the ground and the roofs.<br>
         <b>swissSURFACE3D Raster</b>: the bridge decks.<br>
         <span class="credits-source">© swisstopo, Federal Office of Topography swisstopo (<a href="https://www.swisstopo.admin.ch/de/nutzungsbedingungen-kostenlose-geodaten-und-geodienste" target="_blank" rel="noopener noreferrer">terms of use</a>)</span>
       </li>
@@ -203,21 +214,17 @@
         <span class="credits-source">Bundesamt für Landestopografie swisstopo; Tarquini S., I. Isola, M. Favalli, A. Battistini, G. Dotta (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size (Version 1.1). Istituto Nazionale di Geofisica e Vulcanologia (INGV). https://doi.org/10.13127/tinitaly/1.1; DGM Österreich, geoland.at; DGM1, Bayerische Vermessungsverwaltung – www.geodaten.bayern.de; DGM 1 Baden-Württemberg: LGL, www.lgl-bw.de, dl-de/by-2-0; RGEAlti, Institut National de l'information géographique et forestière, données originales téléchargées sur https://geoservices.ign.fr/rgealti#telechargement5m, mise à jour du juillet 2023</span>
       </li>
       <li>
-        <b>OpenStreetMap</b>: streets, tram and rail lines, building footprints, parks and water.<br>
+        <b>OpenStreetMap</b>: streets, rail lines, building footprints, trees, parks and water.<br>
         <span class="credits-source">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, Open Database License (ODbL)</span>
       </li>
-      <li>
-        <b>Baumkataster</b>: the city trees.<br>
-        <span class="credits-source">Grün Stadt Zürich, <a href="https://data.stadt-zuerich.ch/dataset/geo_baumkataster" target="_blank" rel="noopener noreferrer">Open Government Data Stadt Zürich</a> (CC0)</span>
-      </li>
     </ul>
-    <p class="credits-source">Code under the MIT License on <a href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer">GitHub</a>, after mrdoob's <a href="https://github.com/mrdoob/slop-newyork" target="_blank" rel="noopener noreferrer">Slop New York</a>. Built with <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> (MIT).</p>
+    <p class="credits-source">Code under the MIT License, based on colorfield's <a href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer">Slop Zürich</a>, itself after mrdoob's <a href="https://github.com/mrdoob/slop-newyork" target="_blank" rel="noopener noreferrer">Slop New York</a>. Built with <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> (MIT).</p>
   </dialog>
 
   <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
   <div class="hud hud-bottom-left">
     <div id="hud-location" class="location" aria-live="off"></div>
-    <aside id="minimap-card" class="panel radar" aria-label="Live Zürich Street Radar Minimap" title="Open the full Zürich city street map [M]">
+    <aside id="minimap-card" class="panel radar" aria-label="Live Davos Street Radar Minimap" title="Open the full Davos street map [M]">
       <canvas id="minimap-canvas"></canvas>
       <span class="radar-north" aria-hidden="true">N</span>
       <kbd class="radar-key">M</kbd>
@@ -238,11 +245,14 @@
       <button id="mode-cyclist" class="mode-btn active" data-mode="cyclist" type="button" title="Cyclist [3]">
         <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label">Cycle</span><kbd>3</kbd>
       </button>
-      <button id="mode-cargobike" class="mode-btn" data-mode="cargobike" type="button" title="Cargo bike [4]">
-        <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label">Cargo bike</span><kbd>4</kbd>
+      <button id="mode-rhb" class="mode-btn" data-mode="rhb" type="button" title="RhB · drive a train on the rails [4]">
+        <svg class="icon" aria-hidden="true"><use href="#i-train"/></svg><span class="mode-label">RhB</span><kbd>4</kbd>
       </button>
       <button id="mode-helicopter" class="mode-btn" data-mode="helicopter" type="button" title="Helicopter [5]">
         <svg class="icon" aria-hidden="true"><use href="#i-heli"/></svg><span class="mode-label">Fly</span><kbd>5</kbd>
+      </button>
+      <button id="mode-snowcat" class="mode-btn" data-mode="snowcat" type="button" title="Pistenfahrzeug [6]">
+        <svg class="icon" aria-hidden="true"><use href="#i-snowcat"/></svg><span class="mode-label">Pistenfahrzeug</span><kbd>6</kbd>
       </button>
     </nav>
   </footer>
@@ -252,7 +262,7 @@
     <section id="hud-cluster" class="panel cluster" aria-label="Vehicle telemetry and camera">
       <div class="gauge">
         <div class="gauge-top">
-          <span id="hud-active-mode" class="gauge-label">Zürich Cyclist</span>
+          <span id="hud-active-mode" class="gauge-label">Davos Cyclist</span>
           <span class="gauge-alt"><span class="gauge-alt-label">Alt</span> <span id="hud-altitude">0</span> m ü. M.</span>
         </div>
         <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
@@ -292,40 +302,40 @@
     </div>
   </section>
 
-  <!-- All Cameras: 3 Follow Cameras + 7 Iconic NYC Vantage Cameras + Auto-Director Drone -->
+  <!-- All Cameras: 3 Follow Cameras + 7 Davos Viewpoints + Auto-Director Drone -->
   <div id="camera-popover" class="popover" popover data-side="above" data-anchor="hud-cluster" data-align="hud-cluster" aria-label="Multiple Camera Angles">
     <div class="pop-title">Follow</div>
     <button id="cam-chase" class="pop-item cam-btn active" data-camera="chase" type="button"><span class="pop-name">3rd-Person Chase</span></button>
-    <button id="cam-action" class="pop-item cam-btn" data-camera="action" type="button"><span class="pop-name">Low-Angle Action</span><kbd>6</kbd></button>
+    <button id="cam-action" class="pop-item cam-btn" data-camera="action" type="button"><span class="pop-name">Low-Angle Action</span></button>
     <button id="cam-pov" class="pop-item cam-btn" data-camera="pov" type="button"><span class="pop-name">First-Person / Cockpit</span><kbd>7</kbd></button>
     <div class="pop-title">Scenic</div>
-    <button id="cam-centralPark" class="pop-item cam-btn" data-camera="centralPark" type="button"><span class="pop-name">Lindenhof</span></button>
-    <button id="cam-fifthAve" class="pop-item cam-btn" data-camera="fifthAve" type="button"><span class="pop-name">Münsterbrücke &amp; Grossmünster</span><kbd>8</kbd></button>
-    <button id="cam-timesSquare" class="pop-item cam-btn" data-camera="timesSquare" type="button"><span class="pop-name">Bahnhofstrasse</span><kbd>9</kbd></button>
-    <button id="cam-chryslerGCT" class="pop-item cam-btn" data-camera="chryslerGCT" type="button"><span class="pop-name">Zürich HB &amp; Landesmuseum</span><kbd>0</kbd></button>
-    <button id="cam-observatory" class="pop-item cam-btn" data-camera="observatory" type="button"><span class="pop-name">Polyterrasse</span></button>
-    <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name">Sechseläutenplatz &amp; Opernhaus</span></button>
-    <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">Zürichsee &amp; Skyline</span></button>
+    <button id="cam-centralPark" class="pop-item cam-btn" data-camera="centralPark" type="button"><span class="pop-name">Promenade Davos Platz</span></button>
+    <button id="cam-fifthAve" class="pop-item cam-btn" data-camera="fifthAve" type="button"><span class="pop-name">Kongresszentrum</span><kbd>8</kbd></button>
+    <button id="cam-timesSquare" class="pop-item cam-btn" data-camera="timesSquare" type="button"><span class="pop-name">Bahnhof Davos Platz</span><kbd>9</kbd></button>
+    <button id="cam-chryslerGCT" class="pop-item cam-btn" data-camera="chryslerGCT" type="button"><span class="pop-name">Davosersee &amp; Davos Dorf</span><kbd>0</kbd></button>
+    <button id="cam-observatory" class="pop-item cam-btn" data-camera="observatory" type="button"><span class="pop-name">Schatzalp over the valley</span></button>
+    <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name">Eisstadion &amp; Kirchner Museum</span></button>
+    <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">Dischma valley</span></button>
     <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name">Auto-Director Aerial</span></button>
   </div>
 
-  <!-- Full-Screen Interactive New York City Street Map ([M]) -->
-  <section id="fullmap-modal" class="fullmap-modal hidden" role="dialog" aria-modal="true" aria-label="Full Zürich Interactive Street Map">
+  <!-- Full-Screen Interactive Davos Street Map ([M]) -->
+  <section id="fullmap-modal" class="fullmap-modal hidden" role="dialog" aria-modal="true" aria-label="Full Davos Interactive Street Map">
     <div id="fullmap-canvas-wrap" class="fullmap-canvas-wrap">
       <canvas id="fullmap-canvas"></canvas>
     </div>
 
     <div class="fullmap-header">
       <div class="panel fullmap-title">
-        <img class="brand-logo" src="./assets/zurich-flag.svg" alt="Zürich flag" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'Z'}))" />
+        <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
         <div>
-          <h2>Zürich Stadtplan</h2>
-          <p id="fullmap-player-info" class="fullmap-subtitle">You are at Bahnhofquai</p>
+          <h2>Davos Karte</h2>
+          <p id="fullmap-player-info" class="fullmap-subtitle">You are on the Promenade</p>
         </div>
       </div>
       <label class="panel fullmap-search-wrap">
         <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-        <input id="fullmap-search" class="fullmap-search" type="text" placeholder="Search streets &amp; landmarks — Bahnhofstrasse, Limmatquai, Grossmünster…" aria-label="Search street or landmark" autocomplete="off" spellcheck="false" />
+        <input id="fullmap-search" class="fullmap-search" type="text" placeholder="Search streets &amp; landmarks — Promenade, Talstrasse, Kongresszentrum…" aria-label="Search street or landmark" autocomplete="off" spellcheck="false" />
       </label>
       <button id="close-fullmap-btn" class="panel tool-btn fullmap-close" type="button" title="Close map [M / Esc]">
         <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg><span class="tool-label">Close</span><kbd>Esc</kbd>
@@ -333,7 +343,7 @@
     </div>
 
     <div class="map-controls">
-      <div class="panel map-compass" title="True north · Manhattan's street grid runs 29° east of it">
+      <div class="panel map-compass" title="True north">
         <svg viewBox="0 0 44 44" aria-hidden="true">
           <g id="map-compass-needle">
             <path d="M22 9.5 25.6 22h-7.2z" fill="#f05a4f"/>
@@ -348,7 +358,7 @@
       </div>
       <div class="panel map-zoom">
         <button id="map-center-player" class="icon-btn" type="button" title="Street view around you" aria-label="Center on player"><svg class="icon" aria-hidden="true"><use href="#i-locate"/></svg></button>
-        <button id="map-view-all" class="icon-btn" type="button" title="All of Manhattan (125th St to Battery Park)" aria-label="Fit all of Manhattan"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
+        <button id="map-view-all" class="icon-btn" type="button" title="All of Davos (Wolfgang to Frauenkirch and Dürrboden)" aria-label="Fit the whole map"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
       </div>
     </div>
 
@@ -363,7 +373,7 @@
       <span class="legend-item"><span class="legend-swatch landmark-swatch"></span>Landmark</span>
       <span class="legend-item"><span class="legend-swatch gps-swatch"></span>GPS route</span>
       <span class="legend-item"><span class="legend-swatch bridge-swatch"></span>Bridge / Hwy</span>
-      <span class="legend-item legend-credits">© swisstopo · © OpenStreetMap contributors · Stadt Zürich OGD</span>
+      <span class="legend-item legend-credits">© swisstopo · © OpenStreetMap contributors</span>
       <span id="fullmap-counts" class="legend-counts"></span>
     </div>
   </section>

@@ -1,9 +1,10 @@
 import { GEO } from './nyc-geodata.js';
-import { lonLatToWorld, lv95ToWorld } from './zurich-frame.js';
+import { lonLatToWorld, lv95ToWorld } from './davos-frame.js';
 
-// Zurich spatial adapter for mrdoob/slop-newyork's engine, via the irregular-city data path of the Slop Berlin, Warsaw
-// and Utrecht forks. Legacy export names are retained as API aliases; all visible geography is Zurich.
-// 1 unit = 1 metre, x = LV95 east, z = LV95 south (grid north up), origin by the Bahnhofstrasse at the Seidengasse (js/zurich-frame.js).
+// Davos spatial adapter for mrdoob/slop-newyork's engine (via colorfield/slop-zurich and the irregular-city data path of
+// the Slop Berlin, Warsaw and Utrecht forks). Legacy export names are retained as API aliases; all visible geography is Davos.
+// 1 unit = 1 metre, x = LV95 east, z = LV95 south (grid north up), origin on the Promenade between Davos Platz and the
+// Kongresszentrum (js/davos-frame.js).
 const BERLIN_DATA = GEO.berlin;
 const toPts = (flat) => { const out=[]; for(let i=0;i<flat.length;i+=2)out.push({x:flat[i],z:flat[i+1]});return out; };
 // Exact WGS84 -> LV95 (js/swiss-projection.js)
@@ -13,7 +14,7 @@ const ISLAND_BOUNDS = {minX,maxX,minZ,maxZ,sidewalkHeight:0.22,waterLevel:-2.2};
 const CUT_Z=minZ;
 const MANHATTAN_COASTLINE=toPts(GEO.manhattan);
 const getIslandBoundsAtZ=()=>({westX:minX,eastX:maxX});
-// Zurich has an arbitrary mapped street network. Empty legacy grid registries prevent
+// Davos has an arbitrary mapped street network. Empty legacy grid registries prevent
 // the original corridor builder from inventing axis-aligned Manhattan streets.
 const AVENUES=[], ALL_AVENUES=[], STREETS=[], ALL_STREETS=[];
 const BROADWAY_LINE=[];
@@ -21,7 +22,7 @@ const getBroadwayX=()=>0;
 const WATERFRONT_PIERS=[], EAST_RIVER_BRIDGES=[], OUTER_BRIDGES=[];
 const ROOSEVELT_ISLAND_POLYGON=[],GOVERNORS_ISLAND_POLYGON=[],NJ_SHORELINE_POLYGON=[],LONG_ISLAND_POLYGON=[],LONG_ISLAND_POLYGONS=[],BROOKLYN_POLYGONS=[],QUEENS_POLYGONS=[],BRONX_POLYGONS=[],WESTCHESTER_POLYGON=[],NASSAU_POLYGON=[],UPPER_MANHATTAN_POLYGON=[],BRONX_POLYGON=[],STATEN_ISLAND_POLYGON=[],RANDALLS_ISLAND_POLYGON=[],LIBERTY_ISLAND_POLYGON=[],ELLIS_ISLAND_POLYGON=[],MILL_ROCK_POLYGON=[];
 const LIBERTY_STATUE_POS={x:0,z:0};
-// The legacy park bounds describe a raised Central Park lawn: Zurich has none.
+// The legacy park bounds describe a raised Central Park lawn: Davos has none.
 const CENTRAL_PARK_BOUNDS={minX:-99999,maxX:-99998,minZ:-99999,maxZ:-99998};
 const ROADS=BERLIN_DATA.roads.filter(r=>!r.tunnel).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
 const DRIVABLE=new Set(['motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','residential','unclassified','living_street']);
@@ -29,7 +30,7 @@ const ROAD_DRIVING=ROADS.filter(r=>DRIVABLE.has(r.kind));
 const BERLIN_AREAS=(BERLIN_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
  poly:toPts(p.ring),holes:(p.holes||[]).map(toPts)
 }))}));
-// Quarters (Quartiere) from the official city boundaries mapped in OSM; bounding boxes keep the polygon tests rare.
+// Areas (the municipality, Ortsteile where mapped) from the official boundaries in OSM; bounding boxes keep the polygon tests rare.
 for(const a of BERLIN_AREAS){
  a.minX=Infinity;a.maxX=-Infinity;a.minZ=Infinity;a.maxZ=-Infinity;
  for(const p of a.polygons)for(const q of p.poly){a.minX=Math.min(a.minX,q.x);a.maxX=Math.max(a.maxX,q.x);a.minZ=Math.min(a.minZ,q.z);a.maxZ=Math.max(a.maxZ,q.z);}
@@ -153,7 +154,7 @@ function blocksInRect(minX, maxX, minZ, maxZ) {
 
 const WATER_POLYGONS=BERLIN_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
 function waterAtExact(x,z){return WATER_POLYGONS.some(w=>x>=w.minX&&x<=w.maxX&&z>=w.minZ&&z<=w.maxZ&&pointInPoly(w.poly,x,z)&&!w.inner.some(h=>pointInPoly(h,x,z)));}
-// The lake, the Limmat and the Sihl are mapped water polygons, and traffic calls waterAt many times per frame.
+// The Davosersee, the Landwasser and the mountain streams are mapped water polygons, and traffic calls waterAt many times per frame.
 // A 4 m grid (scanline even-odd fill) answers inside/outside; only cells crossed by a shoreline use the exact test.
 const WATER_CELL=4, WNX=Math.ceil((maxX-minX)/WATER_CELL), WNZ=Math.ceil((maxZ-minZ)/WATER_CELL);
 const WATER_GRID=new Uint8Array(WNX*WNZ);
@@ -188,39 +189,36 @@ function nearestDrivingPoint(x,z,name=null){
 }
 function arrivalAt(p,name=null){const q=nearestDrivingPoint(p.x,p.z,name)||(name&&nearestDrivingPoint(p.x,p.z));return q?{x:q.x,z:q.z,heading:q.heading}:{...p,heading:0};}
 function arrival(lon,lat,name=null){return arrivalAt(projectLonLat(lon,lat),name);}
-// The start: at Bellevue, onto the Quaibrücke towards the Fraumünster, the lake on the left and the Limmat, the old
-// town and the Grossmünster's towers on the right
-const spawnPoint=lv95ToWorld(2683700,1246860);
-const defaultSpawn=arrivalAt(spawnPoint,'Quaibrücke');
-{
- const fm=LANDMARK_SITES['Fraumünster'];
- if(fm&&(fm.x-defaultSpawn.x)*Math.sin(defaultSpawn.heading)+(fm.z-defaultSpawn.z)*Math.cos(defaultSpawn.heading)<0)defaultSpawn.heading+=Math.PI;
-}
-// 15 m onto the bridge, so that the chase camera behind the bike clears Bellevue's signal poles
-defaultSpawn.x+=Math.sin(defaultSpawn.heading)*15;defaultSpawn.z+=Math.cos(defaultSpawn.heading)*15;
-defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Quaibrücke';
+// The start: on the Promenade in Davos Platz between the Eisstadion and the Kirchner Museum, riding along the one-way
+// street towards the Schatzalpbahn and the centre of Davos Platz, the Jakobshorn ahead across the valley
+const spawnPoint=lv95ToWorld(2782080,1185738);
+const defaultSpawn=arrivalAt(spawnPoint,'Promenade');
+// Keep to the right of the carriageway, clear of the kerb furniture
+defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Promenade';
 // Legacy material code samples ordered district bands through streetZ; keep distinct thresholds.
 const streetZ=(n=37)=>defaultSpawn.z+(37-Number(n))*25;
-// Teleport destinations: [id, name, short label, LV95 east, LV95 north, quarter, street to arrive on, mapped landmark
-// to face (LANDMARK_SITES, from its OSM footprint) or none]
+// Teleport destinations: [id, name, short label, LV95 east, LV95 north, Ortsteil, street to arrive on (exact OSM name, or
+// null for the nearest drivable street), mapped landmark to face (LANDMARK_SITES, from its OSM footprint) or none]
 const NYC_LANDMARKS=[
- ['hb','Zürich HB','HB',2683261,1247919,'City','Bahnhofquai','Zürich HB'],
- ['paradeplatz','Paradeplatz · Bahnhofstrasse','Paradeplatz',2683105,1247097,'City','Talstrasse',null],
- ['grossmuenster','Grossmünster','Grossmünster',2683404,1247290,'Rathaus','Limmatquai','Grossmünster'],
- ['fraumuenster','Fraumünster','Fraumünster',2683260,1247170,'Lindenhof','Stadthausquai','Fraumünster'],
- ['niederdorf','Niederdorf · Limmatquai','Niederdorf',2683404,1247459,'Rathaus','Limmatquai',null],
- ['bellevue','Bellevue · Opernhaus','Bellevue',2683686,1246830,'Hochschulen','Utoquai','Opernhaus'],
- ['buerkliplatz','Bürkliplatz · Quaibrücke','Bürkliplatz',2683244,1246788,'City','General-Guisan-Quai',null],
- ['utoquai','Utoquai · Seefeld','Utoquai',2683686,1246518,'Mühlebach','Utoquai',null],
- ['kunsthaus','Kunsthaus · Heimplatz','Kunsthaus',2683843,1247180,'Hochschulen','Rämistrasse','Kunsthaus'],
- ['eth','ETH Zürich · Polyterrasse','ETH',2683800,1247886,'Hochschulen','Rämistrasse','ETH Hauptgebäude'],
- ['langstrasse','Langstrasse','Langstrasse',2682238,1248169,'Langstrasse','Langstrasse',null],
- ['enge','Tessinerplatz · Bahnhof Enge','Enge',2682604,1246539,'Enge','Tessinerplatz',null],
- ['primetower','Prime Tower · Hardbrücke','Prime Tower',2681452,1248937,'Escher Wyss','Hardstrasse','Prime Tower'],
+ ['platz','Bahnhof Davos Platz','Davos Platz',2781839,1185061,'Davos Platz','Talstrasse',null],
+ ['promenade','Promenade · Davos Platz','Promenade',2781944,1185672,'Davos Platz','Promenade',null],
+ ['schatzalp','Schatzalpbahn','Schatzalp',2781892,1185647,'Davos Platz','Promenade','Schatzalpbahn Talstation'],
+ ['eisstadion','Eisstadion · Vaillant Arena','Eisstadion',2782255,1185816,'Davos Platz','Eisbahnstrasse','Eisstadion Davos'],
+ ['kirchner','Kirchner Museum','Kirchner',2782276,1185991,'Davos Platz','Promenade','Kirchner Museum'],
+ ['kongress','Kongresszentrum','Kongress',2782631,1186090,'Davos Platz','Promenade','Kongresszentrum'],
+ ['jakobshorn','Talstation Jakobshornbahn','Jakobshorn',2781982,1184825,'Davos Platz','Skistrasse',null],
+ ['parsenn','Talstation Parsennbahn','Parsenn',2783145,1186937,'Davos Dorf','Promenade',null],
+ ['dorf','Bahnhof Davos Dorf','Davos Dorf',2783393,1187097,'Davos Dorf','Bahnhofstrasse',null],
+ ['see','Davosersee · Strandbad','Davosersee',2784149,1187714,'Davos Dorf',null,null],
+ ['frauenkirch','Frauenkirch','Frauenkirch',2780246,1182443,'Frauenkirch','Landwasserstrasse','Frauenkirch'],
+ ['teufi','Dischma · Teufi','Teufi',2786574,1182992,'Dischma','Dischmastrasse',null],
+ ['duerrboden','Dürrboden','Dürrboden',2789560,1177880,'Dischma','Dischmastrasse',null],
 ].map(([id,name,short,E,N,district,road,landmark])=>{
  const site=landmark&&LANDMARK_SITES[landmark];
  return {id,name,short,...(site?{x:site.x,z:site.z}:lv95ToWorld(E,N)),district,road,E,N};
 });
+// The Davosersee's extent (LV95 2783650-2784740 E, 1187640-1188830 N) names the water the player stands on
+const LAKE_SW=lv95ToWorld(2783600,1187450),LAKE_NE=lv95ToWorld(2784800,1188900);
 const TELEPORT_LOCATIONS={};
 for(const lm of NYC_LANDMARKS){
  const p=arrivalAt(lv95ToWorld(lm.E,lm.N),lm.road);
@@ -233,10 +231,12 @@ function getLocationLabel(x,z){
  const nearby=nearestRoads(x,z,100).filter(q=>q.road.raw);
  if(nearby.length>1&&nearby[1].dist<22)return `${nearby[0].road.name} & ${nearby[1].road.name}`;
  if(nearby.length)return nearby[0].road.name;
- if(waterAt(x,z))return z>-200&&x>-400&&x<1100?'Zürichsee':'Limmat · Zürich';
+ if(waterAt(x,z))return x>LAKE_SW.x&&x<LAKE_NE.x&&z<LAKE_SW.z&&z>LAKE_NE.z?'Davosersee':'Landwasser · Davos';
  const district=districtAt(x,z);
+ if(district==='city')return 'Davos';
  const name=BERLIN_AREAS.find(a=>a.id===district)?.name||district.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
- return name+' · Zürich';
+ // The neighbouring municipalities clipped by the frame (Klosters, Arosa, Zernez) keep their own name
+ return name;
 }
 // Keyboard shortcuts are ignored while typing into a form field (e.g. the map's street search box)
 function isTypingInField(e) {

@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts } from './terrain-grid.js';
-import { ZURICH_DATA } from './zurich-geodata.js';
+import { DAVOS_DATA } from './davos-geodata.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
-//  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/zurich-terrain.bin, with the bridgeheads raised and
+//  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
 //    the tunnel ramps filled below), exactly as the terrain mesh draws it (see terrain-grid.js).
-//  - deckHeight(x, z): the surveyed deck of the bridge under (x, z) (tools/build-zurich-geodata.mjs, roads[].ys), or NaN.
+//  - deckHeight(x, z): the surveyed deck of the bridge under (x, z) (tools/build-davos-geodata.mjs, roads[].ys), or NaN.
 //  - surfaceHeight(x, z, nearY): what an actor at height ~nearY stands on: the deck when on a bridge, unless it is
 //    clearly passing underneath on land (the Hardbrücke spans streets and the tracks; there is no going under a bridge
 //    over the water).
@@ -13,7 +13,7 @@ import { ZURICH_DATA } from './zurich-geodata.js';
 //    (roads, paths, lawns, rivers: subdivided and lifted vertex by vertex), placeOnTerrain() for everything else
 //    (street furniture, trees, facades, …).
 
-const TERRAIN_URL = new URL('../data/zurich-terrain.bin', import.meta.url);
+const TERRAIN_URL = new URL('../data/davos-terrain.bin', import.meta.url);
 
 // Heights of the drawn surfaces above the terrain. The engine's flat world has the roadway at 0 and raised sidewalks
 // (0.22 m, city-config.js ISLAND_BOUNDS.sidewalkHeight); here the terrain itself is the sidewalk, and the roads are
@@ -30,16 +30,24 @@ async function loadBinary(url) {
     const b = await readFile(url);
     return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
   }
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  return res.arrayBuffer();
+  // (a few retries: simple static servers drop a request now and then, and everything waits for the terrain)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: ${res.status}`);
+      return await res.arrayBuffer();
+    } catch (error) {
+      if (attempt >= 4) throw error;
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
 }
 
 export const TERRAIN = parseTerrain(await loadBinary(TERRAIN_URL));
 
-// The rivers and the lake (ZURICH_DATA.water rings, flat [x, z, …])
+// The rivers and the lake (DAVOS_DATA.water rings, flat [x, z, …])
 const pip = (ring, x, z) => { let inside = false; for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) { if ((ring[i + 1] > z) !== (ring[j + 1] > z) && x < ((ring[j] - ring[i]) * (z - ring[i + 1])) / (ring[j + 1] - ring[i + 1]) + ring[i]) inside = !inside; } return inside; };
-const WATER = ZURICH_DATA.water.map((w) => {
+const WATER = DAVOS_DATA.water.map((w) => {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (let i = 0; i < w.ring.length; i += 2) { minX = Math.min(minX, w.ring[i]); maxX = Math.max(maxX, w.ring[i]); minZ = Math.min(minZ, w.ring[i + 1]); maxZ = Math.max(maxZ, w.ring[i + 1]); }
   return { ring: w.ring, holes: w.holes || [], minX, maxX, minZ, maxZ };
@@ -47,11 +55,11 @@ const WATER = ZURICH_DATA.water.map((w) => {
 const inWater = (x, z) => WATER.some((w) => x >= w.minX && x <= w.maxX && z >= w.minZ && z <= w.maxZ && pip(w.ring, x, z) && !w.holes.some((h) => pip(h, x, z)));
 
 // Bridgeheads: the survey lowers the ground under bridges towards the river, bridgeheads included. The data tool lists
-// where the surveyed road is higher (ZURICH_DATA.terrainPatches); the ground rises smoothly to meet it there (never
+// where the surveyed road is higher (DAVOS_DATA.terrainPatches); the ground rises smoothly to meet it there (never
 // inside the rivers and the lake).
 {
   const { cols, rows, cell, minX, minZ, heights } = TERRAIN;
-  for (const { x, z, h, r } of ZURICH_DATA.terrainPatches || []) {
+  for (const { x, z, h, r } of DAVOS_DATA.terrainPatches || []) {
     for (let j = Math.max(0, Math.ceil((z - r - minZ) / cell)); j <= Math.min(rows - 1, Math.floor((z + r - minZ) / cell)); j++) {
       for (let i = Math.max(0, Math.ceil((x - r - minX) / cell)); i <= Math.min(cols - 1, Math.floor((x + r - minX) / cell)); i++) {
         const nx = minX + i * cell, nz = minZ + j * cell, d = Math.hypot(nx - x, nz - z);
@@ -72,7 +80,7 @@ const DECK_CELL = 32;
 export const deckHalfWidth = (r) => (r.width ? r.width / 2 + (/^(footway|path|steps|cycleway|pedestrian)$/.test(r.kind) ? 0.6 : 3.2) : 3);
 const deckCells = new Map();
 let deckSegments = 0;
-for (const list of [ZURICH_DATA.roads, ZURICH_DATA.railways]) {
+for (const list of [DAVOS_DATA.roads, DAVOS_DATA.railways]) {
   for (const r of list) {
     if (!r.bridge || r.tunnel || !r.ys) continue;
     const half = deckHalfWidth(r);
@@ -118,7 +126,7 @@ export function surfaceHeight(x, z, nearY) {
 // count: the lanes running beneath a viaduct along it (the Hardstrasse under the Hardbrücke) keep its piers.
 const STREET_CELL = 48;
 const streetCells = new Map();
-for (const r of ZURICH_DATA.roads) {
+for (const r of DAVOS_DATA.roads) {
   if (r.bridge || r.tunnel || !/^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street|service)$/.test(r.kind)) continue;
   const half = (r.width || 6) / 2;
   for (let i = 0; i + 2 < r.pts.length; i += 2) {
@@ -160,7 +168,7 @@ export function pierClear(x, z, ux, uz, half) {
 {
   const APPROACH = 150;
   const DRIVABLE = /^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street)$/;
-  const streets = ZURICH_DATA.roads.filter((r) => DRIVABLE.test(r.kind));
+  const streets = DAVOS_DATA.roads.filter((r) => DRIVABLE.test(r.kind));
   const key = (x, z) => `${Math.round(x * 10)},${Math.round(z * 10)}`;
   const at = new Map(); // point -> [street, point index] of the open streets through it
   for (const r of streets) {
@@ -276,6 +284,7 @@ export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths 
     const mesh = new THREE.Mesh(g, material);
     mesh.receiveShadow = true;
     mesh.name = `terrain ${i0}/${j0}`;
+    mesh.userData.chunk = { i0, j0 }; // its orthophoto (swissimage.js)
     meshes.push(mesh);
   }
   return meshes;

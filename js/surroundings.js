@@ -3,15 +3,17 @@ import { attribute, float, mix, mx_noise_float, normalWorld, positionWorld, smoo
 import { parseTerrain, gridHeight } from './terrain-grid.js';
 import { TERRAIN, groundHeight } from './terrain.js';
 import { createWaterMaterial } from './tsl-materials.js';
+import { FRAME } from './davos-frame.js';
+import { winter, freezeWater } from './season.js';
 
-// The relief around the mapped city (data/zurich-surroundings.bin, tools/build-zurich-surroundings.mjs, swissALTIRegio):
-// a mid ring (±12 km at 50 m: the Uetliberg, the Pfannenstiel, the rest of the lake) and a far ring (±91 km at 275 m:
-// the Rigi, the Pilatus, the Glarus Alps, the Säntis). Each ring's grid lines up with the edge of the area inside it:
+// The relief around the mapped city (data/davos-surroundings.bin, tools/build-davos-surroundings.mjs, swissALTIRegio):
+// a mid ring (±12 km at 50 m: the Weissfluh, the Pischa, the Flüela and Sertig peaks) and a far ring (±91 km at 275 m:
+// the Silvretta, the Albula Alps, the Bernina, the Rätikon). Each ring's grid lines up with the edge of the area inside it:
 // its nodes on that edge take the inner surface's heights, and a skirt one cell wide runs some metres under the inner
 // surface so that the seam never shows the sky. Beyond the city the Earth's curvature (less refraction) lowers the
 // horizon: ~250 m at 60 km.
 
-const URL_SURROUNDINGS = new URL('../data/zurich-surroundings.bin', import.meta.url);
+const URL_SURROUNDINGS = new URL('../data/davos-surroundings.bin', import.meta.url);
 const EARTH_RADIUS = 6371000, REFRACTION = 0.13;
 const CITY_RADIUS = TERRAIN.maxX; // the curvature is left out within the city (< 0.3 m)
 
@@ -58,7 +60,7 @@ function ringMeshes(grid, hole, innerHeight, materials, skirt) {
     positions[k * 3] = x; positions[k * 3 + 1] = h - curvatureDrop(x, z, CITY_RADIUS); positions[k * 3 + 2] = z;
   }
   // Land and lake triangles (all three corners level, outside the city: its lake is drawn by city-grid.js) share the
-  // vertices; the lakes take the city's water material so that the Zürichsee runs on seamlessly.
+  // vertices; the lakes take the city's water material so that the Davosersee runs on seamlessly.
   const land = [], lake = [];
   for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) {
     const x0 = minX + i * cell, z0 = minZ + j * cell;
@@ -90,11 +92,11 @@ function ringMeshes(grid, hole, innerHeight, materials, skirt) {
   return meshes;
 }
 
-// Meadows and woods of the plateau, rock above the tree line, snow on the gentler slopes of the high Alps, lakes
+// Meadows and larch-and-spruce woods up to the tree line (~2100 m around Davos), rock above it, snow on the gentler slopes of the high Alps, lakes
 // (colours in linear space)
 function createMaterial() {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
-  const altitude = attribute('aAltitude', 'float').add(406);
+  const altitude = attribute('aAltitude', 'float').add(FRAME.H0);
   const lake = smoothstep(0.6, 1.0, attribute('aLake', 'float'));
   const patches = mx_noise_float(positionWorld.xz.mul(0.002)).mul(0.5).add(0.5);
   const fine = mx_noise_float(positionWorld.xz.mul(0.006)).mul(0.5).add(0.5);
@@ -103,8 +105,11 @@ function createMaterial() {
   const forest = vec3(0.025, 0.05, 0.02);
   const lowland = mix(meadow, forest, smoothstep(0.45, 0.6, patches.add(slope.mul(1.4))));
   const rock = mix(vec3(0.13, 0.12, 0.11), vec3(0.2, 0.19, 0.17), fine);
-  const snowline = smoothstep(2300, 2700, altitude.add(fine.mul(250))).mul(smoothstep(0.55, 0.3, slope));
-  const ground = mix(mix(lowland, rock, smoothstep(1600, 2100, altitude.add(fine.mul(200)))), vec3(0.85, 0.88, 0.92), snowline);
+  // Winter (season.js): the snowline drops to the valley floors; woods (the dark patches below ~2100 m) keep a dusting only
+  const lineLow = mix(float(2650), float(700), winter), lineHigh = mix(float(3000), float(1100), winter);
+  const snowline = smoothstep(lineLow, lineHigh, altitude.add(fine.mul(250))).mul(smoothstep(mix(float(0.55), float(0.75), winter), 0.3, slope));
+  const wooded = smoothstep(0.45, 0.6, patches.add(slope.mul(1.4))).mul(smoothstep(2200, 1900, altitude)).mul(winter).mul(0.6);
+  const ground = mix(mix(lowland, rock, smoothstep(2150, 2550, altitude.add(fine.mul(200)))), vec3(0.85, 0.88, 0.92), snowline.mul(float(1).sub(wooded)));
   m.colorNode = mix(ground, vec3(0.03, 0.07, 0.09), lake);
   m.roughnessNode = mix(float(0.95), float(0.12), lake);
   return m;
@@ -114,7 +119,7 @@ export async function buildSurroundings(scene) {
   const res = await fetch(URL_SURROUNDINGS);
   if (!res.ok) throw new Error(`${URL_SURROUNDINGS}: ${res.status}`);
   const [mid, far] = parseRings(await res.arrayBuffer());
-  const materials = { land: createMaterial(), lake: createWaterMaterial() };
+  const materials = { land: createMaterial(), lake: freezeWater(createWaterMaterial(), { all: true }) };
   const group = new THREE.Group();
   group.name = 'surroundings';
   group.userData.terrain = 'absolute';

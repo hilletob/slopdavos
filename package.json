@@ -1,21 +1,22 @@
 {
-  "name": "slop-zurich",
+  "name": "slop-davos",
   "private": true,
   "type": "module",
-  "description": "A Zurich city simulation built with three.js, WebGPURenderer and TSL, from swisstopo and OpenStreetMap data.",
+  "description": "A Davos simulation built with three.js, WebGPURenderer and TSL, from swisstopo and OpenStreetMap data.",
   "license": "MIT",
   "scripts": {
-    "data:osm": "bash tools/overpass.sh tools/data/cache/osm_zurich.json tools/data/q_zurich.overpassql",
-    "data:trees": "node tools/fetch-zurich-trees.mjs",
-    "data:areas": "bash tools/overpass.sh tools/data/cache/osm_zurich_areas.json tools/data/q_zurich_areas.overpassql",
-    "data:terrain": "node tools/build-zurich-terrain.mjs",
+    "data:osm": "bash tools/overpass.sh tools/data/cache/osm_davos.json tools/data/q_davos.overpassql",
+    "data:areas": "bash tools/overpass.sh tools/data/cache/osm_davos_areas.json tools/data/q_davos_areas.overpassql",
+    "data:terrain": "node tools/build-davos-terrain.mjs",
     "data:decks": "node tools/fetch-bridge-decks.mjs",
-    "data:geo": "node tools/build-zurich-geodata.mjs",
-    "data:surroundings": "node tools/build-zurich-surroundings.mjs",
-    "data": "npm run data:osm && npm run data:areas && npm run data:trees && npm run data:terrain && npm run data:decks && npm run data:geo && npm run data:surroundings",
+    "data:geo": "node tools/build-davos-geodata.mjs",
+    "data:surroundings": "node tools/build-davos-surroundings.mjs",
+    "data": "npm run data:osm && npm run data:areas && npm run data:terrain && npm run data:decks && npm run data:geo && npm run data:surroundings && npm run data:swissimage && npm run data:roofs",
     "update:buildings": "node tools/update-swissbuildings3d.mjs",
-    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
-    "test": "node --test tests/*.cjs tests/*.mjs"
+    "serve": "python3 tools/serve.py 8765",
+    "test": "node --test tests/*.cjs tests/*.mjs",
+    "data:swissimage": "node tools/fetch-swissimage.mjs",
+    "data:roofs": "node tools/build-roof-atlases.mjs"
   },
   "devDependencies": {
     "geotiff": "^2.1.3"

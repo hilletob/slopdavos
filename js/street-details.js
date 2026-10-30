@@ -143,7 +143,7 @@ function buildStreetDetails(scene) {
   const pedGlobeGlow = new THREE.MeshBasicNodeMaterial();
   pedGlobeGlow.colorNode = mix(color(0xd4d2c8), color(0xffe4b0).mul(1.95), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
   const streetBladeMat = new THREE.MeshStandardNodeMaterial({
-    map: createStreetSignBladeTexture(BERLIN_DATA ? 'ZÜRICH · ALTSTADT' : '5TH AVE · 42 ST'),
+    map: createStreetSignBladeTexture(BERLIN_DATA ? 'DAVOS · PROMENADE' : '5TH AVE · 42 ST'),
     roughness: 0.32
   });
 
@@ -575,7 +575,7 @@ function buildStreetDetails(scene) {
   // =========================================================================
   const godRayMat = createGodRayMaterial();
   const godRayGeo = new THREE.PlaneGeometry(54, 92);
-  const canyonShafts = BERLIN_DATA ? berlinStreetSites.filter(s => /Bahnhofstrasse|Rennweg|Limmatquai|Niederdorfstrasse/.test(s.name)).filter((s, i) => i % 9 === 0).slice(0, 8).map(s => ({ x: s.x, y: 24, z: s.z, rotY: Math.atan2(s.ux, s.uz), rotZ: -0.44 })) : [
+  const canyonShafts = BERLIN_DATA ? berlinStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse/.test(s.name)).filter((s, i) => i % 9 === 0).slice(0, 8).map(s => ({ x: s.x, y: 24, z: s.z, rotY: Math.atan2(s.ux, s.uz), rotZ: -0.44 })) : [
     { x: 0,    y: 42, z: 180,  rotY: 0.32,  rotZ: -0.46 }, // 34th St & 5th Ave (Empire State Canyon)
     { x: 0,    y: 44, z: 0,    rotY: 0.28,  rotZ: -0.44 }, // 42nd St & 5th Ave (NYPL / Bryant Park)
     { x: 165,  y: 46, z: 0,    rotY: 0.25,  rotZ: -0.45 }, // 42nd St & Park/Lexington (Grand Central & Chrysler)
@@ -822,7 +822,7 @@ function buildStreetDetails(scene) {
     roughness: 0.6
   });
 
-  const cartLocations = BERLIN_DATA ? berlinStreetSites.filter(s => /Niederdorfstrasse|Bahnhofstrasse|Langstrasse|Limmatquai/.test(s.name)).filter((s, i) => i % 13 === 0).slice(0, 12).map(s => [s.x, s.z]) : [
+  const cartLocations = BERLIN_DATA ? berlinStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse|Landwasserstrasse/.test(s.name)).filter((s, i) => i % 13 === 0).slice(0, 12).map(s => [s.x, s.z]) : [
     [-17, 152],   // Empire State corner
     [-17, 25],    // NYPL / Bryant Park
     [-127, 25],   // 6th Ave & 42nd

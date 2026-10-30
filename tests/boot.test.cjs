@@ -26,14 +26,13 @@ test('city module preloads start after the import map and before stylesheets', (
 
 test('native module entry and imports share canonical preloaded URLs on GitHub Pages', () => {
   const links = preloads.map((match) => match[1]);
-  assert.equal(links.length, 42);
+  assert.equal(links.length, 47);
   assert.equal(new Set(links).size, links.length, 'each module is preloaded once');
   assert.equal(entries.length, 1);
   assert.equal(entries[0][1], './js/main.js');
   assert.ok(links.includes(entries[0][1]));
-  const analytics = /<script defer data-domain="[^"]+" src="https:\/\/plausible\.colorfield\.dev\/js\/script\.js"><\/script>/;
-  assert.match(html, analytics, 'the Plausible analytics script is deferred');
-  const appScripts = [...html.replace(analytics, '').matchAll(/<script\b/g)];
+  assert.doesNotMatch(html, /plausible/, 'no third-party analytics');
+  const appScripts = [...html.matchAll(/<script\b/g)];
   assert.equal(appScripts.length, 2, 'only the import map and native entry are needed');
   const base = 'https://example.test/slop-newyork/';
   const urls = new Set(links.map((src) => new URL(src, base).href));

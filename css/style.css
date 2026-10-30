@@ -1570,3 +1570,11 @@ body.touch-enabled .pop-item { min-height: 44px; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The season toggle (js/season.js): an icy chip when winter is on */
+.season-btn { margin-left: 4px; }
+.season-btn.active,
+.season-btn.active:hover {
+  background: #dcecff;
+  color: #0f2a44;
+}

@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FRAME, lonLatToWorld } from '../js/zurich-frame.js';
+import { FRAME, lonLatToWorld } from '../js/davos-frame.js';
 import { lv95ToWgs84 } from '../js/swiss-projection.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));

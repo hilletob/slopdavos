@@ -1,36 +1,36 @@
 import * as THREE from 'three/webgpu';
 import { bryantParkLawn } from './landmarks.js';
 import { groundHeight } from './terrain.js';
-import { lv95ToWorld } from './zurich-frame.js';
+import { lv95ToWorld } from './davos-frame.js';
 
 // js/cameras.js
 // Multi-camera system supporting Third-Person Chase (with mouse/touch orbit + zoom),
-// Low-Angle Action Cam, POV/Cockpit Cam, 7 Zurich viewpoints, and Auto-Director Drone.
+// Low-Angle Action Cam, POV/Cockpit Cam, 7 Davos viewpoints, and Auto-Director Drone.
 
 const CAMERA_PRESETS = [
   { id: 'chase',       name: '3rd-Person Chase',         short: 'Chase',       category: 'follow', fov: 56 },
   { id: 'action',      name: 'Low-Angle Action',         short: 'Action',      category: 'follow', fov: 60 },
   { id: 'pov',         name: 'First-Person / Cockpit',   short: 'POV / Dash',  category: 'follow', fov: 68 },
-  { id: 'centralPark', name: 'Lindenhof', short: 'Lindenhof', category: 'scenic', fov: 52 },
-  { id: 'fifthAve', name: 'Münsterbrücke & Grossmünster', short: 'Grossmünster', category: 'scenic', fov: 48 },
-  { id: 'timesSquare', name: 'Bahnhofstrasse', short: 'Bahnhofstrasse', category: 'scenic', fov: 58 },
-  { id: 'chryslerGCT', name: 'Zürich HB & Landesmuseum', short: 'HB', category: 'scenic', fov: 50 },
-  { id: 'observatory', name: 'Polyterrasse', short: 'Polyterrasse', category: 'scenic', fov: 52 },
-  { id: 'bryantPark', name: 'Sechseläutenplatz & Opernhaus', short: 'Opernhaus', category: 'scenic', fov: 52 },
-  { id: 'waterfront', name: 'Zürichsee & Skyline', short: 'Seebecken', category: 'scenic', fov: 46 },
+  { id: 'centralPark', name: 'Promenade Davos Platz', short: 'Promenade', category: 'scenic', fov: 52 },
+  { id: 'fifthAve', name: 'Kongresszentrum', short: 'Kongress', category: 'scenic', fov: 50 },
+  { id: 'timesSquare', name: 'Bahnhof Davos Platz', short: 'Bahnhof Platz', category: 'scenic', fov: 56 },
+  { id: 'chryslerGCT', name: 'Davosersee & Davos Dorf', short: 'Davosersee', category: 'scenic', fov: 50 },
+  { id: 'observatory', name: 'Schatzalp over the valley', short: 'Schatzalp', category: 'scenic', fov: 52 },
+  { id: 'bryantPark', name: 'Eisstadion & Kirchner Museum', short: 'Eisstadion', category: 'scenic', fov: 54 },
+  { id: 'waterfront', name: 'Dischma valley', short: 'Dischma', category: 'scenic', fov: 46 },
   { id: 'fixed',       name: 'Test camera',              short: 'Test',        category: 'scenic', fov: 55 },
   { id: 'drone',       name: 'Auto-Director Aerial',     short: 'Director',    category: 'scenic', fov: 50 }
 ];
 
-// Zurich viewpoints: [LV95 east, north, metres above the terrain] for the camera and the point it looks at
+// Davos viewpoints: [LV95 east, north, metres above the terrain] for the camera and the point it looks at
 const VIEWPOINTS = {
-  centralPark: [[2683238, 1247488, 1.8], [2683700, 1247880, 22]], // Lindenhof, over the Limmat to the Niederdorf & ETH
-  fifthAve: [[2683330, 1247214, 4.5], [2683466, 1247336, 42]], // Münsterbrücke, up at the Grossmünster's towers
-  timesSquare: [[2683110, 1247065, 7], [2683190, 1247660, 6]], // Paradeplatz, down the Bahnhofstrasse
-  chryslerGCT: [[2683330, 1247800, 14], [2683170, 1248020, 14]], // Bahnhofplatz: the HB and the Landesmuseum
-  observatory: [[2683640, 1247880, 5], [2683238, 1247488, 18]], // ETH Polyterrasse over the old town
-  bryantPark: [[2683690, 1246770, 2.2], [2683790, 1246660, 12]], // Sechseläutenplatz, the Opernhaus
-  waterfront: [[2683560, 1246050, 35], [2683420, 1247400, 25]] // over the Seebecken, the city and the Zürichberg
+  centralPark: [[2781950, 1185690, 1.8], [2782323, 1186054, 8]], // Promenade by the Schatzalpbahn, up the street towards Dorf
+  fifthAve: [[2782470, 1185960, 4.5], [2782631, 1186090, 12]], // Talstrasse side of the Kongresszentrum
+  timesSquare: [[2781900, 1185140, 9], [2781786, 1184891, 4]], // above the Bahnhofplatz, down at the station of Davos Platz
+  chryslerGCT: [[2784450, 1188850, 18], [2783300, 1187000, 30]], // north shore of the Davosersee, over the lake to Davos Dorf
+  observatory: [[2781222, 1186130, 8], [2783200, 1184800, 40]], // Schatzalp terrace, high over the valley to the Jakobshorn
+  bryantPark: [[2782120, 1185690, 3], [2782265, 1185900, 10]], // Promenade, the Eisstadion and the Kirchner Museum behind it
+  waterfront: [[2783350, 1186450, 60], [2786574, 1182992, 60]] // over the Dischma's mouth, up the valley towards Teufi
 };
 const viewpoint = ([E, N, up]) => { const p = lv95ToWorld(E, N); return new THREE.Vector3(p.x, groundHeight(p.x, p.z) + up, p.z); };
 const VIEWS = Object.fromEntries(Object.entries(VIEWPOINTS).map(([id, [pos, look]]) => [id, { pos: viewpoint(pos), look: viewpoint(look) }]));
@@ -228,8 +228,8 @@ class CameraSystem {
       }
 
       case 'action': {
-        const sideOffset = entity.type === 'car' ? 2.65 : (entity.type === 'helicopter' ? 4.2 : 0.95);
-        const backDist = (entity.type === 'car' ? 3.6 : (entity.type === 'helicopter' ? 8.5 : 2.8)) + speedLag;
+        const sideOffset = entity.type === 'car' ? 2.65 : entity.type === 'snowcat' ? 3.6 : entity.type === 'rhb' ? 3.4 : (entity.type === 'helicopter' ? 4.2 : 0.95);
+        const backDist = (entity.type === 'car' ? 3.6 : entity.type === 'snowcat' ? 5.4 : entity.type === 'rhb' ? 9 : (entity.type === 'helicopter' ? 8.5 : 2.8)) + speedLag;
         const lowY = entity.type === 'helicopter' ? entity.position.y + 1.2 : entity.position.y + 0.92;
 
         desiredPos.set(
@@ -260,6 +260,12 @@ class CameraSystem {
         } else if (entity.type === 'helicopter') {
           fwdOffset = 1.65;
           eyeY = 1.65;
+        } else if (entity.type === 'snowcat') {
+          fwdOffset = 1.1; // the driver's seat, high up in the cab
+          eyeY = 2.35;
+        } else if (entity.type === 'rhb') {
+          fwdOffset = 0.6; // the train driver's seat behind the raked windscreen (the entity is the cab, on the rails)
+          eyeY = 2.75;
         }
 
         desiredPos.set(
@@ -325,7 +331,7 @@ class CameraSystem {
       }
 
       case 'fixed': {
-        // Spike test camera: window.__slopzurich.setCamera(px, py, pz, tx, ty, tz)
+        // Spike test camera: window.__slopdavos.setCamera(px, py, pz, tx, ty, tz)
         desiredPos.copy(this.fixedPos || desiredPos);
         desiredLook.copy(this.fixedLook || desiredLook);
         break;
@@ -335,11 +341,10 @@ class CameraSystem {
         const angle = elapsed * 0.07 + 0.65;
         const radius = 720.0 + Math.sin(elapsed * 0.23) * 140.0;
         const alt = 330.0 + Math.cos(elapsed * 0.19) * 90.0;
-        desiredPos.set(
-          Math.cos(angle) * radius,
-          alt,
-          Math.sin(angle) * radius
-        );
+        const dx = Math.cos(angle) * radius;
+        const dz = Math.sin(angle) * radius;
+        // The valley's slopes rise hundreds of metres within the orbit: stay well above the terrain
+        desiredPos.set(dx, Math.max(alt, groundHeight(dx, dz) + 120), dz);
         desiredLook.set(0.0, 35.0, 0.0);
         break;
       }

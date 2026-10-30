@@ -46,6 +46,7 @@ import { GEO } from './nyc-geodata.js';
 import { fdrViaduct, pavedPlazaRects, parkTreeSites, sidewalkBlocks } from './city-grid.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, nearestBerlinRoad, berlinSpatialGroups, berlinGeometryGroups } from './berlin-geometry.js';
 import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
+import { surfaceHeight } from './terrain.js';
 
 // js/buildings.js
 // Generates dense, architecturally varied Manhattan city blocks across the entire island
@@ -2498,6 +2499,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   }
 
   const activeAwnings = [];
+  // These details are placed every refresh (they follow the player), after placeOnTerrain has laid the static city on
+  // the relief: each takes the surface height under it (cached), since they are built for a flat world
+  const ground = (o) => (o.groundY ??= surfaceHeight(o.x, o.z));
   const spotCandidates = [];
 
   // ============================================================================
@@ -2553,7 +2557,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.cornices.length && corniceCount < MAX_CORNICES; i++) {
         const c = blk.cornices[i];
         dummy.rotation.set(0, c.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(c.x, c.y - c.h * 0.6, c.z);
+        dummy.position.set(c.x, ground(c) + c.y - c.h * 0.6, c.z);
         dummy.scale.set(c.w, c.h, c.d);
         dummy.updateMatrix();
         corniceInst.setMatrixAt(corniceCount++, dummy.matrix);
@@ -2564,15 +2568,15 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         const wt = blk.waterTowers[i];
         dummy.scale.set(1, 1, 1);
 
-        dummy.position.set(wt.x, wt.y + 1.3, wt.z);
+        dummy.position.set(wt.x, ground(wt) + wt.y + 1.3, wt.z);
         dummy.updateMatrix();
         legsInst.setMatrixAt(wtCount, dummy.matrix);
 
-        dummy.position.set(wt.x, wt.y + 4.2, wt.z);
+        dummy.position.set(wt.x, ground(wt) + wt.y + 4.2, wt.z);
         dummy.updateMatrix();
         barrelInst.setMatrixAt(wtCount, dummy.matrix);
 
-        dummy.position.set(wt.x, wt.y + 6.7, wt.z);
+        dummy.position.set(wt.x, ground(wt) + wt.y + 6.7, wt.z);
         dummy.updateMatrix();
         coneInst.setMatrixAt(wtCount, dummy.matrix);
         wtCount++;
@@ -2582,7 +2586,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.hvacUnits.length && hvacCount < MAX_HVAC; i++) {
         const u = blk.hvacUnits[i];
         dummy.rotation.set(0, u.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(u.x, u.y + u.h * 0.5, u.z);
+        dummy.position.set(u.x, ground(u) + u.y + u.h * 0.5, u.z);
         dummy.scale.set(u.w, u.h, u.d);
         dummy.updateMatrix();
         hvacInst.setMatrixAt(hvacCount++, dummy.matrix);
@@ -2595,7 +2599,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.awnings.length && awningCount < MAX_AWNINGS; i++) {
         const a = blk.awnings[i];
         dummy.rotation.set(0, a.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(a.x, a.y, a.z);
+        dummy.position.set(a.x, ground(a) + a.y, a.z);
         dummy.scale.set(a.w, 0.75, a.d);
         dummy.updateMatrix();
         awningInst.setMatrixAt(awningCount, dummy.matrix);
@@ -2603,7 +2607,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
 
         const themeIdx = awningCount % signInsts.length;
         if (signCounts[themeIdx] < MAX_SIGNS_PER_THEME) {
-          dummy.position.set(a.x, 4.68, a.z);
+          dummy.position.set(a.x, ground(a) + 4.68, a.z);
           dummy.scale.set(0.28, 0.86, a.d * 0.92);
           dummy.updateMatrix();
           signInsts[themeIdx].setMatrixAt(signCounts[themeIdx]++, dummy.matrix);
@@ -2617,7 +2621,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       // 6. Sidewalk construction sheds
       for (let i = 0; i < blk.scaffoldSheds.length && shedCount < MAX_SHEDS; i++) {
         const s = blk.scaffoldSheds[i];
-        dummy.position.set(s.x, s.y + 3.6, s.z);
+        dummy.position.set(s.x, ground(s) + s.y + 3.6, s.z);
         dummy.scale.set(s.w, 0.85, s.d);
         dummy.updateMatrix();
         shedInst.setMatrixAt(shedCount++, dummy.matrix);
@@ -2708,8 +2712,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         const sideDir = a.sideDir || 1;
         const outX = Math.cos(ry) * sideDir;
         const outZ = -Math.sin(ry) * sideDir;
-        spot.position.set(a.x + outX * 0.45, 4.35, a.z + outZ * 0.45);
-        spot.target.position.set(a.x + outX * 1.85, 0.0, a.z + outZ * 1.85);
+        spot.position.set(a.x + outX * 0.45, ground(a) + 4.35, a.z + outZ * 0.45);
+        spot.target.position.set(a.x + outX * 1.85, ground(a), a.z + outZ * 1.85);
         spot.target.updateMatrixWorld();
         spot.color.copy(storeThemeColors[themeIdx % storeThemeColors.length]);
         spot.intensity = spotIntensity * fade;

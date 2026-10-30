@@ -80,10 +80,13 @@ const MAP = {
 // Landmarks modelled by landmarks.js on their real OpenStreetMap lots (outlined in amber)
 const MODELLED_LANDMARKS = (NYC_LANDMARKS || []).map(l => l.name);
 
-// Waterway and park labels in the world frame (js/zurich-frame.js); the quarters come from the mapped boundaries below.
+// Water, place and mountain labels in the world frame (js/davos-frame.js: x = E - 2782500, z = 1185500 - N); kind 1 water,
+// 0 places (overview zooms only), 2 local names. The mapped boundaries below add their own area labels.
 const AREA_LABELS = [
- ['LIMMAT',395,330,1],['ZÜRICHSEE',520,1550,1],['SIHL',-310,820,1],
- ['PLATZSPITZ',10,-470,2],['ZÜRICHBERG',1550,-750,2]
+ ['DAVOSERSEE',1678,-2790,1],['LANDWASSER',-1600,2400,1],['FLÜELABACH',3500,-1340,1],
+ ['DAVOS PLATZ',-650,320,0],['DAVOS DORF',1000,-1800,0],['FRAUENKIRCH',-2376,3351,0],['DISCHMA',3100,1000,0],
+ ['WOLFGANG',1909,-3788,0],['DÜRRBODEN',7314,8069,0],
+ ['SCHATZALP',-1278,-630,2],['JAKOBSHORN',1465,2517,2]
 ];
 // New neighbourhood labels follow their actual clipped district geometry.
 for (const area of GEO.berlin?.meta.areas || []) {
@@ -548,9 +551,9 @@ class NYCMapSystem {
     this.searchHighlight = '';
     this.searchPath = null;
     this.textWidths = new Map();
-    // Start with Berlin's central landmark as the active GPS waypoint.
-    const ts = NYC_LANDMARKS.find((l) => l.id === 'pkin') || { x: 0, z: 0 };
-    this.waypoint = { x: ts.x, z: ts.z, name: ts.name || 'PKiN' };
+    // Start with the Kongresszentrum as the active GPS waypoint.
+    const ts = NYC_LANDMARKS.find((l) => l.id === 'kongress') || { x: 0, z: 0 };
+    this.waypoint = { x: ts.x, z: ts.z, name: ts.name || 'Kongresszentrum' };
 
     // Street names measured before the web font arrived would be spaced for the fallback font: measure & draw again
     if (document.fonts) {

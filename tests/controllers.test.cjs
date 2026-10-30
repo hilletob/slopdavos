@@ -34,6 +34,7 @@ function keyboardHarness(nyc = {}) {
       'three/webgpu': {},
       './city-config.js': config,
       ...flatTerrainImports,
+      'three/tsl': {},
       './tsl-materials.js': {},
       './actor-models.js': {},
       './pedestrians.js': {},
@@ -447,7 +448,7 @@ function teleportHarness(mode, colliders = [], shore = () => ({ westX: -500, eas
   const { controller } = harness;
   const position = (x = 0, y = 0, z = 0) => ({ x, y, z, copy(p) { this.x = p.x; this.y = p.y; this.z = p.z; } });
   const pivot = () => ({ position: position(), rotation: { x: 0.1, y: 0, z: -0.2 } });
-  const chase = { person: [4.3, 1.95], car: [6.9, 2.12], cyclist: [4.8, 2.05], cargobike: [6.2, 2.35], helicopter: [11.4, 3.3] };
+  const chase = { person: [4.3, 1.95], car: [6.9, 2.12], cyclist: [4.8, 2.05], cargobike: [6.2, 2.35], helicopter: [11.4, 3.3], snowcat: [10.5, 3.6] };
   const ent = {
     type: mode, chaseDistance: chase[mode][0], chaseHeight: chase[mode][1],
     position: position(400, mode === 'helicopter' ? 120 : 0, 400), heading: 1, speed: 20,
@@ -470,6 +471,48 @@ function teleportHarness(mode, colliders = [], shore = () => ({ westX: -500, eas
   controller.getGroundHeight = (x, z, mode) => mode === 'person' ? (x < 0 ? 1.24 : 0.22) : 0;
   return { ...harness, ent };
 }
+
+test('the snowcat turns on the spot and crawls at no more than 25 km/h', () => {
+  const { controller, ent, key } = teleportHarness('snowcat');
+  Object.assign(ent, { position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 0, turnRate: 0, trackPhases: [{ value: 0 }, { value: 0 }] });
+  key('keydown', 'KeyA');
+  for (let i = 0; i < 20; i++) controller.updateSnowcat(0.05);
+  assert.ok(ent.heading > 0.5, `turned ${ent.heading.toFixed(2)} rad at a standstill`);
+  assert.ok(Math.hypot(ent.position.x, ent.position.z) < 0.01, 'without moving');
+  assert.ok(ent.trackPhases[0].value * ent.trackPhases[1].value < 0, 'the two tracks run in opposite directions');
+  key('keyup', 'KeyA');
+  key('keydown', 'KeyW');
+  for (let i = 0; i < 200; i++) controller.updateSnowcat(0.05);
+  assert.ok(ent.speed > 6 && ent.speed <= 6.95, `${(ent.speed * 3.6).toFixed(1)} km/h`);
+});
+
+test('in the RhB mode the player is bound to the rails: W and S go to the train, the entity rides in its cab', () => {
+  const { controller, key } = teleportHarness('car');
+  const sent = [];
+  const railway = {
+    taken: null,
+    takeOver(on) { this.taken = on; return on ? {} : null; },
+    setControls(throttle, brake) { sent.push([throttle, brake]); },
+    cab: () => ({ x: 12, y: 3, z: -40, heading: 2, speed: 9 })
+  };
+  const rhb = { type: 'rhb', position: { x: 0, y: 0, z: 0, set(x, y, z) { Object.assign(this, { x, y, z }); } }, heading: 0, speed: 0 };
+  controller.entities.rhb = rhb;
+  controller.setRailway(railway);
+  controller.setMode('rhb');
+  assert.equal(railway.taken, true, 'the train is taken over');
+  key('keydown', 'KeyW');
+  key('keydown', 'KeyA'); // no steering: A does nothing for a train
+  controller.updateRhB(0.1);
+  assert.deepEqual(sent.at(-1), [1, 0], 'W is the throttle');
+  assert.deepEqual({ x: rhb.position.x, z: rhb.position.z, heading: rhb.heading, speed: rhb.speed }, { x: 12, z: -40, heading: 2, speed: 9 });
+  key('keyup', 'KeyW');
+  key('keydown', 'KeyS');
+  controller.updateRhB(0.1);
+  assert.deepEqual(sent.at(-1), [0, 1], 'S is the brake');
+  assert.deepEqual({ ...controller.teleportActiveTo(500, 500, 0) }, { x: 12, z: -40 }, 'no teleporting off the rails');
+  controller.setMode('car');
+  assert.equal(railway.taken, false, 'leaving the mode hands the train back to the timetable');
+});
 
 test('cargo bike teleport clearance includes its forward cargo deck and small front wheel', () => {
   const obstacle = { minX: -0.12, maxX: 0.12, minZ: 0.84, maxZ: 1.04, maxY: 20 };

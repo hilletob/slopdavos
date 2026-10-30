@@ -8,7 +8,7 @@ const read = (path) => readFileSync(join(__dirname, '..', path), 'utf8');
 let TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads, WORLD_BOUNDS;
 test.before(async () => {
   ({ TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads } = await import('../js/city-config.js'));
-  ({ WORLD_BOUNDS } = await import('../js/zurich-frame.js'));
+  ({ WORLD_BOUNDS } = await import('../js/davos-frame.js'));
 });
 
 test('every teleport button has a destination on a real roadway inside the mapped city', () => {
@@ -24,14 +24,12 @@ test('every teleport button has a destination on a real roadway inside the mappe
   }
 });
 
-test('the Grossmünster arrives on the Limmatquai, facing the church', () => {
-  const point = TELEPORT_LOCATIONS.grossmuenster;
-  const church = LANDMARK_SITES['Grossmünster'];
-  assert.ok(nearestRoads(point.x, point.z, 20).some(({ road, dist }) => road.name === 'Limmatquai' && dist < 1));
-  const distance = Math.hypot(church.x - point.x, church.z - point.z);
-  assert.ok(distance > 20 && distance < 150, `close to the church (${distance.toFixed(0)} m)`);
-  const alignment = ((church.x - point.x) * Math.sin(point.heading) + (church.z - point.z) * Math.cos(point.heading)) / distance;
-  assert.ok(alignment > 0.9, 'facing the church');
+test('the Kongresszentrum arrives on the Promenade, near the hall', () => {
+  const point = TELEPORT_LOCATIONS.kongress;
+  const hall = LANDMARK_SITES['Kongresszentrum'];
+  assert.ok(nearestRoads(point.x, point.z, 20).some(({ road, dist }) => road.name === 'Promenade' && dist < 1));
+  const distance = Math.hypot(hall.x - point.x, hall.z - point.z);
+  assert.ok(distance < 200, `close to the Kongresszentrum (${distance.toFixed(0)} m)`);
 });
 
 test('preset and map teleports share arrival resets and mark the resolved landing point', () => {

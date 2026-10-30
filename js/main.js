@@ -9,10 +9,13 @@ import { buildBoroughs } from './boroughs.js';
 import { buildLandmarks } from './landmarks.js';
 import { buildCityBlocks } from './buildings.js';
 import { streamSwissBuildings } from './swissbuildings3d.js';
+import { drapeTerrainOrthophotos } from './swissimage.js';
 import { buildSurroundings } from './surroundings.js';
 import { buildTrams } from './trams.js';
+import { buildRhB } from './rhb.js';
+import { buildLoipen } from './loipen.js';
 import { placeOnTerrain, liftColliders } from './terrain.js';
-import { FRAME } from './zurich-frame.js';
+import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
 import { buildRoadPaint } from './road-paint.js';
@@ -25,11 +28,11 @@ import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 
-// Saved player state (localStorage 'slopzurich-player-state'); older versions are ignored
-const SAVE_VERSION = 3;
+// Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
+const SAVE_VERSION = 4; // 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
 // js/main.js
-// Main entry point for Zürich in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
+// Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
@@ -84,10 +87,11 @@ async function initApp() {
     loadingStatus.textContent = 'Opening the streets…';
   }
 
-  // 3. Build Zurich's ground, landmarks, blocks, street details & traffic. The engine builds them for a flat world: the
+  // 3. Build Davos' ground, landmarks, blocks, street details & traffic. The engine builds them for a flat world: the
   // static scenery is laid onto the terrain once built (terrain.js); swissBUILDINGS3D and the ground are already in place.
   const flatWorld = new Set(scene.children);
   const cityGrid = buildCityGrid(scene);
+  buildLoipen(scene); // cross-country ski trails, shown in winter
   markInit('cityGrid');
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
@@ -97,6 +101,7 @@ async function initApp() {
   }
   markInit('surroundings');
   const trams = buildTrams(scene);
+  const rhb = buildRhB(scene);
   markInit('trams');
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
@@ -107,7 +112,10 @@ async function initApp() {
   let swissBuildings = null;
   let swissStream = null;
   try {
-    const savedSpawn = (() => { try { const s = JSON.parse(localStorage.getItem('slopzurich-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
+    const savedSpawn = (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
+    // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
+    drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn })
+      .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
     const stream = swissStream = streamSwissBuildings(scene, {
       center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn,
       onProgress: (done, total) => { if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Loading swissBUILDINGS3D ${done}/${total}…`; }
@@ -135,7 +143,7 @@ async function initApp() {
     ...allColliders.filter((c) => !c.obb && (c.minY ?? 0) - (c.baseY ?? 0) < 3.5)
   ], streetDetails.signalIntersections);
   markInit('traffic');
-  trafficSystem.setTramBodies(trams.bodies);
+  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies]);
   const highwayTraffic = createHighwayTraffic(scene, cityGrid.highwayLanes);
   const beforePaint = new Set(scene.children);
   buildRoadPaint(scene, trafficSystem.network);
@@ -143,22 +151,25 @@ async function initApp() {
   console.info('[terrain] laid on the relief:', JSON.stringify(terrainStats));
   markInit('roadPaint');
 
-  // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Cargo Bike, Helicopter) & Multi-Camera System
+  // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
+  controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
+  controllerManager.entities.cargobike.mesh.visible = false; // the cargo bike is no longer offered in Davos
   // Reuse teleport placement so saved players return at rest, close to their last positions. A first visit (or a save
   // from an older version) starts by bike at Bellevue (city-config.js defaultSpawn).
   let restored = false;
   try {
-    const saved = JSON.parse(localStorage.getItem('slopzurich-player-state'));
+    const saved = JSON.parse(localStorage.getItem('slopdavos-player-state'));
     if (saved?.version === SAVE_VERSION) {
       restored = true;
       for (const mode of Object.keys(controllerManager.entities)) {
+        if (mode === 'rhb' || mode === 'cargobike') continue; // the train is where the timetable has it
         const p = saved.entities?.[mode];
         if (!p || ![p.x, p.y, p.z, p.heading].every(Number.isFinite)) continue;
         controllerManager.setMode(mode);
         controllerManager.teleportActiveTo(p.x, p.z, p.heading, p.y);
       }
-      controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) ? saved.activeMode : 'cyclist');
+      controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) && saved.activeMode !== 'cargobike' ? saved.activeMode : 'cyclist');
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
   if (!restored) controllerManager.setMode('cyclist');
@@ -168,7 +179,7 @@ async function initApp() {
       const entities = Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
         x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading
       }]));
-      localStorage.setItem('slopzurich-player-state', JSON.stringify({ version: SAVE_VERSION, activeMode: controllerManager.activeMode, entities }));
+      localStorage.setItem('slopdavos-player-state', JSON.stringify({ version: SAVE_VERSION, activeMode: controllerManager.activeMode, entities }));
     } catch { /* Storage may be disabled or full. */ }
   }
 
@@ -291,7 +302,7 @@ async function initApp() {
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
-      const modes = ['person', 'car', 'cyclist', 'cargobike', 'helicopter'];
+      const modes = ['person', 'car', 'cyclist', 'rhb', 'helicopter', 'snowcat'];
       selectMode(modes[(modes.indexOf(controllerManager.activeMode) + step + modes.length) % modes.length]);
     },
     onCycleCamera: cycleCamera,
@@ -304,11 +315,12 @@ async function initApp() {
     person: [[['W', 'S'], 'Walk'], [['A', 'D'], 'Turn'], [['Shift'], 'Sprint'], [['Space'], 'Jump'], [['Drag'], 'Orbit']],
     car: [[['W', 'S'], 'Drive / Reverse'], [['A', 'D'], 'Steer'], [['Shift'], 'Boost'], [['B'], 'Horn'], [['Drag'], 'Orbit']],
     cyclist: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
-    cargobike: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
-    helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost']]
+    rhb: [[['W'], 'Throttle'], [['S'], 'Brake'], [['Drag'], 'Orbit']],
+    helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost']],
+    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['Drag'], 'Orbit']]
   };
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
-  const topSpeedKmh = { person: 30, car: 130, cyclist: 69, cargobike: 69, helicopter: 188 };
+  const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
 
   function renderControlHints(mode) {
     if (!elControlsHint) return;
@@ -339,6 +351,7 @@ async function initApp() {
 
   function selectMode(mode) {
     controllerManager.setMode(mode);
+    mode = controllerManager.activeMode; // (the rhb mode needs a train on the map to take over)
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
     modeButtons.forEach((btn) => {
@@ -574,13 +587,13 @@ async function initApp() {
         selectMode('cyclist');
         break;
       case 'Digit4':
-        selectMode('cargobike');
+        selectMode('rhb');
         break;
       case 'Digit5':
         selectMode('helicopter');
         break;
       case 'Digit6':
-        selectCamera('action', true);
+        selectMode('snowcat');
         break;
       case 'Digit7':
         selectCamera('pov', true);
@@ -630,7 +643,7 @@ async function initApp() {
   // The loading screen stays up while the shaders compile (precompileShaders() & the warm-up frame, see the loop) and
   // until the first frame is on screen
   if (loadingStatus) {
-    loadingStatus.textContent = 'Bringing Zürich to life…';
+    loadingStatus.textContent = 'Bringing Davos to life…';
   }
 
   // 6b. Shader pre-compilation behind the loading screen. compileAsync() builds the node graphs in slices and has the GPU
@@ -700,7 +713,7 @@ async function initApp() {
         for (const object of job) await compile(object);
         done++;
         if (loadingStatus) {
-          const message = done < jobs.length * 0.75 ? 'Bringing Zürich to life…' : 'Your ride is almost ready…';
+          const message = done < jobs.length * 0.75 ? 'Bringing Davos to life…' : 'Your ride is almost ready…';
           if (loadingStatus.textContent !== message) loadingStatus.textContent = message;
         }
         setLoadingProgress(done / jobs.length);
@@ -733,6 +746,8 @@ async function initApp() {
 
     // Update 3rd-person controllers, camera, signals, traffic & vehicle collisions, building LODs, and dynamic shadow focus
     gamepadControls.update(dt);
+    // The trains first: in the rhb mode the player rides in one, and the controllers follow its cab this frame
+    rhb.update(dt, { player: controllerManager.getActiveEntity().position });
     controllerManager.update(dt, elapsed);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
@@ -747,6 +762,7 @@ async function initApp() {
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
     trams.update(dt, { vehicles: [trafficSystem.cars, trafficSystem.buses, trafficSystem.bikes], player: controllerManager.getActiveEntity().position });
     trams.collidePlayer(controllerManager.getActiveEntity(), controllerManager.activeMode, controllerManager);
+    rhb.collidePlayer(controllerManager.getActiveEntity(), controllerManager.activeMode, controllerManager);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
@@ -759,6 +775,7 @@ async function initApp() {
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
+    swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
 
@@ -793,10 +810,10 @@ async function initApp() {
         markInit('gpu');
         console.log(`[init] ${initTimings.join(', ')}`);
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
-        window.__slopzurich = {
+        window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },
@@ -847,7 +864,7 @@ async function initApp() {
 initApp().catch((error) => {
   console.error(error);
   const status = document.getElementById('loading-status');
-  if (status) status.textContent = 'Zürich couldn’t open this time. Please try again.';
+  if (status) status.textContent = 'Davos couldn’t open this time. Please try again.';
   document.getElementById('loading-overlay')?.classList.add('has-error');
   const retry = document.getElementById('loading-retry');
   if (retry) {

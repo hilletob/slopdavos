@@ -1,13 +1,14 @@
 import * as THREE from 'three/webgpu';
-import { float, mix, mx_noise_float, normalGeometry, positionGeometry, positionWorld, smoothstep, step, vec3 } from 'three/tsl';
+import { float, fract, mix, mx_noise_float, normalGeometry, positionGeometry, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { ZURICH_DATA } from './zurich-geodata.js';
+import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, surfaceHeight, ROAD_TOP } from './terrain.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 
-// Zurich's tracks and trams (OSM railway=tram / rail in js/zurich-geodata.js):
-//  - the rails of the VBZ's metre-gauge tram network in the streets, and the SBB's standard-gauge lines on their
-//    ballast (the HB's track field, the lines to Oerlikon and Enge), laid on the terrain or the bridge decks;
+// Davos's tracks (OSM railway=rail / narrow_gauge / tram in js/davos-geodata.js):
+//  - the Rhaetian Railway's metre-gauge lines on their ballast (Landquart–Davos–Filisur through Davos Dorf and Davos
+//    Platz), laid on the terrain or the bridge decks; Davos has no trams, so the tram code below only runs where
+//    railway=tram ways exist (none in the mapped area) and otherwise stays idle;
 //  - blue and white articulated trams (five ~7 m sections, each following the track, so a tram bends through the
 //    curves) running on the right-hand track of double lines (the direction of a track is inferred from the parallel
 //    one), stopping at the tram stops, keeping their distance and braking for whatever stands on the track ahead;
@@ -40,7 +41,7 @@ function pointAt(way, s, out) {
 }
 
 function buildNetwork() {
-  const ways = ZURICH_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel && r.pts.length >= 4).map((r) => ({ ...polyline(r.pts), id: r.id, bridge: r.bridge, stops: [], dirs: 0 }));
+  const ways = DAVOS_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel && r.pts.length >= 4).map((r) => ({ ...polyline(r.pts), id: r.id, bridge: r.bridge, stops: [], dirs: 0 }));
   // Ends meeting at the same OSM node share their (rounded) coordinates
   const key = (p) => `${Math.round(p.x * 2)},${Math.round(p.z * 2)}`;
   const nodes = new Map();
@@ -81,7 +82,7 @@ function buildNetwork() {
     w.dirs = left > right ? 1 : right > left ? -1 : 0;
   }
   // Tram stops within 4 m of a track, as distances along it
-  for (const stop of ZURICH_DATA.tramStops) {
+  for (const stop of DAVOS_DATA.tramStops) {
     for (const w of ways) {
       for (let i = 1; i < w.pts.length; i++) {
         const a = w.pts[i - 1], b = w.pts[i], ex = b.x - a.x, ez = b.z - a.z, L2 = ex * ex + ez * ez || 1e-9;
@@ -99,7 +100,9 @@ function strips(list, offsets, width, y) {
   const geometries = [];
   for (const r of list) {
     const deck = !!r.bridge;
-    const positions = [];
+    // uv: u across the strip (0 left edge, 1 right edge), v the distance along the way in metres (sleepers)
+    const positions = [], uvs = [];
+    let along = 0;
     for (let i = 2; i < r.pts.length; i += 2) {
       const ax = r.pts[i - 2], az = r.pts[i - 1], bx = r.pts[i], bz = r.pts[i + 1];
       const L = Math.hypot(bx - ax, bz - az);
@@ -107,28 +110,62 @@ function strips(list, offsets, width, y) {
       const nx = -(bz - az) / L, nz = (bx - ax) / L;
       for (const o of offsets) {
         const p = (s, side) => [(s ? bx : ax) + nx * (o + side * width / 2), y, (s ? bz : az) + nz * (o + side * width / 2)];
-        positions.push(...p(0, -1), ...p(1, -1), ...p(1, 1), ...p(0, -1), ...p(1, 1), ...p(0, 1));
+        const t = (s, side) => [(side + 1) / 2, along + (s ? L : 0)];
+        // (counter-clockwise seen from above, so that the strips face up)
+        positions.push(...p(0, -1), ...p(1, 1), ...p(1, -1), ...p(0, -1), ...p(0, 1), ...p(1, 1));
+        uvs.push(...t(0, -1), ...t(1, 1), ...t(1, -1), ...t(0, -1), ...t(0, 1), ...t(1, 1));
       }
+      along += L;
     }
     if (!positions.length) continue;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(positions.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geometries.push(drapeOverlay(g, { deck, maxEdge: 4 }));
     g.dispose();
   }
   return geometries.length ? mergeGeometries(geometries, false) : null;
 }
 
+// The RhB's track bed: grey granite ballast (coarse stones, darker and oil-stained between the rails, settling towards
+// the shoulders), concrete sleepers every 0.6 m, rust along the rails. `width`: the ballast strip's width in metres.
+function createBallastMaterial(width) {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
+  const across = uv().x.sub(0.5).mul(width), along = uv().y; // metres from the centre line, metres along the track
+  const stones = mx_noise_float(positionWorld.xz.mul(9)).mul(0.5).add(0.5);
+  const grit = mx_noise_float(positionWorld.xz.mul(31)).mul(0.5).add(0.5);
+  const patches = mx_noise_float(positionWorld.xz.mul(0.35)).mul(0.5).add(0.5);
+  let ballast = mix(vec3(0.11, 0.105, 0.1), vec3(0.24, 0.23, 0.215), stones.mul(0.65).add(grit.mul(0.35)));
+  ballast = ballast.mul(patches.mul(0.25).add(0.85));
+  // Shoulders: the stones fall away (darker, with fines and grass at the very edge)
+  const shoulder = smoothstep(1.05, width / 2, across.abs());
+  ballast = mix(ballast, mix(vec3(0.08, 0.075, 0.06), vec3(0.07, 0.09, 0.04), smoothstep(0.85, 1, shoulder).mul(patches)), shoulder.mul(0.75));
+  // Between the rails: dust and oil
+  ballast = mix(ballast, ballast.mul(0.62), smoothstep(0.45, 0.3, across.abs()));
+  // Concrete sleepers (1.8 m long, 0.26 m wide), weathered, with the fastenings by the rails
+  const phase = fract(along.div(0.6));
+  const sleeper = smoothstep(0.0, 0.025, phase).mul(smoothstep(0.455, 0.43, phase)).mul(smoothstep(0.92, 0.88, across.abs()));
+  const concrete = mix(vec3(0.26, 0.255, 0.24), vec3(0.36, 0.35, 0.33), grit).mul(patches.mul(0.2).add(0.85));
+  const clip = smoothstep(0.12, 0.06, across.abs().sub(0.5).abs()).mul(sleeper);
+  let color = mix(ballast, concrete, sleeper);
+  color = mix(color, vec3(0.05, 0.045, 0.04), clip.mul(0.8));
+  // Rust stains under and beside the rails
+  const rust = smoothstep(0.16, 0.0, across.abs().sub(0.5).abs()).mul(float(1).sub(sleeper.mul(0.6)));
+  m.colorNode = mix(color, vec3(0.16, 0.075, 0.035), rust.mul(0.55));
+  return m;
+}
+
 function buildTracks(group) {
-  const steel = new THREE.MeshStandardNodeMaterial({ color: 0x9a9da2, roughness: 0.32, metalness: 0.85 });
-  const ballast = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
-  ballast.colorNode = mix(vec3(0.09, 0.08, 0.07), vec3(0.16, 0.14, 0.12), mx_noise_float(positionWorld.xz.mul(3.1)).mul(0.5).add(0.5));
-  const tram = ZURICH_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel);
-  const rail = ZURICH_DATA.railways.filter((r) => /^(rail|narrow_gauge)$/.test(r.kind) && !r.tunnel);
+  const steel = new THREE.MeshStandardNodeMaterial({ color: 0xa9adb2, roughness: 0.28, metalness: 0.9 });
+  const railWeb = new THREE.MeshStandardNodeMaterial({ color: 0x3a2a20, roughness: 0.85, metalness: 0.3 });
+  const ballast = createBallastMaterial(2.8);
+  const tram = DAVOS_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel);
+  const rail = DAVOS_DATA.railways.filter((r) => /^(rail|narrow_gauge)$/.test(r.kind) && !r.tunnel);
   const parts = [
-    [strips(rail, [0], 3.2, 0.03), ballast],
-    [strips(rail, [-0.7175, 0.7175], 0.075, 0.1), steel],
+    [strips(rail, [0], 2.8, 0.03), ballast],
+    [strips(rail, [-0.5, 0.5], 0.16, 0.07), railWeb], // the rusty web and foot of the rails, under their heads
+    [strips(rail, [-0.5, 0.5], 0.07, 0.11), steel], // RhB metre gauge: the polished heads
     [strips(tram, [-0.5, 0.5], 0.075, 0.075), steel] // metre gauge, flush with the road
   ];
   for (const [geometry, material] of parts) {
@@ -164,7 +201,7 @@ function tramSectionGeometry() {
 
 export function buildTrams(scene) {
   const group = new THREE.Group();
-  group.name = 'ZurichTrams';
+  group.name = 'DavosTrains';
   group.userData.terrain = 'absolute';
   buildTracks(group);
   const { ways, nodes } = buildNetwork();
@@ -207,7 +244,10 @@ export function buildTrams(scene) {
     for (let d = PITCH * TRAM_SECTIONS + 2; d >= 0; d -= 1) t.trail.push({ x: p.x - p.dx * t.dir * d, z: p.z - p.dz * t.dir * d });
     return t;
   }
-  const trams = Array.from({ length: TRAM_COUNT }, () => place({}));
+  // No tram ways (Davos): no trams, and no idle bodies parked at the origin
+  const count = runnable.length ? TRAM_COUNT : 0;
+  sections.count = count * TRAM_SECTIONS;
+  const trams = Array.from({ length: count }, () => place({}));
 
   const probe = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scale = new THREE.Vector3(1, 1, 1), euler = new THREE.Euler(0, 0, 0, 'YXZ');
   // Point at distance d behind the front along the trail (front last)
@@ -222,7 +262,7 @@ export function buildTrams(scene) {
   }
 
   // One oriented box per section, for collisions (refreshed every frame)
-  const bodies = Array.from({ length: TRAM_COUNT * TRAM_SECTIONS }, () => ({
+  const bodies = Array.from({ length: count * TRAM_SECTIONS }, () => ({
     x: 0, z: 0, prevX: 0, prevZ: 0, y: 0, sin: 0, cos: 1, halfW: HALF_WIDTH, halfL: SECTION / 2, mass: TRAM_MASS, vx: 0, vz: 0, angularVel: 0, tram: true
   }));
 
@@ -340,6 +380,6 @@ export function buildTrams(scene) {
     }
   }
 
-  group.userData.stats = { trams: TRAM_COUNT, ways: ways.length, stops: ways.reduce((a, w) => a + w.stops.length, 0) };
+  group.userData.stats = { trams: count, ways: ways.length, stops: ways.reduce((a, w) => a + w.stops.length, 0) };
   return { group, update, collidePlayer, bodies, trams };
 }

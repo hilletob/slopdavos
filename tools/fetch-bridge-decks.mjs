@@ -3,14 +3,14 @@
 // the bare-earth swissALTI3D it contains the bridges). Only small windows around the bridges are read from the
 // cloud-optimised GeoTIFFs (HTTP range requests), not the whole 1 km tiles.
 // A low percentile of the surface within 1 m of each node skips lamps and branches; a tram or a bus covering a node
-// makes a spike that tools/build-zurich-geodata.mjs rejects against the neighbouring nodes (a wider radius would read
+// makes a spike that tools/build-davos-geodata.mjs rejects against the neighbouring nodes (a wider radius would read
 // the water beside a carriageway mapped along the edge of a bridge).
 // usage: node tools/fetch-bridge-decks.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fromUrl } from 'geotiff';
-import { FRAME } from '../js/zurich-frame.js';
+import { FRAME } from '../js/davos-frame.js';
 import { wgs84ToLv95, lv95ToWgs84 } from '../js/swiss-projection.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +20,7 @@ const STAC = 'https://data.geo.admin.ch/api/stac/v1/collections/ch.swisstopo.swi
 const RADIUS = 1, PERCENTILE = 0.25, PAD = 4;
 const log = (...a) => console.log('[bridge-decks]', ...a);
 
-const osm = JSON.parse(fs.readFileSync(path.join(CACHE, 'osm_zurich.json'), 'utf8'));
+const osm = JSON.parse(fs.readFileSync(path.join(CACHE, 'osm_davos.json'), 'utf8'));
 const [minE, minN, maxE, maxN] = FRAME.lv95;
 
 // Bridge nodes (LV95), grouped by bridge way

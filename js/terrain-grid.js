@@ -1,4 +1,4 @@
-// The terrain height grid (data/zurich-terrain.bin, written by tools/build-zurich-terrain.mjs) and its exact surface.
+// The terrain height grid (data/davos-terrain.bin, written by tools/build-davos-terrain.mjs) and its exact surface.
 // Pure functions shared by the data tools and the browser: no I/O here.
 //
 // The surface is piecewise planar: every grid cell is split into two triangles along the diagonal from node (i, j) to

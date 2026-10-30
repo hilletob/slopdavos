@@ -1,6 +1,6 @@
-// tools/osm-geometry.mjs — OpenStreetMap geometry in the world frame (js/zurich-frame.js), shared by the data tools:
+// tools/osm-geometry.mjs — OpenStreetMap geometry in the world frame (js/davos-frame.js), shared by the data tools:
 // projection of Overpass `out geom` coordinates, ring simplification, multipolygon assembly and clipping to the frame.
-import { WORLD_BOUNDS, lonLatToWorld } from '../js/zurich-frame.js';
+import { WORLD_BOUNDS, lonLatToWorld } from '../js/davos-frame.js';
 
 const [MIN_X, MIN_Z, MAX_X, MAX_Z] = WORLD_BOUNDS;
 const r1 = (v) => Math.round(v * 10) / 10;
