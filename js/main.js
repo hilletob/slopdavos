@@ -101,7 +101,8 @@ async function initApp() {
   const renderer = new THREE.WebGPURenderer({
     antialias: QUALITY.antialias,
     powerPreference: 'high-performance',
-    reversedDepthBuffer: true
+    reversedDepthBuffer: true,
+    forceWebGL: QUALITY.forceWebGL
   });
   renderer.setPixelRatio(QUALITY.pixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -845,9 +846,10 @@ async function initApp() {
     const worker = async () => {
       while (next < jobs.length) {
         const job = jobs[next++];
+        // (on the mobile profile every job is a breadcrumb: a GPU process closed mid-compile names the object it died on)
+        if (QUALITY.mobile) boot.stage(`compile ${next}/${jobs.length} ${job[0].name || job[0].type} (${job[0].material?.type || ''})`);
         for (const object of job) await compile(object);
         done++;
-        if (QUALITY.mobile && done % 10 === 0) boot.stage(`compile ${done}/${jobs.length}`);
         if (loadingStatus) {
           const message = done < jobs.length * 0.75 ? 'Bringing Davos to life…' : 'Your ride is almost ready…';
           if (loadingStatus.textContent !== message) loadingStatus.textContent = message;
@@ -863,7 +865,8 @@ async function initApp() {
 
   // The terrain chunks around the start in full (the rest stream in and out with the camera, js/terrain.js)
   streamTerrain(cameraSystem.camera.position, { all: true });
-  await precompileShaders();
+  // (?qset=precompile:false skips it: everything then compiles when it first comes into view)
+  if (QUALITY.precompile !== false) await precompileShaders();
   markInit('compile');
 
   // 6. Animation Loop

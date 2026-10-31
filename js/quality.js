@@ -32,7 +32,9 @@ const PROFILES = {
     atlasScale: 1, // the canvas atlases (shop signs, road signs)
     drapeScale: 1, // overlays draped on the terrain (golf, rails, trails) split down to edges this much longer (at most 8 m)
     lazyWinter: false, // build the winter-only scenery (pistes, trails) at once, so switching season never stalls
-    buildingLoads: 8, buildingNear: 450 // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
+    buildingLoads: 8, buildingNear: 450, // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
+    precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
+    forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
   },
   mobile: {
     name: 'mobile',
@@ -54,7 +56,9 @@ const PROFILES = {
     atlasScale: 0.5,
     drapeScale: 2,
     lazyWinter: true,
-    buildingLoads: 2, buildingNear: 250 // (each tile's parse and bake peaks at tens of MB: fewer at once on a phone)
+    buildingLoads: 2, buildingNear: 250, // (each tile peaks at tens of MB while parsed: fewer at once on a phone)
+    precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
+    forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
   }
 };
 
