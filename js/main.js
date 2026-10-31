@@ -54,6 +54,21 @@ const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Tals
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
 
+// Start-up breadcrumbs (localStorage 'slopdavos-boot'): the stage reached and any error, kept until the first frame.
+// A phone that kills the tab mid-start (iOS does, without a message) shows on its next start where the last one ended.
+const BOOT_KEY = 'slopdavos-boot';
+const boot = {
+  previous: (() => { try { return JSON.parse(localStorage.getItem(BOOT_KEY)); } catch { return null; } })(),
+  state: { stage: 'start', at: new Date().toISOString(), ua: navigator.userAgent, errors: [] },
+  save() { try { localStorage.setItem(BOOT_KEY, JSON.stringify(this.state)); } catch { /* storage may be off */ } },
+  stage(label) { this.state.stage = label; this.save(); },
+  error(message) { if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 300)); this.save(); },
+  done() { try { localStorage.removeItem(BOOT_KEY); } catch { /* storage may be off */ } }
+};
+boot.save();
+addEventListener('error', (e) => boot.error(e.message || e.error));
+addEventListener('unhandledrejection', (e) => boot.error(e.reason?.message || e.reason));
+
 async function initApp() {
   const container = document.getElementById('canvas-container');
   const loadingOverlay = document.getElementById('loading-overlay');
@@ -69,6 +84,15 @@ async function initApp() {
 
   if (loadingStatus) {
     loadingStatus.textContent = 'Getting the city ready…';
+  }
+  // The last start never got to its first frame: say where it stopped (and what went wrong, if anything was caught)
+  if (boot.previous && loadingOverlay) {
+    const note = document.createElement('p');
+    note.className = 'loader-crash-note';
+    note.style.cssText = 'margin-top:12px;font-size:12px;opacity:.75;max-width:90vw;word-break:break-word';
+    note.textContent = `Letzter Start abgebrochen bei: ${boot.previous.stage}` + (boot.previous.errors?.length ? ` · ${boot.previous.errors.join(' | ')}` : '');
+    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
+    console.warn('[boot] the previous start stopped at', boot.previous);
   }
 
   // 1. Initialize Three.js WebGPURenderer with 32-bit float reversedDepthBuffer
@@ -92,10 +116,12 @@ async function initApp() {
     const now = performance.now();
     initTimings.push(`${label} ${Math.round(now - initMark)}ms`);
     initMark = now;
+    boot.stage(label);
   };
 
   await renderer.init();
   markInit('renderer');
+  renderer.backend.device?.lost?.then((info) => boot.error(`GPU device lost: ${info.reason || ''} ${info.message || ''}`));
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
   // The profile tightens on the WebGL 2 fallback; the HUD names the backend actually drawing
@@ -178,7 +204,11 @@ async function initApp() {
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
     const stream = swissStream = streamSwissBuildings(scene, {
       center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn,
-      onProgress: (done, total) => { if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Loading swissBUILDINGS3D ${done}/${total}…`; }
+      nearRadius: QUALITY.buildingNear, concurrency: QUALITY.buildingLoads,
+      onProgress: (done, total) => {
+        if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${total}`);
+        if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Loading swissBUILDINGS3D ${done}/${total}…`;
+      }
     });
     swissBuildings = await stream.ready;
     // Once every building tile is in, the shop signs move onto the real facades (the OSM footprints differ)
@@ -926,6 +956,7 @@ async function initApp() {
       const device = renderer.backend.device;
       Promise.resolve(device && device.queue.onSubmittedWorkDone()).catch(() => {}).then(() => {
         markInit('gpu');
+        boot.done();
         console.log(`[init] ${initTimings.join(', ')}`);
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
         window.__slopdavos = {

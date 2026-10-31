@@ -31,7 +31,8 @@ const PROFILES = {
     cars: 100, bikes: 225, pedestrians: 260, skiers: 72, crossCountrySkiers: 48,
     atlasScale: 1, // the canvas atlases (shop signs, road signs)
     drapeScale: 1, // overlays draped on the terrain (golf, rails, trails) split down to edges this much longer (at most 8 m)
-    lazyWinter: false // build the winter-only scenery (pistes, trails) at once, so switching season never stalls
+    lazyWinter: false, // build the winter-only scenery (pistes, trails) at once, so switching season never stalls
+    buildingLoads: 8, buildingNear: 450 // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
   },
   mobile: {
     name: 'mobile',
@@ -52,7 +53,8 @@ const PROFILES = {
     cars: 40, bikes: 60, pedestrians: 90, skiers: 24, crossCountrySkiers: 16,
     atlasScale: 0.5,
     drapeScale: 2,
-    lazyWinter: true
+    lazyWinter: true,
+    buildingLoads: 2, buildingNear: 250 // (each tile's parse and bake peaks at tens of MB: fewer at once on a phone)
   }
 };
 
