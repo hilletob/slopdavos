@@ -42,12 +42,12 @@ function spawnPosition(lateral, forward, y) {
   const sn = Math.sin(SPAWN_HEADING), cs = Math.cos(SPAWN_HEADING);
   return new THREE.Vector3(SPAWN_X + lateral * cs + forward * sn, y, SPAWN_Z - lateral * sn + forward * cs);
 }
-// The VW T3 waits at home: on the Dischmastrasse in front of no. 19 (js/detail-houses-data.js), on the house's side
-// of the street, facing Davos Dorf (the street's centreline runs (765.1, -1077.7) -> (786.3, -1012.6) there)
+// The VW T3 waits on the Dischmastrasse in Davos Dorf, ~35 m before its junction with the Talstrasse, in the
+// right-hand lane facing the junction (the street's centreline runs (684.4, -1161.7) -> (671.2, -1162.5) there)
 const CAR_HOME = (() => {
-  const dx = 786.3 - 765.1, dz = -1012.6 + 1077.7, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
-  const cx = 765.1 + ux * (-1050 + 1077.7) / uz, cz = -1050; // centreline abreast of the house
-  return { x: cx + uz * 2.2, z: cz - ux * 2.2, heading: Math.atan2(-ux, -uz) };
+  const dx = 671.2 - 684.4, dz = -1162.5 + 1161.7, len = Math.hypot(dx, dz), tx = dx / len, tz = dz / len;
+  const cx = 684.4 + tx * 6, cz = -1161.7 + tz * 6; // on the centreline
+  return { x: cx - tz * 1.8, z: cz + tx * 1.8, heading: Math.atan2(tx, tz) }; // 1.8 m to the right of it
 })();
 const groundCollider = { type: 'ground' };
 

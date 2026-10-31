@@ -39,7 +39,7 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
-const SAVE_VERSION = 5; // 5: the VW T3 starts at the Dischmastrasse 19; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
+const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Talstrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
