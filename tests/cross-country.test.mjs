@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const { loadModule } = require('./helpers/module.cjs');
 const stub = new Proxy({}, { get: () => undefined });
 const { LAYOUT } = loadModule(readFileSync(new URL('../js/loipen.js', import.meta.url), 'utf8'), {
-  imports: Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', './davos-geodata.js', './terrain.js', './season.js', './scene-culling.js', './groom-map.js'].map((k) => [k, stub])),
+  imports: Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', './davos-geodata.js', './terrain.js', './season.js', './scene-culling.js', './groom-map.js', './quality.js'].map((k) => [k, stub])),
   filename: 'loipen.js'
 });
 

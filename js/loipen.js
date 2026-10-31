@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
+import { QUALITY } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, FULL_DAY, groomSample, loipeBase, wearSince } from './groom-map.js';
 
@@ -55,6 +56,15 @@ function createLoipeMaterial({ width, skate, tracks }) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0, transparent: true, depthWrite: false });
   const across = uv().x.sub(0.5).mul(width); // metres from the centre line
   const along = uv().y;
+  // (the mobile profile, js/quality.js simpleMaterials: the groomed lane with its grooves, no noise, wear or bumps)
+  if (QUALITY.simpleMaterials) {
+    const groove = (c) => smoothstep(0.07, 0.035, across.sub(c).abs());
+    let shade = float(0);
+    for (const track of tracks) shade = shade.max(groove(track - 0.11).max(groove(track + 0.11)).mul(0.6));
+    m.colorNode = mix(vec3(0.7, 0.75, 0.84), vec3(0.3, 0.38, 0.55), shade);
+    m.opacityNode = smoothstep(width / 2, width / 2 - 0.1, across.abs()).mul(winter);
+    return m;
+  }
   const sparkle = mx_noise_float(positionWorld.xz.mul(4)).mul(0.5).add(0.5);
   // Groomed last: by the night shift (loipeBase, groom-map.js) or, where the player's tiller passed since, then. The
   // day's skiers wear it down (a little slower than the pistes): the classic grooves blur and break, the skating lane

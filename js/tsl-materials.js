@@ -62,7 +62,7 @@ import {
   BERLIN_DATA,
   waterAt
 } from './city-config.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, skipped } from './quality.js';
 
 // js/tsl-materials.js
 // Photorealistic TSL (Three.js Shading Language) procedural shaders for Three.js r186 WebGPURenderer
@@ -2610,6 +2610,9 @@ function createWaterMaterial() {
   // Night: nearby Berlin facades and quay lamps, reflected along the same wave
   // ray and filtered by the unresolved slopes. The bank geometry and roof scale
   // come from Berlin OSM data; no numbered-street or opposite-borough proxies.
+  // (the mobile profile, js/quality.js simpleMaterials, and ?qset=skip:water: without the night reflections, whose
+  // per-bank ray tests unrolled made this the longest shader of the town, ~89 KB of WGSL)
+  if (QUALITY.simpleMaterials || skipped('water')) return mat;
   const IB = ISLAND_BOUNDS;
   const reflectionBanks = getBerlinReflectionBanks();
   mat.userData.berlinReflectionBankCount = reflectionBanks.length;

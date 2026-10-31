@@ -3,7 +3,7 @@ import { attribute, float, floor, frontFacing, mix, mx_noise_float, smoothstep, 
 import { createTreeMaterial } from './tsl-materials.js';
 import { snowyRoof, winter } from './season.js';
 import { surfaceHeight } from './terrain.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, skipped } from './quality.js';
 import { releaseImageAfterUpload } from './gpu-memory.js';
 
 // js/trees.js
@@ -1210,6 +1210,7 @@ function createTreeField(scene, sites) {
   // The instances are repacked from `mats` whenever their level of detail changes, so the trees stand on the terrain
   // in `mats` already (sites come with flat-world heights) and placeOnTerrain must leave the field alone
   group.userData.terrain = 'absolute';
+  group.visible = !skipped('trees'); // (?qset=skip:trees: planted, never drawn)
   const atlas = createLeafAtlas();
   const material = createTreeMaterial(atlas.texture);
   // Davos additions on top of the shared tree material (tsl-materials.js):

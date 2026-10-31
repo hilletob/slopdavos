@@ -44,6 +44,10 @@ const PROFILES = {
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
     clusterLights: [256, 32, 28, 48], // ClusteredLighting: lights at most, tile px, depth slices, lights per cluster
+    clusteredLighting: true, // the street lamps, shop and vehicle lights as real lights (else emissive glow and sprites only)
+    simpleMaterials: false, // the biggest procedural materials (landmarks, water, ...) in a plainer, much shorter shader
+    shaderLog: false, // log every shader module in the start-up breadcrumbs (always on the mobile profile; js/gpu-diagnostics.js)
+    skip: '', // ?qset=skip:landmarks+golf (or skip:all): whole systems left out, to find what breaks a device (see SKIP_NAMES)
     surroundingsFull: true, // the relief out to the Alps in full detail near by (else its coarser levels only)
     treeAtlas: 2048, // the leaf atlas (px a side, 4 x 4 tiles)
     facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
@@ -75,6 +79,12 @@ const PROFILES = {
     compactGeometry: true,
     precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
     clusterLights: [64, 64, 16, 16],
+    // (an iPhone 13's GPU process died on a shader module at the start: no clustered light loop in every lit shader,
+    // and the biggest procedural materials in short shaders; ?qset=clusteredLighting:true,simpleMaterials:false)
+    clusteredLighting: false,
+    simpleMaterials: true,
+    shaderLog: true,
+    skip: '',
     surroundingsFull: false,
     treeAtlas: 512,
     facadeAtlas: 512,
@@ -113,6 +123,26 @@ if (globalThis.location) {
     QUALITY[key] = raw === 'true' ? true : raw === 'false' ? false : Number.isFinite(+raw) ? +raw : raw;
   }
 }
+
+/**
+ * The systems ?qset=skip:a+b+c leaves out (a bisect switch for devices that crash at the start: "+" or spaces between
+ * the names; "all" leaves out every one of them, which keeps the terrain with its orthophotos, the player and the camera).
+ */
+export const SKIP_NAMES = ['buildings', 'landmarks', 'detailhouses', 'golf', 'parking', 'shops', 'streams', 'signs', 'bergbahnen',
+  'rhb', 'traffic', 'pedestrians', 'trees', 'details', 'winter', 'snowfall', 'surroundings', 'lights', 'postfx', 'water'];
+
+/** The skipped systems' names (a Set; 'all' expanded) */
+export function parseSkip(value) {
+  const names = String(value || '').toLowerCase().split(/[\s+|;]+/).filter(Boolean);
+  return new Set(names.includes('all') ? SKIP_NAMES : names.filter((n) => SKIP_NAMES.includes(n)));
+}
+
+export const SKIP = parseSkip(QUALITY.skip);
+/** Whether the system is left out (?qset=skip:...) */
+export const skipped = (name) => SKIP.has(name);
+/** The skip setting as shown on the loading screen and in the breadcrumbs ('' when nothing is skipped) */
+export const skipLabel = () => (SKIP.size === SKIP_NAMES.length ? 'all' : [...SKIP].join('+'));
+if (SKIP.has('lights')) QUALITY.clusteredLighting = false;
 
 /**
  * Called once the renderer knows its backend. On the WebGL 2 fallback the mobile profile streams fewer, smaller

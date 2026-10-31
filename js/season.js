@@ -1,4 +1,10 @@
 import { uniform, float, vec3, mix, max, min, dot, normalize, smoothstep, step, mx_noise_float, positionWorld, normalWorld, normalWorldGeometry, cameraViewMatrix, cameraPosition } from 'three/tsl';
+import { QUALITY } from './quality.js';
+
+// (the mobile profile, js/quality.js simpleMaterials: the snow below without its noise fields, altitude bands, rock and
+// slush, a few lines of WGSL instead of a few hundred in every snowed-on material; `SIMPLE` read when a material is built)
+const SIMPLE = () => QUALITY.simpleMaterials;
+const SNOW = vec3(0.8, 0.83, 0.89);
 
 // The season: summer (0) or winter (1), one shared uniform that the ground, roof, surroundings and lake materials mix
 // towards snow and ice by. Toggled with the snowflake button in the top bar (or ?winter in the URL), remembered per
@@ -44,6 +50,14 @@ export function setWinter(on, { animate = true } = {}) {
 // shade and the sky light add the blue, and brighter, bluer snow rode the tone mapper's shoulder into a milky flat
 // white in the sun.
 export function snowyGround(base, { slope = normalWorld.y } = {}) {
+  if (SIMPLE()) {
+    const lum = dot(base, vec3(0.2126, 0.7152, 0.0722));
+    const cover = smoothstep(0.5, 0.74, slope);
+    const forest = smoothstep(0.12, 0.06, lum);
+    const snow = SNOW.mul(mix(float(0.8), float(1.03), smoothstep(0.02, 0.3, lum)));
+    const winterColour = mix(mix(base, snow, cover), mix(base.mul(0.7), snow.mul(0.86), cover.mul(0.55)), forest);
+    return mix(base, winterColour, winter);
+  }
   const lum = dot(base, vec3(0.2126, 0.7152, 0.0722));
   const hi = max(base.r, max(base.g, base.b)), lo = min(base.r, min(base.g, base.b));
   const sat = hi.sub(lo).div(max(hi, 0.002));
@@ -85,6 +99,7 @@ export function snowAltitude(drift = float(0.5)) {
 // Snow on a roof (flat or pitched), or on a tree's boughs: white with a little texture, less on the steepest pitches;
 // higher up (snowAltitude) it lies deeper, on steeper pitches and over more of the boughs
 export function snowyRoof(base, roofMask) {
+  if (SIMPLE()) return mix(base, SNOW, smoothstep(0.35, 0.6, normalWorld.y).mul(float(roofMask)).mul(winter));
   const fine = mx_noise_float(positionWorld.mul(0.7)).mul(0.5).add(0.5);
   const snow = mix(vec3(0.76, 0.79, 0.85), vec3(0.89, 0.91, 0.94), fine);
   const high = snowAltitude();
@@ -98,7 +113,7 @@ export function snowyRoof(base, roofMask) {
 export function freezeWater(material, { all = false } = {}) {
   const still = all ? float(1) : smoothstep(-1.5, -0.5, positionWorld.y);
   const ice = winter.mul(still);
-  const blotch = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
+  const blotch = SIMPLE() ? float(0.5) : mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
   const iceColour = mix(vec3(0.42, 0.47, 0.52), vec3(0.8, 0.84, 0.9), blotch);
   if (material.colorNode) material.colorNode = mix(material.colorNode, iceColour, ice);
   if (material.roughnessNode) material.roughnessNode = mix(material.roughnessNode, float(0.55), ice);
@@ -120,6 +135,13 @@ export function snowyStreet(material, { cover = 0.75, top = false, paint = false
     return material;
   }
   if (!material.colorNode) return material;
+  if (SIMPLE()) {
+    const lies = top ? smoothstep(0.5, 0.8, normalWorld.y) : float(1);
+    material.colorNode = mix(material.colorNode, vec3(0.62, 0.64, 0.68), winter.mul(lies).mul(cover * 0.8));
+    if (material.roughnessNode) material.roughnessNode = mix(material.roughnessNode, float(0.7), winter.mul(lies));
+    material.needsUpdate = true;
+    return material;
+  }
   const patches = mx_noise_float(positionWorld.xz.mul(0.12)).mul(0.5).add(0.5);
   const ruts = mx_noise_float(positionWorld.xz.mul(0.9)).mul(0.5).add(0.5);
   const fine = mx_noise_float(positionWorld.xz.mul(2.3)).mul(0.5).add(0.5);

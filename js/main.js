@@ -43,10 +43,11 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
-import { QUALITY, setBackend } from './quality.js';
+import { QUALITY, setBackend, skipped, skipLabel } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
 import { isWinter, onSeasonChange } from './season.js';
 import { groomMap } from './groom-map.js';
+import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
 const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Talstrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
@@ -57,13 +58,16 @@ const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Tals
 // Start-up breadcrumbs (localStorage 'slopdavos-boot'): the stage reached and any error, kept until the first frame.
 // A phone that kills the tab mid-start (iOS does, without a message) shows on its next start where the last one ended.
 const BOOT_KEY = 'slopdavos-boot';
+// (the stage carries the ?qset=skip:... setting along: "compile 3/40 terrain [skip: landmarks+lights]")
+const SKIP_TAG = skipLabel() ? ` [skip: ${skipLabel()}]` : '';
 const boot = {
   previous: (() => { try { return JSON.parse(localStorage.getItem(BOOT_KEY)); } catch { return null; } })(),
-  state: { stage: 'start', at: new Date().toISOString(), ua: navigator.userAgent, errors: [] },
+  state: { stage: 'start' + SKIP_TAG, skip: skipLabel(), at: new Date().toISOString(), ua: navigator.userAgent, errors: [] },
   save() { try { localStorage.setItem(BOOT_KEY, JSON.stringify(this.state)); } catch { /* storage may be off */ } },
-  stage(label) { this.state.stage = label; this.save(); },
-  error(message) { if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 600)); this.save(); },
-  done() { try { localStorage.removeItem(BOOT_KEY); } catch { /* storage may be off */ } }
+  finished: false,
+  stage(label) { if (this.finished) return; this.state.stage = label + SKIP_TAG; this.save(); },
+  error(message) { if (this.finished) return; if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 600)); this.save(); },
+  done() { this.finished = true; try { localStorage.removeItem(BOOT_KEY); } catch { /* storage may be off */ } }
 };
 boot.save();
 // (where it happened too: file, line and the first frames of the stack; "Script error." alone says nothing)
@@ -97,6 +101,25 @@ async function initApp() {
     (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
     console.warn('[boot] the previous start stopped at', boot.previous);
   }
+  // The last start's GPU trouble (js/gpu-diagnostics.js), also when it came after the first frame: the last shader
+  // module made and the first errors
+  const gpuLog = previousGpuLog();
+  if ((gpuLog?.errors?.length || gpuLog?.lost) && loadingOverlay) {
+    const note = document.createElement('p');
+    note.className = 'loader-crash-note';
+    note.style.cssText = 'margin-top:8px;font-size:11px;opacity:.7;max-width:90vw;word-break:break-word';
+    const last = gpuLog.last?.at(-1);
+    note.textContent = `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}` + (last ? ` · letzter Shader #${last.n} ${last.label} ${last.length} B #${last.hash}` : '');
+    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
+    console.warn('[gpu] the previous start:', gpuLog);
+  }
+  // This start leaves systems out (?qset=skip:..., js/quality.js)
+  if (skipLabel() && loadingOverlay) {
+    const note = document.createElement('p');
+    note.style.cssText = 'margin-top:8px;font-size:12px;opacity:.8';
+    note.textContent = `skip: ${skipLabel()}`;
+    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
+  }
 
   // 1. Initialize Three.js WebGPURenderer with 32-bit float reversedDepthBuffer
   // (the device profile, js/quality.js: no MSAA on the mobile one, whose four samples of each render target cost more
@@ -110,8 +133,9 @@ async function initApp() {
   renderer.setPixelRatio(QUALITY.pixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  // (the mobile profile, js/quality.js: fewer lights, coarser clusters and shorter light lists in every shader)
-  renderer.lighting = new ClusteredLighting(...QUALITY.clusterLights);
+  // (the mobile profile, js/quality.js: no point and spot lights in the shaders at all, js/gpu-diagnostics.js; the
+  // lamps and windows glow by their emissive materials)
+  renderer.lighting = QUALITY.clusteredLighting ? new ClusteredLighting(...QUALITY.clusterLights) : new DirectLighting();
   container.appendChild(renderer.domElement);
 
   // Start-up phase timings (logged once as "[init] ...") to keep load-time regressions traceable
@@ -126,7 +150,13 @@ async function initApp() {
 
   await renderer.init();
   markInit('renderer');
-  renderer.backend.device?.lost?.then((info) => boot.error(`GPU device lost: ${info.reason || ''} ${info.message || ''}`));
+  // (the mobile profile: every shader module numbered in the breadcrumbs, with its object, length and hash, and the
+  // compiler's complaints; ?qset=shaderLog:true elsewhere)
+  if (renderer.backend.isWebGPUBackend && (QUALITY.mobile || QUALITY.shaderLog)) {
+    watchShaderModules(renderer, { stage: (label) => boot.stage(label), error: (message) => boot.error(message), keepWGSL: true });
+  } else {
+    renderer.backend.device?.lost?.then((info) => boot.error(`GPU device lost: ${info.reason || ''} ${info.message || ''}`));
+  }
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
   // The profile tightens on the WebGL 2 fallback; the HUD names the backend actually drawing
@@ -140,7 +170,10 @@ async function initApp() {
   const scene = new THREE.Scene();
   globalThis.__slopdavosBuild = { scene, renderer }; // (for the memory probes: the scene while it is still being built)
   const lightingSystem = new LightingSystem(scene, renderer);
-  const snowfall = buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
+  // (?qset=skip:a+b, js/quality.js: whole systems left out, to find what a device can't take; NOOP stands in for
+  // their per-frame hooks)
+  const NOOP = () => {};
+  const snowfall = skipped('snowfall') ? { update: NOOP } : buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
   markInit('lighting');
 
   if (loadingStatus) {
@@ -174,7 +207,7 @@ async function initApp() {
     buildSkiPistes(scene); // the groomed downhill runs with their edge poles, shown in winter
     buildWinterHikes(scene); // the signposted winter hiking trails with their pink markers, shown in winter
   };
-  if (!QUALITY.lazyWinter || isWinter()) buildWinterScenery();
+  if (skipped('winter')) { /* (no pistes, trails or winter hikes) */ } else if (!QUALITY.lazyWinter || isWinter()) buildWinterScenery();
   else {
     const stop = onSeasonChange((on) => {
       if (!on) return;
@@ -184,34 +217,35 @@ async function initApp() {
       for (const o of scene.children) if (!before.has(o)) o.updateMatrixWorld(true); // (the scene's matrices are frozen)
     });
   }
-  const crossCountry = buildCrossCountry(scene); // cross-country skiers on them (js/cross-country.js)
-  const winterHikers = buildWinterHikers(scene); // winter hikers (and dogs) on them near the camera (js/winter-hikers.js)
+  const crossCountry = skipped('winter') ? { update: NOOP } : buildCrossCountry(scene); // cross-country skiers on them (js/cross-country.js)
+  const winterHikers = skipped('winter') ? { update: NOOP } : buildWinterHikers(scene); // winter hikers (and dogs) on them near the camera (js/winter-hikers.js)
   // (the mobile profile, js/quality.js: the golf course and the streams are built a few seconds after the first frame,
   // one at a time: their build allocates ~1.5 GB of short-lived arrays, which then never adds to the start's peak)
   const deferred = [];
   const buildLater = (build) => (QUALITY.deferScenery ? deferred.push(build) : build());
-  buildLater(() => buildGolf(scene)); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
-  const winterSports = buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
-  buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
-  const shops = buildShops(scene); // the businesses' signs (js/shops-data.js)
-  const parking = buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
-  const detailHouses = buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
-  const landmarkBuildings = buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
+  if (!skipped('golf')) buildLater(() => buildGolf(scene)); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
+  const winterSports = skipped('winter') ? { update: NOOP } : buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
+  if (!skipped('streams')) buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
+  const shops = skipped('shops') ? { refine: NOOP } : buildShops(scene); // the businesses' signs (js/shops-data.js)
+  const parking = skipped('parking') ? { colliders: [], update: NOOP } : buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
+  const detailHouses = skipped('detailhouses') ? { colliders: [] } : buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
+  const landmarkBuildings = skipped('landmarks') ? { colliders: [] } : buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
   markInit('cityGrid');
   await breathe();
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
-    await buildSurroundings(scene);
+    if (!skipped('surroundings')) await buildSurroundings(scene);
   } catch (error) {
     console.warn('[surroundings] the horizon stays empty:', error);
   }
   markInit('surroundings');
   await breathe();
-  const trams = buildTrams(scene);
-  const rhb = buildRhB(scene);
-  const bergbahnen = buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
-  const vbd = buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
-  const levelCrossings = buildLevelCrossings(scene, rhb); // booms and flashing lights where roads cross the RhB
+  const noVehicles = () => ({ bodies: [], group: null, update: NOOP, collidePlayer: NOOP });
+  const trams = skipped('traffic') ? noVehicles() : buildTrams(scene);
+  const rhb = skipped('rhb') ? noVehicles() : buildRhB(scene);
+  const bergbahnen = skipped('bergbahnen') ? { update: NOOP } : buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
+  const vbd = skipped('traffic') ? noVehicles() : buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
+  const levelCrossings = skipped('rhb') ? noVehicles() : buildLevelCrossings(scene, rhb); // booms and flashing lights where roads cross the RhB
   markInit('trams');
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
@@ -227,6 +261,8 @@ async function initApp() {
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
     drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn })
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
+    // (?qset=skip:buildings: no swissBUILDINGS3D, and no OSM buildings in their place either, see buildCityBlocks below)
+    if (skipped('buildings')) throw new Error('skipped (?qset=skip:buildings)');
     const stream = swissStream = streamSwissBuildings(scene, {
       center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn,
       nearRadius: QUALITY.buildingNear, concurrency: QUALITY.buildingLoads,
@@ -241,14 +277,18 @@ async function initApp() {
     stream.done.then(() => shops.refine(stream.group)).catch((error) => console.warn('[shops] facades:', error))
       .finally(() => { buildingsSettled = true; });
   } catch (error) {
-    console.warn('[swissbuildings3d] falling back to OSM buildings:', error);
+    if (skipped('buildings')) console.info('[swissbuildings3d] skipped (?qset=skip:buildings)');
+    else console.warn('[swissbuildings3d] falling back to OSM buildings:', error);
   }
   markInit('swissbuildings3d');
-  const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings });
+  const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings || skipped('buildings') });
+  if (skipped('buildings')) scene.remove(cityBlocks.group); // (their fire escapes and shop fronts too; the colliders stay)
   markInit('blocks');
   const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders]);
 
-  const streetDetails = buildStreetDetails(scene);
+  const streetDetails = skipped('details')
+    ? { footprints: [], signalIntersections: [], trees: [], signalClock: { value: 0 }, update: null }
+    : buildStreetDetails(scene);
   markInit('streetDetails');
   await breathe();
   const terrainStats = { rigid: 0, instances: 0, draped: 0, displaced: 0 };
@@ -262,10 +302,12 @@ async function initApp() {
     ...streetDetails.footprints,
     ...allColliders.filter((c) => !c.obb && (c.minY ?? 0) - (c.baseY ?? 0) < 3.5)
   ], streetDetails.signalIntersections);
+  if (skipped('traffic')) scene.remove(trafficSystem.group); // (?qset=skip:traffic: they drive unseen)
   markInit('traffic');
   const trafficBodies = [...trams.bodies, ...rhb.bodies, ...vbd.bodies, ...levelCrossings.bodies]; // (+ the parked snow groomer, below)
   trafficSystem.setTramBodies(trafficBodies);
-  const highwayTraffic = createHighwayTraffic(scene, cityGrid.highwayLanes);
+  const highwayTraffic = createHighwayTraffic(scene, skipped('traffic') ? [] : cityGrid.highwayLanes);
+  if (skipped('traffic')) scene.remove(highwayTraffic.group);
   const beforePaint = new Set(scene.children);
   buildRoadPaint(scene, trafficSystem.network);
   for (const root of scene.children.filter((o) => !beforePaint.has(o))) placeOnTerrain(root, terrainStats);
@@ -273,13 +315,13 @@ async function initApp() {
   markInit('roadPaint');
   // Swiss road signs (js/traffic-signs.js), clear of the painted crosswalks; their posts stop the player (not the AI
   // traffic, which got its obstacles above)
-  const trafficSigns = buildTrafficSigns(scene, { network: trafficSystem.network, night: lightingSystem.uNightFactor });
+  const trafficSigns = skipped('signs') ? { colliders: [], update: NOOP } : buildTrafficSigns(scene, { network: trafficSystem.network, night: lightingSystem.uNightFactor });
   allColliders.push(...trafficSigns.colliders);
   markInit('trafficSigns');
 
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
-  controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
+  if (!skipped('rhb')) controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
   trafficBodies.push(controllerManager.snowcatTrafficBody); // the parked snow groomer is solid for the traffic
   controllerManager.setTrees(streetDetails.trees); // ... and the driven one stops at the trees
   controllerManager.entities.cargobike.mesh.visible = false; // the cargo bike is no longer offered in Davos
@@ -399,7 +441,7 @@ async function initApp() {
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
     controllerManager.entities.cyclist.helmet
-  ];
+  ].filter(Boolean);
   scene.updateMatrixWorld(true);
   scene.matrixWorldAutoUpdate = false;
   markInit('culling');
@@ -463,8 +505,11 @@ async function initApp() {
     const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
     reflections = ssrPass.mul(reflectionMask);
   }
-  const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
-  const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
+  // (?qset=skip:postfx: no bloom, colour grade or tone mapping; the scene straight to the screen)
+  const colorGrade = skipped('postfx') ? { applyPreset: NOOP } : createPostProcessing(renderer, scenePassColor, reflections);
+  const renderPipeline = skipped('postfx')
+    ? { render: () => renderer.render(scene, cameraSystem.camera) }
+    : new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
@@ -901,8 +946,10 @@ async function initApp() {
       job.push(o);
     });
 
-    renderer.setRenderTarget(scenePass.renderTarget);
-    renderer.setMRT(sceneMRT);
+    if (!skipped('postfx')) {
+      renderer.setRenderTarget(scenePass.renderTarget);
+      renderer.setMRT(sceneMRT);
+    }
     const compile = async (object) => {
       // Each compile starts in a task of its own: compileAsync() keeps one precompilation state on the renderer,
       // which must not be mid-step for two of them in the same microtask checkpoint
@@ -1002,7 +1049,7 @@ async function initApp() {
     streamTerrain(cameraSystem.camera.position); // the terrain chunks' full geometry near the camera, coarse farther
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
-    groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
+    if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();

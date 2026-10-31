@@ -7,7 +7,7 @@ import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { surfaceHeight, deckHeight, groundHeight, ROAD_TOP } from './terrain.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, skipped } from './quality.js';
 import {
   BODY_SPECS,
   BUS_SPEC,
@@ -408,7 +408,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const pedestrianSystem = createPedestrianSystem(network, {
     player, nearEdges, nearSignals, mayCross, walkOn, visible, nearView
   });
-  group.add(...pedestrianSystem.meshes);
+  if (!skipped('pedestrians')) group.add(...pedestrianSystem.meshes); // (?qset=skip:pedestrians: they walk unseen)
 
   // Add vehicle contact shadows last + pre-allocated Clustered SpotLight / PointLight pools
   group.add(carShadowInst, busShadowInst);

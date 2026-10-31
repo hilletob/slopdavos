@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { drapeOverlay, surfaceHeight } from './terrain.js';
 import { winter } from './season.js';
+import { QUALITY } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, groomSample, pisteBase, TILLER_HALF, wearSince } from './groom-map.js';
 
@@ -130,6 +131,12 @@ function createPisteMaterial() {
   // The low berm the groomer leaves along the edges (the runs only); ridden into piles of pushed-off snow later
   const edgeBand = (inner, outer) => smoothstep(float(1).sub(float(inner).div(hw.max(1))), float(1).sub(float(outer).div(hw.max(1))), abs(uv().x)).mul(float(1).sub(isArea));
   const berm = edgeBand(1.6, 0.5).mul(0.3).mul(smoothstep(0.9, 0.2, wear));
+  // (the mobile profile, js/quality.js simpleMaterials: groomed snow with its passes and berms, no wear, bumps or noise)
+  if (QUALITY.simpleMaterials) {
+    m.colorNode = mix(vec3(0.62, 0.64, 0.665).mul(float(1.0).sub(stripe)), vec3(0.36, 0.41, 0.5), max(max(ridges, seam), berm));
+    m.opacityNode = mix(smoothstep(float(1), float(1).sub(float(2.5).div(hw.max(1))), abs(uv().x)), float(1), isArea).mul(winter).mul(0.96);
+    return m;
+  }
   const drift = mx_noise_float(positionWorld.xz.mul(0.04)).mul(0.5).add(0.5);
   const fine = mx_noise_float(positionWorld.xz.mul(1.3)).mul(0.5).add(0.5);
   // --- Wear (the day's skiers): ski tracks and ruts along the run, then moguls, scraped icy patches and the snow

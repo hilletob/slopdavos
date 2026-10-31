@@ -96,6 +96,8 @@ export function bumpedNormal(h) {
  *  corduroy along the pass (fading with the snow's age and with distance), a sharp edge and the berm's shadow line. */
 export function groomedGround(colour) {
   const g = groomSample();
+  // (the mobile profile, js/quality.js simpleMaterials: the tracks in plain packed snow, no cord, scuffs or berm edge)
+  if (QUALITY.simpleMaterials) return mix(colour, vec3(0.62, 0.64, 0.67), g.inside);
   const wear = wearSince(g.s);
   const fresh = smoothstep(0.35, 0.0, wear);
   const dist = distance(positionWorld, cameraPosition);
