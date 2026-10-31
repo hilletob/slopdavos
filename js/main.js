@@ -785,7 +785,8 @@ async function initApp() {
   //     leaves the main thread idle about half the time while nothing else animates; several calls side by side keep
   //     it busy (warm cache: 2.1 s instead of 4.0 s). (Rendering straight away compiled ~500 pipelines one after
   //     another: ~25 s with a cold shader cache.)
-  const COMPILE_POOL = 16;
+  // (a phone's GPU process, iOS above all, is closed when many pipelines are built at once: two at a time there)
+  const COMPILE_POOL = QUALITY.mobile ? 2 : 16;
   const nextTask = () => (globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise((resolve) => setTimeout(resolve, 0)));
   async function precompileShaders() {
     // An empty frame first: it sets up the post-processing chain, which configures the scene pass's render target
@@ -846,6 +847,7 @@ async function initApp() {
         const job = jobs[next++];
         for (const object of job) await compile(object);
         done++;
+        if (QUALITY.mobile && done % 10 === 0) boot.stage(`compile ${done}/${jobs.length}`);
         if (loadingStatus) {
           const message = done < jobs.length * 0.75 ? 'Bringing Davos to life…' : 'Your ride is almost ready…';
           if (loadingStatus.textContent !== message) loadingStatus.textContent = message;
@@ -934,7 +936,9 @@ async function initApp() {
       // first time the camera turns towards it (one chunk / shadow stand-in per shared pipeline is enough)
       const culled = [];
       const pipelines = new Set();
-      scene.traverseVisible((o) => {
+      // (not on the mobile profile: the whole town in one frame is more than a phone's GPU process takes at once;
+      // what the precompile missed builds when it first comes into view)
+      if (!QUALITY.mobile) scene.traverseVisible((o) => {
         const pipeline = o.userData.sharesPipelineWith || o;
         if (pipelines.has(pipeline)) return;
         pipelines.add(pipeline);
