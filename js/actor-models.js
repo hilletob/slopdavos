@@ -312,7 +312,145 @@ const BODY_SPECS = {
     rearWiper: true
   }
 };
-BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true });
+// --- European cars for Davos ------------------------------------------------------------------------------------------
+// The upstream bodies are American (a 4.5 m saloon with a boot, a full-size SUV). Davos drives European: estates
+// (Octavia / Passat / Subaru — the commonest car in the mountains), compact hatchbacks (Golf class), compact SUVs
+// (Tiguan class) and minibuses (Transporter). The saloon's key stays 'sedan' (traffic, police and parking use it) but
+// it is now the estate; the SUV is the compact one. Narrower (1.79–1.90 m) and shorter than the US bodies.
+BODY_SPECS.sedan = {
+  ...BODY_SPECS.sedan,
+  name: 'estate',
+  zFront: 2.3,
+  zRear: -2.36,
+  wheelRadius: 0.34,
+  wheelZ: 1.36,
+  wheelX: 0.8,
+  halfWidth: [[2.3, 0.88], [1.36, 0.9], [0, 0.905], [-1.36, 0.903], [-2.36, 0.89]],
+  sill: [[2.3, 0.29], [1.2, 0.27], [-1.2, 0.27], [-2.36, 0.31]],
+  shoulder: [[2.3, 0.66], [0, 0.71], [-2.36, 0.76]],
+  edge: [[2.15, 0.8], [1.5, 0.86], [0.85, 0.93], [0.55, 0.95], [-1.0, 0.975], [-2.0, 0.985], [-2.36, 0.975]],
+  crown: [[2.15, 0.035], [0.95, 0.03], [0.66, 0.004], [-2.36, 0.004]],
+  tumble: [[2.3, 0.1], [0.9, 0.085], [-2.36, 0.085]],
+  nose: { halfWidth: [0.28, 0.68, 3], edge: [0.12, 0.78, 3], crown: [0.12, 0.01, 2], sill: [0.13, 0.33, 2], shoulder: [0.2, 0.6, 2.4] },
+  tail: { halfWidth: [0.22, 0.74, 2.6], edge: [0.06, 0.96, 3], crown: [0.06, 0.0, 2], sill: [0.14, 0.36, 2], shoulder: [0.16, 0.74, 2.4] },
+  cabin: {
+    ...BODY_SPECS.sedan.cabin,
+    cowl: 0.86, roofFront: 0.02, roofRear: -2.02, deck: -2.26,
+    roofY: [[0.02, 1.45], [-1.0, 1.475], [-2.02, 1.46]],
+    rail: [0.635, 0.62],
+    pillars: [-0.3, -1.22]
+  },
+  doors: [0.84, -0.3, -1.22],
+  handles: [-0.13, -1.0],
+  headlight: [0.6, 0.71, 0.22, 0.05],
+  taillight: [0.7, 0.9, 0.11, 0.1],
+  grille: [0.69, 0.3, 0.055],
+  intake: [0.38, 0.46, 0.045],
+  plates: [0.53, 0.72],
+  bumperLine: [0.78, 0.6],
+  bumpers: [[0.46, 0.03], [0.48, 0.035]],
+  chrome: false,
+  rails: true,
+  rearWiper: true
+};
+BODY_SPECS.hatch = {
+  ...BODY_SPECS.sedan,
+  name: 'hatch',
+  zFront: 2.12,
+  zRear: -2.15,
+  wheelRadius: 0.33,
+  wheelZ: 1.3,
+  wheelX: 0.79,
+  halfWidth: [[2.12, 0.875], [1.3, 0.893], [0, 0.898], [-1.3, 0.896], [-2.15, 0.885]],
+  sill: [[2.12, 0.29], [1.1, 0.27], [-1.1, 0.27], [-2.15, 0.32]],
+  shoulder: [[2.12, 0.66], [0, 0.71], [-2.15, 0.78]],
+  edge: [[1.98, 0.8], [1.4, 0.86], [0.8, 0.93], [0.5, 0.955], [-0.9, 0.98], [-1.8, 0.995], [-2.15, 0.99]],
+  crown: [[1.98, 0.035], [0.9, 0.03], [0.6, 0.004], [-2.15, 0.004]],
+  tumble: [[2.12, 0.1], [0.9, 0.085], [-2.15, 0.09]],
+  nose: { halfWidth: [0.27, 0.68, 3], edge: [0.12, 0.78, 3], crown: [0.12, 0.01, 2], sill: [0.13, 0.33, 2], shoulder: [0.2, 0.6, 2.4] },
+  tail: { halfWidth: [0.2, 0.74, 2.6], edge: [0.05, 0.98, 3], crown: [0.05, 0.0, 2], sill: [0.14, 0.37, 2], shoulder: [0.15, 0.76, 2.4] },
+  cabin: {
+    ...BODY_SPECS.sedan.cabin,
+    cowl: 0.8, roofFront: 0.04, roofRear: -1.42, deck: -2.02,
+    roofY: [[0.04, 1.44], [-0.7, 1.46], [-1.42, 1.43]],
+    rail: [0.63, 0.6],
+    pillars: [-0.36]
+  },
+  doors: [0.8, -0.36, -1.14],
+  handles: [-0.17, -0.95],
+  headlight: [0.6, 0.72, 0.2, 0.05],
+  taillight: [0.66, 0.92, 0.16, 0.06],
+  grille: [0.7, 0.28, 0.05],
+  intake: [0.38, 0.45, 0.05],
+  plates: [0.53, 0.76],
+  bumperLine: [0.78, 0.63],
+  bumpers: [[0.46, 0.03], [0.5, 0.035]],
+  rails: false,
+  rearWiper: true
+};
+BODY_SPECS.suv = {
+  ...BODY_SPECS.suv,
+  name: 'suv',
+  zFront: 2.25,
+  zRear: -2.25,
+  wheelRadius: 0.37,
+  wheelZ: 1.34,
+  wheelX: 0.83,
+  halfWidth: [[2.25, 0.905], [1.34, 0.92], [0, 0.925], [-1.34, 0.923], [-2.25, 0.912]],
+  edge: [[2.08, 0.95], [1.5, 1.0], [0.85, 1.05], [0.6, 1.07], [-1.0, 1.095], [-1.95, 1.115], [-2.25, 1.115]],
+  tail: { halfWidth: [0.24, 0.78, 2.6], edge: [0.08, 1.07, 3], crown: [0.08, 0, 2], sill: [0.14, 0.44, 2], shoulder: [0.18, 0.82, 2.4] },
+  cabin: {
+    ...BODY_SPECS.suv.cabin,
+    roofFront: 0.06, roofRear: -1.9, deck: -2.15,
+    roofY: [[0.06, 1.645], [-0.9, 1.665], [-1.9, 1.65]],
+    rail: [0.685, 0.675]
+  },
+  headlight: [0.62, 0.84, 0.22, 0.05],
+  taillight: [0.72, 0.98, 0.12, 0.07]
+};
+// Minibus (Transporter class): a short sloping nose, a tall boxy glasshouse with windows all round, a sliding door
+BODY_SPECS.van = {
+  ...BODY_SPECS.suv,
+  name: 'van',
+  zFront: 2.45,
+  zRear: -2.45,
+  wheelRadius: 0.36,
+  wheelZ: 1.5,
+  wheelX: 0.86,
+  archGap: 0.07,
+  halfWidth: [[2.45, 0.93], [1.5, 0.95], [0, 0.955], [-1.5, 0.953], [-2.45, 0.945]],
+  sill: [[2.45, 0.42], [1.3, 0.38], [-1.3, 0.38], [-2.45, 0.42]],
+  shoulder: [[2.45, 0.85], [0, 0.9], [-2.45, 0.92]],
+  edge: [[2.3, 0.98], [1.9, 1.04], [1.6, 1.06], [0, 1.08], [-2.3, 1.09], [-2.45, 1.09]],
+  crown: [[2.3, 0.03], [1.7, 0.02], [1.55, 0.004], [-2.45, 0.004]],
+  tumble: [[2.45, 0.06], [-2.45, 0.06]],
+  nose: { halfWidth: [0.22, 0.78, 3], edge: [0.1, 0.96, 3], crown: [0.1, 0.01, 2], sill: [0.12, 0.45, 2], shoulder: [0.18, 0.82, 2.4] },
+  tail: { halfWidth: [0.16, 0.86, 2.6], edge: [0.04, 1.08, 3], crown: [0.04, 0, 2], sill: [0.1, 0.45, 2], shoulder: [0.1, 0.9, 2.4] },
+  cabin: {
+    ...BODY_SPECS.suv.cabin,
+    cowl: 1.95, roofFront: 1.45, roofRear: -2.3, deck: -2.42,
+    roofY: [[1.45, 1.93], [0, 1.96], [-2.3, 1.94]],
+    rail: [0.86, 0.86],
+    inset: 0.03,
+    bulge: 0.006,
+    pillars: [0.98, -0.45, -1.55]
+  },
+  doors: [1.62, 0.95, -0.5],
+  handles: [1.2, -0.72],
+  headlight: [0.66, 0.93, 0.21, 0.06],
+  taillight: [0.87, 1.0, 0.055, 0.2],
+  grille: [0.95, 0.42, 0.06],
+  intake: [0.52, 0.5, 0.05],
+  plates: [0.58, 0.64],
+  bumperLine: [0.88, 0.72],
+  bumpers: [[0.52, 0.05], [0.52, 0.05]],
+  chrome: false,
+  cladding: 0.48,
+  rails: false,
+  rearWiper: true
+};
+// Davos taxis: ordinary estates (black, white or dark grey) with a lit roof sign
+BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true, rails: false });
 for (const spec of Object.values(BODY_SPECS)) {
   // Kept for code that places lamp flares: lamp heights (front, rear) and centres across the car
   spec.lamps = [spec.headlight[1], spec.taillight[1]];
@@ -1153,32 +1291,19 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   );
 
   // ---- Colour ---------------------------------------------------------------------------------------------------
-  // Liveries: NYPD (white with blue & light-blue side stripes, lettering on the front doors); the taxi's door badges
-  // and medallion number
+  // Liveries: Swiss police (Kantonspolizei: white with a two-row blue & fluorescent-yellow chequered band along the
+  // sides, "POLIZEI" in blue on the front doors). Davos taxis carry only their roof sign.
   const isPolice = (fixed ? float(0) : step(0.5, state.w)).mul(isSide).mul(isBody);
   const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
   const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
   const band = smoothstep(0.495, 0.5, p.y).mul(smoothstep(0.645, 0.64, p.y)).mul(along);
-  const pin = smoothstep(0.663, 0.667, p.y).mul(smoothstep(0.687, 0.683, p.y)).mul(along);
+  const checker = step(0.5, fract(p.z.mul(2.8))).sub(step(0.5705, p.y)).abs(); // two rows, alternating
   const lettering = step(0.45, sin(p.z.mul(70.0)))
     .mul(smoothstep(0.725, 0.73, p.y))
     .mul(smoothstep(0.81, 0.805, p.y))
     .mul(step(abs(p.z.sub(doorMid)), 0.22));
-  let painted = mix(mix(paint, color(0x1d3f8f), max(band, lettering).mul(isPolice)), color(0x6fa8dc), pin.mul(isPolice));
-  if (spec.sign) {
-    const badge = roundedRect(vec2(p.z.sub(doorMid), p.y.sub(0.66)), vec2(0.21, 0.052), 0.012).mul(isSide).mul(isBody);
-    const emblem = smoothstep(0.042, 0.036, length(vec2(abs(p.z.sub(doorMid)).sub(0.15), p.y.sub(0.66))));
-    const letters = step(0.35, sin(p.z.mul(95.0)))
-      .mul(step(abs(p.z.sub(doorMid)), 0.1))
-      .mul(smoothstep(0.03, 0.026, abs(p.y.sub(0.66))));
-    const medallion = step(0.3, sin(p.z.mul(150.0)))
-      .mul(step(abs(p.z.sub(spec.zRear + 0.6)), 0.075))
-      .mul(smoothstep(0.016, 0.013, abs(p.y.sub(0.8))))
-      .mul(isSide)
-      .mul(isBody);
-    painted = mix(mix(painted, color(0x121417), badge), color(0xffbe14), max(emblem, letters).mul(badge));
-    painted = mix(painted, color(0x121417), medallion);
-  }
+  const chequer = mix(color(0xd9ee10), color(0x1d3f8f), checker);
+  const painted = mix(mix(paint, chequer, band.mul(isPolice)), color(0x1d3f8f), lettering.mul(isPolice));
 
   // Panel shading: soft occlusion low down & under the arch lips; unpainted cladding (SUVs); door shut lines &
   // handles; trunk / hood shut lines; black cowl panel under the windshield
@@ -1656,176 +1781,170 @@ function heliAirfoilSection(xCenter, yCenter, zCenter, halfThickX, halfHeightY, 
   ];
 }
 
+// The Airbus H145 D3 as flown by Rega (rega.ch: 13.54 m long overall, 10.8 m rotor, 4.00 m high). Frame: +z forward,
+// y up from the skids' ground line, the rotor mast at z = -0.25. Nose at z +3.2, Fenestron at z -7.55: ~11.3 m of
+// fuselage; cabin 1.8 m wide; skid track 2.4 m.
+const H145 = { mastZ: -0.25, hubY: 2.95, fenestron: { y: 2.2, z: -7.55, r: 0.45 }, stab: { y: 1.86, z: -6.1, span: 1.17 } };
+
 function buildHelicopterBodyGeometry() {
   const parts = [];
 
-  // 1. Continuous 3D Lofted Monocoque Fuselage-to-Tailboom (15 stations from z = +2.82 nose to z = -5.85 tail)
+  // 1. Fuselage and tail boom, lofted: the rounded nose under the big windscreen, the tall cabin (cockpit doors, the
+  //    sliding doors), the clamshell doors at the back of the cabin under the high-set boom, the slim boom to the fin
   // [z, halfW, botY, topY, bellyFlat, shoulderRatio]
   const fuselageProfile = [
-    [2.82, 0.16, 0.88, 1.02, 0.50, 0.50], // Aerodynamic nose tip
-    [2.62, 0.54, 0.72, 1.18, 0.62, 0.48], // Lower nose chin window
-    [2.20, 0.88, 0.58, 1.48, 0.72, 0.46], // Lower windshield base
-    [1.55, 1.10, 0.52, 1.86, 0.78, 0.44], // Front pilot cabin & wide panoramic windscreen
-    [0.75, 1.16, 0.50, 2.02, 0.80, 0.45], // Main sightseeing passenger cabin (widest section)
-    [-0.15, 1.14, 0.50, 2.02, 0.80, 0.46], // Rear passenger cabin
-    [-0.95, 1.02, 0.54, 1.96, 0.74, 0.50], // Cabin-to-cowling transition
-    [-1.65, 0.74, 0.72, 1.84, 0.62, 0.54], // Rear baggage & tapered clamshell bay
-    [-2.35, 0.42, 1.12, 1.74, 0.45, 0.55], // Forward tailboom root
-    [-3.25, 0.31, 1.24, 1.72, 0.40, 0.55], // Mid tailboom
-    [-4.35, 0.24, 1.32, 1.70, 0.38, 0.55], // Stabilizer station
-    [-5.35, 0.18, 1.38, 1.68, 0.36, 0.55], // Rear tailboom before fin
-    [-5.85, 0.12, 1.43, 1.65, 0.35, 0.55]  // Tailboom tip cap
+    [3.20, 0.10, 0.98, 1.06, 0.50, 0.50], // nose tip
+    [3.04, 0.42, 0.80, 1.30, 0.60, 0.46], // chin windows
+    [2.72, 0.68, 0.66, 1.56, 0.70, 0.44],
+    [2.25, 0.83, 0.58, 1.84, 0.76, 0.42], // windscreen
+    [1.65, 0.89, 0.55, 2.03, 0.80, 0.44], // cockpit door front edge
+    [0.80, 0.90, 0.54, 2.08, 0.82, 0.45],
+    [0.00, 0.90, 0.54, 2.08, 0.82, 0.46], // sliding doors
+    [-0.90, 0.90, 0.55, 2.07, 0.82, 0.47],
+    [-1.70, 0.88, 0.58, 2.05, 0.80, 0.48],
+    [-2.15, 0.82, 0.70, 2.03, 0.76, 0.50], // clamshell doors
+    [-2.45, 0.60, 1.20, 2.00, 0.62, 0.55],
+    [-2.80, 0.34, 1.52, 1.98, 0.45, 0.55], // boom root
+    [-4.00, 0.27, 1.60, 1.96, 0.42, 0.55],
+    [-5.50, 0.22, 1.66, 1.94, 0.40, 0.55],
+    [-6.80, 0.18, 1.70, 1.93, 0.38, 0.55],
+    [-7.25, 0.16, 1.70, 1.94, 0.38, 0.55] // into the Fenestron shroud
   ];
+  parts.push(part(new LoftGeometry(fuselageProfile.map((s) => heliFuselageSection(...s)), { capStart: true, capEnd: true }), HELI_PARTS.FUSELAGE));
 
-  const fuselageSections = fuselageProfile.map((s) => heliFuselageSection(...s));
-  parts.push(part(new LoftGeometry(fuselageSections, { capStart: true, capEnd: true }), HELI_PARTS.FUSELAGE));
-
-  // 2. Sculpted Twin-Turbine Upper Engine Cowling & Mast Doghouse (lofted from z = +0.55 to -2.25)
+  // 2. Engine deck: the twin Arriel 2E cowling, highest just behind the mast, with its exhausts aft
   const cowlingProfile = [
-    [0.55, 0.32, 1.94, 2.12, 0.85, 0.45],
-    [0.10, 0.56, 1.96, 2.38, 0.85, 0.48],
-    [-0.55, 0.62, 1.94, 2.44, 0.85, 0.50],
-    [-1.25, 0.56, 1.88, 2.36, 0.82, 0.50],
-    [-1.85, 0.38, 1.76, 2.10, 0.78, 0.50],
-    [-2.28, 0.20, 1.68, 1.82, 0.70, 0.50]
+    [0.95, 0.30, 2.00, 2.12, 0.85, 0.45],
+    [0.50, 0.58, 2.00, 2.44, 0.85, 0.48],
+    [-0.40, 0.66, 1.98, 2.60, 0.85, 0.50],
+    [-1.40, 0.62, 1.97, 2.55, 0.82, 0.50],
+    [-2.20, 0.46, 1.95, 2.36, 0.78, 0.50],
+    [-2.85, 0.24, 1.92, 2.08, 0.70, 0.50]
   ];
-  const cowlingSections = cowlingProfile.map((s) => heliFuselageSection(...s));
-  parts.push(part(new LoftGeometry(cowlingSections, { capStart: true, capEnd: true }), HELI_PARTS.COWLING));
-
-  // Twin Canted Turbine Exhaust Nozzles tucked cleanly into rear of engine cowling
+  parts.push(part(new LoftGeometry(cowlingProfile.map((s) => heliFuselageSection(...s)), { capStart: true, capEnd: true }), HELI_PARTS.COWLING));
   for (const side of [-1, 1]) {
-    const exhaust = new THREE.CylinderGeometry(0.10, 0.125, 0.34, 14)
+    const exhaust = new THREE.CylinderGeometry(0.11, 0.135, 0.38, 14)
       .rotateX(Math.PI * 0.46)
-      .rotateY(side * 0.10)
-      .translate(side * 0.24, 2.08, -1.72);
+      .rotateZ(side * 0.35)
+      .translate(side * 0.36, 2.38, -2.0);
     parts.push(part(exhaust, HELI_PARTS.EXHAUST));
   }
+  // Mast fairing (the "doghouse" round the rotor mast)
+  parts.push(part(new THREE.CylinderGeometry(0.2, 0.32, 0.32, 16).translate(0, 2.74, H145.mastZ), HELI_PARTS.COWLING));
 
-  // 3. 3D Lofted Swept Vertical Tail Fin (Airfoil cross-sections sweeping from z = -5.15 to -6.15)
-  // Upper swept fin + lower ventral tail bumper fin
-  const vFinProfile = [
-    [-0.02, 0.88, -5.28, 0.05, 0.0, 0.44], // Ventral tail fin tip
-    [0.0,   1.48, -5.25, 0.12, 0.0, 0.88], // Tailboom junction root
-    [0.0,   1.95, -5.52, 0.10, 0.0, 0.76], // Mid swept vertical fin
-    [0.0,   2.48, -5.82, 0.08, 0.0, 0.60], // Upper swept vertical fin
-    [0.0,   2.82, -6.04, 0.05, 0.0, 0.42]  // Top anti-collision beacon tip
-  ];
-  const vFinSections = vFinProfile.map(([x, y, z, hx, hy, cz]) =>
-    heliAirfoilSection(x, y, z, hx, hy, cz).reverse()
-  );
-  parts.push(part(new LoftGeometry(vFinSections, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
+  // 3. Fin: the Fenestron's shroud is a ring (built with the entity) at the end of the boom; above it the swept upper
+  //    fin, below it the ventral fin with the tail bumper
+  const { y: fy, z: fz } = H145.fenestron;
+  const upperFin = [
+    [0.0, fy + 0.5, fz + 0.05, 0.12, 0.0, 1.05],
+    [0.0, fy + 0.8, fz - 0.15, 0.09, 0.0, 0.82],
+    [0.0, fy + 1.15, fz - 0.38, 0.06, 0.0, 0.55]
+  ].map(([x, y, z, hx, hy, cz]) => heliAirfoilSection(x, y, z, hx, hy, cz).reverse());
+  parts.push(part(new LoftGeometry(upperFin, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
+  const ventralFin = [
+    [0.0, 1.22, fz + 0.1, 0.04, 0.0, 0.42],
+    [0.0, 1.55, fz + 0.05, 0.09, 0.0, 0.92],
+    [0.0, 1.78, fz + 0.05, 0.12, 0.0, 1.05]
+  ].map(([x, y, z, hx, hy, cz]) => heliAirfoilSection(x, y, z, hx, hy, cz).reverse());
+  parts.push(part(new LoftGeometry(ventralFin, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
 
-  // 4. 3D Lofted Horizontal Stabilizer Wing + Angled Endplate Winglets at z = -4.25
-  const hStabSections = [-1.08, -0.55, 0.0, 0.55, 1.08].map((x) => {
-    const taper = 1.0 - Math.abs(x) * 0.24;
-    const chord = 0.46 * taper;
-    const thick = 0.045 * taper;
-    const y = 1.54;
-    const z = -4.22 - Math.abs(x) * 0.12;
+  // 4. Horizontal stabiliser on the boom with the end-plate fins at its tips
+  const { y: sy, z: sz, span } = H145.stab;
+  const hStabSections = [-span, -span / 2, 0.0, span / 2, span].map((x) => {
+    const taper = 1.0 - (Math.abs(x) / span) * 0.2;
+    const chord = 0.56 * taper, thick = 0.05 * taper, z = sz - Math.abs(x) * 0.06;
     return [
-      new THREE.Vector3(x, y, z + chord * 0.5),
-      new THREE.Vector3(x, y + thick, z + chord * 0.15),
-      new THREE.Vector3(x, y + thick * 0.6, z - chord * 0.25),
-      new THREE.Vector3(x, y, z - chord * 0.5),
-      new THREE.Vector3(x, y - thick * 0.6, z - chord * 0.25),
-      new THREE.Vector3(x, y - thick, z + chord * 0.15)
+      new THREE.Vector3(x, sy, z + chord * 0.5),
+      new THREE.Vector3(x, sy + thick, z + chord * 0.15),
+      new THREE.Vector3(x, sy + thick * 0.6, z - chord * 0.25),
+      new THREE.Vector3(x, sy, z - chord * 0.5),
+      new THREE.Vector3(x, sy - thick * 0.6, z - chord * 0.25),
+      new THREE.Vector3(x, sy - thick, z + chord * 0.15)
     ];
   });
   parts.push(part(new LoftGeometry(hStabSections, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
-
-  // Endplate Winglets on Horizontal Stabilizer tips
   for (const side of [-1, 1]) {
-    const wx = side * 1.08;
-    const wz = -4.35;
-    const winglet = [
-      [-0.22, 0.028, 0.30],
-      [0.0,   0.036, 0.38],
-      [0.26,  0.024, 0.26]
-    ].map(([dy, hx, cz]) =>
-      heliAirfoilSection(wx + side * Math.abs(dy) * 0.12, 1.54 + dy, wz - Math.abs(dy) * 0.15, hx, 0, cz).reverse()
-    );
-    parts.push(part(new LoftGeometry(winglet, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
+    const wx = side * span, wz = sz - span * 0.06;
+    const endPlate = [
+      [-0.26, 0.03, 0.34],
+      [0.0, 0.04, 0.46],
+      [0.32, 0.028, 0.32]
+    ].map(([dy, hx, cz]) => heliAirfoilSection(wx, sy + dy, wz - Math.abs(dy) * 0.25, hx, 0, cz).reverse());
+    parts.push(part(new LoftGeometry(endPlate, { capStart: true, capEnd: true }), HELI_PARTS.FIN));
   }
 
-  // 5. Tubular Landing Skids (LoftGeometry curved skids with upturned front runners + arched cross-tubes + steps)
+  // 5. Skids: runners with the upturned front ends, two arched cross tubes, boarding steps by the doors
   for (const side of [-1, 1]) {
-    const sx = side * 1.12;
-    // Skid runner tube from upturned front tip (z = +2.15, y = 0.28) along ground (y = 0.07) to rear tip (z = -1.75)
+    const sx = side * 1.2;
     const skidJoints = [
-      [new THREE.Vector3(sx, 0.28, 2.15), 0.036, 0.036],
-      [new THREE.Vector3(sx, 0.12, 1.88), 0.045, 0.045],
-      [new THREE.Vector3(sx, 0.07, 1.45), 0.048, 0.048],
-      [new THREE.Vector3(sx, 0.07, 0.0),  0.048, 0.048],
-      [new THREE.Vector3(sx, 0.07, -1.45), 0.048, 0.048],
-      [new THREE.Vector3(sx, 0.12, -1.75), 0.038, 0.038]
+      [new THREE.Vector3(sx, 0.34, 2.35), 0.038],
+      [new THREE.Vector3(sx, 0.15, 2.08), 0.046],
+      [new THREE.Vector3(sx, 0.07, 1.65), 0.05],
+      [new THREE.Vector3(sx, 0.07, 0.0), 0.05],
+      [new THREE.Vector3(sx, 0.07, -1.85), 0.05],
+      [new THREE.Vector3(sx, 0.12, -2.15), 0.04]
     ];
-    const skidSections = skidJoints.map(([c, rx, ry]) =>
+    const skidSections = skidJoints.map(([c, r]) =>
       Array.from({ length: 8 }, (_, k) => {
         const a = (k / 8) * Math.PI * 2;
-        return new THREE.Vector3(c.x + Math.cos(a) * rx, c.y + Math.sin(a) * ry, c.z);
+        return new THREE.Vector3(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, c.z);
       }).reverse()
     );
     parts.push(part(new LoftGeometry(skidSections, { capStart: true, capEnd: true }), HELI_PARTS.SKID));
-
-    // Passenger boarding step plate
-    const stepBar = new THREE.BoxGeometry(0.14, 0.03, 0.88).translate(side * 1.02, 0.28, 0.42);
-    parts.push(part(stepBar, HELI_PARTS.SKID));
+    for (const z of [1.05, -0.75]) {
+      parts.push(part(new THREE.BoxGeometry(0.16, 0.03, 0.42).translate(side * 1.04, 0.36, z), HELI_PARTS.SKID));
+    }
   }
-
-  // Front & Rear Arched Skid Cross-Tubes hugging the fuselage belly
-  for (const cz of [1.05, -0.82]) {
+  for (const cz of [1.0, -1.15]) {
     const crossPoints = [
-      [new THREE.Vector3(-1.12, 0.09, cz), 0.042, 0.042],
-      [new THREE.Vector3(-0.92, 0.42, cz), 0.044, 0.044],
-      [new THREE.Vector3(-0.62, 0.56, cz), 0.046, 0.046],
-      [new THREE.Vector3(0.62,  0.56, cz), 0.046, 0.046],
-      [new THREE.Vector3(0.92,  0.42, cz), 0.044, 0.044],
-      [new THREE.Vector3(1.12,  0.09, cz), 0.042, 0.042]
+      [new THREE.Vector3(-1.2, 0.09, cz), 0.044, 0.044],
+      [new THREE.Vector3(-1.0, 0.42, cz), 0.046, 0.046],
+      [new THREE.Vector3(-0.7, 0.58, cz), 0.048, 0.048],
+      [new THREE.Vector3(0.7, 0.58, cz), 0.048, 0.048],
+      [new THREE.Vector3(1.0, 0.42, cz), 0.046, 0.046],
+      [new THREE.Vector3(1.2, 0.09, cz), 0.044, 0.044]
     ];
-    const crossSections = limbSections(crossPoints, 8);
-    parts.push(part(new LoftGeometry(crossSections, { capStart: true, capEnd: true }), HELI_PARTS.SKID));
+    parts.push(part(new LoftGeometry(limbSections(crossPoints, 8), { capStart: true, capEnd: true }), HELI_PARTS.SKID));
   }
 
-  // Wire-strike cutter & pitot tube on nose
-  const pitot = new THREE.CylinderGeometry(0.015, 0.025, 0.35, 6)
-    .rotateX(Math.PI * 0.5)
-    .translate(0, 0.88, 2.88);
-  parts.push(part(pitot, HELI_PARTS.SKID));
+  // 6. Details: pitot tubes beside the nose, the wire cutters above and below the cockpit, antennas on the boom and
+  //    the belly, the cargo hook under the cabin
+  for (const side of [-1, 1]) {
+    parts.push(part(new THREE.CylinderGeometry(0.012, 0.02, 0.32, 6).rotateX(Math.PI * 0.5).translate(side * 0.22, 1.16, 3.1), HELI_PARTS.SKID));
+  }
+  parts.push(part(new THREE.BoxGeometry(0.04, 0.42, 0.06).rotateX(-0.6).translate(0, 2.18, 1.72), HELI_PARTS.SKID));
+  parts.push(part(new THREE.BoxGeometry(0.04, 0.36, 0.06).rotateX(0.7).translate(0, 0.5, 2.85), HELI_PARTS.SKID));
+  parts.push(part(new THREE.BoxGeometry(0.03, 0.34, 0.12).rotateX(-0.35).translate(0, 2.08, -4.2), HELI_PARTS.SKID));
+  parts.push(part(new THREE.BoxGeometry(0.03, 0.26, 0.1).rotateX(0.4).translate(0, 0.45, -0.2), HELI_PARTS.SKID));
+  parts.push(part(new THREE.BoxGeometry(0.22, 0.12, 0.32).translate(0, 0.48, -0.55), HELI_PARTS.EXHAUST));
 
   return mergeGeometries(parts);
 }
 
 /**
- * Builds the 4-Bladed Main Rotor Hub, Swashplate, and Tapered Airfoil Rotor Blades.
+ * The five-bladed bearingless main rotor of the H145 D3 (10.8 m): mast, swashplate, the star-shaped hub with the
+ * pitch links (scissors) and the five tapered blades.
  */
 function buildHelicopterMainRotorGeometry() {
   const parts = [];
-
-  // Rotor mast, swashplate collar & aerodynamic hub dome
-  const mast = new THREE.CylinderGeometry(0.11, 0.14, 0.52, 14).translate(0, -0.18, 0);
-  const swash = new THREE.CylinderGeometry(0.24, 0.26, 0.08, 16).translate(0, -0.12, 0);
-  const hubCap = new THREE.SphereGeometry(0.28, 16, 10)
-    .scale(1.0, 0.42, 1.0)
-    .translate(0, 0.04, 0);
   parts.push(
-    part(mast, HELI_PARTS.SKID),
-    part(swash, HELI_PARTS.EXHAUST),
-    part(hubCap, HELI_PARTS.ROTOR)
+    part(new THREE.CylinderGeometry(0.1, 0.13, 0.42, 14).translate(0, -0.16, 0), HELI_PARTS.SKID), // mast
+    part(new THREE.CylinderGeometry(0.24, 0.26, 0.07, 16).translate(0, -0.1, 0), HELI_PARTS.EXHAUST), // swashplate
+    part(new THREE.CylinderGeometry(0.2, 0.26, 0.12, 5).translate(0, 0.02, 0), HELI_PARTS.ROTOR), // hub star
+    part(new THREE.SphereGeometry(0.16, 14, 8).scale(1.0, 0.5, 1.0).translate(0, 0.1, 0), HELI_PARTS.ROTOR) // hub cap
   );
-
-  // 5 tapered main rotor blades with pitch cuff grips (the H145 D3's five-bladed bearingless rotor, 11 m across)
   for (let b = 0; b < 5; b++) {
     const angle = (b * Math.PI * 2) / 5;
-    const cuff = new THREE.BoxGeometry(0.65, 0.045, 0.14)
-      .translate(0.52, 0, 0)
+    const flexbeam = new THREE.BoxGeometry(0.7, 0.05, 0.12).translate(0.55, 0.02, 0).rotateY(angle);
+    const scissor = new THREE.BoxGeometry(0.035, 0.16, 0.035).translate(0.32, -0.04, 0.1).rotateY(angle);
+    const blade = new THREE.BoxGeometry(4.55, 0.026, 0.3)
+      .rotateX(0.07)
+      .translate(0.85 + 4.55 / 2, 0.02, 0)
       .rotateY(angle);
-    const blade = new THREE.BoxGeometry(4.45, 0.024, 0.26)
-      .rotateX(0.08) // Realistic collective blade pitch
-      .translate(2.68, 0, 0)
-      .rotateY(angle);
-    parts.push(part(cuff, HELI_PARTS.SKID), part(blade, HELI_PARTS.ROTOR));
+    // Swept, tapered tip
+    const tip = new THREE.BoxGeometry(0.4, 0.022, 0.2).translate(5.6, 0.02, -0.04).rotateY(angle);
+    parts.push(part(flexbeam, HELI_PARTS.SKID), part(scissor, HELI_PARTS.EXHAUST), part(blade, HELI_PARTS.ROTOR), part(tip, HELI_PARTS.ROTOR));
   }
-
   return mergeGeometries(parts);
 }
 
@@ -1833,16 +1952,16 @@ function buildHelicopterMainRotorGeometry() {
  * Builds the 4-Bladed Tail Rotor Assembly.
  */
 function buildHelicopterTailRotorGeometry() {
-  // The H145's Fenestron: a ten-bladed fan in a shroud in the fin (the shroud is built with the entity, it doesn't spin)
+  // The H145's Fenestron: a ten-bladed fan (unevenly spaced on the real one, to spread its noise) in the shroud of the
+  // fin; the shroud and stator are built with the entity and don't spin
   const parts = [];
-  const hub = new THREE.CylinderGeometry(0.1, 0.1, 0.16, 12)
-    .rotateZ(Math.PI * 0.5);
-  parts.push(part(hub, HELI_PARTS.EXHAUST));
-  for (let b = 0; b < 10; b++) {
-    const angle = (b * Math.PI * 2) / 10;
-    const blade = new THREE.BoxGeometry(0.02, 0.42, 0.09)
+  const r = H145.fenestron.r;
+  parts.push(part(new THREE.CylinderGeometry(0.11, 0.11, 0.18, 12).rotateZ(Math.PI * 0.5), HELI_PARTS.EXHAUST));
+  const spacing = [0, 0.58, 1.22, 1.79, 2.46, 3.14, 3.72, 4.36, 4.93, 5.6];
+  for (const angle of spacing) {
+    const blade = new THREE.BoxGeometry(0.02, r - 0.1, 0.1)
       .rotateY(0.35)
-      .translate(0, 0.27, 0)
+      .translate(0, (r - 0.1) / 2 + 0.1, 0)
       .rotateX(angle);
     parts.push(part(blade, HELI_PARTS.ROTOR));
   }
@@ -1870,6 +1989,26 @@ function createRegaDecalTexture() {
   const t = new THREE.CanvasTexture(c);
   t.anisotropy = 8;
   return t;
+}
+
+// The H145's glazing (masks over the lofted fuselage, frame +z forward): { glass, frame }
+function heliGlass(p, n, isFuselage) {
+  const sideFace = step(0.45, abs(n.x));
+  const windscreen = roundedRect(vec2(p.z.sub(2.38), p.y.sub(1.46)), vec2(0.66, 0.5), 0.16).mul(step(1.72, p.z))
+    .mul(smoothstep(0.018, 0.032, abs(p.x))); // centre post
+  const chin = roundedRect(vec2(abs(p.x).sub(0.32), p.y.sub(0.84)), vec2(0.2, 0.13), 0.05)
+    .mul(smoothstep(2.4, 2.55, p.z)).mul(smoothstep(3.1, 2.95, p.z));
+  const roof = roundedRect(vec2(abs(p.x).sub(0.3), p.z.sub(1.55)), vec2(0.2, 0.32), 0.06).mul(step(1.98, p.y));
+  const cockpitDoor = roundedRect(vec2(p.z.sub(1.06), p.y.sub(1.5)), vec2(0.46, 0.36), 0.1).mul(sideFace);
+  const slidingDoor = roundedRect(vec2(p.z.add(0.68), p.y.sub(1.48)), vec2(0.78, 0.36), 0.1).mul(sideFace);
+  const rearWindow = roundedRect(vec2(p.z.add(1.92), p.y.sub(1.0)), vec2(0.14, 0.18), 0.05).mul(sideFace);
+  const glass = max(max(windscreen, chin), max(max(roof, cockpitDoor), max(slidingDoor, rearWindow))).mul(isFuselage);
+  const frame = max(
+    max(roundedRect(vec2(p.z.sub(2.38), p.y.sub(1.46)), vec2(0.72, 0.56), 0.18).mul(step(1.66, p.z)),
+      roundedRect(vec2(p.z.sub(1.06), p.y.sub(1.5)), vec2(0.52, 0.42), 0.12).mul(sideFace)),
+    roundedRect(vec2(p.z.add(0.68), p.y.sub(1.48)), vec2(0.84, 0.42), 0.12).mul(sideFace)
+  ).mul(isFuselage);
+  return { glass, frame };
 }
 
 let _heliLoftedMat = null;
@@ -1900,62 +2039,23 @@ function createLoftedHelicopterMaterial() {
     const p = attribute('position', 'vec3').toVar();
     const n = attribute('normal', 'vec3').toVar();
 
-    // 1. Panoramic Wrap-Around Cockpit Windscreen & Sightseeing Side Cabin Windows (on Fuselage)
-    // Front windscreen: z in [0.95, 2.52], y in [0.98, 1.88], split by narrow center post at x = 0
-    const frontGlassOuter = roundedRect(vec2(p.z.sub(1.74), p.y.sub(1.42)), vec2(0.76, 0.42), 0.14)
-      .mul(step(0.65, p.z));
-    const centerPost = smoothstep(0.022, 0.036, abs(p.x));
-    const aPillar = smoothstep(0.028, 0.044, abs(p.z.sub(1.06)));
-    const bPillar = smoothstep(0.026, 0.042, abs(p.z.sub(0.08)));
-
-    // Lower nose chin bubble windows (for pilot downward visibility)
-    const chinWindow = roundedRect(vec2(abs(p.x).sub(0.28), p.y.sub(0.84)), vec2(0.19, 0.11), 0.04)
-      .mul(smoothstep(1.95, 2.15, p.z))
-      .mul(smoothstep(2.68, 2.52, p.z));
-
-    // Wide panoramic passenger sightseeing side windows: z in [-0.78, 1.02], y in [1.02, 1.74]
-    const sideWindow = roundedRect(vec2(p.z.sub(0.12), p.y.sub(1.38)), vec2(0.88, 0.34), 0.10)
-      .mul(step(0.45, abs(n.x)));
-
-    // Overhead cockpit eyebrow skylight windows
-    const skylight = roundedRect(vec2(abs(p.x).sub(0.32), p.z.sub(1.25)), vec2(0.20, 0.38), 0.06)
-      .mul(step(1.72, p.y));
-
-    const rawWindowMask = max(
-      max(frontGlassOuter.mul(centerPost), sideWindow),
-      max(chinWindow, skylight)
-    )
-      .mul(aPillar)
-      .mul(bPillar)
-      .mul(isFuselage)
-      .toVar();
-
-    // Rubber window weatherstripping seal around glass panes
-    const rawSealMask = max(
-      roundedRect(vec2(p.z.sub(1.74), p.y.sub(1.42)), vec2(0.80, 0.46), 0.15).mul(step(0.60, p.z)),
-      roundedRect(vec2(p.z.sub(0.12), p.y.sub(1.38)), vec2(0.92, 0.38), 0.12).mul(step(0.40, abs(n.x)))
-    )
-      .mul(isFuselage)
-      .toVar();
-
-    // 2. Flush Executive NYC Sightseeing Livery (Aviation White + Midnight Navy + Sweeping Gold Ribbon)
-    const navyCurveY = float(1.00).add(p.z.mul(-0.085));
-    const edgeW = max(fwidth(p.y), 0.008);
-    const isLowerNavy = smoothstep(navyCurveY.add(edgeW), navyCurveY.sub(edgeW), p.y);
-    const goldStripeDist = abs(p.y.sub(navyCurveY.add(0.065)));
-    const isGoldStripe = smoothstep(0.055, 0.038, goldStripeDist);
-    const redPinDist = abs(p.y.sub(navyCurveY.add(0.145)));
-    const isRedPin = smoothstep(0.022, 0.012, redPinDist);
-
-    // Cabin door panel seams & handles
-    const doorSeam1 = smoothstep(0.012, 0.004, abs(p.z.sub(1.06)));
-    const doorSeam2 = smoothstep(0.012, 0.004, abs(p.z.sub(0.08)));
-    const doorSeam3 = smoothstep(0.012, 0.004, abs(p.z.sub(-0.82)));
-    const doorHandle = roundedRect(vec2(p.z.sub(0.24), p.y.sub(0.94)), vec2(0.065, 0.014), 0.006);
-    const panelLines = max(max(doorSeam1, max(doorSeam2, doorSeam3)), doorHandle)
-      .mul(step(0.55, abs(n.x)))
-      .mul(smoothstep(0.55, 0.62, p.y))
-      .mul(smoothstep(1.75, 1.65, p.y));
+    // 1. H145 glazing: the big two-piece windscreen wrapping round the nose, the chin windows below it, the roof
+    //    windows over the pilots, the cockpit door windows, the large windows in the sliding doors and a small one
+    //    aft of them; black frames round all of them
+    const { glass: rawWindowMask, frame: rawSealMask } = heliGlass(p, n, isFuselage);
+    // 2. Door seams and handles: cockpit doors (z 1.62 .. 0.5), sliding doors (z 0.3 .. -1.65), the clamshell doors
+    const sideFace = step(0.55, abs(n.x));
+    const seam = (z0) => smoothstep(0.012, 0.004, abs(p.z.sub(z0)));
+    const doorSeams = max(max(seam(1.62), seam(0.5)), max(seam(0.3), seam(-1.65)))
+      .mul(smoothstep(0.6, 0.66, p.y)).mul(smoothstep(2.0, 1.94, p.y)).mul(sideFace);
+    const doorSill = smoothstep(0.012, 0.004, abs(p.y.sub(0.66))).mul(step(-1.65, p.z)).mul(step(p.z, 1.62)).mul(sideFace);
+    const slideRail = smoothstep(0.02, 0.008, abs(p.y.sub(1.98))).mul(step(-2.0, p.z)).mul(step(p.z, 0.3)).mul(sideFace);
+    const handles = max(
+      roundedRect(vec2(p.z.sub(0.62), p.y.sub(1.12)), vec2(0.07, 0.014), 0.006),
+      roundedRect(vec2(p.z.sub(0.12), p.y.sub(1.1)), vec2(0.08, 0.014), 0.006)
+    ).mul(sideFace);
+    const panelLines = max(max(doorSeams, doorSill), max(slideRail, handles));
+    const goldStripeDist = abs(p.y.sub(0.74));
 
     // Rega livery (Airbus H145 D3): signal red all over with a thin white pinstripe, "REGA" in white on both sides of
     // the tail boom, a white Swiss cross aft of the cabin and the registration near the fin
@@ -1967,42 +2067,44 @@ function createLoftedHelicopterMaterial() {
     if (regaDecals) {
       // Readable on both sides: on the port side (+x) the text runs nose to tail, on the starboard side tail to nose
       const side = step(0.45, abs(n.x));
-      // "REGA": tail boom z -2.3 .. -4.1, centred at y 1.47
-      const uR = select(p.x.greaterThan(0), p.z.negate().sub(2.3).div(1.8), p.z.add(4.1).div(1.8));
-      const vR = p.y.sub(1.29).div(0.36);
+      // "REGA": tail boom z -3.0 .. -5.2, y 1.6 .. 2.0
+      const uR = select(p.x.greaterThan(0), p.z.negate().sub(3.0).div(2.2), p.z.add(5.2).div(2.2));
+      const vR = p.y.sub(1.6).div(0.4);
       const inR = step(0, uR).mul(step(uR, 1)).mul(step(0, vR)).mul(step(vR, 1));
       const lettering = texture(regaDecals, vec2(uR, vR.mul(0.5).add(0.5))).a.mul(inR);
-      // Swiss cross aft of the cabin: z -1.25 .. -1.85, y 0.98 .. 1.58
-      const uC = select(p.x.greaterThan(0), p.z.negate().sub(1.25).div(0.6), p.z.add(1.85).div(0.6));
-      const vC = p.y.sub(0.98).div(0.6);
+      // Swiss cross on the rear cabin panel aft of the sliding door: z -1.72 .. -2.27, y 1.2 .. 1.75
+      const uC = select(p.x.greaterThan(0), p.z.negate().sub(1.72).div(0.55), p.z.add(2.27).div(0.55));
+      const vC = p.y.sub(1.2).div(0.55);
       const inC = step(0, uC).mul(step(uC, 1)).mul(step(0, vC)).mul(step(vC, 1));
       const cross = texture(regaDecals, vec2(uC.mul(0.25), vC.mul(0.5))).a.mul(inC);
-      // Registration: tail boom z -4.45 .. -5.25, y 1.43 .. 1.6
-      const uG = select(p.x.greaterThan(0), p.z.negate().sub(4.45).div(0.8), p.z.add(5.25).div(0.8));
-      const vG = p.y.sub(1.43).div(0.17);
+      // Registration: tail boom z -6.4 .. -7.2, y 1.72 .. 1.9
+      const uG = select(p.x.greaterThan(0), p.z.negate().sub(6.4).div(0.8), p.z.add(7.2).div(0.8));
+      const vG = p.y.sub(1.72).div(0.18);
       const inG = step(0, uG).mul(step(uG, 1)).mul(step(0, vG)).mul(step(vG, 1));
       const reg = texture(regaDecals, vec2(uG.mul(0.5).add(0.45), vG.mul(0.3).add(0.1))).a.mul(inG);
       baseLivery = mix(baseLivery, whitePaint, lettering.max(cross).max(reg).mul(side));
     }
+    // The belly under the floor line in dark grey (scuff-resistant), as on the rescue H145s
+    baseLivery = mix(baseLivery, color(0x2c3036), smoothstep(0.6, 0.56, p.y));
 
     const glassCol = mix(color(0x102234), color(0x1e3c58), clamp(n.y.mul(0.5).add(0.5), 0.0, 1.0));
     const fuselageCol = mix(mix(baseLivery, color(0x14181e), rawSealMask), glassCol, rawWindowMask);
 
     // 3. Engine Cowling: red, with dark slatted turbine intake grilles
-    const intakeGrille = roundedRect(vec2(p.z.sub(-0.45), p.y.sub(2.18)), vec2(0.52, 0.13), 0.04)
+    const intakeGrille = roundedRect(vec2(p.z.sub(0.1), p.y.sub(2.3)), vec2(0.42, 0.1), 0.04)
       .mul(step(0.35, abs(n.x)));
     const louverSlats = step(0.45, fract(p.y.mul(55.0))).mul(0.4).add(0.35);
     const cowlingCol = mix(regaRed, color(0x181c22).mul(louverSlats), intakeGrille);
 
     // 4. Fin & stabilizer: red, a white band near the top
-    const finWhiteBand = smoothstep(2.42, 2.45, p.y).mul(smoothstep(2.62, 2.59, p.y));
+    const finWhiteBand = smoothstep(3.08, 3.11, p.y).mul(smoothstep(3.26, 3.23, p.y));
     const finCol = mix(regaRed, whitePaint, finWhiteBand);
     const goldPaint = whitePaint; // (blade tips: white on Rega's grey blades)
     void greyPaint;
 
     // 5. Rotor Blades: Matte Anthracite Carbon with High-Visibility Yellow Safety Tips
     const radialDist = length(vec2(p.x, p.z));
-    const isBladeTip = smoothstep(4.35, 4.42, radialDist).add(
+    const isBladeTip = smoothstep(5.25, 5.32, radialDist).add(
       smoothstep(0.65, 0.68, abs(p.y)).mul(step(radialDist, 0.35))
     );
     const rotorCol = mix(color(0x3a3f45), goldPaint, clamp(isBladeTip, 0.0, 1.0));
@@ -2039,9 +2141,7 @@ function createLoftedHelicopterMaterial() {
     const isRotor = step(abs(partId.sub(HELI_PARTS.ROTOR)), 0.25);
     const p = attribute('position', 'vec3');
     const n = attribute('normal', 'vec3');
-    const frontGlass = roundedRect(vec2(p.z.sub(1.74), p.y.sub(1.42)), vec2(0.76, 0.42), 0.14).mul(step(0.65, p.z));
-    const sideGlass = roundedRect(vec2(p.z.sub(0.12), p.y.sub(1.38)), vec2(0.88, 0.34), 0.10).mul(step(0.45, abs(n.x)));
-    const isGlass = max(frontGlass, sideGlass).mul(isFuselage);
+    const isGlass = heliGlass(p, n, isFuselage).glass;
     return mix(mix(float(0.20), float(0.05), isGlass), float(0.55), max(isSkid, isRotor));
   })();
 
@@ -2051,9 +2151,7 @@ function createLoftedHelicopterMaterial() {
     const isExhaust = step(abs(partId.sub(HELI_PARTS.EXHAUST)), 0.25);
     const p = attribute('position', 'vec3');
     const n = attribute('normal', 'vec3');
-    const frontGlass = roundedRect(vec2(p.z.sub(1.74), p.y.sub(1.42)), vec2(0.76, 0.42), 0.14).mul(step(0.65, p.z));
-    const sideGlass = roundedRect(vec2(p.z.sub(0.12), p.y.sub(1.38)), vec2(0.88, 0.34), 0.10).mul(step(0.45, abs(n.x)));
-    const isGlass = max(frontGlass, sideGlass).mul(isFuselage);
+    const isGlass = heliGlass(p, n, isFuselage).glass;
     return mix(mix(float(0.35), float(0.88), isGlass), float(0.82), isExhaust);
   })();
 
@@ -2082,5 +2180,6 @@ export {
   buildHelicopterBodyGeometry,
   buildHelicopterMainRotorGeometry,
   buildHelicopterTailRotorGeometry,
-  createLoftedHelicopterMaterial
+  createLoftedHelicopterMaterial,
+  H145
 };

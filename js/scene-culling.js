@@ -331,4 +331,56 @@ function updateSceneCulling(cameraPosition) {
   }
 }
 
-export { setupSceneCulling, updateSceneCulling, SHADOW_PROXY_LAYER };
+// Large static overlays draped over the whole valley (tracks, trails) come as one geometry, which three.js can never
+// cull (its bounding sphere spans the map). chunkedMeshes() cuts such a non-indexed geometry into square cells by
+// triangle centroid, one mesh per cell, so that the view frustum culls them; `maxDistance` also hides cells farther
+// than that from the camera (thin details: rails), through a THREE.LOD per cell. Returns the objects to add.
+function chunkGeometry(geometry, cell) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  const pos = g.attributes.position.array;
+  const buckets = new Map();
+  for (let t = 0, n = pos.length / 9; t < n; t++) {
+    const o = t * 9;
+    const key = Math.floor((pos[o] + pos[o + 3] + pos[o + 6]) / 3 / cell) + ',' + Math.floor((pos[o + 2] + pos[o + 5] + pos[o + 8]) / 3 / cell);
+    let list = buckets.get(key);
+    if (!list) buckets.set(key, (list = []));
+    list.push(t);
+  }
+  const parts = [];
+  for (const tris of buckets.values()) {
+    const part = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(g.attributes)) {
+      const size = attr.itemSize * 3, src = attr.array, dst = new src.constructor(tris.length * size);
+      for (let k = 0; k < tris.length; k++) dst.set(src.subarray(tris[k] * size, tris[k] * size + size), k * size);
+      part.setAttribute(name, new THREE.BufferAttribute(dst, attr.itemSize, attr.normalized));
+    }
+    part.computeBoundingSphere();
+    part.computeBoundingBox();
+    parts.push(part);
+  }
+  if (g !== geometry) g.dispose();
+  return parts;
+}
+
+function chunkedMeshes(geometry, material, { cell = 400, maxDistance = Infinity, setup = null } = {}) {
+  const parts = chunkGeometry(geometry, cell);
+  geometry.dispose();
+  let first = null;
+  return parts.map((part) => {
+    const mesh = new THREE.Mesh(part, material);
+    if (setup) setup(mesh);
+    if (first) mesh.userData.sharesPipelineWith = first;
+    else first = mesh;
+    if (!Number.isFinite(maxDistance)) return mesh;
+    const lod = new THREE.LOD();
+    lod.name = mesh.name;
+    const c = part.boundingSphere.center;
+    lod.position.copy(c);
+    mesh.position.copy(c).negate();
+    lod.addLevel(mesh, 0);
+    lod.addLevel(new THREE.Object3D(), maxDistance);
+    return lod;
+  });
+}
+
+export { setupSceneCulling, updateSceneCulling, SHADOW_PROXY_LAYER, chunkedMeshes };

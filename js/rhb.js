@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { attribute, float, fract, mix, normalGeometry, positionGeometry, smoothstep, step, texture, vec2, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { logoIndex, logoImage, drawLogo } from './logos.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { surfaceHeight, groundHeight, deckHeight } from './terrain.js';
 import { buildLine, routePoint, project } from './rhb-route.js';
@@ -123,14 +124,24 @@ function destinationTexture() {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-// The "RhB" lettering on the sides (white on transparent)
+// The RhB logo on the sides, white on the carmine (assets/logos/rhb.svg, js/logos.js); lettered "RhB" until it loads
 function letteringTexture() {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 96;
+  c.width = 1024; c.height = 96;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold italic 72px Arial, Helvetica, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('RhB', 128, 52);
-  return new THREE.CanvasTexture(c);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold italic 72px Arial, Helvetica, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('RhB  Rhätische Bahn', 8, 52);
+  const t = new THREE.CanvasTexture(c);
+  logoIndex().then((index) => {
+    const e = index.rhb;
+    if (!e) return;
+    return logoImage(e).then((img) => {
+      ctx.clearRect(0, 0, c.width, c.height);
+      drawLogo(ctx, img, e.aspect, 0, 0, c.width, c.height, { tint: '#ffffff', pad: 4 });
+      t.needsUpdate = true;
+    });
+  }).catch((error) => console.warn('[rhb] logo', error));
+  return t;
 }
 
 // RhB livery as on the Capricorn: carmine body, a continuous black glazed band with the panoramic windows' frames, the
@@ -189,7 +200,8 @@ function createCarMaterial(length, { nose = false, lead = false, dest = null, le
     // "RhB" on the sides, below the windows by the cab (end cars) or mid-car (trailers)
     const lx = nose ? half - NOSE - 5.0 : 0;
     // (read left to right from either side: along -z on the right-hand side, +z on the left)
-    const lu = z.sub(lx).div(2.4).mul(normalGeometry.x.sign().negate()).add(0.5), lv = y.sub(0.98).div(0.4);
+    // (a 3.6 × 0.32 m band: the logo, emblem and "Rhätische Bahn", is long and low)
+    const lu = z.sub(lx).div(3.6).mul(normalGeometry.x.sign().negate()).add(0.5), lv = y.sub(1.02).div(0.32);
     const inBox = side.mul(step(0, lu)).mul(step(lu, 1)).mul(step(0, lv)).mul(step(lv, 1));
     body = mix(body, vec3(0.9, 0.9, 0.9), texture(lettering, vec2(lu, lv)).a.mul(inBox));
   }

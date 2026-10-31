@@ -80,6 +80,7 @@ npm run data
 | `data:surroundings` | `tools/build-davos-surroundings.mjs` | swisstopo swissALTIRegio (cloud-optimised GeoTIFF overviews) |
 | `data:swissimage` | `tools/fetch-swissimage.mjs` | swisstopo SWISSIMAGE (WMS `wms.geo.admin.ch`), re-encoded with `cwebp` (`brew install webp`) |
 | `data:roofs` | `tools/build-roof-atlases.mjs` + `tools/roof-atlas.py` (PIL) | swisstopo SWISSIMAGE (WMS): roof crops at 0.125 m, one atlas per swissBUILDINGS3D tile (`data/roofs/`) |
+| `data:gwr` | `tools/build-gwr.mjs` | BFS building register GWR (`public.madd.bfs.admin.ch/gr.zip`, cached in `data/hires/gwr/`): class, storeys and year of every existing building → `js/gwr-data.js`, which picks each swissBUILDINGS3D building's facade (`js/gwr.js`) |
 
 The buildings are a copy of one swissBUILDINGS3D release (`data/swissbuildings3d/index.json` names it), so the game
 never depends on swisstopo's servers. Moving to a newer release is deliberate:
@@ -113,9 +114,15 @@ cameras, the shadows and the colliders query the same surface.
 
 ## License and data
 
+The VBD bus model `assets/models/citaro-530.glb` is “Low Poly Mercedes-Benz Citaro 530” by giosassets
+(https://sketchfab.com/giosassets), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); it is
+recoloured in the VBD livery at runtime. The app loads `assets/models/citaro-530-lite.glb`, the same model with its
+tyres replaced by plain cylinders (`node tools/build-citaro-lite.mjs`).
+
 The code is available under the [MIT License](LICENSE), like the upstream projects
 ([colorfield/slop-zurich](https://github.com/colorfield/slop-zurich), [mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork)).
 
 Data: © [swisstopo](https://www.swisstopo.admin.ch/) (swissBUILDINGS3D 3.0, swissALTI3D, swissSURFACE3D, swissALTIRegio, SWISSIMAGE,
-open government data), © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). Third-party data
+open government data), © [BFS](https://www.housing-stat.ch/) (Eidg. Gebäude- und Wohnungsregister GWR, open government
+data), © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). Third-party data
 and dependencies retain their respective licenses.

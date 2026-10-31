@@ -1,0 +1,55 @@
+{
+ "note": "Logos from Wikimedia Commons (see SOURCES.md); match: case-insensitive regex on the sign text / business name; aspect: width / height; background: the board colour behind the logo",
+ "logos": {
+  "rhb": {
+   "file": "rhb.svg",
+   "aspect": 11.5205
+  },
+  "davos-coa": {
+   "file": "davos-coa.svg",
+   "aspect": 0.8566
+  },
+  "migros-supermarkt": {
+   "file": "migros-supermarkt.png",
+   "match": "^migros$",
+   "background": "#ffffff",
+   "aspect": 3.3333
+  },
+  "migros-outlet": {
+   "file": "migros-outlet.png",
+   "match": "^migros outlet",
+   "background": "#ffffff",
+   "aspect": 1
+  },
+  "migros-restaurant": {
+   "file": "migros-restaurant.svg",
+   "match": "^migros restaurant",
+   "background": "#1d1d1b",
+   "aspect": 2.9615
+  },
+  "coop": {
+   "file": "coop.svg",
+   "match": "^coop( pronto| restaurant)?$",
+   "background": "#ffffff",
+   "aspect": 2.9366
+  },
+  "aldi": {
+   "file": "aldi.png",
+   "match": "aldi",
+   "background": "#ffffff",
+   "aspect": 0.8335
+  },
+  "denner": {
+   "file": "denner.svg",
+   "match": "denner",
+   "background": "#ffffff",
+   "aspect": 4.6545
+  },
+  "spar": {
+   "file": "spar.svg",
+   "match": "^spar$",
+   "background": "#ffffff",
+   "aspect": 4.6545
+  }
+ }
+}

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts } from './terrain-grid.js';
+import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
@@ -20,6 +20,38 @@ const TERRAIN_URL = new URL('../data/davos-terrain.bin', import.meta.url);
 // laid on it (city-grid.js: 0.06 m layer + drapeOverlay's 0.05 m lift).
 export const ROAD_TOP = 0.11;
 export const SIDEWALK_TOP = 0;
+// The raised sidewalks along the streets (js/city-grid.js): their top over the ground, and where they lie
+export const RAISED_SIDEWALK_TOP = 0.16;
+const RAISED_CELL = 16;
+const raisedCells = new Map();
+/** Registers a raised sidewalk piece (a convex polygon, [{ x, z }]) for sidewalkRise() */
+export function addRaisedSidewalk(poly) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of poly) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  const piece = { poly, minX, maxX, minZ, maxZ };
+  for (let ix = Math.floor(minX / RAISED_CELL); ix <= Math.floor(maxX / RAISED_CELL); ix++) {
+    for (let iz = Math.floor(minZ / RAISED_CELL); iz <= Math.floor(maxZ / RAISED_CELL); iz++) {
+      const k = ix * 65536 + iz;
+      if (!raisedCells.has(k)) raisedCells.set(k, []);
+      raisedCells.get(k).push(piece);
+    }
+  }
+}
+/** How far the surface at (x, z) stands over the ground on a raised sidewalk (RAISED_SIDEWALK_TOP), else 0 */
+export function sidewalkRise(x, z) {
+  const list = raisedCells.get(Math.floor(x / RAISED_CELL) * 65536 + Math.floor(z / RAISED_CELL));
+  if (!list) return 0;
+  for (const { poly, minX, maxX, minZ, maxZ } of list) {
+    if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+    }
+    if (inside) return RAISED_SIDEWALK_TOP;
+  }
+  return 0;
+}
 const ENGINE_SIDEWALK = 0.22;
 // Flat-world objects standing on the engine's sidewalks (their base at 0.15-0.3 m) stand on the terrain instead
 const sidewalkDrop = (base) => (base >= 0.15 && base <= 0.3 ? ENGINE_SIDEWALK - SIDEWALK_TOP : 0);
@@ -249,6 +281,17 @@ export function carveDepths(strips, depth = 0.3) {
 }
 
 // --- Terrain mesh (same triangulation as gridHeight), in square chunks for culling ---------------------------------------
+const LOD_STEPS = [1, 2, 4, 8];
+const LOD_TOLERANCE = 1; // px
+
+/** Mesh.onBeforeRender of a block drawn in levels of detail (userData.lodLevels, terrain-grid.js gridLevels): picks the
+ *  level for this view's camera (the shadow cascades' keep the view's). */
+export function drawLevel(renderer, scene, camera, geometry) {
+  if (camera.isOrthographicCamera) return;
+  const levels = this.userData.lodLevels, l = levels[pickLevel(levels, geometry.boundingBox, camera, renderer.domElement?.clientHeight || 800, this.userData.lodTolerance ?? LOD_TOLERANCE)];
+  geometry.drawRange.start = l.start; geometry.drawRange.count = l.count;
+}
+
 // `carve(x, z)`: metres to sink the drawn node by; `depths`: per-node sinking (carveDepths), both optional
 export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ, heights } = TERRAIN;
@@ -269,19 +312,21 @@ export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths 
       const len = Math.hypot(n.x, n.y, n.z);
       normals[v] = n.x / len; normals[v + 1] = n.y / len; normals[v + 2] = n.z / len;
     }
-    const index = new Uint32Array((nc - 1) * (nr - 1) * 6);
-    let k = 0;
-    for (let r = 0; r < nr - 1; r++) for (let c = 0; c < nc - 1; c++) {
-      const a = r * nc + c;
-      index[k++] = a; index[k++] = a + nc + 1; index[k++] = a + 1;
-      index[k++] = a; index[k++] = a + nc; index[k++] = a + nc + 1;
-    }
+    // Levels of detail (terrain-grid.js gridLevels): every node near by, every 2nd, 4th or 8th further off as long as
+    // the surface stays within a pixel of the full grid (the carved road and river beds count, so they stay in detail
+    // wherever they show); the chunk's border keeps every node, so neighbours at any levels meet without cracks.
+    const ys = new Float32Array(nc * nr);
+    for (let v = 0; v < ys.length; v++) ys[v] = positions[v * 3 + 1];
+    const { index, levels } = gridLevels(nc - 1, nr - 1, ys, LOD_STEPS);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     g.setIndex(new THREE.BufferAttribute(index, 1));
+    g.setDrawRange(levels[0].start, levels[0].count);
     g.computeBoundingSphere(); g.computeBoundingBox();
     const mesh = new THREE.Mesh(g, material);
+    mesh.userData.lodLevels = levels;
+    mesh.onBeforeRender = drawLevel;
     mesh.receiveShadow = true;
     mesh.name = `terrain ${i0}/${j0}`;
     mesh.userData.chunk = { i0, j0 }; // its orthophoto (swissimage.js)

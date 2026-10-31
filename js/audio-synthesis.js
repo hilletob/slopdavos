@@ -198,6 +198,17 @@ function chainBuffer(context) {
   return normalizeLoop(buffer, 0.16, 0.8);
 }
 
+// The European two-tone horn ("Tatü-Tata"): the pitch alternates between two tones a fourth apart, holding each
+// for half a cycle. A square wave with Lanczos-smoothed harmonics (no Gibbs overshoot) steps the pitch.
+function twoToneWave(context) {
+  const N = 31, real = new Float32Array(N + 1), imaginary = new Float32Array(N + 1);
+  for (let k = 1; k <= N; k += 2) {
+    const sigma = Math.sin(Math.PI * k / (N + 1)) / (Math.PI * k / (N + 1));
+    imaginary[k] = (4 / (Math.PI * k)) * sigma;
+  }
+  return context.createPeriodicWave(real, imaginary);
+}
+
 function sirenSweepWave(context) {
   const real = new Float32Array(25), imaginary = new Float32Array(25);
   // Electronic wail/yelp circuits use a nearly triangular control voltage, with softened turning points.
@@ -285,6 +296,7 @@ export function createSynthResources(context) {
     chain: chainBuffer(context),
     sirenWave: wave([0, 1, 0.13, 0.29, 0.055, 0.11, 0.025, 0.045, 0.012, 0.018]),
     sirenSweep: sirenSweepWave(context),
+    sirenTwoTone: twoToneWave(context),
     voiceSerial: 0
   };
 }
@@ -537,37 +549,34 @@ export function createMotorVoice(context, resources, kind, output) {
       noiseRate((0.9 + Math.min(1, movement) * 0.2) * doppler, now);
     };
   } else {
-    const siren = oscillator(resources.sirenWave, 1125);
-    const highpass = filter('highpass', 480, 0.7);
-    const hornBody = filter('peaking', 1750, 1.1);
-    hornBody.gain.value = 3.5;
-    const hornFilter = filter('lowpass', 4200, 0.65);
+    // Swiss / European emergency vehicles: the two-tone horn (Wechselklang), about 440 and 587 Hz (a¹–d², a fourth),
+    // 0.65 s each; a horn-like reed timbre (the siren wave through a horn body resonance)
+    const LOW = 440, HIGH = 587, CYCLE = 1.3;
+    const siren = oscillator(resources.sirenWave, (LOW + HIGH) / 2);
+    const highpass = filter('highpass', 260, 0.7);
+    const hornBody = filter('peaking', 1250, 1.2);
+    hornBody.gain.value = 4.5;
+    const hornFilter = filter('lowpass', 3600, 0.65);
     const sirenGain = gain();
     siren.connect(highpass).connect(hornBody).connect(hornFilter).connect(sirenGain).connect(mix);
-    const sweep = oscillator(resources.sirenSweep, 0.2);
-    const sweepDepth = gain();
-    sweep.connect(sweepDepth).connect(siren.frequency);
-    const envelopeDepth = gain();
-    sweep.connect(envelopeDepth).connect(sirenGain.gain);
+    const step = oscillator(resources.sirenTwoTone, 1 / CYCLE);
+    const stepDepth = gain();
+    step.connect(stepDepth).connect(siren.frequency);
     const sirenFrequency = smoothParameter(siren.frequency, 0.09, 0.1);
-    const sweepFrequency = smoothParameter(sweep.frequency, 0.035, 0.002, true);
-    const sweepRange = smoothParameter(sweepDepth.gain, 0.09, 0.1);
+    const stepFrequency = smoothParameter(step.frequency, 0.035, 0.002, true);
+    const stepRange = smoothParameter(stepDepth.gain, 0.09, 0.1);
     const sirenLevel = smoothParameter(sirenGain.gain, 0.10);
-    const envelopeLevel = smoothParameter(envelopeDepth.gain, 0.10);
     const sirenCutoff = smoothParameter(hornFilter.frequency, 0.12, 1);
     const hornFrequency = smoothParameter(hornBody.frequency, 0.12, 1);
     render = (speed, load, doppler, now) => {
-      const pitch = (0.98 + variation * 0.04) * doppler;
-      sirenFrequency(1125 * pitch, now);
-      sweepRange(425 * pitch, now);
-      // Hold a long wail, then briefly select yelp. Different cars switch independently; the oscillator
-      // keeps its phase through a change, and Doppler shifts both the pitch and the sweep cadence.
-      const yelp = (now + variation * 24) % 24 >= 19;
-      sweepFrequency((yelp ? 3 : 0.2) * (0.97 + variation * 0.06) * doppler, now);
-      sirenLevel(0.09, now);
-      envelopeLevel(0.01, now);
-      sirenCutoff(4200 * doppler, now);
-      hornFrequency(1750 * doppler, now);
+      // Doppler shifts both tones and the cadence; units differ slightly from car to car
+      const pitch = (0.985 + variation * 0.03) * doppler;
+      sirenFrequency((LOW + HIGH) / 2 * pitch, now);
+      stepRange((HIGH - LOW) / 2 * pitch, now);
+      stepFrequency((0.96 + variation * 0.08) / CYCLE * doppler, now);
+      sirenLevel(0.1, now);
+      sirenCutoff(3600 * doppler, now);
+      hornFrequency(1250 * doppler, now);
     };
   }
 

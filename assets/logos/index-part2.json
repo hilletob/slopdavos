@@ -1,0 +1,121 @@
+[
+ {
+  "brand": "UBS",
+  "match": [
+   "UBS"
+  ],
+  "file": "ubs.png",
+  "background": "#ffffff",
+  "aspect": 2.729
+ },
+ {
+  "brand": "Raiffeisen",
+  "match": [
+   "Raiffeisen"
+  ],
+  "file": "raiffeisen.svg",
+  "background": "#ffffff",
+  "aspect": 6.808
+ },
+ {
+  "brand": "Swisscom",
+  "match": [
+   "Swisscom"
+  ],
+  "file": "swisscom.svg",
+  "background": "#ffffff",
+  "aspect": 3.413
+ },
+ {
+  "brand": "Intersport",
+  "match": [
+   "^Intersport$"
+  ],
+  "file": "intersport.svg",
+  "background": "#ffffff",
+  "aspect": 9.481
+ },
+ {
+  "brand": "Decathlon",
+  "match": [
+   "Decathlon"
+  ],
+  "file": "decathlon.svg",
+  "background": "#ffffff",
+  "aspect": 5.031
+ },
+ {
+  "brand": "Interdiscount",
+  "match": [
+   "Interdiscount"
+  ],
+  "file": "interdiscount.svg",
+  "background": "#ffffff",
+  "aspect": 2.632
+ },
+ {
+  "brand": "H&M",
+  "match": [
+   "H&M"
+  ],
+  "file": "h-m.svg",
+  "background": "#ffffff",
+  "aspect": 1.518
+ },
+ {
+  "brand": "JYSK",
+  "match": [
+   "JYSK"
+  ],
+  "file": "jysk.svg",
+  "background": "#ffffff",
+  "aspect": 2.16
+ },
+ {
+  "brand": "AVIA",
+  "match": [
+   "AVIA"
+  ],
+  "file": "avia.svg",
+  "background": "#ffffff",
+  "aspect": 1.418
+ },
+ {
+  "brand": "HC Davos",
+  "match": [
+   "HCD-Fanshop",
+   "HCD"
+  ],
+  "file": "hc-davos.svg",
+  "background": "#ffffff",
+  "aspect": 1.0
+ },
+ {
+  "brand": "Amavita",
+  "match": [
+   "Amavita"
+  ],
+  "file": "amavita.svg",
+  "background": "#ffffff",
+  "aspect": 4.323
+ },
+ {
+  "brand": "Hilton Garden Inn",
+  "match": [
+   "Hilton Garden Inn"
+  ],
+  "file": "hilton-garden-inn.png",
+  "background": "#ffffff",
+  "aspect": 1.465
+ },
+ {
+  "brand": "Dropa",
+  "match": [
+   "DROPA",
+   "Dropa"
+  ],
+  "file": "dropa.svg",
+  "background": "#ffffff",
+  "aspect": 2.157
+ }
+]

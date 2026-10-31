@@ -31,14 +31,15 @@ export function setWinter(on, { animate = true } = {}) {
 // --- Snow on the ground, from the orthophoto's own colours ----------------------------------------------------------------
 // `base`: the summer colour (linear). Gentle slopes take the snow, steep ones keep their rock; dark green pixels (the
 // larch and spruce woods) stay dark under a dusting; grey, unsaturated pixels (roads, squares, roofs seen from above)
-// turn to trodden grey slush. Bluish-white, with a soft drift pattern.
+// turn to trodden grey slush. Only faintly bluish white, with a soft drift pattern: the shade and the sky light add the
+// blue, and brighter, bluer snow rode the tone mapper's shoulder into a milky flat white in the sun.
 export function snowyGround(base, { slope = normalWorld.y } = {}) {
   const lum = dot(base, vec3(0.2126, 0.7152, 0.0722));
   const hi = max(base.r, max(base.g, base.b)), lo = min(base.r, min(base.g, base.b));
   const sat = hi.sub(lo).div(max(hi, 0.002));
   const drift = mx_noise_float(positionWorld.xz.mul(0.045)).mul(0.5).add(0.5);
   const fine = mx_noise_float(positionWorld.xz.mul(0.9)).mul(0.5).add(0.5);
-  const snow = mix(vec3(0.72, 0.78, 0.88), vec3(0.9, 0.93, 0.98), drift.mul(0.6).add(fine.mul(0.4)));
+  const snow = mix(vec3(0.74, 0.78, 0.85), vec3(0.88, 0.9, 0.94), drift.mul(0.6).add(fine.mul(0.4)));
   // Cover: full on flat ground, thinning on slopes past ~35°, none on cliffs
   const cover = smoothstep(0.62, 0.86, slope.add(drift.sub(0.5).mul(0.12)));
   const forest = smoothstep(0.12, 0.06, lum).mul(step(base.r, base.g.add(0.02)));
@@ -53,7 +54,7 @@ export function snowyGround(base, { slope = normalWorld.y } = {}) {
 // Snow on a roof (flat or pitched): white with a little texture, less on the steepest pitches
 export function snowyRoof(base, roofMask) {
   const fine = mx_noise_float(positionWorld.mul(0.7)).mul(0.5).add(0.5);
-  const snow = mix(vec3(0.74, 0.79, 0.88), vec3(0.92, 0.94, 0.98), fine);
+  const snow = mix(vec3(0.76, 0.79, 0.85), vec3(0.89, 0.91, 0.94), fine);
   const lies = smoothstep(0.35, 0.6, normalWorld.y).mul(roofMask);
   return mix(base, snow, lies.mul(winter));
 }
@@ -88,7 +89,7 @@ export function snowyStreet(material, { cover = 0.75, top = false, paint = false
   const patches = mx_noise_float(positionWorld.xz.mul(0.12)).mul(0.5).add(0.5);
   const ruts = mx_noise_float(positionWorld.xz.mul(0.9)).mul(0.5).add(0.5);
   const fine = mx_noise_float(positionWorld.xz.mul(2.3)).mul(0.5).add(0.5);
-  const packed = mix(vec3(0.58, 0.62, 0.69), vec3(0.8, 0.83, 0.9), fine);
+  const packed = mix(vec3(0.6, 0.62, 0.66), vec3(0.8, 0.82, 0.86), fine);
   const slush = mix(vec3(0.16, 0.17, 0.19), vec3(0.3, 0.31, 0.33), fine);
   // Snow where the patches rise above 1 - cover; slush between
   const snowy = smoothstep(float(1 - cover).sub(0.12), float(1 - cover).add(0.12), patches.mul(0.7).add(ruts.mul(0.3)));

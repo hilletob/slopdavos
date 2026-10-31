@@ -322,7 +322,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     }
     // Links the grid already carries: most of their length runs along an avenue (north-south) or a cross street
     const links = [];
-    for (const [a, b, ni, w, lanes, dir, inner] of RG.links) {
+    for (const [a, b, ni, w, lanes, dir, inner, , bus = 0, walk = null] of RG.links) {
       const pts = [pos[a]];
       for (let k = 0; k < inner.length; k += 2) pts.push({ x: inner[k], z: inner[k + 1] });
       pts.push(pos[b]);
@@ -333,7 +333,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
         if ((Math.abs(dz) > 0.94 && aveAt(x, z, 1.5)) || (Math.abs(dx) > 0.94 && pieceAt(x, z, 1.5, false))) hit++;
       });
       if (n && hit > n * 0.5) continue;
-      links.push({ a, b, name: RG.names[ni], w, lanes, dir, pts, len });
+      links.push({ a, b, name: RG.names[ni], w, lanes, dir, pts, len, bus, walk });
     }
     // Junctions a few metres apart (divided roads, offset corners) are one: collapse links under 14 m
     const parent = pos.map((_, i) => i);
@@ -412,6 +412,12 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       const w = l.w > 3 ? l.w : MAJOR.test(l.name) ? 18 : 9.1;
       const half = w / 2;
       const axis = w >= 14.5 || l.lanes >= 3 || MAJOR.test(l.name) ? 'ave' : 'st';
+      // A one-way street the buses also drive against (the Promenade, the Talstrasse): the cars keep to their lane right of
+      // the centreline, the left one is the buses' (js/vbd.js drives them 1.7 m right of the centreline their way)
+      if (l.dir !== 0 && l.bus) {
+        const lanes = [Math.min(1.7, Math.max(0.6, half - 1.5))];
+        return { half, axis, fwd: l.dir > 0 ? lanes : [], back: l.dir < 0 ? lanes : [], bus: l.bus };
+      }
       if (l.dir !== 0) {
         const lanes = laneOffsets(half) || [0];
         return { half, axis, fwd: l.dir > 0 ? lanes : [], back: l.dir < 0 ? lanes : [] };
@@ -424,7 +430,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       const B = junction(find(l.b));
       if (A === B) continue;
       const pts = [{ x: A.x, z: A.z }, ...l.pts.slice(1, -1), { x: B.x, z: B.z }];
-      // Stations along it: the ends and the fewest bends that keep every straight run within 1 m of the street's
+      // Stations along it: the ends and the fewest bends that keep every straight run within RUN_DEVIATION of the street's
       // centreline (Douglas-Peucker), each run at least 8.5 m long. A bend nearer an end is replaced by the point 8.5 m
       // from that end, so that the run to the junction doesn't cut the corner across the sidewalk.
       const arc = [0];
@@ -438,6 +444,8 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       };
       // (runs under 8 m are dropped by addEdgeGeneral: the minimum is kept in straight distance, 8.5 m for rounding)
       const RUN = 8.5;
+      // (half a metre: the lanes keep to the rounded bends of the mapped streets, js/city-grid.js, within their asphalt)
+      const RUN_DEVIATION = 0.5;
       const apart = (p, q) => Math.hypot(q.x - p.x, q.z - p.z) >= RUN;
       const A0 = pts[0], B0 = pts[pts.length - 1];
       const cands = [];
@@ -461,7 +469,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       };
       const stations = [A];
       const split = (p, q, s0, s1) => {
-        if (deviation(p, q, s0, s1) <= 1) return;
+        if (deviation(p, q, s0, s1) <= RUN_DEVIATION) return;
         let best = null, far = -1;
         for (const c of cands) {
           if (c.s <= s0 || c.s >= s1 || !apart(p, c) || !apart(c, q)) continue;
@@ -478,7 +486,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       split(pts[0], pts[pts.length - 1], 0, total);
       stations.push(B);
       const lanes = lanesOf(l);
-      for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k], to: stations[k + 1], ...lanes });
+      for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k], to: stations[k + 1], walk: l.walk, ...lanes });
     }
     console.info(`[roads] centreline streets: ${links.length} links not on the grid, ${runs.length} straight runs`);
     return runs;
@@ -534,7 +542,9 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     }
     return true;
   };
-  function addEdgeGeneral(from, to, axis, lanes, half, divided) {
+  // `walk`: the raised sidewalks' widths [left, right] of from -> to, where mapped (js/city-grid.js draws them; the
+  // pedestrians keep to them, js/pedestrian-routes.js)
+  function addEdgeGeneral(from, to, axis, lanes, half, divided, bus = 0, walk = null) {
     const x0 = from.x;
     const z0 = from.z;
     const span = Math.hypot(to.x - x0, to.z - z0);
@@ -543,7 +553,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     const dz = (to.z - z0) / span;
     const open = lanes.filter((o) => laneOpen(x0, z0, dx, dz, span, o));
     if (!open.length) return;
-    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [], general: true, cand: lanes, divided: !!divided });
+    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [], general: true, cand: lanes, divided: !!divided, bus, walk });
   }
   // A divided road drawn as two one-way roadways between the same two junctions (most of the Bowery) runs both ways
   // along one centreline here: each way keeps to the right of it, as on a two-way street, and the road is as wide as
@@ -572,8 +582,8 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     if (r.half >= 7.25) r.axis = o.axis = 'ave'; // as wide as a major road (see lanesOf)
   }
   for (const r of genRuns) {
-    if (r.fwd.length) addEdgeGeneral(r.from, r.to, r.axis, r.fwd, r.half, r.divided);
-    if (r.back.length) addEdgeGeneral(r.to, r.from, r.axis, r.back, r.half, r.divided);
+    if (r.fwd.length) addEdgeGeneral(r.from, r.to, r.axis, r.fwd, r.half, r.divided, r.bus, r.walk);
+    if (r.back.length) addEdgeGeneral(r.to, r.from, r.axis, r.back, r.half, r.divided, r.bus, r.walk && [r.walk[1], r.walk[0]]);
   }
   // Two edges from one node to the same next one (a service road whose ends were drawn onto its main road's junctions)
   // would drive through each other: keep the grid's, else the one with the most lanes
@@ -1024,11 +1034,87 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     }
     return false;
   }
+  // Such a link can't keep clear even so where the road bends just short of the junction (the Hertistrasse at the
+  // Talstrasse: a 9 m stub after its last bend). Rather than lose the road's way into the junction (and everything
+  // behind it, cut off from the rest of the network), its bend moves back along the road's run before it, as far as it
+  // takes for a car waiting at the stop line to keep clear, or the run takes the link on altogether (one straight edge
+  // from its start to the junction): as long as the road's centreline stays within BEND_SHIFT_DEVIATION of the bend's
+  // point on it and every lane involved clear of curbs and obstacles.
+  const BEND_SHIFT_DEVIATION = 1.0;
   const inTheWayOut = new Set();
+  const liveEdges = () => edges.filter((q) => !inTheWayOut.has(q));
+  const setSpan = (q) => {
+    q.x0 = q.from.x;
+    q.z0 = q.from.z;
+    q.span = Math.hypot(q.to.x - q.x0, q.to.z - q.z0);
+    q.dx = (q.to.x - q.x0) / q.span;
+    q.dz = (q.to.z - q.z0) / q.span;
+    q.rx = -q.dz;
+    q.rz = q.dx;
+  };
+  // the bend n of the road p -> n -> e (and back) at (x, z): whether every lane of its edges stays open
+  function moveBend(n, x, z, around) {
+    n.x = x;
+    n.z = z;
+    for (const q of around) setSpan(q);
+    computeArms(liveEdges(), new Set(around.flatMap((q) => [q.from, q.to])));
+    for (const q of around) place(q);
+    return around.every((q) => q.span >= 8 && q.lanes.every((o) => laneOpen(q.x0, q.z0, q.dx, q.dz, q.span, o)));
+  }
+  function keepClear(e) {
+    const n = e.from;
+    const prev = (inOf.get(n) || []).filter((p) => !inTheWayOut.has(p) && p.from !== e.to && p.general && p.dx * e.dx + p.dz * e.dz > 0.82);
+    if (prev.length !== 1) return 0;
+    const p = prev[0];
+    if (p.lanes.length !== e.lanes.length || !p.moves.some((m) => m.to === e)) return 0;
+    // the same road the other way through n (a two-way street)
+    const around = liveEdges().filter((q) => q.from === n || q.to === n);
+    if (around.some((q) => q !== p && q !== e && q.from !== e.to && q.to !== e.to && q.from !== p.from && q.to !== p.from)) return 0;
+    const home = { x: n.x, z: n.z };
+    const off = (x, z) => {
+      const L = Math.hypot(e.to.x - x, e.to.z - z);
+      return Math.abs((home.x - x) * (e.to.z - z) - (home.z - z) * (e.to.x - x)) / L;
+    };
+    for (let s = 1; s <= p.span - 8; s += 1) {
+      const x = home.x - p.dx * s;
+      const z = home.z - p.dz * s;
+      if (off(x, z) > BEND_SHIFT_DEVIATION) break;
+      if (!moveBend(n, x, z, around)) continue;
+      while (e.squeezed && e.len > 6 && inTheWay(e)) e.len = Math.max(5.5, e.len - 1);
+      if (!inTheWay(e)) return 1;
+    }
+    moveBend(n, home.x, home.z, around);
+    // the run takes the link on: p now ends where e did, with e's moves and its place in the junction
+    const x0 = p.x0;
+    const z0 = p.z0;
+    if (off(x0, z0) > BEND_SHIFT_DEVIATION) return 0;
+    const span = Math.hypot(e.to.x - x0, e.to.z - z0);
+    const dx = (e.to.x - x0) / span;
+    const dz = (e.to.z - z0) / span;
+    if (!p.lanes.every((o) => laneOpen(x0, z0, dx, dz, span, o))) return 0;
+    p.to = e.to;
+    setSpan(p);
+    p.moves = e.moves;
+    inOf.set(n, inOf.get(n).filter((q) => q !== p && q !== e));
+    inOf.set(e.to, inOf.get(e.to).map((q) => (q === e ? p : q)));
+    inTheWayOut.add(e);
+    computeArms(liveEdges(), new Set([p.from, n, e.to]));
+    place(p);
+    return 2;
+  }
+  let bendsMoved = 0;
+  let linksMerged = 0;
   for (const e of edges) {
-    if (!e.squeezed || !e.from.shape || !inTheWay(e)) continue;
+    if (inTheWayOut.has(e) || !e.squeezed || !e.from.shape || !inTheWay(e)) continue;
     while (e.len > 6 && inTheWay(e)) e.len = Math.max(5.5, e.len - 1);
-    if (inTheWay(e)) inTheWayOut.add(e); // even so
+    if (!inTheWay(e)) continue;
+    const kept = keepClear(e);
+    if (kept === 1) bendsMoved++;
+    else if (kept === 2) linksMerged++;
+    else inTheWayOut.add(e); // even so
+  }
+  if (bendsMoved || linksMerged || inTheWayOut.size) {
+    console.info(`[roads] short links in the way of a junction: ${bendsMoved} bends moved back, ${linksMerged} links merged into the run before, ${inTheWayOut.size - linksMerged} dropped`);
   }
   if (inTheWayOut.size) {
     edges = edges.filter((e) => !inTheWayOut.has(e));

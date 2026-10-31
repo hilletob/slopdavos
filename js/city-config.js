@@ -1,5 +1,6 @@
 import { GEO } from './nyc-geodata.js';
 import { lonLatToWorld, lv95ToWorld } from './davos-frame.js';
+import { streetCorners, inCornerCut } from './street-corners.js';
 
 // Davos spatial adapter for mrdoob/slop-newyork's engine (via colorfield/slop-zurich and the irregular-city data path of
 // the Slop Berlin, Warsaw and Utrecht forks). Legacy export names are retained as API aliases; all visible geography is Davos.
@@ -117,8 +118,76 @@ function pointInPoly(poly, x, z) {
   }
   return inside;
 }
+// The raised sidewalks along the streets (roads[].sidewalk [left, right] widths, drawn by js/city-grid.js from the curb
+// out): each a strip per piece of the way and side, the strips that touch joined into one sidewalk "block" (stable, with
+// an outline), so that the pedestrians' tracks (js/pedestrian-routes.js) keep to them and link up along them
+const RAISED_CELL = 16;
+const RAISED_GRID = new Map();
+{
+  const strips = [];
+  for (const r of ROADS) {
+    if (!r.sidewalk || r.bridge) continue;
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 0.2) continue;
+      const ux = (b.x - a.x) / len, uz = (b.z - a.z) / len, nx = -uz, nz = ux;
+      r.sidewalk.forEach((w, k) => {
+        if (!w) return;
+        const side = k ? 1 : -1, o0 = side * (r.w / 2 + 0.12), o1 = side * (r.w / 2 + 0.12 + w), e = 0.3;
+        const P = (t, o) => ({ x: a.x + ux * t + nx * o, z: a.z + uz * t + nz * o });
+        const poly = [P(-e, o0), P(len + e, o0), P(len + e, o1), P(-e, o1)];
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (const p of poly) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+        strips.push({ poly, minX, maxX, minZ, maxZ, parent: strips.length });
+      });
+    }
+  }
+  const find = (s) => (strips[s].parent === s ? s : (strips[s].parent = find(strips[s].parent)));
+  for (const [i, s] of strips.entries()) {
+    for (let ix = Math.floor(s.minX / RAISED_CELL); ix <= Math.floor(s.maxX / RAISED_CELL); ix++) {
+      for (let iz = Math.floor(s.minZ / RAISED_CELL); iz <= Math.floor(s.maxZ / RAISED_CELL); iz++) {
+        const k = ix * 100000 + iz;
+        if (!RAISED_GRID.has(k)) RAISED_GRID.set(k, []);
+        const list = RAISED_GRID.get(k);
+        // (touching strips: a corner of one inside the other)
+        for (const j of list) {
+          const t = strips[j];
+          if (t.maxX < s.minX || t.minX > s.maxX || t.maxZ < s.minZ || t.minZ > s.maxZ) continue;
+          if (s.poly.some((p) => pointInPoly(t.poly, p.x, p.z)) || t.poly.some((p) => pointInPoly(s.poly, p.x, p.z))) strips[find(i)].parent = find(j);
+        }
+        list.push(i);
+      }
+    }
+  }
+  const blocks = new Map();
+  for (const [i, s] of strips.entries()) {
+    const root = find(i);
+    if (!blocks.has(root)) blocks.set(root, { id: `sidewalk:raised:${root}`, sidewalk: true, raised: true, park: 0, median: false, poly: [], holes: [], cx: s.poly[0].x, cz: s.poly[0].z, district: 'city' });
+    const block = blocks.get(root);
+    block.poly.push(...s.poly);
+    s.block = block;
+  }
+  for (const block of blocks.values()) block.district = districtAt(block.cx, block.cz);
+  for (const [k, list] of RAISED_GRID) RAISED_GRID.set(k, list.map((i) => strips[i]));
+}
+// The rounded corners of the streets (js/street-corners.js): the asphalt reaches round them, the sidewalks end at their arcs
+const cornerCut = (x, z) => inCornerCut(streetCorners(BERLIN_DATA.roads), x, z);
+/** The raised sidewalk block under (x, z), or null (never on a carriageway: junctions, driveways, rounded corners) */
+function raisedSidewalkAt(x, z) {
+  const list = RAISED_GRID.get(Math.floor(x / RAISED_CELL) * 100000 + Math.floor(z / RAISED_CELL));
+  if (!list) return null;
+  for (const s of list) {
+    if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ || !pointInPoly(s.poly, x, z)) continue;
+    if (nearestRoads(x, z, 24).some((q) => !PEDESTRIAN_KINDS.has(q.road.kind) && q.dist < q.road.w / 2)) return null;
+    if (cornerCut(x, z)) return null;
+    return s.block;
+  }
+  return null;
+}
 /** The block (curb island) under (x, z), or null on the roadway / in the water */
 function blockAt(x, z) {
+  const raised = raisedSidewalkAt(x, z);
+  if (raised) return raised;
   const list = BLOCK_GRID.get(Math.floor(x / BLOCK_CELL) * 100000 + Math.floor(z / BLOCK_CELL));
   for (const b of list || []) {
     if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
@@ -131,8 +200,9 @@ function sidewalkAt(x,z){
   const near=nearestRoads(x,z,24);
   if(waterAt(x,z)&&!near.some(q=>q.road.bridge&&q.dist<q.road.w/2+3))return null;
   // On a carriageway is never on a sidewalk, whatever the curbs of the streets around (junctions) or a footway
-  // mapped over it
+  // mapped over it, nor on the asphalt round a rounded corner
   if(near.some(q=>!PEDESTRIAN_KINDS.has(q.road.kind)&&q.dist<q.road.w/2-0.4))return null;
+  if(cornerCut(x,z))return null;
   for(const q of near){
     const r=q.road, pedestrian=PEDESTRIAN_KINDS.has(r.kind);
     if((pedestrian&&q.dist<=r.w/2)||(!pedestrian&&q.dist>=r.w/2-.4&&q.dist<=r.w/2+5.5))return {id:'sidewalk:'+r.id,sidewalk:true,park:0,median:false,cx:x,cz:z,district:districtAt(x,z)};

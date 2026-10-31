@@ -1306,7 +1306,12 @@ function createTreeMaterial(leafAtlas) {
     const bob = sin(time.mul(2.1).add(g.x.mul(0.9)).add(g.z.mul(0.7)).add(phase)).mul(0.05).mul(aTree.z).mul(strength);
     // leaves flutter, every card on its own
     const flutter = sin(time.mul(8.0).add(aTree.w.mul(37.0)).add(g.y.mul(2.0))).mul(0.03).mul(isLeaf).mul(aTree.z).mul(strength.add(0.25));
-    return p.add(sway).add(vec3(0.0, bob, 0.0)).add(normalLocal.mul(flutter));
+    // Geometries holding both variants of a level (trees.js mergeVariants: aTree.w + 4 on variant 0, + 2 on variant
+    // 1) keep the tree's own variant (aTreeData.w's fraction past 0.5: variant 1) and collapse the other to a point
+    const merged = step(1.5, aTree.w);
+    const vertexVariant = merged.mul(step(aTree.w, 3.5));
+    const keep = float(1.0).sub(merged.mul(abs(vertexVariant.sub(step(0.5, rnd)))));
+    return p.add(sway).add(vec3(0.0, bob, 0.0)).add(normalLocal.mul(flutter)).mul(keep);
   })();
 
   // Coverage: leaf cards from the atlas; bark is opaque from outside (its back faces are dropped)
@@ -1823,14 +1828,16 @@ function createRoadPaintMaterial() {
  * that follow cityUniforms.uRoadWetness like the roadway (better drained: fewer, smaller pools)
  * (Ported from SidewalkGenerator.js)
  */
-function createSidewalkMaterial() {
+// `asphalt`: a Swiss sidewalk's fine, light asphalt (no scored flags; js/city-grid.js lays it along the streets)
+function createSidewalkMaterial({ asphalt = false } = {}) {
   const mat = new THREE.MeshStandardNodeMaterial({
     metalness: 0.0,
     roughness: 0.88
   });
 
-  const cConcreteA = color(0x8e8d85);
-  const cConcreteB = color(0x73726b);
+  const cConcreteA = color(asphalt ? 0x6e6d69 : 0x8e8d85);
+  const cConcreteB = color(asphalt ? 0x5a5a57 : 0x73726b);
+  const scored = asphalt ? 0.0 : 1.0;
 
   // Damp patches & pools on the flags, shared by every channel below (own field; drains better than the roadway)
   const swField = noise2D(vec2(positionWorld.x.mul(0.14).add(7.4), positionWorld.z.mul(0.14).sub(13.1))).mul(0.65)
@@ -1849,12 +1856,12 @@ function createSidewalkMaterial() {
     const detail = smoothstep(190.0, 16.0, camDist);
 
     const panel = 1.5; // 5 ft NYC concrete sidewalk flags
-    const panelHash = hash2D(floor(vec2(wx.div(panel), wz.div(panel))));
+    const panelHash = hash2D(floor(vec2(wx.div(panel), wz.div(panel)))).sub(0.5).mul(scored).add(0.5);
     const tone = noise2D(vec2(wx.mul(0.48), wz.mul(0.48)));
     const grit = noise2D(vec2(wx.mul(14.0), wz.mul(14.0))).sub(0.5).mul(0.08).mul(detail).mul(smoothstep(0.07, 0.02, pixelSize));
 
     // Filter-width anti-aliased 1.5m scored joints
-    const joints = max(gridLine(wx, panel, 0.042), gridLine(wz, panel, 0.042)).mul(detail);
+    const joints = max(gridLine(wx, panel, 0.042), gridLine(wz, panel, 0.042)).mul(detail).mul(scored);
 
     // Post-rain damp patches, pools & the overall wet film darken the flags
     const baseConcrete = mix(cConcreteB, cConcreteA, tone)
@@ -1882,8 +1889,8 @@ function createSidewalkMaterial() {
     const camDist = length(positionWorld.sub(cameraPosition));
     const detail = smoothstep(140.0, 14.0, camDist);
 
-    const joints = max(gridLine(wx, 1.5, 0.042), gridLine(wz, 1.5, 0.042));
-    const grain = noise2D(vec2(wx.mul(4.5), wz.mul(4.5))).sub(0.5).mul(0.003);
+    const joints = max(gridLine(wx, 1.5, 0.042), gridLine(wz, 1.5, 0.042)).mul(scored);
+    const grain = noise2D(vec2(wx.mul(asphalt ? 9.0 : 4.5), wz.mul(asphalt ? 9.0 : 4.5))).sub(0.5).mul(0.003);
     const height = grain.sub(joints.mul(0.012)).mul(detail).mul(float(1.0).sub(swPuddle));
     return bumpNormal(height);
   })();

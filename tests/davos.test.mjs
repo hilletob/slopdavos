@@ -75,6 +75,17 @@ test('the valley keeps its landmarks, lake, railways and road graph', () => {
   assert.ok(!DAVOS_DATA.roads.some((r) => r.kind === 'footway' && /crossing/.test(r.name)), 'no crosswalk ways');
 });
 
+test('the Promenade and the Talstrasse: one-way for cars, both ways for the buses, with sidewalks', () => {
+  const ways = DAVOS_DATA.roads.filter((r) => /^(Promenade|Talstrasse)$/.test(r.name) && r.oneway);
+  const bus = ways.filter((r) => r.bus);
+  assert.ok(bus.length >= 20, `${bus.length} one-way pieces the buses drive against`);
+  for (const r of bus) assert.ok(r.width >= 6 && r.width <= 6.6, `${r.id}: a lane each way (${r.width} m)`);
+  assert.ok(bus.some((r) => r.name === 'Talstrasse' && r.bus === 2), 'the Talstrasse\'s marked bus lane');
+  assert.ok(ways.every((r) => r.sidewalk && r.sidewalk.some((w) => w >= 1.8 && w <= 2.5)), 'sidewalks along them');
+  // the road graph carries the buses' lanes and the sidewalks to the traffic and the pedestrians
+  assert.ok(DAVOS_DATA.roadGraph.links.some((l) => l[8] === 2 && Array.isArray(l[9])));
+});
+
 test('the swissBUILDINGS3D tiles are stored in the repository, complete', () => {
   const dir = new URL('../data/swissbuildings3d/', import.meta.url);
   const index = JSON.parse(fs.readFileSync(new URL('index.json', dir), 'utf8'));

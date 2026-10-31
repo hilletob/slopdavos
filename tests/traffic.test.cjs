@@ -188,7 +188,7 @@ function populationContext() {
     clock: 0,
     VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, PED_AVOID_INTERVAL: 0.12,
     nearEdges: [], nearSignals: [], track: {}, KERB: 1.6, QUEUE_GAP: 0.62,
-    atCurb: () => {}, laneClear: () => true,
+    atCurb: () => {}, laneClear: () => true, nearTramBody: () => false, trackFull: () => false, trackLoad: new Map(), STUCK_TIME: 45,
     place: (v, e, lane, s) => Object.assign(v, { edge: e, lane, s })
   };
   context.nearView = trafficFunction('nearView', context);
@@ -211,6 +211,19 @@ test('cars replenish the road ahead while nearby visible spawning stays blocked'
   assert.equal(edge.sz + car.s, 300);
   edge.sz = 140;
   context.visible = () => false;
+  assert.equal(spawnVehicle(car, 100, 350, true), true);
+});
+
+test('cars do not appear in or just ahead of a bus or tram', () => {
+  const context = populationContext();
+  const edge = straightEdge(290);
+  context.nearEdges.push(edge);
+  const bus = { x: 0, z: 290, halfL: 6 }; // the car would appear at z 300
+  context.nearTramBody = trafficFunction('nearTramBody', { Math, tramBodies: [bus] });
+  const spawnVehicle = trafficFunction('spawnVehicle', context);
+  const car = { half: 2.25 };
+  assert.equal(spawnVehicle(car, 100, 350, true), false);
+  bus.z = 1e7; // (vbd.js parks bodies far away while unused)
   assert.equal(spawnVehicle(car, 100, 350, true), true);
 });
 
@@ -258,4 +271,20 @@ test('crossing pedestrians fall back to a sidewalk when nearby crosswalks are un
   assert.equal(crossings, 5);
   assert.equal(ped.node, null);
   assert.equal(ped.z, 210);
+});
+
+test('pedestrians are not placed on sidewalk lines that are already full', () => {
+  const context = populationContext();
+  context.nearEdges.push(straightEdge(200));
+  context.sidewalkTrack = () => {
+    Object.assign(context.track, { ax: 0, az: 200, ux: 0, uz: 1, len: 20, node: null, route: {} });
+    return true;
+  };
+  const ped = { crossesStreets: false, speed: 1.4, rig: {} };
+  context.trackFull = () => true;
+  assert.equal(trafficFunction('spawnPed', context)(ped, 60, 280, true), false);
+  context.trackFull = () => false;
+  assert.equal(trafficFunction('spawnPed', context)(ped, 60, 280, true), true);
+  assert.equal(context.trackLoad.get(context.track.route), 1);
+  assert.equal(ped.anchorTime, 45);
 });

@@ -70,3 +70,34 @@ test('fillCuts raises the trench leading to a seed, not the hollows beyond it no
   for (let x = 104; x <= 132; x += 4) assert.equal(g.heights[node(x, 40)], 2, `hollow beyond the trench at x = ${x}`);
   for (let k = 0; k < before.length; k++) assert.ok(g.heights[k] >= before[k], 'only raises');
 });
+
+test('every level of detail covers the block once and keeps every node of its border', async () => {
+  const { gridLevels } = await import('../js/terrain-grid.js');
+  for (const [nx, nz] of [[64, 64], [45, 54], [95, 7], [3, 9]]) {
+    const W = nx + 1, ys = new Float32Array(W * (nz + 1));
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) ys[j * W + i] = Math.sin(i * 0.7) * 5 + Math.cos(j * 0.4) * 3;
+    const { index, levels } = gridLevels(nx, nz, ys, [1, 2, 4, 8, 16]);
+    assert.equal(levels[0].error, 0);
+    for (const { step, start, count, error } of levels) {
+      assert.ok(count > 0 && count % 3 === 0, `${nx}x${nz} step ${step}`);
+      let area = 0;
+      const edges = new Map();
+      for (let t = start; t < start + count; t += 3) {
+        const v = [index[t], index[t + 1], index[t + 2]].map((k) => [k % W, Math.floor(k / W)]);
+        const signed = (v[1][0] - v[0][0]) * (v[2][1] - v[0][1]) - (v[1][1] - v[0][1]) * (v[2][0] - v[0][0]);
+        assert.ok(signed < 0, `one winding, no slivers (${nx}x${nz} step ${step})`); // as the full grid's (a, a + W + 1, a + 1)
+        area -= signed / 2;
+        for (let e = 0; e < 3; e++) {
+          const p = index[t + e], q = index[t + (e + 1) % 3], key = Math.min(p, q) + ',' + Math.max(p, q);
+          edges.set(key, (edges.get(key) || 0) + 1);
+        }
+      }
+      assert.equal(area, nx * nz, `${nx}x${nz} step ${step}: covered once`);
+      // The open edges (one triangle) are exactly the border's unit segments: neighbours always match, no T-junctions
+      const open = [...edges].filter(([, n]) => n === 1).map(([k]) => k.split(',').map(Number));
+      assert.equal(open.length, 2 * (nx + nz), `${nx}x${nz} step ${step}: border kept in full`);
+      for (const [p, q] of open) assert.equal(Math.abs(p % W - q % W) + Math.abs(Math.floor(p / W) - Math.floor(q / W)), 1);
+      if (step > 1) assert.ok(error > 0);
+    }
+  }
+});

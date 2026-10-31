@@ -147,3 +147,83 @@ export function subdivideTriangles(positions, maxEdge) {
   }
   return { positions: new Float32Array(outPos), weights: new Float32Array(outW), sources: new Uint32Array(outSrc) };
 }
+
+// --- Levels of detail for a block of grid nodes --------------------------------------------------------------------------
+// The index lists of a block of (nx + 1) x (nz + 1) nodes (row-major, z rows of x) at coarser and coarser `steps`
+// (1: every node; 2: every other one, …), one after the other in a single index array. The block's border keeps every
+// node at every level: the cells of a coarse level along it are fanned from their inner corner to the border's nodes,
+// so that two neighbouring blocks at any levels share exactly the same edge (no cracks, no skirts). Level 1 uses the
+// diagonal of the full grid (gridHeight). `ys`: the nodes' heights, for each level's error (the largest height
+// difference at a node between the full grid and the level's surface, the fans counted as plain coarse cells).
+// `quantile` < 1: the error is the height difference that this share of the nodes stays within instead (a lone spike
+// of a rough relief left out). `secondary(a, b, c)`: full-detail triangles to set aside in a list of their own (the
+// lakes), only for step 1.
+// Returns { index (Uint16Array when the nodes allow it), levels: [{ step, start, count, error }], secondary: [] }.
+export function gridLevels(nx, nz, ys, steps = [1, 2, 4, 8], { secondary = null, quantile = 1 } = {}) {
+  const W = nx + 1, at = (i, j) => j * W + i;
+  const out = [], levels = [], aside = [];
+  const lines = (n, s) => { const l = []; for (let k = 0; k < n; k += s) l.push(k); l.push(n); if (l.length > 2 && n - l[l.length - 2] < s / 2) l.splice(l.length - 2, 1); return l; };
+  const push = (a, b, c, step) => { if (step === 1 && secondary && secondary(a, b, c)) aside.push(a, b, c); else out.push(a, b, c); };
+  const fineCell = (i0, i1, j0, j1, step) => {
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+      const a = at(i, j);
+      push(a, a + W + 1, a + 1, step); push(a, a + W, a + W + 1, step);
+    }
+  };
+  for (const step of steps) {
+    const start = out.length;
+    const xs = lines(nx, step), zs = lines(nz, step);
+    let error = 0;
+    const errors = quantile < 1 && step > 1 && ys ? new Float32Array(W * (nz + 1)) : null;
+    for (let cj = 0; cj + 1 < zs.length; cj++) for (let ci = 0; ci + 1 < xs.length; ci++) {
+      const x0 = xs[ci], x1 = xs[ci + 1], z0 = zs[cj], z1 = zs[cj + 1];
+      if (step > 1 && ys) {
+        // The level's error over the cell's nodes (its two triangles split along the diagonal)
+        const h00 = ys[at(x0, z0)], h10 = ys[at(x1, z0)], h01 = ys[at(x0, z1)], h11 = ys[at(x1, z1)];
+        for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) {
+          const fu = (i - x0) / (x1 - x0), fv = (j - z0) / (z1 - z0);
+          const h = fu >= fv ? h00 + fu * (h10 - h00) + fv * (h11 - h10) : h00 + fv * (h01 - h00) + fu * (h11 - h01);
+          const e = Math.abs(ys[at(i, j)] - h);
+          if (e > error) error = e;
+          if (errors) errors[at(i, j)] = e;
+        }
+      }
+      const left = x0 === 0, right = x1 === nx, bottom = z0 === 0, top = z1 === nz;
+      if (x1 - x0 === 1 && z1 - z0 === 1 || !(left || right || bottom || top)) {
+        const a = at(x0, z0), b = at(x1, z0), c = at(x0, z1), d = at(x1, z1);
+        push(a, d, b, step); push(a, c, d, step);
+        continue;
+      }
+      // A border cell: its outline (every node along the block's border, the corners elsewhere), in the triangles' winding
+      const ring = [];
+      for (let j = z0; j < z1; j++) if (left || j === z0) ring.push(at(x0, j));
+      for (let i = x0; i < x1; i++) if (top || i === x0) ring.push(at(i, z1));
+      for (let j = z1; j > z0; j--) if (right || j === z1) ring.push(at(x1, j));
+      for (let i = x1; i > x0; i--) if (bottom || i === x1) ring.push(at(i, z0));
+      // fanned from a corner off the border (none: a cell spanning the block, drawn in full)
+      const apex = !left && !bottom ? at(x0, z0) : !left && !top ? at(x0, z1) : !right && !top ? at(x1, z1) : !right && !bottom ? at(x1, z0) : -1;
+      if (apex < 0) { fineCell(x0, x1, z0, z1, step); continue; }
+      const k0 = ring.indexOf(apex);
+      for (let k = 1; k + 1 < ring.length; k++) push(apex, ring[(k0 + k) % ring.length], ring[(k0 + k + 1) % ring.length], step);
+    }
+    if (errors) { errors.sort(); error = errors[Math.min(errors.length - 1, Math.floor(errors.length * quantile))]; }
+    levels.push({ step, start, count: out.length - start, error });
+  }
+  const big = W * (nz + 1) > 65535;
+  return { index: big ? new Uint32Array(out) : new Uint16Array(out), levels, secondary: aside };
+}
+
+/**
+ * The level of `levels` (gridLevels) to draw for a block in `box` ({ min, max } world box) seen by `camera`: the
+ * coarsest whose error stays under `tolerance` pixels on a viewport `height` px tall (the error's projected size at the
+ * box's nearest point).
+ */
+export function pickLevel(levels, box, camera, height, tolerance = 1) {
+  const e = camera.matrixWorld.elements, cx = e[12], cy = e[13], cz = e[14];
+  const dx = Math.max(box.min.x - cx, 0, cx - box.max.x), dy = Math.max(box.min.y - cy, 0, cy - box.max.y), dz = Math.max(box.min.z - cz, 0, cz - box.max.z);
+  const d = Math.hypot(dx, dy, dz);
+  const k = camera.projectionMatrix.elements[5] * height / 2; // pixels per metre at 1 m
+  let pick = 0;
+  for (let l = 1; l < levels.length; l++) if (levels[l].error * k <= tolerance * d) pick = l; else break;
+  return pick;
+}

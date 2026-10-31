@@ -64,8 +64,13 @@ import {
 import { GEO } from './nyc-geodata.js';
 import { LANDMARK_EXCLUSIONS, BERGHAIN_TREE_SITES } from './landmarks.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, berlinStrip, berlinRoadSegments, berlinGeometryGroups } from './berlin-geometry.js';
+import { streetCorners, cornersIn, convexPlanes } from './street-corners.js';
 import { freezeWater, snowyStreet } from './season.js';
-import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear } from './terrain.js';
+import { TLM_TREES } from './tlm-trees-data.js';
+import { GOLF } from './golf-data.js';
+import { SPECIES_INDEX as TREE, SPECIES_HEIGHT } from './trees.js';
+import { FRAME } from './davos-frame.js';
+import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
 let centralParkClearings;
@@ -76,17 +81,23 @@ let sidewalkBlocks;
 let fdrViaduct;
 let berlinStreetSites = [];
 
+const CITY_MERGE_CELL = 1000; // m: tiles of the merged ground layers (roads, sidewalks, curbs, lawns, paint, water)
+const CITY_MERGE_MAX_VERTICES = 1 << 20; // per merged mesh (non-indexed, ~32 MB of attributes at most)
+
 function buildBerlinCityGrid(scene) {
   const group = new THREE.Group();
   group.name = 'BerlinMitteCityGrid';
   // In winter (season.js) the streets lie under packed snow and slush, the lakes freeze over
   const roadMat = snowyStreet(createRoadSurfaceMaterial(), { cover: 0.7 });
   const sidewalkMat = snowyStreet(createSidewalkMaterial(), { cover: 0.9 });
+  const walkMat = snowyStreet(createSidewalkMaterial({ asphalt: true }), { cover: 0.9 }); // the raised sidewalks
   const curbMat = snowyStreet(createCurbMaterial(), { cover: 0.95, top: true });
   const waterMat = freezeWater(createWaterMaterial());
   const lawnMat = createParkLawnMaterial(false);
   const pavingMat = snowyStreet(createParkPavingMaterial(), { cover: 0.9 });
   const paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true });
+  // (the markings lie ~1 cm over the asphalt: pulled forward in depth so that they never flicker through it far off)
+  paintMat.polygonOffset = true; paintMat.polygonOffsetFactor = -1; paintMat.polygonOffsetUnits = -4;
   const collections = new Map();
   // Everything is built flat (small y offsets above y = 0) and laid on the terrain before merging: ground layers are
   // draped, solids displaced; geometry of a bridge follows its deck; `absolute` geometry is already in world heights.
@@ -161,6 +172,42 @@ function buildBerlinCityGrid(scene) {
   }
 
   const roadSegments = berlinRoadSegments();
+  // Joints: the consecutive segments of a way (OSM's bends are rounded into arcs, tools/build-davos-geodata.mjs) meet at
+  // a miter, so that their strips tile the bend without a notch on the outside or an overlap on the inside, and their
+  // markings run on in one dash phase (s0: metres along the way to the segment's start). `a`/`b`: the vector at that
+  // end to the point one metre left of the centreline (the plain normal where there is no joint).
+  const joints = new Map();
+  {
+    const miter = (p, q) => {
+      const mx = -p.uz - q.uz, mz = p.ux + q.ux, m = Math.hypot(mx, mz);
+      if (m < 0.5) return null; // (a hairpin turning more than ~150°: no joint)
+      const k = m / (mx * -p.uz + mz * p.ux); // 1 / cos(half the turn)
+      return k > 2.5 ? null : { x: mx / m * k, z: mz / m * k };
+    };
+    const linked = (p, q) => p && p.road === q.road && p.bridge === q.bridge && Math.abs(p.b.x - q.a.x) + Math.abs(p.b.z - q.a.z) < 0.01;
+    let prev = null, first = null, s0 = 0;
+    const close = () => { // a closed way (a roundabout): its last segment meets its first
+      if (first && prev && first !== prev && linked(prev, first)) {
+        const m = miter(prev, first);
+        if (m) { joints.get(prev).b = m; joints.get(first).a = m; }
+      }
+    };
+    for (const s of roadSegments) {
+      const on = linked(prev, s);
+      if (!on && prev?.road !== s.road) { close(); first = s; }
+      s0 = on ? s0 + prev.len : 0;
+      const j = { s0, a: null, b: null };
+      joints.set(s, j);
+      if (on) { const m = miter(prev, s); if (m) { joints.get(prev).b = m; j.a = m; } }
+      prev = s;
+    }
+    close();
+  }
+  // The point `offset` metres left of the centreline at the segment's start (`end` 0) or end (1)
+  const edgePoint = (s, end, offset) => {
+    const v = joints.get(s)?.[end ? 'b' : 'a'], p = end ? s.b : s.a;
+    return v ? { x: p.x + v.x * offset, z: p.z + v.z * offset } : { x: p.x - s.uz * offset, z: p.z + s.ux * offset };
+  };
   const carriagewayKinds = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link',
     'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'service', 'living_street']);
   const curbedKinds = new Set(['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link',
@@ -195,15 +242,9 @@ function buildBerlinCityGrid(scene) {
     return [[s.ux, s.uz, along - pad], [-s.ux, -s.uz, -along - s.len - pad],
       [nx, nz, across - s.width / 2 - pad], [-nx, -nz, -across - s.width / 2 - pad]];
   };
-  const stripPoints = (s, half, offset = 0) => {
-    const nx = -s.uz, nz = s.ux;
-    return [
-      { x: s.a.x + nx * (offset - half), z: s.a.z + nz * (offset - half) },
-      { x: s.b.x + nx * (offset - half), z: s.b.z + nz * (offset - half) },
-      { x: s.b.x + nx * (offset + half), z: s.b.z + nz * (offset + half) },
-      { x: s.a.x + nx * (offset + half), z: s.a.z + nz * (offset + half) },
-    ];
-  };
+  const stripPoints = (s, half, offset = 0) => [
+    edgePoint(s, 0, offset - half), edgePoint(s, 1, offset - half), edgePoint(s, 1, offset + half), edgePoint(s, 0, offset + half),
+  ];
   const outsideRoads = (polygon, roads, source) => {
     const area = pts => Math.abs(pts.reduce((sum, a, i) => {
       const b = pts[(i + 1) % pts.length]; return sum + a.x * b.z - b.x * a.z;
@@ -261,18 +302,134 @@ function buildBerlinCityGrid(scene) {
       intervals = next;
       if (!intervals.length) break;
     }
+    // (and where it rounds a corner: the arc's stones, below, take over)
+    if (intervals.length) {
+      const pad = 0.3;
+      for (const c of cornersIn(corners, Math.min(a.x, b.x) - pad, Math.max(a.x, b.x) + pad, Math.min(a.z, b.z) - pad, Math.max(a.z, b.z) + pad)) {
+        let lo = 0, hi = 1;
+        for (const [nx, nz, cc] of c.kitePlanes) {
+          const start = nx * a.x + nz * a.z - cc, rate = nx * dx + nz * dz;
+          if (Math.abs(rate) < 1e-9) { if (start < 0) { lo = 1; hi = 0; break; } }
+          else if (rate > 0) lo = Math.max(lo, -start / rate);
+          else hi = Math.min(hi, -start / rate);
+        }
+        if (lo >= hi || hi <= 0 || lo >= 1) continue;
+        const next = [];
+        for (const [start, end] of intervals) {
+          if (hi <= start || lo >= end) next.push([start, end]);
+          else {
+            if (lo > start) next.push([start, Math.min(end, lo)]);
+            if (hi < end) next.push([Math.max(start, hi), end]);
+          }
+        }
+        intervals = next;
+        if (!intervals.length) break;
+      }
+    }
     return intervals;
   };
-  let clippedPedestrianPieces = 0, clippedSidewalkPieces = 0, curbRuns = 0;
-  const paintStrip = (s, offset, halfWidth = 0.075, duty = 0.5, period = 8) => {
-    const g = berlinStrip(s.a, s.b, halfWidth, s.bridge ? 0.081 : 0.071, offset);
-    if (!g) return;
-    const p = g.getAttribute('position'), paints = [], sides = [], colors = [];
+  let clippedPedestrianPieces = 0, clippedSidewalkPieces = 0, curbRuns = 0, sidewalkSlabs = 0, busMarkings = 0, roundedCorners = 0;
+  // Rounded street corners (js/street-corners.js): the curb follows an arc tangent to the two carriageways' edges, the
+  // asphalt reaches round to it and the sidewalks end at it
+  const corners = streetCorners(BERLIN_DATA.roads);
+  for (const c of corners.list) {
+    c.kitePlanes = convexPlanes(c.kite);
+    c.sectorPlanes = convexPlanes(c.sector);
+  }
+  const polyArea = pts => Math.abs(pts.reduce((sum, a, i) => {
+    const b = pts[(i + 1) % pts.length]; return sum + a.x * b.z - b.x * a.z;
+  }, 0)) * 0.5;
+  // A convex sidewalk piece without the corners it reaches into (kite minus the sector inside the arc), as convex
+  // pieces; the lines they were cut along through the sidewalk (from the arc's centre to its ends) are joins, without
+  // a curb face
+  const roundCorners = (piece) => {
+    let parts = [{ poly: piece, joins: [] }];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of piece) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+    for (const c of cornersIn(corners, minX, maxX, minZ, maxZ)) {
+      const next = [];
+      for (const part of parts) {
+        let inside = part.poly;
+        for (const [nx, nz, cc] of c.kitePlanes) {
+          inside = clipPolygonHalfPlane(inside, nx, nz, cc);
+          if (inside.length < 3) break;
+        }
+        if (inside.length < 3 || polyArea(inside) < 0.005) { next.push(part); continue; }
+        let fragment = part.poly;
+        for (const [nx, nz, cc] of c.kitePlanes) {
+          const out = clipPolygonHalfPlane(fragment, -nx, -nz, -cc);
+          if (out.length >= 3 && polyArea(out) > 0.005) next.push({ poly: out, joins: part.joins });
+          fragment = clipPolygonHalfPlane(fragment, nx, nz, cc);
+          if (fragment.length < 3) break;
+        }
+        for (const [nx, nz, cc] of c.sectorPlanes) {
+          inside = clipPolygonHalfPlane(inside, nx, nz, cc);
+          if (inside.length < 3) break;
+        }
+        if (inside.length >= 3 && polyArea(inside) > 0.005) {
+          const e1 = { x: (c.T1.x - c.O.x) / c.R, z: (c.T1.z - c.O.z) / c.R }, e2 = { x: (c.T2.x - c.O.x) / c.R, z: (c.T2.z - c.O.z) / c.R };
+          next.push({ poly: inside, joins: [...part.joins, [c.O, e1], [c.O, e2]] });
+        }
+      }
+      parts = next;
+      if (!parts.length) break;
+    }
+    return parts;
+  };
+  // Raised sidewalks (OSM sidewalk=*, roads[].sidewalk; and the sidewalks mapped as ways of their own): a slab of light
+  // asphalt SIDEWALK_TOP over the ground (the roadway: 0.11 m, the curbs' top 0.17 m), its edges dropping to the ground
+  // in faces of curb stone. `piece`: a convex polygon (flat, [{x, z}]); `joins`: [[point, direction]] lines (the miters
+  // to the next piece of the same way) along which no edge face is needed.
+  const SIDEWALK_TOP = RAISED_SIDEWALK_TOP, SKIRT_DEPTH = 0.14;
+  const sidewalkSlab = (whole, wayJoins = []) => {
+    for (const { poly, joins } of roundCorners(whole)) slabPiece(poly, [...wayJoins, ...joins]);
+  };
+  const slabPiece = (piece, joins) => {
+    addRaisedSidewalk(piece); // (where people and the player stand on it)
+    collect(berlinPolygonGeometry(piece, [], SIDEWALK_TOP - 0.05), walkMat); // (drapeOverlay lifts it 0.05 m)
+    let cx = 0, cz = 0;
+    for (const p of piece) { cx += p.x / piece.length; cz += p.z / piece.length; }
+    const pos = [], nor = [], uvs = [];
+    for (let i = 0; i < piece.length; i++) {
+      const p = piece[i], q = piece[(i + 1) % piece.length], L = Math.hypot(q.x - p.x, q.z - p.z);
+      if (L < 0.05) continue;
+      if (joins.some(([o, v]) => Math.abs((p.x - o.x) * v.z - (p.z - o.z) * v.x) < 0.03 && Math.abs((q.x - o.x) * v.z - (q.z - o.z) * v.x) < 0.03)) continue;
+      let nx = (q.z - p.z) / L, nz = -(q.x - p.x) / L;
+      if (nx * ((p.x + q.x) / 2 - cx) + nz * ((p.z + q.z) / 2 - cz) < 0) { nx = -nx; nz = -nz; }
+      const n = Math.max(1, Math.ceil(L / 4));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n;
+        const x0 = p.x + (q.x - p.x) * t0, z0 = p.z + (q.z - p.z) * t0, x1 = p.x + (q.x - p.x) * t1, z1 = p.z + (q.z - p.z) * t1;
+        const g0 = groundHeight(x0, z0), g1 = groundHeight(x1, z1);
+        const A = [x0, g0 + SIDEWALK_TOP, z0], B = [x1, g1 + SIDEWALK_TOP, z1], C = [x1, g1 - SKIRT_DEPTH, z1], D = [x0, g0 - SKIRT_DEPTH, z0];
+        // (wound to face out: A D C faces right of p -> q)
+        const right = nx * -(q.z - p.z) + nz * (q.x - p.x) > 0;
+        for (const v of right ? [A, D, C, A, C, B] : [A, C, D, A, B, C]) { pos.push(...v); nor.push(nx, 0, nz); }
+        uvs.push(...(right ? [t0, 1, t0, 0, t1, 0, t0, 1, t1, 0, t1, 1] : [t0, 1, t1, 0, t0, 0, t0, 1, t1, 1, t1, 0]));
+      }
+    }
+    if (pos.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      g.computeBoundingBox();
+      collect(g, curbMat, { world: true });
+    }
+    sidewalkSlabs++;
+  };
+  const YELLOW = new THREE.Color(0xe8ad22);
+  const paintStrip = (s, offset, halfWidth = 0.075, duty = 0.5, period = 8, col = null) => {
+    if (s.len < 0.1) return;
+    const g = berlinPolygonGeometry(stripPoints(s, halfWidth, offset), [], s.bridge ? 0.081 : 0.071);
+    // (mitered like the asphalt; the dashes run on from the previous segment of the way)
+    const p = g.getAttribute('position'), paints = [], sides = [], colors = [], s0 = joints.get(s)?.s0 || 0;
+    const centre = [edgePoint(s, 0, offset), edgePoint(s, 1, offset)];
     for (let i = 0; i < p.count; i++) {
       const dx = p.getX(i) - s.a.x, dz = p.getZ(i) - s.a.z;
-      const along = dx * s.ux + dz * s.uz;
-      const across = dx * -s.uz + dz * s.ux - offset;
-      paints.push(along, period, duty); sides.push(-s.uz * across, s.ux * across); colors.push(1, 1, 1);
+      const along = dx * s.ux + dz * s.uz, c = centre[along > s.len / 2 ? 1 : 0];
+      paints.push(s0 + along, period, duty); sides.push(p.getX(i) - c.x, p.getZ(i) - c.z);
+      if (col) colors.push(col.r, col.g, col.b); else colors.push(1, 1, 1);
     }
     g.setAttribute('paint', new THREE.Float32BufferAttribute(paints, 3));
     g.setAttribute('side', new THREE.Float32BufferAttribute(sides, 2));
@@ -290,6 +447,14 @@ function buildBerlinCityGrid(scene) {
     if (!isCarriageway(s)) {
       const half = Math.max(0.75, width * 0.5);
       const pieces = outsideRoads(stripPoints(s, half), nearbyCarriageways(s.a, s.b, half), s);
+      if (s.road.sidewalkWay && !deckContext) {
+        // (a sidewalk mapped as a way of its own, footway=sidewalk: raised like the ones along the streets)
+        const j = joints.get(s), joins = [];
+        if (j?.a) joins.push([s.a, j.a]);
+        if (j?.b) joins.push([s.b, j.b]);
+        for (const piece of pieces) sidewalkSlab(piece, joins);
+        continue;
+      }
       for (const piece of pieces) {
         const geometry = berlinPolygonGeometry(piece, [], 0.055);
         setPavingStyle(geometry, s.road.kind === 'cycleway' ? 0 : 2);
@@ -309,19 +474,36 @@ function buildBerlinCityGrid(scene) {
         }
       }
     }
-    collect(berlinStrip(s.a, s.b, width / 2, y), roadMat);
+    collect(berlinPolygonGeometry(stripPoints(s, width / 2), [], y), roadMat);
     const nx = -s.uz, nz = s.ux;
+    // Sidewalks along the street ([left, right] of the way: offsets -, +), from the curb (width / 2 .. + 0.16 m) out,
+    // clipped out of the other carriageways (junctions, driveways)
+    if (s.road.sidewalk && !deckContext) {
+      const j = joints.get(s), joins = [];
+      if (j?.a) joins.push([s.a, j.a]);
+      if (j?.b) joins.push([s.b, j.b]);
+      s.road.sidewalk.forEach((w, k) => {
+        if (!w) return;
+        const side = k ? 1 : -1, inner = width / 2 + 0.12;
+        const strip = stripPoints(s, w / 2, side * (inner + w / 2));
+        for (const piece of outsideRoads(strip, nearbyCarriageways(s.a, s.b, inner + w + 1), s)) sidewalkSlab(piece, joins);
+      });
+    }
     if (width >= 7 && !s.road.oneway && s.road.kind !== 'service') paintStrip(s, 0, 0.075, 0.45);
+    // One-way for cars, both ways for the buses: a dashed centre line, or a solid yellow one along a marked bus lane
+    if (s.road.bus === 1) paintStrip(s, 0, 0.075, 0.45);
+    if (s.road.bus === 2) paintStrip(s, 0, 0.1, 1, 1, YELLOW);
     if (width >= 12) {
       for (const side of [-1, 1]) paintStrip(s, side * width * 0.24, 0.065, 0.45);
     }
     if (curbedKinds.has(s.road.kind)) for (const side of [-1, 1]) {
+      // (from miter to miter: the runs along a rounded bend meet without gaps)
       const offset = side * (width / 2 + 0.08);
-      const a = { x: s.a.x + nx * offset, z: s.a.z + nz * offset };
-      const b = { x: s.b.x + nx * offset, z: s.b.z + nz * offset };
+      const a = edgePoint(s, 0, offset), b = edgePoint(s, 1, offset), runLength = Math.hypot(b.x - a.x, b.z - a.z);
       for (const [start, end] of curbIntervals(a, b, s, nearbyCarriageways(a, b, 0.5))) {
-        const length = s.len * (end - start);
-        if (length < 2.5) continue;
+        const length = runLength * (end - start);
+        // (stubs left at a junction are dropped; pieces of a bend's continuous run are kept)
+        if (length < (end - start > 0.999 ? 0.3 : 2.5)) continue;
         const mid = (start + end) / 2;
         const geometry = new THREE.BoxGeometry(length, 0.18, 0.16);
         geometry.rotateY(-Math.atan2(s.uz, s.ux));
@@ -343,6 +525,73 @@ function buildBerlinCityGrid(scene) {
     }
   }
   deckContext = false;
+  // The rounded corners' asphalt (between the two edges and the arc) and the curb stones along the arc (as along the
+  // straight curbs: 0.16 m wide, its road side on the arc)
+  for (const c of corners.list) {
+    collect(berlinPolygonGeometry(c.fillet, [], 0.06), roadMat);
+    const r = c.R - 0.08, steps = 8;
+    for (let k = 0; k < steps; k++) {
+      const p0 = c.a0 + (c.a1 - c.a0) * (k / steps), p1 = c.a0 + (c.a1 - c.a0) * ((k + 1) / steps);
+      const x0 = c.O.x + Math.cos(p0) * r, z0 = c.O.z + Math.sin(p0) * r, x1 = c.O.x + Math.cos(p1) * r, z1 = c.O.z + Math.sin(p1) * r;
+      const geometry = new THREE.BoxGeometry(Math.hypot(x1 - x0, z1 - z0) + 0.02, 0.18, 0.16);
+      geometry.rotateY(-Math.atan2(z1 - z0, x1 - x0));
+      geometry.translate((x0 + x1) / 2, 0.08, (z0 + z1) / 2);
+      collect(geometry, curbMat);
+    }
+    roundedCorners++;
+  }
+  // "BUS" in yellow down the marked bus lanes (roads[].bus 2: bus:lanes:backward=designated), reading the buses' way,
+  // every ~70 m along straight stretches of the way clear of its ends (the junctions)
+  {
+    // Strokes of the letters in a unit box (x: across, left to right as read; y: along, the bottom nearest the reader)
+    const sw = 0.24, sh = 0.12;
+    const GLYPHS = {
+      B: [[0, 0, sw, 1], [0, 0, 0.78, sh], [0, 0.5 - sh / 2, 0.78, 0.5 + sh / 2], [0, 1 - sh, 0.78, 1], [1 - sw, sh * 0.6, 1, 0.5 - sh * 0.3], [1 - sw, 0.5 + sh * 0.3, 1, 1 - sh * 0.6]],
+      U: [[0, sh, sw, 1], [1 - sw, sh, 1, 1], [sw * 0.4, 0, 1 - sw * 0.4, sh]],
+      S: [[sw * 0.4, 1 - sh, 1, 1], [0, 0.5, sw, 1 - sh * 0.4], [sw * 0.4, 0.5 - sh / 2, 1 - sw * 0.4, 0.5 + sh / 2], [1 - sw, sh * 0.4, 1, 0.5], [0, 0, 1 - sw * 0.4, sh]],
+    };
+    const LETTER_L = 2.6, LETTER_W = 1.0, GAP = 0.7, WORD = 3 * LETTER_L + 2 * GAP;
+    for (const road of BERLIN_DATA.roads) {
+      if (road.bus !== 2 || road.bridge || road.tunnel) continue;
+      const pts = berlinPoints(road.pts), cum = [0];
+      for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
+      const total = cum[cum.length - 1];
+      const at = (d) => {
+        let i = 1;
+        while (i < pts.length - 1 && cum[i] < d) i++;
+        const L = cum[i] - cum[i - 1] || 1e-6, t = (d - cum[i - 1]) / L;
+        return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, z: pts[i - 1].z + (pts[i].z - pts[i - 1].z) * t, ux: (pts[i].x - pts[i - 1].x) / L, uz: (pts[i].z - pts[i - 1].z) / L };
+      };
+      // the bus lane: left of the way (oneway=yes; the buses drive against it), its centre half way to the curb
+      const busSide = road.reverse ? 1 : -1, lane = busSide * road.width / 4;
+      for (let d = 14 + WORD / 2; d <= total - 14 - WORD / 2; d += 70) {
+        const p = at(d), p0 = at(d - WORD / 2), p1 = at(d + WORD / 2);
+        if (p0.ux * p1.ux + p0.uz * p1.uz < 0.985) continue; // (a bend: no lettering)
+        // f: the buses' heading; r: their right
+        const fx = road.reverse ? p.ux : -p.ux, fz = road.reverse ? p.uz : -p.uz, rx = -fz, rz = fx;
+        const cx = p.x - p.uz * lane, cz = p.z + p.ux * lane;
+        // (the whole word clear of the other carriageways: junctions, driveways)
+        const probes = [-WORD / 2 - 1, 0, WORD / 2 + 1].map((v) => [cx + fx * v, cz + fz * v]);
+        if ([...nearbyCarriageways(p0, p1, 4)].some((o) => o.road !== road && probes.some(([x, z]) => roadPlanes(o, 1.5).every(([nx, nz, c]) => nx * x + nz * z - c >= 0)))) continue;
+        ['B', 'U', 'S'].forEach((ch, k) => {
+          const y0 = -WORD / 2 + k * (LETTER_L + GAP);
+          for (const [a0, b0, a1, b1] of GLYPHS[ch]) {
+            const P = (a, b) => { const u = (a - 0.5) * LETTER_W, v = y0 + b * LETTER_L; return { x: cx + rx * u + fx * v, z: cz + rz * u + fz * v }; };
+            const quad = [P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1)];
+            const g = berlinPolygonGeometry(quad, [], 0.071);
+            const mx = (quad[0].x + quad[2].x) / 2, mz = (quad[0].z + quad[2].z) / 2, pp = g.getAttribute('position');
+            const paints = [], sides = [], colors = [];
+            for (let i = 0; i < pp.count; i++) { paints.push(0, 1, 1); sides.push(pp.getX(i) - mx, pp.getZ(i) - mz); colors.push(YELLOW.r, YELLOW.g, YELLOW.b); }
+            g.setAttribute('paint', new THREE.Float32BufferAttribute(paints, 3));
+            g.setAttribute('side', new THREE.Float32BufferAttribute(sides, 2));
+            g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            collect(g, paintMat);
+          }
+        });
+        busMarkings++;
+      }
+    }
+  }
   // Bridge structures under the decks: a slab, parapets and, where the gap allows, piers down to the ground. OSM maps a
   // wide bridge as side by side ways (the Quaibrücke: footways, cycle lanes, carriageways, tram tracks): their slabs
   // join into one deck, and the parapets (solid for the player) stand only along its outer edges.
@@ -410,10 +659,72 @@ function buildBerlinCityGrid(scene) {
       }
     }
   }
+  // The trees of the national map (js/tlm-trees-data.js): every swissTLM3D single tree, sized by the BAFU habitat map's
+  // surveyed height where it has one, its species from the leaf type, and the BAFU shrubs as small bushes. Davos is
+  // spruce country: outside the town ~70 % spruce and ~30 % larch, broadleaves only where the map says deciduous (and
+  // above ~1600 m even then mostly larch); in town a fifth to a quarter mountain maple and birch, the rest spruce with
+  // some larch. Nothing stands on a road, in the water or inside a building.
+  const tlmHash = (x, z, seed) => { const v = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453; return v - Math.floor(v); };
+  const TREE_HEIGHT = SPECIES_HEIGHT; // trees.js species' natural heights at scale 1
+  // Swiss stone pine (Arve) among the conifers from ~1800 m a.s.l., most of them near the treeline (~2100 m)
+  const arveShare = (x, z) => { const a = groundHeight(x, z) + FRAME.H0; return Math.max(0, Math.min(1, (a - 1800) / 300)) * 0.75; };
+  const conifer = (x, z, r, larch = 0.2) => (r < arveShare(x, z) ? TREE.arve : tlmHash(x, z, 21) < 1 - larch ? TREE.spruce : TREE.larch);
+  // Broadleaves: mountain maple and silver birch
+  const broadleaf = (x, z) => (tlmHash(x, z, 12) < 0.55 ? TREE.maple : TREE.birch);
+  // The golf course's fairways, greens, tees and bunkers (js/golf-data.js) are kept clear too: the swissTLM3D single
+  // trees on their edges stand where the OSM outlines run a little wide
+  const playAreas = (GOLF?.areas || []).filter((a) => a.kind !== 'rough').map((a) => {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < a.ring.length; i += 2) { x0 = Math.min(x0, a.ring[i]); x1 = Math.max(x1, a.ring[i]); z0 = Math.min(z0, a.ring[i + 1]); z1 = Math.max(z1, a.ring[i + 1]); }
+    return { ring: a.ring, x0, x1, z0, z1 };
+  });
+  const onPlayArea = (x, z) => playAreas.some(({ ring, x0, x1, z0, z1 }) => {
+    if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+    let inside = false;
+    for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+      const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
+      if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  });
+  const clearSite = (x, z, margin) => {
+    if (waterAt(x, z) || onPlayArea(x, z)) return false;
+    if (nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
+    const block = blockAt(x, z);
+    return !block || block.park || block.sidewalk;
+  };
+  const inTown = (x, z) => groundHeight(x, z) < 130 && nearestRoads(x, z, 30).length > 0;
+  const pickTreeSpecies = (x, z, evergreen) => {
+    const r = tlmHash(x, z, 11), broad = broadleaf(x, z), r2 = tlmHash(x, z, 22);
+    if (inTown(x, z)) {
+      if (evergreen === 1) return conifer(x, z, r2, 0.1);
+      return r < (evergreen === 0 ? 0.5 : 0.2) ? broad : conifer(x, z, r2, evergreen === 0 ? 0.6 : 0.2);
+    }
+    // (evergreen on the map: spruce, a few larches; deciduous: larch above ~1600 m, else larch and broadleaves)
+    if (evergreen === 1) return conifer(x, z, r2, 0.12);
+    if (evergreen === 0) return r < (groundHeight(x, z) + FRAME.H0 > 1600 ? 0.1 : 0.5) ? broad : (r2 < arveShare(x, z) ? TREE.arve : TREE.larch);
+    return conifer(x, z, r2, 0.3);
+  };
+  let tlmSingle = 0, tlmShrubs = 0;
+  for (const [x, z, height, evergreen] of TLM_TREES?.trees || []) {
+    if (!clearSite(x, z, 0.8)) continue;
+    const species = pickTreeSpecies(x, z, evergreen), r = tlmHash(x, z, 13);
+    const scale = height > 0 ? Math.max(0.2, Math.min(1.7, height / TREE_HEIGHT[species])) : 0.6 + r * 0.5;
+    parkTreeSites.push({ x, z, y: 0.09, scale, species, yaw: r * Math.PI * 2 });
+    tlmSingle++;
+  }
+  for (const [x, z, height, evergreen] of TLM_TREES?.shrubs || []) {
+    if (!clearSite(x, z, 0.4)) continue;
+    // (evergreen scrub: a young conifer; else the multi-stemmed shrub)
+    const species = evergreen ? conifer(x, z, tlmHash(x, z, 23), 0) : TREE.shrub, r = tlmHash(x, z, 14);
+    const scale = evergreen ? Math.max(0.08, Math.min(0.35, (height || 2.5) / TREE_HEIGHT[species])) : Math.max(0.5, Math.min(1.4, (height || 2.5) / TREE_HEIGHT[species]));
+    parkTreeSites.push({ x, z, y: 0.09, scale, species, yaw: r * Math.PI * 2, tier: 1 });
+    tlmShrubs++;
+  }
   for (const tree of BERLIN_DATA.trees || []) {
     const h = Math.abs(Math.sin(tree.x * 1.9 + tree.z * 8.1));
     parkTreeSites.push({ x: tree.x, z: tree.z, y: 0.09, scale: tree.h ? Math.max(0.45, Math.min(1.8, tree.h / 13)) : 0.66 + h * 0.62,
-      species: h < 0.42 ? 0 : h < 0.65 ? 1 : 2, yaw: h * Math.PI * 2 });
+      species: inTown(tree.x, tree.z) && h < 0.22 ? broadleaf(tree.x, tree.z) : conifer(tree.x, tree.z, h, 0.25), yaw: h * Math.PI * 2 });
   }
   // OSM often maps a wooded area without mapping each individual tree. Fill
   // those patches procedurally, preserving mapped trees and clear paths.
@@ -440,7 +751,36 @@ function buildBerlinCityGrid(scene) {
   }
   const landmarkTrees = parkTreeSites.length - mappedTreeCount;
   const hash = (x, z, seed) => { const n = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453; return n - Math.floor(n); };
+  // The swissTLM3D wooded areas, filled on a jittered grid (scanline, even-odd over the outer ring and its clearings):
+  // Wald densely, Wald offen sparsely, Gehölz (groves) densely, Gebüschwald with low scrub. They replace the OSM woods.
+  const WOODS = { forest: { step: 13, scale: [0.7, 1.2] }, open: { step: 24, scale: [0.6, 1.1] }, woody: { step: 11, scale: [0.6, 1.1] }, scrub: { step: 15, scale: [0.18, 0.4] } };
+  let tlmWoodland = 0;
+  for (const area of TLM_TREES?.areas || []) {
+    const spec = WOODS[area.kind];
+    if (!spec) continue;
+    const rings = area.rings;
+    let z0 = Infinity, z1 = -Infinity;
+    for (let i = 1; i < rings[0].length; i += 2) { z0 = Math.min(z0, rings[0][i]); z1 = Math.max(z1, rings[0][i]); }
+    for (let gz = Math.ceil(z0 / spec.step); gz <= Math.floor(z1 / spec.step); gz++) {
+      const zc = gz * spec.step, xs = [];
+      for (const ring of rings) for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+        const ax = ring[j], az = ring[j + 1], bx = ring[i], bz = ring[i + 1];
+        if ((az > zc) !== (bz > zc)) xs.push(ax + ((zc - az) * (bx - ax)) / (bz - az));
+      }
+      xs.sort((p, q) => p - q);
+      for (let k = 0; k + 1 < xs.length; k += 2) for (let gx = Math.ceil(xs[k] / spec.step); gx * spec.step <= xs[k + 1]; gx++) {
+        const x = gx * spec.step + (hash(gx, gz, 1) - 0.5) * spec.step * 0.7, z = zc + (hash(gx, gz, 2) - 0.5) * spec.step * 0.7;
+        if (nearbyTree(x, z, spec.step * 0.45) || !clearSite(x, z, 2)) continue;
+        // spruce ~70 % and larch ~30 % below the stone-pine belt; scrub half shrubs (green alder), half young conifers
+        const h = hash(gx, gz, 3), sp = conifer(x, z, hash(gx, gz, 6), 0.28), shrub = area.kind === 'scrub' && h < 0.5;
+        const scale = shrub ? 0.6 + h * 0.8 : spec.scale[0] + h * (spec.scale[1] - spec.scale[0]);
+        const tree = { x, z, y: 0.09, scale, species: shrub ? TREE.shrub : sp, yaw: h * Math.PI * 2 };
+        parkTreeSites.push(tree); indexTree(tree); tlmWoodland++;
+      }
+    }
+  }
   for (const park of BERLIN_DATA.parks || []) {
+    if (TLM_TREES?.areas?.length) break; // (the swisstopo woods replace the OSM ones)
     if (!['wood', 'forest'].includes(park.kind) && park.name !== 'Viktoriapark') continue;
     const ring = berlinPoints(park.ring), holes = (park.holes || []).map(berlinPoints), bounds = berlinBounds(ring);
     for (let gx = Math.ceil(bounds.minX / 14); gx <= Math.floor(bounds.maxX / 14); gx++) {
@@ -450,8 +790,8 @@ function buildBerlinCityGrid(scene) {
         if (LANDMARK_EXCLUSIONS.some(b => x > b.minX - 4 && x < b.maxX + 4 && z > b.minZ - 4 && z < b.maxZ + 4)) continue;
         if (nearestRoads(x, z, 20).some(q => q.dist < q.road.w / 2 + 3)) continue;
         const block = blockAt(x, z); if (block && !block.park && !block.sidewalk) continue;
-        // Davos's woods: spruce, with larch scattered through them (trees.js species 3 & 4)
-        const h = hash(gx, gz, 3), tree = { x, z, y: 0.09, scale: 0.7 + h * 0.5, species: hash(gx, gz, 5) < 0.82 ? 3 : 4, yaw: h * Math.PI * 2 };
+        // Davos's woods: spruce, with larch scattered through them, stone pines towards the treeline
+        const h = hash(gx, gz, 3), tree = { x, z, y: 0.09, scale: 0.7 + h * 0.5, species: conifer(x, z, hash(gx, gz, 6), 0.18), yaw: h * Math.PI * 2 };
         parkTreeSites.push(tree); indexTree(tree);
       }
     }
@@ -472,12 +812,20 @@ function buildBerlinCityGrid(scene) {
       if (geometries[i] !== g) g.dispose();
     }
   }
-  // Merge in spatially modest batches, retaining the original TSL node materials
-  // including wet asphalt, animated water and anti-aliased dash paint.
+  // Merge per material and 1 km tile, retaining the original TSL node materials including wet asphalt, animated
+  // water and anti-aliased dash paint: one draw per material and tile, each culled by the view frustum (and the shadow
+  // cascades) on its own. (Batches of 300 pieces per 750 m cell made ~580 meshes, ~130 drawn from the valley floor;
+  // 1 km tiles make ~375, ~70 drawn. Smaller tiles cull better but multiply the draws: 400 m tiles drew ~270.)
   for (const [material, geometries] of collections) {
     let firstMesh;
-    for (const cell of berlinGeometryGroups(geometries)) for (let i = 0; i < cell.length; i += 300) {
-      const chunk = cell.slice(i, i + 300).map(g => {
+    for (const cell of berlinGeometryGroups(geometries, CITY_MERGE_CELL)) for (let i = 0; i < cell.length;) {
+      const batch = [];
+      for (let vertices = 0; i < cell.length && (batch.length === 0 || vertices < CITY_MERGE_MAX_VERTICES); i++) {
+        const g = cell[i];
+        batch.push(g);
+        vertices += g.index ? g.index.count : g.attributes.position.count;
+      }
+      const chunk = batch.map(g => {
         if (!g.index) return g;
         const expanded = g.toNonIndexed(); g.dispose(); return expanded;
       });
@@ -492,8 +840,9 @@ function buildBerlinCityGrid(scene) {
       group.add(mesh);
     }
   }
-  group.userData = { terrain: 'absolute', city: BERLIN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets, mappedTrees: mappedTreeCount, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
-    clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, junctionClippedCurbs: true, junctionClippedSidewalks: true };
+  group.userData = { terrain: 'absolute', city: BERLIN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets, mappedTrees: mappedTreeCount, tlmSingle, tlmShrubs, tlmWoodland, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
+    clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, sidewalkSlabs, busMarkings, junctionClippedCurbs: true, junctionClippedSidewalks: true };
+  console.info(`[sidewalks] ${sidewalkSlabs} raised sidewalk pieces, ${busMarkings} BUS markings, ${roundedCorners} rounded corners`);
   scene.add(group);
   return { group, sidewalks, footprints, highwayLanes: [], colliders, terrainMeshes };
 }

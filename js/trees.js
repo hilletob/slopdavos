@@ -1,22 +1,25 @@
 import * as THREE from 'three/webgpu';
-import { vec4 } from 'three/tsl';
+import { attribute, float, floor, frontFacing, mix, mx_noise_float, smoothstep, step, texture, uv, vec2, vec3, vec4 } from 'three/tsl';
 import { createTreeMaterial } from './tsl-materials.js';
-import { snowyRoof } from './season.js';
+import { snowyRoof, winter } from './season.js';
 import { surfaceHeight } from './terrain.js';
 
 // js/trees.js
 // Procedural street, park & forest trees, planted by street-details.js (section 7) and city-grid.js (the woods):
-// - Norway spruce & European larch (most of Davos's trees: the valley's spruce-larch forest), and for a minority of
-//   town trees London plane, honey locust & American elm, grown from seeded per-species rules: a flared trunk /
-//   leader carrying scaffold limbs (on the conifers whorls of near-horizontal limbs shortening up the leader into a
-//   narrow cone), branches and twigs as tapered, curving bark tubes (uv in metres for the bark shader)
-// - Leaf sprays on alpha-tested cards hung from the twigs, cut from a generated leaf atlas (palmate plane leaves,
-//   feathery locust fronds, toothed elm leaves and a dense far-canopy clump) whose mipmaps keep their coverage, so
-//   distant crowns don't thin out
+// - Davos's trees: Norway spruce & European larch (the valley's spruce-larch forest), Swiss stone pine (the treeline
+//   above ~1800 m), and in town mountain maple, ash, rowan & silver birch, plus green-alder / willow shrubs — grown
+//   from seeded per-species rules: a flared trunk / leader carrying scaffold limbs (on the conifers whorls of
+//   near-horizontal limbs shortening up the leader; the stone pine's limbs curving up like candelabra arms),
+//   branches and twigs as tapered, curving bark tubes (uv in metres for the bark shader)
+// - Leaf sprays on alpha-tested cards hung from the twigs, cut from a generated leaf atlas (palmate maple leaves,
+//   pinnate rowan / ash fronds, oval shrub leaves, birch twigs, needle shoots and whole-tree conifer silhouettes)
+//   whose mipmaps keep their coverage, so distant crowns don't thin out; bare broadleaves and larches in winter
 // - Crown-shell normals, interior occlusion & sway weights baked per vertex (attributes: createTreeMaterial in
 //   tsl-materials.js)
 // - Three levels of detail (two variants per species up close), picked per tree from the camera distance and
 //   regrouped per spatial cell / species / variant / level whenever the camera has moved a few metres
+// - Up close, the spruce, larch, maple and birch are models grown with EZ-Tree (Dan Greenheck, MIT) and baked offline
+//   (tools/bake-ez-trees.mjs → assets/trees/), shaded the same way
 
 const V3 = THREE.Vector3;
 
@@ -39,18 +42,21 @@ const smooth = (e0, e1, x) => {
 };
 
 // =====================================================================================================================
-// 1. LEAF ATLAS: 3x3 tiles of leaf sprays drawn in metres and fitted to their tile (tileMeters = the card's world size)
-//    0 London plane · 1 honey locust · 2 American elm · 3 dense far-canopy clump (whole-crown cards of the far level)
-//    4 spruce shoot (dense needles, side shoots) · 5 larch twig (tufts of soft needles) · 6 whole conifer silhouette
-//    (tiered cone: the crossed cards of a distant spruce or larch)
+// 1. LEAF ATLAS: 4x4 tiles of leaf sprays drawn in metres and fitted to their tile (tileMeters = the card's world size)
+//    0 palmate leaves (mountain maple) · 1 pinnate fronds (rowan, ash) · 2 oval leaves (alder / willow shrubs)
+//    3 dense far-canopy clump (whole-crown cards of the far level) · 4 spruce shoot (dense needles, side shoots)
+//    5 larch twig (tufts of soft needles) · 6 whole spruce/larch silhouette (tiered cone: the crossed cards of a distant
+//    one) · 7 birch twig (hanging, small toothed leaves) · 8 Swiss stone pine shoot (long needles in brush-like tufts)
+//    9 whole Swiss stone pine silhouette (a rounded column)
 //    Texels: r = leaf brightness, g = per-leaf hue jitter, b = twig / stalk mask, a = coverage
 // =====================================================================================================================
-const TILES = 3;
-const ATLAS_SIZE = 1536; // 3 x 512: every mip level down to 3 px still splits evenly into the tiles
+const TILES = 4;
+const ATLAS_SIZE = 2048; // 4 x 512: every mip level down to 4 px still splits evenly into the tiles
 const TILE = ATLAS_SIZE / TILES;
 const GUTTER = 8; // px kept clear round every tile, so mip levels don't bleed between tiles
 const TILE_FAR = 3;
 const TILE_CONIFER_FAR = 6;
+const TILE_ARVE_FAR = 9;
 const tileOrigin = (k) => [(k % TILES) * TILE, Math.floor(k / TILES) * TILE];
 
 // Spray primitives in metres (x right, y up from the card's attachment point): twigs (polylines) & leaves
@@ -174,7 +180,7 @@ function buildSprays(rng) {
     for (let t = from; t <= 1; t += spacing) {
       const { p, a } = at(pts, t);
       // the needle mass itself (solid enough for the alpha test at any distance), then the needles at its edges
-      prims.push({ type: 'oval', p, a: a + R(-0.5, 0.5), len: len * 1.9, wid: 0.62, t: Math.min(1, t0 + t * 0.4) * 0.85 });
+      prims.push({ type: 'oval', p, a: a + R(-0.5, 0.5), len: len * 2.3, wid: 0.78, t: Math.min(1, t0 + t * 0.4) * 0.85 });
       for (const sd of [-1, 1]) {
         const na = a + sd * (angle + R(-0.18, 0.18));
         const l = len * R(0.8, 1.15) * (1 - t * 0.25);
@@ -188,14 +194,15 @@ function buildSprays(rng) {
     const prims = [];
     const main = twig(0, 0, R(-0.08, 0.08), 0.78, R(-0.15, 0.15), 16);
     prims.push({ type: 'twig', pts: main, w0: 0.013, w1: 0.004 });
-    needles(prims, main, 0.02, 0.011, 0.034, 0.75, 0.3);
+    // (inner needles darker: t low near the shoot's base, which leafRGB darkens)
+    needles(prims, main, 0.02, 0.011, 0.034, 0.75, 0.05);
     let side = rng() < 0.5 ? 1 : -1;
-    for (let t = 0.1; t < 0.9; t += R(0.08, 0.11)) {
+    for (let t = 0.08; t < 0.92; t += R(0.055, 0.075)) {
       const { p, a } = at(main, t);
       side = -side;
       const shoot = twig(p[0], p[1], a + side * R(0.75, 1.05), R(0.2, 0.3) * (1 - t * 0.55), side * 0.35, 8);
       prims.push({ type: 'twig', pts: shoot, w0: 0.007, w1: 0.003 });
-      needles(prims, shoot, 0.06, 0.05, 0.03, 0.8, t);
+      needles(prims, shoot, 0.06, 0.04, 0.03, 0.8, t * 0.7);
     }
     sprays.push(prims);
   }
@@ -233,6 +240,66 @@ function buildSprays(rng) {
       }
     }
     prims.push({ type: 'oval', p: [0, 9.6], a: 0, len: 0.5, wid: 0.35, t: 1 }); // the leader
+    sprays.push(prims);
+  }
+
+  // 7. Silver birch: thin twigs arching out and hanging down, with small triangular, toothed leaves on short stalks
+  {
+    const prims = [];
+    for (let i = 0; i < 4; i++) {
+      const f = (i + 0.5) / 4 - 0.5;
+      const pts = twig(f * 0.05, 0, f * 1.2 + R(-0.1, 0.1), R(0.6, 0.75), Math.sign(f || 1) * R(0.9, 1.4), 16);
+      prims.push({ type: 'twig', pts, w0: 0.008, w1: 0.003 });
+      let side = 1;
+      for (let t = R(0.12, 0.18); t < 0.99; t += R(0.07, 0.09)) {
+        const { p, a } = at(pts, t);
+        side = -side;
+        const la = a + side * R(0.5, 0.9);
+        const q = [p[0] + Math.sin(la) * 0.018, p[1] + Math.cos(la) * 0.018];
+        prims.push({ type: 'stalk', a: p, b: q, w: 0.003 });
+        prims.push({ type: 'oval', p: q, a: la + R(-0.2, 0.2), len: R(0.045, 0.06), wid: 0.72, skew: side * 0.18, t });
+      }
+    }
+    sprays.push(prims);
+  }
+
+  // 8. Swiss stone pine (Arve): a stout shoot ending in dense brushes of long, soft needles (five to a bundle)
+  {
+    const prims = [];
+    const main = twig(0, 0, R(-0.08, 0.08), 0.62, R(-0.1, 0.1), 12);
+    prims.push({ type: 'twig', pts: main, w0: 0.018, w1: 0.008 });
+    const brush = (pts, from, n, len, t0) => {
+      for (let t = from; t <= 1; t += (1 - from) / n) {
+        const { p, a } = at(pts, t);
+        prims.push({ type: 'oval', p, a, len: len * 0.9, wid: 0.9, t: t0 * 0.6 });
+        for (let k = 0; k < 9; k++) {
+          const na = a + R(-0.95, 0.95) * (0.5 + 0.5 * t);
+          const l = len * R(0.8, 1.1);
+          prims.push({ type: 'needle', a: p, b: [p[0] + Math.sin(na) * l, p[1] + Math.cos(na) * l], w: 0.0045, t: Math.min(1, t0 + t * 0.5) });
+        }
+      }
+    };
+    brush(main, 0.35, 14, 0.085, 0.3);
+    for (const side of [-1, 1]) {
+      const { p, a } = at(main, R(0.3, 0.5));
+      const shoot = twig(p[0], p[1], a + side * R(0.5, 0.8), R(0.22, 0.3), side * 0.2, 8);
+      prims.push({ type: 'twig', pts: shoot, w0: 0.01, w1: 0.005 });
+      brush(shoot, 0.3, 7, 0.075, 0.2);
+    }
+    sprays.push(prims);
+  }
+
+  // 9. Whole Swiss stone pine, 10 m tall: a dense, rounded column, broad almost to the top, irregular and lumpy
+  {
+    const prims = [];
+    for (let y = 0.6; y < 9.6; y += R(0.3, 0.4)) {
+      const w = 1.75 * Math.pow(Math.max(0, 1 - Math.pow(y / 9.8, 2.6)), 0.6) + 0.25 + R(-0.15, 0.15);
+      for (let k = 0; k < 28 + w * 24; k++) {
+        const u = R(-1, 1);
+        const lump = 1 + 0.18 * Math.sin(y * 2.1 + u * 3.0);
+        prims.push({ type: 'oval', p: [u * w * lump, y + R(-0.15, 0.3)], a: R(-Math.PI, Math.PI), len: R(0.24, 0.34), wid: 0.65, t: Math.min(1, 0.3 + y / 16 + (1 - Math.abs(u)) * 0.12) });
+      }
+    }
     sprays.push(prims);
   }
   return sprays;
@@ -476,54 +543,88 @@ function coverageMips(level0, size, tiles, cutoff = 128) {
 //    Scale 1 is a mature park tree; street trees are planted smaller.
 // =====================================================================================================================
 const SPECIES = [
-  { // 0: London plane: tall clear trunk and leader with heavy ascending limbs, a broad rounded crown of big leaves
-    name: 'plane', tile: 0,
-    trunk: { r: 0.3, top: 8.6, lean: 0.04, segs: 8 },
-    limbs: { n: 6, y: [3.4, 7.4], tilt: [1.0, 0.36], len: [4.6, 2.8], r: 0.62, up: 0.07, out: 0, droop: 0, jitter: 0.07, segs: 6 },
+  { // 0: Mountain maple (Bergahorn): a short stout trunk and heavy ascending limbs, a broad dome of big palmate leaves
+    name: 'maple', tile: 0, bark: 'smooth',
+    trunk: { r: 0.3, top: 6.2, lean: 0.04, segs: 8 },
+    limbs: { n: 6, y: [2.6, 5.6], tilt: [1.05, 0.4], len: [4.4, 2.8], r: 0.62, up: 0.08, out: 0, droop: 0, jitter: 0.08, segs: 6 },
     branches: { n: 4, t: [0.3, 0.98], angle: [0.55, 0.95], len: [0.62, 0.42], up: 0.06, out: 0.02, droop: 0, jitter: 0.1, segs: 4 },
-    twigs: { n: 3, t: [0.3, 1.0], angle: [0.6, 1.05], len: [1.15, 0.75], up: 0.02, out: 0, droop: 0.04, jitter: 0.12, segs: 2 },
-    cards: { perTwig: 2, scale: [0.85, 1.1], droop: 0.05 },
-    tints: [0x4b6a29, 0x5a7a2f, 0x3f5e25]
+    twigs: { n: 3, t: [0.3, 1.0], angle: [0.6, 1.05], len: [1.05, 0.7], up: 0.02, out: 0, droop: 0.04, jitter: 0.12, segs: 2 },
+    cards: { perTwig: 2, scale: [0.8, 1.05], droop: 0.05 },
+    tints: [0x3f5f24, 0x4a6b29, 0x365520]
   },
-  { // 1: Honey locust: slim trunk forking into spreading, zigzag limbs, an open layered crown of feathery fronds
-    name: 'locust', tile: 1,
-    trunk: { r: 0.19, top: 5.4, lean: 0.07, segs: 7 },
-    limbs: { n: 5, y: [2.6, 5.0], tilt: [1.12, 0.55], len: [4.2, 2.8], r: 0.68, up: 0.04, out: 0, droop: 0, jitter: 0.16, segs: 6 },
-    branches: { n: 4, t: [0.3, 0.98], angle: [0.6, 1.05], len: [0.6, 0.42], up: 0.03, out: 0.03, droop: 0.02, jitter: 0.16, segs: 4 },
-    twigs: { n: 3, t: [0.3, 1.0], angle: [0.55, 1.0], len: [1.0, 0.65], up: 0, out: 0, droop: 0.06, jitter: 0.14, segs: 2 },
-    cards: { perTwig: 2, scale: [0.85, 1.1], droop: 0.1 },
-    tints: [0x7b8c33, 0x8d9b3d, 0x6c7f2d]
+  { // 1: Rowan (Vogelbeere): a small tree with a slim trunk, steep ascending limbs, a light oval crown of pinnate leaves
+    name: 'rowan', tile: 1,
+    trunk: { r: 0.15, top: 3.6, lean: 0.06, segs: 7 },
+    limbs: { n: 5, y: [1.8, 3.4], tilt: [0.75, 0.35], len: [3.6, 2.4], r: 0.7, up: 0.06, out: 0, droop: 0, jitter: 0.14, segs: 5 },
+    branches: { n: 3, t: [0.3, 0.98], angle: [0.5, 0.9], len: [0.55, 0.4], up: 0.04, out: 0.02, droop: 0.02, jitter: 0.14, segs: 4 },
+    twigs: { n: 3, t: [0.3, 1.0], angle: [0.5, 0.95], len: [0.8, 0.55], up: 0.02, out: 0, droop: 0.05, jitter: 0.14, segs: 2 },
+    cards: { perTwig: 2, scale: [0.7, 0.95], droop: 0.08 },
+    tints: [0x56732c, 0x637f31, 0x4b6627]
   },
-  { // 2: American elm: trunk forking low into upright limbs that arch outward, a tall vase with drooping twigs
-    name: 'elm', tile: 2,
-    trunk: { r: 0.28, top: 4.3, lean: 0.03, segs: 6 },
-    limbs: { n: 5, y: [3.3, 4.1], tilt: [0.36, 0.22], len: [7.4, 7.0], r: 0.6, up: 0, out: 0.075, droop: 0, jitter: 0.06, segs: 7 },
-    branches: { n: 5, t: [0.35, 1.0], angle: [0.5, 0.85], len: [0.44, 0.3], up: 0, out: 0.05, droop: 0.07, jitter: 0.1, segs: 4 },
-    twigs: { n: 3, t: [0.3, 1.0], angle: [0.5, 0.95], len: [1.3, 0.85], up: 0, out: 0, droop: 0.16, jitter: 0.12, segs: 2 },
-    cards: { perTwig: 2, scale: [0.85, 1.1], droop: 0.4 },
-    tints: [0x44622a, 0x53702e, 0x3a5724]
+  { // 2: Ash (Esche): a tall straight trunk, few long ascending limbs, an open, airy crown of pinnate leaves
+    name: 'ash', tile: 1,
+    trunk: { r: 0.26, top: 7.5, lean: 0.03, segs: 8 },
+    limbs: { n: 5, y: [4.0, 7.0], tilt: [0.8, 0.35], len: [5.0, 3.2], r: 0.6, up: 0.05, out: 0.02, droop: 0, jitter: 0.1, segs: 6 },
+    branches: { n: 4, t: [0.3, 1.0], angle: [0.5, 0.9], len: [0.5, 0.35], up: 0.02, out: 0.04, droop: 0.04, jitter: 0.12, segs: 4 },
+    twigs: { n: 2, t: [0.35, 1.0], angle: [0.5, 0.95], len: [1.1, 0.75], up: 0, out: 0, droop: 0.08, jitter: 0.12, segs: 2 },
+    cards: { perTwig: 2, scale: [0.9, 1.15], droop: 0.15 },
+    tints: [0x587a30, 0x648636, 0x4d6c2a]
   },
   { // 3: Norway spruce (Fichte): a straight leader to the very top, whorls of near-horizontal limbs shortening up it
-    //    into a narrow spire, side shoots and hanging twigs densely clad in dark blue-green needles
+    //    into a narrow spire, side shoots and hanging twigs densely clad in dark blue-green needles (more foliage
+    //    along the limbs close to the trunk, so the crown is dense rather than lacy close up)
     name: 'spruce', tile: 4, conifer: true,
     trunk: { r: 0.3, top: 19, lean: 0.012, segs: 10 },
-    limbs: { n: 20, y: [2.0, 18.2], tilt: [1.82, 1.12], len: [3.3, 0.55], r: 0.34, up: 0.07, out: 0, droop: 0.02, jitter: 0.05, segs: 5 },
+    limbs: { n: 22, y: [2.0, 18.2], tilt: [1.82, 1.12], len: [3.3, 0.55], r: 0.34, up: 0.07, out: 0, droop: 0.02, jitter: 0.05, segs: 5 },
     branches: { n: 2, t: [0.25, 0.95], angle: [0.85, 1.2], len: [0.5, 0.32], up: 0, out: 0.02, droop: 0.14, jitter: 0.08, segs: 3 },
     twigs: { n: 2, t: [0.3, 1.0], angle: [0.55, 0.95], len: [0.6, 0.42], up: 0, out: 0, droop: 0.3, jitter: 0.1, segs: 2 },
-    cards: { perTwig: 2, scale: [1.7, 2.2], droop: 0.3, alongLimbs: 6 },
-    tints: [0x23402a, 0x2a4a30, 0x1f3826]
+    cards: { perTwig: 2, scale: [1.8, 2.3], droop: 0.3, alongLimbs: 9, limbFrom: 0.08 },
+    tints: [0x1f3b26, 0x25432b, 0x1b3322]
   },
   { // 4: European larch (Lärche): a lighter, more open cone of upswept limbs with hanging side twigs and soft, bright
-    //    green needle tufts
-    name: 'larch', tile: 5, conifer: true,
+    //    green needle tufts (bare in winter: season.js)
+    name: 'larch', tile: 5, conifer: true, deciduous: true,
     trunk: { r: 0.27, top: 17, lean: 0.03, segs: 9 },
     limbs: { n: 14, y: [3.0, 16.2], tilt: [1.5, 0.85], len: [3.6, 0.8], r: 0.36, up: 0.12, out: 0, droop: 0, jitter: 0.07, segs: 5 },
     branches: { n: 3, t: [0.25, 0.95], angle: [0.6, 1.0], len: [0.55, 0.35], up: 0, out: 0.02, droop: 0.18, jitter: 0.1, segs: 3 },
     twigs: { n: 2, t: [0.3, 1.0], angle: [0.5, 0.95], len: [0.55, 0.38], up: 0, out: 0, droop: 0.28, jitter: 0.12, segs: 2 },
     cards: { perTwig: 2, scale: [1.6, 2.0], droop: 0.25, alongLimbs: 5 },
     tints: [0x5f7f33, 0x6c8a3a, 0x52702d]
+  },
+  { // 5: Swiss stone pine (Arve): the tree of the treeline above Davos — a stout trunk and many upswept limbs whose
+    //    ends curve up like candelabra arms, a dense rounded column of dark green needle brushes
+    name: 'arve', tile: 8, farTile: TILE_ARVE_FAR, conifer: true,
+    trunk: { r: 0.36, top: 12, lean: 0.03, segs: 9 },
+    limbs: { n: 16, y: [1.6, 11.4], tilt: [1.25, 0.6], len: [2.9, 1.3], r: 0.4, up: 0.22, out: 0, droop: 0, jitter: 0.1, segs: 5 },
+    branches: { n: 3, t: [0.3, 1.0], angle: [0.5, 0.85], len: [0.55, 0.4], up: 0.12, out: 0.02, droop: 0, jitter: 0.1, segs: 3 },
+    twigs: { n: 2, t: [0.4, 1.0], angle: [0.4, 0.8], len: [0.5, 0.35], up: 0.06, out: 0, droop: 0.05, jitter: 0.1, segs: 2 },
+    cards: { perTwig: 3, scale: [1.3, 1.7], droop: 0.0, alongLimbs: 7, limbFrom: 0.15 },
+    tints: [0x1c3a22, 0x234428, 0x18321e]
+  },
+  { // 6: Silver birch (Birke): a slender white trunk, steep limbs and long hanging twigs, a light, airy crown
+    name: 'birch', tile: 7, bark: 'birch',
+    trunk: { r: 0.16, top: 9.5, lean: 0.05, segs: 9 },
+    limbs: { n: 8, y: [3.0, 9.0], tilt: [0.8, 0.35], len: [3.6, 1.6], r: 0.55, up: 0.04, out: 0, droop: 0.04, jitter: 0.12, segs: 6 },
+    branches: { n: 3, t: [0.3, 1.0], angle: [0.6, 1.0], len: [0.5, 0.35], up: 0, out: 0.03, droop: 0.12, jitter: 0.14, segs: 4 },
+    twigs: { n: 3, t: [0.3, 1.0], angle: [0.5, 1.0], len: [1.0, 0.7], up: 0, out: 0, droop: 0.45, jitter: 0.14, segs: 3 },
+    cards: { perTwig: 2, scale: [0.85, 1.05], droop: 0.55 },
+    tints: [0x6a8a34, 0x77953a, 0x5d7d2e]
+  },
+  { // 7: Shrub (Gebüsch: green alder / willow): several stems from the ground, a rounded bush ~2.5 m high
+    name: 'shrub', tile: 2,
+    trunk: { r: 0.06, top: 0.45, lean: 0.1, segs: 3 },
+    limbs: { n: 7, y: [0.08, 0.4], tilt: [0.75, 0.3], len: [2.3, 1.9], r: 1.1, up: 0.05, out: 0.03, droop: 0.04, jitter: 0.18, segs: 5 },
+    branches: { n: 3, t: [0.3, 1.0], angle: [0.5, 0.95], len: [0.45, 0.3], up: 0.02, out: 0.03, droop: 0.05, jitter: 0.16, segs: 3 },
+    twigs: { n: 2, t: [0.35, 1.0], angle: [0.5, 0.95], len: [0.45, 0.3], up: 0, out: 0, droop: 0.06, jitter: 0.14, segs: 2 },
+    cards: { perTwig: 2, scale: [0.55, 0.75], droop: 0.08 },
+    tints: [0x3f6024, 0x4a6b28, 0x37561f]
   }
 ];
+
+// Species by name for the planting code (city-grid.js); 'plane', 'locust' and 'elm' are the indices' old names
+const SPECIES_INDEX = Object.freeze({ maple: 0, rowan: 1, ash: 2, spruce: 3, larch: 4, arve: 5, birch: 6, shrub: 7, plane: 0, locust: 1, elm: 2 });
+// Natural heights (m) of the species at scale 1, for sizing trees from surveyed heights
+const SPECIES_HEIGHT = Object.freeze([13, 8.5, 15, 20, 18, 13, 14, 2.6]);
 
 // =====================================================================================================================
 // 3. SKELETON
@@ -863,7 +964,8 @@ function placeCards(sp, branches, lod, tileMeters, rng, crown) {
     for (let i = 0; i < n; i++) {
       const ang = (i * Math.PI) / n + R(-0.1, 0.1);
       const face = new V3(Math.cos(ang), 0, Math.sin(ang));
-      cards.push({ at: new V3(0, crown.bottom - 0.4 * scale, 0), up: new V3(0, 1, 0), face, size: tileMeters[TILE_CONIFER_FAR] * scale, tile: TILE_CONIFER_FAR });
+      const far = sp.farTile ?? TILE_CONIFER_FAR;
+      cards.push({ at: new V3(0, crown.bottom - 0.4 * scale, 0), up: new V3(0, 1, 0), face, size: tileMeters[far] * scale, tile: far });
     }
     return cards;
   }
@@ -883,7 +985,7 @@ function placeCards(sp, branches, lod, tileMeters, rng, crown) {
       for (const b of branches) {
         if (b.level !== 1) continue;
         for (let k = 0; k < sp.cards.alongLimbs; k++) {
-          const a = along(b, lerp(0.25, 0.95, (k + R(0.2, 0.8)) / sp.cards.alongLimbs));
+          const a = along(b, lerp(sp.cards.limbFrom ?? 0.25, 0.95, (k + R(0.2, 0.8)) / sp.cards.alongLimbs));
           const { up, face } = orient(a.p, a.d, sp.cards.droop);
           cards.push({ at: a.p, up, face, size: size * R(sp.cards.scale[0], sp.cards.scale[1]), tile: sp.tile });
         }
@@ -981,7 +1083,9 @@ function buildTreeGeometries(speciesIndex, variant, tileMeters) {
 // =====================================================================================================================
 // 5. TREE FIELD: per-tree level of detail, with spatial cells culled separately in the view and shadow passes
 // =====================================================================================================================
-const TREE_CELL_SIZE = 200;
+// Cell size per level: the near trees in small cells, culled closely; the farther levels, each tree a few cards, in
+// larger ones (a mesh per cell, species & variant: the distant cells would otherwise cost hundreds of draws a frame)
+const TREE_CELL_SIZE = [200, 400, 1200];
 const LOD_NEAR = 105; // full detail within (m)
 const LOD_MID = 420; // coarse cards & branches within; whole-crown cards beyond
 const LOD_HYSTERESIS = 6;
@@ -989,6 +1093,85 @@ const LOD_HYSTERESIS = 6;
 // LOW_CUTOFF is behind the buildings anyway
 const MAX_DIST = [3000, 1600, 950];
 const LOW_CUTOFF = 1150;
+
+// Close-up models baked from EZ-Tree (assets/trees, tools/bake-ez-trees.mjs) take over the near level of the spruce,
+// larch, maple and birch once loaded; until then (or without them) the procedural models stand in. The conifers come in
+// height classes, picked by the tree's actual height: a young tree feathered to the ground, a full-grown one, a tall
+// forest tree with a long clear stem, and (spruce) an old one with its top broken off
+const BAKED_SHAPES = { spruce: ['young', 'medium', 'tall', 'broken'], larch: ['young', 'medium', 'tall'], maple: ['any', 'any'], birch: ['any', 'any'] };
+const BAKED_URL = new URL('../assets/trees/ez-trees.json', import.meta.url);
+
+function nearVariant(sp, scale, r, variant) {
+  const shapes = BAKED_SHAPES[sp.name];
+  if (!shapes || shapes[0] === 'any') return variant;
+  if (shapes.includes('broken') && scale > 0.85 && r < 0.08) return shapes.indexOf('broken');
+  return scale < 0.62 ? 0 : scale < 1.0 ? 1 : 2;
+}
+
+// One baked model (ez-trees.json entry) as a tree geometry: dequantised, its leaf cards mapped into the species' tile
+function bakedGeometry(m, bin) {
+  const n = m.vertices;
+  const p16 = new Int16Array(bin, m.position, n * 3);
+  const n8 = new Int8Array(bin, m.normal, n * 3);
+  const uv16 = new Uint16Array(bin, m.uv, n * 2);
+  const a8 = new Uint8Array(bin, m.aTree, n * 4);
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), uvs = new Float32Array(n * 2), attr = new Float32Array(n * 4);
+  for (let i = 0; i < n * 3; i++) {
+    const a = i % 3;
+    pos[i] = m.min[a] + ((p16[i] + 32768) / 65535) * (m.max[a] - m.min[a]);
+    nrm[i] = n8[i] / 127;
+  }
+  for (let i = 0; i < n * 4; i++) attr[i] = a8[i] / 255;
+  const [ox, oy] = tileOrigin(m.tile);
+  const span = TILE - 2 * GUTTER;
+  for (let i = 0; i < n; i++) {
+    const u = (uv16[i * 2] / 65535) * m.uvMax, v = (uv16[i * 2 + 1] / 65535) * m.uvMax;
+    const leaf = a8[i * 4] > 127;
+    uvs[i * 2] = leaf ? (ox + GUTTER + u * span) / ATLAS_SIZE : u;
+    uvs[i * 2 + 1] = leaf ? (oy + TILE - GUTTER - v * span) / ATLAS_SIZE : v;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  g.setAttribute('aTree', new THREE.BufferAttribute(attr, 4));
+  g.setIndex(new THREE.BufferAttribute(new Uint16Array(bin, m.index, m.indexCount).slice(), 1));
+  g.computeBoundingSphere();
+  g.computeBoundingBox();
+  g.userData = { species: m.species, shape: m.shape, lod: 0, cards: m.cards, triangles: m.triangles, baked: true };
+  return g;
+}
+
+async function loadBakedTrees() {
+  const manifest = await (await fetch(BAKED_URL)).json();
+  const bin = await (await fetch(new URL('ez-trees.bin', BAKED_URL))).arrayBuffer();
+  return manifest.models.map((m) => bakedGeometry(m, bin));
+}
+
+// The two variants of a level in one geometry (one draw per cell & species instead of two; for small geometries): aTree.w (the card's
+// flutter phase, 0..1) is raised by 4 on variant 0's vertices and by 2 on variant 1's, and the tree material collapses
+// the vertices of the variant a tree doesn't use (its own variant: aTreeData.w's fraction past 0.5, see createTreeField)
+function mergeVariants(a, b) {
+  const g = new THREE.BufferGeometry();
+  const na = a.attributes.position.count;
+  for (const name of Object.keys(a.attributes)) {
+    const A = a.attributes[name], B = b.attributes[name], size = A.itemSize;
+    const arr = new Float32Array((A.count + B.count) * size);
+    arr.set(A.array, 0);
+    arr.set(B.array, A.count * size);
+    if (name === 'aTree') for (let v = 0; v < A.count + B.count; v++) arr[v * 4 + 3] += v < na ? 4 : 2;
+    g.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  const ia = a.index.array, ib = b.index.array, n = na + b.attributes.position.count;
+  const idx = new (n > 65535 ? Uint32Array : Uint16Array)(ia.length + ib.length);
+  idx.set(ia, 0);
+  for (let k = 0; k < ib.length; k++) idx[ia.length + k] = ib[k] + na;
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeBoundingSphere();
+  g.computeBoundingBox();
+  g.userData = { ...a.userData, variant: 'both', triangles: (ia.length + ib.length) / 3 };
+  return g;
+}
 
 function hashPos(x, y, z) {
   const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
@@ -1001,6 +1184,12 @@ function hashPos(x, y, z) {
  * { group, material, atlas, update(cameraPosition) }.
  */
 function createTreeField(scene, sites) {
+  // Debug: ?treegallery plants a row of every species (two sizes each) on the meadow by the Dischmastrasse
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('treegallery')) {
+    sites = [...sites, ...SPECIES.flatMap((sp, k) => [0, 1].map((v) => ({ x: 700 + k * 11, z: -1060 + v * 14, y: 0, scale: v ? 0.6 : 1, species: k, yaw: k })))];
+    // (and every baked close-up model, a row per species out on the meadow)
+    sites.push(...SPECIES.flatMap((sp, k) => (BAKED_SHAPES[sp.name] || []).map((_, j) => ({ x: 690 + k * 14, z: -950 + j * 14, y: 0, scale: 1, species: k, yaw: k, near: j }))));
+  }
   const group = new THREE.Group();
   group.name = 'Trees';
   // The instances are repacked from `mats` whenever their level of detail changes, so the trees stand on the terrain
@@ -1008,11 +1197,36 @@ function createTreeField(scene, sites) {
   group.userData.terrain = 'absolute';
   const atlas = createLeafAtlas();
   const material = createTreeMaterial(atlas.texture);
-  // Winter (season.js): snow caught on the upward faces of the crowns
-  // (on the colour only: the card coverage in the alpha channel must stay as it is, or whole cards turn opaque)
+  // Davos additions on top of the shared tree material (tsl-materials.js):
+  //  - bark: white birch bark with dark lenticels and black patches; smooth grey maple bark (instead of the plane's)
+  //  - winter (season.js): the broadleaves, shrubs and larches stand bare — their cards keep only the twigs (atlas b
+  //    channel) and a sparse share of brown remnants (larch: a grey-brown haze of needleless twigs), the evergreen
+  //    conifers keep their needles; snow caught on the upward faces of what remains
   if (material.colorNode) {
     const base = material.colorNode;
-    material.colorNode = vec4(snowyRoof(base.rgb, 0.6), base.a);
+    const aTree = attribute('aTree', 'vec4'), aData = attribute('aTreeData', 'vec4');
+    const isLeaf = aTree.x, species = floor(aData.w);
+    const is = (k) => step(k - 0.5, species).mul(step(species, k + 0.5));
+    const leafTex = texture(atlas.texture, uv());
+    // Bark
+    const bu = uv();
+    const lenticel = smoothstep(0.62, 0.7, mx_noise_float(vec2(bu.x.mul(2.2), bu.y.mul(14)))).mul(0.85);
+    const patch = smoothstep(0.55, 0.75, mx_noise_float(bu.mul(vec2(1.4, 0.8)))).mul(0.7);
+    const birchBark = mix(vec3(0.78, 0.77, 0.73), vec3(0.04, 0.04, 0.04), lenticel.max(patch));
+    const mapleBark = mix(vec3(0.24, 0.23, 0.21), vec3(0.34, 0.33, 0.3), mx_noise_float(bu.mul(vec2(3, 1.5))).mul(0.5).add(0.5));
+    const isBark = float(1).sub(isLeaf);
+    let rgb = mix(base.rgb, birchBark, isBark.mul(is(6)));
+    rgb = mix(rgb, mapleBark, isBark.mul(is(0)));
+    // Bare in winter
+    const deciduous = is(0).add(is(1)).add(is(2)).add(is(4)).add(is(6)).add(is(7)).min(1);
+    const bare = winter.mul(deciduous).mul(isLeaf);
+    const twig = smoothstep(0.35, 0.7, leafTex.b);
+    const remnant = step(leafTex.g, mix(float(0.1), float(0.32), is(4))); // a few dry leaves; the larch's twig haze
+    const keep = twig.max(remnant);
+    rgb = mix(rgb, mix(vec3(0.16, 0.13, 0.1), vec3(0.2, 0.17, 0.13), leafTex.r), bare.mul(float(1).sub(twig)).mul(remnant));
+    const alpha = mix(float(frontFacing), leafTex.a.mul(mix(float(1), keep, bare)), isLeaf);
+    material.colorNode = vec4(snowyRoof(rgb, 0.6), alpha);
+    material.maskShadowNode = alpha.greaterThan(0.5);
   }
 
   // Geometries: [species][variant][lod]
@@ -1026,7 +1240,7 @@ function createTreeField(scene, sites) {
   const py = new Float32Array(N);
   const pz = new Float32Array(N);
   const meshOf = new Int32Array(N * 3); // mesh index per level
-  const cellOf = new Array(N);
+  const cellOf = new Array(N * 3); // cell per level
   const tier = new Uint8Array(N);
   const lod = new Uint8Array(N).fill(255);
 
@@ -1041,8 +1255,10 @@ function createTreeField(scene, sites) {
     return type;
   };
   const meshIndex = SPECIES.map((sp, s) => ({
-    l0: [0, 1].map((v) => makeType(geos[s][v][0], `Trees_${sp.name}_v${v}_lod0`)),
-    l1: [0, 1].map((v) => makeType(geos[s][v][1], `Trees_${sp.name}_v${v}_lod1`)),
+    l0: (BAKED_SHAPES[sp.name] || [0, 1]).map((_, v) => makeType(geos[s][v % 2][0], `Trees_${sp.name}_v${v}_lod0`)),
+    // (the conifers' middle level, a few dozen triangles, with both variants in one geometry; the broadleaves' are
+    // ten times the size, too many to carry twice: past 105 m, turned, scaled and tinted per tree, one variant does)
+    l1: [sp.conifer ? makeType(mergeVariants(geos[s][0][1], geos[s][1][1]), `Trees_${sp.name}_lod1`) : makeType(geos[s][0][1], `Trees_${sp.name}_v0_lod1`)],
     l2: makeType(geos[s][0][2], `Trees_${sp.name}_lod2`)
   }));
   const cells = new Map();
@@ -1052,13 +1268,8 @@ function createTreeField(scene, sites) {
   const dummy = new THREE.Object3D();
   const tint = new THREE.Color();
   sites.forEach((t, i) => {
-    // Davos: the street & park trees planted as broadleaves (species 0-2) are mostly spruces (70 %) and larches
-    // (15 %); the woods come as conifers already (city-grid.js)
-    let sp = Math.min(SPECIES.length - 1, Math.max(0, t.species || 0));
-    if (sp <= 2) {
-      const h = hashPos(t.x, 9.7, t.z);
-      sp = h < 0.7 ? 3 : h < 0.85 ? 4 : sp;
-    }
+    // (the species mix is chosen where the trees are planted: city-grid.js, by place and altitude)
+    const sp = Math.min(SPECIES.length - 1, Math.max(0, t.species || 0));
     const r1 = hashPos(t.x, 1.3, t.z);
     const r2 = hashPos(t.z, 7.1, t.x);
     const r3 = hashPos(t.x + t.z, 3.3, 0.7);
@@ -1071,26 +1282,28 @@ function createTreeField(scene, sites) {
     dummy.updateMatrix();
     dummy.matrix.toArray(mats, i * 16);
     tint.setHex(SPECIES[sp].tints[Math.floor(r3 * 2.999)]).multiplyScalar(0.82 + r1 * 0.36);
-    data.set([tint.r, tint.g, tint.b, sp + r2 * 0.999], i * 4);
+    // w: species + (variant 1: 0.5) + a random fraction (the middle level's variant, see mergeVariants)
+    data.set([tint.r, tint.g, tint.b, sp + variant * 0.5 + r2 * 0.499], i * 4);
     px[i] = t.x;
     py[i] = ground + (t.y || 0) + 6 * s;
     pz[i] = t.z;
     tier[i] = Math.min(2, t.tier || 0);
-    const key = Math.floor(t.x / TREE_CELL_SIZE) + ',' + Math.floor(t.z / TREE_CELL_SIZE);
-    let cell = cells.get(key);
-    if (!cell) {
-      const cellGroup = new THREE.Group();
-      cellGroup.name = `TreeCell_${key}`;
-      cellGroup.visible = false;
-      group.add(cellGroup);
-      cell = { group: cellGroup, trees: [], meshes: new Map() };
-      cells.set(key, cell);
-    }
-    cell.trees.push(i);
-    cellOf[i] = cell;
     const mi = meshIndex[sp];
-    const treeTypes = [mi.l0[variant], mi.l1[variant], mi.l2];
+    const treeTypes = [mi.l0[t.near ?? nearVariant(SPECIES[sp], s, r1, variant)], mi.l1[0], mi.l2];
     for (let l = 0; l < 3; l++) {
+      const size = TREE_CELL_SIZE[l];
+      const key = l + ':' + Math.floor(t.x / size) + ',' + Math.floor(t.z / size);
+      let cell = cells.get(key);
+      if (!cell) {
+        const cellGroup = new THREE.Group();
+        cellGroup.name = `TreeCell_${key}`;
+        cellGroup.visible = false;
+        group.add(cellGroup);
+        cell = { group: cellGroup, level: l, trees: [], meshes: new Map() };
+        cells.set(key, cell);
+      }
+      cell.trees.push(i);
+      cellOf[i * 3 + l] = cell;
       const type = treeTypes[l];
       let index = cell.meshes.get(type);
       if (index === undefined) {
@@ -1132,9 +1345,9 @@ function createTreeField(scene, sites) {
   function rebuild() {
     for (const cell of dirtyCells) {
       for (const mi of cell.meshes.values()) counts[mi] = 0;
+      const l = cell.level;
       for (const i of cell.trees) {
-        const l = lod[i];
-        if (l === 255) continue;
+        if (lod[i] !== l) continue;
         const mi = meshOf[i * 3 + l];
         const mesh = instanced[mi];
         const c = counts[mi]++;
@@ -1189,8 +1402,9 @@ function createTreeField(scene, sites) {
       }
       const next = nextL === 3 ? 255 : nextL;
       if (next !== lod[i]) {
+        if (lod[i] !== 255) dirtyCells.add(cellOf[i * 3 + lod[i]]);
+        if (next !== 255) dirtyCells.add(cellOf[i * 3 + next]);
         lod[i] = next;
-        dirtyCells.add(cellOf[i]);
         changed = true;
       }
     }
@@ -1223,7 +1437,40 @@ function createTreeField(scene, sites) {
     object.matrixWorldAutoUpdate = false;
   });
 
+  // The baked close-up models, once loaded: swapped into the near-level meshes (which keep their instance data)
+  const baked = { loaded: false, models: 0 };
+  // (?proceduraltrees keeps the procedural models, for comparison)
+  if (typeof fetch !== 'undefined' && !(typeof location !== 'undefined' && new URLSearchParams(location.search).has('proceduraltrees'))) {
+    loadBakedTrees().then((models) => {
+      SPECIES.forEach((sp, s) => {
+        const own = models.filter((g) => g.userData.species === sp.name);
+        meshIndex[s].l0.forEach((type, v) => {
+          const geo = own[v];
+          if (!geo) return;
+          type.geo = geo;
+          const height = geo.boundingBox.max.y;
+          type.windPadding = Math.hypot(0.2, 0.06) * Math.hypot(0.86, 0.51) * (height / 11) ** 2 + 2;
+          for (const mesh of type.meshes) {
+            const g = new THREE.BufferGeometry();
+            for (const name of Object.keys(geo.attributes)) g.setAttribute(name, geo.attributes[name]);
+            g.setAttribute('aTreeData', mesh.geometry.attributes.aTreeData);
+            g.setIndex(geo.index);
+            g.boundingSphere = geo.boundingSphere;
+            g.boundingBox = geo.boundingBox;
+            g.userData = geo.userData;
+            mesh.geometry = g;
+          }
+          baked.models++;
+        });
+      });
+      baked.loaded = true;
+      for (const cell of cells.values()) dirtyCells.add(cell);
+      rebuild();
+    }).catch((err) => console.warn('[trees] baked close-up models unavailable, procedural ones stay:', err));
+  }
+
   const stats = {
+    baked,
     trees: N,
     triangles: geos.map((v) => v.map((l) => l.map((g) => g && g.userData.triangles))),
     cards: geos.map((v) => v.map((l) => l.map((g) => g && g.userData.cards)))
@@ -1231,4 +1478,5 @@ function createTreeField(scene, sites) {
   return { group, material, atlas, update, meshes: instanced, stats };
 }
 
-export { createTreeField, createLeafAtlas, buildTreeGeometries, SPECIES as TREE_SPECIES };
+// (makeCrown & makeCone also shade the baked EZ-Tree models: tools/bake-ez-trees.mjs)
+export { createTreeField, createLeafAtlas, buildTreeGeometries, makeCrown, makeCone, SPECIES as TREE_SPECIES, SPECIES_INDEX, SPECIES_HEIGHT };

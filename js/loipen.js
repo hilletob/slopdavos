@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
+import { chunkedMeshes } from './scene-culling.js';
 
 // The cross-country ski trails of Davos (OSM piste:type=nordic in js/davos-geodata.js: the Landwasser and Flüela
 // trails, the Sertig and Dischma, the Nachtloipe...), groomed into the snow in winter and gone in summer (they fade
@@ -129,15 +130,21 @@ export function buildLoipen(scene) {
     const list = trails.filter((t) => (LAYOUT[t.grooming] ? t.grooming : 'classic+skating') === kind);
     const geometry = list.length ? strips(list, layout.width) : null;
     if (!geometry) continue;
-    const mesh = new THREE.Mesh(geometry, createLoipeMaterial(layout));
-    mesh.name = `Loipen ${kind}`;
-    mesh.receiveShadow = true;
-    mesh.renderOrder = 2;
-    group.add(mesh);
+    group.add(...chunkedMeshes(geometry, createLoipeMaterial(layout), { cell: 2500, setup: (mesh) => {
+      mesh.name = `Loipen ${kind}`;
+      mesh.receiveShadow = true;
+      mesh.renderOrder = 2;
+    } }));
   }
   const posts = buildPosts(trails);
   if (posts) group.add(posts);
   group.userData.stats = { trails: trails.length, posts: posts ? posts.count : 0 };
+  // Not drawn at all in summer (the trails and posts are faded out then); drawn while the loading screen compiles the
+  // shaders (main.js sets __slopdavos.ready afterwards), so that switching to winter doesn't stall on them
+  Object.defineProperty(group, 'visible', {
+    get: () => winter.value > 0 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    set() {}
+  });
   scene.add(group);
   return group;
 }

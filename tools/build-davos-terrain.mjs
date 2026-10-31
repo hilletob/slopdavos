@@ -171,6 +171,82 @@ for (let iter = 0; iter < 400; iter++) {
 }
 log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits)`);
 
+// --- A smooth bed for the rivers ------------------------------------------------------------------------------------------
+// The Landwasser and the Flüelabach (OSM waterway=river, drawn by js/streams.js on the ground) lie in a channel that the
+// 2 m model and the 8 m grid break into steps and bumps. Along each river way, in its direction of flow, the bed takes
+// the lowest ground across the channel every 4 m, never rising downstream, Gaussian-smoothed over ~±40 m and made
+// monotonic again; the ground is lowered to it (never raised) across the channel and eased up the banks. Done before
+// the railway bed, which keeps the last word where the line runs along the bank.
+{
+  const STEP = 4, SIGMA = 40, BANK = 7, MAX_CUT = 2.5;
+  const isOn = (v) => !!v && v !== 'no';
+  const widthOf = (t) => parseFloat(t.width) || (t.name === 'Landwasser' ? 10 : 6);
+  const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
+  const corridor = new Float64Array(cols * rows).fill(Infinity), target = new Float64Array(cols * rows), halfAt = new Float64Array(cols * rows);
+  let rivers = 0, carved = 0;
+  for (const e of osm.elements) {
+    const t = e.tags || {};
+    if (e.type !== 'way' || !e.geometry || t.waterway !== 'river' || isOn(t.tunnel)) continue;
+    const half = widthOf(t) / 2;
+    const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / STEP));
+      for (let m = k === 1 ? 0 : 1; m <= n; m++) S.push({ x: a.x + ((b.x - a.x) * m) / n, z: a.z + ((b.z - a.z) * m) / n });
+    }
+    // Only the part over the map (some river ways run on far beyond it)
+    for (let k = S.length - 1; k >= 0; k--) if (S[k].x < minX || S[k].x > maxX || S[k].z < minZ || S[k].z > maxZ) S.splice(k, 1);
+    if (S.length < 3) continue;
+    // The lowest ground across the channel at each sample
+    for (let k = 0; k < S.length; k++) {
+      const a = S[Math.max(0, k - 1)], b = S[Math.min(S.length - 1, k + 1)], L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      const nx = -(b.z - a.z) / L, nz = (b.x - a.x) / L;
+      let lo = Infinity;
+      for (let o = -half; o <= half; o += 1) { const h = groundAt(S[k].x + nx * o, S[k].z + nz * o); if (Number.isFinite(h)) lo = Math.min(lo, h); }
+      S[k].h = lo;
+    }
+    if (!S.every((p) => Number.isFinite(p.h))) continue;
+    // Downstream: the way's own direction when its end lies lower (OSM draws rivers with the flow, but not always)
+    const ends = (k0, k1) => { let a = 0; for (let k = k0; k < k1; k++) a += S[k].h; return a / (k1 - k0); };
+    const span = Math.min(10, S.length >> 1);
+    if (ends(0, span) < ends(S.length - span, S.length)) S.reverse();
+    const monotone = (arr) => { for (let k = 1; k < arr.length; k++) arr[k] = Math.min(arr[k], arr[k - 1]); return arr; };
+    const raw = monotone(S.map((p) => p.h));
+    const smooth = raw.map((_, k) => {
+      let sum = 0, wsum = 0;
+      for (let m = Math.max(0, k - (3 * SIGMA) / STEP | 0); m < Math.min(raw.length, k + (3 * SIGMA) / STEP + 1); m++) {
+        const d = (m - k) * STEP, w = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
+        sum += raw[m] * w; wsum += w;
+      }
+      return Math.min(raw[k] + 0.05, sum / wsum); // (never above the channel's lowest ground, so only cutting)
+    });
+    // Monotonic again, but never more than MAX_CUT under the channel's lowest ground (a rock step stays a cascade)
+    const prof = monotone(smooth).map((h, k) => Math.max(h, S[k].h - MAX_CUT));
+    const reach = half + BANK;
+    for (let k = 1; k < S.length; k++) {
+      const a = S[k - 1], b = S[k], dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-9;
+      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x) - reach - minX) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(a.x, b.x) + reach - minX) / cell));
+      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z) - reach - minZ) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(a.z, b.z) + reach - minZ) / cell));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const x = minX + i * cell, z = minZ + j * cell, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
+        const d = Math.hypot(a.x + f * dx - x, a.z + f * dz - z), q = j * cols + i;
+        if (d < corridor[q]) { corridor[q] = d; target[q] = prof[k - 1] + (prof[k] - prof[k - 1]) * f; halfAt[q] = half; }
+      }
+    }
+    rivers++;
+  }
+  for (let q = 0; q < H.length; q++) {
+    const d = corridor[q], half = halfAt[q];
+    if (!(d < half + BANK)) continue;
+    // Full depth across the channel (a node within ~half a cell of it), then up the bank
+    const u = Math.max(0, Math.min(1, (d - Math.max(half, cell * 0.7)) / BANK)), w = 1 - u * u * (3 - 2 * u);
+    // (and no node more than MAX_CUT below its own ground: the channel's lowest 2 m sample may lie well under a node
+    // of the 8 m grid that sits on the bank)
+    const lowered = Math.max(H[q] + (target[q] - H[q]) * w, H[q] - MAX_CUT);
+    if (lowered < H[q]) { H[q] = lowered; carved++; }
+  }
+  log(`river beds: ${rivers} river ways smoothed (Landwasser, Flüelabach), ${carved} grid nodes lowered`);
+}
+
 // --- A smooth bed for the railway ----------------------------------------------------------------------------------------
 // Rails climb in even gradients, but the 8 m grid gives the RhB's tracks the bumps of the ground beside them. The line
 // through the valley (js/rhb-route.js: the tracks joined end to end, Wolfgang to Frauenkirch) takes one long profile: the

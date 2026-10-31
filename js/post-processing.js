@@ -17,6 +17,7 @@ import {
   screenSize
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { winter } from './season.js';
 
 // Scene-linear color grading and lens bloom, composed in the existing final render pass.
 
@@ -29,6 +30,18 @@ const LOOKS = {
   midnight: { exposure: 1.04, contrast: 1.08, saturation: 1.06, balance: [0.985, 1.00, 1.035], bloom: 0.30, threshold: 1.00 }
 };
 
+// In winter the sunlit snow fields fill much of the frame at several times middle gray: at the summer exposure they ride
+// ACES' shoulder into a flat white and spill bloom over everything, a milky veil. On a sunny winter day the camera
+// stops down for the snow, keeps bloom to the true highlights (the bloom input is scaled by `bloomGate`, so lamps and
+// neon still glow) and holds a little more contrast. Mixed in by season.js's `winter`; dusk and night keep
+// their mood, so their factors stay at (nearly) neutral.
+const WINTER_LOOKS = {
+  golden:   { exposure: 0.84, contrast: 1.05, saturation: 1.00, bloomGate: 0.50 },
+  midday:   { exposure: 0.80, contrast: 1.06, saturation: 0.98, bloomGate: 0.45 },
+  twilight: { exposure: 0.96, contrast: 1.02, saturation: 1.00, bloomGate: 0.85 },
+  midnight: { exposure: 1.00, contrast: 1.00, saturation: 1.00, bloomGate: 1.00 }
+};
+
 function createPostProcessing(renderer, sceneColor, reflections) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // Exposure is applied before bloom so its threshold follows the image's exposed brightness.
@@ -39,12 +52,16 @@ function createPostProcessing(renderer, sceneColor, reflections) {
   const contrast = uniform(1.0);
   const saturation = uniform(1.0);
   const balance = uniform(new THREE.Vector3(1, 1, 1));
-  const exposed = max(sceneColor.rgb.add(reflections.rgb), vec3(0)).mul(exposure).mul(balance);
+  const winterExposure = uniform(1.0);
+  const winterContrast = uniform(1.0);
+  const winterSaturation = uniform(1.0);
+  const winterBloomGate = uniform(1.0);
+  const exposed = max(sceneColor.rgb.add(reflections.rgb), vec3(0)).mul(exposure).mul(mix(float(1), winterExposure, winter)).mul(balance);
 
   // Limit only bloom's peak radiance, scaling RGB together to retain neon and lamp colors.
   // The original HDR image keeps its full range for the tone mapper's highlight shoulder.
   const peak = max(max(exposed.r, exposed.g), exposed.b);
-  const bloomInput = vec4(exposed.mul(float(8.0).div(max(peak, 8.0))), 1.0);
+  const bloomInput = vec4(exposed.mul(float(8.0).div(max(peak, 8.0))).mul(mix(float(1), winterBloomGate, winter)), 1.0);
   const bloomPass = bloom(bloomInput, 0.24, 0.40, 1.20);
   bloomPass.smoothWidth.value = 0.30;
   bloomPass.setResolutionScale(0.5);
@@ -59,11 +76,11 @@ function createPostProcessing(renderer, sceneColor, reflections) {
     color.mulAssign(shadows.mul(highlights));
 
     // Contrast pivots around middle gray and scales RGB together, avoiding per-channel gamma shifts.
-    color.mulAssign(pow(max(luma, 0.0001).div(0.18), contrast.sub(1.0)));
+    color.mulAssign(pow(max(luma, 0.0001).div(0.18), contrast.mul(mix(float(1), winterContrast, winter)).sub(1.0)));
     const gray = dot(color, vec3(0.2126, 0.7152, 0.0722));
     const chroma = max(max(color.r, color.g), color.b).sub(min(min(color.r, color.g), color.b));
     const vibrance = float(0.10).mul(float(1).sub(chroma.div(max(max(max(color.r, color.g), color.b), 0.0001))));
-    color.assign(max(mix(vec3(gray), color, saturation.add(vibrance)), vec3(0)));
+    color.assign(max(mix(vec3(gray), color, saturation.mul(mix(float(1), winterSaturation, winter)).add(vibrance)), vec3(0)));
 
     // Normalize by the corner radius so the lens falloff remains subtle in portrait and landscape.
     const aspect = screenSize.x.div(screenSize.y);
@@ -80,6 +97,11 @@ function createPostProcessing(renderer, sceneColor, reflections) {
     balance.value.set(...look.balance);
     bloomPass.strength.value = look.bloom;
     bloomPass.threshold.value = look.threshold;
+    const w = WINTER_LOOKS[id] || WINTER_LOOKS.golden;
+    winterExposure.value = w.exposure;
+    winterContrast.value = w.contrast;
+    winterSaturation.value = w.saturation;
+    winterBloomGate.value = w.bloomGate;
   }
 
   applyPreset('golden');

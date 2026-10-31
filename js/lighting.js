@@ -26,6 +26,7 @@ import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { SunLight } from 'three/addons/lights/SunLight.js';
 import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
+import { winter } from './season.js';
 
 // js/lighting.js
 // Physically-Based Atmospheric Sky (Preetham SkyMesh + Beer-Powder Clouds),
@@ -140,6 +141,39 @@ const TIME_PRESETS = {
   }
 };
 
+// The shadow passes draw every caster with one shared override material, onto which the renderer copies each caster's
+// alphaTest. Material's alphaTest setter bumps the material version whenever the value crosses 0, so every
+// leaf-card / opaque alternation in the render list (a few per frame) left every later render object of the pass with a
+// stale version, and three.js then rehashed the override material's whole borrowed node graph (customProgramCacheKey is
+// never cached for an override material) for nearly every shadow draw: ~65 ms of JS per frame. Each caster has its own
+// render object, built with its own alphaTest (still part of the cache key, as an enumerable own property), so the
+// bump is not needed to keep their pipelines apart.
+function stabiliseShadowPassMaterial(scene) {
+  const previous = scene.onBeforeRender;
+  scene.onBeforeRender = function (renderer, scn, camera, target) {
+    previous.call(this, renderer, scn, camera, target);
+    const mat = scn.overrideMaterial;
+    if (!mat || mat.isShadowPassMaterial !== true || Object.prototype.hasOwnProperty.call(mat, 'alphaTest')) return;
+    Object.defineProperty(mat, 'alphaTest', {
+      get() { return this._alphaTest; },
+      set(value) { this._alphaTest = value; },
+      enumerable: true,
+      configurable: true
+    });
+  };
+}
+
+// A sunny winter day in the Alps: cold, dry air after a snowfall, the Tinzenhorn sharp 15 km away under a deep blue
+// sky. Summer's turbidity and haze (warm, moist air) made the snowy valley read milky, the white haze over white snow.
+// Mixed in by season.js's `winter`: `haze` scales the aerial perspective's density; the sky's Preetham parameters
+// go towards a low-turbidity, low-Mie atmosphere with fewer clouds. Dusk and night keep (most of) their mood.
+const WINTER_AIR = {
+  golden:   { haze: 0.40, turbidity: 2.6, rayleigh: 2.2, mieCoefficient: 0.0030, cloudCoverage: 0.24 },
+  midday:   { haze: 0.35, turbidity: 2.2, rayleigh: 1.9, mieCoefficient: 0.0025, cloudCoverage: 0.20 },
+  twilight: { haze: 0.75, turbidity: 6.5, rayleigh: 3.0, mieCoefficient: 0.0080, cloudCoverage: 0.36 },
+  midnight: { haze: 0.90, turbidity: 3.5, rayleigh: 1.5, mieCoefficient: 0.0040, cloudCoverage: 0.20 }
+};
+
 class LightingSystem {
   constructor(scene, renderer = null) {
     this.scene = scene;
@@ -209,16 +243,17 @@ class LightingSystem {
     this.sunLight.position.copy(TIME_PRESETS.golden.sunDir);
     this.sunLight.castShadow = true;
     // 3072x3072 per cascade = 6144x3072 2-cascade shadow atlas (an 8192x4096 one cost ~20% fps and caused hitches),
-    // 2048 where the device allows less. The near cascade spans ~0.35-80 m of the view at street level (see update)
+    // 2048 where the device allows less. The near cascade spans ~0.35-55 m of the view at street level (see update)
     const maxTex = (renderer && renderer.backend && renderer.backend.device && renderer.backend.device.limits.maxTextureDimension2D) || 4096;
     const tile = maxTex >= 6144 ? 3072 : 2048;
     this.sunLight.shadow.mapSize.set(tile, tile);
     this.sunLight.shadow.camera.near = 0.5;
-    this.sunLight.shadow.camera.far = 300;
+    this.sunLight.shadow.camera.far = 200;
     // Suppress shadow acne along the surface normal in world units
     // so short casters like cars, curbs, tree trunks, and pedestrians keep crisp contact shadows
     this.sunLight.shadow.normalBias = 0.05;
     this.scene.add(this.sunLight);
+    stabiliseShadowPassMaterial(this.scene);
 
     // Subtle Hemisphere Sky + Warm Terracotta/Limestone Ground Bounce Fill
     // (Kept intentionally lower than sunLight so urban canyon shadows remain deep and crisp)
@@ -232,6 +267,7 @@ class LightingSystem {
     // radiance just above the horizon in their view direction (sun glow included), through an exponential haze layer
     // so helicopter / observatory views stay clearer than the horizon.
     this.uFogDensity = uniform(TIME_PRESETS.golden.fogDensity * HAZE);
+    this.uWinterHaze = uniform(WINTER_AIR[this.activePresetId].haze);
     this.uFogHeight = uniform(900.0);
     if (this.envRenderTarget) this.scene.fogNode = this.createAerialFogNode();
   }
@@ -250,7 +286,7 @@ class LightingSystem {
     const ea = exp(ya.div(H).negate());
     const eb = exp(yb.div(H).negate());
     const meanDensity = select(abs(dy).greaterThan(1.0), ea.sub(eb).mul(H).div(dy), ea);
-    const tau = this.uFogDensity.mul(dist).mul(meanDensity);
+    const tau = this.uFogDensity.mul(mix(float(1), this.uWinterHaze, winter)).mul(dist).mul(meanDensity);
     return fog(skyColor, float(1.0).sub(exp(tau.mul(tau).negate())));
   }
 
@@ -287,13 +323,11 @@ class LightingSystem {
     this.scene.fog.color.setHex(p.fogColor);
     this.scene.fog.density = p.fogDensity;
     if (this.uFogDensity) this.uFogDensity.value = p.fogDensity * HAZE;
+    if (this.uWinterHaze) this.uWinterHaze.value = WINTER_AIR[p.id].haze;
 
     // Update physical Preetham SkyMesh uniforms
-    this.sky.turbidity.value = p.turbidity;
-    this.sky.rayleigh.value = p.rayleigh;
-    this.sky.mieCoefficient.value = p.mieCoefficient;
+    this.applySkyAir(p, winter.value);
     this.sky.mieDirectionalG.value = p.mieDirectionalG;
-    this.sky.cloudCoverage.value = p.cloudCoverage;
     this.sky.cloudDensity.value = p.cloudDensity;
     this.sky.sunPosition.value.copy(p.sunDir);
     this.uSkyExposure.value = p.skyExposure;
@@ -313,14 +347,33 @@ class LightingSystem {
     this.bakeEnvironmentMap();
   }
 
+  // The sky's air between the preset's (summer) and its winter values, by the season's blend `w`
+  applySkyAir(p, w) {
+    const a = WINTER_AIR[p.id];
+    const lerp = (x, y) => x + (y - x) * w;
+    this.sky.turbidity.value = lerp(p.turbidity, a.turbidity);
+    this.sky.rayleigh.value = lerp(p.rayleigh, a.rayleigh);
+    this.sky.mieCoefficient.value = lerp(p.mieCoefficient, a.mieCoefficient);
+    this.sky.cloudCoverage.value = lerp(p.cloudCoverage, a.cloudCoverage);
+    this.bakedWinter = w;
+  }
+
   update(focusPos) {
+    // Follow the season's ~1.5 s ease with the sky (and the environment map baked from it) in a few steps
+    const w = winter.value;
+    if (this.bakedWinter !== undefined && w !== this.bakedWinter && (Math.abs(w - this.bakedWinter) >= 0.25 || w === 0 || w === 1)) {
+      this.applySkyAir(TIME_PRESETS[this.activePresetId], w);
+      this.bakeEnvironmentMap();
+    }
+
     // SunLightShadow automatically fits & texel-snaps its 2 cascades to the view camera frustum
     // every frame inside SunShadowNode.renderShadow(), splitting [near, far] halfway between a uniform and a
-    // logarithmic split (the near cascade ends at ~far / 4). Keep far at 300 m at street level so the near cascade
-    // stays sharp, and expand it with altitude (helicopter / observatory) so shadows reach all the way down to street level.
-    // (altitude above Davos' terrain, not above the lake)
+    // logarithmic split (the near cascade ends at ~far / 4). Shadows only where they read: 200 m at street level (the
+    // last 10 % fade out; past that the sun-facing / averted sides still shade the buildings), which keeps the near
+    // cascade sharp (~0.35-55 m) and the far cascade's casters few. Expanded with altitude (helicopter / observatory)
+    // so shadows reach all the way down to street level (altitude above Davos' terrain, not above the lake).
     const altitude = focusPos && Number.isFinite(focusPos.y) ? Math.max(0, focusPos.y - groundHeight(focusPos.x, focusPos.z)) : 0;
-    this.sunLight.shadow.camera.far = Math.max(300, Math.min(720, 260 + altitude * 1.6));
+    this.sunLight.shadow.camera.far = Math.max(200, Math.min(720, 160 + altitude * 1.6));
   }
 }
 

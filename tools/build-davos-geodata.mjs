@@ -54,6 +54,23 @@ const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7,
 const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
 const DRIVABLE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'living_street']);
 const RAIL = /^(rail|light_rail|tram|subway|funicular|narrow_gauge)$/;
+// Sidewalks along a carriageway: [left, right] widths in metres (left/right of the way's direction), from sidewalk=*,
+// sidewalk:both|left|right=* and their :width; none where they are mapped as ways of their own (=separate, drawn from
+// those footway=sidewalk ways) or absent. The main streets of the centre have them on both sides where untagged.
+const SIDEWALK_WIDTH = { primary: 2.4, secondary: 2.4, tertiary: 2.2 }; // else 2 m
+const BOTH_SIDEWALKS = /^(Promenade|Talstrasse)$/;
+function sidewalksOf(t, base) {
+  if (!DRIVABLE.has(base) && base !== 'service') return null;
+  const side = (s) => t[`sidewalk:${s}`] ?? t['sidewalk:both'] ??
+    (t.sidewalk === 'both' || t.sidewalk === s || t.sidewalk === 'yes' ? 'yes' : t.sidewalk === 'separate' ? 'separate' : t.sidewalk ? 'no' : undefined);
+  const fallback = BOTH_SIDEWALKS.test(t.name || '') && /^(primary|secondary|tertiary)$/.test(base) ? 'yes' : 'no';
+  const out = ['left', 'right'].map((s) => {
+    if ((side(s) ?? fallback) !== 'yes') return 0;
+    const w = num(t[`sidewalk:${s}:width`]) ?? num(t['sidewalk:both:width']) ?? num(t['sidewalk:width']) ?? SIDEWALK_WIDTH[base] ?? 2;
+    return r1(Math.max(1.5, Math.min(3.5, w)));
+  });
+  return out[0] || out[1] ? out : null;
+}
 function noteLevel(e, pts, kept, record, bridge, tunnel) {
   if (!e.nodes || e.nodes.length !== pts.length) return;
   const minor = MINOR.test(e.tags.highway || '');
@@ -61,6 +78,75 @@ function noteLevel(e, pts, kept, record, bridge, tunnel) {
     const index = new Map(pts.map((p, i) => [p, i]));
     deckWays.push({ record, nodes: e.nodes, pts, kept: kept.map((p) => index.get(p)), minor, sidewalk: e.tags.footway === 'sidewalk' });
   } else if (!tunnel) for (const id of e.nodes) (minor ? minorGroundNodes : groundNodes).add(id);
+}
+// Curves: OSM draws a bend as a few straight pieces (a node every 10-30 m), which the engine would render as a polygon
+// with kinks at the nodes. Every bend of a way at ground level is rounded into a circular arc (a fillet), its radius by
+// the road's class and bounded by the pieces on either side, in pieces turning at most ~7.5°. Nodes shared with another
+// road (junctions; for paths any way) and the ends stay put, so the network keeps its topology and the traffic graph
+// below is cut from the same rounded lines. Bridges keep their surveyed nodes (their deck heights belong to them).
+const FILLET_R = { motorway: 120, trunk: 90, primary: 60, secondary: 40, tertiary: 30, residential: 18, unclassified: 18, living_street: 12, service: 9, track: 10, cycleway: 8, pedestrian: 6 }; // (footways and paths: as mapped)
+const FILLET_STEP = 0.13, FILLET_CHORD = 2.5; // rad, m: an arc's pieces turn at most ~7.5° and are at least 2.5 m long
+const FOOT = /^(footway|path|steps|cycleway|pedestrian|bridleway)$/;
+const nodeUses = new Map(), carriageUses = new Map();
+for (const e of osm.elements) {
+  const t = e.tags || {};
+  if (e.type !== 'way' || !t.highway || !e.nodes) continue;
+  for (const id of new Set(e.nodes)) {
+    nodeUses.set(id, (nodeUses.get(id) || 0) + 1);
+    if (!FOOT.test(t.highway)) carriageUses.set(id, (carriageUses.get(id) || 0) + 1);
+  }
+}
+// pts: [[x, z]...] (the way's nodes), ids: their node ids. Returns [{ p: [x, z], id (a kept node's id, else null) }]
+function roundBends(pts, ids, kind) {
+  const base = kind.replace(/_link$/, '');
+  const R = FILLET_R[base] ?? 0;
+  const foot = FOOT.test(kind);
+  const fixed = (i) => i === 0 || i === pts.length - 1 || ((foot ? nodeUses : carriageUses).get(ids[i]) || 0) > 1;
+  // Simplify between the fixed nodes (which are always kept)
+  const keep = [];
+  for (let a = 0, b = 1; b < pts.length; b++) {
+    if (!fixed(b)) continue;
+    const piece = rdp(pts.slice(a, b + 1).map((p, k) => Object.assign([p[0], p[1]], { k: a + k })), 0.3);
+    for (const q of (keep.length ? piece.slice(1) : piece)) keep.push(q.k);
+    a = b;
+  }
+  const P = keep.map((k) => pts[k]);
+  const out = [];
+  const push = (x, z, id = null) => {
+    const last = out[out.length - 1];
+    if (last && Math.hypot(last.p[0] - x, last.p[1] - z) < 0.15) { if (id != null) last.id = id; return; }
+    out.push({ p: [x, z], id });
+  };
+  const turn = (i) => {
+    if (i <= 0 || i >= P.length - 1 || fixed(keep[i]) || !R) return 0;
+    const ax = P[i][0] - P[i - 1][0], az = P[i][1] - P[i - 1][1], bx = P[i + 1][0] - P[i][0], bz = P[i + 1][1] - P[i][1];
+    const la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    if (la < 0.05 || lb < 0.05) return 0;
+    const c = Math.max(-1, Math.min(1, (ax * bx + az * bz) / (la * lb)));
+    const th = Math.acos(c);
+    return th > 0.12 && th < 2.6 ? th : 0;
+  };
+  for (let i = 0; i < P.length; i++) {
+    const th = turn(i);
+    if (!th) { push(P[i][0], P[i][1], fixed(keep[i]) || i === 0 || i === P.length - 1 ? ids[keep[i]] : null); continue; }
+    const ax = P[i][0] - P[i - 1][0], az = P[i][1] - P[i - 1][1], bx = P[i + 1][0] - P[i][0], bz = P[i + 1][1] - P[i][1];
+    const la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    // the tangent length, shared with a neighbouring bend on the same piece
+    const tmax = Math.min(la * (turn(i - 1) ? 0.5 : 0.9), lb * (turn(i + 1) ? 0.5 : 0.9));
+    const tan = Math.tan(th / 2);
+    const t = Math.min(R * tan, tmax), r = t / tan;
+    const ux = ax / la, uz = az / la, vx = bx / lb, vz = bz / lb;
+    const sign = ux * vz - uz * vx > 0 ? 1 : -1;
+    const sx = P[i][0] - ux * t, sz = P[i][1] - uz * t;
+    const cx = sx - uz * sign * r, cz = sz + ux * sign * r; // the centre, on the inside of the bend
+    const n = Math.max(1, Math.min(Math.ceil(th / FILLET_STEP), Math.floor(th * r / FILLET_CHORD)));
+    for (let k = 0; k <= n; k++) {
+      const phi = sign * th * k / n, cs = Math.cos(phi), sn = Math.sin(phi);
+      const dx = sx - cx, dz = sz - cz;
+      push(cx + dx * cs - dz * sn, cz + dx * sn + dz * cs);
+    }
+  }
+  return out;
 }
 const drivable = [];
 const deckWays = []; // every rendered bridge way: { record, nodes, pts (full), kept (indices of the simplified points), minor }
@@ -120,24 +206,37 @@ for (const e of osm.elements) {
   const kind = t.highway.replace(/_link$/, '') in WIDTH ? t.highway : 'service';
   const base = kind.replace(/_link$/, '');
   const lanes = num(t.lanes) ?? LANES[base] ?? 1;
-  const width = num(t.width) ?? Math.max(WIDTH[base] ?? 3, lanes * 3);
   const oneway = t.oneway === 'yes' || t.oneway === '-1' || t.oneway === '1' || t.junction === 'roundabout';
+  // One-way for cars, both ways for the buses (oneway:bus=no: the Promenade, the Talstrasse): a lane each way, the cars'
+  // in the one-way direction, the buses' against it (bus:lanes:backward=designated: a marked bus lane)
+  const busBack = oneway && (t['oneway:bus'] === 'no' || t['oneway:psv'] === 'no');
+  const busLane = busBack && /designated/.test(t[t.oneway === '-1' ? 'bus:lanes:forward' : 'bus:lanes:backward'] || '');
+  // (a lane each way: ~6.5 m curb to curb, as on the Promenade's one-way stretches)
+  const width = num(t.width) ?? (busBack ? 6.5 : Math.max(WIDTH[base] ?? 3, lanes * 3));
+  const sidewalk = sidewalksOf(t, base);
   // Tram streets (none in Davos): the tracks share the carriageway (OSM railway=tram ways run along them)
-  const kept = rdp(pts, 0.5);
+  const rounded = !bridge && !tunnel && kind !== 'steps' && e.nodes && e.nodes.length === pts.length ? roundBends(pts, e.nodes, kind) : null;
+  const kept = rounded ? rounded.map((q) => q.p) : rdp(pts, 0.5);
   const record = { id: `w${e.id}`, pts: flat(kept), bridge, tunnel, layer, name: t.name || '', width: r1(width), lanes, oneway, reverse: t.oneway === '-1', kind, nodeIds: e.nodes || [] };
+  if (busBack) record.bus = busLane ? 2 : 1;
+  if (sidewalk) record.sidewalk = sidewalk;
+  if (t.footway === 'sidewalk') record.sidewalkWay = 1;
   roads.push(record);
-  noteLevel(e, pts, kept, record, bridge, tunnel);
+  noteLevel(e, pts, rounded ? [] : kept, record, bridge, tunnel);
   if (DRIVABLE.has(kind) && !tunnel && t.access !== 'no' && t.motor_vehicle !== 'no' && e.nodes && e.nodes.length === e.geometry.length) {
-    drivable.push({ name: t.name || '', width: r1(width), lanes, dir: !oneway ? 0 : t.oneway === '-1' ? -1 : 1, nodes: e.nodes, pts, bridge });
+    // (rounded ways: the graph is cut at the kept nodes of the rounded line; `null` marks a point of an arc)
+    drivable.push({ name: t.name || '', width: r1(width), lanes, dir: !oneway ? 0 : t.oneway === '-1' ? -1 : 1,
+      nodes: rounded ? rounded.map((q) => q.id) : e.nodes, pts: rounded ? kept : pts, bridge, bus: busBack ? (busLane ? 2 : 1) : 0, sidewalk });
   }
 }
 
 // --- Street centreline graph: ways cut at every node shared by two ways (and at their ends) ----------------------------
 // links: [node a, node b, name index, width, lanes, direction (1: a -> b, -1: b -> a, 0: both), inner shape points [x, z, ...],
-//         1 when on a bridge]
+//         1 when on a bridge (else 0 or absent), 1 on a one-way street the buses drive both ways (2: on a marked bus lane),
+//         the sidewalks' widths [left, right] (or absent)]
 const roadGraph = (() => {
   const uses = new Map();
-  for (const w of drivable) for (const id of new Set(w.nodes)) uses.set(id, (uses.get(id) || 0) + 1);
+  for (const w of drivable) for (const id of new Set(w.nodes)) if (id != null) uses.set(id, (uses.get(id) || 0) + 1);
   const ids = new Map();
   const nodes = [];
   const names = [];
@@ -149,12 +248,14 @@ const roadGraph = (() => {
     let start = 0;
     for (let i = 1; i < w.nodes.length; i++) {
       const last = i === w.nodes.length - 1;
-      if (!last && uses.get(w.nodes[i]) < 2 && w.nodes[i] !== w.nodes[0]) continue;
+      if (!last && (w.nodes[i] == null || (uses.get(w.nodes[i]) < 2 && w.nodes[i] !== w.nodes[0]))) continue;
       if (w.nodes[i] === w.nodes[start]) { start = i; continue; }
       const seg = w.pts.slice(start, i + 1);
       const inner = rdp(seg, 0.4).slice(1, -1).flatMap(([x, z]) => [r1(x), r1(z)]);
       const link = [nodeOf(w.nodes[start], seg[0]), nodeOf(w.nodes[i], seg[seg.length - 1]), nameOf(w.name), w.width, w.lanes, w.dir, inner];
-      if (w.bridge) link.push(1); // on a bridge deck (heights: the matching roads[].ys)
+      if (w.bridge || w.bus || w.sidewalk) link.push(w.bridge ? 1 : 0); // on a bridge deck (heights: the matching roads[].ys)
+      if (w.bus || w.sidewalk) link.push(w.bus); // a one-way street the buses also drive against (2: on a marked bus lane)
+      if (w.sidewalk) link.push(w.sidewalk); // its sidewalks, [left, right] of a -> b (roads[].sidewalk)
       links.push(link);
       start = i;
     }

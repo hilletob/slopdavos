@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, color, positionWorld, uniform, mod, fract, step, smoothstep, mix } from 'three/tsl';
+import { Fn, float, color, positionWorld, uniform, mod, fract, step, smoothstep, mix, attribute, texture, uv, vec2 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   AVENUES,
@@ -21,6 +21,7 @@ import { createTreeField } from './trees.js';
 import { pavedPlazaRects, centralParkClearings, parkTreeSites, sidewalkBlocks, parkLampSites, berlinStreetSites } from './city-grid.js';
 import { bryantParkLawn } from './landmarks.js';
 import { nearestBerlinRoad } from './berlin-geometry.js';
+import { groundHeight } from './terrain.js';
 
 // js/street-details.js
 // Populates Manhattan streets with authentic NYC street furniture using InstancedMesh:
@@ -31,24 +32,43 @@ import { nearestBerlinRoad } from './berlin-geometry.js';
 // - NYC Hot Dog / Halal Street Carts with Blue & Yellow Umbrellas
 // - Fire Hydrants, USPS Mailboxes, Litter Baskets, and Park/Street Trees
 
-function createStreetSignBladeTexture(label) {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 64;
-  const ctx = c.getContext('2d');
+function drawStreetSignBlade(ctx, label, ox = 0, oy = 0) {
   ctx.fillStyle = BERLIN_DATA ? '#eeeeeb' : '#0d6b3f';
-  ctx.fillRect(0, 0, 256, 64);
+  ctx.fillRect(ox, oy, 256, 64);
   ctx.strokeStyle = BERLIN_DATA ? '#242829' : '#ffffff';
   ctx.lineWidth = 5;
-  ctx.strokeRect(4, 4, 248, 56);
+  ctx.strokeRect(ox + 4, oy + 4, 248, 56);
   ctx.fillStyle = BERLIN_DATA ? '#242829' : '#ffffff';
   ctx.font = `${BERLIN_DATA ? 600 : 800} ${label.length > 22 ? 19 : label.length > 16 ? 23 : 30}px Inter, Arial, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, 128, 34);
+  ctx.fillText(label, ox + 128, oy + 34);
+}
+
+function createStreetSignBladeTexture(label) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  drawStreetSignBlade(c.getContext('2d'), label);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+// All the street-name blades in one atlas (4 blades per row), so the signs of every street draw as a single instanced
+// mesh: each instance picks its blade through the `aSignTile` attribute (column, row) instead of a material per street.
+const SIGN_ATLAS_COLS = 4;
+function createStreetSignAtlas(labels) {
+  const rows = Math.max(1, Math.ceil(labels.length / SIGN_ATLAS_COLS));
+  const c = document.createElement('canvas');
+  c.width = 256 * SIGN_ATLAS_COLS;
+  c.height = 64 * rows;
+  const ctx = c.getContext('2d');
+  labels.forEach((label, i) => drawStreetSignBlade(ctx, label, (i % SIGN_ATLAS_COLS) * 256, Math.floor(i / SIGN_ATLAS_COLS) * 64));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return { texture: tex, rows };
 }
 
 /**
@@ -565,9 +585,24 @@ function buildStreetDetails(scene) {
   addMatrixArrayInstanced(lampLensGeo, lampBulbGlow, lampHeadMatrices, false);
   addMatrixArrayInstanced(pedLampPostGeo, poleMetalMat, pedPostMatrices);
   addMatrixArrayInstanced(pedGlobeGeo, pedGlobeGlow, pedPostMatrices, false);
-  for (const [name, matrices] of berlinSignMatrices) {
-    const mat = new THREE.MeshStandardNodeMaterial({ map: createStreetSignBladeTexture(name), roughness: 0.6 });
-    addMatrixArrayInstanced(unitBox, mat, matrices);
+  if (berlinSignMatrices.size) {
+    // One draw for every street's name blades (was one per street). The thin blades cast no sun shadow (their poles do).
+    const labels = [...berlinSignMatrices.keys()];
+    const atlas = createStreetSignAtlas(labels);
+    const signMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.6 });
+    const tile = attribute('aSignTile', 'vec2');
+    signMat.colorNode = texture(atlas.texture, uv().add(vec2(tile.x, float(atlas.rows - 1).sub(tile.y))).div(vec2(SIGN_ATLAS_COLS, atlas.rows)));
+    const signs = labels.flatMap((name, i) => berlinSignMatrices.get(name).map((m) => [m, i]));
+    const signInst = new THREE.InstancedMesh(unitBox.clone(), signMat, signs.length);
+    const tiles = new Float32Array(signs.length * 2);
+    signs.forEach(([m, i], k) => {
+      signInst.setMatrixAt(k, m);
+      tiles[k * 2] = i % SIGN_ATLAS_COLS;
+      tiles[k * 2 + 1] = Math.floor(i / SIGN_ATLAS_COLS);
+    });
+    signInst.geometry.setAttribute('aSignTile', new THREE.InstancedBufferAttribute(tiles, 2));
+    signInst.receiveShadow = true;
+    group.add(signInst);
   }
 
   // =========================================================================
@@ -822,7 +857,8 @@ function buildStreetDetails(scene) {
     roughness: 0.6
   });
 
-  const cartLocations = BERLIN_DATA ? berlinStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse|Landwasserstrasse/.test(s.name)).filter((s, i) => i % 13 === 0).slice(0, 12).map(s => [s.x, s.z]) : [
+  // (none in Davos: the blue-umbrella hot dog carts are a New York sight)
+  const cartLocations = BERLIN_DATA ? [] : [
     [-17, 152],   // Empire State corner
     [-17, 25],    // NYPL / Bryant Park
     [-127, 25],   // 6th Ave & 42nd
@@ -1141,6 +1177,17 @@ function buildStreetDetails(scene) {
   // level of detail, each tree's level following the camera
   const treeField = createTreeField(scene, treePositions);
   group.add(treeField.group);
+  // Whole-crown cards (level 2) only stand beyond trees.js' LOD_MID (420 m): from the ground that's far outside the
+  // sun's shadow range (lighting.js, ~200 m at street level), so they stay out of the shadow passes there (~80 draws).
+  // From the air, where the range grows to 720 m, they cast again (update below).
+  const farTreeMeshes = treeField.meshes.filter((mesh) => /_lod2_/.test(mesh.name));
+  let farTreeShadows = true;
+  const setFarTreeShadows = (on) => {
+    if (on === farTreeShadows) return;
+    farTreeShadows = on;
+    for (const mesh of farTreeMeshes) mesh.castShadow = on;
+  };
+  setFarTreeShadows(false);
 
   // =========================================================================
   // 8. CLUSTERED STREETLIGHTS & STREET FURNITURE LIGHT POOLS
@@ -1224,6 +1271,8 @@ function buildStreetDetails(scene) {
 
   function update(camera) {
     if (!camera) return;
+    const altitude = camera.position.y - groundHeight(camera.position.x, camera.position.z);
+    setFarTreeShadows(farTreeShadows ? altitude > 90 : altitude > 110);
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
     // Streetlights fade in smoothly as dusk approaches (matching lampBulbGlow smoothstep(0.4, 1.1, uInteriorGlow))
     const lampScale = Math.min(1.25, Math.max(0.0, (glow - 0.36) * 1.15));

@@ -4,23 +4,23 @@ import { BERLIN_DATA } from './city-config.js';
 // Geometry adapters only: rendering stays in the upstream WebGPU/TSL systems.
 export const BERLIN_RENDER_CELL = 750;
 
-export function berlinSpatialGroups(items, position = item => item) {
+export function berlinSpatialGroups(items, position = item => item, cell = BERLIN_RENDER_CELL) {
   const cells = new Map();
   for (const item of items) {
     const { x, z } = position(item);
-    const key = `${Math.floor(x / BERLIN_RENDER_CELL)}/${Math.floor(z / BERLIN_RENDER_CELL)}`;
+    const key = `${Math.floor(x / cell)}/${Math.floor(z / cell)}`;
     if (!cells.has(key)) cells.set(key, []);
     cells.get(key).push(item);
   }
   return cells.values();
 }
 
-export function berlinGeometryGroups(geometries) {
+export function berlinGeometryGroups(geometries, cell = BERLIN_RENDER_CELL) {
   return berlinSpatialGroups(geometries, geometry => {
     if (!geometry.boundingBox) geometry.computeBoundingBox();
     const { min, max } = geometry.boundingBox;
     return { x: (min.x + max.x) / 2, z: (min.z + max.z) / 2 };
-  });
+  }, cell);
 }
 
 export function berlinPoints(flat) {

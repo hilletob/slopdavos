@@ -5,9 +5,11 @@ import { SHOPS_DATA } from './shops-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { groundHeight } from './terrain.js';
 import { cityUniforms } from './tsl-materials.js';
+import { logoIndex, logoFor, logoImage, drawLogo } from './logos.js';
 
 // The shop signs of Davos (js/shops-data.js, tools/fetch-shops.mjs): each business's name in its brand colours, drawn
-// into canvas atlases (no logo artwork: lettering, colours and a simple symbol), on a fascia board mounted on the wall of
+// into canvas atlases (lettering, colours and a simple symbol; the brands' real logos, assets/logos, replace the
+// lettering as they load), on a fascia board mounted on the wall of
 // the nearest building facing the business, above the awnings (~4.5 m); restaurants, cafés, bars and hotels also get a hanging sign
 // standing out from the wall. Several businesses on one wall line up side by side. The boards glow at dusk and night.
 
@@ -66,10 +68,33 @@ function buildAtlas(signs) {
     const tx = x + PAD + markW + (w - PAD * 2 - markW - textW) / 2;
     ctx.fillText(b.text, tx, y + rowH * (b.sub ? 0.38 : 0.53));
     if (b.sub) { ctx.font = fontFor({ ...b, weight: 500 }, Math.round(rowH * 0.24)); ctx.fillText(b.sub, tx, y + rowH * 0.78); }
-    out.push({ page: pages.length - 1, u0: x / ATLAS, u1: (x + w) / ATLAS, v0: 1 - (y + rowH) / ATLAS, v1: 1 - y / ATLAS, aspect: w / rowH });
+    out.push({ page: pages.length - 1, u0: x / ATLAS, u1: (x + w) / ATLAS, v0: 1 - (y + rowH) / ATLAS, v1: 1 - y / ATLAS, aspect: w / rowH, px: { x, y, w, h: rowH } });
     x += w;
   }
   return { pages, cells: out };
+}
+
+// Repaints a sign's atlas cell with the brand's logo (js/logos.js) on its background: a wide logo fills the board; a
+// compact one (an emblem) stands at the left with the lettering beside it, fitted to the rest of the board
+function paintLogo(ctx, cell, b, e, img) {
+  const { x, y, w, h } = cell.px;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.fillStyle = e.background || b.background; ctx.fillRect(x, y, w, h);
+  if (b.border && !e.background) { ctx.strokeStyle = b.border; ctx.lineWidth = 6; ctx.strokeRect(x + 3, y + 3, w - 6, h - 6); }
+  if (e.aspect >= 1.6 || w / h < 2.2) {
+    drawLogo(ctx, img, e.aspect, x, y, w, h, { pad: 7 });
+  } else {
+    const s = h - 10;
+    drawLogo(ctx, img, e.aspect, x + PAD, y + 5, s * Math.min(1.6, e.aspect), s);
+    const tx = x + PAD + s * Math.min(1.6, e.aspect) + 10, room = x + w - PAD - tx;
+    let px = Math.round(h * 0.62);
+    ctx.font = fontFor(b, px);
+    while (px > 12 && ctx.measureText(b.text).width > room) ctx.font = fontFor(b, --px);
+    ctx.fillStyle = e.textColour || b.colour; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillText(b.text, tx, y + h * 0.53);
+  }
+  ctx.restore();
 }
 
 // The nearest wall of an OSM building to (x, z): { ax, az, bx, bz, px, pz, nx, nz, d } with (nx, nz) pointing out
@@ -179,6 +204,17 @@ export function buildShops(scene) {
     return m;
   });
   const backMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x1c1d1f, roughness: 0.6, metalness: 0.4 });
+  // The real logos replace the lettering as they load (assets/logos; the lettering stays where there is none)
+  logoIndex().then((logos) => {
+    for (const p of placed) {
+      const e = logoFor(logos, p.s.brand.text, p.s.name);
+      if (!e) continue;
+      logoImage(e).then((img) => {
+        paintLogo(pages[p.cell.page].getContext('2d'), p.cell, p.s.brand, e, img);
+        materials[p.cell.page].map.needsUpdate = true;
+      }).catch((error) => console.warn('[shops] logo', e.file, error));
+    }
+  }).catch(() => {});
   function build() {
     for (const child of [...group.children]) { child.geometry.dispose(); group.remove(child); }
     const boards = pages.map(() => []), backs = [];

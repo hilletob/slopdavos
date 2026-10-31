@@ -3,3 +3,4 @@ node_modules/
 tools/data/cache/
 screenshots/
 data/hires/
+.env.local

@@ -3,6 +3,7 @@ import { float, fract, mix, mx_noise_float, normalGeometry, positionGeometry, po
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, surfaceHeight, ROAD_TOP } from './terrain.js';
+import { chunkedMeshes } from './scene-culling.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 
 // Davos's tracks (OSM railway=rail / narrow_gauge / tram in js/davos-geodata.js):
@@ -162,17 +163,18 @@ function buildTracks(group) {
   const ballast = createBallastMaterial(2.8);
   const tram = DAVOS_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel);
   const rail = DAVOS_DATA.railways.filter((r) => /^(rail|narrow_gauge)$/.test(r.kind) && !r.tunnel);
+  // (cut into cells for frustum culling; the thin rails only near the camera: beyond ~350 m they are under a pixel
+  // wide, and the ballast's rust lines carry them on)
   const parts = [
-    [strips(rail, [0], 2.8, 0.03), ballast],
-    [strips(rail, [-0.5, 0.5], 0.16, 0.07), railWeb], // the rusty web and foot of the rails, under their heads
-    [strips(rail, [-0.5, 0.5], 0.07, 0.11), steel], // RhB metre gauge: the polished heads
-    [strips(tram, [-0.5, 0.5], 0.075, 0.075), steel] // metre gauge, flush with the road
+    [strips(rail, [0], 2.8, 0.03), ballast, Infinity],
+    [strips(rail, [-0.5, 0.5], 0.16, 0.07), railWeb, 350], // the rusty web and foot of the rails, under their heads
+    [strips(rail, [-0.5, 0.5], 0.07, 0.11), steel, 350], // RhB metre gauge: the polished heads
+    [strips(tram, [-0.5, 0.5], 0.075, 0.075), steel, 350] // metre gauge, flush with the road
   ];
-  for (const [geometry, material] of parts) {
+  for (const [geometry, material, maxDistance] of parts) {
     if (!geometry) continue;
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.receiveShadow = true;
-    group.add(mesh);
+    const cell = Number.isFinite(maxDistance) ? 400 : 800;
+    group.add(...chunkedMeshes(geometry, material, { cell, maxDistance, setup: (mesh) => { mesh.receiveShadow = true; } }));
   }
 }
 
@@ -247,6 +249,7 @@ export function buildTrams(scene) {
   // No tram ways (Davos): no trams, and no idle bodies parked at the origin
   const count = runnable.length ? TRAM_COUNT : 0;
   sections.count = count * TRAM_SECTIONS;
+  sections.visible = count > 0; // (no trams: no empty draws)
   const trams = Array.from({ length: count }, () => place({}));
 
   const probe = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scale = new THREE.Vector3(1, 1, 1), euler = new THREE.Euler(0, 0, 0, 'YXZ');

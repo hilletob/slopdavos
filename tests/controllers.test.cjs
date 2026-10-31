@@ -39,6 +39,7 @@ function keyboardHarness(nyc = {}) {
       './actor-models.js': {},
       './pedestrians.js': {},
       './vehicle-lights.js': {},
+      './vw-t3.js': {},
       './landmarks.js': {}
     }
   });
@@ -637,8 +638,8 @@ test('rotated cars use their own separating axes at building corners', () => {
 
   ent.position.x = ent.position.z = -0.3;
   controller.resolveHorizontalCollision(ent.position, 1.35, ent);
-  assert.ok(Math.abs(ent.position.x + 0.86 * Math.SQRT1_2) < 1e-6);
-  assert.ok(Math.abs(ent.position.z + 0.86 * Math.SQRT1_2) < 1e-6, 'the shortest correction is perpendicular to the car side');
+  assert.ok(Math.abs(ent.position.x + 0.93 * Math.SQRT1_2) < 1e-6);
+  assert.ok(Math.abs(ent.position.z + 0.93 * Math.SQRT1_2) < 1e-6, 'the shortest correction is perpendicular to the car side');
 });
 
 test('teleports preserve clear rounded corners and separated rotated cars', () => {
@@ -667,7 +668,7 @@ test('movement and teleports pass underneath elevated building sections', () => 
 });
 
 test('building clearance uses the full player height beneath an overhang', () => {
-  for (const [mode, height] of [['person', 1.9], ['car', 1.8], ['cyclist', 1.9], ['cargobike', 1.9], ['helicopter', 3.2]]) {
+  for (const [mode, height] of [['person', 1.9], ['car', 1.97], ['cyclist', 1.9], ['cargobike', 1.9], ['helicopter', 3.2]]) {
     const y = mode === 'helicopter' ? 0.25 : 0;
     const { controller, ent } = teleportHarness(mode, [{
       minX: 0, maxX: 10, minZ: 0, maxZ: 10, minY: y + height - 0.1, maxY: 30

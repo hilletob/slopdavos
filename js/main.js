@@ -14,9 +14,16 @@ import { buildSurroundings } from './surroundings.js';
 import { buildTrams } from './trams.js';
 import { buildRhB } from './rhb.js';
 import { buildVBD } from './vbd.js';
+import { buildLevelCrossings } from './level-crossings.js';
 import { buildLoipen } from './loipen.js';
+import { buildGolf } from './golf.js';
+import { buildSnowfall } from './snowfall.js';
+import { buildStreams } from './streams.js';
 import { buildShops } from './shops.js';
 import { buildBergbahnen } from './bergbahnen.js';
+import { buildParking } from './parking.js';
+import { buildTrafficSigns } from './traffic-signs.js';
+import { buildDetailHouses } from './detail-houses.js';
 import { placeOnTerrain, liftColliders } from './terrain.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
@@ -32,7 +39,7 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
-const SAVE_VERSION = 4; // 4: Davos (saves from before the buildings stood on the terrain could start inside one)
+const SAVE_VERSION = 5; // 5: the VW T3 starts at the Dischmastrasse 19; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
@@ -84,6 +91,7 @@ async function initApp() {
   // 2. Build Scene & Physical Atmospheric Sky / PMREM IBL / 4096x4096 Shadow Lighting
   const scene = new THREE.Scene();
   const lightingSystem = new LightingSystem(scene, renderer);
+  const snowfall = buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
   markInit('lighting');
 
   if (loadingStatus) {
@@ -95,7 +103,11 @@ async function initApp() {
   const flatWorld = new Set(scene.children);
   const cityGrid = buildCityGrid(scene);
   buildLoipen(scene); // cross-country ski trails, shown in winter
+  buildGolf(scene); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
+  buildStreams(scene); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = buildShops(scene); // the businesses' signs (js/shops-data.js)
+  const parking = buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
+  const detailHouses = buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
   markInit('cityGrid');
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
@@ -108,6 +120,7 @@ async function initApp() {
   const rhb = buildRhB(scene);
   const bergbahnen = buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
   const vbd = buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
+  const levelCrossings = buildLevelCrossings(scene, rhb); // booms and flashing lights where roads cross the RhB
   markInit('trams');
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
@@ -135,7 +148,7 @@ async function initApp() {
   markInit('swissbuildings3d');
   const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings });
   markInit('blocks');
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders]);
 
   const streetDetails = buildStreetDetails(scene);
   markInit('streetDetails');
@@ -151,13 +164,18 @@ async function initApp() {
     ...allColliders.filter((c) => !c.obb && (c.minY ?? 0) - (c.baseY ?? 0) < 3.5)
   ], streetDetails.signalIntersections);
   markInit('traffic');
-  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies, ...vbd.bodies]);
+  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies, ...vbd.bodies, ...levelCrossings.bodies]);
   const highwayTraffic = createHighwayTraffic(scene, cityGrid.highwayLanes);
   const beforePaint = new Set(scene.children);
   buildRoadPaint(scene, trafficSystem.network);
   for (const root of scene.children.filter((o) => !beforePaint.has(o))) placeOnTerrain(root, terrainStats);
   console.info('[terrain] laid on the relief:', JSON.stringify(terrainStats));
   markInit('roadPaint');
+  // Swiss road signs (js/traffic-signs.js), clear of the painted crosswalks; their posts stop the player (not the AI
+  // traffic, which got its obstacles above)
+  const trafficSigns = buildTrafficSigns(scene, { network: trafficSystem.network, night: lightingSystem.uNightFactor });
+  allColliders.push(...trafficSigns.colliders);
+  markInit('trafficSigns');
 
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
@@ -180,7 +198,16 @@ async function initApp() {
       controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) && saved.activeMode !== 'cargobike' ? saved.activeMode : 'cyclist');
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
-  if (!restored) controllerManager.setMode('cyclist');
+  if (!restored) {
+    // (the vehicles waiting at the spawn are set down on the relief too, not left at their built heights)
+    for (const mode of ['car', 'person']) {
+      const ent = controllerManager.entities[mode];
+      if (!ent) continue;
+      controllerManager.setMode(mode);
+      controllerManager.teleportActiveTo(ent.position.x, ent.position.z, ent.heading);
+    }
+    controllerManager.setMode('cyclist');
+  }
 
   function savePlayerState() {
     try {
@@ -227,6 +254,8 @@ async function initApp() {
   const dynamicRoots = [
     trafficSystem.group,
     highwayTraffic.group,
+    vbd.group, // the buses move as whole objects
+    levelCrossings.group, // the booms turn
     scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
@@ -321,11 +350,11 @@ async function initApp() {
   // Keyboard guide for each mode: [keys, action]
   const controlHints = {
     person: [[['W', 'S'], 'Walk'], [['A', 'D'], 'Turn'], [['Shift'], 'Sprint'], [['Space'], 'Jump'], [['Drag'], 'Orbit']],
-    car: [[['W', 'S'], 'Drive / Reverse'], [['A', 'D'], 'Steer'], [['Shift'], 'Boost'], [['B'], 'Horn'], [['Drag'], 'Orbit']],
+    car: [[['W', 'S'], 'Drive / Reverse'], [['A', 'D'], 'Steer'], [['Shift'], 'Boost'], [['B'], 'Horn'], [['Q', 'E'], 'Indicators'], [['L'], 'High beam'], [['Drag'], 'Orbit']],
     cyclist: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
     rhb: [[['W'], 'Throttle'], [['S'], 'Brake'], [['Drag'], 'Orbit']],
-    helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost']],
-    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['Drag'], 'Orbit']]
+    helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost'], [['L'], 'Searchlight']],
+    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['L'], 'High beam'], [['Drag'], 'Orbit']]
   };
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
@@ -640,7 +669,7 @@ async function initApp() {
     }
   });
 
-  // Initialize the UI and chase camera around the restored player, or the default taxi on a first visit.
+  // Initialize the UI and chase camera around the restored player, or the default VW T3 on a first visit.
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime('golden');
@@ -757,7 +786,8 @@ async function initApp() {
     // The trains first: in the rhb mode the player rides in one, and the controllers follow its cab this frame
     rhb.update(dt, { player: controllerManager.getActiveEntity().position });
     bergbahnen.update(dt);
-    vbd.update(dt, { player: controllerManager.getActiveEntity().position });
+    vbd.update(dt, { player: controllerManager.getActiveEntity().position, barriers: levelCrossings.bodies, camera: cameraSystem.camera.position, traffic: trafficSystem });
+    levelCrossings.update(dt);
     controllerManager.update(dt, elapsed);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
@@ -783,10 +813,13 @@ async function initApp() {
     if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
+    snowfall.update(cameraSystem.camera);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
+    parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
+    if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
 
@@ -824,7 +857,7 @@ async function initApp() {
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd, levelCrossings, trafficSigns,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },

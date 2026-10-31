@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { float, fract, mix, positionGeometry, smoothstep, uniform, vec3 } from 'three/tsl';
-import { surfaceHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP } from './terrain.js';
+import { surfaceHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import {
   ISLAND_BOUNDS,
   CENTRAL_PARK_BOUNDS,
@@ -13,25 +13,22 @@ import {
 } from './city-config.js';
 import { cityUniforms, createCarPaintMaterial, createContactShadowMaterial } from './tsl-materials.js';
 import {
-  BODY_SPECS,
-  buildCarGeometry,
-  buildCarSidePatch,
-  buildSteerableWheelGeo,
-  createLoftedCarMaterial,
   buildHelicopterBodyGeometry,
   buildHelicopterMainRotorGeometry,
   buildHelicopterTailRotorGeometry,
-  createLoftedHelicopterMaterial
+  createLoftedHelicopterMaterial,
+  H145
 } from './actor-models.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
-import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
+import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
+import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { bryantParkLawn } from './landmarks.js';
 
 // js/controllers.js
 // Sculpted, non-blocky GTA 6-style 3D models, animations, and physics controllers
 // for Third-Person Navigation:
 // 1. Person (Skinned Pedestrian: planted-footstep IK walk/run/jump, see pedestrians.js)
-// 2. Car (Aerodynamic Sculpted NYC Medallion Yellow Taxi with Sloped Windshield & Clearcoat)
+// 2. Car (VW T3 Transporter / Caravelle bus, royal blue with a white roof, see vw-t3.js)
 // 3. Cyclist (Sculpted Road Cyclist with Drop-Bar Frame & Aero Helmet)
 // 4. Cargo Bike (front-loader frame with an upright rider)
 // 5. Helicopter (Rega rescue helicopter, Airbus H145 D3)
@@ -45,13 +42,20 @@ function spawnPosition(lateral, forward, y) {
   const sn = Math.sin(SPAWN_HEADING), cs = Math.cos(SPAWN_HEADING);
   return new THREE.Vector3(SPAWN_X + lateral * cs + forward * sn, y, SPAWN_Z - lateral * sn + forward * cs);
 }
+// The VW T3 waits at home: on the Dischmastrasse in front of no. 19 (js/detail-houses-data.js), on the house's side
+// of the street, facing Davos Dorf (the street's centreline runs (765.1, -1077.7) -> (786.3, -1012.6) there)
+const CAR_HOME = (() => {
+  const dx = 786.3 - 765.1, dz = -1012.6 + 1077.7, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
+  const cx = 765.1 + ux * (-1050 + 1077.7) / uz, cz = -1050; // centreline abreast of the house
+  return { x: cx + uz * 2.2, z: cz - ux * 2.2, heading: Math.atan2(-ux, -uz) };
+})();
 const groundCollider = { type: 'ground' };
 
 const CAR_DRIVE = {
   speed: 36, reverseSpeed: 10.5, acceleration: 4.5,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
-  wheelbase: 2.76, grip: 9.5, cornering: 10.5 // Wheelbase (m), tire and steering acceleration limits (m/s²).
+  wheelbase: 2.46, grip: 9.5, cornering: 10.5 // Wheelbase (m), tire and steering acceleration limits (m/s²).
 };
 // Snow groomer: 25 km/h flat out, strong low-speed torque, turns on the spot (tracks driven in opposite directions),
 // climbs anything up to ~45° (tan 1) with its speed falling off with the grade
@@ -59,6 +63,48 @@ const SNOWCAT_DRIVE = {
   speed: 6.9, reverseSpeed: 3.6, acceleration: 2.4, brake: 5.5, coast: 1.6,
   turnRate: 1.05, maxGrade: 1.0, length: 2.3, track: 1.5 // half length & half track width over which it pitches & rolls (m)
 };
+// Night lights of the driven vehicle (only the active one is lit, and only from dusk on; `L` toggles the high beam).
+// All are plain unshadowed spots, so they stay clustered (no shader rebuild when toggled) and at most 3 burn at once.
+// Beams: intensity (cd-like), reach (m), half-angle & penumbra, downward pitch and toe-out (rad); a decay of 1.6
+// instead of 2 stands in for the reflector's hot spot near the cutoff, so a beam carries along the road instead of
+// pooling just in front of the bumper.
+// VW T3: low beam with its hot spot ~13 m ahead and the cone's soft upper edge near the horizon; high beam lifted to
+// just under the horizon, narrower and about eight times as strong
+const CAR_BEAMS = {
+  low: { intensity: 340, distance: 60, angle: 0.13, penumbra: 0.7, pitch: 0.066, toeOut: 0.012, decay: 1.6 },
+  high: { intensity: 2600, distance: 150, angle: 0.15, penumbra: 0.6, pitch: 0.012, toeOut: 0.018, decay: 1.6 }
+};
+// Snow groomer: a wide flood from the roof LED bar onto the piste ahead plus the two cab headlights; full beam lifts
+// and narrows the headlights into long-range driving lamps and lets the flood reach further
+const SNOWCAT_BEAMS = {
+  flood: {
+    pos: [0, 2.84, 0.72],
+    low: { intensity: 520, distance: 45, angle: 0.6, penumbra: 0.75, pitch: 0.16, toeOut: 0, decay: 1.6 },
+    high: { intensity: 700, distance: 60, angle: 0.6, penumbra: 0.75, pitch: 0.13, toeOut: 0, decay: 1.6 }
+  },
+  head: {
+    pos: [0.75, 2.62, 1.72],
+    low: { intensity: 650, distance: 60, angle: 0.24, penumbra: 0.75, pitch: 0.085, toeOut: 0.02, decay: 1.6 },
+    high: { intensity: 2400, distance: 150, angle: 0.15, penumbra: 0.6, pitch: 0.03, toeOut: 0.01, decay: 1.6 }
+  }
+};
+// Rega H145 landing light under the nose, angled forward and down; its intensity follows the height above ground so the
+// pool on the snow keeps a steady brightness (illuminance ~ I / d²) from a hover in the village to 300 m up.
+// Full beam: the searchlight, narrower, brighter and with a longer reach
+const HELI_LANDING_LIGHT = {
+  pos: [-0.22, 0.46, 2.5], down: 0.5, angle: 0.36, highAngle: 0.17, penumbra: 0.55,
+  illuminance: 12, highIlluminance: 45, distance: 320, highDistance: 560, minRange: 9
+};
+// Points a vehicle-fixed spot from (x, y, z) along +z, `side` (-1/0/1) toeing it outwards, with beam profile `b`
+function aimBeam(spot, x, y, z, side, b) {
+  const aim = 10;
+  spot.position.set(x, y, z);
+  spot.target.position.set(x + side * aim * b.toeOut, y - aim * Math.tan(b.pitch), z + aim);
+  spot.angle = b.angle;
+  spot.penumbra = b.penumbra;
+  spot.distance = b.distance;
+  spot.decay = b.decay;
+}
 const SNOWCAT_START = { x: 785, z: -1006.6, heading: 1.956 }; // world frame, heading = atan2(dx, dz)
 const BICYCLE_DRIVE = {
   speed: 19, reverseSpeed: 4.5, acceleration: 9,
@@ -290,14 +336,14 @@ function collisionBody(mode, radius, heading, margin = 0) {
   const snowcat = mode === 'snowcat';
   const oriented = car || cargoBike || snowcat;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  const hx = (car ? 0.86 : cargoBike ? 0.38 : snowcat ? 2.15 : radius) + margin;
-  const hz = (car ? 2.18 : cargoBike ? 1.34 : snowcat ? 3.25 : radius) + margin;
+  const hx = (car ? 0.93 : cargoBike ? 0.38 : snowcat ? 2.15 : radius) + margin;
+  const hz = (car ? 2.33 : cargoBike ? 1.34 : snowcat ? 3.25 : radius) + margin;
   return {
     car, oriented, sin, cos, hx, hz, radius: radius + margin,
     extX: oriented ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: oriented ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: mode === 'helicopter' ? -0.25 : 0,
-    top: mode === 'helicopter' ? 3.2 : car ? 1.8 : snowcat ? 2.9 : 1.9
+    top: mode === 'helicopter' ? 3.2 : car ? 1.97 : snowcat ? 2.9 : 1.9
   };
 }
 
@@ -353,66 +399,12 @@ function buildingContact(c, x, y, z, body, contact) {
   return true;
 }
 
-function createTaxiDoorDecalTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#e5d7b5';
-  ctx.fillRect(0, 0, 256, 128);
-  // Black T&LC circle emblem
-  ctx.fillStyle = '#111317';
-  ctx.beginPath();
-  ctx.arc(58, 64, 42, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#e5d7b5';
-  ctx.font = '900 32px Inter, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('T', 58, 66);
-  // Taxi roof sign typography & fare rate
-  ctx.fillStyle = '#111317';
-  ctx.textAlign = 'left';
-  ctx.font = '900 26px Inter, Arial, sans-serif';
-  ctx.fillText('ZÜRI TAXI', 112, 42);
-  ctx.font = '700 15px JetBrains Mono, monospace';
-  ctx.fillText('DAVOS · TAXI', 112, 68);
-  ctx.font = '600 13px Inter, Arial, sans-serif';
-  ctx.fillText('TAXI DAVOS', 112, 90);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createNYLicensePlateTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#f1f1e9';
-  ctx.fillRect(0, 0, 256, 128);
-  ctx.strokeStyle = '#171c21';
-  ctx.lineWidth = 5;
-  ctx.strokeRect(3, 3, 250, 122);
-  ctx.fillStyle = '#154795';
-  ctx.fillRect(7, 7, 26, 114);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '700 22px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('D', 20, 91);
-  ctx.fillStyle = '#111820';
-  ctx.font = '700 42px Arial, sans-serif';
-  ctx.fillText('B · TX 187', 143, 80);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 class ThirdPersonControllerManager {
   constructor(scene, colliders = []) {
     this.scene = scene;
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
+    this.highBeam = false; // L: high beam / searchlight of the driven vehicle
     this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter' | 'snowcat' | 'rhb'
     this.railway = null; // js/rhb.js, for the rhb mode (setRailway)
 
@@ -485,6 +477,13 @@ class ThirdPersonControllerManager {
     this._gamepadKeys = {};
 
     const onKey = (e, isDown) => {
+      // The van's indicators: Q left, E right (pressed again: off), X hazard lights
+      if (isDown && !e.repeat && this.activeMode === 'car' && !isTypingInField(e)) {
+        const side = { KeyQ: 'left', KeyE: 'right', KeyX: 'hazard' }[e.code];
+        if (side) this.toggleIndicator(side);
+      }
+      // L: high beam of the van, the snow groomer and the helicopter's searchlight (kept when switching vehicles)
+      if (isDown && !e.repeat && e.code === 'KeyL' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleHighBeam();
       const action = actionsByCode.get(e.code);
       if (!action || (isDown && isTypingInField(e))) return;
       if (isDown) this._pressedCodes.add(e.code);
@@ -500,6 +499,21 @@ class ThirdPersonControllerManager {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.resetInput();
     });
+  }
+
+  // Indicators of the player's van: 'left' | 'right' | 'hazard' toggles; a turn signal cancels itself once the wheel
+  // has turned that way and comes back to straight, like the stalk on a real steering column
+  toggleIndicator(side) {
+    const car = this.entities.car;
+    if (!car) return;
+    car.indicator = car.indicator === side ? null : side;
+    car.indicatorTurned = false;
+    car.indicatorPhase = 0;
+  }
+
+  toggleHighBeam() {
+    this.highBeam = !this.highBeam;
+    return this.highBeam;
   }
 
   _blendInput(action) {
@@ -556,7 +570,7 @@ class ThirdPersonControllerManager {
     this.activeMode = mode;
     if (mode === 'rhb') this.updateRhB(0);
     const car = this.entities.car;
-    if (mode !== 'car' && car?.carState) car.carState.value.x = car.carState.value.w = 0;
+    if (mode !== 'car' && car?.carState) Object.assign(car.carState.value, { x: 0, y: 0, z: 0, w: 0 });
   }
 
   getActiveEntity() {
@@ -594,7 +608,8 @@ class ThirdPersonControllerManager {
       ent.chassisPivot.position.y = 0;
       ent.lastCollisionSpark = null;
       for (const wheel of ent.wheels) if (wheel.isFront) wheel.steerPivot.rotation.y = 0;
-      if (ent.carState) ent.carState.value.x = ent.carState.value.w = 0;
+      if (ent.carState) Object.assign(ent.carState.value, { x: 0, y: 0, z: 0, w: 0 });
+      ent.indicator = null;
     } else if (this.activeMode === 'cyclist' || this.activeMode === 'cargobike') {
       ent.leanAngle = ent.leanPivot.rotation.z = 0;
       if (ent.frontSteerPivot) ent.frontSteerPivot.rotation.y = 0;
@@ -623,8 +638,8 @@ class ThirdPersonControllerManager {
     const reach = Math.max(shape.extX, shape.extZ);
     const margin = heli ? 6000 : 0;
     const entity = this.getActiveEntity();
-    // Conservative body cylinders, including the taxi's corners, bicycle wheels and helicopter tail/rotor.
-    const body = { person: [0.48, 1.9], car: [2.4, 1.9], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [6.2, 3.2], snowcat: [3.9, 2.9], rhb: [0.1, 0.1] };
+    // Conservative body cylinders, including the van's corners, bicycle wheels and helicopter tail/rotor.
+    const body = { person: [0.48, 1.9], car: [2.55, 2.0], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [8.2, 3.4], snowcat: [3.9, 2.9], rhb: [0.1, 0.1] };
     const others = Object.values(this.entities).filter(e => e !== entity).map(e => ({
       x: e.position.x, z: e.position.z, radius: body[e.type][0],
       bottom: e.position.y - (e.type === 'helicopter' ? 0.7 : 0), top: e.position.y + body[e.type][1]
@@ -714,70 +729,42 @@ class ThirdPersonControllerManager {
   }
 
   // =========================================================================
-  // 2. CAR (3D LOFTED SCULPTED NYC MEDALLION YELLOW TAXI SEDAN)
+  // 2. CAR (VW T3 TRANSPORTER / CARAVELLE BUS, see vw-t3.js)
   // =========================================================================
   createCarEntity() {
     const root = new THREE.Group();
-    root.name = 'PlayerTaxiCar';
+    root.name = 'PlayerVwT3';
 
     const chassisPivot = new THREE.Group();
     root.add(chassisPivot);
 
-    const spec = BODY_SPECS.taxi;
-    const taxiLoftMat = createLoftedCarMaterial(spec, 0x2a2e33);  // player taxi: black, like many taxis
-
-    // 1. 3D Lofted Taxi Body + Curved Windscreens + Crowned Roof + Side Mirrors + Roof Sign
-    const carBodyGeo = buildCarGeometry(spec, false);
-    const carBodyMesh = new THREE.Mesh(carBodyGeo, taxiLoftMat);
+    // 1. The body mesh with its bumpers, plus mirrors; one TSL material paints all the detail, including the Swiss GR
+    // plates (the procedural body until assets/models/vw-t3-body.glb has loaded)
+    const t3Mat = createVwT3Material();
+    const carBodyMesh = new THREE.Mesh(buildVwT3Geometry(), t3Mat);
+    upgradeVwT3Body(carBodyMesh);
     carBodyMesh.castShadow = true;
     carBodyMesh.receiveShadow = true;
     chassisPivot.add(carBodyMesh);
 
-    // 2. Authentic NYC Taxi Side Door T&LC Medallion & Fare Tariff Emblem Decals, hugging the curved front doors
-    const doorDecalTex = createTaxiDoorDecalTexture();
-    const doorDecalMat = new THREE.MeshStandardNodeMaterial({
-      map: doorDecalTex,
-      roughness: 0.24,
-      metalness: 0.34,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2
-    });
-    const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
-    for (const side of [-1, 1]) {
-      const decal = new THREE.Mesh(buildCarSidePatch(spec, side, doorMid - 0.36, doorMid + 0.36, 0.53, 0.81, 0.003), doorDecalMat);
-      chassisPivot.add(decal);
-    }
+    // 2. Brake, reverse & turn lights are lit by the van's material from its carState uniform (see updateCar)
+    const carState = t3Mat.userData.carState;
 
-    // 3. High-Detail NY Empire Gold License Plates on the bumpers
-    const nyPlateTex = createNYLicensePlateTexture();
-    const nyPlateMat = new THREE.MeshStandardNodeMaterial({ map: nyPlateTex, roughness: 0.28 });
-    const rearPlate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.02), nyPlateMat);
-    rearPlate.position.set(0, spec.plates[1], spec.zRear - 0.006);
-    chassisPivot.add(rearPlate);
-
-    const frontPlate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.02), nyPlateMat);
-    frontPlate.position.set(0, spec.plates[0], spec.zFront + 0.006);
-    chassisPivot.add(frontPlate);
-
-    // 3b. Brake, reverse & turn lights are lit by the taxi material from its carState uniform (see updateCar)
-    const carState = taxiLoftMat.userData.carState;
-
-    // 4. Steerable & Spinning 3D LatheGeometry Tyres + Recessed 5-Spoke Alloy Wheels
-    const leftWheelGeo = buildSteerableWheelGeo(spec, -1);
-    const rightWheelGeo = buildSteerableWheelGeo(spec, 1);
+    // 3. Steerable & spinning tyres on light grey steel wheels
+    const leftWheelGeo = buildVwT3WheelGeo(-1);
+    const rightWheelGeo = buildVwT3WheelGeo(1);
 
     const wheels = [];
     const wheelCoords = [
-      { side: -1, z: spec.wheelZ, isFront: true },
-      { side: 1, z: spec.wheelZ, isFront: true },
-      { side: -1, z: -spec.wheelZ, isFront: false },
-      { side: 1, z: -spec.wheelZ, isFront: false }
+      { side: -1, z: T3.axles[0], isFront: true },
+      { side: 1, z: T3.axles[0], isFront: true },
+      { side: -1, z: T3.axles[1], isFront: false },
+      { side: 1, z: T3.axles[1], isFront: false }
     ];
     for (const wc of wheelCoords) {
       const steerPivot = new THREE.Group();
-      steerPivot.position.set(wc.side * spec.wheelX, spec.wheelRadius, wc.z);
-      const tire = new THREE.Mesh(wc.side < 0 ? leftWheelGeo : rightWheelGeo, taxiLoftMat);
+      steerPivot.position.set(wc.side * T3.wheelX, T3.wheelRadius, wc.z);
+      const tire = new THREE.Mesh(wc.side < 0 ? leftWheelGeo : rightWheelGeo, t3Mat);
       tire.castShadow = true;
       tire.receiveShadow = true;
       steerPivot.add(tire);
@@ -785,8 +772,8 @@ class ThirdPersonControllerManager {
       wheels.push({ steerPivot, tire, isFront: wc.isFront });
     }
 
-    // 5. Soft Under-Car Contact Shadow (AO) + Clustered Dual LED Headlight SpotLights & Rear Brake PointLight
-    const carShadowGeo = new THREE.PlaneGeometry(2.22, 5.05);
+    // 4. Soft under-van contact shadow (AO) + the two round headlamps' spotlights
+    const carShadowGeo = new THREE.PlaneGeometry(2.1, 4.95);
     carShadowGeo.rotateX(-Math.PI * 0.5);
     const carShadow = new THREE.Mesh(carShadowGeo, createContactShadowMaterial());
     carShadow.position.set(0, 0.02, 0.0);
@@ -796,7 +783,7 @@ class ThirdPersonControllerManager {
     const headLights = [];
     for (const side of [-1, 1]) {
       const spot = createVehicleHeadlight();
-      placeVehicleHeadlight(spot, spec, side);
+      placeVehicleHeadlight(spot, T3, side);
       chassisPivot.add(spot, spot.target);
       headLights.push(spot);
     }
@@ -805,14 +792,15 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'car',
-      label: 'Davos Taxi',
+      label: 'VW T3',
       mesh: root,
       chassisPivot,
       carState,
+      lampState: t3Mat.userData.lampState,
       headLights,
       wheels,
-      position: spawnPosition(0, 0, 0),
-      heading: SPAWN_HEADING,
+      position: new THREE.Vector3(CAR_HOME.x, 0, CAR_HOME.z),
+      heading: CAR_HOME.heading,
       speed: 0,
       vx: 0,
       vz: 0,
@@ -824,9 +812,10 @@ class ThirdPersonControllerManager {
       lastCollisionSpark: null,
       steerAngle: 0,
       wheelSpin: 0,
-      cameraTargetOffset: new THREE.Vector3(0, 0.96, 0),
-      chaseDistance: 6.9,
-      chaseHeight: 2.12
+      wheelRadius: T3.wheelRadius,
+      cameraTargetOffset: new THREE.Vector3(0, 1.1, 0),
+      chaseDistance: 7.4,
+      chaseHeight: 2.4
     };
   }
 
@@ -1563,7 +1552,7 @@ class ThirdPersonControllerManager {
   }
 
   // =========================================================================
-  // 5. HELICOPTER: Rega's Airbus H145 D3 (five-bladed rotor, Fenestron, skids, rescue winch; lofted body from the upstream chopper)
+  // 5. HELICOPTER: Rega's Airbus H145 D3 at its real size (13.54 m, 10.8 m rotor, 4 m high; see H145 in actor-models.js)
   // =========================================================================
   createHelicopterEntity() {
     const root = new THREE.Group();
@@ -1588,32 +1577,40 @@ class ThirdPersonControllerManager {
     heliBodyMesh.receiveShadow = true;
     tiltPivot.add(heliBodyMesh);
 
-    // 2. 4-Blade Main Rotor Assembly with Swashplate, Hub Dome & Yellow Safety Blade Tips
+    // 2. Five-bladed bearingless main rotor (10.8 m) on the mast behind the cockpit
     const mainRotorPivot = new THREE.Group();
-    mainRotorPivot.position.set(0, 2.66, -0.35);
+    mainRotorPivot.position.set(0, H145.hubY, H145.mastZ);
     const mainRotorGeo = buildHelicopterMainRotorGeometry();
     const mainRotorMesh = new THREE.Mesh(mainRotorGeo, heliLoftMat);
     mainRotorMesh.castShadow = true;
     mainRotorPivot.add(mainRotorMesh);
 
-    const blurDisc = new THREE.Mesh(new THREE.CylinderGeometry(4.85, 4.85, 0.015, 32), blurDiscMat);
+    const blurDisc = new THREE.Mesh(new THREE.CylinderGeometry(5.35, 5.35, 0.015, 40), blurDiscMat);
     mainRotorPivot.add(blurDisc);
     tiltPivot.add(mainRotorPivot);
 
     // 3. Fenestron: the ten-bladed fan spins inside a shroud set into the fin
     const tailRotorPivot = new THREE.Group();
-    tailRotorPivot.position.set(0, 2.02, -5.62);
+    tailRotorPivot.position.set(0, H145.fenestron.y, H145.fenestron.z);
     const tailRotorGeo = buildHelicopterTailRotorGeometry();
     const tailRotorMesh = new THREE.Mesh(tailRotorGeo, heliLoftMat);
     tailRotorPivot.add(tailRotorMesh);
     tiltPivot.add(tailRotorPivot);
     const regaRed = new THREE.MeshStandardNodeMaterial({ color: 0xd2101c, roughness: 0.3, metalness: 0.05, side: THREE.DoubleSide });
     const darkMetal = new THREE.MeshStandardNodeMaterial({ color: 0x2a2e33, roughness: 0.45, metalness: 0.6 });
-    const shroud = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.11, 10, 28).rotateY(Math.PI * 0.5), regaRed);
+    // The shroud: a thick ring joining the boom, the upper and the ventral fin; inside, the duct and the stator vanes
+    const fanR = H145.fenestron.r;
+    const shroud = new THREE.Mesh(new THREE.TorusGeometry(fanR + 0.13, 0.16, 12, 32).rotateY(Math.PI * 0.5).scale(0.7, 1, 1), regaRed);
     shroud.position.copy(tailRotorPivot.position);
-    const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.24, 28, 1, true).rotateZ(Math.PI * 0.5), darkMetal);
+    const duct = new THREE.Mesh(new THREE.CylinderGeometry(fanR + 0.05, fanR + 0.05, 0.26, 32, 1, true).rotateZ(Math.PI * 0.5), darkMetal);
     duct.position.copy(tailRotorPivot.position);
     tiltPivot.add(shroud, duct);
+    for (let k = 0; k < 3; k++) {
+      const vane = new THREE.Mesh(new THREE.BoxGeometry(0.02, fanR, 0.06).translate(0, fanR / 2, 0), darkMetal);
+      vane.rotation.x = 0.6 + (k * Math.PI * 2) / 3;
+      vane.position.set(-0.08, H145.fenestron.y, H145.fenestron.z);
+      tiltPivot.add(vane);
+    }
 
     // 4. Rescue winch above the starboard (right, -x) cabin door, the hook hanging under its arm
     const winch = new THREE.Group();
@@ -1625,28 +1622,46 @@ class ThirdPersonControllerManager {
     const hook = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 10, Math.PI * 1.4), darkMetal);
     hook.position.set(-0.58, -0.52, 0);
     winch.add(winchArm, winchDrum, cable, hook);
-    winch.position.set(-0.78, 1.86, 0.55);
+    winch.position.set(-0.86, 2.04, -0.55); // on the cabin roof edge above the right sliding door
     tiltPivot.add(winch);
 
-    // 5. Searchlight under the nose (lit)
-    const searchlight = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.1, 0.12, 14),
-      new THREE.MeshStandardNodeMaterial({ color: 0x22262b, emissive: 0xfff4dc, emissiveIntensity: 2.2, roughness: 0.3 })
-    );
+    // 5. Landing light / searchlight under the nose: its lens glows with lampGlow (see updateVehicleLights), its beam
+    //    is one unshadowed spot angled forward and down, carried by the tilt of the airframe
+    const lampGlow = uniform(0);
+    const lensMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x22262b, roughness: 0.3 });
+    lensMaterial.emissiveNode = vec3(1.0, 0.96, 0.86).mul(lampGlow.mul(12).add(0.03));
+    const searchlight = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.12, 14), lensMaterial);
     searchlight.rotation.x = 0.5;
-    searchlight.position.set(-0.28, 0.6, 2.05);
+    searchlight.position.set(-0.22, 0.52, 2.45);
     tiltPivot.add(searchlight);
+    const L = HELI_LANDING_LIGHT;
+    const landingLight = new THREE.SpotLight(0xfff6e6, 0, L.distance, L.angle, L.penumbra, 2);
+    landingLight.position.set(...L.pos);
+    landingLight.target.position.set(L.pos[0], L.pos[1] - Math.sin(L.down) * 10, L.pos[2] + Math.cos(L.down) * 10);
+    landingLight.visible = false;
+    tiltPivot.add(landingLight, landingLight.target);
+    // The sensor turret (FLIR) beside it
+    const turret = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), darkMetal);
+    turret.position.set(0.24, 0.5, 2.55);
+    tiltPivot.add(turret);
 
-    // 6. Navigation lights: red to port (left, +x), green to starboard (right, -x), white at the tail; white strobes
-    const navRed = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0xff2b2b }));
-    navRed.position.set(1.09, 1.54, -4.35);
-    const navGreen = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0x22ff66 }));
-    navGreen.position.set(-1.09, 1.54, -4.35);
-    const navTail = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), new THREE.MeshBasicNodeMaterial({ color: 0xffffff }));
-    navTail.position.set(0, 1.62, -6.0);
-    const strobeMat = new THREE.MeshBasicNodeMaterial({ color: 0xffffff });
-    const strobes = [[0, 2.98, -6.0], [0, 0.42, -0.4]].map(([x, y, z]) => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), strobeMat);
+    // 6. Navigation lights: red to port (left, +x), green to starboard (right, -x), white at the tail, always on and
+    //    brighter at night (navGlow, so they bloom); red anti-collision beacons on the fin and the belly flash twice
+    const navGlow = uniform(1);
+    const navMaterial = (r, g, b) => {
+      const m = new THREE.MeshBasicNodeMaterial();
+      m.colorNode = vec3(r, g, b).mul(navGlow);
+      return m;
+    };
+    const navRed = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), navMaterial(1.0, 0.08, 0.06));
+    navRed.position.set(H145.stab.span + 0.05, H145.stab.y, H145.stab.z - 0.08);
+    const navGreen = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), navMaterial(0.08, 1.0, 0.3));
+    navGreen.position.set(-H145.stab.span - 0.05, H145.stab.y, H145.stab.z - 0.08);
+    const navTail = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), navMaterial(1.0, 0.97, 0.92));
+    navTail.position.set(0, 1.95, H145.fenestron.z - 0.74);
+    const strobeMat = navMaterial(1.0, 0.03, 0.02);
+    const strobes = [[0, 3.37, -7.95], [0, 0.46, -0.95]].map(([x, y, z]) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), strobeMat);
       m.position.set(x, y, z);
       return m;
     });
@@ -1658,6 +1673,9 @@ class ThirdPersonControllerManager {
       type: 'helicopter',
       label: 'Rega',
       strobes,
+      lampGlow,
+      navGlow,
+      landingLight,
       mesh: root,
       tiltPivot,
       mainRotorPivot,
@@ -1668,9 +1686,9 @@ class ThirdPersonControllerManager {
       verticalSpeed: 0,
       pitchAngle: 0,
       rollAngle: 0,
-      cameraTargetOffset: new THREE.Vector3(0, 1.55, 0),
-      chaseDistance: 11.4,
-      chaseHeight: 3.3
+      cameraTargetOffset: new THREE.Vector3(0, 1.65, -1.5),
+      chaseDistance: 13.5,
+      chaseHeight: 3.6
     };
   }
 
@@ -1723,8 +1741,13 @@ class ThirdPersonControllerManager {
     box(2.08, 0.12, 2.1, red, 0, 2.7, 0.62);
     box(2.25, 0.75, 1.75, red, 0, 1.68, -1.25);
     box(1.8, 0.06, 1.4, dark, 0, 2.07, -1.3); // engine grille
-    // Light bar and the orange beacon (pulsed in animateSnowcat), work lights on the cab's front corners
-    box(1.7, 0.12, 0.26, white, 0, 2.82, 0.55);
+    // Light bar and the orange beacon (pulsed in animateSnowcat), work lights on the cab's front corners. The lamps glow
+    // with lampGlow (0 by day, 1 at night while driven, more on full beam; see updateVehicleLights)
+    const lampGlow = uniform(0);
+    box(1.7, 0.12, 0.26, dark, 0, 2.82, 0.55);
+    const ledMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xdfe6ee, roughness: 0.15, metalness: 0.1 });
+    ledMaterial.emissiveNode = vec3(0.92, 0.96, 1.0).mul(lampGlow.mul(6));
+    for (let k = 0; k < 8; k++) box(0.15, 0.075, 0.02, ledMaterial, -0.7 + k * 0.2, 2.82, 0.685);
     const beaconMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xff8a00, roughness: 0.3 });
     const beaconGlow = uniform(0);
     beaconMaterial.emissiveNode = vec3(1.0, 0.45, 0.0).mul(beaconGlow.mul(3).add(0.15));
@@ -1732,9 +1755,24 @@ class ThirdPersonControllerManager {
     beacon.position.set(0, 2.98, 0.55);
     root.add(beacon);
     const lampMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xfff6e0, roughness: 0.2 });
-    lampMaterial.emissiveNode = vec3(1.0, 0.95, 0.82).mul(0.8);
+    lampMaterial.emissiveNode = vec3(1.0, 0.95, 0.82).mul(lampGlow.mul(5).add(0.05));
     for (const x of [-0.75, 0.75]) box(0.28, 0.14, 0.06, lampMaterial, x, 2.62, 1.66);
     for (const x of [-0.9, 0.9]) box(0.22, 0.16, 0.06, lampMaterial, x, 1.2, 2.17);
+    // Tail lamps on the engine hood's rear edge
+    const tailMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x5a0a0a, roughness: 0.3 });
+    tailMaterial.emissiveNode = vec3(1.0, 0.04, 0.03).mul(lampGlow.min(1).mul(2.2));
+    for (const x of [-0.85, 0.85]) box(0.2, 0.12, 0.04, tailMaterial, x, 1.9, -2.14);
+    // Their light: the bar's wide flood and the two cab headlights (+z forward, aimed at the snow ahead)
+    const workLights = [];
+    const addSpot = (spec, side) => {
+      const spot = new THREE.SpotLight(0xf4f7ff, 0);
+      aimBeam(spot, side * spec.pos[0], spec.pos[1], spec.pos[2], side, spec.low);
+      spot.visible = false;
+      root.add(spot, spot.target);
+      workLights.push({ spot, spec, side });
+    };
+    addSpot(SNOWCAT_BEAMS.flood, 0);
+    for (const side of [-1, 1]) addSpot(SNOWCAT_BEAMS.head, side);
     // Front blade on its push arms (light grey, wider than the tracks, its edge slightly forward)
     const blade = box(4.4, 1.05, 0.12, std(0xc7cbcf, 0.45, 0.5), 0, 0.72, 3.05);
     blade.rotation.x = -0.12;
@@ -1762,6 +1800,8 @@ class ThirdPersonControllerManager {
       mesh: root,
       trackPhases,
       beaconGlow,
+      lampGlow,
+      workLights,
       // Parked on the cross-country trail (OSM "City-Trail Davos", DAVOS_DATA.loipen) between the Bünda and the
       // Dischmastrasse in Davos Dorf, along its track
       position: new THREE.Vector3(SNOWCAT_START.x, surfaceHeight(SNOWCAT_START.x, SNOWCAT_START.z) + ROAD_TOP, SNOWCAT_START.z),
@@ -1819,7 +1859,8 @@ class ThirdPersonControllerManager {
   // Height of what stands at (x, z): Davos' terrain or a bridge deck (whichever is nearest `nearY`, the entity's current
   // height, so that streets under the Hardbrücke stay under it), on the sidewalk or on the roadway laid over it.
   getGroundHeight(x, z, mode = 'person', nearY) {
-    return surfaceHeight(x, z, nearY) + (this.isPointOnSidewalk(x, z) ? SIDEWALK_TOP : ROAD_TOP);
+    // (up on the raised sidewalks along the streets, js/city-grid.js)
+    return surfaceHeight(x, z, nearY) + Math.max(this.isPointOnSidewalk(x, z) ? SIDEWALK_TOP : ROAD_TOP, sidewalkRise(x, z));
   }
 
   // The colliders whose bounds come within `r` of (x, z), in their original order. They never move, so they are
@@ -2024,7 +2065,7 @@ class ThirdPersonControllerManager {
       e.mesh.rotation.y = e.heading;
       // Wheeled vehicles follow the slope of Davos' streets: pitch over the wheelbase, roll over the track
       if (e.type === 'car' || e.type === 'cyclist' || e.type === 'cargobike' || e.type === 'snowcat') {
-        const half = e.type === 'car' ? 1.35 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
+        const half = e.type === 'car' ? CAR_DRIVE.wheelbase / 2 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
         const track = e.type === 'car' ? 0.8 : e.type === 'snowcat' ? SNOWCAT_DRIVE.track : 0;
         const fx = Math.sin(e.heading), fz = Math.cos(e.heading), y = e.position.y;
         const front = surfaceHeight(e.position.x + fx * half, e.position.z + fz * half, y);
@@ -2045,19 +2086,77 @@ class ThirdPersonControllerManager {
     // Modulate clustered vehicle & bike lights by time of day (off during Midday & Golden Hour; fade in at Dusk & Night)
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
     const beamScale = Math.min(1.28, Math.max(0.0, (glow - 0.60) * 1.45));
-    const car = this.entities.car;
-    if (car.headLights) {
-      for (const spot of car.headLights) {
-        // Accelerating does not change the headlamp output or range.
-        spot.intensity = HEADLIGHTS.intensity * beamScale;
-      }
-    }
+    this.updateVehicleLights(beamScale);
     for (const mode of ['cyclist', 'cargobike']) {
       const bike = this.entities[mode];
       if (bike.headLight) bike.headLight.intensity = this.activeMode === mode ? 115 * beamScale : 0;
     }
 
     this.poseCharacters(dt);
+  }
+
+  // Head-, work and landing lights of the driven vehicle: lit from dusk on (`beamScale`, 0 by day, up to 1.28 at night),
+  // dark on the parked ones; `this.highBeam` (L) switches to full beam. Hidden spots leave the light clusters entirely.
+  updateVehicleLights(beamScale) {
+    const high = !!this.highBeam;
+    const lit = (mode) => this.activeMode === mode && beamScale > 0.01;
+    const glow = Math.min(1, beamScale);
+
+    // VW T3: the two round headlamps (placed at the lamps by vehicle-lights.js, aimed by CAR_BEAMS)
+    const car = this.entities.car;
+    if (car?.headLights) {
+      const on = lit('car'), beam = high ? CAR_BEAMS.high : CAR_BEAMS.low;
+      if (on && car._highBeam !== high) {
+        car._highBeam = high;
+        car.headLights.forEach((spot, i) => {
+          const side = i === 0 ? -1 : 1;
+          placeVehicleHeadlight(spot, T3, side);
+          aimBeam(spot, spot.position.x, spot.position.y, spot.position.z, side, beam);
+        });
+      }
+      // Accelerating does not change the headlamp output or range.
+      for (const spot of car.headLights) {
+        spot.visible = on;
+        spot.intensity = on ? beam.intensity * beamScale : 0;
+      }
+      if (car.lampState) car.lampState.value.set(this.activeMode === 'car' ? 1 : 0, high ? 1 : 0);
+    }
+
+    // Snow groomer: the roof bar's flood and the cab headlights
+    const cat = this.entities.snowcat;
+    if (cat?.workLights) {
+      const on = lit('snowcat');
+      cat.lampGlow.value = this.activeMode === 'snowcat' ? glow * (high ? 1.3 : 1) : 0;
+      if (on && cat._highBeam !== high) {
+        cat._highBeam = high;
+        for (const { spot, spec, side } of cat.workLights) aimBeam(spot, side * spec.pos[0], spec.pos[1], spec.pos[2], side, high ? spec.high : spec.low);
+      }
+      for (const { spot, spec } of cat.workLights) {
+        spot.visible = on;
+        spot.intensity = on ? (high ? spec.high : spec.low).intensity * beamScale : 0;
+      }
+    }
+
+    // Rega H145: navigation lights always (brighter at night), the landing light / searchlight while flown at night
+    const heli = this.entities.helicopter;
+    if (heli?.landingLight) {
+      const on = lit('helicopter'), L = HELI_LANDING_LIGHT, spot = heli.landingLight;
+      heli.navGlow.value = 1.2 + 3.5 * glow;
+      heli.lampGlow.value = this.activeMode === 'helicopter' ? glow * (high ? 1.6 : 1) : 0;
+      spot.visible = on;
+      if (on) {
+        const p = heli.position;
+        const agl = Math.max(0, p.y - surfaceHeight(p.x, p.z));
+        const range = high ? L.highDistance : L.distance;
+        // Slant range to the snow along the beam, kept inside the light's reach
+        const d = Math.min(range * 0.6, Math.max(L.minRange, agl / Math.sin(L.down)));
+        spot.distance = range;
+        spot.angle = high ? L.highAngle : L.angle;
+        spot.intensity = (high ? L.highIlluminance : L.illuminance) * d * d * Math.min(1, beamScale);
+      } else {
+        spot.intensity = 0;
+      }
+    }
   }
 
   updatePerson(dt) {
@@ -2164,13 +2263,22 @@ class ThirdPersonControllerManager {
     c.position.y = this.getGroundHeight(c.position.x, c.position.z, 'car', c.position.y);
     c.chassisPivot.position.y = c.heaveY;
 
+    if (c.indicator === 'left' || c.indicator === 'right') {
+      const into = (c.indicator === 'left' ? 1 : -1) * c.steerAngle;
+      if (into > 0.18) c.indicatorTurned = true;
+      else if (c.indicatorTurned && into < 0.04) c.indicator = null;
+    }
+    c.indicatorPhase = c.indicator ? (c.indicatorPhase || 0) + dt : 0;
+    const flash = c.indicator && c.indicatorPhase % 0.75 < 0.4 ? 1 : 0; // ~80 flashes a minute
     if (c.carState) {
       c.carState.value.x = braking ? 1 : 0;
+      c.carState.value.y = c.indicator === 'left' || c.indicator === 'hazard' ? flash : 0;
+      c.carState.value.z = c.indicator === 'right' || c.indicator === 'hazard' ? flash : 0;
       c.carState.value.w = c.speed < -0.2 ? 1 : 0;
     }
 
     const forwardDist = (c.position.x - prevX) * Math.sin(c.heading) + (c.position.z - prevZ) * Math.cos(c.heading);
-    const rawWheelStep = forwardDist / 0.35;
+    const rawWheelStep = forwardDist / (c.wheelRadius ?? 0.35);
     const wheelStep = Math.sign(rawWheelStep) * Math.min(Math.abs(rawWheelStep), 0.48);
     c.wheelSpin = (c.wheelSpin + wheelStep) % (Math.PI * 2);
     for (const w of c.wheels) {

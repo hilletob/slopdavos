@@ -26,13 +26,16 @@
   <link rel="modulepreload" href="./js/terrain.js" />
   <link rel="modulepreload" href="./js/nyc-geodata.js" />
   <link rel="modulepreload" href="./js/berlin-geometry.js" />
+  <link rel="modulepreload" href="./js/street-corners.js" />
   <link rel="modulepreload" href="./js/city-config.js" />
   <link rel="modulepreload" href="./js/tsl-materials.js" />
   <link rel="modulepreload" href="./js/trees.js" />
   <link rel="modulepreload" href="./js/actor-models.js" />
   <link rel="modulepreload" href="./js/plates.js" />
   <link rel="modulepreload" href="./js/vehicle-lights.js" />
+  <link rel="modulepreload" href="./js/vw-t3.js" />
   <link rel="modulepreload" href="./js/vehicle-physics.js" />
+  <link rel="modulepreload" href="./js/obstacle-grid.js" />
   <link rel="modulepreload" href="./js/pedestrians.js" />
   <link rel="modulepreload" href="./js/lighting.js" />
   <link rel="modulepreload" href="./js/city-grid.js" />
@@ -59,6 +62,8 @@
   <link rel="modulepreload" href="./js/audio-acoustics.js" />
   <link rel="modulepreload" href="./js/audio-system.js" />
   <link rel="modulepreload" href="./js/swissbuildings3d.js" />
+  <link rel="modulepreload" href="./js/gwr.js" />
+  <link rel="modulepreload" href="./js/gwr-data.js" />
   <link rel="modulepreload" href="./js/swissimage.js" />
   <link rel="modulepreload" href="./js/season.js" />
   <link rel="modulepreload" href="./js/surroundings.js" />
@@ -71,9 +76,27 @@
   <link rel="modulepreload" href="./js/bergbahnen-data.js" />
   <link rel="modulepreload" href="./js/shops.js" />
   <link rel="modulepreload" href="./js/shops-data.js" />
+  <link rel="modulepreload" href="./js/parking.js" />
+  <link rel="modulepreload" href="./js/parking-data.js" />
+  <link rel="modulepreload" href="./js/traffic-signs.js" />
+  <link rel="modulepreload" href="./js/traffic-signs-data.js" />
+  <link rel="modulepreload" href="./js/detail-houses.js" />
+  <link rel="modulepreload" href="./js/detail-houses-data.js" />
+  <link rel="modulepreload" href="./js/facades-data.js" />
+  <link rel="modulepreload" href="./js/level-crossings.js" />
+  <link rel="modulepreload" href="./js/level-crossings-data.js" />
+  <link rel="modulepreload" href="./js/streams.js" />
+  <link rel="modulepreload" href="./js/streams-data.js" />
+  <link rel="modulepreload" href="./js/tlm-trees-data.js" />
+  <link rel="modulepreload" href="./js/logos.js" />
   <link rel="modulepreload" href="./js/loipen.js" />
+  <link rel="modulepreload" href="./js/golf.js" />
+  <link rel="modulepreload" href="./js/golf-data.js" />
+  <link rel="modulepreload" href="./js/snowfall.js" />
   <link rel="modulepreload" href="./js/main.js" />
   <script type="module" src="./js/main.js"></script>
+  <!-- The player's VW T3 body (js/vw-t3.js fetches it as soon as it loads) -->
+  <link rel="preload" href="./assets/models/vw-t3-body.glb" as="fetch" crossorigin />
   <!-- Inter (UI) & Overpass (street-name signs: modelled on Highway Gothic, the US road sign typeface) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -213,6 +236,7 @@
         <b>swissBUILDINGS3D 3.0</b>: buildings and roofs.<br>
         <b>swissALTI3D</b>: the terrain.<br>
         <b>SWISSIMAGE</b>: the orthophotos on the ground and the roofs.<br>
+        <b>swissTLM3D</b> (vector tiles): single trees and woodland.<br>
         <b>swissSURFACE3D Raster</b>: the bridge decks.<br>
         <span class="credits-source">© swisstopo, Federal Office of Topography swisstopo (<a href="https://www.swisstopo.admin.ch/de/nutzungsbedingungen-kostenlose-geodaten-und-geodienste" target="_blank" rel="noopener noreferrer">terms of use</a>)</span>
       </li>
@@ -225,6 +249,12 @@
         <span class="credits-source">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, Open Database License (ODbL)</span>
       </li>
     </ul>
+    <p class="credits-source">Logos: Marken der jeweiligen Inhaber; Quellen siehe <a href="./assets/logos/SOURCES.md" target="_blank" rel="noopener noreferrer">assets/logos/SOURCES.md</a> (Wikimedia Commons).</p>
+    <p class="credits-source">Gebäudenutzung, Geschosse und Baujahre der Fassaden: Eidg. Gebäude- und Wohnungsregister (GWR), © <a href="https://www.housing-stat.ch" target="_blank" rel="noopener noreferrer">Bundesamt für Statistik BFS</a>, Open Government Data.</p>
+    <p class="credits-source">Fassadenfarben aus Strassenbildern: <a href="https://www.mapillary.com" target="_blank" rel="noopener noreferrer">Mapillary</a>-Mitwirkende, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>.</p>
+    <p class="credits-source">VBD bus model: “Low Poly Mercedes-Benz Citaro 530” by <a href="https://sketchfab.com/giosassets" target="_blank" rel="noopener noreferrer">giosassets</a> (<a href="https://sketchfab.com/3d-models/low-poly-mercedes-benz-citaro-530-881e83d1378c496eb8e42708a4ad3b96" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, recoloured, tyres simplified.</p>
+    <p class="credits-source">VW T3 model: “VW T3 Van scale1-100 lowpoly for 3D-printing” by <a href="https://sketchfab.com/fishermans" target="_blank" rel="noopener noreferrer">fishermans garage</a> (<a href="https://sketchfab.com/3d-models/vw-t3-van-scale1-100-lowpoly-for-3d-printing-b26d56e82819444aa2379e6461500ff6" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, rescaled, wheels removed, recoloured.</p>
+    <p class="credits-source">Close-up trees grown with <a href="https://github.com/dgreenheck/ez-tree" target="_blank" rel="noopener noreferrer">EZ-Tree by Dan Greenheck</a> (MIT; <a href="./assets/trees/LICENSE-ez-tree.txt" target="_blank" rel="noopener noreferrer">licence</a>).</p>
     <p class="credits-source">Code under the MIT License, based on colorfield's <a href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer">Slop Zürich</a>, itself after mrdoob's <a href="https://github.com/mrdoob/slop-newyork" target="_blank" rel="noopener noreferrer">Slop New York</a>. Built with <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> (MIT).</p>
   </dialog>
 

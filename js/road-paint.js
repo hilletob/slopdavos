@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { CROSSWALK } from './road-network.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
+import { GEO } from './nyc-geodata.js';
 
 // js/road-paint.js
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
@@ -81,7 +82,9 @@ function buildRoadPaint(scene, network) {
       if (q.o - p.o > 4.5 && (p.dir === q.dir || !clearCentre(e, mid))) continue;
       if (p.dir === q.dir) {
         along(e, mid, 0.13, WHITE, 12, 0.25);
-      } else {
+      } else if (!GEO.irregular) {
+        // (none in a mapped city: js/city-grid.js paints its centre lines along the rounded street centrelines, white
+        // and dashed as in Switzerland; the network's straight runs only approximate those)
         along(e, mid - 0.12, 0.11, YELLOW);
         along(e, mid + 0.12, 0.11, YELLOW);
       }
@@ -102,7 +105,8 @@ function buildRoadPaint(scene, network) {
     // street merely bends: a shape node of the centreline streets)
     for (const f of back ? [e, back] : [e]) {
       if (f.to.shape) continue;
-      const left = back ? Math.max(0, f.lanes[0] - 1.8) : -f.half;
+      // (a one-way street with the buses' lane against it: from the centre line, the bus lane keeps going)
+      const left = back ? Math.max(0, f.lanes[0] - 1.8) : f.bus ? 0.1 : -f.half;
       across(f, f.len - 0.35, left + 0.1, f.half - 0.1, 0.45, WHITE);
     }
 

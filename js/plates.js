@@ -25,7 +25,7 @@ function rng(seed) {
   return () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 1) >>> 0) / 4294967296;
 }
 
-// The plates: 24 GR (variant 0 is GR: the player's car), 5 other cantons, 3 visitors
+// The plates: 24 GR (variant 0, GR 107922: the player's VW T3), 5 other cantons, 3 visitors
 export function plateList() {
   const rand = rng(7270);
   const digits = (n) => String(Math.floor(10 ** (n - 1) + rand() * 9 * 10 ** (n - 1)));
@@ -43,6 +43,7 @@ export function plateList() {
     const j = 1 + Math.floor(rand() * i);
     [list[i], list[j]] = [list[j], list[i]];
   }
+  list[0] = { kind: 'ch', canton: 'GR', number: '107922' }; // the player's VW T3
   return list;
 }
 
@@ -109,8 +110,6 @@ function shield(ctx, code, x, y, w, h) {
     default: band('#888', 0, 0, 1, 1);
   }
   ctx.restore();
-  shieldPath(ctx, x, y, w, h);
-  ctx.strokeStyle = '#222'; ctx.lineWidth = Math.max(1, w * 0.05); ctx.stroke();
 }
 
 // --- Plates --------------------------------------------------------------------------------------------------------------
@@ -126,11 +125,46 @@ function plateText(ctx, text, cx, cy, h, maxW, colour = '#111') {
   ctx.restore();
 }
 
+// The plate: white, a thin dark rounded rim with a light bezel inside it (as on the aluminium Swiss plates)
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
 function blank(ctx, x, y, w, h, fill = '#f7f7f4') {
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x + 1.5, y + 1.5, w - 3, h - 3);
+  ctx.fillStyle = '#f7f7f4';
+  ctx.fillRect(x, y, w, h); // (the atlas cell behind the rounded corners)
+  const r = h * 0.09;
+  roundRect(ctx, x + 1, y + 1, w - 2, h - 2, r);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.lineWidth = Math.max(1.2, h * 0.035); ctx.strokeStyle = '#2a2a2a'; ctx.stroke();
+  roundRect(ctx, x + 1 + h * 0.05, y + 1 + h * 0.05, w - 2 - h * 0.1, h - 2 - h * 0.1, r * 0.7);
+  ctx.lineWidth = Math.max(0.6, h * 0.012); ctx.strokeStyle = '#c9c9c4'; ctx.stroke();
+}
+
+// Swiss plate lettering: tall, narrow, DIN-like characters with wide spacing, the canton code and the number
+// separated by a centred dot ("BE · 56789"); character height ~70% of the plate. Drawn character by character, the
+// whole line squeezed horizontally if it would not fit `maxW`.
+const PLATE_FONT = (px) => `${px}px "DIN Condensed", "DIN Alternate", "Arial Narrow", "Roboto Condensed", sans-serif`;
+function swissPlateText(ctx, canton, number, cx, cy, h, maxW) {
+  ctx.save();
+  const px = Math.round(h * 0.98);
+  ctx.font = PLATE_FONT(px);
+  ctx.fillStyle = '#111'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  const gap = h * 0.14, dotW = h * 0.42;
+  const chars = [...canton, '·', ...number];
+  const widths = chars.map((c) => (c === '·' ? dotW : ctx.measureText(c).width));
+  const total = widths.reduce((a, b) => a + b, 0) + gap * (chars.length - 1);
+  const squeeze = Math.min(1, maxW / total);
+  ctx.translate(cx - (total * squeeze) / 2, cy);
+  ctx.scale(squeeze, 1);
+  let x = 0;
+  chars.forEach((c, i) => {
+    if (c === '·') { ctx.beginPath(); ctx.arc(x + dotW / 2, 0, h * 0.065, 0, Math.PI * 2); ctx.fill(); }
+    else ctx.fillText(c, x, h * 0.06);
+    x += widths[i] + gap;
+  });
+  ctx.restore();
 }
 
 // The EU band of a German, Italian or Dutch plate: blue, a ring of stars, the country code
@@ -148,14 +182,14 @@ function euBand(ctx, x, y, w, h, code) {
 function drawPlate(ctx, plate, x, y, w, h, rear) {
   if (plate.kind === 'ch') {
     blank(ctx, x, y, w, h);
-    const label = `${plate.canton} ${plate.number}`;
     if (rear) {
-      const sh = h * 0.72, sw = sh * 0.8, pad = h * 0.16;
-      shield(ctx, 'CH', x + pad, y + (h - sh) / 2, sw, sh);
-      shield(ctx, plate.canton, x + w - pad - sw, y + (h - sh) / 2, sw, sh);
-      plateText(ctx, label, x + w / 2, y + h / 2, h * 0.78, w - 2 * (pad + sw) - h * 0.3);
+      // Shields at both ends, a little lower than the plate's middle: the Swiss one left, the canton's right
+      const sh = h * 0.6, sw = sh * 0.84, pad = h * 0.2;
+      shield(ctx, 'CH', x + pad, y + (h - sh) / 2 + h * 0.02, sw, sh);
+      shield(ctx, plate.canton, x + w - pad - sw, y + (h - sh) / 2 + h * 0.02, sw, sh);
+      swissPlateText(ctx, plate.canton, plate.number, x + w / 2, y + h / 2, h * 0.7, w - 2 * (pad + sw) - h * 0.35);
     } else {
-      plateText(ctx, label, x + w / 2, y + h / 2, h * 0.74, w - h * 0.4);
+      swissPlateText(ctx, plate.canton, plate.number, x + w / 2, y + h / 2, h * 0.7, w - h * 0.35);
     }
     return;
   }

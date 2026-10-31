@@ -19,10 +19,18 @@
     "data:roofs": "node tools/build-roof-atlases.mjs",
     "data:vbd": "node tools/fetch-vbd.mjs",
     "data:shops": "node tools/fetch-shops.mjs",
+    "data:parking": "node tools/fetch-parking.mjs",
+    "data:streams": "node tools/fetch-streams.mjs",
     "data:hires": "node tools/fetch-swissimage.mjs --hires && node tools/build-roof-atlases.mjs --hires",
-    "data:bergbahnen": "node tools/fetch-bergbahnen.mjs"
+    "data:bergbahnen": "node tools/fetch-bergbahnen.mjs",
+    "data:facades": "node tools/fetch-mapillary.mjs",
+    "data:gwr": "node tools/build-gwr.mjs",
+    "data:tlm-trees": "node tools/fetch-tlm-trees.mjs",
+    "data:parking-bays": "node tools/detect-parking-bays.mjs",
+    "bake:trees": "node tools/bake-ez-trees.mjs"
   },
   "devDependencies": {
+    "@dgreenheck/ez-tree": "^1.1.0",
     "geotiff": "^2.1.3"
   }
 }
