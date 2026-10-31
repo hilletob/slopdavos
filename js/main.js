@@ -62,12 +62,15 @@ const boot = {
   state: { stage: 'start', at: new Date().toISOString(), ua: navigator.userAgent, errors: [] },
   save() { try { localStorage.setItem(BOOT_KEY, JSON.stringify(this.state)); } catch { /* storage may be off */ } },
   stage(label) { this.state.stage = label; this.save(); },
-  error(message) { if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 300)); this.save(); },
+  error(message) { if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 600)); this.save(); },
   done() { try { localStorage.removeItem(BOOT_KEY); } catch { /* storage may be off */ } }
 };
 boot.save();
-addEventListener('error', (e) => boot.error(e.message || e.error));
-addEventListener('unhandledrejection', (e) => boot.error(e.reason?.message || e.reason));
+// (where it happened too: file, line and the first frames of the stack; "Script error." alone says nothing)
+const errorText = (err, message, file, line, col) => [message || err?.message || String(err),
+  file ? `@ ${String(file).split('/').pop()}:${line}:${col}` : '', err?.stack ? err.stack.split('\n').slice(0, 3).join(' < ') : ''].filter(Boolean).join(' ');
+addEventListener('error', (e) => boot.error(errorText(e.error, e.message, e.filename, e.lineno, e.colno)), true);
+addEventListener('unhandledrejection', (e) => boot.error('unhandled: ' + errorText(e.reason)));
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
@@ -908,6 +911,7 @@ async function initApp() {
         await renderer.compileAsync(object, cameraSystem.camera, scene);
       } catch (e) {
         console.warn('[compile]', e); // the warm-up frame compiles it instead
+        boot.error('compile: ' + errorText(e));
       }
     };
     let next = 0;
