@@ -3,6 +3,8 @@ import { attribute, float, floor, frontFacing, mix, mx_noise_float, smoothstep, 
 import { createTreeMaterial } from './tsl-materials.js';
 import { snowyRoof, winter } from './season.js';
 import { surfaceHeight } from './terrain.js';
+import { QUALITY } from './quality.js';
+import { releaseImageAfterUpload } from './gpu-memory.js';
 
 // js/trees.js
 // Procedural street, park & forest trees, planted by street-details.js (section 7) and city-grid.js (the woods):
@@ -51,7 +53,9 @@ const smooth = (e0, e1, x) => {
 //    Texels: r = leaf brightness, g = per-leaf hue jitter, b = twig / stalk mask, a = coverage
 // =====================================================================================================================
 const TILES = 4;
-const ATLAS_SIZE = 2048; // 4 x 512: every mip level down to 4 px still splits evenly into the tiles
+// 4 x 512: every mip level down to 4 px still splits evenly into the tiles (4 x 256 on the mobile profile, js/quality.js:
+// a quarter of the memory; the sprays are drawn to the tile's size either way)
+const ATLAS_SIZE = QUALITY.mobile ? 1024 : 2048;
 const TILE = ATLAS_SIZE / TILES;
 const GUTTER = 8; // px kept clear round every tile, so mip levels don't bleed between tiles
 const TILE_FAR = 3;
@@ -469,6 +473,7 @@ function createLeafAtlas() {
   tex.colorSpace = THREE.NoColorSpace;
   tex.needsUpdate = true;
   tex.name = 'TreeLeafAtlas';
+  releaseImageAfterUpload(tex); // (its 21 MB of pixels and mipmaps leave JavaScript once on the GPU)
   return { texture: tex, tileMeters };
 }
 
@@ -1190,6 +1195,10 @@ function createTreeField(scene, sites) {
     // (and every baked close-up model, a row per species out on the meadow)
     sites.push(...SPECIES.flatMap((sp, k) => (BAKED_SHAPES[sp.name] || []).map((_, j) => ({ x: 690 + k * 14, z: -950 + j * 14, y: 0, scale: 1, species: k, yaw: k, near: j }))));
   }
+  // The mobile profile (js/quality.js) plants a share of the park and forest trees (tier 0, the bulk of them), and
+  // draws all trees over shorter distances; the street trees all stand
+  if (QUALITY.treeShare < 1) sites = sites.filter((t) => (t.tier || 0) !== 0 || hashPos(t.x, 8.8, t.z) < QUALITY.treeShare);
+  const maxDist = MAX_DIST.map((d) => d * QUALITY.treeDistance), lowCutoff = LOW_CUTOFF * QUALITY.treeDistance;
   const group = new THREE.Group();
   group.name = 'Trees';
   // The instances are repacked from `mats` whenever their level of detail changes, so the trees stand on the terrain
@@ -1263,7 +1272,6 @@ function createTreeField(scene, sites) {
   }));
   const cells = new Map();
   const meshes = [];
-  const counts = [];
 
   const dummy = new THREE.Object3D();
   const tint = new THREE.Color();
@@ -1316,29 +1324,54 @@ function createTreeField(scene, sites) {
     }
   });
 
-  const instanced = meshes.map((m) => {
+  // The InstancedMeshes themselves are made on first use too (meshFor): ~20 000 slots (cells x species x variants x
+  // levels) of which a few hundred ever show from one place; each one made up front cost ~2 KB of objects
+  const instanced = new Array(meshes.length).fill(null);
+  let template = null; // the first mesh made: its instance attribute class (main.js makes it a storage attribute on WebGPU)
+  let farShadows = true; // whether the whole-crown level casts shadows (setFarShadows)
+  function meshFor(mi) {
+    if (instanced[mi]) return instanced[mi];
+    const m = meshes[mi];
     const geo = new THREE.BufferGeometry();
     for (const name of Object.keys(m.type.geo.attributes)) geo.setAttribute(name, m.type.geo.attributes[name]);
     geo.setIndex(m.type.geo.index);
     geo.boundingSphere = m.type.geo.boundingSphere;
     geo.boundingBox = m.type.geo.boundingBox;
-    const cap = m.capacity;
     // Static usage on purpose: three.js re-uploads a DynamicDrawUsage attribute in every render pass of every frame
     // (both shadow cascades + the scene pass, ~7 MB/frame here). rebuild() uploads just the instances in use, and only
     // when the levels change.
-    const treeData = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
-    geo.setAttribute('aTreeData', treeData);
-    const mesh = new THREE.InstancedMesh(geo, material, cap);
+    // The instance buffers (m.capacity instances) are only allocated once the mesh first has trees to draw (allocate,
+    // in rebuild): every tree has a slot at each of the three levels, but stands at one level at most, and most cells
+    // never show some of theirs (~40 MB of the 60 MB of buffers stayed empty)
+    geo.setAttribute('aTreeData', new THREE.InstancedBufferAttribute(new Float32Array(0), 4));
+    geo.userData = m.type.geo.userData;
+    const mesh = new THREE.InstancedMesh(geo, material, 0);
+    if (template) mesh.instanceMatrix = new template.instanceMatrix.constructor(new Float32Array(0), 16);
+    else template = mesh;
     mesh.name = m.name;
     mesh.count = 0;
     mesh.visible = false;
-    mesh.castShadow = true;
+    mesh.castShadow = m.cell.level < 2 || farShadows;
     mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = mesh.matrixWorldAutoUpdate = false;
+    // (every mesh of a geometry type shares its pipeline: main.js precompiles one of them)
+    if (m.type.meshes.length) mesh.userData.sharesPipelineWith = m.type.meshes[0];
     m.cell.group.add(mesh);
+    mesh.updateMatrixWorld(true);
     m.type.meshes.push(mesh);
-    counts.push(0);
+    instanced[mi] = mesh;
     return mesh;
-  });
+  }
+  const counts = new Array(meshes.length).fill(0);
+
+  // A mesh's instance buffers at its full capacity, on first use (the instance matrix keeps the attribute class main.js
+  // gave it: a storage attribute on WebGPU)
+  function allocate(mi) {
+    const mesh = meshFor(mi), cap = meshes[mi].capacity;
+    if (mesh.instanceMatrix.count >= cap) return;
+    mesh.instanceMatrix = new mesh.instanceMatrix.constructor(new Float32Array(cap * 16), 16);
+    mesh.geometry.setAttribute('aTreeData', new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
+  }
 
   // Repack only cells whose trees changed level; the meshes and their buffer capacities stay fixed.
   const dirtyCells = new Set();
@@ -1349,14 +1382,16 @@ function createTreeField(scene, sites) {
       for (const i of cell.trees) {
         if (lod[i] !== l) continue;
         const mi = meshOf[i * 3 + l];
-        const mesh = instanced[mi];
         const c = counts[mi]++;
+        if (c === 0) allocate(mi);
+        const mesh = instanced[mi];
         mesh.instanceMatrix.array.set(mats.subarray(i * 16, i * 16 + 16), c * 16);
         mesh.geometry.attributes.aTreeData.array.set(data.subarray(i * 4, i * 4 + 4), c * 4);
       }
       let visible = false;
       for (const mi of cell.meshes.values()) {
         const mesh = instanced[mi];
+        if (!mesh) continue;
         const n = counts[mi];
         mesh.count = n;
         mesh.visible = n > 0;
@@ -1392,7 +1427,7 @@ function createTreeField(scene, sites) {
       const dy = py[i] - cam.y;
       const dz = pz[i] - cam.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const maxD = low ? Math.min(MAX_DIST[tier[i]], LOW_CUTOFF) : MAX_DIST[tier[i]];
+      const maxD = low ? Math.min(maxDist[tier[i]], lowCutoff) : maxDist[tier[i]];
       // levels 0-2, 3 = hidden; next to a boundary a tree keeps the level it has
       const curL = lod[i] === 255 ? 3 : lod[i];
       let nextL = d < LOD_NEAR ? 0 : d < LOD_MID ? 1 : d < maxD ? 2 : 3;
@@ -1427,7 +1462,10 @@ function createTreeField(scene, sites) {
   // Precompile one visible representative per geometry; the other cells use exactly the same pipeline.
   for (const type of types) {
     const representative = type.meshes.find((mesh) => mesh.visible) || type.meshes[0];
-    for (const mesh of type.meshes) if (mesh !== representative) mesh.userData.sharesPipelineWith = representative;
+    for (const mesh of type.meshes) {
+      if (mesh !== representative) mesh.userData.sharesPipelineWith = representative;
+      else delete mesh.userData.sharesPipelineWith;
+    }
   }
 
   // Tree placements are world-space instance matrices; the field, cells and meshes keep identity transforms.
@@ -1475,7 +1513,14 @@ function createTreeField(scene, sites) {
     triangles: geos.map((v) => v.map((l) => l.map((g) => g && g.userData.triangles))),
     cards: geos.map((v) => v.map((l) => l.map((g) => g && g.userData.cards)))
   };
-  return { group, material, atlas, update, meshes: instanced, stats };
+  // Whether the whole-crown level (beyond LOD_MID) casts shadows, for the meshes made so far and those made later
+  function setFarShadows(on) {
+    farShadows = on;
+    for (let mi = 0; mi < meshes.length; mi++) if (instanced[mi] && meshes[mi].cell.level === 2) instanced[mi].castShadow = on;
+  }
+
+  // (meshes: those made so far)
+  return { group, material, atlas, update, meshes: instanced.filter(Boolean), setFarShadows, stats };
 }
 
 // (makeCrown & makeCone also shade the baked EZ-Tree models: tools/bake-ez-trees.mjs)

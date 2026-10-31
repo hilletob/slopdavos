@@ -6,12 +6,13 @@ import { BERGBAHNEN } from './bergbahnen-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { cityUniforms } from './tsl-materials.js';
+import { QUALITY } from './quality.js';
 
 // The mountain railways of Davos (js/bergbahnen-data.js, tools/fetch-bergbahnen.mjs):
-//  - the funiculars — Parsennbahn (Davos Dorf – Höhenweg – Weissfluhjoch, two trains of two cars per section) and
-//    Schatzalpbahn (Davos Platz – Schatzalp, two cars): rails and sleepers up the slope, cars stepped like the real
-//    ones, the two cars of a line tied to one rope (one climbs as the other descends) and passing each other on the
-//    loop half-way, dwelling at the stations;
+//  - the funiculars — Parsennbahn (Davos Dorf – Höhenweg – Weissfluhjoch: two trains of two coupled cars below, of one
+//    long car above) and Schatzalpbahn (Davos Platz – Schatzalp, two cars): rails and sleepers up the slope, each car one
+//    body sheared parallel to the track (ends plumb) like the real ones, the two trains of a line tied to one rope (one
+//    climbs as the other descends) and passing each other on the loop half-way, dwelling at the stations;
 //  - the aerial tramways (Jakobshornbahn's two sections, the Parsennhüttenbahn, the Gipfelbahn, the Pischabahn...): two
 //    track ropes over the pylons, two cabins shuttling between the stations, swaying as they start and stop;
 //  - the circulating lifts — gondolas, chair lifts, T-bars and drag lifts: the loop of rope over the pylons, the
@@ -63,10 +64,13 @@ const slopedBox = (w, h, l, x, d, s, colour, t) => [w, h, l, x, d * Math.cos(t) 
 
 // --- Lettering decals ---------------------------------------------------------------------------------------------------------
 // Signwriting (car names, numbers, the lines' names) drawn into a canvas once, on thin quads just off the sides
+// (drawn in w x h px whatever the canvas' size: the mobile profile, js/quality.js, makes it half as large)
 function canvasTexture(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
+  const c = document.createElement('canvas'), s = QUALITY.atlasScale;
+  c.width = Math.round(w * s); c.height = Math.round(h * s);
+  const ctx = c.getContext('2d');
+  ctx.scale(s, s);
+  draw(ctx, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -220,73 +224,73 @@ function gratingMaterial() {
   return m;
 }
 
-// The Parsennbahn's car (Davos Klosters Mountains' photo after the revision): one long car per train, compartments
-// stepped to the slope (each floor level), Parsenn red, tall narrow windows in dark frames with a white sunshade band,
-// dark doors, a faceted nose at both ends with a huge dark windscreen in a black frame, small headlights, a dark-grey
-// underframe with skirts and the running gear; the car runs along +z (uphill), its origin on the rails at its centre.
+// The Parsennbahn's cars (Garaventa / Gangloff): one continuous body per car, a parallelogram up the slope like every
+// funicular car — the floor stepped inside, but outside the roof and the sills run parallel to the track and the ends
+// stand plumb. Parsenn red with a white roof and a white band over the long window strip (thin red pillars between
+// the compartments, a dark door to each), a dark-grey underframe with the running gear. A driving end has the big
+// windscreen in its black frame and the headlights; a coupled end (the lower section's two-car trains) the grey
+// gangway bellows and the coupler. Built level (z along the car, +z uphill, origin on the rails at its centre): the
+// instance matrix shears it to the track's local grade (see buildFuniculars). `cabs` = [the -z end, the +z end].
 const PARSENN_RED = 0xd3202a;
-function parsennCarGeometry(length, grade) {
-  const n = Math.max(4, Math.round(length / 3.7)), step = length / n, w = 2.6, list = [];
-  const glass = 0x1b242c, frame = 0x1c1d1f, shade = 0xe9eaea, dark = 0x2b2e32;
+const parsennWidth = (gauge) => (gauge >= 1.1 ? 2.7 : 2.45);
+function parsennCarGeometry(length, gauge, cabs, glassRoof) {
+  const w = parsennWidth(gauge), L = length, list = [];
+  const glass = 0x1b242c, frame = 0x17181a, white = 0xeeefef, dark = 0x2a2c30, grey = 0x5d6166;
+  // The body, the white band and the roof, the underframe and its skirts
+  list.push([w, 2.7, L, 0, 1.9, 0, PARSENN_RED]);
+  list.push([w + 0.04, 0.2, L - 0.1, 0, 3.0, 0, white]);
+  list.push([w - 0.08, 0.16, L - 0.06, 0, 3.33, 0, white]);
+  list.push([w - 0.5, 0.22, L - 1.2, 0, 3.5, 0, 0xd6d8da]); // the roof equipment cover
+  if (glassRoof) list.push([w - 0.7, 0.04, L - 2.4, 0, 3.62, 0, glass]);
+  list.push([w - 0.3, 0.36, L - 0.3, 0, 0.42, 0, dark]);
+  list.push([w - 0.05, 0.08, L, 0, 0.6, 0, 0x8f1219]); // the sill line
+  for (const e of [-1, 1]) list.push([2.0, 0.42, 2.4, 0, 0.13, e * (L / 2 - 2.2), 0x1b1c1e]); // the running gear
+  // The compartments (~2.6 m): a door (dark, glazed above) and a window each, on both sides
+  const usable = L - 1.6, n = Math.max(2, Math.round(usable / 2.6)), seg = usable / n;
   for (let i = 0; i < n; i++) {
-    const zc = -length / 2 + step * (i + 0.5), y0 = zc * grade, end = i === 0 ? -1 : i === n - 1 ? 1 : 0;
-    list.push([w, 2.75, step + 0.03, 0, y0 + 1.72, zc, PARSENN_RED]);
-    list.push([w - 0.12, 0.12, step + 0.02, 0, y0 + 3.15, zc, 0xb31822]); // the roof step
-    list.push([w - 0.25, 0.32, step, 0, y0 + 0.2, zc, 0x303236]); // the skirt
-    if (end) {
-      // The nose: the windscreen raked back in its black frame, the chin with the headlights, the wiper
-      const ze = zc + end * (step / 2);
-      list.push([w - 0.08, 2.25, 0.1, 0, y0 + 2.05, ze + end * 0.02, frame, end * 0.28]);
-      list.push([w - 0.34, 1.95, 0.12, 0, y0 + 2.1, ze + end * 0.05, glass, end * 0.28]);
-      list.push([w - 0.2, 0.75, 0.45, 0, y0 + 0.75, ze + end * 0.12, PARSENN_RED]);
-      for (const x of [-0.85, 0.85]) list.push([0.26, 0.12, 0.08, x, y0 + 0.92, ze + end * 0.36, 0xfff4d8]);
-      list.push([0.9, 0.05, 0.05, -0.3, y0 + 1.35, ze + end * 0.2, frame, 0, 0.5]);
-      // A window and the end of the side behind the cab
-      for (const k of [-end * 0.22]) {
-        const z = zc + k * step, ww = step * 0.32;
-        list.push([w + 0.02, 1.85, ww + 0.1, 0, y0 + 1.95, z, frame]);
-        list.push([w + 0.03, 1.72, ww, 0, y0 + 1.95, z, glass]);
-        list.push([w + 0.04, 0.14, ww, 0, y0 + 2.2, z, shade]);
-      }
-      continue;
-    }
-    if (i === 1 || i === n - 2) {
-      // A door bay: the dark door leaves with their window, and one side window
-      list.push([w + 0.035, 2.35, 1.25, 0, y0 + 1.55, zc - step * 0.2, dark]);
-      list.push([w + 0.04, 1.2, 0.95, 0, y0 + 2.0, zc - step * 0.2, glass]);
-      const z = zc + step * 0.28, ww = step * 0.28;
-      list.push([w + 0.02, 1.85, ww + 0.1, 0, y0 + 1.95, z, frame]);
-      list.push([w + 0.03, 1.72, ww, 0, y0 + 1.95, z, glass]);
-      list.push([w + 0.04, 0.14, ww, 0, y0 + 2.2, z, shade]);
-      continue;
-    }
-    // Two tall windows
-    for (const k of [-0.25, 0.25]) {
-      const z = zc + k * step, ww = step * 0.38;
-      list.push([w + 0.02, 1.85, ww + 0.1, 0, y0 + 1.95, z, frame]);
-      list.push([w + 0.03, 1.72, ww, 0, y0 + 1.95, z, glass]);
-      list.push([w + 0.04, 0.14, ww, 0, y0 + 2.2, z, shade]);
+    const z0 = -usable / 2 + seg * i;
+    const dz = z0 + 0.12 + 0.45, wz0 = z0 + 1.08, wz1 = z0 + seg - 0.1;
+    list.push([w + 0.03, 2.35, 0.9, 0, 1.78, dz, dark]);
+    list.push([w + 0.04, 1.15, 0.7, 0, 2.2, dz, glass]);
+    list.push([w + 0.02, 1.36, wz1 - wz0 + 0.08, 0, 2.18, (wz0 + wz1) / 2, frame]);
+    list.push([w + 0.035, 1.24, wz1 - wz0, 0, 2.18, (wz0 + wz1) / 2, glass]);
+  }
+  for (const [k, e] of [[0, -1], [1, 1]]) {
+    const z = e * L / 2;
+    if (cabs[k]) {
+      // The driving end: the windscreen raked a little in its black frame, the chin, the headlights, the wiper
+      list.push([w - 0.1, 1.75, 0.1, 0, 2.25, z + e * 0.03, frame, -e * 0.12]);
+      list.push([w - 0.36, 1.5, 0.12, 0, 2.28, z + e * 0.06, glass, -e * 0.12]);
+      list.push([w - 0.16, 0.85, 0.24, 0, 0.98, z + e * 0.1, PARSENN_RED]);
+      list.push([w - 0.6, 0.12, 0.26, 0, 1.25, z + e * 0.1, white]);
+      for (const x of [-0.85, 0.85]) list.push([0.3, 0.14, 0.08, x, 0.95, z + e * 0.24, 0xfff4d8]);
+      list.push([0.9, 0.05, 0.05, -0.3, 1.62, z + e * 0.13, frame, 0, 0.5]);
+      // The side window beside the driver
+      list.push([w + 0.02, 1.36, 0.6, 0, 2.18, z - e * 0.45, frame]);
+      list.push([w + 0.035, 1.24, 0.5, 0, 2.18, z - e * 0.45, glass]);
+    } else {
+      // The coupled end: the end door, the gangway bellows and the coupler
+      list.push([0.9, 2.1, 0.06, 0, 1.75, z + e * 0.02, dark]);
+      list.push([1.7, 2.5, 0.3, 0, 1.85, z + e * 0.15, grey]);
+      list.push([0.25, 0.22, 0.4, 0, 0.62, z + e * 0.2, 0x111111]);
     }
   }
-  // The inclined chassis and the running gear
-  const tilt = Math.atan(grade), slopeLen = length / Math.cos(tilt);
-  list.push([2.0, 0.45, slopeLen, 0, 0.22, 0, 0x2a2b2d, -tilt]);
-  for (const e of [-1, 1]) list.push([2.1, 0.4, 2.2, 0, 0.12 + e * (length / 2 - 2) * grade, e * (length / 2 - 2), 0x1d1e20]);
   return boxes(list);
 }
-// Its lettering: "PARSENN" upright along both noses, the car number near the top of the nose, the yellow-dot "PARSENN"
-// mark mid-side (drawn, not the original mark)
-function parsennDecals(length, grade, number, atlas) {
-  const n = Math.max(4, Math.round(length / 3.7)), step = length / n, half = 2.6 / 2 + 0.045, parts = [];
-  for (const end of [-1, 1]) {
-    const zc = end * (length / 2 - step / 2), y0 = zc * grade;
-    const zA = zc + end * step * 0.12, zB = zc + end * step * 0.42;
-    parts.push(sideDecals(half, Math.min(zA, zB), Math.max(zA, zB), y0 + 0.75, y0 + 2.6, atlas.vertical));
-    const zN = zc + end * step * 0.46;
-    parts.push(sideDecals(half, zN - 0.25, zN + 0.25, y0 + 2.75, y0 + 3.1, atlas.numbers[number]));
+// Its lettering: the yellow-dot "PARSENN" mark mid-side under the windows, "PARSENN" upright beside the driving ends'
+// side window, the train's number high near the ends (drawn, not the original marks)
+function parsennDecals(length, gauge, cabs, number, atlas) {
+  const L = length, half = parsennWidth(gauge) / 2 + 0.045, parts = [];
+  const usable = L - 1.6, n = Math.max(2, Math.round(usable / 2.6)), seg = usable / n, i = Math.floor((n - 1) / 2);
+  const zl = -usable / 2 + seg * i + (1.08 + seg - 0.1) / 2, wl = Math.min(1.5, seg - 1.2);
+  parts.push(sideDecals(half, zl - wl / 2, zl + wl / 2, 1.05, 1.05 + wl / 5.5, atlas.logo));
+  for (const [k, e] of [[0, -1], [1, 1]]) {
+    if (!cabs[k]) continue;
+    const z = e * L / 2 - e * 0.45;
+    parts.push(sideDecals(half, z - 0.22, z + 0.22, 0.75, 1.45, atlas.vertical));
+    const zn = e * L / 2 - e * 0.9;
+    parts.push(sideDecals(half, zn - 0.2, zn + 0.2, 2.9, 3.1, atlas.numbers[number]));
   }
-  const y0 = 0;
-  parts.push(sideDecals(half, -1.1, 1.1, y0 + 0.62, y0 + 1.02, atlas.logo));
   return mergeGeometries(parts, false);
 }
 function parsennAtlas() {
@@ -313,9 +317,8 @@ function parsennAtlas() {
 // a light-grey box at the upper end, the dark underframe; lettering "DAVOS SCHATZALP" with the "S" disc twice, and the
 // car's name on the blue frieze over the windows.
 const SCHATZALP_BLUE = 0x1d4fa3, SCHATZALP_YELLOW = 0xf4d10a;
-// (built level, then sheared up the slope: the ends stay plumb, the profile a parallelogram)
-const shear = (g, grade) => g.applyMatrix4(new THREE.Matrix4().makeShear(0, 0, 0, 0, 0, grade));
-function schatzalpCarGeometry(length, grade) {
+// (built level; the instance matrix shears it up the slope: the ends stay plumb, the profile a parallelogram)
+function schatzalpCarGeometry(length) {
   const t = 0, w = 2.4, glass = 0x1d2a33, list = [];
   list.push(slopedBox(w, 1.25, length, 0, 0.98, 0, SCHATZALP_YELLOW, t));
   list.push(slopedBox(w, 1.7, length, 0, 2.45, 0, SCHATZALP_BLUE, t));
@@ -326,14 +329,14 @@ function schatzalpCarGeometry(length, grade) {
   list.push(slopedBox(1.6, 0.4, 2.4, 0, 3.6, length / 2 - 1.5, 0xc9ccd0, t));
   list.push(slopedBox(2.0, 0.35, length - 0.6, 0, 0.2, 0, 0x26282b, t));
   for (const e of [-1, 1]) list.push(slopedBox(2.1, 0.45, 1.6, 0, 0.05, e * (length / 2 - 1.6), 0x1b1c1e, t));
-  return shear(boxes(list), grade);
+  return boxes(list);
 }
-function schatzalpDecals(length, grade, name, atlas) {
+function schatzalpDecals(length, name, atlas) {
   const half = 2.4 / 2 + 0.045;
-  return shear(mergeGeometries([
+  return mergeGeometries([
     sideDecals(half, -length / 2 + 0.05, length / 2 - 0.05, 0.36, 1.62, atlas.band),
     sideDecals(half, -length / 2 + 0.3, length / 2 - 0.3, 2.9, 3.28, atlas.names[name])
-  ], false), grade);
+  ], false);
 }
 function schatzalpAtlas(names) {
   const W = 2048, H = 512;
@@ -409,8 +412,9 @@ function buildFuniculars(group) {
   const parsennDecalMaterial = decalMaterial(parsennMap.map), schatzalpDecalMaterial = decalMaterial(schatzalpMap.map);
   for (const f of BERGBAHNEN.funiculars) {
     const parsenn = /Parsenn/.test(f.name), schatz = /Schatzalp/.test(f.name);
-    // One car per train (Parsenn: ~200 places; the first section's car about 26 m, the second's ~20 m)
-    const cars = 1, carLength = parsenn ? (f.gauge >= 1.1 ? 26 : 20) : f.carLength;
+    // The trains (js/bergbahnen-data.js): Parsenn's lower section two coupled cars, its upper section one long car,
+    // the Schatzalpbahn one car; `gap` between coupled cars (the bellows)
+    const cars = f.cars || 1, carLength = f.carLength, gap = 0.5, trainLength = cars * carLength + (cars - 1) * gap;
     const paths = [carPath(f, 1), carPath(f, -1)];
     // Track: the bed and the two rails, along both cars' paths (they coincide outside the loop)
     const beds = [], rails = [], walks = [];
@@ -431,25 +435,26 @@ function buildFuniculars(group) {
       if (!trackParts.has(material)) trackParts.set(material, []);
       trackParts.get(material).push(...list);
     }
-    // Cars: one per train, two trains on one rope; their lettering on separate decal meshes (numbered / named)
-    const grade = f.rise / f.length;
-    const geometry = parsenn ? parsennCarGeometry(carLength, grade) : schatz ? schatzalpCarGeometry(carLength, grade) : null;
-    const body = new THREE.InstancedMesh(geometry, vehicleMaterial(), 2);
+    // Cars: two trains on one rope, all their cars in one instanced mesh (built level, sheared to the track per
+    // instance); the lettering on one decal mesh per train (its number / name), one instance per car. The lower
+    // Parsenn train's cars share one geometry: a driving end at +z and a coupled end at -z, the valley car turned round.
+    const geometry = parsenn ? parsennCarGeometry(carLength, f.gauge, cars > 1 ? [false, true] : [true, true], cars === 1)
+      : schatzalpCarGeometry(carLength);
+    const body = new THREE.InstancedMesh(geometry, vehicleMaterial(), 2 * cars);
     const decals = [0, 1].map((t) => {
-      if (!parsenn && !schatz) return null;
-      const g = parsenn ? parsennDecals(carLength, grade, t + 1, parsennMap) : schatzalpDecals(carLength, grade, SCHATZALP_NAMES[t % SCHATZALP_NAMES.length], schatzalpMap);
-      const mesh = new THREE.InstancedMesh(g, parsenn ? parsennDecalMaterial : schatzalpDecalMaterial, 1);
-      return mesh;
+      const g = parsenn ? parsennDecals(carLength, f.gauge, cars > 1 ? [false, true] : [true, true], t + 1, parsennMap)
+        : schatzalpDecals(carLength, SCHATZALP_NAMES[t % SCHATZALP_NAMES.length], schatzalpMap);
+      return new THREE.InstancedMesh(g, parsenn ? parsennDecalMaterial : schatzalpDecalMaterial, cars);
     });
     const sphere = linesSphere(paths, carLength / 2 + 6);
-    for (const mesh of [body, ...decals.filter(Boolean)]) {
+    for (const mesh of [body, ...decals]) {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.castShadow = mesh.receiveShadow = mesh === body;
       mesh.boundingSphere = sphere;
       mesh.name = f.label;
       group.add(mesh);
     }
-    lines.push({ f, paths, body, decals, cars, carLength, run: shuttle(paths[0].len - cars * (carLength + 0.6), f.speed, 0.7, 45) });
+    lines.push({ f, paths, body, decals, cars, carLength, gap, trainLength, run: shuttle(paths[0].len - trainLength - 0.6, f.speed, 0.7, 45) });
   }
   // Railing posts (instanced) and handrails (lines)
   for (const [material, list] of trackParts) {
@@ -484,27 +489,43 @@ function buildFuniculars(group) {
     mesh.castShadow = mesh.receiveShadow = true;
     group.add(mesh);
   }
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0), up = new THREE.Vector3(0, 1, 0), probe = {};
-  return (dt) => {
+  // A car on the track: its ends on the rails at s ∓ length/2 along the path; the matrix turns it to the chord between
+  // them and shears it to the chord's grade (y += grade·z: sills and roof parallel to the track, the ends plumb), the
+  // car's level length foreshortened to the chord's run so that it spans the slope length; `flip` turns it round.
+  const m = new THREE.Matrix4(), sh = new THREE.Matrix4(), turn = new THREE.Matrix4().makeRotationY(Math.PI), A = {}, B = {};
+  const placeCar = (p, s, length, flip, out) => {
+    at(p, s - length / 2, A); at(p, s + length / 2, B);
+    const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z, run = Math.hypot(dx, dz) || 1e-6;
+    const hidden = (point(p, s - length / 2 - 12).tunnel && point(p, s + length / 2 + 12).tunnel);
+    if (hidden) return out.makeScale(0, 0, 0);
+    const k = run / length;
+    // columns: x across, y up, z along the chord (rise dy over the car's length)
+    sh.set(1, 0, 0, 0, 0, 1, dy / length, 0, 0, 0, k, 0, 0, 0, 0, 1);
+    out.makeRotationY(Math.atan2(dx, dz)).multiply(sh);
+    if (flip) out.multiply(turn);
+    return out.setPosition((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  };
+  const point = (p, v) => { const k = p.cum.findIndex((c) => c >= v); return p.pts[k < 0 ? p.pts.length - 1 : k]; };
+  const update = (dt) => {
     for (const l of lines) {
-      const { f, paths, body, decals, cars, carLength, run } = l;
+      const { paths, body, decals, cars, carLength, gap, trainLength, run } = l;
       run.update(dt);
-      // Train 0 climbs on path 0 from the valley; train 1 descends on path 1 (its distance from the valley is the rest)
-      [[paths[0], run.s], [paths[1], paths[1].len - (run.s + cars * (carLength + 0.6))]].forEach(([p, sTrain], t) => {
-        const s = sTrain + 0.5 * (carLength + 0.6);
-        at(p, s, probe);
-        // Hidden deep in a tunnel (both ends well inside): the ground and the portal hide it near the portals anyway
-        const point = (v) => { const k = p.cum.findIndex((c) => c >= v); return p.pts[k < 0 ? p.pts.length - 1 : k]; };
-        const hidden = point(s - carLength / 2 - 12).tunnel && point(s + carLength / 2 + 12).tunnel;
-        q.setFromAxisAngle(up, Math.atan2(probe.dx, probe.dz));
-        m.compose(pos.set(probe.x, probe.y, probe.z), q, hidden ? zero : one);
-        body.setMatrixAt(t, m);
-        if (decals[t]) decals[t].setMatrixAt(0, m);
+      // Train 0 climbs on path 0 from the valley; train 1 descends on path 1 (its distance from the valley is the rest).
+      // sTrain: the train's valley end; car c (0 = the valley car) centred above it; with two cars the valley car is
+      // turned round (its driving end downhill)
+      [[paths[0], run.s + 0.3], [paths[1], paths[1].len - 0.3 - run.s - trainLength]].forEach(([p, sTrain], t) => {
+        for (let c = 0; c < cars; c++) {
+          placeCar(p, sTrain + c * (carLength + gap) + carLength / 2, carLength, cars > 1 && c === 0, m);
+          body.setMatrixAt(t * cars + c, m);
+          decals[t].setMatrixAt(c, m);
+        }
       });
       body.instanceMatrix.needsUpdate = true;
-      for (const d of decals) if (d) d.instanceMatrix.needsUpdate = true;
+      for (const d of decals) d.instanceMatrix.needsUpdate = true;
     }
   };
+  update.lines = lines; // (test hooks: the shuttles' state, see group.userData.funiculars)
+  return update;
 }
 
 // --- Ropeways ---------------------------------------------------------------------------------------------------------------
@@ -835,5 +856,6 @@ export function buildBergbahnen(scene) {
   const updateRopeways = buildRopeways(group);
   scene.add(group);
   group.userData.stats = { funiculars: BERGBAHNEN.funiculars.length, ropeways: BERGBAHNEN.ropeways.length };
+  group.userData.funiculars = updateFuniculars.lines.map((l) => ({ label: l.f.label, run: l.run, length: l.paths[0].len - l.trainLength - 0.6 }));
   return { group, update(dt) { dt = Math.min(dt, 0.1); updateFuniculars(dt); updateRopeways(dt); } };
 }

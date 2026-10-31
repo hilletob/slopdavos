@@ -7,6 +7,7 @@ import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { surfaceHeight, deckHeight, groundHeight, ROAD_TOP } from './terrain.js';
+import { QUALITY } from './quality.js';
 import {
   BODY_SPECS,
   BUS_SPEC,
@@ -36,9 +37,9 @@ import { attribute, mix, step, vec3 } from 'three/tsl';
 // - The player's vehicle or character pushes and is pushed by the traffic (SAT contact, impulses, sparks).
 
 // (Davos: about half the upstream density — a mountain town, not Manhattan; parked cars are js/parking.js)
-const NUM_CARS = 100;
+const NUM_CARS = QUALITY.cars; // 100 (40 on the mobile profile, js/quality.js)
 const NUM_BUSES = 0; // Davos: the VBD buses run their real lines (js/vbd.js) instead of the generic ones
-const NUM_BIKES = 225;
+const NUM_BIKES = QUALITY.bikes; // 225 (60 on the mobile profile)
 
 // Intelligent Driver Model: max acceleration, comfortable braking, time headway, standstill gap; and the sideways
 // acceleration drivers accept in bends, which sets how fast they take each turn or lane shift
@@ -1321,7 +1322,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     a.prevX = prevX; a.prevZ = prevZ;
     a.sin = Math.sin(heading); a.cos = Math.cos(heading);
     a.halfW = player.halfW; a.halfL = player.halfL;
-    a.mass = pe.type === 'car' ? 1700 : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
+    a.mass = pe.type === 'snowcat' ? 9000 : pe.type === 'car' ? 1700 : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
     a.vx = a.sin * (pe.speed || 0) + (pe.vx || 0);
     a.vz = a.cos * (pe.speed || 0) + (pe.vz || 0);
     a.angularVel = pe.type === 'car' ? pe.angularVel || 0 : 0;
@@ -1825,7 +1826,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     refreshNear();
     updateView(camera);
 
-    player.active = Boolean(playerEntity && activeMode !== 'helicopter' && playerEntity.position.y < 2.6);
+    // (on the ground: Davos' streets lie at all heights, so the test is against the relief, not y = 0)
+    player.active = Boolean(playerEntity && activeMode !== 'helicopter'
+      && playerEntity.position.y - surfaceHeight(playerEntity.position.x, playerEntity.position.z, playerEntity.position.y) < 2.6);
     if (playerEntity) {
       const heading = playerEntity.heading || 0;
       const speed = playerEntity.speed || 0;
@@ -1837,8 +1840,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       player.vx = player.fx * speed + (playerEntity.vx || 0);
       player.vz = player.fz * speed + (playerEntity.vz || 0);
     }
-    player.halfW = activeMode === 'cargobike' ? 0.38 : activeMode === 'cyclist' ? 0.35 : activeMode === 'person' ? 0.32 : 0.93;
-    player.halfL = activeMode === 'cargobike' ? 1.34 : activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : 2.33;
+    player.halfW = activeMode === 'cargobike' ? 0.38 : activeMode === 'cyclist' ? 0.35 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 2.2 : 0.93;
+    player.halfL = activeMode === 'cargobike' ? 1.34 : activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 3.6 : 2.33;
 
     // 1. Cars & buses
     // Limit attempted placements, not just successes, and rotate through the pool so an awkward location

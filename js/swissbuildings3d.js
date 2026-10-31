@@ -9,6 +9,8 @@ import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
 import { FACADES } from './facades-data.js';
 import { FACADE, gwrBuilding } from './gwr.js';
+import { QUALITY } from './quality.js';
+import { releaseImageAfterUpload } from './gpu-memory.js';
 import { orthophotoIndex, orthophotoAt, orthophotoCovers, orthophotoTexture, setOrthophotoUV, updateTerrainDetail } from './swissimage.js';
 
 // swisstopo swissBUILDINGS3D 3.0: every building of Switzerland with its real roof, as 3D Tiles 1.0 (b3dm with Draco
@@ -19,14 +21,19 @@ import { orthophotoIndex, orthophotoAt, orthophotoCovers, orthophotoTexture, set
 // Each tile gets an exact local affine map (the Jacobian of the rigorous ECEF -> LV95 transformation at its centre: a
 // tile spans ~100 m, so the residual is far below a millimetre). Heights come out above the Bessel ellipsoid; the batch
 // table's surveyed roof tops (DACH_MAX, metres a.s.l.) calibrate each tile to orthometric heights without a geoid model.
-// Older captures (most of Davos, 2014) carry neither DACH_MAX nor GELAENDEPUNKT: there the lowest point of each building
-// is set onto the swissALTI3D terrain instead (median over the tile).
+// Older captures (all of Davos, 2014) carry neither DACH_MAX nor GELAENDEPUNKT: there each building's floor (drawn at
+// the lowest ground around it) is set onto the lowest point of our terrain under it instead (median over the tile), and
+// every building is then put onto its own base, its floor reaching under the ground (on a slope: the downhill walls).
 
 const INDEX_URL = new URL('../data/swissbuildings3d/index.json', import.meta.url);
 const ROOFS_URL = new URL('../data/roofs/index.json', import.meta.url);
 // The optional high-resolution roof crops (0.1 m, npm run data:hires; not in git): preferred when present
 const HIRES_ROOFS_URL = new URL('../data/hires/roofs/index.json', import.meta.url);
 const MAX_PAGES = 4;
+// Geoid height over the valley (the bakes' heights above the ellipsoid minus those a.s.l.): the calibration's reference
+// until enough tiles are in (measured over all 1041 tiles' buildings, floor against base: 50.64 m, ±0.03 m whatever
+// the slope)
+const GEOID_OFFSET = 50.64;
 
 // --- b3dm container ----------------------------------------------------------------------------------------------------
 export function parseB3dm(buffer) {
@@ -206,24 +213,51 @@ export function bakeTile(gltf, tile, stats) {
   const roofTop = batchTable.DACH_MAX || [];
   const maxY = new Map();
   for (let i = 0; i < total; i++) maxY.set(batchOf[i], Math.max(maxY.get(batchOf[i]) ?? -Infinity, positions[i * 3 + 1]));
+  // Each building's floor (swissBUILDINGS3D draws every building down to a flat floor at the lowest point of the
+  // terrain around it) and that lowest point on our terrain: the least ground height under the floor's corners and the
+  // midpoints of its edges (the base, "Gebäudesockel")
+  // (Roofs on posts — carports, canopies, a covered footbridge — have no walls down to their floor: left as they are)
+  const standing = (b) => !/^(Offenes Gebaeude|Flugdach|Verbindungsbr|Unterirdisch)/.test(batchTable.OBJEKTART?.[b] || '');
+  const floor = new Map(), sockel = new Map();
+  for (let i = 0; i < total; i++) { const b = batchOf[i], y = positions[i * 3 + 1]; if (!(floor.get(b) <= y)) floor.set(b, y); }
+  const atFloor = (i) => positions[i * 3 + 1] < floor.get(batchOf[i]) + 0.05;
+  const sample = (b, x, z) => { const h = groundHeight(x, z); if (!(sockel.get(b) <= h)) sockel.set(b, h); };
+  for (let t = 0; t < total; t += 3) {
+    for (let j = 0; j < 3; j++) {
+      const i = t + j, n = t + (j + 1) % 3;
+      if (!atFloor(i)) continue;
+      sample(batchOf[i], positions[i * 3], positions[i * 3 + 2]);
+      if (atFloor(n)) sample(batchOf[i], (positions[i * 3] + positions[n * 3]) / 2, (positions[i * 3 + 2] + positions[n * 3 + 2]) / 2);
+    }
+  }
   const diffs = [];
   for (const [b, y] of maxY) if (Number.isFinite(roofTop[b])) diffs.push(roofTop[b] - FRAME.H0 - y);
   if (!diffs.length) {
-    // No surveyed roofs: the terrain under each building's lowest vertex
-    const lowest = new Map();
-    for (let i = 0; i < total; i++) {
-      const l = lowest.get(batchOf[i]);
-      if (!l || positions[i * 3 + 1] < positions[l * 3 + 1]) lowest.set(batchOf[i], i);
-    }
-    for (const i of lowest.values()) diffs.push(groundHeight(positions[i * 3], positions[i * 3 + 2]) - positions[i * 3 + 1]);
-    // The offset is systematic (~51 m around Davos): a tile of a few buildings on a steep slope, or far off the tiles
-    // loaded so far, takes their median instead
+    // No surveyed roofs (all of Davos): each building's floor onto its base. (Not the ground under its lowest vertex:
+    // a flat floor's lowest vertex is any of its corners, half of them uphill — on a slope the tile came out metres
+    // too high, its buildings floating.) The offset is the geoid's, the same to a few decimetres over the valley
+    // (50.6 m on our terrain): a tile of a few buildings, or one far off the tiles loaded so far, takes the reference
+    for (const [b, y] of floor) if (standing(b)) diffs.push(sockel.get(b) - y);
     const global = median(stats.offsets), guess = median(diffs);
-    if (diffs.length < 4 || (global != null && stats.offsets.length >= 8 && Math.abs(guess - global) > 4)) diffs.length = 0;
+    const reference = stats.offsets.length >= 8 ? global : GEOID_OFFSET;
+    if (diffs.length < 3 || Math.abs(guess - reference) > 1.5) diffs.length = 0;
   }
   const local = median(diffs);
   if (local != null) stats.offsets.push(local);
-  const dy = local ?? median(stats.offsets) ?? 0;
+  const dy = local ?? (stats.offsets.length >= 8 ? median(stats.offsets) : GEOID_OFFSET);
+  // Each building onto its base: one sunk into the ground (where our 8 m terrain lies higher than the survey's) rises
+  // to it, up to 3 m; and its floor reaches 0.5 m under the ground everywhere, so that on a slope the downhill walls
+  // run into the ground instead of ending in the air (the floor sinks, the uphill walls stay where they are). Not
+  // under what stands well clear of the ground (more than 6 m: the parts standing on another building's roof)
+  const lift = new Map(), sink = new Map();
+  for (const [b, y] of floor) {
+    if (!standing(b)) { lift.set(b, 0); continue; }
+    const gap = y + dy - sockel.get(b);
+    const up = gap < -0.3 ? Math.min(-gap - 0.3, 3) : 0;
+    lift.set(b, up);
+    if (gap + up <= 6) sink.set(b, Math.min(y + dy + up, sockel.get(b) - 0.5));
+    else stats.aloft = (stats.aloft || 0) + 1;
+  }
 
   const ground = batchTable.GELAENDEPUNKT || [];
   const kinds = batchTable.OBJEKTART || [];
@@ -238,10 +272,10 @@ export function bakeTile(gltf, tile, stats) {
     const f = FACADES.buildings[`${lat.toFixed(6)},${batchTable.Longitude[b].toFixed(6)}`];
     if (f && f[4] >= 25) measured.set(b, f);
   });
-  // Each building's foot (its lowest vertex, or its surveyed ground point) and height: storeys count from the foot
+  // Each building's foot (its floor, or its surveyed ground point) and height: storeys count from the foot
   const foot = new Map(), top = new Map();
   for (let i = 0; i < total; i++) {
-    const b = batchOf[i], y = positions[i * 3 + 1] + dy;
+    const b = batchOf[i], y = positions[i * 3 + 1] + dy + lift.get(b);
     if (!(foot.get(b) <= y)) foot.set(b, y);
     if (!(top.get(b) >= y)) top.set(b, y);
   }
@@ -271,7 +305,7 @@ export function bakeTile(gltf, tile, stats) {
   let minY = Infinity;
   for (let i = 0; i < total; i++) {
     const b = batchOf[i];
-    const y = positions[i * 3 + 1] + dy;
+    const y = atFloor(i) && sink.has(b) ? sink.get(b) : positions[i * 3 + 1] + dy + lift.get(b);
     positions[i * 3 + 1] = y;
     minY = Math.min(minY, y);
     const base = Number.isFinite(ground[b]) ? ground[b] - FRAME.H0 : foot.get(b);
@@ -312,7 +346,23 @@ export function bakeTile(gltf, tile, stats) {
 // roofs and gravel on flat ones. The fine detail fades out with distance (no shimmer), and snow lies in winter.
 // `sharp`: the pages of the tile's roof atlas (data/roofs/, 0.125 m), sampled at aRoof (u, v, page + 1; 0 off the
 // atlas), blended over the orthophoto near the camera
-function createMaterial(roofMap = null, sharp = null) {
+// Both images are the drawn mesh's own (userData.orthoMap, userData.roofPages, read per object): one material serves
+// every tile with the same number of atlas pages (sharedMaterial). A material per image or tile built its large node
+// graph once each, ~1 MB of JavaScript apiece, ~250 materials over the city.
+const PLACEHOLDER = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1);
+  t.colorSpace = THREE.SRGBColorSpace; // (the shader's colour decoding follows the texture it was built with)
+  t.needsUpdate = true;
+  return t;
+})();
+const objectTexture = (read, uvNode) => texture(PLACEHOLDER, uvNode).onObjectUpdate(({ object }) => read(object.userData) || PLACEHOLDER);
+const sharedMaterials = new Map();
+function sharedMaterial(roof, pages = 0) {
+  const key = `${roof ? 1 : 0}/${pages}`;
+  if (!sharedMaterials.has(key)) sharedMaterials.set(key, createMaterial(roof, pages));
+  return sharedMaterials.get(key);
+}
+function createMaterial(roofMap = false, sharp = 0) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0, flatShading: true });
   const above = attribute('aGround', 'float');
   const st = attribute('aStyle', 'vec4'), r = st.x, height = st.y, kind = st.z, storeyGwr = st.w;
@@ -345,7 +395,8 @@ function createMaterial(roofMap = null, sharp = null) {
   };
   // How resolved the bay is on screen: 1 when a bay spans 25+ px, 0 below ~10 px (then the small parts fade out)
   const resolved = smoothstep(0.1, 0.04, fwidth(u));
-  const upper = step(0.5, storey).max(plain).max(church); // (offices and churches: windows on the ground floor too)
+  // (offices and churches: windows on the ground floor too; none on the plinth under the foot, down a slope)
+  const upper = step(0.5, storey).max(plain).max(church).mul(step(0, above));
   // Windows (hotels: wide balcony doors; offices: wide; churches: tall and narrow), their frames, the shutters
   const winW = mix(mix(mix(mix(float(0.2), float(0.27), chalet), float(0.1), plain), float(0.4), church), float(0.08), hotel.mul(south)); // inset from each side of the bay
   const winV = mix(mix(float(0.3), float(0.12), church), float(0.06), hotel.mul(south)); // sill
@@ -392,13 +443,13 @@ function createMaterial(roofMap = null, sharp = null) {
   const row = course.div(0.32);
   const joint = smoothstep(0.82, 0.98, fract(row)).max(smoothstep(0.9, 0.99, fract(across.div(0.42).add(row.floor().mul(0.5)))).mul(0.6));
   const gravel = mx_noise_float(positionWorld.xz.mul(7)).mul(0.5).add(0.5);
-  let roofBase = roofMap ? texture(roofMap, uv()).rgb : vertexColor().rgb.mul(grain);
+  let roofBase = roofMap ? objectTexture((u) => u.orthoMap, uv()).rgb : vertexColor().rgb.mul(grain);
   let photo = float(0); // how much of the roof shows the sharp crop (it carries its own tiles and gravel)
   if (sharp) {
     const at = attribute('aRoof', 'vec3');
     // the page: at.z - 1 (up to MAX_PAGES atlas pages per tile)
-    let crop = texture(sharp[0], at.xy).rgb;
-    for (let p = 1; p < sharp.length; p++) crop = mix(crop, texture(sharp[p], at.xy).rgb, step(p + 0.5, at.z));
+    let crop = objectTexture((u) => u.roofPages?.[0], at.xy).rgb;
+    for (let p = 1; p < sharp; p++) crop = mix(crop, objectTexture((u) => u.roofPages?.[p], at.xy).rgb, step(p + 0.5, at.z));
     photo = step(0.5, at.z).mul(smoothstep(520, 380, positionWorld.distance(cameraPosition)));
     roofBase = mix(roofBase, crop, photo);
   }
@@ -531,22 +582,25 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
   group.name = 'swissbuildings3d';
   group.userData.terrain = 'absolute'; // baked in world heights
   scene.add(group);
-  const material = createMaterial();
+  const material = sharedMaterial(false);
   const stats = { offsets: [], buildings: 0, failed: 0 };
   let resolveReady, rejectReady;
   const ready = new Promise((res, rej) => { resolveReady = res; rejectReady = rej; });
   const done = (async () => {
     const index = await (await fetch(INDEX_URL)).json();
-    // Roofs take the SWISSIMAGE orthophoto of the terrain chunk under the tile (one material per image)
+    // Roofs take the SWISSIMAGE orthophoto of the terrain chunk under the tile (one shared material, each tile its image)
     const ortho = await orthophotoIndex();
-    const roofMaterials = new Map();
+    const roofImages = new Map();
     const drapeRoofs = (mesh) => {
+      // (not on the mobile profile, js/quality.js: one shared material and no roof images keep its memory down)
+      if (!QUALITY.roofOrthophotos) { mesh.userData.baseMaterial = material; return false; }
       const box = mesh.geometry.boundingBox, tile = ortho && orthophotoAt(ortho, (box.min.x + box.max.x) / 2, (box.min.z + box.max.z) / 2);
       // (a tile reaching beyond its chunk's image keeps the roof colours, until its sharp roof atlas comes in)
       if (!tile || !orthophotoCovers(tile, box)) { mesh.userData.baseMaterial = material; return false; }
       setOrthophotoUV(mesh.geometry, tile);
-      if (!roofMaterials.has(tile.f)) roofMaterials.set(tile.f, orthophotoTexture(tile).then((map) => ({ map, material: createMaterial(map) })));
-      roofMaterials.get(tile.f).then(({ map, material: m }) => {
+      if (!roofImages.has(tile.f)) roofImages.set(tile.f, orthophotoTexture(tile));
+      roofImages.get(tile.f).then((map) => {
+        const m = sharedMaterial(true);
         mesh.userData.orthoMap = map; mesh.userData.baseMaterial = m;
         if (!mesh.userData.sharp) mesh.material = m;
       }).catch((error) => console.warn('[swissbuildings3d] roofs', tile.f, error));
@@ -554,8 +608,8 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
     };
     // Sharp roof crops (data/roofs/, tools/build-roof-atlases.mjs), one atlas per tile, streamed near the camera
     const getJson = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const hiresRoofs = await getJson(HIRES_ROOFS_URL);
-    const roofIndex = hiresRoofs || await getJson(ROOFS_URL);
+    const hiresRoofs = QUALITY.hires ? await getJson(HIRES_ROOFS_URL) : null;
+    const roofIndex = !QUALITY.sharpRoofs ? null : hiresRoofs || await getJson(ROOFS_URL);
     roofBaseUrl = hiresRoofs ? HIRES_ROOFS_URL : ROOFS_URL;
     if (hiresRoofs) console.info(`[roofs] high-resolution roof crops (${hiresRoofs.res} m)`);
     let draped = 0;
@@ -601,7 +655,7 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
   done.catch((error) => rejectReady(error));
 
   // Every half second: load the roof atlases of the tiles within 420 m of the camera (four at a time), release those
-  // beyond 700 m
+  // beyond 700 m (js/quality.js sharpRoofNear / sharpRoofFar; none on the mobile profile)
   const sharpRoofs = [];
   let roofBaseUrl = ROOFS_URL;
   const loader = new THREE.TextureLoader();
@@ -609,7 +663,10 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
   const release = (e) => {
     e.mesh.userData.sharp = false;
     if (e.mesh.userData.baseMaterial) e.mesh.material = e.mesh.userData.baseMaterial;
-    e.material?.dispose(); e.textures?.forEach((t) => t.dispose());
+    // (the material is shared; the pages go a second later, when the frames queued may no longer sample them)
+    const textures = e.textures;
+    if (textures) setTimeout(() => textures.forEach((t) => t.dispose()), 1000);
+    delete e.mesh.userData.roofPages;
     e.material = e.textures = null; e.state = 0;
   };
   function updateRoofDetail(camera) {
@@ -619,15 +676,16 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
     lastCheck = now;
     for (const e of sharpRoofs) {
       const d = Math.hypot(e.x - camera.x, e.z - camera.z);
-      if (e.state === 2 && d > 700) release(e);
-      else if (e.state === 0 && d < 420 && loading < 4 && e.mesh.userData.baseMaterial) { // (once its orthophoto is in, if any)
+      if (e.state === 2 && d > QUALITY.sharpRoofFar) release(e);
+      else if (e.state === 0 && d < QUALITY.sharpRoofNear && loading < 4 && e.mesh.userData.baseMaterial) { // (once its orthophoto is in, if any)
         e.state = 1; loading++;
         Promise.all(e.pages.slice(0, MAX_PAGES).map((p) => loader.loadAsync(new URL(p.f, roofBaseUrl).href))).then((textures) => {
-          for (const t of textures) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; }
+          for (const t of textures) { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; releaseImageAfterUpload(t); }
           e.textures = textures;
-          e.material = createMaterial(e.mesh.userData.orthoMap || null, textures);
+          e.mesh.userData.roofPages = textures;
+          e.material = sharedMaterial(!!e.mesh.userData.orthoMap, textures.length);
           e.mesh.material = e.material; e.mesh.userData.sharp = true; e.state = 2;
-          if (Math.hypot(e.x - camera.x, e.z - camera.z) > 700) release(e);
+          if (Math.hypot(e.x - camera.x, e.z - camera.z) > QUALITY.sharpRoofFar) release(e);
         }).catch((error) => { e.state = 3; console.warn('[roofs]', e.pages[0]?.f, error); }).finally(() => { loading--; });
       }
     }

@@ -2,12 +2,13 @@ import { blockAt } from './city-config.js';
 import { surfaceHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import { createPedestrianRoutes } from './pedestrian-routes.js';
 import { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION } from './pedestrians.js';
+import { QUALITY } from './quality.js';
 
 // Local pedestrian population: connected walks, curb queues, conversations and player avoidance.
 // Traffic supplies crossing permissions and view checks; this system owns the crowd and its animation.
 // Davos is a village: a few hundred people within the local radius, spread thinly over its short sidewalks.
 // (1000 used to pile up, overlapping, on the few dozen walkable sidewalk lines near the Promenade.)
-const NUM_PEDS = 260;
+const NUM_PEDS = QUALITY.pedestrians; // 260 (90 on the mobile profile, js/quality.js)
 const PED_SPACING = 8; // m of walking line per person placed on it; spawning never packs a line tighter than this
 const MAX_CURB_QUEUE = 5; // people waiting on one side of a crosswalk, walking one way, before others go elsewhere
 // Some of Davos' sidewalk lines form small pockets that are easy to walk into but hard to leave (short stubs, curb

@@ -68,6 +68,7 @@ import { streetCorners, cornersIn, convexPlanes } from './street-corners.js';
 import { freezeWater, snowyStreet } from './season.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
+import { BERGBAHNEN } from './bergbahnen-data.js';
 import { SPECIES_INDEX as TREE, SPECIES_HEIGHT } from './trees.js';
 import { FRAME } from './davos-frame.js';
 import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
@@ -687,8 +688,31 @@ function buildBerlinCityGrid(scene) {
     }
     return inside;
   });
+  // The funiculars' (js/bergbahnen-data.js) cuttings through the forest: nothing within FUNICULAR_CLEAR of the track
+  // (the cars are ~3 m wide, and the passing loop is two tracks side by side)
+  const FUNICULAR_CLEAR = 5, funicularCells = new Map();
+  for (const line of BERGBAHNEN?.funiculars || []) for (const path of line.paths || []) {
+    for (let i = 3; i < path.length; i += 3) {
+      const ax = path[i - 3], az = path[i - 1], bx = path[i], bz = path[i + 2];
+      for (const [cx, cz] of [[ax, az], [bx, bz]]) {
+        const key = `${Math.floor(cx / 20)},${Math.floor(cz / 20)}`;
+        if (!funicularCells.has(key)) funicularCells.set(key, []);
+        funicularCells.get(key).push([ax, az, bx, bz]);
+      }
+    }
+  }
+  const onFunicular = (x, z) => {
+    const gx = Math.floor(x / 20), gz = Math.floor(z / 20);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+      for (const [ax, az, bx, bz] of funicularCells.get(`${gx + dx},${gz + dz}`) || []) {
+        const ux = bx - ax, uz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1)));
+        if (Math.hypot(x - ax - ux * t, z - az - uz * t) < FUNICULAR_CLEAR) return true;
+      }
+    }
+    return false;
+  };
   const clearSite = (x, z, margin) => {
-    if (waterAt(x, z) || onPlayArea(x, z)) return false;
+    if (waterAt(x, z) || onPlayArea(x, z) || onFunicular(x, z)) return false;
     if (nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
     const block = blockAt(x, z);
     return !block || block.park || block.sidewalk;

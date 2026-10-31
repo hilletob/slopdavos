@@ -357,8 +357,8 @@ export function buildTrams(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter') return;
-    const halfW = mode === 'cargobike' ? 0.38 : mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : 0.86;
-    const halfL = mode === 'cargobike' ? 1.34 : mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : 2.18;
+    const halfW = mode === 'cargobike' ? 0.38 : mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : 0.86;
+    const halfL = mode === 'cargobike' ? 1.34 : mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : 2.18;
     const reach = SECTION / 2 + halfL + HALF_WIDTH;
     for (const b of bodies) {
       if (Math.abs(pe.position.x - b.x) > reach + 2 || Math.abs(pe.position.z - b.z) > reach + 2) continue;
@@ -368,7 +368,7 @@ export function buildTrams(scene) {
       a.prevX = pe.prevX ?? a.x; a.prevZ = pe.prevZ ?? a.z;
       a.sin = Math.sin(heading); a.cos = Math.cos(heading);
       a.halfW = halfW; a.halfL = halfL;
-      a.mass = mode === 'car' ? 1700 : mode === 'cargobike' ? 140 : mode === 'cyclist' ? 95 : 80;
+      a.mass = mode === 'car' ? 1700 : mode === 'cargobike' ? 140 : mode === 'snowcat' ? 9000 : mode === 'cyclist' ? 95 : 80;
       a.vx = a.sin * (pe.speed || 0) + (pe.vx || 0);
       a.vz = a.cos * (pe.speed || 0) + (pe.vz || 0);
       a.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;

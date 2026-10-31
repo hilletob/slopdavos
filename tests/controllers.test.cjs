@@ -6,6 +6,10 @@ const { loadModule } = require('./helpers/module.cjs');
 const { flatTerrainImports } = require('./helpers/flat-terrain.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
+// The snow groomer's model module: only its constants are needed here (the builders want three.js)
+const snowcat = loadModule(readFileSync(join(__dirname, '../js/snowcat.js'), 'utf8'), {
+  imports: { 'three/webgpu': {}, 'three/tsl': {}, 'three/addons/utils/BufferGeometryUtils.js': {} }
+});
 
 function eventTarget() {
   const listeners = new Map();
@@ -40,7 +44,8 @@ function keyboardHarness(nyc = {}) {
       './pedestrians.js': {},
       './vehicle-lights.js': {},
       './vw-t3.js': {},
-      './landmarks.js': {}
+      './landmarks.js': {},
+      './snowcat.js': snowcat
     }
   });
   // Exercise the production event handlers without constructing the scene's 3D models.
@@ -485,6 +490,85 @@ test('the snowcat turns on the spot and crawls at no more than 25 km/h', () => {
   key('keydown', 'KeyW');
   for (let i = 0; i < 200; i++) controller.updateSnowcat(0.05);
   assert.ok(ent.speed > 6 && ent.speed <= 6.95, `${(ent.speed * 3.6).toFixed(1)} km/h`);
+});
+
+test('a parked snow groomer is solid for the van and the pedestrian, and the driven one stops at the parked van', () => {
+  const { controller, ent: car } = teleportHarness('car');
+  const cat = teleportHarness('snowcat').ent;
+  controller.entities.snowcat = cat;
+  Object.assign(cat.position, { x: 0, y: 0, z: 0 });
+  cat.heading = 0;
+  Object.assign(car, { position: { x: 0.5, y: 0, z: 5 }, heading: 0, speed: -3, vx: 0, vz: 0 });
+  controller.resolveHorizontalCollision(car.position, 1.35, car);
+  assert.ok(car.position.z >= snowcat.SNOWCAT_MODEL.halfL + 2.33 - 1e-6, `the van backed into the groomer's blade and stops there (z ${car.position.z.toFixed(2)})`);
+
+  const person = teleportHarness('person').ent;
+  controller.entities.person = person;
+  controller.activeMode = 'person';
+  Object.assign(person.position, { x: 1.9, y: 0, z: 0 });
+  controller.resolveHorizontalCollision(person.position, 0.48, null, person);
+  assert.ok(person.position.x >= snowcat.SNOWCAT_MODEL.halfW + 0.48 - 1e-6, 'nor can one walk through its tracks');
+
+  // The other way round: driven, the groomer is held off the parked van
+  controller.activeMode = 'snowcat';
+  Object.assign(car.position, { x: 0, y: 0, z: 7 });
+  cat.position.z = 2;
+  controller.resolveHorizontalCollision(cat.position, 2, null, cat);
+  assert.ok(cat.position.z <= 7 - 2.33 - snowcat.SNOWCAT_MODEL.halfL + 1e-6, `the groomer stops at the van (z ${cat.position.z.toFixed(2)})`);
+  car.position.y = 30; // high above (on a bridge deck): no contact
+  cat.position.z = 2;
+  controller.resolveHorizontalCollision(cat.position, 2, null, cat);
+  assert.equal(cat.position.z, 2);
+});
+
+test('the driven snow groomer stops at tree trunks, other players pass them', () => {
+  const { controller, ent: cat } = teleportHarness('snowcat');
+  assert.equal(controller.setTrees([{ x: 0, z: 4, scale: 1 }, { x: 40, z: 40, scale: 0.2 }, { x: NaN, z: 0 }]), 1);
+  Object.assign(cat.position, { x: 0, y: 0, z: 0 });
+  cat.heading = 0;
+  controller.resolveHorizontalCollision(cat.position, 2, null, cat);
+  assert.ok(cat.position.z <= 4 - 0.35 - snowcat.SNOWCAT_MODEL.halfL + 1e-6, `pushed back off the trunk (z ${cat.position.z.toFixed(2)})`);
+  const bike = teleportHarness('cyclist').ent;
+  controller.entities.cyclist = bike;
+  controller.activeMode = 'cyclist';
+  Object.assign(bike.position, { x: 0, y: 0, z: 30 });
+  const before = { ...bike.position };
+  controller.resolveHorizontalCollision(bike.position, 0.65, null, bike);
+  assert.deepEqual([bike.position.x, bike.position.z], [before.x, before.z]);
+});
+
+test('K switches the groomer\'s beacon (only when driving it); parked it is a traffic body, driven it is not', () => {
+  const { controller, ent: cat, key } = teleportHarness('snowcat');
+  const uniform = (value) => ({ value });
+  const vec = () => ({ set(...v) { this.v = v; } });
+  Object.assign(cat, {
+    beaconOn: true, beaconAngle: 0, heading: 0.5, position: { x: 12, y: 1, z: -7 },
+    beacon: { on: uniform(1), dir: { value: vec() }, world: { value: vec() } },
+    trackPhases: [uniform(0), uniform(0)], model: { rolled: 0, rollWheels() { this.rolled++; } }
+  });
+  key('keydown', 'KeyK');
+  key('keyup', 'KeyK');
+  assert.equal(cat.beaconOn, false);
+  controller.animateSnowcat(1.3);
+  assert.equal(cat.beacon.on.value, 0, 'the dome and its glow go dark');
+  assert.equal(controller.snowcatTrafficBody.x, 1e7, 'driven, the groomer is the player for the traffic');
+  controller.activeMode = 'car';
+  key('keydown', 'KeyK');
+  assert.equal(cat.beaconOn, false, 'K does nothing in the other modes');
+  key('keyup', 'KeyK');
+  controller.activeMode = 'snowcat';
+  key('keydown', 'KeyK');
+  controller.activeMode = 'car';
+  controller.animateSnowcat(0.1);
+  assert.equal(cat.beacon.on.value, 1);
+  const a = 0.1 * 1.6 * Math.PI * 2;
+  assert.ok(Math.abs(cat.beacon.world.value.v[0] - Math.sin(0.5 + a)) < 1e-9, 'the beam turns with the groomer and its reflector');
+  const body = controller.snowcatTrafficBody;
+  assert.deepEqual([body.x, body.z, body.halfW, body.halfL], [12, -7, snowcat.SNOWCAT_MODEL.halfW, snowcat.SNOWCAT_MODEL.halfL]);
+  assert.ok(Math.abs(body.sin - Math.sin(0.5)) < 1e-9);
+  cat.trackPhases[0].value = -0.4;
+  controller.animateSnowcat(0.2);
+  assert.ok(cat.model.rolled >= 1, 'the road wheels roll with the belts');
 });
 
 test('in the RhB mode the player is bound to the rails: W and S go to the train, the entity rides in its cab', () => {

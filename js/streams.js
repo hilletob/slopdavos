@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, float, fract, mix, mx_noise_float, positionWorld, smoothstep, time, uv, vec2, vec3 } from 'three/tsl';
 import { STREAMS } from './streams-data.js';
 import { groundHeight } from './terrain.js';
-import { winter } from './season.js';
+import { winter, snowAltitude } from './season.js';
 
 // The streams of Davos (js/streams-data.js, tools/fetch-streams.mjs: OSM waterways): the Landwasser where its bed isn't
 // mapped as an area, the Dischmabach, Flüelabach and Sertigbach, the side creeks and ditches. Each is a ribbon of
@@ -10,7 +10,10 @@ import { winter } from './season.js';
 // The water's surface follows the ground downhill but never climbs (a bump of the 8 m grid leaves it up to 30 cm
 // below the ground, in its bed): the ripples run downstream at a speed set by the slope, and the steep stretches
 // (over ~8%) foam white. In winter (season.js) the banks lie under snow, ice creeps in from the edges and the open
-// water narrows and darkens.
+// water narrows and darkens (the more so higher up); the small creeks and ditches (under SMALL m wide) lie snowed
+// under, out of sight, and only the Landwasser and the larger streams of the side valleys stay open.
+
+const SMALL = 3; // streams narrower than this (m) are snowed under in winter
 
 const STEP = 3; // metres between the ribbon's cross-sections on the larger streams (5 m on the small ones)
 const LIFT = 0.06; // the water over the ground
@@ -103,8 +106,9 @@ function ribbon(s, out, bankOut) {
 }
 
 // Running water: dark and clear in the deep middle, lighter over the shallow edges, ripples drifting downstream,
-// white foam on the steep stretches; transparent at the edges. Winter: ice and snow in from the edges, darker water.
-function createStreamMaterial() {
+// white foam on the steep stretches; transparent at the edges. Winter: ice and snow in from the edges, darker water;
+// `small`: snowed under, gone.
+function createStreamMaterial({ small = false } = {}) {
   // (physical: its specular can be turned down — a shallow stream over stones mirrors much less sky than a lake)
   const m = new THREE.MeshPhysicalNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.2, metalness: 0 });
   const across = uv().x, along = uv().y, slope = attribute('aFlow', 'float');
@@ -122,18 +126,19 @@ function createStreamMaterial() {
   const foam = steep.mul(streaks.add(float(1).sub(centre).mul(0.35))).min(1);
   colour = mix(colour, vec3(0.82, 0.86, 0.88), foam);
   // Winter: ice and snow in from the edges, the open water darker
-  const ice = winter.mul(smoothstep(0.62, 0.3, centre.add(fine.mul(0.12))));
+  const ice = winter.mul(smoothstep(0.62, 0.3, centre.add(fine.mul(0.12)).sub(snowAltitude().mul(0.18))));
   colour = mix(colour.mul(float(1).sub(winter.mul(0.35))), mix(vec3(0.62, 0.68, 0.76), vec3(0.85, 0.88, 0.93), fine), ice);
   m.colorNode = colour;
   // (rough enough not to mirror the whole sky: a shallow, broken mountain stream)
   m.roughnessNode = mix(mix(float(0.16).add(ripple.mul(0.1)), float(0.6), foam), float(0.45), ice);
   m.specularIntensityNode = mix(float(0.22), float(0.6), foam.max(ice));
   m.opacityNode = smoothstep(0.0, 0.18, centre).mul(mix(float(0.88), float(1), foam.max(ice)));
+  if (small) m.opacityNode = m.opacityNode.mul(float(1).sub(winter));
   return m;
 }
 
-// Wet gravel and stones along the water, drier and greener outwards; snowed over in winter
-function createBankMaterial() {
+// Wet gravel and stones along the water, drier and greener outwards; snowed over in winter (`small`: gone with its creek)
+function createBankMaterial({ small = false } = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.85, metalness: 0 });
   const out = uv().x; // 0 at the water, 1 outside
   const stones = mx_noise_float(positionWorld.xz.mul(2.6)).mul(0.5).add(0.5);
@@ -147,6 +152,7 @@ function createBankMaterial() {
   m.colorNode = mix(colour, mix(vec3(0.74, 0.79, 0.88), vec3(0.9, 0.93, 0.98), grit), snow);
   m.roughnessNode = mix(float(0.88), float(0.35), wet.mul(float(1).sub(snow)));
   m.opacityNode = smoothstep(1.0, 0.55, out.add(grit.mul(0.15)));
+  if (small) m.opacityNode = m.opacityNode.mul(float(1).sub(winter));
   return m;
 }
 
@@ -190,19 +196,25 @@ export function buildStreams(scene) {
   group.name = 'Streams';
   group.userData.terrain = 'absolute';
   const list = STREAMS?.streams || [];
-  const water = { position: [], uv: [], flow: [], size: [] }, bank = { position: [], uv: [], size: [] };
-  for (const s of list) ribbon(s, water, s.kind !== 'ditch' && s.kind !== 'drain' ? bank : null);
+  // (two sets: the small creeks, snowed under in winter, and the larger streams that stay open)
+  const sets = [false, true].map((small) => ({ small, water: { position: [], uv: [], flow: [], size: [] }, bank: { position: [], uv: [], size: [] } }));
+  for (const s of list) {
+    const set = sets[s.width < SMALL ? 1 : 0];
+    ribbon(s, set.water, s.kind !== 'ditch' && s.kind !== 'drain' ? set.bank : null);
+  }
   let triangles = 0;
   const cells = [];
-  if (water.position.length) {
-    const material = createStreamMaterial();
-    for (const mesh of cellMeshes(water, water.size, material, 'Stream water')) { mesh.renderOrder = 3; cells.push(mesh); }
-    triangles += water.position.length / 9;
-  }
-  if (bank.position.length) {
-    const material = createBankMaterial();
-    for (const mesh of cellMeshes(bank, bank.size, material, 'Stream banks')) { mesh.renderOrder = 2; cells.push(mesh); }
-    triangles += bank.position.length / 9;
+  for (const { small, water, bank } of sets) {
+    if (water.position.length) {
+      const material = createStreamMaterial({ small });
+      for (const mesh of cellMeshes(water, water.size, material, 'Stream water')) { mesh.renderOrder = 3; mesh.userData.small = small; cells.push(mesh); }
+      triangles += water.position.length / 9;
+    }
+    if (bank.position.length) {
+      const material = createBankMaterial({ small });
+      for (const mesh of cellMeshes(bank, bank.size, material, 'Stream banks')) { mesh.renderOrder = 2; mesh.userData.small = small; cells.push(mesh); }
+      triangles += bank.position.length / 9;
+    }
   }
   if (cells.length) group.add(...cells);
   // Hide the cells too far off for their strips to show, from the view camera of every scene render (the shadow
@@ -213,7 +225,9 @@ export function buildStreams(scene) {
     if (camera.isOrthographicCamera === true || camera.isArrayCamera === true) return;
     const e = camera.matrixWorld.elements, cx = e[12], cy = e[13], cz = e[14];
     const k = camera.projectionMatrix.elements[5] * (renderer.domElement?.clientHeight || 800) / 2 / MIN_PX; // px per metre at 1 m
+    const snowedUnder = winter.value >= 1; // (the small creeks, fully faded out: not drawn at all)
     for (const mesh of cells) {
+      if (snowedUnder && mesh.userData.small) { mesh.visible = false; continue; }
       const { min, max } = mesh.geometry.boundingBox;
       const dx = Math.max(min.x - cx, 0, cx - max.x), dy = Math.max(min.y - cy, 0, cy - max.y), dz = Math.max(min.z - cz, 0, cz - max.z);
       mesh.visible = dx * dx + dy * dy + dz * dz <= (mesh.userData.width * k) ** 2;

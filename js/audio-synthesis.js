@@ -361,10 +361,13 @@ export function createMotorVoice(context, resources, kind, output) {
   mix.connect(output);
   let render;
 
-  if (kind === 'sedan' || kind === 'suv' || kind === 'bus') {
-    const bus = kind === 'bus';
+  if (kind === 'sedan' || kind === 'suv' || kind === 'bus' || kind === 'snowcat') {
+    // The snow groomer: the bus's six-cylinder diesel through a hydrostatic drive, so its revs follow the throttle
+    // (and the grade), not the track speed, and it never shifts
+    const snowcat = kind === 'snowcat';
+    const bus = kind === 'bus' || snowcat;
     const suv = kind === 'suv';
-    const sound = resources.combustion[kind];
+    const sound = resources.combustion[snowcat ? 'bus' : kind];
     const bankRatio = sound.highExhaust.duration / sound.exhaust.duration;
     const idle = bus ? 620 : suv ? 710 : 780;
     const ratios = bus ? [320, 205, 145, 108, 82] : [500, 325, 230, 170, 130];
@@ -406,7 +409,9 @@ export function createMotorVoice(context, resources, kind, output) {
       throttle = first ? load : throttle + (load - throttle) * (1 - Math.exp(-dt / (load > throttle ? 0.14 : 0.32)));
       const shiftRPM = (bus ? 1700 : 2700) + throttle * (bus ? 950 : 2900);
       let upshift = false;
-      if (speed < 0.6) {
+      if (snowcat) {
+        gear = 0;
+      } else if (speed < 0.6) {
         // A fresh launch starts in first immediately, even after a hard stop from top gear.
         gear = 0;
         gearLock = shiftUntil = 0;
@@ -427,7 +432,8 @@ export function createMotorVoice(context, resources, kind, output) {
       // Wheel-coupled RPM, with torque-converter slip at low speed. Coasting retains engine braking rather than
       // dropping straight to idle; hysteresis and a minimum gear dwell prevent hunting around a shift boundary.
       const slip = throttle * (bus ? 600 : 1500) * Math.max(0.12, 1 - speed / 16);
-      const targetRPM = clamp(Math.max(idle, speed * ratios[gear]) + slip, idle, bus ? 2900 : 6200);
+      const targetRPM = snowcat ? clamp(idle + 180 + throttle * 1350 + speed * 45, idle, 2200)
+        : clamp(Math.max(idle, speed * ratios[gear]) + slip, idle, bus ? 2900 : 6200);
       // The playback-rate ramps provide the short RPM fall on an upshift; do not soften it twice.
       rpm = first || upshift ? targetRPM : rpm + (targetRPM - rpm) * (1 - Math.exp(-dt / (targetRPM > rpm ? 0.12 : 0.075)));
       const pitch = (0.97 + variation * 0.06) * doppler;

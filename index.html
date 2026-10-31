@@ -30,6 +30,8 @@
   <link rel="modulepreload" href="./js/davos-geodata.js" />
   <link rel="modulepreload" href="./js/swiss-projection.js" />
   <link rel="modulepreload" href="./js/davos-frame.js" />
+  <link rel="modulepreload" href="./js/quality.js" />
+  <link rel="modulepreload" href="./js/gpu-memory.js" />
   <link rel="modulepreload" href="./js/terrain-grid.js" />
   <link rel="modulepreload" href="./js/terrain.js" />
   <link rel="modulepreload" href="./js/nyc-geodata.js" />
@@ -42,6 +44,7 @@
   <link rel="modulepreload" href="./js/plates.js" />
   <link rel="modulepreload" href="./js/vehicle-lights.js" />
   <link rel="modulepreload" href="./js/vw-t3.js" />
+  <link rel="modulepreload" href="./js/snowcat.js" />
   <link rel="modulepreload" href="./js/vehicle-physics.js" />
   <link rel="modulepreload" href="./js/obstacle-grid.js" />
   <link rel="modulepreload" href="./js/pedestrians.js" />
@@ -90,6 +93,8 @@
   <link rel="modulepreload" href="./js/traffic-signs-data.js" />
   <link rel="modulepreload" href="./js/detail-houses.js" />
   <link rel="modulepreload" href="./js/detail-houses-data.js" />
+  <link rel="modulepreload" href="./js/landmark-buildings.js" />
+  <link rel="modulepreload" href="./js/landmark-buildings-data.js" />
   <link rel="modulepreload" href="./js/facades-data.js" />
   <link rel="modulepreload" href="./js/level-crossings.js" />
   <link rel="modulepreload" href="./js/level-crossings-data.js" />
@@ -98,8 +103,17 @@
   <link rel="modulepreload" href="./js/tlm-trees-data.js" />
   <link rel="modulepreload" href="./js/logos.js" />
   <link rel="modulepreload" href="./js/loipen.js" />
+  <link rel="modulepreload" href="./js/cross-country.js" />
+  <link rel="modulepreload" href="./js/winter-hikes.js" />
+  <link rel="modulepreload" href="./js/winter-hikes-data.js" />
+  <link rel="modulepreload" href="./js/winter-hikers.js" />
+  <link rel="modulepreload" href="./js/cross-country-routes.js" />
   <link rel="modulepreload" href="./js/golf.js" />
   <link rel="modulepreload" href="./js/golf-data.js" />
+  <link rel="modulepreload" href="./js/ski-pistes.js" />
+  <link rel="modulepreload" href="./js/ski-pistes-data.js" />
+  <link rel="modulepreload" href="./js/winter-sports.js" />
+  <link rel="modulepreload" href="./js/groom-map.js" />
   <link rel="modulepreload" href="./js/snowfall.js" />
   <link rel="modulepreload" href="./js/main.js" />
   <script type="module" src="./js/main.js"></script>
@@ -167,7 +181,7 @@
           <h1>Slop Davos</h1>
           <a class="repo-link" href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer" aria-label="Based on Slop Zürich on GitHub (opens in a new tab)" title="Based on colorfield/slop-zurich">GitHub <span aria-hidden="true">↗</span></a>
         </div>
-        <div class="brand-subtitle">three.js · WebGPU · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
+        <div class="brand-subtitle">three.js · <span id="hud-backend">WebGPU</span> · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
       </div>
     </div>
   </header>
@@ -253,8 +267,12 @@
         <span class="credits-source">Bundesamt für Landestopografie swisstopo; Tarquini S., I. Isola, M. Favalli, A. Battistini, G. Dotta (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size (Version 1.1). Istituto Nazionale di Geofisica e Vulcanologia (INGV). https://doi.org/10.13127/tinitaly/1.1; DGM Österreich, geoland.at; DGM1, Bayerische Vermessungsverwaltung – www.geodaten.bayern.de; DGM 1 Baden-Württemberg: LGL, www.lgl-bw.de, dl-de/by-2-0; RGEAlti, Institut National de l'information géographique et forestière, données originales téléchargées sur https://geoservices.ign.fr/rgealti#telechargement5m, mise à jour du juillet 2023</span>
       </li>
       <li>
-        <b>OpenStreetMap</b>: streets, rail lines, building footprints, trees, parks and water.<br>
+        <b>OpenStreetMap</b>: streets, rail lines, building footprints, trees, parks and water; the downhill ski runs (piste:type=downhill, with their difficulty) for the winter pistes, skiers and snowboarders.<br>
         <span class="credits-source">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, Open Database License (ODbL)</span>
+      </li>
+      <li>
+        <b>Winterwanderwege</b> (ch.astra.winterwanderwege): the signposted winter hiking trails, their pink markers and the winter hikers.<br>
+        <span class="credits-source">© Bundesamt für Strassen ASTRA / swisstopo, SchweizMobil, Kanton Graubünden; via <a href="https://api3.geo.admin.ch" target="_blank" rel="noopener noreferrer">geo.admin.ch</a>, <a href="https://opendata.swiss/de/terms-of-use/#terms_by" target="_blank" rel="noopener noreferrer">opendata.swiss terms of use (open use, must provide the source)</a></span>
       </li>
     </ul>
     <p class="credits-source">Logos: Marken der jeweiligen Inhaber; Quellen siehe <a href="./assets/logos/SOURCES.md" target="_blank" rel="noopener noreferrer">assets/logos/SOURCES.md</a> (Wikimedia Commons).</p>

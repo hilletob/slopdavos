@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
+import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
@@ -16,7 +16,12 @@ import { buildRhB } from './rhb.js';
 import { buildVBD } from './vbd.js';
 import { buildLevelCrossings } from './level-crossings.js';
 import { buildLoipen } from './loipen.js';
+import { buildCrossCountry } from './cross-country.js';
+import { buildWinterHikes } from './winter-hikes.js';
+import { buildWinterHikers } from './winter-hikers.js';
 import { buildGolf } from './golf.js';
+import { buildSkiPistes } from './ski-pistes.js';
+import { buildWinterSports } from './winter-sports.js';
 import { buildSnowfall } from './snowfall.js';
 import { buildStreams } from './streams.js';
 import { buildShops } from './shops.js';
@@ -24,7 +29,8 @@ import { buildBergbahnen } from './bergbahnen.js';
 import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
-import { placeOnTerrain, liftColliders } from './terrain.js';
+import { buildLandmarkBuildings } from './landmark-buildings.js';
+import { placeOnTerrain, liftColliders, streamTerrain } from './terrain.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
@@ -37,6 +43,10 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { QUALITY, setBackend } from './quality.js';
+import { releaseUploadedGeometry, releasedGeometryStats } from './gpu-memory.js';
+import { isWinter, onSeasonChange } from './season.js';
+import { groomMap } from './groom-map.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
 const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Talstrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
@@ -62,12 +72,14 @@ async function initApp() {
   }
 
   // 1. Initialize Three.js WebGPURenderer with 32-bit float reversedDepthBuffer
+  // (the device profile, js/quality.js: no MSAA on the mobile one, whose four samples of each render target cost more
+  // than its screen gains from them)
   const renderer = new THREE.WebGPURenderer({
-    antialias: true,
+    antialias: QUALITY.antialias,
     powerPreference: 'high-performance',
     reversedDepthBuffer: true
   });
-  renderer.setPixelRatio(1.0);
+  renderer.setPixelRatio(QUALITY.pixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.lighting = new ClusteredLighting(256, 32, 28, 48);
@@ -86,6 +98,11 @@ async function initApp() {
   markInit('renderer');
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
+  // The profile tightens on the WebGL 2 fallback; the HUD names the backend actually drawing
+  setBackend(renderer.backend.isWebGPUBackend);
+  const backendLabel = document.getElementById('hud-backend');
+  if (backendLabel) backendLabel.textContent = QUALITY.backend;
+  console.info(`[quality] ${QUALITY.name} profile (${QUALITY.reason}), ${QUALITY.backend}`);
   container.dataset.threeRevision = THREE.REVISION;
 
   // 2. Build Scene & Physical Atmospheric Sky / PMREM IBL / 4096x4096 Shadow Lighting
@@ -102,12 +119,35 @@ async function initApp() {
   // static scenery is laid onto the terrain once built (terrain.js); swissBUILDINGS3D and the ground are already in place.
   const flatWorld = new Set(scene.children);
   const cityGrid = buildCityGrid(scene);
-  buildLoipen(scene); // cross-country ski trails, shown in winter
+  // The winter-only scenery: on the mobile profile (js/quality.js) only built once winter is switched on (~90 MB of
+  // trails and runs a summer visit never shows); they lie on the terrain already ('absolute')
+  let winterSceneryBuilt = false;
+  const buildWinterScenery = () => {
+    if (winterSceneryBuilt) return;
+    winterSceneryBuilt = true;
+    buildLoipen(scene); // cross-country ski trails, shown in winter
+    buildSkiPistes(scene); // the groomed downhill runs with their edge poles, shown in winter
+    buildWinterHikes(scene); // the signposted winter hiking trails with their pink markers, shown in winter
+  };
+  if (!QUALITY.lazyWinter || isWinter()) buildWinterScenery();
+  else {
+    const stop = onSeasonChange((on) => {
+      if (!on) return;
+      stop();
+      const before = new Set(scene.children);
+      buildWinterScenery();
+      for (const o of scene.children) if (!before.has(o)) o.updateMatrixWorld(true); // (the scene's matrices are frozen)
+    });
+  }
+  const crossCountry = buildCrossCountry(scene); // cross-country skiers on them (js/cross-country.js)
+  const winterHikers = buildWinterHikers(scene); // winter hikers (and dogs) on them near the camera (js/winter-hikers.js)
   buildGolf(scene); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
+  const winterSports = buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
   buildStreams(scene); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = buildShops(scene); // the businesses' signs (js/shops-data.js)
   const parking = buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
   const detailHouses = buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
+  const landmarkBuildings = buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
   markInit('cityGrid');
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
@@ -130,6 +170,7 @@ async function initApp() {
   // buildings remain the fallback when swisstopo's tiles can't be reached.
   let swissBuildings = null;
   let swissStream = null;
+  let buildingsSettled = false;
   try {
     const savedSpawn = (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
@@ -141,14 +182,16 @@ async function initApp() {
     });
     swissBuildings = await stream.ready;
     // Once every building tile is in, the shop signs move onto the real facades (the OSM footprints differ)
-    stream.done.then(() => shops.refine(stream.group)).catch((error) => console.warn('[shops] facades:', error));
+    // (and then nothing reads the buildings' vertices on the CPU any more: their arrays may go, see releaseStatic below)
+    stream.done.then(() => shops.refine(stream.group)).catch((error) => console.warn('[shops] facades:', error))
+      .finally(() => { buildingsSettled = true; });
   } catch (error) {
     console.warn('[swissbuildings3d] falling back to OSM buildings:', error);
   }
   markInit('swissbuildings3d');
   const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings });
   markInit('blocks');
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders]);
 
   const streetDetails = buildStreetDetails(scene);
   markInit('streetDetails');
@@ -164,7 +207,8 @@ async function initApp() {
     ...allColliders.filter((c) => !c.obb && (c.minY ?? 0) - (c.baseY ?? 0) < 3.5)
   ], streetDetails.signalIntersections);
   markInit('traffic');
-  trafficSystem.setTramBodies([...trams.bodies, ...rhb.bodies, ...vbd.bodies, ...levelCrossings.bodies]);
+  const trafficBodies = [...trams.bodies, ...rhb.bodies, ...vbd.bodies, ...levelCrossings.bodies]; // (+ the parked snow groomer, below)
+  trafficSystem.setTramBodies(trafficBodies);
   const highwayTraffic = createHighwayTraffic(scene, cityGrid.highwayLanes);
   const beforePaint = new Set(scene.children);
   buildRoadPaint(scene, trafficSystem.network);
@@ -180,6 +224,8 @@ async function initApp() {
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
   controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
+  trafficBodies.push(controllerManager.snowcatTrafficBody); // the parked snow groomer is solid for the traffic
+  controllerManager.setTrees(streetDetails.trees); // ... and the driven one stops at the trees
   controllerManager.entities.cargobike.mesh.visible = false; // the cargo bike is no longer offered in Davos
   // Reuse teleport placement so saved players return at rest, close to their last positions. A first visit (or a save
   // from an older version) starts by bike at Bellevue (city-config.js defaultSpawn).
@@ -249,6 +295,21 @@ async function initApp() {
     .filter(Boolean);
   setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
 
+  // The static scenery whose vertex and index arrays nothing reads after the upload (collisions, height queries and the
+  // map use their own data): js/gpu-memory.js releases them once drawn. Not the trees (their instance buffers are
+  // repacked), the moving vehicles, the signs (rebuilt by shops.refine) or the rail crossings (lamp attributes); the
+  // buildings once the shop signs have been moved onto their facades (a raycast).
+  const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
+    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings']);
+  let releasedMB = 0;
+  const releaseStatic = () => {
+    const roots = scene.children.filter((o) => STATIC_ROOTS.has(o.name) || (buildingsSettled && o === swissStream?.group));
+    const bytes = releaseUploadedGeometry(renderer, roots, {
+      skip: (o) => o.name === 'Trees'
+    });
+    releasedMB += bytes / 1048576;
+  };
+
   // Initialize static world matrices once, including the chunks and shadow proxies created above.
   // Crowd, tree and building-detail animation changes instance/pose buffers, not Object3D transforms.
   const dynamicRoots = [
@@ -285,38 +346,44 @@ async function initApp() {
   scenePass.renderTarget.storeMultisampledColorBuffer = false;
   const ssrFade = smoothstep(360.0, 180.0, positionView.z.negate());
   const maxSSRRoughness = 0.75;
-  const sceneMRT = mrt({
+  // (the mobile profile, js/quality.js, does without the reflections: no normal and material targets, no SSR passes)
+  const sceneMRT = QUALITY.ssr ? mrt({
     output: output,
     normal: normalView,
     metalRough: vec2(roughness.lessThan(maxSSRRoughness).select(metalness.mul(ssrFade), 0), roughness)
-  });
-  sceneMRT.setBlendMode('normal', new THREE.BlendMode(THREE.MaterialBlending));
-  sceneMRT.setBlendMode('metalRough', new THREE.BlendMode(THREE.MaterialBlending));
-  scenePass.setMRT(sceneMRT);
+  }) : null;
+  if (sceneMRT) {
+    sceneMRT.setBlendMode('normal', new THREE.BlendMode(THREE.MaterialBlending));
+    sceneMRT.setBlendMode('metalRough', new THREE.BlendMode(THREE.MaterialBlending));
+    scenePass.setMRT(sceneMRT);
+  }
 
   const scenePassColor = scenePass.getTextureNode('output');
-  const scenePassDepth = scenePass.getTextureNode('depth');
-  const scenePassNormal = scenePass.getTextureNode('normal');
-  const scenePassMetalRough = scenePass.getTextureNode('metalRough');
+  let reflections = vec3(0);
+  if (QUALITY.ssr) {
+    const scenePassDepth = scenePass.getTextureNode('depth');
+    const scenePassNormal = scenePass.getTextureNode('normal');
+    const scenePassMetalRough = scenePass.getTextureNode('metalRough');
 
-  const ssrPass = ssr(scenePassColor, scenePassDepth, scenePassNormal, {
-    metalnessNode: scenePassMetalRough.r,
-    roughnessNode: scenePassMetalRough.g,
-    camera: cameraSystem.camera
-  });
-  ssrPass.resolutionScale = 0.5;
-  ssrPass.blurQuality = 1;
-  ssrPass.maxDistance.value = 42;
-  ssrPass.thickness.value = 0.85;
-  // Fewer coarse steps, then refine detected hits to keep reflection edges precise.
-  ssrPass.quality.value = 0.25;
-  ssrPass.binaryRefine = true;
-  ssrPass.intensity.value = 0.50;
-  ssrPass.screenEdgeFadeBlack = true;
+    const ssrPass = ssr(scenePassColor, scenePassDepth, scenePassNormal, {
+      metalnessNode: scenePassMetalRough.r,
+      roughnessNode: scenePassMetalRough.g,
+      camera: cameraSystem.camera
+    });
+    ssrPass.resolutionScale = 0.5;
+    ssrPass.blurQuality = 1;
+    ssrPass.maxDistance.value = 42;
+    ssrPass.thickness.value = 0.85;
+    // Fewer coarse steps, then refine detected hits to keep reflection edges precise.
+    ssrPass.quality.value = 0.25;
+    ssrPass.binaryRefine = true;
+    ssrPass.intensity.value = 0.50;
+    ssrPass.screenEdgeFadeBlack = true;
 
-  // Roughness mip blur must not spread reflections back onto matte or nonreflective surfaces.
-  const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
-  const reflections = ssrPass.mul(reflectionMask);
+    // Roughness mip blur must not spread reflections back onto matte or nonreflective surfaces.
+    const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
+    reflections = ssrPass.mul(reflectionMask);
+  }
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
@@ -354,7 +421,7 @@ async function initApp() {
     cyclist: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
     rhb: [[['W'], 'Throttle'], [['S'], 'Brake'], [['Drag'], 'Orbit']],
     helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost'], [['L'], 'Searchlight']],
-    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['L'], 'High beam'], [['Drag'], 'Orbit']]
+    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['L'], 'High beam'], [['K'], 'Beacon'], [['F'], 'Tiller'], [['Drag'], 'Orbit']]
   };
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
@@ -762,6 +829,8 @@ async function initApp() {
     for (const o of culled) o.frustumCulled = true;
   }
 
+  // The terrain chunks around the start in full (the rest stream in and out with the camera, js/terrain.js)
+  streamTerrain(cameraSystem.camera.position, { all: true });
   await precompileShaders();
   markInit('compile');
 
@@ -814,11 +883,16 @@ async function initApp() {
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
     snowfall.update(cameraSystem.camera);
+    crossCountry.update(dt, cameraSystem.camera);
+    winterHikers.update(dt, cameraSystem.camera);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
+    streamTerrain(cameraSystem.camera.position); // the terrain chunks' full geometry near the camera, coarse farther
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
+    winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
+    groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
@@ -868,10 +942,16 @@ async function initApp() {
             selectCamera('fixed', true);
           },
           info() { return renderer.info ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null; },
+          quality: QUALITY,
+          releasedGeometry() { return { ...releasedGeometryStats(), MB: Math.round(releasedMB) }; },
         };
         initTimings = null;
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
         audioSystem.ready = true;
+        // From now on, every few seconds: the static scenery's vertex data leaves JavaScript once it is on the GPU
+        // (js/gpu-memory.js; what has not been drawn yet keeps its arrays until it is)
+        releaseStatic();
+        setInterval(releaseStatic, 5000);
         setLoadingProgress(1);
       });
     }

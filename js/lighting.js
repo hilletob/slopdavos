@@ -27,6 +27,7 @@ import { SunLight } from 'three/addons/lights/SunLight.js';
 import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
 import { winter } from './season.js';
+import { QUALITY } from './quality.js';
 
 // js/lighting.js
 // Physically-Based Atmospheric Sky (Preetham SkyMesh + Beer-Powder Clouds),
@@ -241,11 +242,13 @@ class LightingSystem {
     // Shines from its position vector toward the origin (no .target needed)
     this.sunLight = new SunLight(0xffca92, 5.8);
     this.sunLight.position.copy(TIME_PRESETS.golden.sunDir);
-    this.sunLight.castShadow = true;
+    this.sunLight.castShadow = QUALITY.shadows;
     // 3072x3072 per cascade = 6144x3072 2-cascade shadow atlas (an 8192x4096 one cost ~20% fps and caused hitches),
     // 2048 where the device allows less. The near cascade spans ~0.35-55 m of the view at street level (see update)
     const maxTex = (renderer && renderer.backend && renderer.backend.device && renderer.backend.device.limits.maxTextureDimension2D) || 4096;
-    const tile = maxTex >= 6144 ? 3072 : 2048;
+    // (the mobile profile, js/quality.js, draws none; re-enabled for testing, 1024 per cascade over a shorter range:
+    // 16 MB instead of 144 MB)
+    const tile = QUALITY.shadowMapSize || (maxTex >= 6144 ? 3072 : 2048);
     this.sunLight.shadow.mapSize.set(tile, tile);
     this.sunLight.shadow.camera.near = 0.5;
     this.sunLight.shadow.camera.far = 200;
@@ -373,7 +376,8 @@ class LightingSystem {
     // cascade sharp (~0.35-55 m) and the far cascade's casters few. Expanded with altitude (helicopter / observatory)
     // so shadows reach all the way down to street level (altitude above Davos' terrain, not above the lake).
     const altitude = focusPos && Number.isFinite(focusPos.y) ? Math.max(0, focusPos.y - groundHeight(focusPos.x, focusPos.z)) : 0;
-    this.sunLight.shadow.camera.far = Math.max(200, Math.min(720, 160 + altitude * 1.6));
+    const street = QUALITY.mobile ? 110 : 200;
+    this.sunLight.shadow.camera.far = Math.max(street, Math.min(QUALITY.shadowFarMax, street - 40 + altitude * 1.6));
   }
 }
 

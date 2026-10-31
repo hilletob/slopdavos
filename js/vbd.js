@@ -473,8 +473,8 @@ export function buildVBD(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return;
-    const halfW = mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.1 : 0.86;
-    const halfL = mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.2 : 2.18;
+    const halfW = mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : 0.86;
+    const halfL = mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : 2.18;
     for (const b of bodies) {
       const reach = b.halfL + halfL + HALF_WIDTH;
       if (Math.abs(pe.position.x - b.x) > reach + 2 || Math.abs(pe.position.z - b.z) > reach + 2) continue;

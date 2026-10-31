@@ -20,6 +20,7 @@
     "data:vbd": "node tools/fetch-vbd.mjs",
     "data:shops": "node tools/fetch-shops.mjs",
     "data:parking": "node tools/fetch-parking.mjs",
+    "data:ski-pistes": "node tools/fetch-ski-pistes.mjs",
     "data:streams": "node tools/fetch-streams.mjs",
     "data:hires": "node tools/fetch-swissimage.mjs --hires && node tools/build-roof-atlases.mjs --hires",
     "data:bergbahnen": "node tools/fetch-bergbahnen.mjs",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@dgreenheck/ez-tree": "^1.1.0",
-    "geotiff": "^2.1.3"
+    "geotiff": "^2.1.3",
+    "sharp": "^0.35.5"
   }
 }

@@ -561,8 +561,8 @@ export function buildRhB(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return; // (in the rhb mode the player is the train)
-    const halfW = mode === 'cargobike' ? 0.38 : mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : 0.86;
-    const halfL = mode === 'cargobike' ? 1.34 : mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : 2.18;
+    const halfW = mode === 'cargobike' ? 0.38 : mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : 0.86;
+    const halfL = mode === 'cargobike' ? 1.34 : mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : 2.18;
     for (const b of bodies) {
       const reach = b.halfL + halfL + HALF_WIDTH;
       if (Math.abs(pe.position.x - b.x) > reach + 2 || Math.abs(pe.position.z - b.z) > reach + 2) continue;
@@ -572,7 +572,7 @@ export function buildRhB(scene) {
       p.prevX = pe.prevX ?? p.x; p.prevZ = pe.prevZ ?? p.z;
       p.sin = Math.sin(heading); p.cos = Math.cos(heading);
       p.halfW = halfW; p.halfL = halfL;
-      p.mass = mode === 'car' ? 1700 : mode === 'cargobike' ? 140 : mode === 'cyclist' ? 95 : 80;
+      p.mass = mode === 'car' ? 1700 : mode === 'cargobike' ? 140 : mode === 'snowcat' ? 9000 : mode === 'cyclist' ? 95 : 80;
       p.vx = p.sin * (pe.speed || 0) + (pe.vx || 0);
       p.vz = p.cos * (pe.speed || 0) + (pe.vz || 0);
       p.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;

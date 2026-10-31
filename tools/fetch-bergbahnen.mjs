@@ -50,15 +50,16 @@ const ground = (x, z) => (inside(x, z) ? gridHeight(TERRAIN, x, z) : gridHeight(
 const r1 = (v) => Math.round(v * 10) / 10;
 
 // --- Facts per line (OSM gives the geometry, names, occupancy and capacity) -------------------------------------------------
-// Parsennbahn: lower section Davos Dorf – Höhenweg 1860 m / 662 m, gauge 1200 mm, two trains of two cars (200 passengers),
-// up to 10 m/s, cars of 2002; upper section Höhenweg – Weissfluhjoch 2188 m / 444 m, gauge 800 mm, two trains of two
-// cars (170), 6.2 m/s (en.wikipedia.org/wiki/Parsenn_Funicular). Schatzalp-Bahn: Davos Platz – Schatzalp 712 m / 304 m,
+// Parsennbahn: lower section Davos Dorf – Höhenweg 1860 m / 662 m, gauge 1200 mm, two trains of two coupled cars
+// (~200 passengers), up to 10 m/s; upper section Höhenweg – Weissfluhjoch 2188 m / 444 m, gauge 800 mm, two trains of
+// one long car each (Gangloff, ~110 passengers, remontees-mecaniques.net FUNI 110), 6.2 m/s; each section a shuttle of
+// its two trains on one rope, crossing on the loop half-way (en.wikipedia.org/wiki/Parsenn_Funicular, the operator). Schatzalp-Bahn: Davos Platz – Schatzalp 712 m / 304 m,
 // metre gauge, two cars (en.wikipedia.org/wiki/Schatzalp-Bahn). Jakobshornbahn: two aerial tramways, Davos Platz –
 // Ischalp (100-person cabins, 2014) and Ischalp – Jakobshorn (60-person CWA "Kronos" cabins, 2022) (bergbahnen.org,
 // davosklostersmountains.ch).
 const FACTS = {
-  'Parsennbahn|2200': { label: 'Parsennbahn (Davos Dorf – Höhenweg)', gauge: 1.2, cars: 2, carLength: 13, speed: 10, colour: 0xc8102e, trim: 0xf2f2f2 },
-  'Parsennbahn|1160': { label: 'Parsennbahn (Höhenweg – Weissfluhjoch)', gauge: 0.8, cars: 2, carLength: 12, speed: 6.2, colour: 0xc8102e, trim: 0xf2f2f2 },
+  'Parsennbahn|2200': { label: 'Parsennbahn (Davos Dorf – Höhenweg)', gauge: 1.2, cars: 2, carLength: 12.5, speed: 10, colour: 0xc8102e, trim: 0xf2f2f2 },
+  'Parsennbahn|1160': { label: 'Parsennbahn (Höhenweg – Weissfluhjoch)', gauge: 0.8, cars: 1, carLength: 19, speed: 6.2, colour: 0xc8102e, trim: 0xf2f2f2 },
   'Schatzalp-Bahn|750': { label: 'Schatzalpbahn (Davos Platz – Schatzalp)', gauge: 1.0, cars: 1, carLength: 10.5, speed: 4.5, colour: 0xa3162b, trim: 0xe9dcc0 }
 };
 const ROPE = { // rope height above ground at the stations, default pylon height, cabin spacing (circulating lifts)

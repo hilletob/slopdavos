@@ -170,7 +170,8 @@ class CityAudioSources {
 
     for (let i = 0; i < this.players.length; i++) {
       const entity = this.players[i];
-      if (entity.mesh.visible === false || entity.position.y < -0.05) continue;
+      // (Davos lies on its relief: the players' vehicles are often below y = 0, which says nothing about tunnels)
+      if (entity.mesh.visible === false || entity.type === 'rhb') continue;
       const { x, y, z } = entity.position;
       const player = entity === active;
       if (entity.type === 'person') {

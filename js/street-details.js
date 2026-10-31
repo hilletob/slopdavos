@@ -22,6 +22,7 @@ import { pavedPlazaRects, centralParkClearings, parkTreeSites, sidewalkBlocks, p
 import { bryantParkLawn } from './landmarks.js';
 import { nearestBerlinRoad } from './berlin-geometry.js';
 import { groundHeight } from './terrain.js';
+import { QUALITY } from './quality.js';
 
 // js/street-details.js
 // Populates Manhattan streets with authentic NYC street furniture using InstancedMesh:
@@ -60,10 +61,12 @@ function createStreetSignBladeTexture(label) {
 const SIGN_ATLAS_COLS = 4;
 function createStreetSignAtlas(labels) {
   const rows = Math.max(1, Math.ceil(labels.length / SIGN_ATLAS_COLS));
-  const c = document.createElement('canvas');
-  c.width = 256 * SIGN_ATLAS_COLS;
-  c.height = 64 * rows;
+  // (laid out in 256 x 64 px blades whatever the canvas' size: half as large on the mobile profile, js/quality.js)
+  const c = document.createElement('canvas'), s = QUALITY.atlasScale;
+  c.width = Math.round(256 * SIGN_ATLAS_COLS * s);
+  c.height = Math.round(64 * rows * s);
   const ctx = c.getContext('2d');
+  ctx.scale(s, s);
   labels.forEach((label, i) => drawStreetSignBlade(ctx, label, (i % SIGN_ATLAS_COLS) * 256, Math.floor(i / SIGN_ATLAS_COLS) * 64));
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1180,12 +1183,12 @@ function buildStreetDetails(scene) {
   // Whole-crown cards (level 2) only stand beyond trees.js' LOD_MID (420 m): from the ground that's far outside the
   // sun's shadow range (lighting.js, ~200 m at street level), so they stay out of the shadow passes there (~80 draws).
   // From the air, where the range grows to 720 m, they cast again (update below).
-  const farTreeMeshes = treeField.meshes.filter((mesh) => /_lod2_/.test(mesh.name));
+  // (the field makes its meshes as they are first needed, and gives the later ones the same setting)
   let farTreeShadows = true;
   const setFarTreeShadows = (on) => {
     if (on === farTreeShadows) return;
     farTreeShadows = on;
-    for (const mesh of farTreeMeshes) mesh.castShadow = on;
+    treeField.setFarShadows(on);
   };
   setFarTreeShadows(false);
 
@@ -1330,7 +1333,7 @@ function buildStreetDetails(scene) {
   }
 
   scene.add(group);
-  return { group, footprints, signalClock, signalIntersections, audioSignals, update };
+  return { group, footprints, signalClock, signalIntersections, audioSignals, update, trees: treePositions };
 }
 
 export { buildStreetDetails };

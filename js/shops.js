@@ -6,6 +6,7 @@ import { DAVOS_DATA } from './davos-geodata.js';
 import { groundHeight } from './terrain.js';
 import { cityUniforms } from './tsl-materials.js';
 import { logoIndex, logoFor, logoImage, drawLogo } from './logos.js';
+import { QUALITY } from './quality.js';
 
 // The shop signs of Davos (js/shops-data.js, tools/fetch-shops.mjs): each business's name in its brand colours, drawn
 // into canvas atlases (lettering, colours and a simple symbol; the brands' real logos, assets/logos, replace the
@@ -46,8 +47,9 @@ function buildAtlas(signs) {
   const pages = [], out = [];
   let canvas, ctx, x = 0, y = 0;
   const newPage = () => {
-    canvas = document.createElement('canvas'); canvas.width = canvas.height = ATLAS;
-    ctx = canvas.getContext('2d'); pages.push(canvas); x = 0; y = 0;
+    // (laid out in ATLAS px whatever the canvas' size: the mobile profile, js/quality.js, draws it at half the size)
+    canvas = document.createElement('canvas'); canvas.width = canvas.height = Math.round(ATLAS * QUALITY.atlasScale);
+    ctx = canvas.getContext('2d'); ctx.scale(QUALITY.atlasScale, QUALITY.atlasScale); pages.push(canvas); x = 0; y = 0;
   };
   newPage();
   for (const s of signs) {

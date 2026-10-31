@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { float, fract, mix, positionGeometry, smoothstep, uniform, vec3 } from 'three/tsl';
+import { uniform, vec3 } from 'three/tsl';
 import { surfaceHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import {
   ISLAND_BOUNDS,
@@ -23,6 +23,7 @@ import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { bryantParkLawn } from './landmarks.js';
+import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } from './snowcat.js';
 
 // js/controllers.js
 // Sculpted, non-blocky GTA 6-style 3D models, animations, and physics controllers
@@ -74,19 +75,27 @@ const CAR_BEAMS = {
   low: { intensity: 340, distance: 60, angle: 0.13, penumbra: 0.7, pitch: 0.066, toeOut: 0.012, decay: 1.6 },
   high: { intensity: 2600, distance: 150, angle: 0.15, penumbra: 0.6, pitch: 0.012, toeOut: 0.018, decay: 1.6 }
 };
-// Snow groomer: a wide flood from the roof LED bar onto the piste ahead plus the two cab headlights; full beam lifts
-// and narrows the headlights into long-range driving lamps and lets the flood reach further
+// Snow groomer: a wide flood from the roof LED bar onto the piste ahead plus the headlamps (one spot centred between
+// the two lamps in the nose, as bright as both); full beam lifts and narrows the headlamps into long-range driving
+// lamps and lets the flood reach further. Positions as in js/snowcat.js.
 const SNOWCAT_BEAMS = {
   flood: {
-    pos: [0, 2.84, 0.72],
+    pos: SNOWCAT_MODEL.flood,
     low: { intensity: 520, distance: 45, angle: 0.6, penumbra: 0.75, pitch: 0.16, toeOut: 0, decay: 1.6 },
     high: { intensity: 700, distance: 60, angle: 0.6, penumbra: 0.75, pitch: 0.13, toeOut: 0, decay: 1.6 }
   },
   head: {
-    pos: [0.75, 2.62, 1.72],
-    low: { intensity: 650, distance: 60, angle: 0.24, penumbra: 0.75, pitch: 0.085, toeOut: 0.02, decay: 1.6 },
-    high: { intensity: 2400, distance: 150, angle: 0.15, penumbra: 0.6, pitch: 0.03, toeOut: 0.01, decay: 1.6 }
+    pos: SNOWCAT_MODEL.head,
+    low: { intensity: 1300, distance: 60, angle: 0.26, penumbra: 0.75, pitch: 0.07, toeOut: 0, decay: 1.6 },
+    high: { intensity: 4800, distance: 150, angle: 0.16, penumbra: 0.6, pitch: 0.02, toeOut: 0, decay: 1.6 }
   }
+};
+// Its rotating beacon (K): an orange beam turning with the reflector, slightly down onto the snow around it. Only lit
+// while driven at night, as the third and last spot (unshadowed like the others); by day and parked the dome and its
+// glow sprite do the flashing.
+const SNOWCAT_BEACON = {
+  pos: SNOWCAT_MODEL.beacon, color: 0xff7a14,
+  low: { intensity: 750, distance: 40, angle: 0.34, penumbra: 0.5, pitch: 0.26, toeOut: 0, decay: 1.6 }
 };
 // Rega H145 landing light under the nose, angled forward and down; its intensity follows the height above ground so the
 // pool on the snow keeps a steady brightness (illuminance ~ I / d²) from a hover in the village to 300 m up.
@@ -106,6 +115,9 @@ function aimBeam(spot, x, y, z, side, b) {
   spot.decay = b.decay;
 }
 const SNOWCAT_START = { x: 785, z: -1006.6, heading: 1.956 }; // world frame, heading = atan2(dx, dz)
+// The parked VW T3's box for the other players (its collisionBody below) and the cells of the tree trunks (setTrees)
+const PARKED_T3 = { halfW: 0.93, halfL: 2.33, top: 1.97 };
+const TREE_CELL = 16;
 const BICYCLE_DRIVE = {
   speed: 19, reverseSpeed: 4.5, acceleration: 9,
   rolling: 0.08, drag: 0.004, coast: 0.2, brake: 7.5 // Backward input is scaled to 0.6, giving 4.5 m/s² braking.
@@ -336,14 +348,14 @@ function collisionBody(mode, radius, heading, margin = 0) {
   const snowcat = mode === 'snowcat';
   const oriented = car || cargoBike || snowcat;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  const hx = (car ? 0.93 : cargoBike ? 0.38 : snowcat ? 2.15 : radius) + margin;
-  const hz = (car ? 2.33 : cargoBike ? 1.34 : snowcat ? 3.25 : radius) + margin;
+  const hx = (car ? 0.93 : cargoBike ? 0.38 : snowcat ? SNOWCAT_MODEL.halfW : radius) + margin;
+  const hz = (car ? 2.33 : cargoBike ? 1.34 : snowcat ? SNOWCAT_MODEL.halfL : radius) + margin;
   return {
     car, oriented, sin, cos, hx, hz, radius: radius + margin,
     extX: oriented ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: oriented ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: mode === 'helicopter' ? -0.25 : 0,
-    top: mode === 'helicopter' ? 3.2 : car ? 1.97 : snowcat ? 2.9 : 1.9
+    top: mode === 'helicopter' ? 3.2 : car ? 1.97 : snowcat ? SNOWCAT_MODEL.top : 1.9
   };
 }
 
@@ -484,6 +496,10 @@ class ThirdPersonControllerManager {
       }
       // L: high beam of the van, the snow groomer and the helicopter's searchlight (kept when switching vehicles)
       if (isDown && !e.repeat && e.code === 'KeyL' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleHighBeam();
+      // K: the snow groomer's rotating beacon
+      if (isDown && !e.repeat && e.code === 'KeyK' && this.activeMode === 'snowcat' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleBeacon();
+      // F: raise / lower its tiller
+      if (isDown && !e.repeat && e.code === 'KeyF' && this.activeMode === 'snowcat' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleTiller();
       const action = actionsByCode.get(e.code);
       if (!action || (isDown && isTypingInField(e))) return;
       if (isDown) this._pressedCodes.add(e.code);
@@ -514,6 +530,22 @@ class ThirdPersonControllerManager {
   toggleHighBeam() {
     this.highBeam = !this.highBeam;
     return this.highBeam;
+  }
+
+  // The snow groomer's orange rotating beacon on/off (it stays as left when the player gets out)
+  toggleBeacon() {
+    const cat = this.entities.snowcat;
+    if (!cat) return false;
+    cat.beaconOn = !cat.beaconOn;
+    return cat.beaconOn;
+  }
+
+  // The snow groomer's tiller: lowered (grooming) or raised (driving on a road); it swings over ~1.5 s
+  toggleTiller() {
+    const cat = this.entities.snowcat;
+    if (!cat) return false;
+    cat.tillerRaised = !cat.tillerRaised;
+    return cat.tillerRaised;
   }
 
   _blendInput(action) {
@@ -639,7 +671,7 @@ class ThirdPersonControllerManager {
     const margin = heli ? 6000 : 0;
     const entity = this.getActiveEntity();
     // Conservative body cylinders, including the van's corners, bicycle wheels and helicopter tail/rotor.
-    const body = { person: [0.48, 1.9], car: [2.55, 2.0], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [8.2, 3.4], snowcat: [3.9, 2.9], rhb: [0.1, 0.1] };
+    const body = { person: [0.48, 1.9], car: [2.55, 2.0], cyclist: [1.0, 1.9], cargobike: [1.45, 1.9], helicopter: [8.2, 3.4], snowcat: [4.25, 3.3], rhb: [0.1, 0.1] };
     const others = Object.values(this.entities).filter(e => e !== entity).map(e => ({
       x: e.position.x, z: e.position.z, radius: body[e.type][0],
       bottom: e.position.y - (e.type === 'helicopter' ? 0.7 : 0), top: e.position.y + body[e.type][1]
@@ -1696,97 +1728,27 @@ class ThirdPersonControllerManager {
   // =========================================================================
   // 6. PISTENFAHRZEUG (snow groomer, built in code: no external model)
   // =========================================================================
-  // Red body on two wide rubber tracks (4.2 m over both), a cab with large dark windows, a white light bar with an
-  // orange beacon, the hydraulic blade in front and the tiller with its finisher behind. +z is forward.
+  // A PistenBully 600-style groomer (js/snowcat.js): red body on two wide cleated tracks, cab with large windows under
+  // a roof rack with the LED light bar and the orange rotating beacon, the 12-way blade in front, the winch on the hood
+  // and the tiller with its finisher behind. Four draw calls (body, belts, wheels, beacon glow) plus the contact shadow.
   createSnowcatEntity() {
-    const root = new THREE.Group();
+    const model = buildSnowcatModel();
+    const root = model.group;
     root.name = 'PlayerSnowcat';
-    const std = (color, roughness = 0.5, metalness = 0.2) => new THREE.MeshStandardNodeMaterial({ color, roughness, metalness });
-    const red = std(0xb3121b, 0.42, 0.25), glass = std(0x0d1216, 0.08, 0.6), steel = std(0x8e959b, 0.45, 0.65);
-    const dark = std(0x26292c, 0.7, 0.3), white = std(0xeef0f2, 0.4, 0.1);
-    const box = (w, h, d, material, x, y, z, parent = root) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-      mesh.position.set(x, y, z);
-      parent.add(mesh);
-      return mesh;
-    };
-
-    // Tracks: rubber belts with cleats that run with the ground (trackPhase uniforms, see animateSnowcat), over the
-    // drive sprocket and idler at their ends
-    const trackPhases = [];
-    for (const side of [-1, 1]) {
-      const phase = uniform(0);
-      trackPhases.push(phase);
-      const rubber = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
-      const cleat = smoothstep(0.55, 0.6, fract(positionGeometry.z.add(positionGeometry.y).add(phase).mul(2.6)));
-      rubber.colorNode = mix(vec3(0.03, 0.032, 0.035), vec3(0.11, 0.115, 0.12), cleat);
-      box(1.25, 0.82, 3.9, rubber, side * 1.48, 0.47, 0);
-      for (const z of [-1.95, 1.95]) {
-        const end = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.25, 20).rotateZ(Math.PI / 2), rubber);
-        end.position.set(side * 1.48, 0.47, z);
-        root.add(end);
-      }
-      // Road wheels between the belts
-      for (let k = -1; k <= 1; k++) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16).rotateZ(Math.PI / 2), steel);
-        wheel.position.set(side * 0.83, 0.42, k * 1.2);
-        root.add(wheel);
-      }
-    }
-    // Hull, cab (glazed all round under a red roof), engine hood behind it
-    box(2.5, 0.55, 4.3, red, 0, 1.1, 0);
-    box(1.95, 0.4, 2.0, red, 0, 1.58, 0.65);
-    box(1.97, 0.88, 1.9, glass, 0, 2.2, 0.65);
-    for (const x of [-0.97, 0.97]) for (const z of [-0.28, 1.58]) box(0.08, 0.9, 0.08, red, x, 2.2, z); // pillars
-    box(2.08, 0.12, 2.1, red, 0, 2.7, 0.62);
-    box(2.25, 0.75, 1.75, red, 0, 1.68, -1.25);
-    box(1.8, 0.06, 1.4, dark, 0, 2.07, -1.3); // engine grille
-    // Light bar and the orange beacon (pulsed in animateSnowcat), work lights on the cab's front corners. The lamps glow
-    // with lampGlow (0 by day, 1 at night while driven, more on full beam; see updateVehicleLights)
-    const lampGlow = uniform(0);
-    box(1.7, 0.12, 0.26, dark, 0, 2.82, 0.55);
-    const ledMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xdfe6ee, roughness: 0.15, metalness: 0.1 });
-    ledMaterial.emissiveNode = vec3(0.92, 0.96, 1.0).mul(lampGlow.mul(6));
-    for (let k = 0; k < 8; k++) box(0.15, 0.075, 0.02, ledMaterial, -0.7 + k * 0.2, 2.82, 0.685);
-    const beaconMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xff8a00, roughness: 0.3 });
-    const beaconGlow = uniform(0);
-    beaconMaterial.emissiveNode = vec3(1.0, 0.45, 0.0).mul(beaconGlow.mul(3).add(0.15));
-    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.2, 14), beaconMaterial);
-    beacon.position.set(0, 2.98, 0.55);
-    root.add(beacon);
-    const lampMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xfff6e0, roughness: 0.2 });
-    lampMaterial.emissiveNode = vec3(1.0, 0.95, 0.82).mul(lampGlow.mul(5).add(0.05));
-    for (const x of [-0.75, 0.75]) box(0.28, 0.14, 0.06, lampMaterial, x, 2.62, 1.66);
-    for (const x of [-0.9, 0.9]) box(0.22, 0.16, 0.06, lampMaterial, x, 1.2, 2.17);
-    // Tail lamps on the engine hood's rear edge
-    const tailMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x5a0a0a, roughness: 0.3 });
-    tailMaterial.emissiveNode = vec3(1.0, 0.04, 0.03).mul(lampGlow.min(1).mul(2.2));
-    for (const x of [-0.85, 0.85]) box(0.2, 0.12, 0.04, tailMaterial, x, 1.9, -2.14);
-    // Their light: the bar's wide flood and the two cab headlights (+z forward, aimed at the snow ahead)
+    // Its light: the bar's wide flood, the headlamps (one spot between them) and the beacon's turning orange beam
+    // (+z forward). Three spots at most, as for every vehicle.
     const workLights = [];
-    const addSpot = (spec, side) => {
-      const spot = new THREE.SpotLight(0xf4f7ff, 0);
-      aimBeam(spot, side * spec.pos[0], spec.pos[1], spec.pos[2], side, spec.low);
+    const addSpot = (spec, color = 0xf4f7ff) => {
+      const spot = new THREE.SpotLight(color, 0);
+      aimBeam(spot, spec.pos[0], spec.pos[1], spec.pos[2], 0, spec.low);
       spot.visible = false;
       root.add(spot, spot.target);
-      workLights.push({ spot, spec, side });
+      return spot;
     };
-    addSpot(SNOWCAT_BEAMS.flood, 0);
-    for (const side of [-1, 1]) addSpot(SNOWCAT_BEAMS.head, side);
-    // Front blade on its push arms (light grey, wider than the tracks, its edge slightly forward)
-    const blade = box(4.4, 1.05, 0.12, std(0xc7cbcf, 0.45, 0.5), 0, 0.72, 3.05);
-    blade.rotation.x = -0.12;
-    box(4.4, 0.08, 0.3, steel, 0, 0.2, 3.12); // cutting edge
-    for (const x of [-0.85, 0.85]) {
-      const arm = box(0.16, 0.16, 1.1, steel, x, 0.85, 2.55);
-      arm.rotation.x = 0.25;
-    }
-    // Rear tiller and its finisher comb on a short hitch
-    box(0.5, 0.3, 0.5, steel, 0, 0.8, -2.4);
-    box(4.0, 0.55, 0.85, std(0x5d6368, 0.6, 0.4), 0, 0.45, -2.95);
-    box(4.0, 0.05, 0.55, dark, 0, 0.12, -3.55);
+    for (const spec of [SNOWCAT_BEAMS.flood, SNOWCAT_BEAMS.head]) workLights.push({ spot: addSpot(spec), spec, side: 0 });
+    const beaconLight = addSpot(SNOWCAT_BEACON, SNOWCAT_BEACON.color);
 
-    const shadowGeo = new THREE.PlaneGeometry(4.3, 6.6);
+    const shadowGeo = new THREE.PlaneGeometry(SNOWCAT_MODEL.halfW * 2 + 0.2, SNOWCAT_MODEL.halfL * 2);
     shadowGeo.rotateX(-Math.PI * 0.5);
     const shadow = new THREE.Mesh(shadowGeo, createContactShadowMaterial());
     shadow.position.set(0, 0.02, 0);
@@ -1798,9 +1760,14 @@ class ThirdPersonControllerManager {
       type: 'snowcat',
       label: 'Pistenfahrzeug',
       mesh: root,
-      trackPhases,
-      beaconGlow,
-      lampGlow,
+      model,
+      trackPhases: model.trackPhases,
+      lampGlow: model.lampGlow,
+      beacon: model.beacon,
+      beaconOn: true, // K toggles it; parked, it keeps turning
+      tillerRaised: false, // F raises / lowers the tiller
+      beaconAngle: 0,
+      beaconLight,
       workLights,
       // Parked on the cross-country trail (OSM "City-Trail Davos", DAVOS_DATA.loipen) between the Bünda and the
       // Dischmastrasse in Davos Dorf, along its track
@@ -1935,57 +1902,61 @@ class ThirdPersonControllerManager {
     const contact = this._buildingContact ??= { nx: 0, nz: 0, depth: 0 };
 
     const reach = Math.max(extX, extZ) + 6;
+    // Push out of collider c (contact filled by buildingContact), with the impact report and the van's crash response
+    const respond = (c) => {
+      const { nx, nz, depth } = contact;
+      pos.x += nx * depth;
+      pos.z += nz * depth;
+
+      if (this._collisionListener && collisionEntity && collisionEntity.type !== 'person') {
+        const sin = carEntity ? sinH : Math.sin(collisionEntity.heading);
+        const cos = carEntity ? cosH : Math.cos(collisionEntity.heading);
+        const approachSpeed = -((sin * collisionEntity.speed + (collisionEntity.vx || 0)) * nx + (cos * collisionEntity.speed + (collisionEntity.vz || 0)) * nz);
+        const support = body.oriented
+          ? Math.abs(nx * cos - nz * sin) * body.hx + Math.abs(nx * sin + nz * cos) * body.hz
+          : radius;
+        this.reportCollision(collisionEntity, c, 'building', pos.x - nx * support, pos.y + (heli ? 1.1 : 0.56), pos.z - nz * support,
+          nx, 0, nz, approachSpeed);
+      }
+
+      if (carEntity) {
+        const totalVx = sinH * carEntity.speed + (carEntity.vx || 0);
+        const totalVz = cosH * carEntity.speed + (carEntity.vz || 0);
+        const vn = -(totalVx * nx + totalVz * nz);
+        if (vn > 0.5) {
+          const headOn = Math.abs(sinH * nx + cosH * nz);
+          const sideDot = cosH * nx - sinH * nz;
+          carEntity.vx = (carEntity.vx || 0) + nx * vn * 0.42;
+          carEntity.vz = (carEntity.vz || 0) + nz * vn * 0.42;
+          if (headOn > 0.72) {
+            carEntity.speed = -carEntity.speed * 0.25;
+          } else {
+            carEntity.speed *= (1.0 - 0.62 * headOn);
+            carEntity.angularVel = (carEntity.angularVel || 0) + sideDot * (sinH * nx + cosH * nz >= 0 ? -1 : 1) * Math.min(3.2, vn * 0.22);
+          }
+          carEntity.pitchVel = (carEntity.pitchVel || 0) + (sinH * nx + cosH * nz) * Math.min(14.0, vn) * 0.16;
+          carEntity.rollVel = (carEntity.rollVel || 0) - sideDot * Math.min(14.0, vn) * 0.22;
+          carEntity.heaveVel = (carEntity.heaveVel || 0) + Math.min(1.4, vn * 0.11);
+          if (vn > 2.2) {
+            carEntity.lastCollisionSpark = {
+              x: pos.x - nx * extX * 0.92,
+              y: 0.56,
+              z: pos.z - nz * extZ * 0.92,
+              nx,
+              nz,
+              speed: vn
+            };
+          }
+        }
+      }
+    };
     let gx = pos.x;
     let gz = pos.z;
     let near = this.nearColliders(gx, gz, reach);
     for (let i = 0; i < near.length; i++) {
       const c = near[i];
       if (buildingContact(c, pos.x, pos.y, pos.z, body, contact)) {
-        const { nx, nz, depth } = contact;
-        pos.x += nx * depth;
-        pos.z += nz * depth;
-
-        if (this._collisionListener && collisionEntity && collisionEntity.type !== 'person') {
-          const sin = carEntity ? sinH : Math.sin(collisionEntity.heading);
-          const cos = carEntity ? cosH : Math.cos(collisionEntity.heading);
-          const approachSpeed = -((sin * collisionEntity.speed + (collisionEntity.vx || 0)) * nx + (cos * collisionEntity.speed + (collisionEntity.vz || 0)) * nz);
-          const support = body.oriented
-            ? Math.abs(nx * cos - nz * sin) * body.hx + Math.abs(nx * sin + nz * cos) * body.hz
-            : radius;
-          this.reportCollision(collisionEntity, c, 'building', pos.x - nx * support, pos.y + (heli ? 1.1 : 0.56), pos.z - nz * support,
-            nx, 0, nz, approachSpeed);
-        }
-
-        if (carEntity) {
-          const totalVx = sinH * carEntity.speed + (carEntity.vx || 0);
-          const totalVz = cosH * carEntity.speed + (carEntity.vz || 0);
-          const vn = -(totalVx * nx + totalVz * nz);
-          if (vn > 0.5) {
-            const headOn = Math.abs(sinH * nx + cosH * nz);
-            const sideDot = cosH * nx - sinH * nz;
-            carEntity.vx = (carEntity.vx || 0) + nx * vn * 0.42;
-            carEntity.vz = (carEntity.vz || 0) + nz * vn * 0.42;
-            if (headOn > 0.72) {
-              carEntity.speed = -carEntity.speed * 0.25;
-            } else {
-              carEntity.speed *= (1.0 - 0.62 * headOn);
-              carEntity.angularVel = (carEntity.angularVel || 0) + sideDot * (sinH * nx + cosH * nz >= 0 ? -1 : 1) * Math.min(3.2, vn * 0.22);
-            }
-            carEntity.pitchVel = (carEntity.pitchVel || 0) + (sinH * nx + cosH * nz) * Math.min(14.0, vn) * 0.16;
-            carEntity.rollVel = (carEntity.rollVel || 0) - sideDot * Math.min(14.0, vn) * 0.22;
-            carEntity.heaveVel = (carEntity.heaveVel || 0) + Math.min(1.4, vn * 0.11);
-            if (vn > 2.2) {
-              carEntity.lastCollisionSpark = {
-                x: pos.x - nx * extX * 0.92,
-                y: 0.56,
-                z: pos.z - nz * extZ * 0.92,
-                nx,
-                nz,
-                speed: vn
-              };
-            }
-          }
-        }
+        respond(c);
 
         // A push that carried it far from where the candidates were gathered (dropped inside a building): gather
         // them again around where it is now, carrying on in the same order
@@ -1999,6 +1970,74 @@ class ThirdPersonControllerManager {
         }
       }
     }
+    // Parked player vehicles (the VW T3, the snow groomer) are solid too, and the driven groomer stops at trees
+    for (const c of this.dynamicColliders(collisionEntity, pos.x, pos.z, reach)) {
+      if (buildingContact(c, pos.x, pos.y, pos.z, body, contact)) respond(c);
+    }
+  }
+
+  // Obstacles that are not buildings: the parked VW T3 and snow groomer as oriented boxes (whatever the player is
+  // driving or walking, except that vehicle itself), and for the driven groomer the trunks of the trees around it
+  dynamicColliders(entity, x, z, reach) {
+    const out = this._dynamicColliders ??= [];
+    out.length = 0;
+    for (const [type, dims] of [['snowcat', SNOWCAT_MODEL], ['car', PARKED_T3]]) {
+      const e = this.entities?.[type];
+      if (!e?.position || e === entity || e.mesh?.visible === false) continue;
+      const p = e.position;
+      if (Math.abs(p.x - x) > reach + dims.halfL || Math.abs(p.z - z) > reach + dims.halfL) continue;
+      const c = e._obstacle ??= { obb: { cx: 0, cz: 0, hx: dims.halfW, hz: dims.halfL, cs: 1, sn: 0 }, vehicle: e, parked: type };
+      const cs = Math.cos(e.heading || 0), sn = Math.sin(e.heading || 0);
+      const ex = Math.abs(cs) * dims.halfW + Math.abs(sn) * dims.halfL, ez = Math.abs(sn) * dims.halfW + Math.abs(cs) * dims.halfL;
+      Object.assign(c.obb, { cx: p.x, cz: p.z, cs, sn });
+      c.minX = p.x - ex; c.maxX = p.x + ex; c.minZ = p.z - ez; c.maxZ = p.z + ez;
+      c.minY = p.y - 0.5; c.maxY = p.y + dims.top;
+      out.push(c);
+    }
+    if (entity?.type === 'snowcat' && this._treeCells) {
+      const pool = this._treePool ??= [];
+      let used = 0;
+      const CELL = TREE_CELL;
+      for (let ix = Math.floor((x - reach) / CELL); ix <= Math.floor((x + reach) / CELL); ix++) {
+        for (let iz = Math.floor((z - reach) / CELL); iz <= Math.floor((z + reach) / CELL); iz++) {
+          const span = this._treeCells.get(ix * 65536 + iz); // (start * 1024 + count, see setTrees)
+          if (span === undefined) continue;
+          const cell = this._treeData;
+          for (let k = Math.floor(span / 1024) * 3, end = k + (span % 1024) * 3; k < end; k += 3) {
+            const tx = cell[k], tz = cell[k + 1], r = cell[k + 2];
+            if (Math.abs(tx - x) > reach || Math.abs(tz - z) > reach) continue;
+            const c = pool[used] ??= { minY: -1e9, maxY: 1e9, tree: true };
+            used++;
+            c.minX = tx - r; c.maxX = tx + r; c.minZ = tz - r; c.maxZ = tz + r;
+            out.push(c);
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  // The trees (street-details.js sites: { x, z, scale }) whose trunks stop the snow groomer, bucketed once
+  // (packed: one typed array of [x, z, r] sorted by cell, and per cell its span as start * 1024 + count, a small integer:
+  // an array per cell held ~25 MB of heap for the 150 000 trees, this ~3 MB)
+  setTrees(sites = []) {
+    const keys = [], values = [];
+    for (const t of sites) {
+      if (!Number.isFinite(t?.x) || !Number.isFinite(t?.z) || (t.scale ?? 1) < 0.4) continue;
+      keys.push(Math.floor(t.x / TREE_CELL) * 65536 + Math.floor(t.z / TREE_CELL));
+      values.push(t.x, t.z, Math.max(0.25, Math.min(0.6, 0.35 * (t.scale ?? 1))));
+    }
+    const order = Array.from(keys.keys()).sort((a, b) => keys[a] - keys[b]);
+    const data = new Float32Array(order.length * 3);
+    const cells = new Map();
+    order.forEach((i, k) => {
+      data[k * 3] = values[i * 3]; data[k * 3 + 1] = values[i * 3 + 1]; data[k * 3 + 2] = values[i * 3 + 2];
+      const span = cells.get(keys[i]);
+      cells.set(keys[i], span === undefined ? k * 1024 + 1 : span % 1024 < 1023 ? span + 1 : span); // (1023 trees a cell at most)
+    });
+    this._treeData = data;
+    this._treeCells = cells;
+    return cells.size;
   }
 
   // Pose the skinned characters once every entity has moved: the pedestrian's rig walks (or runs, turns, jumps) it to
@@ -2134,6 +2173,12 @@ class ThirdPersonControllerManager {
       for (const { spot, spec } of cat.workLights) {
         spot.visible = on;
         spot.intensity = on ? (high ? spec.high : spec.low).intensity * beamScale : 0;
+      }
+      // The beacon's beam, the third spot (turned in animateSnowcat)
+      const beacon = cat.beaconLight;
+      if (beacon) {
+        beacon.visible = on && cat.beaconOn;
+        beacon.intensity = beacon.visible ? SNOWCAT_BEACON.low.intensity * beamScale : 0;
       }
     }
 
@@ -2336,12 +2381,54 @@ class ThirdPersonControllerManager {
     s.trackPhases[1].value -= forward - spin; // right
   }
 
-  // The beacon flashes whatever the mode (it is parked with its beacon on)
+  // The beacon turns whatever the mode (it is parked with its beacon on, until K switches it off): the reflector's lobe
+  // on the dome and the glow sprite follow its angle, at night while driven also its orange spot. The road wheels roll
+  // with the belts. Parked, it is a solid body for the traffic too (trafficBody, see main.js setTramBodies).
   animateSnowcat(elapsed = 0) {
     const s = this.entities.snowcat;
-    if (!s?.beaconGlow) return;
-    const t = (elapsed * 1.6) % 1;
-    s.beaconGlow.value = t < 0.12 ? 1 : t < 0.2 ? 0.3 : t < 0.32 ? 1 : 0.05;
+    if (!s?.beacon) return;
+    if (s.beaconOn) s.beaconAngle = ((elapsed * BEACON_REV_PER_S) % 1) * Math.PI * 2;
+    // The tiller swings towards its position at a steady hydraulic pace (~1.5 s from end to end)
+    const lift = s.model?.tillerLift;
+    if (lift) {
+      const dt = Math.min(0.1, Math.max(0, elapsed - (s._tillerTime ?? elapsed)));
+      s._tillerTime = elapsed;
+      const target = s.tillerRaised ? TILLER_RAISED : 0, step = (TILLER_RAISED / 1.5) * dt;
+      lift.value += Math.max(-step, Math.min(step, target - lift.value));
+    }
+    const a = s.beaconAngle, sn = Math.sin(a), cs = Math.cos(a);
+    s.beacon.on.value = s.beaconOn ? 1 : 0;
+    s.beacon.dir.value.set(sn, cs);
+    s.beacon.world.value.set(Math.sin(s.heading + a), 0, Math.cos(s.heading + a));
+    const light = s.beaconLight;
+    if (light?.visible) {
+      const [x, y, z] = SNOWCAT_BEACON.pos, aim = 10;
+      light.target.position.set(x + sn * aim, y - aim * Math.tan(SNOWCAT_BEACON.low.pitch), z + cs * aim);
+    }
+    const [left, right] = s.trackPhases;
+    if (s.model && (left.value !== s._rolledLeft || right.value !== s._rolledRight)) {
+      s._rolledLeft = left.value;
+      s._rolledRight = right.value;
+      s.model.rollWheels(left.value, right.value);
+    }
+    // The traffic's view of it: where it stands while parked, out of the way while driven (then it is the player)
+    const body = this.snowcatTrafficBody;
+    const parked = this.activeMode !== 'snowcat';
+    body.x = body.prevX = parked ? s.position.x : 1e7;
+    body.z = body.prevZ = parked ? s.position.z : 1e7;
+    body.y = s.position.y;
+    body.sin = Math.sin(s.heading);
+    body.cos = Math.cos(s.heading);
+    body.vx = body.vz = body.angularVel = 0;
+  }
+
+  // The parked snow groomer as a solid body for js/traffic.js (like the trams' sections: the cars brake behind it and
+  // are pushed clear of it, it does not give way)
+  get snowcatTrafficBody() {
+    return this._snowcatTrafficBody ??= {
+      x: 1e7, z: 1e7, prevX: 1e7, prevZ: 1e7, y: 0, sin: 0, cos: 1,
+      halfW: SNOWCAT_MODEL.halfW, halfL: SNOWCAT_MODEL.halfL, mass: SNOWCAT_MODEL.mass, vx: 0, vz: 0, angularVel: 0, parked: 'snowcat'
+    };
   }
 
   updateCyclist(dt, bike = this.entities.cyclist, mode = null) {

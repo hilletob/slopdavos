@@ -1,19 +1,22 @@
 import * as THREE from 'three/webgpu';
-import { float, fract, mix, mx_noise_float, positionGeometry, positionLocal, positionWorld, smoothstep, uv, vec3 } from 'three/tsl';
+import { cameraPosition, distance, float, fract, max, mix, mx_noise_float, positionGeometry, positionLocal, positionWorld, smoothstep, uv, vec2, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
 import { chunkedMeshes } from './scene-culling.js';
+import { bumpedNormal, FULL_DAY, groomSample, loipeBase, wearSince } from './groom-map.js';
 
 // The cross-country ski trails of Davos (OSM piste:type=nordic in js/davos-geodata.js: the Landwasser and Flüela
 // trails, the Sertig and Dischma, the Nachtloipe...), groomed into the snow in winter and gone in summer (they fade
 // with season.js's `winter`). As groomed: two classic tracks (each two grooves 0.22 m apart), a skating lane in fine
 // corduroy, or a skating lane between two classic tracks; laid on the terrain over the roads and paths they share.
+// Worn down through the day (js/groom-map.js's snow clock: the grooves blur and break, the skating lane loses its
+// cord to the skaters' strokes), freshly groomed again where the player's groomer passes.
 // Wooden marker posts with turquoise tops stand along them every 25-50 m.
 
 // Widths in metres; `skate`: the skating lane [from, to] across the centre line, `tracks`: the classic tracks' centres
-const LAYOUT = {
+export const LAYOUT = { // (also the skiers' lanes, js/cross-country-routes.js)
   classic: { width: 3.0, skate: null, tracks: [-0.65, 0.65] },
   skating: { width: 4.0, skate: [-2.0, 2.0], tracks: [] },
   'classic+skating': { width: 6.5, skate: [-1.9, 1.9], tracks: [-2.6, 2.6] }
@@ -51,26 +54,58 @@ function strips(trails, width) {
 function createLoipeMaterial({ width, skate, tracks }) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0, transparent: true, depthWrite: false });
   const across = uv().x.sub(0.5).mul(width); // metres from the centre line
+  const along = uv().y;
   const sparkle = mx_noise_float(positionWorld.xz.mul(4)).mul(0.5).add(0.5);
+  // Groomed last: by the night shift (loipeBase, groom-map.js) or, where the player's tiller passed since, then. The
+  // day's skiers wear it down (a little slower than the pistes): the classic grooves blur and break, the skating lane
+  // loses its corduroy to the skaters' strokes and turns uneven.
+  const g = groomSample();
+  const wear = wearSince(mix(loipeBase, max(loipeBase, g.s), g.inside), FULL_DAY * 1.25);
+  const fresh = smoothstep(0.35, 0.02, wear);
+  const dist = distance(positionWorld, cameraPosition);
+  const near = smoothstep(70, 15, dist);
   // Groomed snow is compacted and a little greyer and bluer than the fresh powder around it
   let snow = mix(vec3(0.66, 0.71, 0.8), vec3(0.76, 0.8, 0.88), sparkle);
   let shade = float(0);
+  let height = float(0);
   if (skate) {
-    // The groomer's corduroy: ridges along the lane
     const lane = smoothstep(skate[0], skate[0] + 0.15, across).mul(smoothstep(skate[1], skate[1] - 0.15, across));
+    // The groomer's corduroy: ridges along the lane
     const ridge = smoothstep(0.3, 0.5, fract(across.div(0.09)).sub(0.5).abs());
-    shade = shade.max(lane.mul(ridge).mul(0.22));
+    shade = shade.max(lane.mul(ridge).mul(0.22).mul(fresh));
+    // The skaters' strokes: edges pushed off at ~20° to both sides, in broken, overlapping lines
+    const side = across.abs();
+    const stroke = (k, o) => {
+      const s = fract(along.add(side.mul(k)).div(1.7).add(o));
+      const line = smoothstep(0.07, 0.0, s.sub(0.5).abs());
+      const broken = smoothstep(0.45, 0.65, mx_noise_float(vec2(along.mul(0.45), side.mul(1.3).add(o * 7))).mul(0.5).add(0.5));
+      return line.mul(broken);
+    };
+    const strokes = stroke(2.7, 0).max(stroke(3.2, 0.37)).mul(smoothstep(0.05, 0.5, wear)).mul(near).mul(lane);
+    shade = shade.max(strokes.mul(0.3));
+    // Uneven: lumps and churned snow
+    height = height.add(mx_noise_float(vec2(along.mul(0.5), across.mul(0.9))).mul(0.05).add(mx_noise_float(positionWorld.xz.mul(2.5)).mul(0.012)).mul(smoothstep(0.15, 1.0, wear)).mul(lane));
   }
   for (const track of tracks) {
-    // Two grooves 0.22 m apart (centre to centre), set deep in shadow
-    const groove = (c) => smoothstep(0.07, 0.035, across.sub(c).abs());
-    shade = shade.max(groove(track - 0.11).max(groove(track + 0.11)).mul(0.7));
+    // Two grooves 0.22 m apart (centre to centre), set deep in shadow; with the day they wander, widen, fill with
+    // loose snow and break up
+    const wobble = mx_noise_float(vec2(along.mul(0.35), track)).mul(0.05).mul(wear);
+    const soft = wear.mul(0.06);
+    const groove = (c) => smoothstep(soft.add(0.07), float(0.035).sub(soft.mul(0.4)), across.sub(c).sub(wobble).abs());
+    const breaks = mix(float(1), smoothstep(0.3, 0.65, mx_noise_float(vec2(along.mul(0.6), track * 3)).mul(0.5).add(0.5)), smoothstep(0.15, 0.9, wear));
+    shade = shade.max(groove(track - 0.11).max(groove(track + 0.11)).mul(mix(float(0.7), float(0.3), smoothstep(0.0, 1.0, wear))).mul(breaks));
   }
-  // The low berms the groomer leaves along both edges cast a soft shadow line
+  if (tracks.length) {
+    // Trodden: scuffs, herringbone and pole marks across the trail
+    const scuff = smoothstep(0.55, 0.8, mx_noise_float(vec2(along.mul(0.5), across.mul(2.5))).mul(0.5).add(0.5));
+    shade = shade.max(scuff.mul(smoothstep(0.1, 0.8, wear)).mul(0.24).mul(near.mul(0.6).add(0.4)));
+  }
+  // The low berms the groomer leaves along both edges cast a soft shadow line (trodden flat with the day)
   const berm = smoothstep(width / 2 - 0.45, width / 2 - 0.15, across.abs()).mul(smoothstep(width / 2, width / 2 - 0.12, across.abs()));
-  shade = shade.max(berm.mul(0.35));
+  shade = shade.max(berm.mul(mix(float(0.35), float(0.15), smoothstep(0.2, 1.0, wear))));
   snow = mix(snow, vec3(0.3, 0.38, 0.55), shade);
   m.colorNode = snow;
+  if (skate) m.normalNode = bumpedNormal(height);
   // Soft edges into the snow around; only in winter
   const edge = smoothstep(width / 2, width / 2 - 0.1, across.abs());
   m.opacityNode = edge.mul(winter);

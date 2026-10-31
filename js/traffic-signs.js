@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, float, frontFacing, mix, select, texture, uv, vec2, vec3 } from 'three/tsl';
 import { TRAFFIC_SIGNS } from './traffic-signs-data.js';
 import { surfaceHeight, sidewalkRise, SIDEWALK_TOP } from './terrain.js';
+import { QUALITY } from './quality.js';
 
 // js/traffic-signs.js
 // Swiss road signs after the Signalisationsverordnung (SSV) (js/traffic-signs-data.js, tools/fetch-traffic-signs.mjs:
@@ -214,9 +215,12 @@ function drawSign(ctx, kind, x, y, w, h, text = '') {
 function buildAtlas(keys) {
   const rows = Math.ceil(keys.length / COLS);
   const canvas = document.createElement('canvas');
-  canvas.width = TILE * COLS;
-  canvas.height = TILE * rows;
+  // (laid out in TILE px whatever the canvas' size: the mobile profile, js/quality.js, draws it at half the size)
+  const W = TILE * COLS, H = TILE * rows;
+  canvas.width = Math.round(W * QUALITY.atlasScale);
+  canvas.height = Math.round(H * QUALITY.atlasScale);
   const ctx = canvas.getContext('2d');
+  ctx.scale(QUALITY.atlasScale, QUALITY.atlasScale);
   const rects = new Map();
   keys.forEach((key, i) => {
     const [kind, text = ''] = key.split('|');
@@ -226,7 +230,6 @@ function buildAtlas(keys) {
     const x = (i % COLS) * TILE + (TILE - w) / 2, y = Math.floor(i / COLS) * TILE + (TILE - h) / 2;
     drawSign(ctx, kind, x, y, w, h, text);
     // uv rectangle (flipY: v up from the canvas' bottom), a hair inside the drawn box
-    const W = canvas.width, H = canvas.height;
     rects.set(key, [(x + 0.5) / W, 1 - (y + h - 0.5) / H, (x + w - 0.5) / W, 1 - (y + 0.5) / H]);
   });
   const tex = new THREE.CanvasTexture(canvas);

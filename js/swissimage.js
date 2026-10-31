@@ -1,6 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { texture, uv } from 'three/tsl';
+import { texture, uniform, positionWorld, vec2, float } from 'three/tsl';
 import { snowyGround } from './season.js';
+import { QUALITY } from './quality.js';
+import { releaseImageAfterUpload } from './gpu-memory.js';
+import { groomedGround, groomedRoughness } from './groom-map.js';
 
 // swisstopo SWISSIMAGE orthophotos (data/swissimage/, tools/fetch-swissimage.mjs): one WebP per terrain mesh chunk,
 // reaching `margin` metres beyond it. The terrain chunks drape their own image; a swissBUILDINGS3D tile drapes its roofs
@@ -23,6 +26,7 @@ export function orthophotoIndex() {
 
 // The high-resolution index (same chunks and extents, sharper images), or null when it was not generated
 export function hiresOrthophotoIndex() {
+  if (!QUALITY.hires) return Promise.resolve(null); // (never on the mobile profile, js/quality.js)
   hiresPromise ??= fetch(HIRES_URL)
     .then((res) => (res.ok ? res.json() : null))
     .then((index) => index && { ...index, base: HIRES_URL, byChunk: new Map(index.tiles.map((t) => [`${t.i0}/${t.j0}`, t])) })
@@ -65,7 +69,7 @@ async function loadTexture(url, size = null) {
   texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.anisotropy = 8;
   texture.needsUpdate = true;
-  return texture;
+  return releaseImageAfterUpload(texture); // (the decoded bitmap is closed once on the GPU)
 }
 // (a second later: the frames already queued may still sample the old texture)
 const drop = (texture) => { if (texture) setTimeout(() => { texture.dispose(); texture.image?.close?.(); }, 1000); };
@@ -95,23 +99,42 @@ export function setOrthophotoUV(geometry, tile) {
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }
 
-// One material per terrain chunk; its image is swapped through the texture node (no recompiling, winter keeps working)
-const groundMaterial = (map) => {
+// One material for every terrain chunk, each drawing its own image: a reference node reads the chunk's
+// mesh.userData.orthoMap per object (and a swapped image is picked up by the next frame, without recompiling). A
+// material per chunk built its node graph and shader state once per chunk, ~0.6 MB of JavaScript each: ~350 MB over
+// the 572 chunks.
+// The image is mapped from above, from the chunk's userData.orthoRect ([x0, z0, 1 / width, 1 / depth] of its image):
+// no uv attribute (a sixth of the terrain's vertex data).
+const PLACEHOLDER = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([110, 120, 100, 255]), 1, 1);
+  t.colorSpace = THREE.SRGBColorSpace; // (the shader decodes the colour as the texture it was built with says)
+  t.needsUpdate = true;
+  return t;
+})();
+let ground = null;
+const groundMaterial = () => {
+  if (ground) return ground;
   const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.96, metalness: 0 });
-  const node = texture(map, uv());
-  material.colorNode = snowyGround(node.rgb); // summer as photographed; snow in winter (season.js)
-  material.userData.orthoNode = node;
-  return material;
+  const rect = uniform(new THREE.Vector4()).onObjectUpdate(({ object }, self) => object.userData.orthoRect && self.value.copy(object.userData.orthoRect));
+  const mapUV = vec2(positionWorld.x.sub(rect.x).mul(rect.z), float(1).sub(positionWorld.z.sub(rect.y).mul(rect.w)));
+  const node = texture(PLACEHOLDER, mapUV).onObjectUpdate(({ object }) => object.userData.orthoMap || PLACEHOLDER);
+  // summer as photographed; snow in winter (season.js), with the player groomer's tracks in it (groom-map.js)
+  material.colorNode = groomedGround(snowyGround(node.rgb));
+  material.roughnessNode = groomedRoughness(0.96);
+  material.name = 'TerrainOrthophoto';
+  return (ground = material);
 };
 
 // --- Streaming the terrain's images by distance ----------------------------------------------------------------------
 // All 572 light images at full size would take ~0.9 GB of GPU memory. Each chunk shows one level at a time, by its
 // distance from the camera (with hysteresis, so that a chunk on the boundary doesn't flip back and forth):
-//   0: the light image decoded at 1/8 of its linear size (~0.1 MB on the GPU)        beyond FULL_FAR
-//   1: the light image (0.5-2 m, up to 1152 px square: ~7 MB)                         within FULL_NEAR
+//   0: the light image decoded at 1/8 of its linear size (~0.1 MB on the GPU)        beyond orthoFullFar (1600 m)
+//   1: the light image (0.5-2 m, up to 1152 px square: ~7 MB)                         within orthoFullNear (1200 m)
 //   2: the high-resolution image (npm run data:hires, 0.25 m: ~28 MB), when generated within HIRES_NEAR
 // Loads go nearest first, a few at a time; the replaced texture is disposed once the new one is in.
-const SMALL = 1 / 8, FULL_NEAR = 1200, FULL_FAR = 1600, HIRES_NEAR = 700, HIRES_FAR = 1000, LOADS = 3;
+// (the distances and sizes come from the device profile, js/quality.js: the mobile one shows level 1 at half its linear
+// size, a quarter of the memory, within a shorter radius, and never level 2)
+const HIRES_NEAR = 700, HIRES_FAR = 1000;
 const chunks = [];
 let lastTick = 0, loads = 0, hiresIndex;
 hiresOrthophotoIndex().then((index) => { hiresIndex = index; });
@@ -119,16 +142,18 @@ hiresOrthophotoIndex().then((index) => { hiresIndex = index; });
 function wanted(c, camera) {
   const d = Math.hypot(c.x - camera.x, c.z - camera.z);
   if (hiresIndex && c.hires && (d < HIRES_NEAR || (c.level === 2 && d < HIRES_FAR))) return 2;
-  if (d < FULL_NEAR || (c.level >= 1 && d < FULL_FAR)) return 1;
+  if (d < QUALITY.orthoFullNear || (c.level >= 1 && d < QUALITY.orthoFullFar)) return 1;
   return 0;
 }
 function load(c, level) {
   const tile = level === 2 ? c.hires : c.tile, base = level === 2 ? HIRES_URL : INDEX_URL;
   const [w, h] = pixels(tile);
   c.loading = level; loads++;
-  return loadTexture(new URL(tile.f, base).href, level === 0 ? [Math.max(16, Math.round(w * SMALL)), Math.max(16, Math.round(h * SMALL))] : null)
+  const scale = level === 0 ? QUALITY.orthoSmall : level === 1 ? QUALITY.orthoFullScale : 1;
+  return loadTexture(new URL(tile.f, base).href, scale < 1 ? [Math.max(16, Math.round(w * scale)), Math.max(16, Math.round(h * scale))] : null)
     .then((map) => {
-      if (!c.material) { c.material = groundMaterial(map); c.mesh.material = c.material; } else c.material.userData.orthoNode.value = map;
+      c.mesh.userData.orthoMap = map;
+      if (!c.material) { c.material = groundMaterial(); c.mesh.material = c.material; }
       drop(c.texture);
       c.texture = map; c.level = level;
     })
@@ -151,7 +176,7 @@ export function updateTerrainDetail(camera) {
   // Upgrades nearest first; downgrades (freeing memory) whenever a slot is free
   todo.sort((p, q) => (q.want > q.c.level) - (p.want > p.c.level) || p.d - q.d);
   for (const { c, want } of todo) {
-    if (loads >= LOADS) break;
+    if (loads >= QUALITY.orthoLoads) break;
     load(c, want);
   }
 }
@@ -182,7 +207,7 @@ export async function drapeTerrainOrthophotos(meshes, { center = { x: 0, z: 0 } 
   for (const mesh of meshes) {
     const key = mesh.userData.chunk && `${mesh.userData.chunk.i0}/${mesh.userData.chunk.j0}`, tile = key && index.byChunk.get(key);
     if (!tile) continue;
-    setOrthophotoUV(mesh.geometry, tile);
+    mesh.userData.orthoRect = new THREE.Vector4(tile.x0, tile.z0, 1 / (tile.x1 - tile.x0), 1 / (tile.z1 - tile.z0));
     const s = mesh.geometry.boundingSphere;
     added.push({ mesh, tile, key, x: s.center.x, z: s.center.z, level: -1, loading: -1, texture: null, material: null, hires: undefined });
   }

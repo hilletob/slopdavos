@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
+import { QUALITY } from './quality.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
 //  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
@@ -292,48 +293,120 @@ export function drawLevel(renderer, scene, camera, geometry) {
   geometry.drawRange.start = l.start; geometry.drawRange.count = l.count;
 }
 
-// `carve(x, z)`: metres to sink the drawn node by; `depths`: per-node sinking (carveDepths), both optional
+// `carve(x, z)`: metres to sink the drawn node by; `depths`: per-node sinking (carveDepths), both optional.
+// The chunks stream (streamTerrain): within TERRAIN_FULL of the camera a chunk holds every node and all four levels; farther
+// off only the coarse levels (STEPS_FAR; every node along its border still, so neighbours meet without cracks), a tenth
+// of the vertices. The full geometry is rebuilt from the grid when the camera comes near again (the carving is kept per
+// node, in millimetres) and disposed (GPU memory) when it leaves: the terrain's 572 chunks in full took ~115 MB of GPU
+// memory once all had been seen.
+const TERRAIN_FULL = QUALITY.mobile ? [900, 1200] : [1500, 2000]; // full within, coarse beyond (hysteresis)
+const STEPS_FAR = QUALITY.mobile ? [4, 8] : [2, 4, 8];
+const terrainChunks = [];
 export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ, heights } = TERRAIN;
-  const meshes = [];
+  const cut = new Uint16Array(cols * rows);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const k = j * cols + i, d = Math.max(carve ? carve(minX + i * cell, minZ + j * cell) : 0, depths ? depths[k] : 0);
+    if (d > 0) cut[k] = Math.min(65535, Math.round(d * 1000));
+  }
   const n = { x: 0, y: 1, z: 0 };
-  for (let j0 = 0; j0 < rows - 1; j0 += chunk) for (let i0 = 0; i0 < cols - 1; i0 += chunk) {
-    const nc = Math.min(chunk, cols - 1 - i0) + 1, nr = Math.min(chunk, rows - 1 - j0) + 1;
-    const positions = new Float32Array(nc * nr * 3), normals = new Float32Array(nc * nr * 3);
+  // One chunk's geometry: every node (`steps` null) or only those the given coarse levels use, renumbered
+  const chunkGeometry = (i0, j0, nc, nr, steps = null) => {
+    // (normals as normalized bytes: a third of the memory, shading only)
+    const positions = new Float32Array(nc * nr * 3), normals = new Int8Array(nc * nr * 3);
     for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
       const i = i0 + c, j = j0 + r, v = (r * nc + c) * 3;
-      const x = minX + i * cell, z = minZ + j * cell;
-      positions[v] = x; positions[v + 2] = z;
-      positions[v + 1] = heights[j * cols + i] - Math.max(carve ? carve(x, z) : 0, depths ? depths[j * cols + i] : 0);
+      positions[v] = minX + i * cell; positions[v + 2] = minZ + j * cell;
+      positions[v + 1] = heights[j * cols + i] - cut[j * cols + i] / 1000;
       // Vertex normal: the average slope around the node (shading only; the surface itself stays planar per triangle)
       const hl = heights[j * cols + Math.max(0, i - 1)], hr = heights[j * cols + Math.min(cols - 1, i + 1)];
       const hu = heights[Math.max(0, j - 1) * cols + i], hd = heights[Math.min(rows - 1, j + 1) * cols + i];
       n.x = (hl - hr) / (2 * cell); n.z = (hu - hd) / (2 * cell); n.y = 1;
       const len = Math.hypot(n.x, n.y, n.z);
-      normals[v] = n.x / len; normals[v + 1] = n.y / len; normals[v + 2] = n.z / len;
+      normals[v] = Math.round(n.x / len * 127); normals[v + 1] = Math.round(n.y / len * 127); normals[v + 2] = Math.round(n.z / len * 127);
     }
     // Levels of detail (terrain-grid.js gridLevels): every node near by, every 2nd, 4th or 8th further off as long as
     // the surface stays within a pixel of the full grid (the carved road and river beds count, so they stay in detail
     // wherever they show); the chunk's border keeps every node, so neighbours at any levels meet without cracks.
     const ys = new Float32Array(nc * nr);
     for (let v = 0; v < ys.length; v++) ys[v] = positions[v * 3 + 1];
-    const { index, levels } = gridLevels(nc - 1, nr - 1, ys, LOD_STEPS);
+    let { index, levels } = gridLevels(nc - 1, nr - 1, ys, LOD_STEPS);
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    const box = new THREE.Box3().setFromArray(positions), sphere = box.getBoundingSphere(new THREE.Sphere());
+    let pos = positions, nor = normals;
+    if (steps) {
+      // The coarse levels' triangles only, their nodes renumbered
+      const keep = levels.filter((l) => steps.includes(l.step));
+      const map = new Int32Array(nc * nr).fill(-1);
+      const out = [], used = [];
+      const kept = keep.map((l) => {
+        const start = out.length;
+        for (let t = l.start; t < l.start + l.count; t++) {
+          const a = index[t];
+          if (map[a] < 0) { map[a] = used.length; used.push(a); }
+          out.push(map[a]);
+        }
+        return { ...l, start, count: out.length - start };
+      });
+      pos = new Float32Array(used.length * 3); nor = new Int8Array(used.length * 3);
+      used.forEach((a, k) => { pos.set(positions.subarray(a * 3, a * 3 + 3), k * 3); nor.set(normals.subarray(a * 3, a * 3 + 3), k * 3); });
+      index = used.length > 65535 ? new Uint32Array(out) : new Uint16Array(out);
+      levels = kept;
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(nor, 3, true));
     g.setIndex(new THREE.BufferAttribute(index, 1));
     g.setDrawRange(levels[0].start, levels[0].count);
-    g.computeBoundingSphere(); g.computeBoundingBox();
-    const mesh = new THREE.Mesh(g, material);
-    mesh.userData.lodLevels = levels;
+    g.boundingBox = box; g.boundingSphere = sphere; // (the full chunk's, for either)
+    g.userData.lodLevels = levels;
+    return g;
+  };
+  const meshes = [];
+  for (let j0 = 0; j0 < rows - 1; j0 += chunk) for (let i0 = 0; i0 < cols - 1; i0 += chunk) {
+    const nc = Math.min(chunk, cols - 1 - i0) + 1, nr = Math.min(chunk, rows - 1 - j0) + 1;
+    const coarse = chunkGeometry(i0, j0, nc, nr, STEPS_FAR);
+    const mesh = new THREE.Mesh(coarse, material);
+    mesh.userData.lodLevels = coarse.userData.lodLevels;
     mesh.onBeforeRender = drawLevel;
     mesh.receiveShadow = true;
     mesh.name = `terrain ${i0}/${j0}`;
     mesh.userData.chunk = { i0, j0 }; // its orthophoto (swissimage.js)
+    const c = coarse.boundingSphere.center;
+    terrainChunks.push({ mesh, coarse, full: null, x: c.x, z: c.z, build: () => chunkGeometry(i0, j0, nc, nr) });
     meshes.push(mesh);
   }
   return meshes;
 }
+
+const setChunkGeometry = (t, g) => { t.mesh.geometry = g; t.mesh.userData.lodLevels = g.userData.lodLevels; };
+let lastStream = -Infinity, pending = [];
+/**
+ * Swaps the terrain chunks between their full and coarse geometry by the distance from `position` (call every frame:
+ * it looks every 0.3 s, and builds the chunks due, nearest first, within ~4 ms a frame); `all` brings every chunk in
+ * range up to date at once (before the first frame).
+ */
+export function streamTerrain(position, { all = false } = {}) {
+  const now = performance.now();
+  if (all || now - lastStream > 300) {
+    lastStream = now;
+    const [near, far] = TERRAIN_FULL;
+    pending = [];
+    for (const t of terrainChunks) {
+      const d = Math.hypot(t.x - position.x, t.z - position.z);
+      if (t.full && d > far) { setChunkGeometry(t, t.coarse); t.full.dispose(); t.full = null; } // (frees its GPU buffers)
+      else if (!t.full && d < near) pending.push({ t, d });
+    }
+    pending.sort((a, b) => b.d - a.d); // (nearest last: popped first)
+  }
+  const until = all ? Infinity : now + 4;
+  while (pending.length && performance.now() < until) {
+    const { t } = pending.pop();
+    t.full = t.build();
+    setChunkGeometry(t, t.full);
+  }
+}
+/** How many terrain chunks hold their full geometry (for the tests and the HUD) */
+export const fullTerrainChunks = () => terrainChunks.filter((t) => t.full).length;
 
 // --- Laying flat engine geometry onto the surface -------------------------------------------------------------------------
 function interpolateAttribute(attr, weights, sources) {
@@ -357,6 +430,9 @@ function interpolateAttribute(attr, weights, sources) {
  * `deck`: the layer belongs to a bridge and follows its deck. `surface`: 'ground' (default) or 'water'.
  */
 export function drapeOverlay(geometry, { deck = false, surface = 'ground', maxEdge = 8, lift = 0.05 } = {}) {
+  // (the mobile profile, js/quality.js, splits the finer overlays less: up to twice the edge, never past the terrain's
+  // own 8 m cells, under which the chords keep to the ground)
+  if (QUALITY.drapeScale > 1 && maxEdge < 8) maxEdge = Math.min(8, maxEdge * QUALITY.drapeScale);
   const heightAt = deck ? (x, z) => surfaceHeight(x, z) : surface === 'water' ? waterSurfaceHeight : groundHeight;
   const g = geometry.index ? geometry.toNonIndexed() : geometry;
   const { positions, weights, sources } = subdivideTriangles(g.attributes.position.array, maxEdge);

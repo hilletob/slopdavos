@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { QUALITY } from './quality.js';
 
 // Licence plates for the cars around Davos: one generated atlas (canvas) of PLATE_COUNT plates, each as a rear plate
 // (Swiss long format 500 × 110 mm: the Swiss shield, the canton's code and number, the canton's shield) and a front
@@ -207,9 +208,11 @@ let atlas = null;
 export function plateAtlasTexture() {
   if (atlas || typeof document === 'undefined') return atlas;
   const { size, cols, cellW, rearH, frontH, frontY } = PLATE_ATLAS;
+  // (drawn in `size` px whatever the canvas' size: half as large on the mobile profile, js/quality.js)
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
+  canvas.width = canvas.height = Math.round(size * QUALITY.atlasScale);
   const ctx = canvas.getContext('2d');
+  ctx.scale(QUALITY.atlasScale, QUALITY.atlasScale);
   ctx.fillStyle = '#f7f7f4';
   ctx.fillRect(0, 0, size, size);
   plateList().forEach((plate, i) => {

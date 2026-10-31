@@ -34,6 +34,12 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
 - **Winter**: the snowflake button in the top bar (or `?winter` in the URL) snows the valley in: snow on the
   orthophoto's open ground and gentle slopes, dusted woods, grey slush on the roads, snow on the roofs and the tree
   crowns, the snowline of the surroundings down to the valley floor, frozen mountain lakes (`js/season.js`).
+- **Device profiles**: phones, tablets and small-memory devices get a lighter profile (`js/quality.js`): no MSAA,
+  screen-space reflections or sun shadow maps, half-size orthophotos and sign atlases over a shorter radius, no
+  high-resolution data or sharp roof crops, fewer trees, cars, pedestrians and skiers, and the winter-only runs and
+  trails built only once winter is switched on. `?quality=mobile` or `?quality=desktop` in the
+  URL overrides the detection. On both, static vertex data and decoded images leave JavaScript once they are on the
+  GPU (`js/gpu-memory.js`).
 - **The horizon**: the relief around the valley from **swissALTIRegio**, stitched to the local terrain and lowered by
   the Earth's curvature: the Parsenn, the Weissfluh, the Rinerhorn, the Flüela and Albula Alps.
 - **LV95 world frame**: 1 unit = 1 m, `x = E − 2782500`, `z = 1185500 − N`, `y = height − 1558 m` (Davosersee level).
