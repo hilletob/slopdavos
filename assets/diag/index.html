@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slop Davos Diagnose</title>
+  <!-- Device check for phones that close the tab: ?mode=cube (three.js only), data (the data modules, nothing drawn),
+       cube+data. Says how long it has been running; a crash shows as the tab reloading. -->
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.webgpu.js",
+      "three/webgpu": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.webgpu.js",
+      "three/tsl": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.tsl.js",
+      "three/addons/": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/examples/jsm/"
+    } }
+  </script>
+  <style>body { margin: 0; background: #111; color: #eee; font: 16px system-ui; } #log { position: fixed; top: 60px; left: 16px; right: 16px; white-space: pre-wrap; }</style>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+    const mode = new URLSearchParams(location.search).get('mode') || 'cube';
+    const prev = localStorage.getItem('slopdavos-diag');
+    if (prev) log('Letzter Test: ' + prev);
+    const t0 = performance.now();
+    const note = (s) => localStorage.setItem('slopdavos-diag', `${mode}: ${s} nach ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+    log('Modus: ' + mode);
+    try {
+      if (mode.includes('data')) {
+        note('lädt Daten');
+        const mods = ['davos-geodata', 'tlm-trees-data', 'streams-data', 'bergbahnen-data', 'ski-pistes-data', 'gwr-data', 'vbd-data', 'shops-data', 'traffic-signs-data', 'winter-hikes-data', 'golf-data', 'parking-data'];
+        window.__data = [];
+        for (const m of mods) { window.__data.push(await import(`../../js/${m}.js`)); log('geladen: ' + m); note('Daten ' + m); }
+        log('Daten komplett');
+      }
+      if (mode.includes('cube')) {
+        const THREE = await import('three/webgpu');
+        const renderer = new THREE.WebGPURenderer({ antialias: false });
+        renderer.setSize(innerWidth, innerHeight);
+        document.body.prepend(renderer.domElement);
+        await renderer.init();
+        log('Backend: ' + (renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL'));
+        const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
+        camera.position.z = 4;
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2));
+        const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardNodeMaterial({ color: 0xf2c230 }));
+        scene.add(cube);
+        renderer.setAnimationLoop((t) => { cube.rotation.set(t / 900, t / 1300, 0); renderer.render(scene, camera); });
+      }
+      const tick = () => { note('läuft'); };
+      setInterval(tick, 1000);
+      setInterval(() => { document.title = Math.round((performance.now() - t0) / 1000) + ' s'; }, 1000);
+      log('läuft – bitte 60 s warten');
+      setTimeout(() => { log('60 s ohne Absturz ✔'); localStorage.setItem('slopdavos-diag', `${mode}: 60 s ohne Absturz`); }, 60000);
+    } catch (e) { log('Fehler: ' + e.message); note('Fehler ' + e.message); }
+  </script>
+</body>
+</html>
