@@ -70,7 +70,7 @@ const PROFILES = {
     drapeScale: 2,
     lazyWinter: true,
     buildingLoads: 2, buildingNear: 250, // (each tile peaks at tens of MB while parsed: fewer at once on a phone)
-    precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
+    precompile: false, // (on an iPhone the precompile killed the GPU process: the pipelines compile when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     compactGeometry: true,
     precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
