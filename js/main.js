@@ -1000,5 +1000,8 @@ initApp().catch((error) => {
 // The installed app (PWA, manifest.webmanifest): the service worker keeps what was loaded for the next start and for
 // offline use. Not on the development server, whose edited modules must always be fetched afresh.
 if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  const register = () => navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // (the module may finish after the page's load event)
+  if (document.readyState === 'complete') register();
+  else addEventListener('load', register);
 }
