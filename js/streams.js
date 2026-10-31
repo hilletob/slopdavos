@@ -3,6 +3,7 @@ import { attribute, float, fract, mix, mx_noise_float, positionWorld, smoothstep
 import { STREAMS } from './streams-data.js';
 import { groundHeight } from './terrain.js';
 import { winter, snowAltitude } from './season.js';
+import { QUALITY } from './quality.js';
 
 // The streams of Davos (js/streams-data.js, tools/fetch-streams.mjs: OSM waterways): the Landwasser where its bed isn't
 // mapped as an area, the Dischmabach, Flüelabach and Sertigbach, the side creeks and ditches. Each is a ribbon of
@@ -110,7 +111,10 @@ function ribbon(s, out, bankOut) {
 // `small`: snowed under, gone.
 function createStreamMaterial({ small = false } = {}) {
   // (physical: its specular can be turned down — a shallow stream over stones mirrors much less sky than a lake)
-  const m = new THREE.MeshPhysicalNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.2, metalness: 0 });
+  // (the standard material on the mobile profile: the physical one's much larger shader, with the clustered lights,
+  // was where iOS Safari's GPU process gave up compiling)
+  const Material = QUALITY.mobile ? THREE.MeshStandardNodeMaterial : THREE.MeshPhysicalNodeMaterial;
+  const m = new Material({ transparent: true, depthWrite: false, roughness: 0.2, metalness: 0 });
   const across = uv().x, along = uv().y, slope = attribute('aFlow', 'float');
   const speed = slope.mul(18).add(0.35).min(3.2);
   const flowing = vec2(across.mul(3.1), along.mul(0.55).sub(time.mul(speed)));
@@ -131,7 +135,7 @@ function createStreamMaterial({ small = false } = {}) {
   m.colorNode = colour;
   // (rough enough not to mirror the whole sky: a shallow, broken mountain stream)
   m.roughnessNode = mix(mix(float(0.16).add(ripple.mul(0.1)), float(0.6), foam), float(0.45), ice);
-  m.specularIntensityNode = mix(float(0.22), float(0.6), foam.max(ice));
+  if (!QUALITY.mobile) m.specularIntensityNode = mix(float(0.22), float(0.6), foam.max(ice));
   m.opacityNode = smoothstep(0.0, 0.18, centre).mul(mix(float(0.88), float(1), foam.max(ice)));
   if (small) m.opacityNode = m.opacityNode.mul(float(1).sub(winter));
   return m;
