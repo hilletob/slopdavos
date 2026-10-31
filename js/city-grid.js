@@ -64,12 +64,15 @@ import {
 import { GEO } from './nyc-geodata.js';
 import { LANDMARK_EXCLUSIONS, BERGHAIN_TREE_SITES } from './landmarks.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, berlinStrip, berlinRoadSegments, berlinGeometryGroups } from './berlin-geometry.js';
+import { CROSSWALKS } from './crosswalks-data.js';
 import { streetCorners, cornersIn, convexPlanes } from './street-corners.js';
 import { freezeWater, snowyStreet } from './season.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
-import { SPECIES_INDEX as TREE, SPECIES_HEIGHT } from './trees.js';
+import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree } from './trees.js';
+import { QUALITY } from './quality.js';
+import { indexGeometry } from './gpu-memory.js';
 import { FRAME } from './davos-frame.js';
 import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
 
@@ -593,6 +596,30 @@ function buildBerlinCityGrid(scene) {
       }
     }
   }
+  // Fussgängerstreifen: the marked crossings mapped in OSM (js/crosswalks-data.js, tools/build-crosswalks.mjs), yellow
+  // as everywhere in Switzerland: bars 0.5 m wide with 0.5 m gaps across the carriageway, 4 m long along it
+  let crosswalkBars = 0;
+  {
+    const CW = new THREE.Color(0xf6bf10);
+    for (const c of CROSSWALKS) {
+      const rx = -c.uz, rz = c.ux, n = Math.max(2, Math.floor(c.w - 0.1));
+      for (let k = 0; k < n; k++) {
+        const o = k - (n - 1) / 2, x = c.x + rx * o, z = c.z + rz * o;
+        const quad = [[-0.25, -2], [0.25, -2], [0.25, 2], [-0.25, 2]].map(([a, b]) => ({ x: x + rx * a + c.ux * b, z: z + rz * a + c.uz * b }));
+        const g = berlinPolygonGeometry(quad, [], 0.072), pp = g.getAttribute('position');
+        const paints = [], sides = [], colors = [];
+        for (let i = 0; i < pp.count; i++) {
+          const across = (pp.getX(i) - x) * rx + (pp.getZ(i) - z) * rz;
+          paints.push(0, 1, 1); sides.push(rx * across, rz * across); colors.push(CW.r, CW.g, CW.b);
+        }
+        g.setAttribute('paint', new THREE.Float32BufferAttribute(paints, 3));
+        g.setAttribute('side', new THREE.Float32BufferAttribute(sides, 2));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        collect(g, paintMat);
+        crosswalkBars++;
+      }
+    }
+  }
   // Bridge structures under the decks: a slab, parapets and, where the gap allows, piers down to the ground. OSM maps a
   // wide bridge as side by side ways (the Quaibrücke: footways, cycle lanes, carriageways, tram tracks): their slabs
   // join into one deck, and the parapets (solid for the player) stand only along its outer edges.
@@ -826,14 +853,23 @@ function buildBerlinCityGrid(scene) {
     mesh.userData.sharesPipelineWith = group.children[0];
     group.add(mesh);
   }
-  // Lay the flat-built layers on the terrain (see `collect`)
+  // Lay the flat-built layers on the terrain (see `collect`). The mobile profile (js/quality.js) shares each piece's
+  // equal corners at once (gpu-memory.js indexGeometry: a draped strip has ~5 corners a vertex) and merges them indexed:
+  // the town's ground layers never stand in memory in full, non-indexed, twice over (~200 MB).
+  const indexed = QUALITY.compactGeometry;
   for (const [material, geometries] of collections) {
     for (let i = 0; i < geometries.length; i++) {
       const g = geometries[i];
-      if (absolute.has(g)) continue;
-      const deck = onDeck.has(g);
-      geometries[i] = material === curbMat ? displaceGeometry(g, { deck }) : drapeOverlay(g, { deck, maxEdge: material === lawnMat ? 10 : 8 });
-      if (geometries[i] !== g) g.dispose();
+      if (!absolute.has(g)) {
+        const deck = onDeck.has(g);
+        geometries[i] = material === curbMat ? displaceGeometry(g, { deck }) : drapeOverlay(g, { deck, maxEdge: material === lawnMat ? 10 : 8 });
+        if (geometries[i] !== g) g.dispose();
+      }
+      if (indexed && !geometries[i].index) {
+        const flat = geometries[i];
+        geometries[i] = indexGeometry(flat, { force: true }) || flat;
+        if (geometries[i] !== flat) flat.dispose();
+      }
     }
   }
   // Merge per material and 1 km tile, retaining the original TSL node materials including wet asphalt, animated
@@ -849,8 +885,9 @@ function buildBerlinCityGrid(scene) {
         batch.push(g);
         vertices += g.index ? g.index.count : g.attributes.position.count;
       }
+      const keepIndex = indexed && batch.every(g => g.index); // (mergeGeometries: all indexed or none)
       const chunk = batch.map(g => {
-        if (!g.index) return g;
+        if (!g.index || keepIndex) return g;
         const expanded = g.toNonIndexed(); g.dispose(); return expanded;
       });
       const merged = mergeGeometries(chunk, false);
@@ -866,7 +903,11 @@ function buildBerlinCityGrid(scene) {
   }
   group.userData = { terrain: 'absolute', city: BERLIN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets, mappedTrees: mappedTreeCount, tlmSingle, tlmShrubs, tlmWoodland, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
     clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, sidewalkSlabs, busMarkings, junctionClippedCurbs: true, junctionClippedSidewalks: true };
-  console.info(`[sidewalks] ${sidewalkSlabs} raised sidewalk pieces, ${busMarkings} BUS markings, ${roundedCorners} rounded corners`);
+  console.info(`[sidewalks] ${sidewalkSlabs} raised sidewalk pieces, ${busMarkings} BUS markings, ${crosswalkBars} crosswalk bars, ${roundedCorners} rounded corners`);
+  // (the mobile profile plants a share of the woods, trees.js: the other sites, ~70 bytes each of 240,000, go now)
+  let kept = 0;
+  for (const t of parkTreeSites) if (plantedTree(t)) parkTreeSites[kept++] = t;
+  parkTreeSites.length = kept;
   scene.add(group);
   return { group, sidewalks, footprints, highwayLanes: [], colliders, terrainMeshes };
 }

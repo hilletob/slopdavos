@@ -30,7 +30,7 @@ import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
-import { placeOnTerrain, liftColliders, streamTerrain } from './terrain.js';
+import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel } from './terrain.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
@@ -44,7 +44,7 @@ import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { QUALITY, setBackend } from './quality.js';
-import { releaseUploadedGeometry, releasedGeometryStats } from './gpu-memory.js';
+import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
 import { isWinter, onSeasonChange } from './season.js';
 import { groomMap } from './groom-map.js';
 
@@ -107,7 +107,8 @@ async function initApp() {
   renderer.setPixelRatio(QUALITY.pixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.lighting = new ClusteredLighting(256, 32, 28, 48);
+  // (the mobile profile, js/quality.js: fewer lights, coarser clusters and shorter light lists in every shader)
+  renderer.lighting = new ClusteredLighting(...QUALITY.clusterLights);
   container.appendChild(renderer.domElement);
 
   // Start-up phase timings (logged once as "[init] ...") to keep load-time regressions traceable
@@ -134,6 +135,7 @@ async function initApp() {
 
   // 2. Build Scene & Physical Atmospheric Sky / PMREM IBL / 4096x4096 Shadow Lighting
   const scene = new THREE.Scene();
+  globalThis.__slopdavosBuild = { scene, renderer }; // (for the memory probes: the scene while it is still being built)
   const lightingSystem = new LightingSystem(scene, renderer);
   const snowfall = buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
   markInit('lighting');
@@ -145,7 +147,20 @@ async function initApp() {
   // 3. Build Davos' ground, landmarks, blocks, street details & traffic. The engine builds them for a flat world: the
   // static scenery is laid onto the terrain once built (terrain.js); swissBUILDINGS3D and the ground are already in place.
   const flatWorld = new Set(scene.children);
+  // (the mobile profile: a breath between the heavy builders, in which the browser's idle-time garbage collection can
+  // free the hundreds of MB of temporary arrays each leaves behind before the next piles more on top)
+  const breathe = () => (QUALITY.mobile ? new Promise((resolve) => setTimeout(resolve, 60)) : null);
   const cityGrid = buildCityGrid(scene);
+  // (the mobile profile: the ground layers' vertices shared and their normals in bytes at once, js/gpu-memory.js:
+  // ~85 MB of draped corners down to ~25 MB before the rest is built)
+  const compacted = { geometries: 0, before: 0, after: 0 };
+  const compact = (roots) => {
+    if (!QUALITY.compactGeometry) return;
+    const st = compactStaticGeometry(roots);
+    for (const k of Object.keys(compacted)) compacted[k] += st[k];
+  };
+  compact([cityGrid.group]);
+  releaseWaterLevel(); // (the water surfaces are draped: its grid is rebuilt should anything ask again)
   // The winter-only scenery: on the mobile profile (js/quality.js) only built once winter is switched on (~90 MB of
   // trails and runs a summer visit never shows); they lie on the terrain already ('absolute')
   let winterSceneryBuilt = false;
@@ -168,14 +183,19 @@ async function initApp() {
   }
   const crossCountry = buildCrossCountry(scene); // cross-country skiers on them (js/cross-country.js)
   const winterHikers = buildWinterHikers(scene); // winter hikers (and dogs) on them near the camera (js/winter-hikers.js)
-  buildGolf(scene); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
+  // (the mobile profile, js/quality.js: the golf course and the streams are built a few seconds after the first frame,
+  // one at a time: their build allocates ~1.5 GB of short-lived arrays, which then never adds to the start's peak)
+  const deferred = [];
+  const buildLater = (build) => (QUALITY.deferScenery ? deferred.push(build) : build());
+  buildLater(() => buildGolf(scene)); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
   const winterSports = buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
-  buildStreams(scene); // the Landwasser's open stretches, the Dischmabach and the side creeks
+  buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = buildShops(scene); // the businesses' signs (js/shops-data.js)
   const parking = buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
   const detailHouses = buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
   const landmarkBuildings = buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
   markInit('cityGrid');
+  await breathe();
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
     await buildSurroundings(scene);
@@ -183,6 +203,7 @@ async function initApp() {
     console.warn('[surroundings] the horizon stays empty:', error);
   }
   markInit('surroundings');
+  await breathe();
   const trams = buildTrams(scene);
   const rhb = buildRhB(scene);
   const bergbahnen = buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
@@ -226,6 +247,7 @@ async function initApp() {
 
   const streetDetails = buildStreetDetails(scene);
   markInit('streetDetails');
+  await breathe();
   const terrainStats = { rigid: 0, instances: 0, draped: 0, displaced: 0 };
   for (const root of scene.children.filter((o) => !flatWorld.has(o))) placeOnTerrain(root, terrainStats);
   markInit('terrain');
@@ -324,7 +346,8 @@ async function initApp() {
   const cullingRoots = ['BerlinMitteCityGrid', 'BerlinMitteCityBlocks', 'BerlinStreetDetails', 'ManhattanLandmarks', 'BerlinBoundaryContext']
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
-  setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
+  // (no shadow stand-ins without the shadow maps: the mobile profile)
+  setupSceneCulling(scene, cullingRoots, QUALITY.shadows ? lightingSystem.sunLight.shadow : null);
 
   // The static scenery whose vertex and index arrays nothing reads after the upload (collisions, height queries and the
   // map use their own data): js/gpu-memory.js releases them once drawn. Not the trees (their instance buffers are
@@ -332,7 +355,28 @@ async function initApp() {
   // buildings once the shop signs have been moved onto their facades (a raycast).
   const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
     'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings']);
+  compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
+  if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries compacted: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;
+  // The deferred scenery (see buildLater), once the town is on screen: built, compacted, its matrices set (the scene's
+  // are frozen) and, on WebGPU, its instances in storage buffers like the rest (below)
+  const buildDeferred = () => {
+    const build = deferred.shift();
+    if (!build) return;
+    const before = new Set(scene.children);
+    try {
+      build();
+    } catch (error) {
+      console.warn('[deferred]', error);
+    }
+    const added = scene.children.filter((o) => !before.has(o));
+    compact(added);
+    for (const root of added) {
+      if (renderer.backend.isWebGPUBackend) root.traverse((o) => { if (o.isInstancedMesh) o.instanceMatrix = new THREE.StorageInstancedBufferAttribute(o.instanceMatrix.array, 16); });
+      root.updateMatrixWorld(true);
+    }
+    setTimeout(buildDeferred, 1500);
+  };
   const releaseStatic = () => {
     const roots = scene.children.filter((o) => STATIC_ROOTS.has(o.name) || (buildingsSettled && o === swissStream?.group));
     const bytes = releaseUploadedGeometry(renderer, roots, {
@@ -356,6 +400,7 @@ async function initApp() {
   scene.updateMatrixWorld(true);
   scene.matrixWorldAutoUpdate = false;
   markInit('culling');
+  await breathe();
 
   // On WebGPU, small InstancedMeshes (<= 1000 instances) keep their matrices in uniform buffers that three.js
   // re-uploads on every draw of every pass (~2.5 MB/frame with the shadow cascades, stalling the GPU queue).
@@ -788,6 +833,8 @@ async function initApp() {
   //     another: ~25 s with a cold shader cache.)
   // (a phone's GPU process, iOS above all, is closed when many pipelines are built at once: two at a time there)
   const COMPILE_POOL = QUALITY.mobile ? 2 : 16;
+  const _sphere = new THREE.Sphere();
+  const PRECOMPILE_RADIUS = 600; // m (the mobile profile)
   const nextTask = () => (globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise((resolve) => setTimeout(resolve, 0)));
   async function precompileShaders() {
     // An empty frame first: it sets up the post-processing chain, which configures the scene pass's render target
@@ -799,13 +846,35 @@ async function initApp() {
 
     // Every visible object with frustum culling off (like the warm-up frame, see the loop). Plain meshes that share
     // a material share its shader, so one job compiles them in turn (the first build serves the rest); every
-    // instanced mesh gets a build of its own unless its chunks share a pipeline
+    // instanced mesh gets a build of its own unless its chunks share a pipeline.
+    // The mobile profile (QUALITY.precompileAll false) only compiles what the start view shows: compileAsync() uploads
+    // the vertices of every object it builds for, the whole valley's with the culling off, more than a phone takes at
+    // once; the rest compiles as it comes into view.
     const culled = [];
     const jobs = [];
     const jobByMaterial = new Map();
     const pipelines = new Set();
+    const camera = cameraSystem.camera;
+    camera.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const inView = (o) => {
+      if (QUALITY.precompileAll || !o.frustumCulled || o.isInstancedMesh) return true; // (instanced: their own bounds)
+      const g = o.geometry;
+      if (!g) return true;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      return frustum.intersectsSphere(_sphere.copy(g.boundingSphere).applyMatrix4(o.matrixWorld));
+    };
+    // (and nothing farther than PRECOMPILE_RADIUS: a few hundred metres of the start show all the town's kinds of things)
+    const beyond = (o) => {
+      const g = o.geometry;
+      if (!g?.boundingSphere) return false;
+      _sphere.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+      return _sphere.center.distanceTo(camera.position) - _sphere.radius > PRECOMPILE_RADIUS;
+    };
     scene.traverseVisible((o) => {
-      if (o.frustumCulled) {
+      if ((o.isMesh || o.isLine || o.isPoints) && !inView(o)) return;
+      if (!QUALITY.precompileAll && o.isMesh && !o.isInstancedMesh && o.frustumCulled && beyond(o)) return;
+      if (o.frustumCulled && QUALITY.precompileAll) {
         culled.push(o);
         o.frustumCulled = false;
       }
@@ -867,6 +936,8 @@ async function initApp() {
   streamTerrain(cameraSystem.camera.position, { all: true });
   // (?qset=precompile:false skips it: everything then compiles when it first comes into view)
   if (QUALITY.precompile !== false) await precompileShaders();
+  // (the mobile profile: what the precompile uploaded leaves JavaScript before the first frame adds its own)
+  if (QUALITY.mobile) releaseStatic();
   markInit('compile');
 
   // 6. Animation Loop
@@ -990,6 +1061,7 @@ async function initApp() {
         // (js/gpu-memory.js; what has not been drawn yet keeps its arrays until it is)
         releaseStatic();
         setInterval(releaseStatic, 5000);
+        setTimeout(buildDeferred, 2000);
         setLoadingProgress(1);
       });
     }

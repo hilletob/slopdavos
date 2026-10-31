@@ -5,6 +5,7 @@ import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
+import { QUALITY } from './quality.js';
 import { DETAIL_HOUSES, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from './detail-houses-data.js';
 
 // Hand-built houses standing in for their swissBUILDINGS3D volumes (which are left out of the streamed tiles:
@@ -323,7 +324,9 @@ async function loadAtlas(url) {
   if (typeof fetch !== 'function' || typeof createImageBitmap !== 'function') throw new Error('no fetch');
   const res = await fetch(new URL(`../${url}`, import.meta.url));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const bitmap = await createImageBitmap(await res.blob(), smallDevice ? { resizeWidth: 1024, resizeHeight: 1024, resizeQuality: 'high' } : undefined);
+  // (the mobile profile, js/quality.js: 512 px, a sixteenth of the full atlas)
+  const side = Math.min(QUALITY.facadeAtlas, smallDevice ? 1024 : Infinity);
+  const bitmap = await createImageBitmap(await res.blob(), Number.isFinite(side) && side < 2048 ? { resizeWidth: side, resizeHeight: side, resizeQuality: 'high' } : undefined);
   const map = new THREE.Texture(bitmap);
   map.colorSpace = THREE.SRGBColorSpace;
   map.flipY = false; // (the atlas' uv: v down)

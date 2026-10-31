@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  EISSTADION, KONGRESS, EISBAHN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, PARSENN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, ringArea, pointInRing
 } from '../js/landmark-buildings-data.js';
 import { lv95ToWorld } from '../js/davos-frame.js';
@@ -79,11 +79,32 @@ test('the Natureisbahn: a 400 m track round the pitch, ~18 000 m² of ice with t
 });
 
 test('the replaced swissBUILDINGS3D buildings are picked out by their surveyed centres, nothing else nearby', () => {
-  assert.equal(LANDMARK_EXCLUSIONS.length, 5);
+  assert.equal(LANDMARK_EXCLUSIONS.length, 6);
   for (const e of LANDMARK_EXCLUSIONS) assert.ok(e.r > 0 && e.r <= 2);
   // the arena's centre lies under its roof; the complex's centres inside or next to its parts
   assert.ok(stadiumRoofHeight(EISSTADION.exclude[0].x, EISSTADION.exclude[0].z) > 20);
   const all = KONGRESS.parts.map((p) => ringPoints(p.ring));
   const near = (x, z) => all.some((r) => r.some(([px, pz]) => Math.hypot(px - x, pz - z) < 15) || pointInRing(r, x, z));
   for (const e of KONGRESS.exclude) assert.ok(near(e.x, e.z), `(${e.x}, ${e.z})`);
+});
+
+test('the Parsennbahn valley station: surveyed parts round the funicular station, on the Promenade', () => {
+  const parts = PARSENN.parts.map((p) => ({ ...p, pts: ringPoints(p.ring) }));
+  for (const p of parts) {
+    assert.ok(Math.abs(ringArea(p.pts)) > 30, p.kind);
+    assert.ok(p.h > 8 && p.h < 20, p.kind);
+    if (p.roof) assert.equal(p.roof.length, p.pts.length);
+  }
+  // ~1600 m² in all (OSM w219434717: 1590 m²), the main block 15 m, the wing lower
+  const area = parts.reduce((s, p) => s + Math.abs(ringArea(p.pts)), 0);
+  assert.ok(area > 1400 && area < 1800, `area ${area}`);
+  // the surveyed centre (the excluded building) inside or by the parts, the station node by them, the teleport target
+  // "parsenn" close by
+  const e = PARSENN.exclude[0];
+  assert.ok(parts.some((p) => pointInRing(p.pts, e.x, e.z) || p.pts.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 6)));
+  const t = TELEPORT_LOCATIONS.parsenn;
+  assert.ok(Math.hypot(t.x - 644.6, t.z + 1436.9) < 40);
+  // the fronts face the Promenade (its line 668/-1426 – 690/-1459 runs outside the main block's front)
+  const [fx, fz] = PARSENN.fronts[0];
+  assert.ok((668 - 654.6) * fx + (-1426 + 1419.5) * fz > 0);
 });

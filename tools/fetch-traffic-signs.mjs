@@ -14,8 +14,9 @@
 //       the Talstrasse);
 //     - "Kein Vortritt" (3.02) on the minor roads (tertiary and below) joining a primary or secondary road, unless OSM
 //       maps a stop, give-way or signal within 35 m of the junction;
-//     - the VBD stops (js/vbd-data.js): a yellow stop plate with the green "H" and the stop's name, one per stop and
-//       direction;
+//     - the VBD stops (js/vbd-data.js): the VBD's stop plate (the lines stopping there with their destinations, the
+//       stop's name on a blue band) on a mast with a bow, one per stop and direction, a bench where there is room
+//       and the yellow zigzag kerb marking;
 //     - "Parkieren gestattet" (4.17) at the larger open-air car parks (js/parking-data.js), by the street they open on.
 // No sign stands on a carriageway or in a (mapped) building; js/traffic-signs.js moves the ones that would stand in a
 // painted crosswalk out of it, and sets them on the terrain and the raised sidewalks.
@@ -233,7 +234,8 @@ for (const r of roads.filter((x) => zoneWays.has(x.id))) {
   }
 }
 
-// 1c. Ortsbeginn (traffic_sign=city_limit): the place's name in white on blue (a main road) with "50 generell" above,
+// 1c. Ortsbeginn (traffic_sign=city_limit): the place's name in white on blue (a main road; black on white on a minor
+// one) with "50 generell" above, the Ortsende and "Ende 50 generell" on the backs,
 // facing the direction= the node gives (degrees, the way the sign looks)
 for (const e of osmNodes) {
   const t = e.tags || {};
@@ -246,7 +248,10 @@ for (const e of osmNodes) {
   let tx = near.dx, tz = near.dz;
   if (Number.isFinite(deg)) { const fx = Math.sin(deg * Math.PI / 180), fz = -Math.cos(deg * Math.PI / 180); if (fx * tx + fz * tz > 0) { tx = -tx; tz = -tz; } }
   // ("Davos Freuenkirch": a typo in OSM)
-  addSign(['gen50', 'city'], near.x, near.z, tx, tz, (near.road.width || 6) / 2, { src: 'osm', road: near.road.name, text: t.name.replace('Freuenkirch', 'Frauenkirch') });
+  // (SSV 4.27 blue on a main road, 4.29 white on a minor one; their backs: "Ende 50 generell" 2.53.1, Ortsende 4.28/4.30)
+  const minor = !(RANK[near.road.kind.replace(/_link$/, '')] >= 2 || /^(motorway|trunk)/.test(near.road.kind));
+  const city = minor ? 'citylocal' : 'city';
+  addSign(['gen50', city], near.x, near.z, tx, tz, (near.road.width || 6) / 2, { src: 'osm', road: near.road.name, text: t.name.replace('Freuenkirch', 'Frauenkirch'), back: ['gen50end', `${city}end`] });
 }
 
 const nearPriority = (x, z, r) => priorityNodes.some((p) => Math.hypot(p.x - x, p.z - z) < r) || signalNodes.some((p) => Math.hypot(p.x - x, p.z - z) < r);
@@ -321,26 +326,91 @@ for (const n of nodes) {
   }
 }
 
-// 2c. Bus stops: the yellow plate with the green "H" and the name, one per stop and direction, beside the bus's lane
-let stopSigns = 0;
-const placedStops = [];
+// 2c. Bus stops, after the VBD's own (Davos Dorf, Parsennbahn): a galvanised mast bent over into a bow that holds
+// the white stop plate (the VBD logo, a yellow square with the line number and the destination per line that stops
+// there in this direction, the stop's name on a blue band), the timetable case below it; a bench and a bin where the
+// sidewalk has room (once per stop), the yellow zigzag line along the kerb with "BUS" (the SSV's marking of a bus stop).
+// One post per stop and direction, beside the bus's lane.
+const lineNo = (ref) => String(Number(ref) > 300 ? Number(ref) - 300 : ref); // (route 301 is the VBD's line 1)
+/** The destination as the VBD's plates write it: "Davos Platz, Bahnhof" -> "Bahnhof Platz", "Davos Glaris, Ortolfi" -> "Glaris Ortolfi" */
+function destination(name) {
+  const n = name.replace(/\s*\(Bus\)\s*$/, '').trim();
+  const m = /^(?:Davos\s+)?([^,]+),\s*(.+)$/.exec(n);
+  if (!m) return n.replace(/^Davos\s+/, '');
+  const [, place, stop] = m;
+  if (/^(Platz|Dorf)$/.test(place)) return /^Bahnhof$/.test(stop) ? `Bahnhof ${place}` : stop;
+  return `${place} ${stop}`;
+}
+/** The stop's name on the blue band: without "Davos Platz, " / "Davos Dorf, " ("Parsennbahn", "Spital") */
+function stopLabel(name) {
+  if (/^Davos (Platz|Dorf), Bahnhof$/.test(name)) return name.replace(/^Davos (Platz|Dorf), Bahnhof$/, 'Bahnhof Davos $1');
+  return name.replace(/^Davos (Platz|Dorf),\s*/, '').replace(/^Davos\s+/, '').replace(/,(\S)/, ', $1');
+}
+// Every call of every variant at a stop: where, which way, the line and where it goes (not at its terminus)
+const calls = [];
 for (const v of VBD_DATA.variants) {
   const pts = [];
   for (let i = 0; i < v.pts.length; i += 2) pts.push([v.pts[i], v.pts[i + 1]]);
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  for (const st of v.stops || []) {
+  (v.stops || []).forEach((st, k) => {
     let i = 1;
     while (i < cum.length - 1 && cum[i] < st.s) i++;
     const seg = cum[i] - cum[i - 1] || 1e-6, t = Math.min(1, Math.max(0, (st.s - cum[i - 1]) / seg));
     const x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, z = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t;
     const tx = (pts[i][0] - pts[i - 1][0]) / seg, tz = (pts[i][1] - pts[i - 1][1]) / seg;
-    if (!inMap(x, z) || placedStops.some((p) => p.name === st.name && Math.hypot(p.x - x, p.z - z) < 40 && p.tx * tx + p.tz * tz > 0.3)) continue;
-    placedStops.push({ name: st.name, x, z, tx, tz });
-    const near = nearestSegment(x, z, 10, (r) => r.kind !== 'service');
-    const half = near ? (near.road.width || 6) / 2 : 3;
-    // (a little ahead of where the bus's front door stops)
-    if (addSign(['busstop'], near ? near.x : x, near ? near.z : z, tx, tz, half, { road: near?.road.name || '', text: st.name, along: [4, 2, 6, 0, 8, -2], minGap: 15 })) stopSigns++;
+    const last = k === v.stops.length - 1; // (the terminus: nobody boards towards it)
+    calls.push({ name: st.name, x, z, tx, tz, line: lineNo(v.ref), to: last ? null : destination(v.to) });
+  });
+}
+const sameStop = (a, b) => a.name === b.name && Math.hypot(a.x - b.x, a.z - b.z) < 40 && a.tx * b.tx + a.tz * b.tz > 0.3;
+let stopSigns = 0, benches = 0, zigzags = 0;
+const placedStops = [];
+const benchStops = new Set();
+for (const c of calls) {
+  if (!inMap(c.x, c.z) || placedStops.some((p) => sameStop(p, c))) continue;
+  placedStops.push(c);
+  const { x, z, tx, tz } = c;
+  // the lines stopping here this way, by number (a line ending here: listed only when nothing else stops)
+  const here = calls.filter((o) => sameStop(o, c));
+  const seen = new Set(), lines = [];
+  const self = new Set([destination(c.name), c.name.replace(/^Bahnhof Davos (\w+)$/, 'Bahnhof $1')]); // (not towards itself)
+  for (const o of here.filter((o) => o.to && !self.has(o.to)).sort((a, b) => Number(a.line) - Number(b.line) || a.to.localeCompare(b.to))) {
+    const k = `${o.line}|${o.to}`;
+    if (!seen.has(k)) { seen.add(k); lines.push([o.line, o.to]); }
+  }
+  if (!lines.length) for (const o of here) if (!lines.some((l) => l[0] === o.line)) lines.push([o.line, 'Endstation']);
+  const near = nearestSegment(x, z, 10, (r) => r.kind !== 'service');
+  const half = near ? (near.road.width || 6) / 2 : 3;
+  const cx = near ? near.x : x, cz = near ? near.z : z;
+  // (a little ahead of where the bus's front door stops)
+  const sign = addSign(['busstop'], cx, cz, tx, tz, half, { road: near?.road.name || '', text: c.name, along: [4, 2, 6, 0, 8, -2], minGap: 15 });
+  if (!sign) continue;
+  stopSigns++;
+  sign.label = stopLabel(c.name);
+  sign.lines = lines.slice(0, 6);
+  // The kerb marking: from 12 m behind the post to 2 m past it, in the lane at the post's side (on a road)
+  if (near && !near.road.bridge) {
+    const rx = -tz, rz = tx, off = half - 0.55;
+    const a = (sign.x - cx) * tx + (sign.z - cz) * tz; // the post's distance along the road from the stop
+    const ax = cx + tx * (a - 12) + rx * off, az = cz + tz * (a - 12) + rz * off;
+    const bx = cx + tx * (a + 2) + rx * off, bz = cz + tz * (a + 2) + rz * off;
+    if (onCarriageway(ax, az, -0.2) && onCarriageway(bx, bz, -0.2)) { sign.mark = [r2(ax), r2(az), r2(bx), r2(bz)]; zigzags++; }
+  }
+  // A bench (behind the post, along the kerb) and a bin beside it, where the ground is free: once per stop
+  if (!benchStops.has(c.name)) {
+    const rx = -tz, rz = tx; // away from the road
+    const free = (px, pz) => inMap(px, pz) && !onCarriageway(px, pz, 0.6) && !inBuilding(px, pz, 0.5) &&
+      !signs.some((s) => s !== sign && Math.hypot(s.x - px, s.z - pz) < 2.5);
+    const spots = [];
+    for (const [al, ac] of [[1.9, 0.9], [2.7, 0.9], [1.1, 0.9], [1.9, 1.3], [-0.9, 0.5]]) spots.push([sign.x + tx * al + rx * ac, sign.z + tz * al + rz * ac]);
+    const [b, e1, e2, , bin] = spots;
+    if (free(...b) && free(...e1) && free(...e2) && free(...spots[3])) {
+      sign.bench = 1;
+      if (free(...bin)) sign.bin = 1;
+      benchStops.add(c.name);
+      benches++;
+    }
   }
 }
 
@@ -376,5 +446,5 @@ const data = {
 };
 fs.writeFileSync(OUT, `// js/traffic-signs-data.js — GENERATED by tools/fetch-traffic-signs.mjs, do not edit by hand.\n// Swiss road signs (SSV) of Davos: posts at (x, z) in the world frame of js/davos-frame.js, their plates (top down)\n// facing yaw (rotation about +y; the plates' front looks along (sin yaw, cos yaw)). © OpenStreetMap contributors (ODbL).\nexport const TRAFFIC_SIGNS = ${JSON.stringify(data)};\n`);
 log(`${signs.length} posts: ${JSON.stringify(counts)}`);
-log(`one-way: ${einbahn} Einbahnstrasse, ${verboten} Einfahrt verboten; ${giveways} derived give-ways; ${stopSigns} stops; ${parkingSigns} car parks; ${osmSkipped} OSM stop/give-way nodes off the network`);
+log(`one-way: ${einbahn} Einbahnstrasse, ${verboten} Einfahrt verboten; ${giveways} derived give-ways; ${stopSigns} stops (${benches} benches, ${zigzags} zigzag lines); ${parkingSigns} car parks; ${osmSkipped} OSM stop/give-way nodes off the network`);
 log(`-> ${OUT}`);

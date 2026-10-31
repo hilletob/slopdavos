@@ -3,6 +3,7 @@ import { attribute, float, fract, mix, normalGeometry, positionGeometry, smooths
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { logoIndex, logoImage, drawLogo } from './logos.js';
 import { DAVOS_DATA } from './davos-geodata.js';
+import { LEVEL_CROSSINGS } from './level-crossings-data.js';
 import { surfaceHeight, groundHeight, deckHeight } from './terrain.js';
 import { buildLine, routePoint, project } from './rhb-route.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
@@ -227,7 +228,8 @@ function createCarMaterial(length, { nose = false, lead = false, dest = null, le
 // 11 kV 16.7 Hz, as on the whole RhB network: a mast every ~50 m beside the track (one for the parallel tracks of a
 // station: masts closer than 7 m to another are left out) with a cantilever over the track, the contact wire 4.95 m
 // above the rails, staggered ±0.2 m from mast to mast so that it wears the pantographs evenly, and the catenary wire
-// 1.1 m above it. None in the tunnels; on bridges the line follows the deck.
+// 1.1 m above it. None in the tunnels; on bridges the line follows the deck. No mast stands on a level crossing: the
+// ways are cut at their crossings, so a span point there moves along the track until the mast is clear of the road.
 const CONTACT_WIRE = 4.95, MESSENGER = 1.1, SPAN = 50, MAST_OFFSET = 2.4;
 
 function buildOverheadLine(group) {
@@ -257,9 +259,33 @@ function buildOverheadLine(group) {
       const a = pts[i - 1], b = pts[i], seg = cum[i] - cum[i - 1] || 1e-6, t = (s - cum[i - 1]) / seg;
       return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, dx: (b.x - a.x) / seg, dz: (b.z - a.z) / seg };
     };
+    // Level crossings beside this way (js/level-crossings-data.js), with the stretch of track their road covers
+    const crossings = (LEVEL_CROSSINGS?.crossings || []).filter((c) => {
+      for (let i = 0; i < pts.length; i++) if (Math.hypot(pts[i].x - c.x, pts[i].z - c.z) < 30) return true;
+      return false;
+    });
+    const clearOfCrossings = (s) => {
+      for (let pass = 0; pass < 3; pass++) {
+        const p = at(s);
+        let moved = false;
+        for (const c of crossings) {
+          const vx = c.x - p.x, vz = c.z - p.z, d = vx * p.dx + vz * p.dz;
+          if (Math.abs(vx * -p.dz + vz * p.dx) > 8) continue; // (another track's crossing)
+          const sin = Math.abs(p.dx * c.dz - p.dz * c.dx); // the road's angle to the track (dx, dz: the road; rdx, rdz: the rails)
+          const clear = (c.width / 2 + 1.5) / Math.max(sin, 0.35) + MAST_OFFSET * Math.sqrt(Math.max(0, 1 - sin * sin)) / Math.max(sin, 0.35);
+          if (Math.abs(d) >= clear) continue;
+          // away from the crossing, into the way (at its ends the crossing is the end itself)
+          const back = s > len - clear ? true : s < clear ? false : d > 0;
+          s = Math.min(len, Math.max(0, back ? s + d - clear : s + d + clear));
+          moved = true;
+        }
+        if (!moved) break;
+      }
+      return s;
+    };
     let prev = null;
     for (let k = 0; k <= n; k++) {
-      const p = at((len * k) / n);
+      const p = at(clearOfCrossings((len * k) / n));
       // Only over the map (some ways of other lines reach in from far beyond it)
       if (p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ) { prev = null; continue; }
       const y = railTop(r, p.x, p.z);

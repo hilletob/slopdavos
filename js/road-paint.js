@@ -7,11 +7,12 @@ import { GEO } from './nyc-geodata.js';
 // js/road-paint.js
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
 // actually drives and stops: dashed lane lines, double yellow centre lines on two-way roads, stop bars at the stop
-// lines, continental crosswalks across every intersection approach and green bike lanes along wide one-way avenues.
+// lines, continental crosswalks (yellow in Davos) across every intersection approach and green bike lanes along wide one-way avenues.
 
 const WHITE = new THREE.Color(0xe6e2d6);
 const YELLOW = new THREE.Color(0xe8ad22);
 const GREEN = new THREE.Color(0x2a8a4e);
+const SWISS_YELLOW = new THREE.Color(0xf6bf10); // Fussgängerstreifen (SSV: yellow)
 const HEIGHT = 0.012; // above the asphalt
 
 function buildRoadPaint(scene, network) {
@@ -110,9 +111,12 @@ function buildRoadPaint(scene, network) {
       across(f, f.len - 0.35, left + 0.1, f.half - 0.1, 0.45, WHITE);
     }
 
-    // Continental crosswalks curb to curb, between the stop lines and the intersections at both ends
-    if (!e.from.shape) across(e, -CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
-    if (!e.to.shape) across(e, e.len + CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
+    // Continental crosswalks curb to curb, between the stop lines and the intersections at both ends (in Switzerland
+    // yellow, bars 0.5 m wide with 0.5 m gaps, 3 m long: reaching half a metre into the junction; Davos paints the
+    // crossings mapped in OSM besides, js/city-grid.js)
+    const cw = GEO.irregular ? { at: CROSSWALK / 2 + 0.25, w: 3.0, col: SWISS_YELLOW, period: 1.0 } : { at: CROSSWALK / 2, w: CROSSWALK - 0.3, col: WHITE, period: 1.2 };
+    if (!e.from.shape) across(e, -cw.at, -e.half, e.half, cw.w, cw.col, cw.period, 0.5);
+    if (!e.to.shape) across(e, e.len + cw.at, -e.half, e.half, cw.w, cw.col, cw.period, 0.5);
 
     for (const [end, node] of [[0, e.from], [1, e.to]]) {
       if (!node.shape) continue;

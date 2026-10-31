@@ -5,6 +5,7 @@ import { TERRAIN, groundHeight, drawLevel } from './terrain.js';
 import { createWaterMaterial } from './tsl-materials.js';
 import { FRAME } from './davos-frame.js';
 import { winter, freezeWater } from './season.js';
+import { QUALITY } from './quality.js';
 
 // The relief around the mapped city (data/davos-surroundings.bin, tools/build-davos-surroundings.mjs, swissALTIRegio):
 // a mid ring (±12 km at 50 m: the Weissfluh, the Pischa, the Flüela and Sertig peaks) and a far ring (±91 km at 275 m:
@@ -46,6 +47,41 @@ const curvatureDrop = (x, z, inner) => {
  * grid, the silhouettes on the horizon included); their edges keep every node, so tiles at different levels, the skirt
  * and the inner surface meet without cracks.
  */
+// The coarser levels of a tile only (every 2nd node and beyond; the tile's edges keep every node, so its neighbours and
+// the skirt still meet it): the mobile profile's, js/quality.js, about a quarter of the vertices
+function coarseLevels(g, index, levels) {
+  const keep = levels.filter((l) => l.step >= 2);
+  const map = new Int32Array(g.attributes.position.count).fill(-1);
+  const out = [], used = [];
+  const kept = keep.map((l) => {
+    const start = out.length;
+    for (let t = l.start; t < l.start + l.count; t++) {
+      const a = index[t];
+      if (map[a] < 0) { map[a] = used.length; used.push(a); }
+      out.push(map[a]);
+    }
+    return { ...l, start, count: out.length - start };
+  });
+  const c = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(g.attributes)) {
+    const size = attr.itemSize, src = attr.array, dst = new src.constructor(used.length * size);
+    used.forEach((a, k) => { for (let i = 0; i < size; i++) dst[k * size + i] = src[a * size + i]; });
+    c.setAttribute(name, new THREE.BufferAttribute(dst, size, attr.normalized));
+  }
+  c.boundingBox = g.boundingBox; c.boundingSphere = g.boundingSphere;
+  g.dispose();
+  return { g: c, index: used.length > 65535 ? new Uint32Array(out) : new Uint16Array(out), levels: kept };
+}
+
+// The lake triangles of a tile drawn only while the land around them is in full detail (a function of its own: a
+// closure in ringMeshes would keep the whole ring's grids alive)
+function lakeDrawer(levels, box, land) {
+  return (renderer, scene, camera, geometry) => {
+    if (camera.isOrthographicCamera) return;
+    geometry.drawRange.count = pickLevel(levels, box, camera, renderer.domElement?.clientHeight || 800, land.userData.lodTolerance) === 0 ? Infinity : 0;
+  };
+}
+
 function ringMeshes(grid, hole, innerHeight, materials, skirt, { tile = 96, steps = [1, 2, 4, 8] } = {}) {
   const { cols, rows, cell, minX, minZ, heights } = grid;
   const inside = (x, z) => x > hole.minX + 0.01 && x < hole.maxX - 0.01 && z > hole.minZ + 0.01 && z < hole.maxZ - 0.01;
@@ -105,10 +141,11 @@ function ringMeshes(grid, hole, innerHeight, materials, skirt, { tile = 96, step
   for (let tj = 0; tj + 1 < zs.length; tj++) for (let ti = 0; ti + 1 < xs.length; ti++) {
     const i0 = xs[ti], i1 = xs[ti + 1], j0 = zs[tj], j1 = zs[tj + 1];
     if (i0 >= hi0 && i1 <= hi1 && j0 >= hj0 && j1 <= hj1) continue; // in the hole
-    const { g, nc, nr, local, lake } = block(i0, i1, j0, j1);
+    let { g, nc, nr, local, lake } = block(i0, i1, j0, j1);
     // Land and lake triangles (all three corners level) share the vertices; in full detail the lakes take the city's
     // water material so that the Davosersee runs on seamlessly, further off the ground's own lake shading draws them.
-    const { index, levels, secondary } = gridLevels(nc - 1, nr - 1, local, steps, { quantile: LOD_QUANTILE, secondary: (a, b, c) => lake[a] && lake[b] && lake[c] });
+    let { index, levels, secondary } = gridLevels(nc - 1, nr - 1, local, steps, { quantile: LOD_QUANTILE, secondary: (a, b, c) => lake[a] && lake[b] && lake[c] });
+    if (!QUALITY.surroundingsFull) { ({ g, index, levels } = coarseLevels(g, index, levels)); secondary = []; } // (the lakes: the land's shading)
     g.setIndex(new THREE.BufferAttribute(index, 1));
     g.setDrawRange(levels[0].start, levels[0].count);
     const land = new THREE.Mesh(g, materials.land);
@@ -124,10 +161,7 @@ function ringMeshes(grid, hole, innerHeight, materials, skirt, { tile = 96, step
       w.boundingSphere = g.boundingSphere; w.boundingBox = g.boundingBox;
       const water = new THREE.Mesh(w, materials.lake);
       // (only while the land around it is in full detail)
-      water.onBeforeRender = (renderer, scene, camera, geometry) => {
-        if (camera.isOrthographicCamera) return;
-        geometry.drawRange.count = pickLevel(levels, g.boundingBox, camera, renderer.domElement?.clientHeight || 800, land.userData.lodTolerance) === 0 ? Infinity : 0;
-      };
+      water.onBeforeRender = lakeDrawer(levels, g.boundingBox, land);
       meshes.push(water);
     }
   }

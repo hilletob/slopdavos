@@ -200,5 +200,31 @@ export function ringArea(pts) {
   return s / 2;
 }
 
+// --- Parsennbahn, Talstation Davos Dorf ------------------------------------------------------------------------------------
+// The funicular's valley station (Promenade 157, OSM w219434717; the station node n286674751 at its north-west corner):
+// the parts of the swissBUILDINGS3D building (tile 11/1752/1022, batch 11, ground 1552 m ellipsoidal) with their roof
+// heights over the ground: the main block along the Promenade (flat roof, 15 m), the low wing at its north-east end (the
+// end towards the Bahnhofstrasse, 9.4 m), the funicular's hall behind them (its roof falling towards the Promenade, a
+// height per corner), the west block (17.6 m) and its sloping south-west end. The look from a night photograph of the
+// Promenade (elektron.ch): white walls with red window frames and red-white bands, the glazed shop on the ground floor,
+// the "DAVOS KLOSTERS mountains" lettering on the end towards the Bahnhofstrasse, the banner "EIN HOCH AUF DAS TIEF" over
+// the shop, the blue-white "parsenn" entrance and the tall "Parsenn" flags on the roof.
+export const PARSENN = {
+  parts: [
+    { kind: 'main', h: 15.0, ring: [644.3, -1427.0, 654.6, -1419.5, 676.0, -1449.0, 666.1, -1456.1, 654.9, -1440.7, 649.8, -1444.3, 645.7, -1438.8, 650.4, -1435.4] },
+    { kind: 'wing', h: 9.4, ring: [644.6, -1448.5, 654.9, -1440.7, 666.1, -1456.1, 674.2, -1450.3, 677.4, -1454.5, 669.7, -1459.6, 661.3, -1460.9, 655.2, -1465.0, 653.5, -1465.3, 650.3, -1465.5, 648.0, -1463.7, 653.6, -1459.6] },
+    { kind: 'hall', h: 15.5, ring: [626.2, -1441.3, 644.6, -1427.4, 650.4, -1435.4, 645.7, -1438.8, 649.8, -1444.3, 654.9, -1440.7, 644.6, -1448.5, 653.6, -1459.6, 648.0, -1463.7, 629.1, -1440.2],
+      roof: [15.5, 10.2, 10.2, 11.6, 11.6, 10.2, 13.1, 13.0, 14.6, 14.8] },
+    { kind: 'west', h: 17.6, ring: [621.4, -1446.3, 629.1, -1440.2, 648.0, -1463.7, 648.3, -1464.2, 640.7, -1470.3, 635.3, -1463.7, 628.1, -1454.7] },
+    { kind: 'west', h: 18.6, ring: [616.1, -1457.6, 624.4, -1449.9, 627.4, -1453.8, 619.4, -1461.2], roof: [18.6, 15.9, 16.0, 18.6] }
+  ],
+  // The street fronts (outward normals): the Promenade's side and the end towards the Bahnhofstrasse, glazed below
+  fronts: [[0.81, 0.59], [0.58, -0.81]],
+  // The end towards the Bahnhofstrasse: the main block's (a → b, above the wing) and the wing's below it
+  endMain: [[676.0, -1449.0], [666.1, -1456.1]],
+  endWing: [[677.4, -1454.5], [669.7, -1459.6]],
+  exclude: [{ x: 647.1, z: -1444.9, r: 2 }]
+};
+
 // Every swissBUILDINGS3D building the landmarks replace (js/swissbuildings3d.js excludeBuildings)
-export const LANDMARK_EXCLUSIONS = [...EISSTADION.exclude, ...KONGRESS.exclude];
+export const LANDMARK_EXCLUSIONS = [...EISSTADION.exclude, ...KONGRESS.exclude, ...PARSENN.exclude];

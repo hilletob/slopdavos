@@ -6,6 +6,12 @@
 // and a third of the draws; ?qset=shadows:true brings them back, 1024 px a cascade over a shorter range), no
 // screen-space reflections or MSAA, fewer trees, cars, pedestrians and skiers, and the winter-only scenery built only
 // once winter is switched on.
+// "Mobile lite" (an iPhone 13 closed the tab while the shaders compiled, already near its limit before): the static
+// meshes' vertices shared and their normals in bytes (js/gpu-memory.js compactStaticGeometry, ~110 MB of vertex data
+// down to ~60 MB), the precompile limited to the start view (frustum culling off had uploaded the whole valley's
+// vertices at once), the relief beyond the map in its coarser levels only, a quarter of the forest, atlases at a
+// quarter, smaller clustered-light lists. In Chrome's iPhone emulation: ~325 MB (JS heap + GPU) at the start instead of
+// ~540 MB, ~245 MB before the compile instead of ~430 MB.
 //
 // Chosen automatically (touch screen with a coarse pointer and a small screen, iOS / iPadOS, Android, or
 // navigator.deviceMemory <= 4 GB); `?quality=mobile` or `?quality=desktop` in the URL overrides it. The WebGL 2
@@ -35,6 +41,13 @@ const PROFILES = {
     buildingLoads: 8, buildingNear: 450, // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
+    compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
+    precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
+    clusterLights: [256, 32, 28, 48], // ClusteredLighting: lights at most, tile px, depth slices, lights per cluster
+    surroundingsFull: true, // the relief out to the Alps in full detail near by (else its coarser levels only)
+    treeAtlas: 2048, // the leaf atlas (px a side, 4 x 4 tiles)
+    facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
+    deferScenery: false, // build the golf course and the streams after the first frame (their build's garbage apart)
   },
   mobile: {
     name: 'mobile',
@@ -50,15 +63,22 @@ const PROFILES = {
     orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 2,
     roofOrthophotos: false,
     sharpRoofs: false, sharpRoofNear: 0, sharpRoofFar: 0,
-    treeShare: 0.35,
+    treeShare: 0.25,
     treeDistance: 0.6,
     cars: 40, bikes: 60, pedestrians: 90, skiers: 24, crossCountrySkiers: 16,
-    atlasScale: 0.5,
+    atlasScale: 0.25,
     drapeScale: 2,
     lazyWinter: true,
     buildingLoads: 2, buildingNear: 250, // (each tile peaks at tens of MB while parsed: fewer at once on a phone)
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
+    compactGeometry: true,
+    precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
+    clusterLights: [64, 64, 16, 16],
+    surroundingsFull: false,
+    treeAtlas: 512,
+    facadeAtlas: 512,
+    deferScenery: true,
   }
 };
 
@@ -102,7 +122,7 @@ export function setBackend(isWebGPU) {
   QUALITY.backend = isWebGPU ? 'WebGPU' : 'WebGL 2';
   if (isWebGPU) return QUALITY;
   if (QUALITY.mobile) {
-    Object.assign(QUALITY, { shadows: false, orthoFullNear: 350, orthoFullFar: 500, orthoFullScale: 0.5, treeShare: 0.25, treeDistance: 0.5, bloomScale: 0.25 });
+    Object.assign(QUALITY, { shadows: false, orthoFullNear: 350, orthoFullFar: 500, orthoFullScale: 0.5, treeShare: 0.18, treeDistance: 0.5, bloomScale: 0.25 });
   }
   return QUALITY;
 }

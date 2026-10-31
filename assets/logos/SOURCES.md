@@ -40,3 +40,11 @@ Banken, Telekom, Sport, Elektronik/Mode/Wohnen, Tankstelle, Hotel, HCD und Apoth
 | Dropa | `dropa.svg` | https://www.dropa.ch/themes/dropa/logo.svg (offizielle Website, Kopfzeile; nicht auf Commons) | Marke der Dropa AG, keine Lizenzangabe | 2026-10-30 |
 
 Nicht gefunden bzw. ausgelassen: Graubündner Kantonalbank, Ochsner Sport, Shell (das Muschel-Logo ist nicht auf Commons, nur alte Schriftzüge), Hard Rock Hotel (auf Commons nur Hard-Rock-Café- und Las-Vegas-Varianten), PostFinance, Sunrise, Salt, McDonald's, Burger King, Davos Klosters, Coop Vitality (in den Davoser Ladendaten nicht vorhanden)
+
+## Parsennbahn, Talstation Davos Dorf (keine Logodateien)
+
+Die Beschriftung der Talstation (js/landmark-buildings.js, `parsennAtlas`) ist als einfache Schrift auf eine kleine
+Canvas-Textur gesetzt, nach einem Nachtfoto der Promenade (elektron.ch): „DAVOS KLOSTERS mountains“, „parsenn“
+(Eingang und Schild), „Parsenn“ (Fahnen) und das Banner „EIN HOCH AUF DAS TIEF“. Die Original-Logos werden nicht
+nachgebildet. „Davos Klosters“ und „Parsenn“ sind Marken der Davos Klosters Bergbahnen AG bzw. der Destination
+Davos Klosters; sie stehen hier nur, um das reale Gebäude darzustellen.

@@ -201,6 +201,39 @@ function buildStreetDetails(scene) {
     new THREE.CylinderGeometry(0.14, 0.07, 0.16, 10).translate(0, 3.62, 0)
   ].map((g) => g.toNonIndexed()));
   const pedGlobeGeo = new THREE.SphereGeometry(0.23, 12, 10).translate(0, 3.84, 0);
+  // Davos (BERLIN_DATA): the streetlights of the Landschaft Davos (photo, Promenade at the Parsennbahn): a slim, light
+  // silver round mast (~9 m) bending over in a swan neck to a small flat LED head, cold white (~4000 K) at night; local
+  // +x along the arm (towards the road), the lens 2.05 m out at 8.93 m. Mast, neck and head in one geometry.
+  const DAVOS_LAMP = { reach: 2.05, y: 8.93 };
+  const davosMastMat = new THREE.MeshStandardNodeMaterial({ color: 0xb4b9bd, roughness: 0.38, metalness: 0.72 });
+  const davosLampGlow = new THREE.MeshBasicNodeMaterial();
+  davosLampGlow.colorNode = mix(color(0x9a9d9f), color(0xfff3e4).mul(2.4), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
+  const davosMastGeo = BERLIN_DATA ? mergeGeometries([
+    new THREE.CylinderGeometry(0.13, 0.15, 0.5, 6).translate(0, 0.25, 0), // foot
+    new THREE.CylinderGeometry(0.055, 0.085, 7.6, 6, 1, true).translate(0, 4.1, 0),
+    new THREE.TubeGeometry(new THREE.CubicBezierCurve3(new THREE.Vector3(0, 7.85, 0), new THREE.Vector3(0, 8.95, 0),
+      new THREE.Vector3(0.45, 9.12, 0), new THREE.Vector3(1.7, 9.02, 0)), 8, 0.05, 5),
+    new THREE.BoxGeometry(0.78, 0.09, 0.3).rotateZ(-0.06).translate(DAVOS_LAMP.reach, 8.99, 0) // the flat LED head
+  ].map((g) => g.toNonIndexed())) : null;
+  const davosLensGeo = new THREE.PlaneGeometry(0.62, 0.22).rotateX(Math.PI / 2).rotateZ(-0.06).translate(DAVOS_LAMP.reach + 0.02, DAVOS_LAMP.y, 0);
+  // ...and the cast-iron candelabra of the promenade in front of the hotels (anthracite post, curved side arms and three
+  // hexagonal lanterns), glowing a little warmer
+  const kandelaberGlow = new THREE.MeshBasicNodeMaterial();
+  kandelaberGlow.colorNode = mix(color(0xcfcdc4), color(0xffe9cc).mul(2.0), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
+  const KANDELABER_HEADS = [[0, 4.62], [-0.62, 4.08], [0.62, 4.08]]; // lantern centres (local x, y)
+  const lanternGlass = (x, y) => new THREE.CylinderGeometry(0.15, 0.1, 0.4, 6).translate(x, y, 0);
+  const kandelaberPostGeo = BERLIN_DATA ? mergeGeometries([
+    new THREE.CylinderGeometry(0.12, 0.17, 0.7, 8).translate(0, 0.35, 0),
+    new THREE.CylinderGeometry(0.055, 0.075, 3.75, 8).translate(0, 2.55, 0),
+    ...[-1, 1].map((s) => new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 3.7, 0),
+      new THREE.Vector3(s * 0.6, 3.7, 0), new THREE.Vector3(s * 0.62, 3.84, 0)), 6, 0.025, 4)),
+    ...KANDELABER_HEADS.flatMap(([x, y]) => [
+      new THREE.CylinderGeometry(0.05, 0.07, 0.08, 6).translate(x, y - 0.24, 0), // the lantern's foot
+      new THREE.ConeGeometry(0.21, 0.17, 6).translate(x, y + 0.285, 0), // its roof
+      new THREE.SphereGeometry(0.035, 5, 4).translate(x, y + 0.4, 0) // the finial
+    ])
+  ].map((g) => g.toNonIndexed())) : null;
+  const kandelaberGlassGeo = BERLIN_DATA ? mergeGeometries(KANDELABER_HEADS.map(([x, y]) => lanternGlass(x, y).toNonIndexed())) : null;
 
   // =========================================================================
   // 1. NYC CANTILEVERED TRAFFIC SIGNALS, STREET BLADES & WALK SIGNALS
@@ -216,6 +249,12 @@ function buildStreetDetails(scene) {
   const signalIntersections = [];
   const lampHeadMatrices = [];
   const pedPostMatrices = [];
+  const davosMastMatrices = []; // Davos swan-neck masts (BERLIN_DATA)
+  const kandelaberMatrices = []; // Davos candelabras
+  // The hotels along the Promenade (OSM tourism=hotel, centroids) and the Parsennbahn's valley station: candelabras
+  // there instead of the masts, on their side of the street ([x, z, n]: a row of them, n more either way 11 m apart)
+  const KANDELABER_SPOTS = [[699, -1511], [672, -1389], [668, -1440, 2], [544, -1165], [551, -963], [318, -735], [187, -619],
+    [166, -667], [-266, -532], [-604, -121], [-590, 73], [-622, 204]];
   const cobraLampSites = [];
   const streetPointSites = [];
   // Only nearby poles can conflict, even with street furniture across the whole island.
@@ -532,12 +571,23 @@ function buildStreetDetails(scene) {
       if (waterAt(s.x, s.z) && !s.road.bridge) continue;
       const block = blockAt(s.x, s.z);
       if (block && !block.sidewalk && !block.id?.toString().startsWith('sidewalk') && block.source && !block.park) continue;
-      setMatrix(poleMatrices, s.x, 4.1, s.z, 0.11, 8.2, 0.11);
-      const yaw = Math.atan2(-s.nz, s.nx);
-      setMatrix(armMatrices, s.x + s.nx * 1.1, 8.08, s.z + s.nz * 1.1, 2.2, 0.085, 0.085, yaw);
-      setMatrix(lampHeadMatrices, s.x + s.nx * 2.1, 8.1, s.z + s.nz * 2.1, 1, 1, 1, yaw);
-      cobraLampSites.push({ x: s.x + s.nx * 2.1, y: 8.04, z: s.z + s.nz * 2.1, tx: s.x + s.nx * 3.5, tz: s.z + s.nz * 3.5 });
-      addPole(s.x, s.z, 0.11);
+      const spot = s.name === 'Promenade' && KANDELABER_SPOTS.find(([hx, hz]) => Math.hypot(hx - s.x, hz - s.z) < 32 && (hx - s.x) * s.nx + (hz - s.z) * s.nz < 0);
+      if (spot) {
+        // a candelabra on the hotel's side of the Promenade (the hotel behind it), its arms along the street
+        for (let k = -(spot[2] || 0); k <= (spot[2] || 0); k++) {
+          const x = s.x + s.ux * 11 * k, z = s.z + s.uz * 11 * k, b = blockAt(x, z);
+          if (k && (Math.hypot(spot[0] - x, spot[1] - z) > 32 || (b && !b.sidewalk && !b.id?.toString().startsWith('sidewalk') && b.source && !b.park))) continue;
+          setMatrix(kandelaberMatrices, x, 0, z, 1, 1, 1, -Math.atan2(s.uz, s.ux));
+          streetPointSites.push({ x, y: 4.3, z, color: 0xffe9cc, intensity: 30, dist: 13 });
+          addPole(x, z, 0.17);
+        }
+      } else {
+        const yaw = Math.atan2(-s.nz, s.nx);
+        setMatrix(davosMastMatrices, s.x, 0, s.z, 1, 1, 1, yaw);
+        const lx = s.x + s.nx * DAVOS_LAMP.reach, lz = s.z + s.nz * DAVOS_LAMP.reach;
+        cobraLampSites.push({ x: lx, y: DAVOS_LAMP.y - 0.05, z: lz, tx: s.x + s.nx * 3.6, tz: s.z + s.nz * 3.6 });
+        addPole(s.x, s.z, 0.15);
+      }
       if (s.name && i % 4 === 0 && (berlinSignMatrices.has(s.name) || berlinSignMatrices.size < 70 || expansionStreetSigns.has(s.name))) {
         if (!berlinSignMatrices.has(s.name)) berlinSignMatrices.set(s.name, []);
         setMatrix(berlinSignMatrices.get(s.name), s.x, 3.25, s.z, 1.8, 0.33, 0.055, -Math.atan2(s.uz, s.ux));
@@ -588,6 +638,14 @@ function buildStreetDetails(scene) {
   addMatrixArrayInstanced(lampLensGeo, lampBulbGlow, lampHeadMatrices, false);
   addMatrixArrayInstanced(pedLampPostGeo, poleMetalMat, pedPostMatrices);
   addMatrixArrayInstanced(pedGlobeGeo, pedGlobeGlow, pedPostMatrices, false);
+  if (davosMastGeo) {
+    const before = group.children.length;
+    addMatrixArrayInstanced(davosMastGeo, davosMastMat, davosMastMatrices);
+    addMatrixArrayInstanced(davosLensGeo, davosLampGlow, davosMastMatrices, false);
+    addMatrixArrayInstanced(kandelaberPostGeo, poleMetalMat, kandelaberMatrices);
+    addMatrixArrayInstanced(kandelaberGlassGeo, kandelaberGlow, kandelaberMatrices, false);
+    for (const m of group.children.slice(before)) m.name = m.geometry === davosMastGeo || m.geometry === davosLensGeo ? 'DavosStreetlights' : 'DavosCandelabras';
+  }
   if (berlinSignMatrices.size) {
     // One draw for every street's name blades (was one per street). The thin blades cast no sun shadow (their poles do).
     const labels = [...berlinSignMatrices.keys()];
@@ -1211,7 +1269,7 @@ function buildStreetDetails(scene) {
   const streetlightSpotPool = [];
   for (let i = 0; i < STREETLIGHT_SPOT_POOL; i++) {
     // Cobra-head LED luminaire: wide downward spread (0.96 rad half-angle) illuminating both road and sidewalk
-    const spot = new THREE.SpotLight(0xffe8c2, 0, 25, 0.96, 0.82, 1.25);
+    const spot = new THREE.SpotLight(BERLIN_DATA ? 0xfff1e2 : 0xffe8c2, 0, 25, 0.96, 0.82, 1.25); // (Davos: neutral to cold white LEDs, ~4000 K)
     spot.position.set(0, -1000, 0);
     spot.target.position.set(0, -1001, 0);
     streetLightsGroup.add(spot, spot.target);

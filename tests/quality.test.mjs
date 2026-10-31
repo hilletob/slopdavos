@@ -40,3 +40,37 @@ test('the mobile profile never loads the high-resolution data and draws less', (
     assert.ok(mobile[k] < desktop[k], `${k}: fewer / smaller on mobile`);
   }
 });
+
+test('the mobile profile is the lite one: compact vertices, a short precompile, small atlases and light lists', () => {
+  const { desktop, mobile } = QUALITY_PROFILES;
+  assert.equal(mobile.compactGeometry, true, 'indexed ground layers with 8-bit normals (js/gpu-memory.js)');
+  assert.equal(desktop.compactGeometry, false, 'the desktop keeps its geometry as built');
+  assert.equal(mobile.precompileAll, false, 'only the start view compiles: frustum culling off uploaded the whole valley');
+  assert.equal(desktop.precompileAll, true);
+  assert.equal(mobile.surroundingsFull, false);
+  assert.ok(mobile.atlasScale <= 0.25);
+  assert.ok(mobile.treeAtlas <= 512 && mobile.facadeAtlas <= 512);
+  assert.ok(mobile.treeShare <= 0.25);
+  const [lights, tile, slices, perCluster] = mobile.clusterLights;
+  const [dLights, dTile, dSlices, dPerCluster] = desktop.clusterLights;
+  assert.deepEqual(desktop.clusterLights, [256, 32, 28, 48], 'the desktop lighting as before');
+  assert.ok(lights < dLights && tile >= dTile && slices < dSlices && perCluster < dPerCluster);
+});
+
+test('the WebGL 2 fallback tightens the mobile profile further, never the desktop one', async () => {
+  const { QUALITY, setBackend } = await import('../js/quality.js');
+  const saved = { ...QUALITY };
+  try {
+    Object.assign(QUALITY, QUALITY_PROFILES.mobile);
+    setBackend(false);
+    assert.equal(QUALITY.backend, 'WebGL 2');
+    assert.ok(QUALITY.treeShare < QUALITY_PROFILES.mobile.treeShare);
+    assert.ok(QUALITY.orthoFullNear < QUALITY_PROFILES.mobile.orthoFullNear);
+    Object.assign(QUALITY, QUALITY_PROFILES.desktop);
+    setBackend(false);
+    for (const k of ['treeShare', 'orthoFullNear', 'shadows', 'bloomScale']) assert.equal(QUALITY[k], QUALITY_PROFILES.desktop[k], k);
+  } finally {
+    for (const k of Object.keys(QUALITY)) delete QUALITY[k];
+    Object.assign(QUALITY, saved);
+  }
+});

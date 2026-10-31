@@ -124,28 +124,54 @@ export function fillCuts(grid, corridors, { skip = () => false, depth = 0.8, rin
 // barycentric weights (3 per vertex) on the vertices of its source triangle (`sources`: source triangle index per new
 // vertex), so that any other attribute can be carried over.
 export function subdivideTriangles(positions, maxEdge) {
+  // (flat typed buffers, no array per vertex: drapeOverlay splits millions of triangles at the start, and the arrays
+  // were most of the start's garbage; the same triangles in the same order as bisecting them one by one)
   const max2 = maxEdge * maxEdge;
-  const outPos = [], outW = [], outSrc = [];
-  const stack = [];
+  let cap = Math.max(64, positions.length * 2), n = 0;
+  let outPos = new Float32Array(cap), outW = new Float32Array(cap), outSrc = new Uint32Array(cap / 3);
+  const grow = () => {
+    cap *= 2;
+    const p = new Float32Array(cap), w = new Float32Array(cap), q = new Uint32Array(cap / 3);
+    p.set(outPos); w.set(outW); q.set(outSrc);
+    outPos = p; outW = w; outSrc = q;
+  };
+  // the stack: triangles of three vertices of 6 values (x, y, z and the weights on the source's corners)
+  let stack = new Float64Array(18 * 64), top = 0;
+  const push = (A, B, C) => { // (offsets of three 6-value vertices in `tmp`)
+    if (top + 18 > stack.length) { const s = new Float64Array(stack.length * 2); s.set(stack); stack = s; }
+    for (let i = 0; i < 6; i++) { stack[top + i] = tmp[A + i]; stack[top + 6 + i] = tmp[B + i]; stack[top + 12 + i] = tmp[C + i]; }
+    top += 18;
+  };
+  const tmp = new Float64Array(24); // a, b, c, m
   for (let t = 0, tri = 0; t < positions.length; t += 9, tri++) {
-    const v = (k) => [positions[t + k * 3], positions[t + k * 3 + 1], positions[t + k * 3 + 2], k === 0 ? 1 : 0, k === 1 ? 1 : 0, k === 2 ? 1 : 0];
-    stack.push([v(0), v(1), v(2)]);
-    while (stack.length) {
-      const [a, b, c] = stack.pop();
-      const ab = (a[0] - b[0]) ** 2 + (a[2] - b[2]) ** 2, bc = (b[0] - c[0]) ** 2 + (b[2] - c[2]) ** 2, ca = (c[0] - a[0]) ** 2 + (c[2] - a[2]) ** 2;
+    for (let k = 0; k < 3; k++) {
+      tmp[k * 6] = positions[t + k * 3]; tmp[k * 6 + 1] = positions[t + k * 3 + 1]; tmp[k * 6 + 2] = positions[t + k * 3 + 2];
+      tmp[k * 6 + 3] = k === 0 ? 1 : 0; tmp[k * 6 + 4] = k === 1 ? 1 : 0; tmp[k * 6 + 5] = k === 2 ? 1 : 0;
+    }
+    push(0, 6, 12);
+    while (top) {
+      top -= 18;
+      for (let i = 0; i < 18; i++) tmp[i] = stack[top + i];
+      const ab = (tmp[0] - tmp[6]) ** 2 + (tmp[2] - tmp[8]) ** 2, bc = (tmp[6] - tmp[12]) ** 2 + (tmp[8] - tmp[14]) ** 2, ca = (tmp[12] - tmp[0]) ** 2 + (tmp[14] - tmp[2]) ** 2;
       const longest = Math.max(ab, bc, ca);
       if (longest > max2) {
         // Bisect the longest edge, keeping the winding
-        const mid = (p, q) => p.map((x, i) => (x + q[i]) / 2);
-        if (longest === ab) { const m = mid(a, b); stack.push([a, m, c], [m, b, c]); }
-        else if (longest === bc) { const m = mid(b, c); stack.push([a, b, m], [a, m, c]); }
-        else { const m = mid(c, a); stack.push([a, b, m], [m, b, c]); }
+        const mid = (P, Q) => { for (let i = 0; i < 6; i++) tmp[18 + i] = (tmp[P + i] + tmp[Q + i]) / 2; };
+        if (longest === ab) { mid(0, 6); push(0, 18, 12); push(18, 6, 12); }
+        else if (longest === bc) { mid(6, 12); push(0, 6, 18); push(0, 18, 12); }
+        else { mid(12, 0); push(0, 6, 18); push(18, 6, 12); }
         continue;
       }
-      for (const p of [a, b, c]) { outPos.push(p[0], p[1], p[2]); outW.push(p[3], p[4], p[5]); outSrc.push(tri); }
+      if (n + 9 > cap) grow();
+      for (let k = 0; k < 3; k++) {
+        outPos[n] = tmp[k * 6]; outPos[n + 1] = tmp[k * 6 + 1]; outPos[n + 2] = tmp[k * 6 + 2];
+        outW[n] = tmp[k * 6 + 3]; outW[n + 1] = tmp[k * 6 + 4]; outW[n + 2] = tmp[k * 6 + 5];
+        outSrc[n / 3] = tri;
+        n += 3;
+      }
     }
   }
-  return { positions: new Float32Array(outPos), weights: new Float32Array(outW), sources: new Uint32Array(outSrc) };
+  return { positions: outPos.slice(0, n), weights: outW.slice(0, n), sources: outSrc.slice(0, n / 3) };
 }
 
 // --- Levels of detail for a block of grid nodes --------------------------------------------------------------------------

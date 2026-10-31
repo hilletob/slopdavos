@@ -227,7 +227,10 @@ function waterAtExact(x,z){return WATER_POLYGONS.some(w=>x>=w.minX&&x<=w.maxX&&z
 // The Davosersee, the Landwasser and the mountain streams are mapped water polygons, and traffic calls waterAt many times per frame.
 // A 4 m grid (scanline even-odd fill) answers inside/outside; only cells crossed by a shoreline use the exact test.
 const WATER_CELL=4, WNX=Math.ceil((maxX-minX)/WATER_CELL), WNZ=Math.ceil((maxZ-minZ)/WATER_CELL);
-const WATER_GRID=new Uint8Array(WNX*WNZ);
+// (2 bits a cell, four cells a byte: 0 dry, 1 water, 2 shoreline; 2 MB instead of 8)
+const WATER_GRID=new Uint8Array(Math.ceil(WNX*WNZ/4));
+const waterCellSet=(k,v)=>{const s=(k&3)*2;WATER_GRID[k>>2]=(WATER_GRID[k>>2]&~(3<<s))|(v<<s);};
+const waterCell=(k)=>(WATER_GRID[k>>2]>>((k&3)*2))&3;
 {
  const rings=[];for(const w of WATER_POLYGONS){rings.push(w.poly,...w.inner);}
  const xs=[];
@@ -235,18 +238,18 @@ const WATER_GRID=new Uint8Array(WNX*WNZ);
   const zc=minZ+(j+.5)*WATER_CELL;xs.length=0;
   for(const r of rings)for(let i=0,k=r.length-1;i<r.length;k=i++){const a=r[i],b=r[k];if((a.z>zc)!==(b.z>zc))xs.push(a.x+(zc-a.z)*(b.x-a.x)/(b.z-a.z));}
   xs.sort((p,q)=>p-q);
-  for(let t=0;t+1<xs.length;t+=2){const i0=Math.max(0,Math.ceil((xs[t]-minX)/WATER_CELL-.5)),i1=Math.min(WNX-1,Math.floor((xs[t+1]-minX)/WATER_CELL-.5));for(let i=i0;i<=i1;i++)WATER_GRID[j*WNX+i]=1;}
+  for(let t=0;t+1<xs.length;t+=2){const i0=Math.max(0,Math.ceil((xs[t]-minX)/WATER_CELL-.5)),i1=Math.min(WNX-1,Math.floor((xs[t+1]-minX)/WATER_CELL-.5));for(let i=i0;i<=i1;i++)waterCellSet(j*WNX+i,1);}
  }
  for(const r of rings)for(let i=0,k=r.length-1;i<r.length;k=i++){
   const a=r[i],b=r[k],n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/1));
   for(let t=0;t<=n;t++){const x=a.x+(b.x-a.x)*t/n,z=a.z+(b.z-a.z)*t/n;
-   for(const [dx,dz] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const gi=Math.floor((x-minX)/WATER_CELL)+dx,gj=Math.floor((z-minZ)/WATER_CELL)+dz;if(gi>=0&&gj>=0&&gi<WNX&&gj<WNZ)WATER_GRID[gj*WNX+gi]=2;}}
+   for(const [dx,dz] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const gi=Math.floor((x-minX)/WATER_CELL)+dx,gj=Math.floor((z-minZ)/WATER_CELL)+dz;if(gi>=0&&gj>=0&&gi<WNX&&gj<WNZ)waterCellSet(gj*WNX+gi,2);}}
  }
 }
 function waterAt(x,z){
  const gi=Math.floor((x-minX)/WATER_CELL),gj=Math.floor((z-minZ)/WATER_CELL);
  if(gi<0||gj<0||gi>=WNX||gj>=WNZ)return waterAtExact(x,z);
- const v=WATER_GRID[gj*WNX+gi];return v===2?waterAtExact(x,z):v===1;
+ const v=waterCell(gj*WNX+gi);return v===2?waterAtExact(x,z):v===1;
 }
 function nearestDrivingPoint(x,z,name=null){
  let best=null,dist=Infinity;

@@ -53,9 +53,9 @@ const smooth = (e0, e1, x) => {
 //    Texels: r = leaf brightness, g = per-leaf hue jitter, b = twig / stalk mask, a = coverage
 // =====================================================================================================================
 const TILES = 4;
-// 4 x 512: every mip level down to 4 px still splits evenly into the tiles (4 x 256 on the mobile profile, js/quality.js:
-// a quarter of the memory; the sprays are drawn to the tile's size either way)
-const ATLAS_SIZE = QUALITY.mobile ? 1024 : 2048;
+// 4 x 512: every mip level down to 4 px still splits evenly into the tiles (4 x 128 on the mobile profile, js/quality.js:
+// a sixteenth of the memory; the sprays are drawn to the tile's size either way)
+const ATLAS_SIZE = QUALITY.treeAtlas;
 const TILE = ATLAS_SIZE / TILES;
 const GUTTER = 8; // px kept clear round every tile, so mip levels don't bleed between tiles
 const TILE_FAR = 3;
@@ -1178,6 +1178,12 @@ function mergeVariants(a, b) {
   return g;
 }
 
+/** Whether the tree at site `t` is planted on this device profile (js/quality.js: a share of the park and forest trees,
+ *  tier 0, on the mobile one; every street tree). city-grid.js drops the others' sites at once. */
+export function plantedTree(t) {
+  return QUALITY.treeShare >= 1 || (t.tier || 0) !== 0 || hashPos(t.x, 8.8, t.z) < QUALITY.treeShare;
+}
+
 function hashPos(x, y, z) {
   const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
   return s - Math.floor(s);
@@ -1197,7 +1203,7 @@ function createTreeField(scene, sites) {
   }
   // The mobile profile (js/quality.js) plants a share of the park and forest trees (tier 0, the bulk of them), and
   // draws all trees over shorter distances; the street trees all stand
-  if (QUALITY.treeShare < 1) sites = sites.filter((t) => (t.tier || 0) !== 0 || hashPos(t.x, 8.8, t.z) < QUALITY.treeShare);
+  if (QUALITY.treeShare < 1) sites = sites.filter(plantedTree);
   const maxDist = MAX_DIST.map((d) => d * QUALITY.treeDistance), lowCutoff = LOW_CUTOFF * QUALITY.treeDistance;
   const group = new THREE.Group();
   group.name = 'Trees';

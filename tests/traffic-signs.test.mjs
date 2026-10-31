@@ -5,7 +5,7 @@ import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
 
 const signs = TRAFFIC_SIGNS.signs;
-const KINDS = new Set(['stop', 'giveway', 'noentry', 'exceptbus', 'oneway', 'crosswalk', 'parking', 'busstop', 'zone30', 'gen50', 'city']);
+const KINDS = new Set(['stop', 'giveway', 'noentry', 'exceptbus', 'oneway', 'crosswalk', 'parking', 'busstop', 'zone30', 'gen50', 'city', 'citylocal']);
 const DRIVABLE = /^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|service)(_link)?$/;
 
 // Distance from (x, z) to the nearest centreline segment of `roads`, with that segment's unit direction
@@ -83,4 +83,22 @@ test('every VBD stop in the valley floor has its yellow plate, each zone 30 entr
   const missing = [...names].filter((n) => !signed.has(n));
   assert.ok(missing.length <= names.size * 0.15, `stops without a plate: ${missing.join(', ')}`);
   for (const s of signs.filter((x) => x.t === 'zone30')) assert.equal(s.back, 'zone30end', 'Ende Zone on the back');
+});
+
+test('the VBD stop plates list the lines stopping there with their destinations, in the VBD\'s numbering', () => {
+  const stops = signs.filter((s) => s.t === 'busstop');
+  for (const s of stops) {
+    assert.ok(s.label && !/^Davos (Platz|Dorf),/.test(s.label), `${s.text}: short name ${s.label}`);
+    assert.ok(Array.isArray(s.lines) && s.lines.length >= 1 && s.lines.length <= 6, `${s.text}: lines`);
+    for (const [line, dest] of s.lines) assert.ok(/^\d{1,2}$/.test(line) && dest, `${s.text}: ${line} ${dest}`);
+    if (s.mark) assert.equal(s.mark.length, 4);
+  }
+  // Parsennbahn (Davos Dorf): line 1 both ways, towards Glaris and towards Laret / Wolfgang
+  const parsenn = stops.filter((s) => s.text === 'Parsennbahn');
+  assert.ok(parsenn.length >= 2);
+  assert.ok(parsenn.every((s) => s.lines.some(([l]) => l === '1')));
+  // Benches and the zigzag kerb line where there is room, not everywhere
+  const benches = stops.filter((s) => s.bench).length, marks = stops.filter((s) => s.mark).length;
+  assert.ok(benches > 10 && benches < stops.length * 0.7, `${benches} benches`);
+  assert.ok(marks > stops.length * 0.5, `${marks} zigzags`);
 });

@@ -76,7 +76,9 @@ async function loadBinary(url) {
   }
 }
 
-export const TERRAIN = parseTerrain(await loadBinary(TERRAIN_URL));
+// (parsed in a function of its own: the downloaded file, awaited in this module's top level, would stay alive with it)
+const loadTerrain = async () => parseTerrain(await loadBinary(TERRAIN_URL));
+export const TERRAIN = await loadTerrain();
 
 // The rivers and the lake (DAVOS_DATA.water rings, flat [x, z, …])
 const pip = (ring, x, z) => { let inside = false; for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) { if ((ring[i + 1] > z) !== (ring[j + 1] > z) && x < ((ring[j] - ring[i]) * (z - ring[i + 1])) / (ring[j + 1] - ring[i + 1]) + ring[i]) inside = !inside; } return inside; };
@@ -242,7 +244,9 @@ export function pierClear(x, z, ux, uz, half) {
 }
 
 // --- Water level: the river and lake surfaces are the lowest ground within ~12 m (banks and quays rise above) --------
-const WATER_LEVEL = (() => {
+// (built when first asked for, and let go after the city is built, releaseWaterLevel: 8 MB only the build reads)
+let WATER_LEVEL = null;
+const waterLevel = () => WATER_LEVEL || (WATER_LEVEL = (() => {
   const { cols, rows, heights } = TERRAIN, R = 3;
   const tmp = new Float32Array(heights.length), out = new Float32Array(heights.length);
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
@@ -256,8 +260,9 @@ const WATER_LEVEL = (() => {
     out[j * cols + i] = m;
   }
   return { ...TERRAIN, heights: out };
-})();
-export const waterSurfaceHeight = (x, z) => gridHeight(WATER_LEVEL, x, z);
+})());
+export const waterSurfaceHeight = (x, z) => gridHeight(waterLevel(), x, z);
+export const releaseWaterLevel = () => { WATER_LEVEL = null; };
 
 /**
  * Per-node depths by which the drawn terrain sinks under the ground layers laid on it: the survey has kerb- and
