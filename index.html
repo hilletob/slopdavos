@@ -4,7 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Slop Davos</title>
-  <link rel="icon" href="data:," />
+  <link rel="icon" type="image/png" href="./assets/icons/icon-192.png" />
+  <!-- Installable app (PWA): manifest, home-screen icon & full-screen on iOS, service worker (sw.js, registered by js/main.js) -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#1b1b1b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Davos" />
   <meta name="description" content="Slop Davos: Davos Platz, Davos Dorf, the Davosersee, Frauenkirch and the Dischma valley at 1:1 on their real alpine relief, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D, SWISSIMAGE) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, RhB train, Helicopter, snow groomer), and 11 cinematic cameras at 60 FPS." />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <!-- three.js dev branch pinned to a commit (builds committed to mrdoob/three.js@dev, served by jsDelivr) -->

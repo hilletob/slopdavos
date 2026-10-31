@@ -1,0 +1,19 @@
+{
+  "name": "Slop Davos",
+  "short_name": "Davos",
+  "description": "Davos Platz, Davos Dorf, the Davosersee, Frauenkirch and the Dischma valley at 1:1 on their real alpine relief.",
+  "lang": "de-CH",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#1b1b1b",
+  "theme_color": "#1b1b1b",
+  "categories": ["games", "travel", "simulation"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
