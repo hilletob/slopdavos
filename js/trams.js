@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, surfaceHeight, ROAD_TOP } from './terrain.js';
 import { chunkedMeshes } from './scene-culling.js';
-import { segmentInWorld } from './quality.js';
+import { QUALITY, worldRegion } from './quality.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 
 // Davos's tracks (OSM railway=rail / narrow_gauge / tram in js/davos-geodata.js):
@@ -98,7 +98,7 @@ function buildNetwork() {
 }
 
 // --- Track geometry ----------------------------------------------------------------------------------------------------------
-function strips(list, offsets, width, y) {
+function strips(list, offsets, width, y, region) {
   const geometries = [];
   for (const r of list) {
     const deck = !!r.bridge;
@@ -109,8 +109,8 @@ function strips(list, offsets, width, y) {
       const ax = r.pts[i - 2], az = r.pts[i - 1], bx = r.pts[i], bz = r.pts[i + 1];
       const L = Math.hypot(bx - ax, bz - az);
       if (L < 0.05) continue;
-      // (the mobile profile, js/quality.js worldRadius: the track bed near the start only; the orthophoto shows it beyond)
-      if (!segmentInWorld(ax, az, bx, bz, 30)) { along += L; continue; }
+      // (the mobile profile, js/quality.js worldRadius: the track bed cell by cell round the player, js/world-stream.js)
+      if (!region.ownsSegment(ax, az, bx, bz)) { along += L; continue; }
       const nx = -(bz - az) / L, nz = (bx - ax) / L;
       for (const o of offsets) {
         const p = (s, side) => [(s ? bx : ax) + nx * (o + side * width / 2), y, (s ? bz : az) + nz * (o + side * width / 2)];
@@ -160,25 +160,42 @@ function createBallastMaterial(width) {
   return m;
 }
 
-function buildTracks(group) {
-  const steel = new THREE.MeshStandardNodeMaterial({ color: 0xa9adb2, roughness: 0.28, metalness: 0.9 });
-  const railWeb = new THREE.MeshStandardNodeMaterial({ color: 0x3a2a20, roughness: 0.85, metalness: 0.3 });
-  const ballast = createBallastMaterial(2.8);
+let trackMats = null; // (one set of materials for every cell's track bed)
+/**
+ * The track bed (ballast, rails) of the railways in `region` (js/quality.js regions), as meshes in world heights:
+ * the whole valley's on the desktop profile; on the mobile one js/world-stream.js asks for its cells round the player.
+ */
+export function buildTrackBed(region = worldRegion()) {
+  if (!trackMats) {
+    trackMats = {
+      steel: new THREE.MeshStandardNodeMaterial({ color: 0xa9adb2, roughness: 0.28, metalness: 0.9 }),
+      railWeb: new THREE.MeshStandardNodeMaterial({ color: 0x3a2a20, roughness: 0.85, metalness: 0.3 }),
+      ballast: createBallastMaterial(2.8)
+    };
+  }
+  const { steel, railWeb, ballast } = trackMats;
   const tram = DAVOS_DATA.railways.filter((r) => r.kind === 'tram' && !r.tunnel);
   const rail = DAVOS_DATA.railways.filter((r) => /^(rail|narrow_gauge)$/.test(r.kind) && !r.tunnel);
   // (cut into cells for frustum culling; the thin rails only near the camera: beyond ~350 m they are under a pixel
   // wide, and the ballast's rust lines carry them on)
   const parts = [
-    [strips(rail, [0], 2.8, 0.03), ballast, Infinity],
-    [strips(rail, [-0.5, 0.5], 0.16, 0.07), railWeb, 350], // the rusty web and foot of the rails, under their heads
-    [strips(rail, [-0.5, 0.5], 0.07, 0.11), steel, 350], // RhB metre gauge: the polished heads
-    [strips(tram, [-0.5, 0.5], 0.075, 0.075), steel, 350] // metre gauge, flush with the road
+    [strips(rail, [0], 2.8, 0.03, region), ballast, Infinity],
+    [strips(rail, [-0.5, 0.5], 0.16, 0.07, region), railWeb, 350], // the rusty web and foot of the rails, under their heads
+    [strips(rail, [-0.5, 0.5], 0.07, 0.11, region), steel, 350], // RhB metre gauge: the polished heads
+    [strips(tram, [-0.5, 0.5], 0.075, 0.075, region), steel, 350] // metre gauge, flush with the road
   ];
+  const meshes = [];
   for (const [geometry, material, maxDistance] of parts) {
     if (!geometry) continue;
     const cell = Number.isFinite(maxDistance) ? 400 : 800;
-    group.add(...chunkedMeshes(geometry, material, { cell, maxDistance, setup: (mesh) => { mesh.receiveShadow = true; } }));
+    meshes.push(...chunkedMeshes(geometry, material, { cell, maxDistance, setup: (mesh) => { mesh.receiveShadow = true; } }));
   }
+  return meshes;
+}
+function buildTracks(group) {
+  // (the mobile profile, js/quality.js worldRadius: js/world-stream.js builds the track bed cell by cell instead)
+  if (QUALITY.worldRadius > 0) return;
+  group.add(...buildTrackBed());
 }
 
 // --- Trams -------------------------------------------------------------------------------------------------------------------

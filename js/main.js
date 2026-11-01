@@ -30,7 +30,8 @@ import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
-import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel } from './terrain.js';
+import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks } from './terrain.js';
+import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder } from './world-stream.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
@@ -204,6 +205,31 @@ async function initApp() {
   };
   compact([cityGrid.group]);
   releaseWaterLevel(); // (the water surfaces are draped: its grid is rebuilt should anything ask again)
+  // The mobile profile (js/quality.js worldRadius): the streets, markings, track bed and car parks come in 500 m cells
+  // round the player and go again behind (js/world-stream.js); the cells of the start are built now, the rest while
+  // playing. Each part built gets what the start-up build gives the static scenery below: compacted, its instances in
+  // storage buffers, its matrices set (the scene's are frozen), its colliders with the controllers
+  const worldHooks = { controllers: null };
+  // (cells whose square comes within the radius: as the cells own what lies in their square, the detail reaches
+  // 300-800 m farther than that, and ~22 cells of 500 m cover about the area the old circle of 1300 m did)
+  const world = QUALITY.worldRadius > 0 ? new WorldStreamer({
+    scene, radius: Math.max(500, QUALITY.worldRadius - 300), hysteresis: 300,
+    onAdded: (objects, colliders) => {
+      compact(objects);
+      for (const root of objects) {
+        if (renderer.backend.isWebGPUBackend) root.traverse((o) => { if (o.isInstancedMesh && !o.instanceMatrix.isStorageInstancedBufferAttribute) o.instanceMatrix = new THREE.StorageInstancedBufferAttribute(o.instanceMatrix.array, 16); });
+        root.updateMatrixWorld(true);
+      }
+      if (colliders.length) worldHooks.controllers?.addColliders(colliders);
+    },
+    onRemoved: (objects, colliders) => { if (colliders.length) worldHooks.controllers?.removeColliders(colliders); }
+  }) : null;
+  if (world) {
+    world.addBuilder(groundBuilder());
+    await world.prime(WORLD.x, WORLD.z);
+    refreshTerrainChunks({ all: true }); // (the terrain sinks a little under the streets just built)
+    console.info('[world] cells of the start:', JSON.stringify(world.info()));
+  }
   // The winter-only scenery: on the mobile profile (js/quality.js) only built once winter is switched on (~90 MB of
   // trails and runs a summer visit never shows); they lie on the terrain already ('absolute')
   let winterSceneryBuilt = false;
@@ -234,7 +260,8 @@ async function initApp() {
   const winterSports = skipped('winter') ? { update: NOOP } : buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
   if (!skipped('streams')) buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = skipped('shops') ? { refine: NOOP } : buildShops(scene); // the businesses' signs (js/shops-data.js)
-  const parking = skipped('parking') ? { colliders: [], update: NOOP } : buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
+  const parking = skipped('parking') || world ? { colliders: [], update: NOOP } : buildParking(scene); // the car parks' bays and parked cars (js/parking-data.js)
+  if (world && !skipped('parking')) world.addBuilder(parkingBuilder()); // (cell by cell round the player instead)
   const detailHouses = skipped('detailhouses') ? { colliders: [] } : buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
   const landmarkBuildings = skipped('landmarks') ? { colliders: [] } : buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
   markInit('cityGrid');
@@ -253,6 +280,7 @@ async function initApp() {
   await breathe();
   const noVehicles = () => ({ bodies: [], group: null, update: NOOP, collidePlayer: NOOP });
   const trams = skipped('traffic') ? noVehicles() : buildTrams(scene);
+  if (world && !skipped('traffic')) world.addBuilder(trackBuilder()); // (the track bed cell by cell round the player, js/world-stream.js)
   const rhb = skipped('rhb') ? noVehicles() : buildRhB(scene);
   const bergbahnen = skipped('bergbahnen') ? { update: NOOP } : buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
   const vbd = skipped('traffic') ? noVehicles() : buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
@@ -295,10 +323,11 @@ async function initApp() {
   const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings || skipped('buildings') });
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (their fire escapes and shop fronts too; the colliders stay)
   markInit('blocks');
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders]);
+  if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
-    ? { footprints: [], signalIntersections: [], trees: [], audioSignals: [], signalClock: { value: 0 }, update: null }
+    ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }
     : buildStreetDetails(scene);
   markInit('streetDetails');
   await breathe();
@@ -320,21 +349,25 @@ async function initApp() {
   const highwayTraffic = createHighwayTraffic(scene, skipped('traffic') ? [] : cityGrid.highwayLanes);
   if (skipped('traffic')) scene.remove(highwayTraffic.group);
   const beforePaint = new Set(scene.children);
-  buildRoadPaint(scene, trafficSystem.network);
+  if (world) { world.addBuilder(paintBuilder(trafficSystem.network)); await world.settle(); } // (cell by cell, draped within)
+  else buildRoadPaint(scene, trafficSystem.network);
   for (const root of scene.children.filter((o) => !beforePaint.has(o))) placeOnTerrain(root, terrainStats);
   console.info('[terrain] laid on the relief:', JSON.stringify(terrainStats));
   markInit('roadPaint');
   // Swiss road signs (js/traffic-signs.js), clear of the painted crosswalks; their posts stop the player (not the AI
   // traffic, which got its obstacles above)
-  const trafficSigns = skipped('signs') ? { colliders: [], update: NOOP } : buildTrafficSigns(scene, { network: trafficSystem.network, night: lightingSystem.uNightFactor });
+  const trafficSigns = skipped('signs') ? { colliders: [], knockablePosts: [], update: NOOP } : buildTrafficSigns(scene, { network: trafficSystem.network, night: lightingSystem.uNightFactor });
   allColliders.push(...trafficSigns.colliders);
   markInit('trafficSigns');
 
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
+  worldHooks.controllers = controllerManager; // (the cells built from now on hand their colliders over directly)
   if (!skipped('rhb')) controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
   trafficBodies.push(controllerManager.snowcatTrafficBody); // the parked snow groomer is solid for the traffic
   controllerManager.setTrees(streetDetails.trees); // ... and the driven one stops at the trees
+  // The lamp posts and sign posts stop the player, and go down under a vehicle at speed (controllers.js knockOverPost)
+  controllerManager.setKnockablePosts([...streetDetails.knockablePosts, ...trafficSigns.knockablePosts]);
   controllerManager.entities.cargobike.mesh.visible = false; // the cargo bike is no longer offered in Davos
   // Reuse teleport placement so saved players return at rest, close to their last positions. A first visit (or a save
   // from an older version) starts by bike at Bellevue (city-config.js defaultSpawn).
@@ -410,7 +443,7 @@ async function initApp() {
   // repacked), the moving vehicles, the signs (rebuilt by shops.refine) or the rail crossings (lamp attributes); the
   // buildings once the shop signs have been moved onto their facades (a raycast).
   const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
-    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings']);
+    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells']);
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
   if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries compacted: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;
@@ -1073,6 +1106,7 @@ async function initApp() {
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
     streamTerrain(cameraSystem.camera.position); // the terrain chunks' full geometry near the camera, coarse farther
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
+    if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
@@ -1127,7 +1161,7 @@ async function initApp() {
             selectCamera('fixed', true);
           },
           info() { return renderer.info ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null; },
-          quality: QUALITY,
+          quality: QUALITY, world,
           releasedGeometry() { return { ...releasedGeometryStats(), MB: Math.round(releasedMB) }; },
         };
         initTimings = null;

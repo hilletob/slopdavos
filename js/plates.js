@@ -11,6 +11,8 @@ import { QUALITY } from './quality.js';
 
 export const PLATE_COUNT = 32;
 export const PLATE_ATLAS = { size: 1024, cols: 4, cellW: 256, rearH: 56, frontH: 68, frontY: 448 };
+// Plate POLICE_PLATE is the patrol cars' (actor-models.js gives it to the police livery and steers other cars past it)
+export const POLICE_PLATE = 1;
 
 // Rear plate i spans u ∈ [col, col + 1] / 4 and the rows' pixels; uv (0..1 across, 0..1 up the plate) -> atlas uv
 // (flipY: the canvas's top row is v = 1). Exported for the shaders (actor-models.js) as plain numbers.
@@ -45,8 +47,10 @@ export function plateList() {
     [list[i], list[j]] = [list[j], list[i]];
   }
   list[0] = { kind: 'ch', canton: 'GR', number: '107922' }; // the player's VW T3
+  list[POLICE_PLATE] = { kind: 'ch', canton: 'GR', number: '1207' }; // the Kantonspolizei's patrol cars (low GR numbers)
   return list;
 }
+
 
 // --- Heraldry ------------------------------------------------------------------------------------------------------------
 // A Swiss shield outline (flat top, sides curving into a point) in the box (x, y, w, h)
@@ -224,4 +228,71 @@ export function plateAtlasTexture() {
   atlas.colorSpace = THREE.SRGBColorSpace;
   atlas.anisotropy = 8;
   return atlas;
+}
+
+// --- Police livery -------------------------------------------------------------------------------------------------------
+// The lettering of the Kantonspolizei Graubünden's patrol cars (white Octavia-class estates with a fluorescent-orange
+// retro-reflective band and a blue stripe along the flanks, painted by the car material in actor-models.js): one
+// canvas with the flank's decals (nose to the left: "POLIZEI" in blue on the front door, a stylised cantonal shield
+// on the front wing, the force's trilingual name small on the rear door) and the bonnet's "POLIZEI", read from ahead.
+// Laid out in car metres: the flank cell maps z ∈ [zRear, zFront] × y ∈ [bottom, top], the bonnet cell x × z.
+export const LIVERY_ATLAS = {
+  w: 1024, h: 256,
+  side: { x: 0, y: 0, w: 1024, h: 128, zFront: 2.4, zRear: -2.4, top: 0.94, bottom: 0.3 },
+  hood: { x: 0, y: 128, w: 512, h: 128, halfWidth: 0.8, zFar: 1.95, zNear: 1.15 }
+};
+export const POLICE_BLUE = '#1a3d8c';
+export const POLICE_ORANGE = '#ff5a14';
+
+const LIVERY_FONT = (px, weight = 'bold') => `${weight} ${px}px "Helvetica Neue", Helvetica, "Frutiger", Arial, sans-serif`;
+// Text with its cap height in car metres at (cx, cy) px, the two axes' px / m possibly differing (the bonnet cell)
+function liveryText(ctx, text, cx, cy, capM, pxPerMx, pxPerMy, colour = POLICE_BLUE, weight = 'bold', spacing = 0) {
+  ctx.save();
+  const px = capM * pxPerMy / 0.72; // Helvetica's cap height is ~72% of the font size
+  ctx.font = LIVERY_FONT(Math.round(px), weight);
+  ctx.fillStyle = colour; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.translate(cx, cy);
+  ctx.scale(pxPerMx / pxPerMy, 1);
+  const gap = spacing * px;
+  const chars = [...text];
+  const widths = chars.map((c) => ctx.measureText(c).width);
+  const total = widths.reduce((a, b) => a + b, 0) + gap * (chars.length - 1);
+  let x = -total / 2;
+  chars.forEach((c, i) => { ctx.fillText(c, x, px * 0.04); x += widths[i] + gap; });
+  ctx.restore();
+}
+
+function drawLivery(ctx) {
+  const S = LIVERY_ATLAS.side;
+  const sx = S.w / (S.zFront - S.zRear), sy = S.h / (S.top - S.bottom);
+  const X = (z) => S.x + (S.zFront - z) * sx, Y = (y) => S.y + (S.top - y) * sy;
+  // "POLIZEI" over the front door (between the door seams at z = 0.84 and -0.3), above the band
+  liveryText(ctx, 'POLIZEI', X(0.26), Y(0.745), 0.125, sx, sy, POLICE_BLUE, 'bold', 0.02);
+  // The cantonal shield on the front wing, above the arch
+  shield(ctx, 'GR', X(1.16), Y(0.84), 0.1 * sx, 0.12 * sy);
+  // The force's name, small, on the rear door (z = -0.3 … -1.22), in the canton's three languages
+  liveryText(ctx, 'Kantonspolizei Graubünden', X(-0.76), Y(0.79), 0.04, sx, sy, POLICE_BLUE, 'bold');
+  liveryText(ctx, 'Polizia chantunala dal Grischun', X(-0.76), Y(0.73), 0.033, sx, sy, POLICE_BLUE, 'normal');
+  liveryText(ctx, 'Polizia cantonale dei Grigioni', X(-0.76), Y(0.68), 0.033, sx, sy, POLICE_BLUE, 'normal');
+  // The bonnet: "POLIZEI" read from ahead, its top towards the windscreen
+  const H = LIVERY_ATLAS.hood;
+  const hx = H.w / (2 * H.halfWidth), hy = H.h / (H.zFar - H.zNear);
+  liveryText(ctx, 'POLIZEI', H.x + H.w / 2, H.y + (H.zFar - 1.55) * hy, 0.2, hx, hy, POLICE_BLUE, 'bold', 0.03);
+}
+
+let livery = null;
+// The livery texture (transparent where the paint shows); null outside a browser
+export function liveryAtlasTexture() {
+  if (livery || typeof document === 'undefined') return livery;
+  const scale = Math.max(0.5, QUALITY.atlasScale); // (the lettering stays legible on the mobile profile)
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(LIVERY_ATLAS.w * scale);
+  canvas.height = Math.round(LIVERY_ATLAS.h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  drawLivery(ctx);
+  livery = new THREE.CanvasTexture(canvas);
+  livery.colorSpace = THREE.SRGBColorSpace;
+  livery.anisotropy = 8;
+  return livery;
 }

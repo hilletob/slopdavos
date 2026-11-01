@@ -537,6 +537,67 @@ test('the driven snow groomer stops at tree trunks, other players pass them', ()
   assert.deepEqual([bike.position.x, bike.position.z], [before.x, before.z]);
 });
 
+test('lamp and sign posts stop the walker and a crawling van, a vehicle at speed knocks them over and is braked', () => {
+  const { controller, ent: car } = teleportHarness('car');
+  const fallen = [];
+  const set = { fall(post, dx, dz) { fallen.push({ i: post.i, dx, dz }); } };
+  // (a post 2.5 m ahead of the van's nose at z = 0, one far off, two invalid)
+  const posts = [{ x: 0, z: 2.5, r: 0.2, set, i: 7 }, { x: 0.3, z: 2.5, r: 0.2, set, i: 8 }, { x: 200, z: 200, r: 0.2, set, i: 9 },
+    { x: NaN, z: 1, r: 0.2, set, i: 1 }, { x: 0, z: 1, r: 0.2, i: 2 }];
+  assert.equal(controller.setKnockablePosts(posts), 3);
+  const impacts = [];
+  controller.setCollisionListener((e) => impacts.push({ ...e }));
+
+  // Crawling up to it: held off (a plain contact), nothing falls
+  Object.assign(car, { position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 1, vx: 0, vz: 0, pitchVel: 0, heaveVel: 0, rollVel: 0 });
+  controller.resolveHorizontalCollision(car.position, 1.35, car);
+  assert.ok(car.position.z < 2.5 - 0.2 - 2.33 + 1e-6, `the van stops at the post (z ${car.position.z.toFixed(2)})`);
+  assert.equal(fallen.length, 0);
+  assert.equal(posts[0].fallen, undefined);
+  assert.deepEqual(impacts.map((e) => e.kind), ['building']);
+  impacts.length = 0;
+
+  // At speed: both posts in its path go down in the direction of travel, the van loses 40 % of its speed, jolts, and isn't pushed back
+  Object.assign(car, { position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 10, vx: 0, vz: 0, pitchVel: 0, heaveVel: 0, rollVel: 0 });
+  controller.resolveHorizontalCollision(car.position, 1.35, car);
+  assert.deepEqual(fallen.map((f) => f.i).sort(), [7, 8]);
+  assert.ok(Math.abs(fallen[0].dx) < 1e-9 && Math.abs(fallen[0].dz - 1) < 1e-9, 'it falls along the heading');
+  assert.ok(posts[0].fallen && posts[1].fallen);
+  assert.ok(Math.abs(car.speed - 10 * 0.36) < 1e-9, `braked twice to ${car.speed.toFixed(2)} m/s`);
+  assert.deepEqual([car.position.x, car.position.z], [0, 0], 'the van drives on over it');
+  assert.ok(car.pitchVel < 0 && car.heaveVel > 0, 'with a jolt');
+  assert.equal(impacts.length, 2);
+  assert.equal(impacts[0].kind, 'post');
+  assert.equal(impacts[0].b, posts[0]);
+  assert.ok(impacts[0].speed > 5, 'loud enough for the crash sound');
+
+  // Fallen, it is driven over without a second thought
+  Object.assign(car, { position: { x: 0, y: 0, z: 0 }, speed: 1 });
+  controller.resolveHorizontalCollision(car.position, 1.35, car);
+  assert.equal(car.position.z, 0);
+  assert.equal(fallen.length, 2);
+
+  // The walker is held off a standing post, the cyclist at speed fells it
+  const standing = { x: 10, z: 0.6, r: 0.2, set, i: 3 };
+  controller.setKnockablePosts([standing]);
+  const person = teleportHarness('person').ent;
+  controller.entities.person = person;
+  controller.activeMode = 'person';
+  Object.assign(person.position, { x: 10, y: 0, z: 0 });
+  person.speed = 3;
+  controller.resolveHorizontalCollision(person.position, 0.48, null, person);
+  assert.ok(person.position.z <= 0.6 - 0.2 - 0.48 + 1e-6, `the walker stops at the post (z ${person.position.z.toFixed(2)})`);
+  assert.equal(standing.fallen, undefined);
+  const bike = teleportHarness('cyclist').ent;
+  controller.entities.cyclist = bike;
+  controller.activeMode = 'cyclist';
+  Object.assign(bike, { position: { x: 10, y: 0, z: 0 }, heading: 0, speed: 6, leanAngle: 0 });
+  controller.resolveHorizontalCollision(bike.position, 0.65, null, bike);
+  assert.equal(standing.fallen, true);
+  assert.ok(Math.abs(bike.speed - 3.6) < 1e-9, 'the bike is braked too');
+  assert.deepEqual([bike.position.x, bike.position.z], [10, 0]);
+});
+
 test('K switches the groomer\'s beacon (only when driving it); parked it is a traffic body, driven it is not', () => {
   const { controller, ent: cat, key } = teleportHarness('snowcat');
   const uniform = (value) => ({ value });

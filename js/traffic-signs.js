@@ -490,7 +490,8 @@ function stopKeys(s) {
 
 /**
  * Builds the signs. `network`: the traffic network (trafficSystem.network) for the painted crosswalks; `night`: the
- * lighting's night factor uniform (0 day … 1 night). Returns { group, update(cameraPosition), colliders, stats }.
+ * lighting's night factor uniform (0 day … 1 night). Returns { group, update(cameraPosition), colliders (the stops'),
+ * knockablePosts (the sign posts, for controllers.js setKnockablePosts), stats }.
  */
 export function buildTrafficSigns(scene, { network = null, night = null } = {}) {
   const group = new THREE.Group();
@@ -498,7 +499,7 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   group.userData.terrain = 'absolute'; // placed on the relief here
   scene.add(group);
   const list = TRAFFIC_SIGNS?.signs || [];
-  if (!list.length) return { group, update() {}, colliders: [], stats: { posts: 0, plates: 0 } };
+  if (!list.length) return { group, update() {}, colliders: [], knockablePosts: [], stats: { posts: 0, plates: 0 } };
 
   // Atlas keys: one per graphic (the town signs per name; a stop's name band per name, its line cells per line and
   // destination: shared between the stops)
@@ -541,6 +542,40 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   const plate = (matrix, front, back = NONE) => plates.push({ matrix: matrix.toArray(), front: front || NONE, back: back || NONE });
   const boxCollider = (x, z, r, y, h) => colliders.push({ minX: x - r, maxX: x + r, minZ: z - r, maxZ: z + r, baseY: y, minY: y - 0.3, maxY: y + h });
   let moved = 0, marks = 0, benches = 0;
+
+  // A sign post a vehicle drives into (controllers.js setKnockablePosts, which calls knockSet.fall) turns about its
+  // foot in the direction of travel over FALL_MS, plates and clamps with it, and lies there for the session: its
+  // parts' stored matrices are rewritten each frame while it falls and the packing below refreshed (dirty)
+  const knockablePosts = [];
+  const falling = [];
+  const FALL_MS = 600, FALL_ANGLE = Math.PI / 2 * 0.97;
+  const _fallM = new THREE.Matrix4(), _fallR = new THREE.Matrix4(), _fallT = new THREE.Matrix4(), _fallAxis = new THREE.Vector3();
+  let dirty = false;
+  const knockSet = {
+    fall(knocked, dx, dz) {
+      const post = posts[knocked.i];
+      falling.push({
+        post, ax: dz, az: -dx, t0: performance.now(),
+        parts: parts.slice(post.parts[0], post.parts[1]).map((p) => p.matrix.slice()),
+        plates: plates.slice(post.plates[0], post.plates[1]).map((p) => p.matrix.slice())
+      });
+    }
+  };
+  function animateFalling() {
+    if (!falling.length) return;
+    const now = performance.now();
+    for (let k = falling.length - 1; k >= 0; k--) {
+      const f = falling[k], post = f.post;
+      const p = Math.min(1, (now - f.t0) / FALL_MS);
+      // the turn about the foot, in world space: T(foot) R T(-foot)
+      _fallR.makeRotationAxis(_fallAxis.set(f.ax, 0, f.az).normalize(), FALL_ANGLE * p * p); // (gaining speed as it goes)
+      _fallM.makeTranslation(-post.x, -post.y, -post.z).premultiply(_fallR).premultiply(_fallT.makeTranslation(post.x, post.y, post.z));
+      for (let j = 0; j < f.parts.length; j++) _fallT.fromArray(f.parts[j]).premultiply(_fallM).toArray(parts[post.parts[0] + j].matrix);
+      for (let j = 0; j < f.plates.length; j++) _fallT.fromArray(f.plates[j]).premultiply(_fallM).toArray(plates[post.plates[0] + j].matrix);
+      if (p >= 1) falling.splice(k, 1);
+    }
+    dirty = true;
+  }
 
   for (const s of list) {
     // (the plates face along (sin yaw, cos yaw): the crosswalk test moves the post along the road, i.e. across that)
@@ -635,7 +670,9 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
       part(m, PART.post);
     }
     posts.push({ x: p.x, y, z: p.z, yaw: s.yaw, kind: s.t, road: s.road, text: s.text, plates: [firstPlate, plates.length], parts: [firstPart, parts.length] });
-    boxCollider(p.x, p.z, POST_RADIUS + 0.05, y, height - 0.3);
+    // The stop's mast stays solid (bench and bin too, above); a sign post goes down under a vehicle
+    if (s.t === 'busstop') boxCollider(p.x, p.z, POST_RADIUS + 0.05, y, height - 0.3);
+    else knockablePosts.push({ x: p.x, z: p.z, r: POST_RADIUS + 0.05, set: knockSet, i: posts.length - 1 });
   }
 
   // The metal and furniture (capacity: all of them; drawn: the ones near the camera)
@@ -716,8 +753,10 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   let last = -1e9, lastX = Infinity, lastZ = Infinity, shown = posts.length;
   const R2 = VIEW_DISTANCE * VIEW_DISTANCE;
   function update(camera) {
+    animateFalling();
     const now = performance.now();
-    if (now - last < 250 || Math.hypot(camera.x - lastX, camera.z - lastZ) < 4) return;
+    if (!dirty && (now - last < 250 || Math.hypot(camera.x - lastX, camera.z - lastZ) < 4)) return;
+    dirty = false;
     last = now; lastX = camera.x; lastZ = camera.z;
     shown = fill((p) => {
       const dx = p.x - camera.x, dy = p.y - camera.y, dz = p.z - camera.z;
@@ -733,5 +772,5 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   };
   group.userData.stats = stats;
   console.info(`[traffic-signs] ${posts.length} posts, ${plates.length} plates, ${parts.length} parts (${keys.size} graphics in a ${atlasW}x${atlasH} atlas), ${benches} benches, ${marks} zigzags, ${moved} moved off crosswalks`);
-  return { group, update, colliders, stats, posts };
+  return { group, update, colliders, knockablePosts, stats, posts };
 }

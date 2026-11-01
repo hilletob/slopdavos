@@ -118,6 +118,9 @@ const SNOWCAT_START = { x: 785, z: -1006.6, heading: 1.956 }; // world frame, he
 // The parked VW T3's box for the other players (its collisionBody below) and the cells of the tree trunks (setTrees)
 const PARKED_T3 = { halfW: 0.93, halfL: 2.33, top: 1.97 };
 const TREE_CELL = 16;
+// The lamp posts and sign posts (setKnockablePosts): a vehicle at this speed or more knocks one over, slower it stops
+const POST_CELL = 32;
+const POST_KNOCK_SPEED = 1.5;
 const BICYCLE_DRIVE = {
   speed: 19, reverseSpeed: 4.5, acceleration: 9,
   rolling: 0.08, drag: 0.004, coast: 0.2, brake: 7.5 // Backward input is scaled to 0.6, giving 4.5 m/s² braking.
@@ -846,8 +849,8 @@ class ThirdPersonControllerManager {
       wheelSpin: 0,
       wheelRadius: T3.wheelRadius,
       cameraTargetOffset: new THREE.Vector3(0, 1.1, 0),
-      chaseDistance: 10.5, // further back and flatter than the bike (the van is long and its roof is high)
-      chaseHeight: 1.7
+      chaseDistance: 9, // a little further back and flatter than the bike (the van is long and its roof is high)
+      chaseHeight: 1.9
     };
   }
 
@@ -1830,6 +1833,42 @@ class ThirdPersonControllerManager {
     return surfaceHeight(x, z, nearY) + Math.max(this.isPointOnSidewalk(x, z) ? SIDEWALK_TOP : ROAD_TOP, sidewalkRise(x, z));
   }
 
+  // Colliders that come and go while playing (js/world-stream.js: the parapets and parked cars of the cells built
+  // round the player): into the bucket index, or out of it
+  addColliders(list) {
+    for (const c of list) {
+      c._order = this.colliders.length;
+      this.colliders.push(c);
+      if (this._colliderCells) this._bucketCollider(c, true);
+    }
+  }
+  removeColliders(list) {
+    const gone = new Set(list);
+    if (!gone.size) return;
+    const all = this.colliders; // (in place: js/main.js keeps the array too)
+    let kept = 0;
+    for (const c of all) if (!gone.has(c)) all[kept++] = c;
+    all.length = kept;
+    if (this._colliderCells) for (const c of list) this._bucketCollider(c, false);
+  }
+  _bucketCollider(c, add) {
+    const CELL = 48;
+    const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
+    for (let ix = Math.floor(c.minX / CELL); ix <= Math.floor(c.maxX / CELL); ix++) {
+      for (let iz = Math.floor(c.minZ / CELL); iz <= Math.floor(c.maxZ / CELL); iz++) {
+        const k = key(ix, iz);
+        let list = this._colliderCells.get(k);
+        if (add) {
+          if (!list) this._colliderCells.set(k, (list = []));
+          list.push(c);
+        } else if (list) {
+          const i = list.indexOf(c);
+          if (i >= 0) list.splice(i, 1);
+          if (!list.length) this._colliderCells.delete(k);
+        }
+      }
+    }
+  }
   // The colliders whose bounds come within `r` of (x, z), in their original order. They never move, so they are
   // bucketed once into 48 m cells (tens of thousands of buildings: testing them all every frame cost ~0.5 ms)
   nearColliders(x, z, r) {
@@ -1837,17 +1876,7 @@ class ThirdPersonControllerManager {
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
     if (!this._colliderCells) {
       this._colliderCells = new Map();
-      this.colliders.forEach((c, i) => {
-        c._order = i;
-        for (let ix = Math.floor(c.minX / CELL); ix <= Math.floor(c.maxX / CELL); ix++) {
-          for (let iz = Math.floor(c.minZ / CELL); iz <= Math.floor(c.maxZ / CELL); iz++) {
-            const k = key(ix, iz);
-            let list = this._colliderCells.get(k);
-            if (!list) this._colliderCells.set(k, (list = []));
-            list.push(c);
-          }
-        }
-      });
+      this.colliders.forEach((c, i) => { c._order = i; this._bucketCollider(c, true); });
       this._nearList = [];
       this._nearStamp = 0;
     }
@@ -1970,10 +1999,41 @@ class ThirdPersonControllerManager {
         }
       }
     }
-    // Parked player vehicles (the VW T3, the snow groomer) are solid too, and the driven groomer stops at trees
+    // Parked player vehicles (the VW T3, the snow groomer) are solid too, the driven groomer stops at trees, and the
+    // lamp and sign posts stop everyone but a vehicle at speed, which fells them
     for (const c of this.dynamicColliders(collisionEntity, pos.x, pos.z, reach)) {
-      if (buildingContact(c, pos.x, pos.y, pos.z, body, contact)) respond(c);
+      if (!buildingContact(c, pos.x, pos.y, pos.z, body, contact)) continue;
+      if (c.post && this.knockOverPost(c.post, collisionEntity, carEntity, body, pos)) continue;
+      respond(c);
     }
+  }
+
+  // A vehicle at POST_KNOCK_SPEED or more fells the post in its direction of travel: the post's owner animates the
+  // fall (set.fall), the vehicle keeps 60 % of its speed with a short jolt, and the impact is reported (the audio
+  // system's crash). Slower, or on foot, the post stays a solid collider (false). Fallen posts are passed over.
+  knockOverPost(post, entity, carEntity, body, pos) {
+    if (!entity || entity.type === 'person' || post.fallen) return false;
+    const sin = carEntity ? body.sin : Math.sin(entity.heading), cos = carEntity ? body.cos : Math.cos(entity.heading);
+    const vx = sin * entity.speed + (entity.vx || 0), vz = cos * entity.speed + (entity.vz || 0);
+    const v = Math.hypot(vx, vz);
+    if (v < POST_KNOCK_SPEED) return false;
+    const dx = vx / v, dz = vz / v;
+    post.fallen = true;
+    post.set.fall(post, dx, dz);
+    entity.speed *= 0.6;
+    if ('vx' in entity) { entity.vx *= 0.6; entity.vz *= 0.6; }
+    const jolt = Math.min(14, v);
+    if (carEntity) {
+      // the van's nose dips and the body heaves, as against a wall but lighter
+      carEntity.pitchVel = (carEntity.pitchVel || 0) - jolt * 0.1;
+      carEntity.heaveVel = (carEntity.heaveVel || 0) + Math.min(1.0, v * 0.08);
+      carEntity.rollVel = (carEntity.rollVel || 0) + ((post.x - pos.x) * cos - (post.z - pos.z) * sin >= 0 ? -1 : 1) * jolt * 0.08;
+      if (v > 2.2) carEntity.lastCollisionSpark = { x: post.x, y: 0.56, z: post.z, nx: -dx, nz: -dz, speed: v };
+    } else if ('leanAngle' in entity) {
+      entity.leanAngle += ((post.x - pos.x) * cos - (post.z - pos.z) * sin >= 0 ? 0.1 : -0.1) * Math.min(1, v / 6);
+    }
+    this.reportCollision(entity, post, 'post', post.x, pos.y + 0.6, post.z, -dx, 0, -dz, v * 0.8);
+    return true;
   }
 
   // Obstacles that are not buildings: the parked VW T3 and snow groomer as oriented boxes (whatever the player is
@@ -2014,7 +2074,45 @@ class ThirdPersonControllerManager {
         }
       }
     }
+    // The standing lamp and sign posts (the helicopter flies over them)
+    if (this._postCells && entity?.type !== 'helicopter') {
+      const pool = this._postPool ??= [];
+      let used = 0;
+      const CELL = POST_CELL, posts = this._posts;
+      for (let ix = Math.floor((x - reach) / CELL); ix <= Math.floor((x + reach) / CELL); ix++) {
+        for (let iz = Math.floor((z - reach) / CELL); iz <= Math.floor((z + reach) / CELL); iz++) {
+          const span = this._postCells.get(ix * 65536 + iz); // (start * 1024 + count, see setKnockablePosts)
+          if (span === undefined) continue;
+          for (let k = Math.floor(span / 1024), end = k + span % 1024; k < end; k++) {
+            const p = posts[k];
+            if (p.fallen || Math.abs(p.x - x) > reach || Math.abs(p.z - z) > reach) continue;
+            const c = pool[used] ??= { minY: -1e9, maxY: 1e9, post: null };
+            used++;
+            c.post = p;
+            c.minX = p.x - p.r; c.maxX = p.x + p.r; c.minZ = p.z - p.r; c.maxZ = p.z + p.r;
+            out.push(c);
+          }
+        }
+      }
+    }
     return out;
+  }
+
+  // The lamp posts (street-details.js) and sign posts (traffic-signs.js) a vehicle can knock over: { x, z, r, set, i }
+  // each, set.fall(post, dirX, dirZ) animating the post's fall; bucketed like the trees (the list sorted by cell, a
+  // span per cell). Replaces the previous list; returns the number of posts kept.
+  setKnockablePosts(posts = []) {
+    const list = posts.filter((p) => Number.isFinite(p?.x) && Number.isFinite(p?.z) && p.r > 0 && typeof p.set?.fall === 'function');
+    const keyOf = (p) => Math.floor(p.x / POST_CELL) * 65536 + Math.floor(p.z / POST_CELL);
+    list.sort((a, b) => keyOf(a) - keyOf(b));
+    const cells = new Map();
+    list.forEach((p, k) => {
+      const key = keyOf(p), span = cells.get(key);
+      cells.set(key, span === undefined ? k * 1024 + 1 : span % 1024 < 1023 ? span + 1 : span);
+    });
+    this._posts = list;
+    this._postCells = cells;
+    return list.length;
   }
 
   // The trees (street-details.js sites: { x, z, scale }) whose trunks stop the snow groomer, bucketed once

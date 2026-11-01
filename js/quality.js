@@ -53,7 +53,7 @@ const PROFILES = {
     treeAtlas: 2048, // the leaf atlas (px a side, 4 x 4 tiles)
     facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
     deferScenery: false, // build the golf course and the streams after the first frame (their build's garbage apart)
-    worldRadius: 0, // m: the streets, sidewalks, markings and draped overlays only this far from the start (0: everywhere)
+    worldRadius: 0, // m: the streets, sidewalks, markings, track bed and car parks only this far round the player, streamed in cells (0: everywhere at once)
   },
   mobile: {
     name: 'mobile',
@@ -94,8 +94,10 @@ const PROFILES = {
     deferScenery: true,
     // (an iPhone 13 closed the tab while the town's ground layers were built, even with every other system left out:
     // ~6.8 GB of short-lived arrays for the whole valley, which Safari's garbage collector let pile up to ~2.5 GB. Only
-    // the town within this radius of the start gets its streets, sidewalks, curbs, markings and draped overlays; beyond
-    // it, the terrain with its orthophoto. A teleport farther than the radius reloads the town around the destination.)
+    // the town about this far round the player gets its streets, sidewalks, curbs, markings, track bed and car parks,
+    // built in 500 m cells that follow the player (js/world-stream.js: a cell comes within worldRadius - 300 m and
+    // goes again 300 m farther out); beyond, the terrain with its orthophoto. A teleport farther than the radius
+    // reloads the town around the destination.)
     worldRadius: 1300,
   }
 };
@@ -188,6 +190,44 @@ export function segmentInWorld(ax, az, bx, bz, pad = 0) {
   const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1e-9;
   const t = Math.max(0, Math.min(1, ((WORLD.x - ax) * dx + (WORLD.z - az) * dz) / L2));
   return Math.hypot(ax + t * dx - WORLD.x, az + t * dz - WORLD.z) <= WORLD.radius + pad;
+}
+
+/**
+ * Regions: the part of the valley a builder builds for. The radius-dependent builders (js/city-grid.js ground layers,
+ * js/road-paint.js, js/trams.js track bed, js/parking.js) take one; on the desktop profile it is REGION_ALL, on the
+ * mobile profile js/world-stream.js hands them the 500 m cells around the player, one at a time, as the player moves.
+ *  - point(x, z, pad), box(minX, maxX, minZ, maxZ, pad), segment(ax, az, bx, bz, pad): whether something there comes
+ *    within `pad` m of the region (for the neighbours a piece is clipped against: a little beyond the region too);
+ *  - owns(x, z), ownsSegment(ax, az, bx, bz): whether the region builds the thing (a cell owns the points in its
+ *    half-open square and the segments whose middle lies in it, so that neighbouring cells never build a piece twice).
+ */
+export const REGION_ALL = Object.freeze({
+  all: true, point: () => true, box: () => true, segment: () => true, owns: () => true, ownsSegment: () => true
+});
+/** The square [minX, maxX) x [minZ, maxZ) */
+export function rectRegion(minX, maxX, minZ, maxZ) {
+  const point = (x, z, pad = 0) => x >= minX - pad && x <= maxX + pad && z >= minZ - pad && z <= maxZ + pad;
+  const box = (bMinX, bMaxX, bMinZ, bMaxZ, pad = 0) => bMaxX >= minX - pad && bMinX <= maxX + pad && bMaxZ >= minZ - pad && bMinZ <= maxZ + pad;
+  const segment = (ax, az, bx, bz, pad = 0) => {
+    // (Liang-Barsky: the part of the segment inside the padded square)
+    const x0 = minX - pad, x1 = maxX + pad, z0 = minZ - pad, z1 = maxZ + pad;
+    const dx = bx - ax, dz = bz - az;
+    let t0 = 0, t1 = 1;
+    for (const [p, q] of [[-dx, ax - x0], [dx, x1 - ax], [-dz, az - z0], [dz, z1 - az]]) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+      else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+    return true;
+  };
+  const owns = (x, z) => x >= minX && x < maxX && z >= minZ && z < maxZ;
+  return { all: false, minX, maxX, minZ, maxZ, point, box, segment, owns, ownsSegment: (ax, az, bx, bz) => owns((ax + bx) / 2, (az + bz) / 2) };
+}
+/** The region the profile builds at once: everything (desktop), or the circle round WORLD's centre (js/quality.js worldRadius) */
+export function worldRegion() {
+  if (WORLD.radius === Infinity) return REGION_ALL;
+  return { all: false, point: inWorld, box: boxInWorld, segment: segmentInWorld, owns: inWorld, ownsSegment: segmentInWorld };
 }
 
 export { PROFILES as QUALITY_PROFILES };

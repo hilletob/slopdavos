@@ -7,7 +7,7 @@ import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, createLoftedCarMat
 import { createRoadSurfaceMaterial, createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { berlinPolygonGeometry } from './berlin-geometry.js';
-import { inWorld } from './quality.js';
+import { worldRegion } from './quality.js';
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
 // bays and parked cars. In each lot the bays are laid out along its longest edge: thin lots (street-side and lane
@@ -193,14 +193,19 @@ function lotSurface(lot) {
   return draped;
 }
 
-export function buildParking(scene) {
+let sharedObstacles = null, sharedMaterials = null, sharedFarGeometry = null;
+/**
+ * The car parks in `region` (js/quality.js regions: everything on the desktop profile; on the mobile one
+ * js/world-stream.js asks for its cells round the player, one group each), added to `scene` (or the group passed).
+ */
+export function buildParking(scene, region = worldRegion()) {
   const group = new THREE.Group();
   group.name = 'Parking';
   group.userData.terrain = 'absolute'; // laid on the terrain here
   scene.add(group);
-  const obs = obstacles();
-  // (the mobile profile, js/quality.js worldRadius: only the car parks near the start)
-  const lots = (PARKING_DATA || []).filter((lot) => !lot.ring?.length || inWorld(lot.ring[0], lot.ring[1], 150));
+  const obs = sharedObstacles || (sharedObstacles = obstacles());
+  // (the mobile profile, js/quality.js worldRadius: only the car parks of the cell being built)
+  const lots = (PARKING_DATA || []).filter((lot) => !lot.ring?.length ? region.all : region.owns(lot.ring[0], lot.ring[1]));
   const bays = [];
   let photographed = 0;
   for (const lot of lots) {
@@ -269,8 +274,8 @@ export function buildParking(scene) {
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   const colliders = [];
   const cellMeshes = [];
-  const materials = Object.fromEntries(KINDS.map((k) => [k, createLoftedCarMaterial(BODY_SPECS[k])]));
-  const farGeometry = Object.fromEntries(KINDS.map((k) => [k, buildCarProxyGeometry(BODY_SPECS[k])]));
+  const materials = sharedMaterials || (sharedMaterials = Object.fromEntries(KINDS.map((k) => [k, createLoftedCarMaterial(BODY_SPECS[k])])));
+  const farGeometry = sharedFarGeometry || (sharedFarGeometry = Object.fromEntries(KINDS.map((k) => [k, buildCarProxyGeometry(BODY_SPECS[k])])));
   for (const cell of cells.values()) {
     const entry = { x: cell.x, z: cell.z, far: [], cars: [] };
     for (const kind of KINDS) {
@@ -373,6 +378,6 @@ export function buildParking(scene) {
   }
 
   group.userData.stats = { lots: lots.length, photographed, bays: bays.length, cars: cars.length, cells: cells.size };
-  console.info(`[parking] ${lots.length} lots (${photographed} with the bays painted in the aerial photo), ${bays.length} bays, ${cars.length} parked cars in ${cells.size} cells`);
+  if (region.all) console.info(`[parking] ${lots.length} lots (${photographed} with the bays painted in the aerial photo), ${bays.length} bays, ${cars.length} parked cars in ${cells.size} cells`);
   return { group, update, colliders, stats: group.userData.stats };
 }

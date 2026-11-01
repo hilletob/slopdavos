@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { cityUniforms } from './tsl-materials.js';
-import { plateAtlasTexture, PLATE_COUNT, PLATE_ATLAS } from './plates.js';
+import { plateAtlasTexture, liveryAtlasTexture, PLATE_COUNT, PLATE_ATLAS, POLICE_PLATE, LIVERY_ATLAS, POLICE_BLUE, POLICE_ORANGE } from './plates.js';
 import {
   Fn,
   float,
@@ -31,7 +31,7 @@ import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometr
 // Realistic 3D Lofted Vehicle Geometry + TSL Materials (the skinned, animated people are in pedestrians.js)
 // Ported and adapted from Three.js webgpu_generator_city:
 // - LoftGeometry.js (skinning 3D cross-section rings with arc-length UVs, smooth seam normals & Newell caps)
-// - CarGenerator.js (lofted sedan/taxi/SUV/NYPD bodies with circular wheel arches, curved cabin windscreens,
+// - CarGenerator.js (lofted sedan/taxi/SUV/police bodies with circular wheel arches, curved cabin windscreens,
 //   crowned roofs, LatheGeometry tyres & recessed 5-spoke alloy wheels, side mirrors, roof signs & TSL fascia/seams)
 
 const _vector = new THREE.Vector3();
@@ -199,7 +199,7 @@ function part(geometry, id) {
 // (monotone cubic splines) plus elliptical roundings into the nose and tail: rounded plan-view corners, a hood that
 // rolls down into the fascia, a tucked-in sill, crowned hood & deck, fender flares and circular wheel arches. A second,
 // open loft sits on the belt line as the glasshouse (raked windshield & backlight, tumblehome side glass, crowned roof
-// with rounded rails). All the detail (glass, seals, pillars, lamps, grilles, plates, door seams, NYPD & taxi liveries,
+// with rounded rails). All the detail (glass, seals, pillars, lamps, grilles, plates, door seams, police & taxi liveries,
 // brake lights & turn signals) is painted by one TSL material from object-space position & normal, so each body type
 // stays a single instanced draw call.
 const CAR_PARTS = {
@@ -1014,7 +1014,8 @@ function buildCarProxyGeometry(spec) {
   return mergeGeometries(parts);
 }
 
-// NYPD roof light bar (red on the -x half, blue on the +x half) for a body spec's roof, lit by createLightbarMaterial
+// Police roof light bar (Swiss: blue lenses only, flashing alternately on the two halves) for a body spec's roof, lit by
+// createLightbarMaterial
 function buildLightbarGeometry(spec = BODY_SPECS.sedan) {
   const L = carLayout(spec);
   const cab = spec.cabin;
@@ -1031,7 +1032,8 @@ function buildLightbarGeometry(spec = BODY_SPECS.sedan) {
 
 let _lightbarMat = null;
 
-// Light bar lenses: red & blue halves flashing in alternation (double strobes), each car on its own phase
+// Light bar lenses: Swiss blue lights only (no red), the left & right halves flashing in alternation (double strobes),
+// each car on its own phase
 function createLightbarMaterial() {
   if (_lightbarMat) return _lightbarMat;
   const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.18, metalness: 0.1 });
@@ -1042,20 +1044,21 @@ function createLightbarMaterial() {
     const phase = fract(float(instanceIndex).mul(0.61803)).toVar();
     const t = fract(time.mul(1.6).add(phase)).toVar();
     const strobe = step(0.5, fract(t.mul(6.0)));
-    const redOn = step(t, 0.5).mul(strobe);
-    const blueOn = step(0.5, t).mul(strobe);
-    const isRed = step(p.x, -0.035);
-    const isBlue = step(0.035, p.x);
-    return { isLens, redOn, blueOn, isRed, isBlue };
+    const leftOn = step(t, 0.5).mul(strobe);
+    const rightOn = step(0.5, t).mul(strobe);
+    const isLeft = step(p.x, -0.035);
+    const isRight = step(0.035, p.x);
+    return { isLens, leftOn, rightOn, isLeft, isRight };
   };
   mat.colorNode = Fn(() => {
     const s = lightbar();
-    const lens = mix(mix(color(0xd8dde2), color(0x8a0d12), s.isRed), color(0x0f3c9a), s.isBlue);
+    const lens = mix(color(0xd8dde2), color(0x0f3c9a), max(s.isLeft, s.isRight));
     return mix(color(0x15181b), lens, s.isLens);
   })();
   mat.emissiveNode = Fn(() => {
     const s = lightbar();
-    return color(0xff1a22).mul(s.isRed.mul(s.redOn).mul(6.0)).add(color(0x2a6cff).mul(s.isBlue.mul(s.blueOn).mul(7.0))).mul(s.isLens);
+    const on = s.isLeft.mul(s.leftOn).add(s.isRight.mul(s.rightOn));
+    return color(0x2a6cff).mul(on.mul(7.0)).mul(s.isLens);
   })();
   _lightbarMat = mat;
   return mat;
@@ -1291,19 +1294,34 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   );
 
   // ---- Colour ---------------------------------------------------------------------------------------------------
-  // Liveries: Swiss police (Kantonspolizei: white with a two-row blue & fluorescent-yellow chequered band along the
-  // sides, "POLIZEI" in blue on the front doors). Davos taxis carry only their roof sign.
-  const isPolice = (fixed ? float(0) : step(0.5, state.w)).mul(isSide).mul(isBody);
-  const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
+  // Liveries: the Kantonspolizei Graubünden's patrol cars (white estates with a fluorescent-orange retro-reflective
+  // band and a blue stripe along the flanks, "POLIZEI" in blue on the front doors and bonnet, the cantonal shield on
+  // the wings, the force's trilingual name small on the rear doors: the lettering from plates.js's livery atlas).
+  // Davos taxis carry only their roof sign.
+  const isPoliceCar = fixed ? float(0) : step(0.5, state.w);
+  const isPolice = isPoliceCar.mul(isSide).mul(isBody);
   const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
-  const band = smoothstep(0.495, 0.5, p.y).mul(smoothstep(0.645, 0.64, p.y)).mul(along);
-  const checker = step(0.5, fract(p.z.mul(2.8))).sub(step(0.5705, p.y)).abs(); // two rows, alternating
-  const lettering = step(0.45, sin(p.z.mul(70.0)))
-    .mul(smoothstep(0.725, 0.73, p.y))
-    .mul(smoothstep(0.81, 0.805, p.y))
-    .mul(step(abs(p.z.sub(doorMid)), 0.22));
-  const chequer = mix(color(0xd9ee10), color(0x1d3f8f), checker);
-  const painted = mix(mix(paint, chequer, band.mul(isPolice)), color(0x1d3f8f), lettering.mul(isPolice));
+  const orangeBand = smoothstep(0.505, 0.51, p.y).mul(smoothstep(0.655, 0.65, p.y)).mul(along);
+  const blueStripe = smoothstep(0.455, 0.46, p.y).mul(smoothstep(0.5, 0.495, p.y)).mul(along);
+  const band = max(orangeBand, blueStripe);
+  const LA = LIVERY_ATLAS, LS = LA.side, LH = LA.hood;
+  const livery = liveryAtlasTexture();
+  // Flank decals, read from outside: the nose to the viewer's left on the +x side, to the right on the -x side
+  const sideU = mix(p.z.sub(LS.zRear), float(LS.zFront).sub(p.z), step(0.0, n.x)).div(LS.zFront - LS.zRear);
+  const sideV = float(LS.top).sub(p.y).div(LS.top - LS.bottom);
+  const sideUV = vec2(sideU.mul(LS.w).add(LS.x).div(LA.w), one.sub(sideV.mul(LS.h).add(LS.y).div(LA.h)));
+  const inSide = step(abs(sideU.sub(0.5)), 0.5).mul(step(abs(sideV.sub(0.5)), 0.5));
+  const sideDecal = livery ? texture(livery, sideUV) : color(0x000000);
+  // The bonnet's decal, read from ahead
+  const hoodU = p.x.add(LH.halfWidth).div(2 * LH.halfWidth);
+  const hoodV = float(LH.zFar).sub(p.z).div(LH.zFar - LH.zNear);
+  const hoodUV = vec2(hoodU.mul(LH.w).add(LH.x).div(LA.w), one.sub(hoodV.mul(LH.h).add(LH.y).div(LA.h)));
+  const onHood = isPoliceCar.mul(isBody).mul(step(0.6, n.y)).mul(step(abs(hoodU.sub(0.5)), 0.5)).mul(step(abs(hoodV.sub(0.5)), 0.5));
+  const hoodDecal = livery ? texture(livery, hoodUV) : color(0x000000);
+  const decalA = max(sideDecal.a.mul(inSide).mul(isPolice), hoodDecal.a.mul(onHood));
+  const decalRGB = mix(sideDecal.rgb, hoodDecal.rgb, onHood);
+  const foil = mix(color(POLICE_ORANGE), color(POLICE_BLUE), blueStripe);
+  const painted = mix(mix(paint, foil, band.mul(isPolice)), decalRGB, decalA);
 
   // Panel shading: soft occlusion low down & under the arch lips; unpainted cladding (SUVs); door shut lines &
   // handles; trunk / hood shut lines; black cowl panel under the windshield
@@ -1339,7 +1357,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   body = mix(body, color(0x24292d), plateRecess);
   // One of the atlas's plates per car (from its paint; the player's car carries plate 0, from Graubünden): the rear plate
   // read from behind (x mirrored), the front one from ahead
-  const plateVariant = fixed ? float(0) : floor(fract(paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17))).mul(PLATE_COUNT));
+  // (the patrol cars carry POLICE_PLATE, which no other car does: a hash landing on it moves on to the next plate)
+  const hashedVariant = fixed ? float(0) : floor(fract(paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17))).mul(PLATE_COUNT));
+  const plateVariant = fixed ? hashedVariant : mix(hashedVariant.add(step(abs(hashedVariant.sub(POLICE_PLATE)), 0.5)), float(POLICE_PLATE), isPoliceCar);
   const plateRow = floor(plateVariant.div(PLATE_ATLAS.cols)), plateCol = plateVariant.sub(plateRow.mul(PLATE_ATLAS.cols));
   const atlasUV = (u, v, top, h) => vec2(plateCol.add(u).div(PLATE_ATLAS.cols), one.sub(plateRow.add(one.sub(v)).mul(h).add(top).div(PLATE_ATLAS.size)));
   const plateAtlas = plateAtlasTexture();
@@ -1397,13 +1417,15 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const stop = color(0xff0a12).mul(chmsl.mul(brake).mul(2.1));
   const turn = color(0xff9a14).mul(max(turnFront, turnRear).mul(blink).mul(2.2));
   const sign = color(0xffe28a).mul(signFace.mul(one.sub(signGlyph.mul(0.9))).mul(1.65));
+  // The retro-reflective foil catches the street lights at night
+  const foilGlow = foil.mul(band.mul(isPolice).mul(nightHeadlamp).mul(0.3));
 
   const mat = new THREE.MeshStandardNodeMaterial();
   if (fixed) mat.userData.carState = stateUniform;
   mat.colorNode = col;
   mat.roughnessNode = rough;
   mat.metalnessNode = metal;
-  mat.emissiveNode = headlamps.add(tail).add(stop).add(turn).add(sign);
+  mat.emissiveNode = headlamps.add(tail).add(stop).add(turn).add(sign).add(foilGlow);
   if (fixed) mat.emissiveNode = mat.emissiveNode.add(color(0xf0f6ff).mul(tailLens).mul(reverseRearSection).mul(state.w).mul(1.8));
 
   _carMaterialCache.set(cacheKey, mat);

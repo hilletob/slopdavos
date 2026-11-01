@@ -3,7 +3,7 @@ import { CROSSWALK } from './road-network.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { GEO } from './nyc-geodata.js';
-import { segmentInWorld } from './quality.js';
+import { worldRegion } from './quality.js';
 
 // js/road-paint.js
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
@@ -15,8 +15,14 @@ const YELLOW = new THREE.Color(0xe8ad22);
 const GREEN = new THREE.Color(0x2a8a4e);
 const SWISS_YELLOW = new THREE.Color(0xf6bf10); // Fussgängerstreifen (SSV: yellow)
 const HEIGHT = 0.012; // above the asphalt
+let paintMat = null; // (one material for every cell's markings: one shader)
+const paintMaterial = () => paintMat || (paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true }));
 
-function buildRoadPaint(scene, network) {
+/**
+ * The markings of the network's roads in `region` (js/quality.js regions: everything on the desktop profile; on the
+ * mobile one js/world-stream.js asks for its cells, one mesh each), added to `scene` (or whatever group is passed).
+ */
+function buildRoadPaint(scene, network, region = worldRegion()) {
   const position = [];
   const side = [];
   const paint = [];
@@ -29,7 +35,7 @@ function buildRoadPaint(scene, network) {
   function strip(ax, az, bx, bz, w, col, period = 1, duty = 1, phase = 0, flow = 1) {
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) return;
-    if (!segmentInWorld(ax, az, bx, bz)) return; // (the mobile profile: only the town around the start, js/quality.js)
+    if (!region.ownsSegment(ax, az, bx, bz)) return; // (the mobile profile: the cell being built, js/world-stream.js)
     const sx = ((az - bz) / len) * w * 0.5;
     const sz = ((bx - ax) / len) * w * 0.5;
     const i = position.length / 3;
@@ -206,7 +212,8 @@ function buildRoadPaint(scene, network) {
   geometry.setAttribute('paint', new THREE.Float32BufferAttribute(paint, 3));
   geometry.setIndex(index);
 
-  const mesh = new THREE.Mesh(geometry, snowyStreet(createRoadPaintMaterial(), { paint: true })); // under the snow in winter
+  if (!index.length && !region.all) { geometry.dispose(); return null; } // (a cell without a marked road)
+  const mesh = new THREE.Mesh(geometry, paintMaterial()); // under the snow in winter
   mesh.name = 'RoadMarkings';
   mesh.receiveShadow = true;
   mesh.renderOrder = -1; // under the other see-through ground effects (contact shadows, headlight beams)

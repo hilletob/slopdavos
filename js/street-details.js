@@ -252,6 +252,7 @@ function buildStreetDetails(scene) {
   const pedPostMatrices = [];
   const davosMastMatrices = []; // Davos swan-neck masts (BERLIN_DATA)
   const kandelaberMatrices = []; // Davos candelabras
+  const davosMastSites = [], kandelaberSites = []; // their light sites, by instance (put out when one is knocked over)
   // The hotels along the Promenade (OSM tourism=hotel, centroids) and the Parsennbahn's valley station: candelabras
   // there instead of the masts, on their side of the street ([x, z, n]: a row of them, n more either way 11 m apart)
   const KANDELABER_SPOTS = [[699, -1511], [672, -1389], [668, -1440, 2], [544, -1165], [551, -963], [318, -735], [187, -619],
@@ -583,6 +584,7 @@ function buildStreetDetails(scene) {
           // (and the hotel's light facade 3 m behind it, which anything much stronger burns out to white: the light
           // sits 1 m to the street side of the lanterns, away from the wall)
           streetPointSites.push({ x: x + s.nx, y: 4.3, z: z + s.nz, color: 0xffd9a8, intensity: 36, dist: 11 });
+          kandelaberSites.push(streetPointSites[streetPointSites.length - 1]);
           addPole(x, z, 0.17);
         }
       } else {
@@ -590,6 +592,7 @@ function buildStreetDetails(scene) {
         setMatrix(davosMastMatrices, s.x, 0, s.z, 1, 1, 1, yaw);
         const lx = s.x + s.nx * DAVOS_LAMP.reach, lz = s.z + s.nz * DAVOS_LAMP.reach;
         cobraLampSites.push({ x: lx, y: DAVOS_LAMP.y - 0.05, z: lz, tx: s.x + s.nx * 3.6, tz: s.z + s.nz * 3.6 });
+        davosMastSites.push(cobraLampSites[cobraLampSites.length - 1]);
         addPole(s.x, s.z, 0.15);
       }
       if (s.name && i % 4 === 0 && (berlinSignMatrices.has(s.name) || berlinSignMatrices.size < 70 || expansionStreetSigns.has(s.name))) {
@@ -617,7 +620,7 @@ function buildStreetDetails(scene) {
   }
 
   function addMatrixArrayInstanced(geo, mat, matrices, castShadow = true) {
-    if (matrices.length === 0) return;
+    if (matrices.length === 0) return null;
     const inst = new THREE.InstancedMesh(geo, mat, matrices.length);
     if (castShadow && !mat.isMeshBasicNodeMaterial && mat.type !== 'MeshBasicNodeMaterial' && !mat.transparent) {
       inst.castShadow = true;
@@ -628,6 +631,82 @@ function buildStreetDetails(scene) {
     }
     inst.instanceMatrix.needsUpdate = true;
     group.add(inst);
+    return inst;
+  }
+
+  // The masts and candelabras go down when a vehicle drives into them (controllers.js setKnockablePosts, which
+  // calls set.fall): the hit instance turns about its foot in the direction of travel over FALL_MS, then lies there
+  // for the session, its lens blanked and its light taken out of the pool (site.off). Only the instance matrix of
+  // the hit mast changes, in place: no new geometry or draw.
+  const knockablePosts = [];
+  const falling = [];
+  const FALL_MS = 600, FALL_ANGLE = Math.PI / 2 * 0.97;
+  const _fallM = new THREE.Matrix4(), _fallR = new THREE.Matrix4(), _fallAxis = new THREE.Vector3();
+  function addKnockable(mesh, lens, matrices, sites, r) {
+    if (!mesh) return;
+    const set = {
+      fall(post, dx, dz) {
+        const at = locateInstance(mesh, post);
+        if (!at) return;
+        const target = ({ mesh, i }) => { const base = new THREE.Matrix4(); mesh.getMatrixAt(i, base); return { mesh, i, base }; };
+        const targets = [target(at)]; // (its matrix lifted onto the terrain by main.js by now)
+        const e = targets[0].base.elements;
+        const proxy = locateShadowProxy(e[12], e[13], e[14]);
+        if (proxy) targets.push(target(proxy)); // its sun shadow goes down with it
+        const glow = lens && locateInstance(lens, post);
+        if (glow) { glow.mesh.setMatrixAt(glow.i, _fallM.makeScale(0, 0, 0)); glow.mesh.instanceMatrix.needsUpdate = true; } // the lamp goes out
+        if (sites[post.i]) sites[post.i].off = true;
+        falling.push({ targets, ax: dz, az: -dx, t0: performance.now() });
+      }
+    };
+    for (let i = 0; i < matrices.length; i++) {
+      const e = matrices[i].elements;
+      knockablePosts.push({ x: e[12], z: e[14], r, set, i });
+    }
+  }
+  // scene-culling.js may have cut `mesh` into per-cell chunks (sharing its vertex attributes) and taken it out of the
+  // group: the instance standing at the post is then the chunk's whose matrix puts it there. { mesh, i } or null.
+  function locateInstance(mesh, post) {
+    if (mesh.parent) return { mesh, i: post.i };
+    const position = mesh.geometry.attributes.position;
+    for (const c of group.children) {
+      if (!c.isInstancedMesh || c.geometry.attributes.position !== position) continue;
+      const a = c.instanceMatrix.array;
+      for (let j = 0; j < c.count; j++) if (Math.abs(a[j * 16 + 12] - post.x) < 0.01 && Math.abs(a[j * 16 + 14] - post.z) < 0.01) return { mesh: c, i: j };
+    }
+    return null;
+  }
+  // The masts cast their sun shadows through scene-culling.js' position-only stand-ins (instanced meshes with the
+  // 'ShadowProxy' material, world-space matrices, built after this): the one standing at (x, y, z), or null
+  let shadowProxies = null;
+  function locateShadowProxy(x, y, z) {
+    if (!shadowProxies) {
+      shadowProxies = [];
+      scene.traverse((o) => { if (o.isInstancedMesh && o.material?.name === 'ShadowProxy') shadowProxies.push(o); });
+    }
+    for (const m of shadowProxies) {
+      const a = m.instanceMatrix.array;
+      for (let j = 0; j < m.count; j++) {
+        if (Math.abs(a[j * 16 + 12] - x) < 0.02 && Math.abs(a[j * 16 + 14] - z) < 0.02 && Math.abs(a[j * 16 + 13] - y) < 0.05) return { mesh: m, i: j };
+      }
+    }
+    return null;
+  }
+  function animateFalling() {
+    if (!falling.length) return;
+    const now = performance.now();
+    for (let k = falling.length - 1; k >= 0; k--) {
+      const f = falling[k];
+      const p = Math.min(1, (now - f.t0) / FALL_MS);
+      _fallR.makeRotationAxis(_fallAxis.set(f.ax, 0, f.az).normalize(), FALL_ANGLE * p * p); // (gaining speed as it goes)
+      for (const t of f.targets) {
+        const e = t.base.elements;
+        _fallM.copy(t.base).setPosition(0, 0, 0).premultiply(_fallR).setPosition(e[12], e[13], e[14]);
+        t.mesh.setMatrixAt(t.i, _fallM);
+        t.mesh.instanceMatrix.needsUpdate = true; // (main.js may have swapped the attribute for a storage one: look it up)
+      }
+      if (p >= 1) falling.splice(k, 1);
+    }
   }
 
   addMatrixArrayInstanced(unitCyl, poleMetalMat, poleMatrices);
@@ -643,12 +722,14 @@ function buildStreetDetails(scene) {
   addMatrixArrayInstanced(pedLampPostGeo, poleMetalMat, pedPostMatrices);
   addMatrixArrayInstanced(pedGlobeGeo, pedGlobeGlow, pedPostMatrices, false);
   if (davosMastGeo) {
-    const before = group.children.length;
-    addMatrixArrayInstanced(davosMastGeo, davosMastMat, davosMastMatrices);
-    addMatrixArrayInstanced(davosLensGeo, davosLampGlow, davosMastMatrices, false);
-    addMatrixArrayInstanced(kandelaberPostGeo, poleMetalMat, kandelaberMatrices);
-    addMatrixArrayInstanced(kandelaberGlassGeo, kandelaberGlow, kandelaberMatrices, false);
-    for (const m of group.children.slice(before)) m.name = m.geometry === davosMastGeo || m.geometry === davosLensGeo ? 'DavosStreetlights' : 'DavosCandelabras';
+    const mastInst = addMatrixArrayInstanced(davosMastGeo, davosMastMat, davosMastMatrices);
+    const mastLens = addMatrixArrayInstanced(davosLensGeo, davosLampGlow, davosMastMatrices, false);
+    const kandInst = addMatrixArrayInstanced(kandelaberPostGeo, poleMetalMat, kandelaberMatrices);
+    const kandGlass = addMatrixArrayInstanced(kandelaberGlassGeo, kandelaberGlow, kandelaberMatrices, false);
+    for (const m of [mastInst, mastLens]) if (m) m.name = 'DavosStreetlights';
+    for (const m of [kandInst, kandGlass]) if (m) m.name = 'DavosCandelabras';
+    addKnockable(mastInst, mastLens, davosMastMatrices, davosMastSites, 0.15);
+    addKnockable(kandInst, kandGlass, kandelaberMatrices, kandelaberSites, 0.17);
   }
   if (berlinSignMatrices.size) {
     // One draw for every street's name blades (was one per street). The thin blades cast no sun shadow (their poles do).
@@ -1320,6 +1401,7 @@ function buildStreetDetails(scene) {
     for (let ix = Math.floor((cx - range) / LIGHT_CELL); ix <= Math.floor((cx + range) / LIGHT_CELL); ix++) {
       for (let iz = Math.floor((cz - range) / LIGHT_CELL); iz <= Math.floor((cz + range) / LIGHT_CELL); iz++) {
         for (const s of cells.get(ix + ',' + iz) || []) {
+          if (s.off) continue; // (its mast was knocked over)
           const dx = s.x - cx, dz = s.z - cz;
           const d2 = dx * dx + dz * dz + cy * cy;
           if (d2 > range * range) continue;
@@ -1345,6 +1427,7 @@ function buildStreetDetails(scene) {
 
   function update(camera) {
     if (!camera) return;
+    animateFalling();
     const altitude = camera.position.y - groundHeight(camera.position.x, camera.position.z);
     setFarTreeShadows(farTreeShadows ? altitude > 90 : altitude > 110);
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
@@ -1411,7 +1494,7 @@ function buildStreetDetails(scene) {
   }
 
   scene.add(group);
-  return { group, footprints, signalClock, signalIntersections, audioSignals, update, trees: treePositions };
+  return { group, footprints, signalClock, signalIntersections, audioSignals, update, trees: treePositions, knockablePosts };
 }
 
 export { buildStreetDetails };
