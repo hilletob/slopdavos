@@ -58,7 +58,7 @@ export class MissionManager {
   /** Starts the mission `id` (the one running is torn down first); unknown ids open the list with a note */
   start(id, { night = false } = {}) {
     const def = this.getMission(id);
-    if (!def) { this.showList(`Unbekannte Mission „${id}“`); return null; }
+    if (!def) { this.showList(`Unknown mission “${id}”`); return null; }
     this._end();
     this._closeList();
     const nightRun = !!night && !!def.nightTime;

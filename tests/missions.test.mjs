@@ -77,7 +77,7 @@ test('the Dischma mission reads the groom map frame by frame and finishes at 90 
   // nothing groomed yet, the tiller up: the hint
   let view = m.objectives[0].check(frame({ tillerRaised: true }), state);
   assert.equal(view.done, false);
-  assert.equal(view.hint, 'Fräse absenken [F]');
+  assert.equal(view.hint, 'Lower the tiller [F]');
   assert.ok(view.target && Math.hypot(view.target.x - state.samples[0].x, view.target.z - state.samples[0].z) < 1e-9);
   // the groomer drives the whole track: one segment per sample pair, exactly on the line
   const pts = state.loipe.pts;
@@ -91,7 +91,7 @@ test('the Dischma mission reads the groom map frame by frame and finishes at 90 
   assert.equal(view.done, true);
   view = m.objectives[1].check(frame(), state);
   assert.equal(view.done, false);
-  assert.match(view.text, /^Loipe \d+ % präpariert/);
+  assert.match(view.text, /^Trail \d+ % groomed/);
   assert.ok(view.progress > 0.2 && view.progress < 0.6);
   assert.ok(view.target, 'the arrow points to the next unprepared section');
   // the rest
@@ -114,12 +114,12 @@ test('the Rega rescue: approach, five steady seconds low over the patient, three
   assert.match(view.text, /500 m/);
   assert.equal(m.objectives[0].check(frame({ x: p.x - 20, z: p.z, agl: 30 }), state).done, true);
   // the night variant wants the searchlight
-  assert.equal(m.objectives[0].check(frame({ x: p.x, z: p.z, agl: 30, night: true }), state).hint, 'Suchscheinwerfer einschalten [L]');
+  assert.equal(m.objectives[0].check(frame({ x: p.x, z: p.z, agl: 30, night: true }), state).hint, 'Turn on the searchlight [L]');
   assert.equal(m.objectives[0].check(frame({ x: p.x, z: p.z, agl: 30, night: true, highBeam: true }), state).hint, null);
   // hovering: 2 m over the snow, 3 m off, 0.5 s steps
   for (let i = 0; i < 9; i++) view = m.objectives[1].check(frame({ x: p.x + 3, z: p.z, agl: 2, dt: 0.5 }), state);
   assert.equal(view.done, false);
-  assert.match(view.text, /Bergung läuft/);
+  assert.match(view.text, /Rescue under way/);
   assert.ok(view.progress > 0.85);
   // drifting up resets the count
   view = m.objectives[1].check(frame({ x: p.x + 3, z: p.z, agl: 6, dt: 0.5 }), state);
@@ -152,12 +152,12 @@ test('the avalanche mission: four zones in turn, a miss costs a shell, no shells
   assert.equal(m.objectives[0].check(frame(), state).done, true);
   view = m.objectives[1].check(frame(), state);
   assert.equal(view.done, false);
-  assert.match(view.text, /9 Schuss übrig · 2 daneben/);
+  assert.match(view.text, /9 rounds left · 2 missed/);
   m.update(frame({ shooter: { shots: 12, hits: 2, misses: 10, ammo: 0, inFlight: true } }), state);
   assert.equal(m.objectives[2].check(frame(), state).fail, null, 'the last shell is still flying');
   m.update(frame({ shooter: { shots: 12, hits: 2, misses: 10, ammo: 0, inFlight: false } }), state);
-  assert.equal(m.objectives[2].check(frame(), state).fail, 'Munition verschossen');
-  assert.deepEqual(m.summary(state), ['12 Schuss · 2 Treffer · 10 daneben']);
+  assert.equal(m.objectives[2].check(frame(), state).fail, 'Out of ammo');
+  assert.deepEqual(m.summary(state), ['12 shots · 2 hits · 10 missed']);
 });
 
 test('a shell falls on the ground where gravity takes it', () => {
@@ -191,7 +191,7 @@ test('the motorbike accident: land in the meadow, eight seconds of care, back to
   assert.equal(view.done, true);
   for (let i = 0; i < 7; i++) view = m.objectives[2].check(frame({ x: lz.x + 3, z: lz.z - 2, agl: 0.4, dt: 1 }), state);
   assert.equal(view.done, false);
-  assert.match(view.text, /Patient wird versorgt … 1 s/);
+  assert.match(view.text, /Treating the patient … 1 s/);
   view = m.objectives[2].check(frame({ x: lz.x + 3, z: lz.z - 2, agl: 5, dt: 1 }), state);
   assert.equal(state.treat, 0, 'lifting off resets the care');
   for (let i = 0; i < 9; i++) view = m.objectives[2].check(frame({ x: lz.x + 3, z: lz.z - 2, agl: 0.4, dt: 1 }), state);
@@ -206,7 +206,7 @@ test('the Kapo variant: blue light, the car across the road, cones on foot, the 
   assert.equal(m.start.teleport, 'promenade');
   const state = m.createState();
   let view = m.objectives[0].check(frame({ mode: 'car', x: 0, z: 0 }), state);
-  assert.equal(view.hint, 'Blaulicht einschalten [K]');
+  assert.equal(view.hint, 'Turn on the blue lights [K]');
   assert.equal(m.objectives[0].check(frame({ mode: 'car', x: 0, z: 0, blueLight: true }), state).hint, null);
   const zone = m.objectives[1].check(frame({ mode: 'car' }), state).target;
   assert.equal(zone.style, 'hazard');
@@ -216,7 +216,7 @@ test('the Kapo variant: blue light, the car across the road, cones on foot, the 
   const cone = m.objectives[2];
   assert.deepEqual(cone.allowModes, ['car', 'person']);
   view = cone.check(frame({ mode: 'car', x: 0, z: 0 }), state);
-  assert.equal(view.hint, 'Zu Fuss [1]');
+  assert.equal(view.hint, 'On foot [1]');
   const c = view.target;
   for (let i = 0; i < 3; i++) view = cone.check(frame({ mode: 'person', x: c.x + 1, z: c.z, dt: 1 }), state);
   assert.equal(view.done, true);
@@ -349,7 +349,7 @@ test('the manager: the night variant only where there is one, unknown ids and fa
   assert.equal(manager.start('gibt-es-nicht'), null);
   assert.equal(manager.active, false, 'the unknown id ends the run before');
   assert.equal(f.listOpen, 1);
-  assert.match(f.log.at(-1), /Unbekannte Mission/);
+  assert.match(f.log.at(-1), /Unknown mission/);
   // a list, then a mission from it: the list closes
   manager.start(withoutNight.id);
   assert.equal(f.listOpen, 0);

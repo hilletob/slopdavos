@@ -198,7 +198,7 @@ export function pointOnRun(id, t, runs = SKI_PISTES.runs) {
 }
 
 const dist2d = (ctx, p) => Math.hypot(ctx.x - p.x, ctx.z - p.z);
-const lightHint = (ctx) => (ctx.night && !ctx.highBeam ? 'Suchscheinwerfer einschalten [L]' : null);
+const lightHint = (ctx) => (ctx.night && !ctx.highBeam ? 'Turn on the searchlight [L]' : null);
 const headingTo = (a, b) => Math.atan2(b.x - a.x, b.z - a.z);
 
 // ====================================================================================================================
@@ -208,17 +208,17 @@ const headingTo = (a, b) => Math.atan2(b.x - a.x, b.z - a.z);
 const DISCHMA_LOIPE = { ids: ['w1034080622'], namePattern: /Dischma/i, xMin: 700 };
 const DISCHMA_TARGET = 0.9;
 const dischmaLoipe = () => findLoipe(DISCHMA_LOIPE);
-const tillerHint = (ctx) => (ctx.tillerRaised || ctx.tillerLift > 0.03 ? 'Fräse absenken [F]' : null);
+const tillerHint = (ctx) => (ctx.tillerRaised || ctx.tillerLift > 0.03 ? 'Lower the tiller [F]' : null);
 
 export const DISCHMA_MISSION = {
   id: 'dischma-loipe',
-  title: 'Dischma-Loipe präparieren',
-  intro: 'Die Nachtschicht ruft: Die Loipe im Dischmatal braucht frischen Cord. Fahre mit dem Pistenfahrzeug die Spur ab, die Fräse abgesenkt (F), bis 90 % der Loipe präpariert sind.',
+  title: 'Groom the Dischma trail',
+  intro: 'The night shift is calling: the cross-country trail in the Dischma valley needs fresh corduroy. Drive the snowcat along the track with the tiller lowered (F) until 90 % of the trail is groomed.',
   mode: 'snowcat',
   season: 'winter',
   time: 'golden',
   bonusMs: 6 * 60 * 1000,
-  finish: 'Loipe präpariert: Der Cord liegt, die Langläufer können kommen.',
+  finish: 'Trail groomed: the corduroy is down, the cross-country skiers can come.',
   get start() {
     const l = dischmaLoipe();
     if (!l) return { x: 1584, z: -151, heading: 0.9 };
@@ -245,19 +245,19 @@ export const DISCHMA_MISSION = {
   objectives: [
     {
       id: 'start',
-      title: 'Fräse absenken und auf die Loipe',
+      title: 'Lower the tiller and get on the trail',
       check(ctx, state) {
         const first = state.samples[0] || null;
-        return { done: doneFraction(state.samples) > 0, progress: null, text: 'Die Fräse muss unten sein, damit die Spur zählt.', target: first ? { x: first.x, z: first.z } : null, hint: tillerHint(ctx) };
+        return { done: doneFraction(state.samples) > 0, progress: null, text: 'The tiller has to be down for the track to count.', target: first ? { x: first.x, z: first.z } : null, hint: tillerHint(ctx) };
       }
     },
     {
       id: 'groom',
-      title: `Loipe zu ${Math.round(DISCHMA_TARGET * 100)} % präparieren`,
+      title: `Groom ${Math.round(DISCHMA_TARGET * 100)} % of the trail`,
       check(ctx, state) {
         const frac = doneFraction(state.samples);
         const next = nearestUndone(state.samples, ctx.x, ctx.z);
-        const text = `Loipe ${Math.round(frac * 100)} % präpariert · ${formatDistance(frac * state.length)} von ${formatDistance(state.length)}`;
+        const text = `Trail ${Math.round(frac * 100)} % groomed · ${formatDistance(frac * state.length)} of ${formatDistance(state.length)}`;
         return { done: frac >= DISCHMA_TARGET, progress: Math.min(1, frac / DISCHMA_TARGET), text, target: next ? { x: next.x, z: next.z } : null, hint: tillerHint(ctx) };
       }
     }
@@ -277,26 +277,26 @@ const patientPosition = () => { const p = pointOnRun(PATIENT_RUN.id, PATIENT_RUN
 /** The last leg every Rega mission shares: back to the Spital and down on the pad */
 const padLanding = (pad, idle = LAND_SECONDS) => ({
   id: 'return',
-  title: 'Zurück zum Spital und landen',
+  title: 'Return to the Spital and land',
   check(ctx, state) {
     const d = dist2d(ctx, pad);
     const down = d < pad.r && ctx.agl < 1 && Math.abs(ctx.speed) < 0.6 && Math.abs(ctx.verticalSpeed) < 0.6;
     state.land = down ? (state.land || 0) + ctx.dt : 0;
-    const text = down ? `Gelandet … ${Math.ceil(idle - state.land)} s` : d < 40 ? 'Auf dem Pad aufsetzen (H), ruhig halten' : `${formatDistance(d)} zum Rega-Landeplatz Spital`;
+    const text = down ? `Landed … ${Math.ceil(idle - state.land)} s` : d < 40 ? 'Set down on the pad (H), hold steady' : `${formatDistance(d)} to the Spital Rega pad`;
     return { done: state.land >= idle, progress: Math.min(1, state.land / idle), text, target: { ...pad, style: 'pad' }, hint: lightHint(ctx) };
   }
 });
 
 export const REGA_MISSION = {
   id: 'rega-rettung',
-  title: 'Verletzte Person ins Spital fliegen',
-  intro: 'Ein Skifahrer liegt verletzt auf der Jakobshorn-Standard oberhalb der Ischalp. Flieg mit der Rega hin, schwebe tief über der Person oder lande daneben, bis sie an Bord ist, und bring sie zurück auf den Landeplatz des Spitals.',
+  title: 'Fly the casualty to the Spital',
+  intro: 'A skier lies injured on the Jakobshorn Standard run above the Ischalp. Fly the Rega out there, hover low over the casualty or land beside them until they are on board, then bring them back to the helipad of the Spital.',
   mode: 'helicopter',
   season: 'winter',
   time: 'golden',
   nightTime: 'midnight',
   bonusMs: 3 * 60 * 1000,
-  finish: 'Patient übergeben: Das Spital-Team übernimmt.',
+  finish: 'Patient handed over: the Spital team takes it from here.',
   pad: SPITAL_PAD,
   get start() { return { x: this.pad.x, z: this.pad.z, heading: -2.0, onGround: true }; },
   get props() {
@@ -311,20 +311,20 @@ export const REGA_MISSION = {
   objectives: [
     {
       id: 'approach',
-      title: 'Zur verletzten Person fliegen',
+      title: 'Fly to the casualty',
       check(ctx, state) {
         const d = dist2d(ctx, state.patient);
-        return { done: d < 60 && ctx.agl < 60, progress: null, text: `${formatDistance(d)} zur Unfallstelle`, target: state.patient, hint: lightHint(ctx) };
+        return { done: d < 60 && ctx.agl < 60, progress: null, text: `${formatDistance(d)} to the accident site`, target: state.patient, hint: lightHint(ctx) };
       }
     },
     {
       id: 'pickup',
-      title: 'Patient aufnehmen',
+      title: 'Pick up the patient',
       check(ctx, state) {
         const d = dist2d(ctx, state.patient);
         const close = d < 8 && ctx.agl < 3 && Math.abs(ctx.speed) < 2.5 && Math.abs(ctx.verticalSpeed) < 1.5 && !lightHint(ctx);
         state.hover = close ? state.hover + ctx.dt : 0;
-        const text = close ? `Bergung läuft … ${Math.ceil(HOVER_SECONDS - state.hover)} s` : d < 8 ? 'Tiefer: unter 3 m über dem Schnee, ruhig halten' : `${formatDistance(d)} · tief über der Person schweben (< 3 m) oder landen`;
+        const text = close ? `Rescue under way … ${Math.ceil(HOVER_SECONDS - state.hover)} s` : d < 8 ? 'Lower: under 3 m above the snow, hold steady' : `${formatDistance(d)} · hover low over the casualty (< 3 m) or land`;
         return { done: state.hover >= HOVER_SECONDS, progress: Math.min(1, state.hover / HOVER_SECONDS), text, target: { ...state.patient, r: 8 }, hint: lightHint(ctx) };
       }
     },
@@ -351,29 +351,29 @@ const lawinenZones = () => [
 
 export const LAWINEN_MISSION = {
   id: 'lawinen-sprengen',
-  title: 'Lawinen sprengen',
-  intro: 'Nach dem Neuschnee muss der Hang unter dem Salezer Horn künstlich ausgelöst werden, bevor die Strasse unten wieder öffnet. Du stehst mit dem Lawinen-Sprengrohr auf der Schulter gegenüber: Ziehen dreht und hebt das Rohr (nach oben ziehen: steiler), der weisse Ring zeigt den berechneten Einschlag, Schuss mit Leertaste oder Klick. Zwölf Schuss für vier Zonen.',
+  title: 'Avalanche blasting',
+  intro: 'After the fresh snow, the slope below the Salezer Horn has to be triggered before the road below can reopen. You stand on the shoulder opposite with the avalanche launcher: drag to turn and raise the tube (drag up: steeper), the white ring shows the predicted impact, fire with Space or a click. Twelve rounds for four zones.',
   mode: 'person',
   season: 'winter',
   time: 'golden',
   features: ['shooter'],
   bonusMs: 2 * 60 * 1000,
-  finish: 'Hang ausgelöst: Alle vier Zonen sind abgegangen, die Strasse kann öffnen.',
+  finish: 'Slope released: all four zones have slid, the road can reopen.',
   ammo: LAWINEN_AMMO,
   zones: lawinenZones(),
   get start() { return { x: LAWINEN_VIEW.x, z: LAWINEN_VIEW.z, heading: headingTo(LAWINEN_VIEW, LAWINEN_SLOPE) }; },
   props: [],
   createState() { return { shots: 0, hits: 0, misses: 0, ammo: LAWINEN_AMMO, inFlight: false }; },
   update(ctx, state) { if (ctx.shooter) Object.assign(state, ctx.shooter); },
-  summary(state) { return [`${state.shots} Schuss · ${state.hits} Treffer · ${state.misses} daneben`]; },
+  summary(state) { return [`${state.shots} ${state.shots === 1 ? 'shot' : 'shots'} · ${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.misses} missed`]; },
   objectives: lawinenZones().map((zone, i, all) => ({
     id: `zone${i + 1}`,
-    title: `Zone ${i + 1} von ${all.length} auslösen`,
+    title: `Trigger zone ${i + 1} of ${all.length}`,
     check(ctx, state) {
       const done = state.hits > i;
-      const fail = !done && state.ammo <= 0 && !state.inFlight ? 'Munition verschossen' : null;
+      const fail = !done && state.ammo <= 0 && !state.inFlight ? 'Out of ammo' : null;
       const d = dist2d(ctx, zone);
-      return { done, progress: null, text: `${formatDistance(d)} · ${state.ammo} Schuss übrig${state.misses ? ` · ${state.misses} daneben` : ''}`, target: { ...zone, style: 'hazard' }, hint: state.inFlight ? 'Geschoss unterwegs …' : null, fail };
+      return { done, progress: null, text: `${formatDistance(d)} · ${state.ammo} ${state.ammo === 1 ? 'round' : 'rounds'} left${state.misses ? ` · ${state.misses} missed` : ''}`, target: { ...zone, style: 'hazard' }, hint: state.inFlight ? 'Shell in flight …' : null, fail };
     }
   }))
 };
@@ -400,14 +400,14 @@ const toeffScene = (hidePatientAfter) => [
 
 export const TOEFF_MISSION = {
   id: 'toeff-unfall',
-  title: 'Töffunfall auf der Passstrasse',
-  intro: 'Alarm: Motorradunfall auf der Flüelapassstrasse oberhalb von Davos Dorf, die Kapo sperrt die Stelle ab. Flieg hin, lande auf der markierten Wiese neben der Strasse, versorge den Patienten und bring ihn ins Spital.',
+  title: 'Motorbike crash on the pass road',
+  intro: 'Alert: motorbike crash on the Flüelapassstrasse above Davos Dorf, the cantonal police are closing off the site. Fly out, land on the marked meadow beside the road, treat the patient and bring them to the Spital.',
   mode: 'helicopter',
   season: 'winter',
   time: 'golden',
   nightTime: 'midnight',
   bonusMs: 7 * 60 * 1000,
-  finish: 'Patient im Spital: Der Töfffahrer ist versorgt.',
+  finish: 'Patient at the Spital: the rider is in good hands.',
   pad: SPITAL_PAD,
   features: ['trafficBlock'],
   get start() { return { x: this.pad.x, z: this.pad.z, heading: 1.3, onGround: true }; },
@@ -417,30 +417,30 @@ export const TOEFF_MISSION = {
   objectives: [
     {
       id: 'approach',
-      title: 'Zur Unfallstelle fliegen',
+      title: 'Fly to the accident site',
       check(ctx) {
         const d = dist2d(ctx, TOEFF_SITE);
-        return { done: d < 150 && ctx.agl < 120, progress: null, text: `${formatDistance(d)} zur Flüelapassstrasse`, target: TOEFF_SITE, hint: lightHint(ctx) };
+        return { done: d < 150 && ctx.agl < 120, progress: null, text: `${formatDistance(d)} to the Flüelapassstrasse`, target: TOEFF_SITE, hint: lightHint(ctx) };
       }
     },
     {
       id: 'land',
-      title: 'Neben der Strasse landen',
+      title: 'Land beside the road',
       check(ctx, state) {
         const d = dist2d(ctx, TOEFF_LANDING);
         const down = d < TOEFF_LANDING.r && ctx.agl < 1 && Math.abs(ctx.speed) < 0.6 && Math.abs(ctx.verticalSpeed) < 0.6;
         state.landed = down ? state.landed + ctx.dt : 0;
-        const text = down ? 'Aufgesetzt …' : d < TOEFF_LANDING.r ? 'Absetzen: Tempo null, ruhig' : `${formatDistance(d)} zur Landezone (Wiese südlich der Strasse)`;
+        const text = down ? 'Touched down …' : d < TOEFF_LANDING.r ? 'Set down: zero speed, steady' : `${formatDistance(d)} to the landing zone (meadow south of the road)`;
         return { done: state.landed >= LANDED_SECONDS, progress: Math.min(1, state.landed / LANDED_SECONDS), text, target: { ...TOEFF_LANDING, style: 'pad' }, hint: lightHint(ctx) };
       }
     },
     {
       id: 'treat',
-      title: 'Patient wird versorgt',
+      title: 'Treat the patient',
       check(ctx, state) {
         const down = dist2d(ctx, TOEFF_LANDING) < TOEFF_LANDING.r + 3 && ctx.agl < 1.5 && Math.abs(ctx.speed) < 1;
         state.treat = down ? state.treat + ctx.dt : 0;
-        const text = down ? `Patient wird versorgt … ${Math.ceil(TREAT_SECONDS - state.treat)} s` : 'Am Boden bleiben: die Crew ist beim Patienten';
+        const text = down ? `Treating the patient … ${Math.ceil(TREAT_SECONDS - state.treat)} s` : 'Stay on the ground: the crew is with the patient';
         return { done: state.treat >= TREAT_SECONDS, progress: Math.min(1, state.treat / TREAT_SECONDS), text, target: { ...TOEFF_LANDING, style: 'pad' }, hint: null };
       }
     },
@@ -448,19 +448,19 @@ export const TOEFF_MISSION = {
   ]
 };
 
-const blueHint = (ctx) => (ctx.blueLight ? null : 'Blaulicht einschalten [K]');
+const blueHint = (ctx) => (ctx.blueLight ? null : 'Turn on the blue lights [K]');
 
 export const TOEFF_POLIZEI_MISSION = {
   id: 'toeff-unfall-polizei',
-  title: 'Kapo: Töffunfall Flüelastrasse',
-  intro: 'Einsatzzentrale an Patrouille Davos: Töffunfall auf der Flüelapassstrasse oberhalb der Tschuggen, Person verletzt. Mit Blaulicht (K) hinfahren, die Stelle vor dem Unfall quer absichern, dann zu Fuss (1) die Pylonen 50 m vor und hinter der Unfallstelle setzen und die Rega einweisen.',
+  title: 'Police: motorbike crash on the Flüela road',
+  intro: 'Dispatch to patrol Davos: motorbike crash on the Flüelapassstrasse above the Tschuggen, one person injured. Drive there with blue lights (K), park across the road before the crash site, then on foot (1) set cones 50 m before and after the site and guide the Rega in.',
   mode: 'car',
   season: 'winter',
   time: 'golden',
   nightTime: 'midnight',
   features: ['policeCar', 'regaScript'],
   bonusMs: 9 * 60 * 1000,
-  finish: 'Einsatz beendet: Die Rega hat den Patienten übernommen, die Strasse ist gesichert.',
+  finish: 'Call complete: the Rega has taken over the patient, the road is secured.',
   landing: TOEFF_LANDING,
   // The Polizeiposten Davos: OSM has no amenity=police in the frame, so the patrol starts on the Promenade in Davos Platz
   // (js/city-config.js TELEPORT_LOCATIONS.promenade; js/missions.js fills x, z, heading from it)
@@ -471,25 +471,25 @@ export const TOEFF_POLIZEI_MISSION = {
   objectives: [
     {
       id: 'drive',
-      title: 'Zum Unfallort fahren',
+      title: 'Drive to the accident site',
       check(ctx) {
         const d = dist2d(ctx, TOEFF_SITE);
-        return { done: d < 120, progress: null, text: `${formatDistance(d)} bis zur Unfallstelle · Flüelapassstrasse`, target: TOEFF_SITE, hint: blueHint(ctx) };
+        return { done: d < 120, progress: null, text: `${formatDistance(d)} to the accident site · Flüelapassstrasse`, target: TOEFF_SITE, hint: blueHint(ctx) };
       }
     },
     {
       id: 'secure',
-      title: 'Unfallstelle absichern',
+      title: 'Secure the accident site',
       check(ctx, state) {
         const inside = inZone(TOEFF_SECURE, ctx.x, ctx.z) && Math.abs(ctx.speed) < 0.3 && ctx.blueLight;
         state.secure = inside ? state.secure + ctx.dt : 0;
-        const text = inside ? `Fahrzeug steht … ${Math.ceil(3 - state.secure)} s` : 'Quer in die markierte Zone stellen, Blaulicht an, Tempo null';
+        const text = inside ? `Vehicle in position … ${Math.ceil(3 - state.secure)} s` : 'Park across the marked zone, blue lights on, zero speed';
         return { done: state.secure >= 3, progress: Math.min(1, state.secure / 3), text, target: { ...TOEFF_SECURE, style: 'hazard' }, hint: blueHint(ctx) };
       }
     },
     ...TOEFF_CONES.map((cone, i) => ({
       id: `cone${i + 1}`,
-      title: i === 0 ? 'Pylone talseitig setzen (50 m vor der Stelle)' : 'Pylone bergseitig setzen (50 m hinter der Stelle)',
+      title: i === 0 ? 'Place a cone downhill (50 m before the site)' : 'Place a cone uphill (50 m past the site)',
       allowModes: ['car', 'person'],
       check(ctx, state) {
         const onFoot = ctx.mode === 'person';
@@ -497,17 +497,17 @@ export const TOEFF_POLIZEI_MISSION = {
         state.cones[i] = here ? state.cones[i] + ctx.dt : 0;
         const done = state.cones[i] >= 2;
         if (done) state.conesDone = i + 1;
-        const text = !onFoot ? 'Aussteigen: Taste 1 (zu Fuss)' : here ? `Pylone wird gesetzt … ${Math.ceil(2 - state.cones[i])} s` : `${formatDistance(dist2d(ctx, cone))} zur Markierung, dort 2 s stehen bleiben`;
-        return { done, progress: Math.min(1, state.cones[i] / 2), text, target: { ...cone, style: 'hazard' }, hint: onFoot ? null : 'Zu Fuss [1]' };
+        const text = !onFoot ? 'Get out: key 1 (on foot)' : here ? `Placing the cone … ${Math.ceil(2 - state.cones[i])} s` : `${formatDistance(dist2d(ctx, cone))} to the marker, stand there for 2 s`;
+        return { done, progress: Math.min(1, state.cones[i] / 2), text, target: { ...cone, style: 'hazard' }, hint: onFoot ? null : 'On foot [1]' };
       }
     })),
     {
       id: 'rega',
-      title: 'Rega einweisen und warten',
+      title: 'Guide the Rega in and wait',
       allowModes: ['car', 'person'],
       check(ctx, state) {
         const phase = state.rega;
-        const text = phase === 'none' || phase === 'inbound' ? 'Die Rega ist im Anflug: Landezone frei halten' : phase === 'landed' ? 'Die Rega übernimmt den Patienten …' : phase === 'departing' ? 'Die Rega hebt ab' : 'Die Rega ist weg';
+        const text = phase === 'none' || phase === 'inbound' ? 'The Rega is inbound: keep the landing zone clear' : phase === 'landed' ? 'The Rega is taking over the patient …' : phase === 'departing' ? 'The Rega is lifting off' : 'The Rega has left';
         return { done: phase === 'gone', progress: null, text, target: { ...TOEFF_LANDING, style: 'pad' }, hint: null };
       }
     }

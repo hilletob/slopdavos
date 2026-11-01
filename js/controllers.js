@@ -1777,7 +1777,7 @@ class ThirdPersonControllerManager {
     this.scene.add(root);
     return {
       type: 'snowcat',
-      label: 'Pistenfahrzeug',
+      label: 'Snow groomer',
       mesh: root,
       model,
       trackPhases: model.trackPhases,

@@ -60,7 +60,7 @@ function showList(manager, note = null) {
     manager.start(id, { night });
   });
   const panel = el('div', 'panel mission-dialog');
-  panel.append(el('div', 'mission-kicker', 'Missionen'), el('h2', 'mission-dialog-title', 'Wähle eine Mission'));
+  panel.append(el('div', 'mission-kicker', 'Missions'), el('h2', 'mission-dialog-title', 'Choose a mission'));
   if (note) panel.append(el('p', 'mission-dialog-note', note));
   const list = el('ul', 'mission-list');
   const best = readBestTimes(globalThis.localStorage);
@@ -71,12 +71,12 @@ function showList(manager, note = null) {
     go(a, m.id, false);
     li.append(a);
     const b = best[bestTimeKey(m.id)];
-    if (Number.isFinite(b)) li.append(el('span', 'mission-list-best', `Bestzeit ${formatTime(b)}`));
-    if (m.nightTime) { const n = el('a', 'mission-link-night', 'Nacht'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
+    if (Number.isFinite(b)) li.append(el('span', 'mission-list-best', `Best time ${formatTime(b)}`));
+    if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
   }
   panel.append(list);
-  const back = el('a', 'mission-btn mission-btn-secondary', 'Zurück zum Spiel');
+  const back = el('a', 'mission-btn mission-btn-secondary', 'Back to the game');
   back.href = location.pathname;
   back.addEventListener('click', (e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); manager.stop(); });
   panel.append(back);
@@ -260,9 +260,9 @@ class MissionRun {
       splits: el('ol', 'mission-splits'),
       overlay: null, crosshair: null, fire: null
     };
-    const menu = el('button', 'mission-menu', 'Missionen');
+    const menu = el('button', 'mission-menu', 'Missions');
     menu.type = 'button';
-    menu.title = 'Alle Missionen';
+    menu.title = 'All missions';
     menu.addEventListener('click', () => this.hooks.missions?.showList());
     head.append(this.ui.kicker, this.ui.title, this.ui.best);
     const step = el('div', 'mission-step');
@@ -288,7 +288,7 @@ class MissionRun {
 
   renderBest() {
     const best = readBestTimes(globalThis.localStorage)[this.bestKey];
-    this.ui.best.textContent = Number.isFinite(best) ? `Bestzeit ${formatTime(best)}` : 'Noch keine Bestzeit';
+    this.ui.best.textContent = Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet';
   }
 
   renderSplits() {
@@ -323,10 +323,10 @@ class MissionRun {
     const best = readBestTimes(globalThis.localStorage)[this.bestKey];
     const nodes = [el('p', 'mission-dialog-text', this.def.intro)];
     const meta = el('p', 'mission-dialog-meta');
-    meta.append(el('span', null, `${this.def.objectives.length} Schritte`), el('span', null, this.night ? 'Nacht' : 'Tag'),
-      el('span', 'mission-dialog-best', Number.isFinite(best) ? `Bestzeit ${formatTime(best)}` : 'Noch keine Bestzeit'));
-    nodes.push(meta, el('p', 'mission-dialog-note', 'Die Stoppuhr läuft mit der ersten Eingabe nach dem Start.'));
-    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
+    meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
+      el('span', 'mission-dialog-best', Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet'));
+    nodes.push(meta, el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'));
+    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   showEnd() {
@@ -336,9 +336,9 @@ class MissionRun {
     if (r.improved) time.classList.add('is-best');
     nodes.push(time);
     const line = el('p', 'mission-dialog-meta');
-    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? 'Erste Bestzeit' : `Neue Bestzeit (vorher ${formatTime(r.previous)})`));
-    else line.append(el('span', null, `Bestzeit ${formatTime(r.best)}`));
-    if (this.def.bonusMs && r.total < this.def.bonusMs) line.append(el('span', 'mission-bonus', `Bonus: unter ${formatTime(this.def.bonusMs).replace(/\.\d$/, '')}`));
+    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? 'First best time' : `New best time (was ${formatTime(r.previous)})`));
+    else line.append(el('span', null, `Best time ${formatTime(r.best)}`));
+    if (this.def.bonusMs && r.total < this.def.bonusMs) line.append(el('span', 'mission-bonus', `Bonus: under ${formatTime(this.def.bonusMs).replace(/\.\d$/, '')}`));
     nodes.push(line);
     const splits = el('ol', 'mission-dialog-splits');
     let prev = 0;
@@ -351,12 +351,12 @@ class MissionRun {
     nodes.push(splits);
     for (const extra of this.def.summary?.(this.state) || []) nodes.push(el('p', 'mission-dialog-note', extra));
     nodes.push(el('p', 'mission-dialog-text', this.def.finish));
-    this.dialog('Mission erfüllt', this.def.title, nodes, [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
+    this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   showStopped(kicker, reason) {
-    this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', `Zeit ${formatTime(this.elapsed)}`)],
-      [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
+    this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', `Time ${formatTime(this.elapsed)}`)],
+      [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   bindKeys() {
@@ -465,7 +465,7 @@ class MissionRun {
       if (view.fail) {
         this.phase = 'failed';
         this.ui.panel.dataset.phase = 'failed';
-        this.showStopped('Mission gescheitert', view.fail);
+        this.showStopped('Mission failed', view.fail);
       } else if (view.done) {
         const t = this.phase === 'running' ? now - this.startedAt : 0;
         if (this.phase === 'ready') { this.phase = 'running'; this.startedAt = now; }
@@ -488,7 +488,7 @@ class MissionRun {
     const mode = cm.activeMode;
     if (mode !== this.lastMode) {
       const allowed = this.def.objectives[this.index].allowModes || this.def.allowModes || [this.def.mode];
-      if (!allowed.includes(mode)) return this.abort(`Moduswechsel (${mode}): Die Mission wurde abgebrochen.`);
+      if (!allowed.includes(mode)) return this.abort(`Mode switch (${mode}): the mission was aborted.`);
       // on foot beside the car: the pedestrian steps out of the driver's door
       if (mode === 'person' && this.lastMode === 'car') {
         const car = cm.entities.car;
@@ -500,14 +500,14 @@ class MissionRun {
       return;
     }
     const jump = this.lastPos.distanceTo(ent.position);
-    if (jump > 60) return this.abort('Teleport: Die Mission wurde abgebrochen.');
+    if (jump > 60) return this.abort('Teleport: the mission was aborted.');
     this.lastPos.copy(ent.position);
   }
 
   abort(reason) {
     this.phase = 'aborted';
     this.ui.panel.dataset.phase = 'aborted';
-    this.showStopped('Mission abgebrochen', reason);
+    this.showStopped('Mission aborted', reason);
   }
 
   finish(now) {
@@ -530,23 +530,23 @@ class MissionRun {
     const n = Math.min(this.index + 1, this.def.objectives.length);
     u.stepN.textContent = `${n}/${this.def.objectives.length}`;
     const objective = this.def.objectives[Math.min(this.index, this.def.objectives.length - 1)];
-    u.stepTitle.textContent = this.phase === 'done' ? 'Mission erfüllt' : objective.title;
+    u.stepTitle.textContent = this.phase === 'done' ? 'Mission complete' : objective.title;
     if (view) {
       if (u.text.textContent !== view.text) u.text.textContent = view.text || '';
       u.bar.hidden = view.progress == null;
       if (view.progress != null) u.fill.style.transform = `scaleX(${Math.max(0, Math.min(1, view.progress))})`;
-      const hint = view.hint || (this.phase === 'ready' ? 'Bereit: Die Zeit läuft mit der ersten Eingabe' : '');
+      const hint = view.hint || (this.phase === 'ready' ? 'Ready: the clock starts with your first input' : '');
       if (u.hint.textContent !== hint) u.hint.textContent = hint;
       u.hint.hidden = !hint;
       this.placeTarget(view.target, ctx);
     } else if (this.phase === 'loading') {
-      u.text.textContent = 'Die Umgebung wird geladen …';
+      u.text.textContent = 'Loading the surroundings …';
       u.bar.hidden = true;
       u.nav.hidden = true;
-      u.hint.textContent = 'Die Stoppuhr ist gleich bereit';
+      u.hint.textContent = 'The stopwatch will be ready in a moment';
       u.hint.hidden = false;
     } else if (this.phase === 'intro') {
-      u.text.textContent = 'Start mit Enter oder dem Knopf';
+      u.text.textContent = 'Press Enter or the button to start';
       u.bar.hidden = true;
       u.hint.hidden = true;
       u.nav.hidden = true;
@@ -618,7 +618,7 @@ const FEATURES = {
       run.ui.crosshair = cross;
       run.ui.aimInfo = info;
       document.body.append(cross);
-      const fire = el('button', 'panel mission-fire', 'Feuer');
+      const fire = el('button', 'panel mission-fire', 'Fire');
       fire.type = 'button';
       run.listen(fire, 'pointerdown', (e) => { e.preventDefault(); FEATURES.shooter.fire(run); });
       run.ui.fire = fire;
@@ -704,7 +704,7 @@ const FEATURES = {
       const elev = Math.asin(Math.max(-1, Math.min(1, aim.dir.y))) * 180 / Math.PI;
       const off = predicted ? Math.hypot(predicted.x - zone.x, predicted.z - zone.z) : null;
       const reload = Math.max(0, LAUNCHER.reloadS - (performance.now() - s.lastShot) / 1000);
-      const info = `Elevation ${elev.toFixed(1)}°${predicted ? ` · Einschlag ${formatDistance(Math.hypot(predicted.x - ctx.x, predicted.z - ctx.z))}` : ''}${off != null ? (off <= zone.r ? ' · in der Zone' : ` · ${Math.round(off)} m neben Zone`) : ''}${s.shell ? ' · unterwegs' : reload > 0 ? ` · Nachladen ${reload.toFixed(1)} s` : ''} · ${s.ammo} Schuss`;
+      const info = `Elevation ${elev.toFixed(1)}°${predicted ? ` · impact ${formatDistance(Math.hypot(predicted.x - ctx.x, predicted.z - ctx.z))}` : ''}${off != null ? (off <= zone.r ? ' · in the zone' : ` · ${Math.round(off)} m off the zone`) : ''}${s.shell ? ' · in flight' : reload > 0 ? ` · reloading ${reload.toFixed(1)} s` : ''} · ${s.ammo} ${s.ammo === 1 ? 'round' : 'rounds'}`;
       if (run.ui.aimInfo.textContent !== info) run.ui.aimInfo.textContent = info;
       run.ui.aimInfo.classList.toggle('is-on-target', off != null && off <= zone.r);
       if (reload <= 0) run.ui.fire?.classList.remove('is-reloading');
