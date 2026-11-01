@@ -49,6 +49,7 @@ import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
 import { isWinter, onSeasonChange } from './season.js';
 import { groomMap } from './groom-map.js';
+import { buildMissions } from './missions.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
@@ -925,6 +926,8 @@ async function initApp() {
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime('golden');
+  // Missions (js/missions.js): only with ?mission=<id> in the URL, nothing of it in the normal game
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies });
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
@@ -1112,6 +1115,7 @@ async function initApp() {
     if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
+    if (missions.active) missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers (?mission=)
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
