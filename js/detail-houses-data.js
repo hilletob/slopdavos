@@ -16,9 +16,10 @@ export const DETAIL_HOUSES = [
     // the door with its outdoor stair); the eaves side with the lean-to faces south (D–C). (First modelled a quarter
     // turn clockwise, ridge along the street; turned 90° counter-clockwise after the owner's check.)
     ridgeFrom: 0, ridgeTo: 1, streetSide: [3, 2],
-    // The picket fence (local [x, z] segments): along the Dischmastrasse in front of the west gable, and round the
-    // corner in front of the south front (photo 2)
-    fence: [[[-9.35, -9.6], [-9.35, 8.6]], [[-9.35, 8.6], [9.5, 8.6]]],
+    // The picket fence (local [x, z] segments) along the parcel (AV parcel 1390: a triangle that runs out to a point
+    // south of the house between the Dischmastrasse and its straight eastern boundary): the street side from the
+    // north corner to the point, back up the eastern boundary (with its bend) and along the north boundary
+    fence: [[[-19.02, -12.27], [-17.52, 30.29]], [[-17.52, 30.29], [13.34, 7.52]], [[13.34, 7.52], [11.11, -9.35]], [[11.11, -9.35], [-19.02, -12.27]]],
     // The swissBUILDINGS3D building it replaces: everything whose surveyed centre lies within r of (x, z)
     exclude: { x: 789.4, z: -1049.9, r: 6 },
     // The house as measured on the owner's 3D scan ("Grialetsch", Scaniverse/LiDAR, 2026-10-31) and built from those
