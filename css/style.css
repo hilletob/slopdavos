@@ -1642,8 +1642,27 @@ body.touch-enabled .pop-item { min-height: 44px; }
   color: var(--text);
 }
 
+/* the "Missionen" button: the list, without leaving the page (js/missions-manager.js) */
+.mission { position: relative; }
+.mission-menu {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.mission-menu:hover { color: var(--text); background: var(--hover); }
 .mission-head {
   display: flex;
+  padding-right: 74px;
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
@@ -2038,6 +2057,10 @@ body.touch-enabled .pop-item { min-height: 44px; }
   .mission-nav { grid-column: 3; gap: 3px; }
   .mission-arrow { width: 14px; height: 14px; }
   .mission-bar { grid-column: 1 / -1; height: 3px; }
+  .mission { grid-template-columns: auto 1fr auto auto; }
+  .mission-menu { position: static; grid-column: 4; grid-row: 1; padding: 4px 7px; font-size: 10px; }
+  .mission-nav { white-space: nowrap; }
+  .mission-step { min-width: 72px; }
   .mission-bar:empty, .mission-bar[hidden] { display: none; }
 }
 /* (during a mission the touch hint gives way to the mission strip) */

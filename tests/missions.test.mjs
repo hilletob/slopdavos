@@ -268,3 +268,121 @@ test('the geodata lookups find the Loipe and a point on a run', () => {
   assert.ok(Math.hypot(mid.x - a.x, mid.z - a.z) > 100 && Math.hypot(mid.x - b.x, mid.z - b.z) > 100);
   assert.equal(pointOnRun('nope', 0.5), null);
 });
+
+// --- The manager (js/missions-manager.js): switching missions without a reload --------------------------------------
+import { MissionManager, parseMissionSearch, missionSearch, worldCellsReady } from '../js/missions-manager.js';
+import { cellKey, cellsAround } from '../js/world-cells.js';
+
+const fakeManager = () => {
+  const log = [];
+  let search = '';
+  let listOpen = 0;
+  const runs = [];
+  const manager = new MissionManager({
+    getMission,
+    createRun(def, opts) {
+      if (def.id === 'boom') throw new Error('boom');
+      const run = { def, opts, active: true, updates: 0, disposed: 0, update() { this.updates++; }, dispose() { this.disposed++; this.active = false; } };
+      runs.push(run);
+      log.push(`start ${def.id}${opts.night ? ' night' : ''}`);
+      return run;
+    },
+    showList(note) { listOpen++; log.push(`list${note ? ` (${note})` : ''}`); },
+    hideList() { listOpen--; log.push('hide list'); },
+    setSearch(s) { search = s; },
+    onError() { log.push('error'); }
+  });
+  return { manager, log, runs, get search() { return search; }, get listOpen() { return listOpen; } };
+};
+
+test('the mission URL: parsed and built, the other parameters kept', () => {
+  assert.equal(parseMissionSearch(''), null);
+  assert.equal(parseMissionSearch('?quality=low'), null);
+  assert.deepEqual(parseMissionSearch('?mission=rega-rettung'), { id: 'rega-rettung', night: false });
+  assert.deepEqual(parseMissionSearch('?mission=rega-rettung&night=1'), { id: 'rega-rettung', night: true });
+  assert.equal(missionSearch('dischma-loipe'), '?mission=dischma-loipe');
+  assert.equal(missionSearch('rega-rettung', { night: true }), '?mission=rega-rettung&night=1');
+  assert.equal(missionSearch(null), '');
+  assert.equal(missionSearch(null, {}, '?mission=x&night=1&quality=low'), '?quality=low');
+  assert.equal(missionSearch('list', {}, '?quality=low&night=1'), '?quality=low&mission=list');
+});
+
+test('the manager switches missions: one run at a time, the one before torn down, the URL along', () => {
+  const f = fakeManager();
+  const { manager } = f;
+  assert.equal(manager.active, false);
+  manager.update(0.1); // (nothing running: nothing happens)
+  const order = ['dischma-loipe', 'lawinen-sprengen', 'rega-rettung', 'toeff-unfall-polizei'];
+  for (const id of order) {
+    const run = manager.start(id);
+    assert.equal(manager.active, true);
+    assert.equal(manager.run, run);
+    assert.equal(f.search, `?mission=${id}`);
+    manager.update(0.016);
+    assert.equal(run.updates, 1);
+  }
+  assert.equal(f.runs.length, 4);
+  assert.deepEqual(f.runs.map((r) => r.disposed), [1, 1, 1, 0], 'each run disposed once, as the next starts');
+  manager.showList();
+  assert.equal(f.runs[3].disposed, 1);
+  assert.equal(manager.active, false);
+  assert.equal(f.search, '?mission=list');
+  assert.equal(f.listOpen, 1);
+  manager.stop();
+  assert.equal(f.listOpen, 0, 'the list closed');
+  assert.equal(f.search, '');
+  manager.stop(); // (twice: harmless)
+  assert.deepEqual(f.runs.map((r) => r.disposed), [1, 1, 1, 1]);
+});
+
+test('the manager: the night variant only where there is one, unknown ids and failing runs open the list', () => {
+  const f = fakeManager();
+  const { manager } = f;
+  const withNight = MISSIONS.find((m) => m.nightTime);
+  const withoutNight = MISSIONS.find((m) => !m.nightTime);
+  manager.start(withNight.id, { night: true });
+  assert.equal(f.search, `?mission=${withNight.id}&night=1`);
+  assert.equal(manager.run.opts.night, true);
+  manager.start(withoutNight.id, { night: true });
+  assert.equal(f.search, `?mission=${withoutNight.id}`);
+  assert.equal(manager.run.opts.night, false);
+  assert.equal(manager.start('gibt-es-nicht'), null);
+  assert.equal(manager.active, false, 'the unknown id ends the run before');
+  assert.equal(f.listOpen, 1);
+  assert.match(f.log.at(-1), /Unbekannte Mission/);
+  // a list, then a mission from it: the list closes
+  manager.start(withoutNight.id);
+  assert.equal(f.listOpen, 0);
+  // a run that throws while being built: no run, the URL cleared
+  const boom = new MissionManager({ getMission: (id) => ({ id }), createRun() { throw new Error('x'); }, setSearch: (s) => { boom.s = s; }, onError: () => {} });
+  assert.equal(boom.start('boom'), null);
+  assert.equal(boom.active, false);
+  assert.equal(boom.s, '');
+});
+
+test('the manager: what the page was opened with', () => {
+  const f = fakeManager();
+  assert.equal(f.manager.fromSearch(''), null);
+  assert.equal(f.manager.active, false);
+  f.manager.fromSearch('?mission=list');
+  assert.equal(f.listOpen, 1);
+  f.manager.fromSearch('?mission=rega-rettung');
+  assert.equal(f.manager.run.def.id, 'rega-rettung');
+  assert.equal(f.listOpen, 0);
+});
+
+test('the streamed town round a mission start: ready once its cells are built', () => {
+  assert.equal(worldCellsReady(null, 0, 0), true, 'no streamer (the desktop): ready');
+  const world = { cell: 500, builders: [{}, {}], cells: new Map() };
+  const x = 1584, z = -151;
+  assert.equal(worldCellsReady(world, x, z, 600), false, 'nothing picked yet');
+  const around = cellsAround(x, z, 600, 500);
+  for (const { i, j } of around) world.cells.set(cellKey(i, j), { pending: new Set(['ground', 'paint']), parts: new Map() });
+  assert.equal(worldCellsReady(world, x, z, 600), false, 'queued');
+  for (const c of world.cells.values()) { c.pending.clear(); c.parts.set('ground', {}); }
+  assert.equal(worldCellsReady(world, x, z, 600), false, 'one builder still missing');
+  for (const c of world.cells.values()) c.parts.set('paint', {});
+  assert.equal(worldCellsReady(world, x, z, 600), true);
+  world.cells.delete(cellKey(around[0].i, around[0].j));
+  assert.equal(worldCellsReady(world, x, z, 600), false, 'the start cell itself missing');
+});

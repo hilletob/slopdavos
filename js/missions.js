@@ -5,9 +5,10 @@ import { ParticleBatch, MissionAudio } from './missions-fx.js';
 import { surfaceHeight, groundHeight, groundNormal } from './terrain.js';
 import { setWinter } from './season.js';
 import { groomMap } from './groom-map.js';
-import { HELIPAD } from './helipad.js';
+import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
-import { inWorld } from './quality.js';
+import { setWorldCenter } from './quality.js';
+import { MissionManager, worldCellsReady } from './missions-manager.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). Nothing
@@ -17,34 +18,47 @@ import { inWorld } from './quality.js';
 // input after "Start", stops at the finish; a split a step; the best time a mission in localStorage) and ends with the
 // finish panel. A teleport or a change of mode during a mission aborts it (unless the step allows the mode); R restarts.
 // js/main.js: buildMissions(scene, hooks) once the city stands, missions.update(dt, controllers, cameras) every frame.
+// The missions switch without a reload (js/missions-manager.js): the list and the dialogs' buttons start the next one,
+// the run before is torn down (MissionRun.dispose: its meshes, HUD, keys, features, traffic bodies and sounds) and the
+// URL follows along (history.replaceState), so that a link or a reload comes back to the same mission.
 
-const inactive = { active: false, update() {} };
+const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
+const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
 
 export function buildMissions(scene, hooks) {
-  const params = new URLSearchParams(location.search);
-  const id = params.get('mission');
-  if (!id) return inactive;
   // (the pad the helipad module built: the Rega missions start and end on it)
   if (HELIPAD) Object.assign(SPITAL_PAD, { x: HELIPAD.x, z: HELIPAD.z, r: Math.max(5, (HELIPAD.radius || 7) - 0.5) });
-  if (id === 'list') { showList(); return inactive; }
-  const def = getMission(id);
-  if (!def) { showList(`Unbekannte Mission „${id}“`); return inactive; }
-  try {
-    const run = new MissionRun(scene, def, hooks, { night: params.get('night') === '1' });
-    globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
-    return run;
-  } catch (error) {
-    console.warn('[missions] could not start', id, error);
-    return inactive;
-  }
+  let listOverlay = null;
+  const manager = new MissionManager({
+    getMission,
+    createRun: (def, opts) => {
+      const run = new MissionRun(scene, def, { ...hooks, missions: manager }, opts);
+      globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
+      return run;
+    },
+    showList: (note) => { listOverlay = showList(manager, note); },
+    hideList: () => { listOverlay?.remove(); listOverlay = null; },
+    setSearch: (search) => {
+      try { history.replaceState(history.state, '', `${location.pathname}${search}${location.hash}`); } catch { /* (sandboxed) */ }
+    },
+    onError: (error, id) => console.warn('[missions] could not', id === 'dispose' ? 'tear down the run' : `start ${id}`, error)
+  });
+  globalThis.__slopdavosMissions = manager; // (test hooks)
+  manager.fromSearch(location.search);
+  return manager;
 }
 
-/** ?mission=list: the missions to click on */
-function showList(note = null) {
+/** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever) */
+function showList(manager, note = null) {
   const overlay = el('div', 'mission-overlay');
-  overlay.id = 'mission-overlay';
+  overlay.id = 'mission-overlay'; overlay.dataset.list = '1';
+  const go = (a, id, night) => a.addEventListener('click', (e) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // (a new tab: the browser's)
+    e.preventDefault();
+    manager.start(id, { night });
+  });
   const panel = el('div', 'panel mission-dialog');
   panel.append(el('div', 'mission-kicker', 'Missionen'), el('h2', 'mission-dialog-title', 'Wähle eine Mission'));
   if (note) panel.append(el('p', 'mission-dialog-note', note));
@@ -54,18 +68,37 @@ function showList(note = null) {
     const li = el('li');
     const a = el('a', 'mission-link', m.title);
     a.href = `?mission=${m.id}`;
+    go(a, m.id, false);
     li.append(a);
     const b = best[bestTimeKey(m.id)];
     if (Number.isFinite(b)) li.append(el('span', 'mission-list-best', `Bestzeit ${formatTime(b)}`));
-    if (m.nightTime) { const n = el('a', 'mission-link-night', 'Nacht'); n.href = `?mission=${m.id}&night=1`; li.append(n); }
+    if (m.nightTime) { const n = el('a', 'mission-link-night', 'Nacht'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
   }
   panel.append(list);
   const back = el('a', 'mission-btn mission-btn-secondary', 'Zurück zum Spiel');
   back.href = location.pathname;
+  back.addEventListener('click', (e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); manager.stop(); });
   panel.append(back);
   overlay.append(panel);
   document.body.append(overlay);
+  return overlay;
+}
+
+/** Disposes what a run built: the geometries, its own materials and their textures (not the shared ones, marked by
+ *  js/missions-props.js, nor the city's), the instanced meshes' buffers */
+function disposeTree(root) {
+  const materials = new Set(), geometries = new Set();
+  root.traverse((o) => {
+    if (o.geometry) geometries.add(o.geometry);
+    for (const m of [].concat(o.material || [])) if (!m.userData?.shared) materials.add(m);
+    if (o.isInstancedMesh) o.dispose();
+  });
+  for (const g of geometries) g.dispose();
+  for (const m of materials) {
+    for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+    m.dispose();
+  }
 }
 
 class MissionRun {
@@ -93,13 +126,22 @@ class MissionRun {
     this.group.add(this.marker, ...Object.values(this.rings));
     this.props = [];
     this.features = {};
+    this.cleanups = []; // (what dispose() undoes: listeners, bodies, DOM)
+    this.trafficBodies = [];
+    this.disposed = false;
     this.audio = new MissionAudio(hooks.audio);
-    this.buildHud();
-    this.bindKeys();
-    this.buildProps();
-    for (const f of def.features || []) if (FEATURES[f]) { this.features[f] = FEATURES[f]; FEATURES[f].setup(this); }
-    this.setup();
-    this.showIntro();
+    this.ui = {};
+    try {
+      this.buildHud();
+      this.bindKeys();
+      this.buildProps();
+      for (const f of def.features || []) if (FEATURES[f]) { FEATURES[f].setup(this); this.features[f] = FEATURES[f]; }
+      this.setup();
+      this.showIntro();
+    } catch (error) {
+      this.dispose(); // (half built: nothing of it stays)
+      throw error;
+    }
   }
 
   // --- Setup: the season, the time, the player at the start --------------------------------------------------------
@@ -112,11 +154,15 @@ class MissionRun {
   setup() {
     const { def, hooks } = this;
     const cm = hooks.controllerManager;
+    const start = this.resolveStart();
+    // (the mobile profile, js/world-stream.js: the detailed town moves to the start, before the season builds the
+    // winter scenery round it; the streets follow in cells, see worldReady)
+    if (hooks.world) setWorldCenter(start.x, start.z);
+    if (def.mode === 'helicopter' && hooks.world) buildHelipad(this.scene, { force: true }); // (the pad, wherever the game began)
     hooks.selectMode(def.mode);
     if (def.season === 'winter') setWinter(true, { animate: false });
     else if (def.season === 'summer') setWinter(false, { animate: false });
     hooks.selectTime(this.night ? def.nightTime : def.time || 'golden');
-    const start = this.resolveStart();
     hooks.teleportXZ(start.x, start.z, start.heading);
     const ent = cm.getActiveEntity();
     if (def.mode === 'helicopter') {
@@ -129,12 +175,7 @@ class MissionRun {
       hooks.cameraSystem.resetForTeleport();
     }
     if (def.mode === 'snowcat' && cm.entities.snowcat) cm.entities.snowcat.tillerRaised = false;
-    // (the mobile profile builds the town around the saved player: a start beyond it saves and reloads once)
-    if (!inWorld(ent.position.x, ent.position.z, -250) && !sessionStorage.getItem('slopdavos-mission-reload')) {
-      try { sessionStorage.setItem('slopdavos-mission-reload', '1'); } catch { /* storage may be off */ }
-      hooks.savePlayerState?.();
-      setTimeout(() => location.reload(), 50);
-    }
+    this.startXZ = { x: start.x, z: start.z };
     this.state = def.createState();
     this.index = 0;
     this.splits = [];
@@ -172,7 +213,9 @@ class MissionRun {
         obj.userData.lightbar.visible = !!p.blueLight;
         if (p.block && this.hooks.trafficBodies) {
           // the traffic sees it as a parked, solid body (js/traffic.js tramBodies, like the parked snow groomer)
-          this.hooks.trafficBodies.push({ x: p.x, z: p.z, prevX: p.x, prevZ: p.z, y, sin: Math.sin(heading), cos: Math.cos(heading), halfW: 0.95, halfL: 2.35, mass: 1800, vx: 0, vz: 0, angularVel: 0, parked: 'police' });
+          const body = { x: p.x, z: p.z, prevX: p.x, prevZ: p.z, y, sin: Math.sin(heading), cos: Math.cos(heading), halfW: 0.95, halfL: 2.35, mass: 1800, vx: 0, vz: 0, angularVel: 0, parked: 'police' };
+          this.hooks.trafficBodies.push(body);
+          this.trafficBodies.push(body); // (dispose() takes it out again)
         }
       }
       this.group.add(obj);
@@ -217,6 +260,10 @@ class MissionRun {
       splits: el('ol', 'mission-splits'),
       overlay: null, crosshair: null, fire: null
     };
+    const menu = el('button', 'mission-menu', 'Missionen');
+    menu.type = 'button';
+    menu.title = 'Alle Missionen';
+    menu.addEventListener('click', () => this.hooks.missions?.showList());
     head.append(this.ui.kicker, this.ui.title, this.ui.best);
     const step = el('div', 'mission-step');
     step.append(this.ui.stepN, this.ui.stepTitle);
@@ -229,7 +276,7 @@ class MissionRun {
     arrow.append(path);
     this.ui.arrow = arrow;
     this.ui.nav.append(arrow, this.ui.dist);
-    panel.append(head, this.ui.clock, step, this.ui.text, this.ui.bar, this.ui.nav, this.ui.hint, this.ui.splits);
+    panel.append(head, this.ui.clock, step, this.ui.text, this.ui.bar, this.ui.nav, this.ui.hint, this.ui.splits, menu);
     hud.append(panel);
     document.body.append(hud);
     this.renderBest();
@@ -279,7 +326,7 @@ class MissionRun {
     meta.append(el('span', null, `${this.def.objectives.length} Schritte`), el('span', null, this.night ? 'Nacht' : 'Tag'),
       el('span', 'mission-dialog-best', Number.isFinite(best) ? `Bestzeit ${formatTime(best)}` : 'Noch keine Bestzeit'));
     nodes.push(meta, el('p', 'mission-dialog-note', 'Die Stoppuhr läuft mit der ersten Eingabe nach dem Start.'));
-    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['Alle Missionen', null, () => { location.search = '?mission=list'; }, true]]);
+    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   showEnd() {
@@ -304,28 +351,70 @@ class MissionRun {
     nodes.push(splits);
     for (const extra of this.def.summary?.(this.state) || []) nodes.push(el('p', 'mission-dialog-note', extra));
     nodes.push(el('p', 'mission-dialog-text', this.def.finish));
-    this.dialog('Mission erfüllt', this.def.title, nodes, [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => { location.search = '?mission=list'; }, true]]);
+    this.dialog('Mission erfüllt', this.def.title, nodes, [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   showStopped(kicker, reason) {
     this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', `Zeit ${formatTime(this.elapsed)}`)],
-      [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => { location.search = '?mission=list'; }, true]]);
+      [['Neustart', 'R', () => this.restart()], ['Alle Missionen', null, () => this.hooks.missions?.showList(), true]]);
   }
 
   bindKeys() {
-    window.addEventListener('keydown', (e) => {
+    const onKey = (e) => {
       if (isTypingInField(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.code === 'Enter' && this.phase === 'intro') { e.preventDefault(); this.start(); return; }
       if (e.code === 'KeyR' && !e.repeat && this.phase !== 'intro') { e.preventDefault(); this.restart(); return; }
       for (const f of Object.values(this.features)) f.key?.(this, e);
-    }, { capture: true });
+    };
+    this.listen(window, 'keydown', onKey, { capture: true });
+  }
+
+  /** An event listener that dispose() removes again */
+  listen(target, type, fn, options) {
+    if (!target) return;
+    target.addEventListener(type, fn, options);
+    this.cleanups.push(() => target.removeEventListener(type, fn, options));
   }
 
   start() {
     this.setup();
-    this.phase = 'ready';
     this.ui.overlay.hidden = true;
+    // (the mobile profile: the streets round the start come in cells after the teleport; the stopwatch is armed once
+    // they stand, the player held at the start meanwhile)
+    if (!this.worldReady()) {
+      this.phase = 'loading';
+      this.ui.panel.dataset.phase = 'loading';
+      this.loadingSince = performance.now();
+      return;
+    }
+    this.phase = 'ready';
     this.ui.panel.dataset.phase = 'ready';
+  }
+
+  worldReady() {
+    const s = this.startXZ;
+    return !s || worldCellsReady(this.hooks.world, s.x, s.z, WORLD_WAIT_RADIUS);
+  }
+
+  /** Tears the run down: nothing of it stays in the scene, the page or the traffic (js/missions-manager.js) */
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.active = false;
+    this.phase = 'disposed';
+    for (const f of Object.values(this.features)) {
+      try { f.teardown?.(this); } catch (error) { console.warn('[missions] teardown', error); }
+    }
+    for (const fn of this.cleanups.splice(0).reverse()) fn();
+    const bodies = this.hooks.trafficBodies;
+    if (bodies) for (const b of this.trafficBodies) { const i = bodies.indexOf(b); if (i >= 0) bodies.splice(i, 1); }
+    this.trafficBodies.length = 0;
+    this.audio.dispose();
+    this.group.removeFromParent();
+    disposeTree(this.group);
+    this.props.length = 0;
+    for (const node of [this.ui.hud, this.ui.overlay, this.ui.crosshair, this.ui.fire]) node?.remove();
+    if (globalThis.__slopdavosMission === this) globalThis.__slopdavosMission = null;
   }
 
   restart() { this.start(); }
@@ -351,7 +440,11 @@ class MissionRun {
   }
 
   update(dt, cm, cs) {
+    if (this.disposed) return;
     const now = performance.now();
+    if (this.phase === 'loading') {
+      if (this.worldReady() || now - this.loadingSince > WORLD_WAIT_MAX_MS) { this.start(); if (this.phase === 'loading') { this.phase = 'ready'; this.ui.panel.dataset.phase = 'ready'; } }
+    }
     const ent = cm.getActiveEntity();
     const ctx = this.frame(cm, cs, dt, now);
     if (this.phase === 'ready' && this.inputDetected(cm, cs, ent)) {
@@ -446,6 +539,12 @@ class MissionRun {
       if (u.hint.textContent !== hint) u.hint.textContent = hint;
       u.hint.hidden = !hint;
       this.placeTarget(view.target, ctx);
+    } else if (this.phase === 'loading') {
+      u.text.textContent = 'Die Umgebung wird geladen …';
+      u.bar.hidden = true;
+      u.nav.hidden = true;
+      u.hint.textContent = 'Die Stoppuhr ist gleich bereit';
+      u.hint.hidden = false;
     } else if (this.phase === 'intro') {
       u.text.textContent = 'Start mit Enter oder dem Knopf';
       u.bar.hidden = true;
@@ -521,19 +620,27 @@ const FEATURES = {
       document.body.append(cross);
       const fire = el('button', 'panel mission-fire', 'Feuer');
       fire.type = 'button';
-      fire.addEventListener('pointerdown', (e) => { e.preventDefault(); FEATURES.shooter.fire(run); });
+      run.listen(fire, 'pointerdown', (e) => { e.preventDefault(); FEATURES.shooter.fire(run); });
       run.ui.fire = fire;
       document.body.append(fire);
       // a click (not a drag) on the view fires too
       let down = null;
       const canvas = run.hooks.cameraSystem.camera && document.getElementById('canvas-container');
-      canvas?.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch' && e.button === 0) down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-      canvas?.addEventListener('pointerup', (e) => {
+      run.listen(canvas, 'pointerdown', (e) => { if (e.pointerType !== 'touch' && e.button === 0) down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+      run.listen(canvas, 'pointerup', (e) => {
         if (!down) return;
         const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
         if (moved < 6 && performance.now() - down.t < 300) FEATURES.shooter.fire(run);
         down = null;
       });
+    },
+    // (the tube, the shell and the aim ring go with the run's group; the particles live in the scene itself)
+    teardown(run) {
+      run.particles.dispose();
+      const cs = run.hooks.cameraSystem;
+      cs.orbitYawOffset = 0;
+      cs.orbitPitchOffset = 0.09; // (js/cameras.js: the chase camera's own)
+      run.lastAim = null;
     },
     reset(run) {
       const cs = run.hooks.cameraSystem;
@@ -629,7 +736,7 @@ const FEATURES = {
       if (zone && inZone(zone, x, z)) {
         s.hits++;
         run.particles.avalanche(x, z, { count: 160, seconds: 2.4, spread: zone.r + 6 });
-        setTimeout(() => run.audio.boom(Math.hypot(x - ctx.x, z - ctx.z), 0.5), 1200); // the slope's rumble
+        setTimeout(() => { if (!run.disposed) run.audio.boom(Math.hypot(x - ctx.x, z - ctx.z), 0.5); }, 1200); // the slope's rumble
       } else s.misses++;
     }
   },
@@ -645,6 +752,8 @@ const FEATURES = {
       run.hooks.controllerManager.entities.car.mesh.visible = false;
     },
     reset(run) { run.blueLight = false; run.police.userData.lightbar.visible = false; run.audio.siren(false); },
+    // the VW T3 back (the patrol car goes with the run's group)
+    teardown(run) { run.audio.siren(false); run.hooks.controllerManager.entities.car.mesh.visible = true; },
     key(run, e) {
       if (e.code === 'KeyK' && !e.repeat && run.phase !== 'intro') {
         run.blueLight = !run.blueLight;
@@ -673,6 +782,7 @@ const FEATURES = {
       run.rega = { phase: 'none', t: 0 };
     },
     reset(run) { run.rega.phase = 'none'; run.rega.t = 0; run.regaMesh.visible = false; },
+    teardown(run) { run.regaMesh.visible = false; run.rega.phase = 'gone'; }, // (its meshes go with the run's group)
     update(run, ctx, dt) {
       const r = run.rega, m = run.regaMesh, lz = run.def.landing;
       const objective = run.def.objectives[run.index];

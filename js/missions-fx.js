@@ -33,7 +33,8 @@ export class ParticleBatch {
     geo.setAttribute('aTint', new THREE.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES * 4), 4).setUsage(THREE.DynamicDrawUsage));
     const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
     const tint = attribute('aTint', 'vec4');
-    const puff = texture(puffTexture(), uv());
+    this.texture = puffTexture();
+    const puff = texture(this.texture, uv());
     mat.colorNode = vec4(tint.xyz, puff.a.mul(tint.w));
     const mesh = this.mesh = new THREE.InstancedMesh(geo, mat, MAX_PARTICLES);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -145,6 +146,10 @@ export class ParticleBatch {
     this.mesh.parent?.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
+    this.mesh.dispose(); // (its instance matrices)
+    this.texture.dispose();
+    this.particles.length = 0;
+    this.releases = [];
   }
 }
 

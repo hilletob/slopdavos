@@ -14,10 +14,13 @@ import {
 // colours (one draw call each). Nothing in here is visible outside a mission.
 
 // --- Materials -------------------------------------------------------------------------------------------------------
+// (shared() marks the materials kept for every mission and shared with the city, js/actor-models.js caches them: a run's
+// teardown, js/missions.js disposeTree, disposes the geometries and its own materials, never these)
+const shared = (mat) => { mat.userData.shared = true; return mat; };
 let _figureMat = null;
-const figureMaterial = () => (_figureMat ??= new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 }));
+const figureMaterial = () => (_figureMat ??= shared(new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 })));
 let _metalMat = null;
-const metalMaterial = () => (_metalMat ??= new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.7 }));
+const metalMaterial = () => (_metalMat ??= shared(new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.7 })));
 
 // A geometry painted in one colour (vertex colours, non-indexed and with normals, so that it can be merged)
 function painted(geometry, hex) {
@@ -180,16 +183,16 @@ export function createPoliceCar() {
   const geo = buildCarGeometry(spec, true);
   geo.setAttribute('paintColor', new THREE.InstancedBufferAttribute(new Float32Array([0.92, 0.93, 0.94]), 3));
   geo.setAttribute('carState', new THREE.InstancedBufferAttribute(new Float32Array([1, 0, 0, 1]), 4));
-  const body = new THREE.InstancedMesh(geo, createLoftedCarMaterial(spec), 1);
+  const body = new THREE.InstancedMesh(geo, shared(createLoftedCarMaterial(spec)), 1);
   body.setMatrixAt(0, new THREE.Matrix4());
   body.castShadow = body.receiveShadow = true;
-  const bar = new THREE.InstancedMesh(buildLightbarGeometry(spec), createLightbarMaterial(), 1);
+  const bar = new THREE.InstancedMesh(buildLightbarGeometry(spec), shared(createLightbarMaterial()), 1);
   bar.setMatrixAt(0, new THREE.Matrix4());
   bar.castShadow = true;
   const root = new THREE.Group();
   root.name = 'MissionPoliceCar';
   root.add(body, bar);
-  const wheelMat = createLoftedCarMaterial(spec, 0x202326);
+  const wheelMat = shared(createLoftedCarMaterial(spec, 0x202326));
   const wheels = [];
   for (const side of [-1, 1]) {
     const wg = buildSteerableWheelGeo(spec, side);
@@ -236,7 +239,7 @@ export function createShell() {
 export function createScriptedRega() {
   const root = new THREE.Group();
   root.name = 'MissionRega';
-  const mat = createLoftedHelicopterMaterial();
+  const mat = shared(createLoftedHelicopterMaterial());
   const body = new THREE.Mesh(buildHelicopterBodyGeometry(), mat);
   body.castShadow = true;
   root.add(body);

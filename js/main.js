@@ -926,8 +926,8 @@ async function initApp() {
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime('golden');
-  // Missions (js/missions.js): only with ?mission=<id> in the URL, nothing of it in the normal game
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies });
+  // Missions (js/missions.js): only with ?mission=<id> in the URL or from the list, switched without a reload
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, world });
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');

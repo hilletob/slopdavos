@@ -94,13 +94,18 @@ function furnitureGeometry() {
   return mergeGeometries(parts, false);
 }
 
-export function buildHelipad(scene) {
+// (built once: js/missions.js asks for the pad with { force: true } when a Rega mission starts beyond the town the
+// mobile profile built at the start)
+let platformAdded = false;
+let built = null;
+export function buildHelipad(scene, { force = false } = {}) {
+  if (built) return built;
   const group = new THREE.Group();
   group.name = 'Rega-Landeplatz Spital Davos';
   group.userData.terrain = 'absolute'; // its heights are surveyed (main.js placeOnTerrain leaves it be)
   const { x, z, y, size, rotation, radius } = HELIPAD;
-  addPlatform(x, z, radius, y);
-  if (!boxInWorld(x - radius, x + radius, z - radius, z + radius, 300)) return { group }; // (beyond the mobile profile's town)
+  if (!platformAdded) { addPlatform(x, z, radius, y); platformAdded = true; }
+  if (!force && !boxInWorld(x - radius, x + radius, z - radius, z + radius, 300)) return { group }; // (beyond the mobile profile's town)
 
   const slab = new THREE.Mesh(new THREE.BoxGeometry(size, 0.14, size), new THREE.MeshStandardNodeMaterial({ map: padTexture(), roughness: 0.85, metalness: 0 }));
   slab.name = 'Landing pad';
@@ -127,5 +132,5 @@ export function buildHelipad(scene) {
   group.rotation.y = rotation;
   group.updateMatrixWorld(true);
   scene.add(group);
-  return { group };
+  return (built = { group });
 }
