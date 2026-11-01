@@ -226,3 +226,39 @@ test('availability callback runs after visibility updates and only on an actual 
   document.dispatch('pointerdown', { pointerType: 'touch' });
   assert.deepEqual(changes, [true, false, true]);
 });
+
+test('the tap button (the GTA mode\'s get in / out): first among the actions, fires once on release, hidden until labelled', () => {
+  const { controls, root, document } = harness();
+  const made = [];
+  document.createElement = () => {
+    const e = element();
+    e.children = [];
+    e.append = (...kids) => { e.children.push(...kids); if (!e.firstChild) e.firstChild = kids[0]; };
+    e.querySelector = (sel) => e.children.find((k) => sel === '.touch-tap-label' && k.className === 'touch-tap-label');
+    e.dataset = {};
+    made.push(e);
+    return e;
+  };
+  const actions = { prepended: [], prepend(b) { this.prepended.push(b); } };
+  const query = root.querySelector;
+  root.querySelector = (selector) => (selector === '.touch-actions' ? actions : query(selector));
+  let taps = 0;
+  const button = controls.addTapButton({ className: 'touch-use', label: 'Get in', icon: '↗', onTap: () => taps++ });
+  assert.equal(actions.prepended[0], button, 'under the left thumb, before the hold buttons');
+  assert.equal(button.hidden, true);
+  button.dispatch('pointerdown');
+  button.dispatch('pointerup');
+  assert.equal(taps, 0, 'hidden: no tap');
+  controls.setTapButton(button, 'Get out', '↙');
+  assert.equal(button.hidden, false);
+  assert.equal(button.getAttribute('aria-label'), 'Get out');
+  button.dispatch('pointerdown');
+  assert.equal(taps, 0, 'not on the press');
+  button.dispatch('pointerup');
+  assert.equal(taps, 1, 'once, on the release');
+  button.dispatch('pointerdown');
+  button.dispatch('pointercancel');
+  assert.equal(taps, 1, 'a cancelled touch does nothing');
+  controls.setTapButton(button, null);
+  assert.equal(button.hidden, true);
+});

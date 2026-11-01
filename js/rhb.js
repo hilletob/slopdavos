@@ -342,7 +342,8 @@ export function buildRhB(scene) {
   scene.add(group);
   buildOverheadLine(group);
   const line = buildLine(DAVOS_DATA.railways, DAVOS_DATA.stations || [], DAVOS_DATA.meta.bounds);
-  const idle = { group, update() {}, collidePlayer() {}, bodies: [], trains: [], takeOver: () => null, setControls() {}, cab: () => null };
+  const idle = { group, update() {}, collidePlayer() {}, bodies: [], trains: [], takeOver: () => null, setControls() {}, cab: () => null,
+    board: () => null, seat: () => null, boardable: () => null, alightSpots: () => [], stationOf: () => null, isTerminus: () => false };
   if (!line || line.stations.length < 2) return idle;
   const routes = { south: line.south, north: line.north };
 
@@ -394,7 +395,7 @@ export function buildRhB(scene) {
   // Distance to the player standing on the track ahead (a train brakes for whoever stands on the rails)
   const probe = {};
   function playerAhead(t, player) {
-    if (!player) return Infinity;
+    if (!player || riding) return Infinity; // (a passenger is on board, not on the rails)
     const f = routePoint(routes[t.dir], t.s, probe), dx = player.x - f.x, dz = player.z - f.z;
     if (Math.abs(dx) > 150 || Math.abs(dz) > 150) return Infinity;
     const ahead = dx * f.dx + dz * f.dz;
@@ -459,8 +460,9 @@ export function buildRhB(scene) {
     }
   }
 
-  // Takes over a train on the map (true) or hands it back to the timetable (false); returns the driven train or null
-  function takeOver(on) {
+  // Takes over a train on the map (true; `which`: that train, if on the map) or hands it back to the timetable (false);
+  // returns the driven train or null
+  function takeOver(on, which = null) {
     if (!on) {
       if (manual) {
         // Back to the automatic run from where it stands: it keeps the block it is in and its next stop is ahead
@@ -472,7 +474,7 @@ export function buildRhB(scene) {
       return null;
     }
     if (!manual) {
-      manual = trains.find((t) => t.off <= 0) || trains[0];
+      manual = (which && trains.includes(which) && which.off <= 0 ? which : null) || trains.find((t) => t.off <= 0) || trains[0];
       manual.manual = true; manual.dwell = 0;
     }
     return manual;
@@ -486,6 +488,75 @@ export function buildRhB(scene) {
     const p = routePoint(route, s, cabProbe);
     const y = manual.y ?? surfaceHeight(p.x, p.z);
     return { x: p.x, y, z: p.z, heading: Math.atan2(p.dx, p.dz), speed: manual.speed, visible: manual.off <= 0 };
+  }
+
+  // --- Riding along (js/gta.js): the player as a passenger ------------------------------------------------------------
+  let riding = null;
+  const CAR_COUNT = CARS.length;
+  // Boards `train` (or gets off: null); returns the train ridden
+  function board(train) {
+    riding = train && trains.includes(train) && train.off <= 0 ? train : null;
+    return riding;
+  }
+  // The station the train stands at (stopped within a few metres of one of its stops), or null
+  function stationOf(t) {
+    if (!t || t.off > 0 || t.speed > 0.15) return null;
+    const stop = stops[t.dir].find((st) => Math.abs(st.s - t.s) < 6);
+    return stop ? line.stations.find((st) => st.name === stop.name) || null : null;
+  }
+  // The end stations of the line on the map (where the driver may take over a train)
+  const isTerminus = (station) => !!station && (station === line.stations[0] || station === line.stations[line.stations.length - 1]);
+  // The passenger's seat: the middle of the second car, the train's heading and speed (visible: false while the train is
+  // off the map or in a tunnel)
+  function seat(t) {
+    const i = trains.indexOf(t);
+    if (i < 0) return null;
+    const b = bodies[i * CAR_COUNT + 1];
+    const visible = t.off <= 0 && b.y > -1e3;
+    return { x: b.x, y: b.y + 0.9, z: b.z, heading: Math.atan2(b.sin, b.cos), speed: t.speed, visible, station: stationOf(t) };
+  }
+  // A train standing at a platform with a door within `reach` metres of (x, z) (a car's side): { train, station,
+  // distance } or null. The driven train is not boarded (its driver is the player).
+  function boardable(x, z, reach = 6) {
+    let best = null;
+    trains.forEach((t, i) => {
+      if (t === manual) return;
+      const station = stationOf(t);
+      if (!station) return;
+      for (let c = 0; c < CAR_COUNT; c++) {
+        const b = bodies[i * CAR_COUNT + c];
+        const dx = x - b.x, dz = z - b.z;
+        const lx = dx * b.cos - dz * b.sin, lz = dx * b.sin + dz * b.cos; // across, along the car
+        const d = Math.hypot(Math.max(0, Math.abs(lx) - b.halfW), Math.max(0, Math.abs(lz) - b.halfL));
+        if (d <= reach && (!best || d < best.distance)) best = { train: t, station, distance: d };
+      }
+    });
+    return best;
+  }
+  // Where a passenger (or the driver) steps off: beside the second car (the driver: the cab), on the platform side
+  // first (away from the other direction's track, which at a passing loop is the other platform's)
+  function alightSpots(t, { driver = false } = {}) {
+    const i = trains.indexOf(t);
+    if (i < 0) return [];
+    const b = bodies[i * CAR_COUNT + (driver ? 0 : 1)];
+    if (b.y < -1e3) return [];
+    const along = driver ? b.halfL - 3 : 0;
+    const cx = b.x + b.sin * along, cz = b.z + b.cos * along;
+    const rx = -b.cos, rz = b.sin; // the right of the direction of travel
+    const other = routes[t.dir === 'south' ? 'north' : 'south'];
+    const q = routePoint(other, project(other, cx, cz).s, {});
+    const otherSide = (q.x - cx) * rx + (q.z - cz) * rz; // > 0: the other track runs on the right
+    const first = Math.abs(otherSide) > 1 && otherSide > 0 ? -1 : 1;
+    const heading = Math.atan2(b.sin, b.cos);
+    const out = [];
+    for (const side of [first, -first]) {
+      for (const off of [HALF_WIDTH + 1.6, HALF_WIDTH + 2.6]) {
+        for (const shift of [0, 4, -4]) {
+          out.push({ x: cx + rx * side * off + b.sin * shift, z: cz + rz * side * off + b.cos * shift, heading }); // (facing along the train: the camera stays clear of it)
+        }
+      }
+    }
+    return out;
   }
 
   function step(dt, player) {
@@ -614,5 +685,5 @@ export function buildRhB(scene) {
   }
 
   group.userData.stats = { trains: TRAINS, length: Math.round(line.south.len), stations: line.stations.map((s) => s.name), loops: loops.map((s) => s.name) };
-  return { group, update, collidePlayer, bodies, trains, line, blocks, takeOver, setControls, cab };
+  return { group, update, collidePlayer, bodies, trains, line, blocks, takeOver, setControls, cab, board, seat, boardable, alightSpots, stationOf, isTerminus };
 }

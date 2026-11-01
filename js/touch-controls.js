@@ -114,6 +114,60 @@ class TouchControls {
     }
   }
 
+  // A button that acts once per tap (not held like the action buttons): the GTA mode's "Enter / Exit" (js/gta.js).
+  // It sits first among the action buttons, under the left thumb (the stick is under the right one); hidden until
+  // shown with setTapButton(button, label).
+  addTapButton({ className = '', label = '', icon = '', onTap = () => {} } = {}) {
+    const actions = this.root?.querySelector('.touch-actions');
+    if (!actions) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `touch-action touch-tap ${className}`.trim();
+    button.hidden = true;
+    const glyph = document.createElement('span');
+    glyph.setAttribute('aria-hidden', 'true');
+    glyph.textContent = icon;
+    const text = document.createElement('span');
+    text.className = 'touch-tap-label';
+    text.textContent = label;
+    button.append(glyph, text);
+    button.setAttribute('aria-label', label);
+    let pointer = null;
+    button.addEventListener('pointerdown', (event) => {
+      if (!this.canInteract() || button.hidden || event.button !== 0 || pointer !== null || event.pointerId === this.stickPointer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      pointer = event.pointerId;
+      button.classList.add('is-pressed');
+    });
+    const release = (event, fire) => {
+      if (event.pointerId !== pointer) return;
+      pointer = null;
+      button.classList.remove('is-pressed');
+      if (fire && !button.hidden && this.canInteract()) onTap();
+    };
+    button.addEventListener('pointerup', (event) => release(event, true));
+    for (const type of ['pointercancel', 'lostpointercapture']) button.addEventListener(type, (event) => release(event, false));
+    // (a mouse click on a hybrid device, or the keyboard's Enter on the focused button)
+    button.addEventListener('click', (event) => { if (event.detail === 0 && !button.hidden) onTap(); });
+    actions.prepend(button);
+    return button;
+  }
+
+  // Shows the tap button with `label` (and `glyph`), or hides it (label null)
+  setTapButton(button, label, glyph = null) {
+    if (!button) return;
+    const show = !!label;
+    if (button.hidden === !show && (!show || button.dataset.label === label)) return;
+    button.hidden = !show;
+    if (!show) { button.classList.remove('is-pressed'); return; }
+    button.dataset.label = label;
+    button.setAttribute('aria-label', label);
+    const text = button.querySelector('.touch-tap-label');
+    if (text) text.textContent = label;
+    if (glyph != null) button.firstChild.textContent = glyph;
+  }
+
   moveStick(event) {
     const dx = event.clientX - this.stickCenter.x;
     const dy = event.clientY - this.stickCenter.y;

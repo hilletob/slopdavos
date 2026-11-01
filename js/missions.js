@@ -9,11 +9,14 @@ import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter } from './quality.js';
 import { MissionManager, worldCellsReady } from './missions-manager.js';
+import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
+import { buildMissionWorld } from './missions-world.js';
 
 // js/missions.js
-// Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). Nothing
-// of this shows in the normal game: a mission starts only from the URL, ?mission=<id> (?mission=list shows the list,
-// &night=1 the night variant where there is one). The module builds its HUD panel (top centre, the city's glass
+// Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
+// open world every mission has its pin (js/missions-world.js: Enter in the start circle starts it); the list, a link
+// (?mission=<id>, ?mission=list, &night=1 the night variant where there is one) or the HUD's score start them too.
+// A completed run earns a medal by its time and points (js/missions-progress.js, the best medal a mission counts). The module builds its HUD panel (top centre, the city's glass
 // panels), the target marker and the mission's props into the world, runs the stopwatch (it starts with the first
 // input after "Start", stops at the finish; a split a step; the best time a mission in localStorage) and ends with the
 // finish panel. A teleport or a change of mode during a mission aborts it (unless the step allows the mode); R restarts.
@@ -30,28 +33,35 @@ const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
 export function buildMissions(scene, hooks) {
   // (the pad the helipad module built: the Rega missions start and end on it)
   if (HELIPAD) Object.assign(SPITAL_PAD, { x: HELIPAD.x, z: HELIPAD.z, r: Math.max(5, (HELIPAD.radius || 7) - 0.5) });
-  let listOverlay = null;
+  let listOverlay = null, world = null;
+  const progress = createProgressStore(globalThis.localStorage, MISSIONS);
   const manager = new MissionManager({
     getMission,
     createRun: (def, opts) => {
-      const run = new MissionRun(scene, def, { ...hooks, missions: manager }, opts);
+      const run = new MissionRun(scene, def, { ...hooks, missions: manager, progress, flashPoints: (n, anchor) => world?.flashPoints(n, anchor) }, opts);
       globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
       return run;
     },
-    showList: (note) => { listOverlay = showList(manager, note); },
+    showList: (note) => { listOverlay = showList(manager, progress, note); },
     hideList: () => { listOverlay?.remove(); listOverlay = null; },
     setSearch: (search) => {
       try { history.replaceState(history.state, '', `${location.pathname}${search}${location.hash}`); } catch { /* (sandboxed) */ }
     },
-    onError: (error, id) => console.warn('[missions] could not', id === 'dispose' ? 'tear down the run' : `start ${id}`, error)
+    onError: (error, id) => console.warn('[missions] could not', id === 'dispose' ? 'tear down the run' : `start ${id}`, error),
+    onFrame: (active, dt, cm) => world?.update(active, dt, cm)
   });
+  try {
+    world = buildMissionWorld(scene, { manager, progress, mapSystem: hooks.mapSystem, controllerManager: hooks.controllerManager });
+  } catch (error) { console.warn('[missions] the pins in the world could not be built', error); }
   globalThis.__slopdavosMissions = manager; // (test hooks)
+  globalThis.__slopdavosProgress = progress;
+  globalThis.__slopdavosMissionWorld = world;
   manager.fromSearch(location.search);
   return manager;
 }
 
 /** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever) */
-function showList(manager, note = null) {
+function showList(manager, progress, note = null) {
   const overlay = el('div', 'mission-overlay');
   overlay.id = 'mission-overlay'; overlay.dataset.list = '1';
   const go = (a, id, night) => a.addEventListener('click', (e) => {
@@ -61,6 +71,9 @@ function showList(manager, note = null) {
   });
   const panel = el('div', 'panel mission-dialog');
   panel.append(el('div', 'mission-kicker', 'Missions'), el('h2', 'mission-dialog-title', 'Choose a mission'));
+  const total = el('p', 'mission-list-total');
+  total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
+  panel.append(total);
   if (note) panel.append(el('p', 'mission-dialog-note', note));
   const list = el('ul', 'mission-list');
   const best = readBestTimes(globalThis.localStorage);
@@ -69,9 +82,12 @@ function showList(manager, note = null) {
     const a = el('a', 'mission-link', m.title);
     a.href = `?mission=${m.id}`;
     go(a, m.id, false);
-    li.append(a);
+    const entry = progress.entry(m.id);
+    li.append(medalBadge(entry?.medal, !!entry), a);
     const b = best[bestTimeKey(m.id)];
-    if (Number.isFinite(b)) li.append(el('span', 'mission-list-best', `Best time ${formatTime(b)}`));
+    const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `– / ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold}`);
+    if (Number.isFinite(b)) score.append(el('span', 'mission-list-best', formatTime(b)));
+    li.append(score);
     if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
   }
@@ -83,6 +99,26 @@ function showList(manager, note = null) {
   overlay.append(panel);
   document.body.append(overlay);
   return overlay;
+}
+
+/** A medal as a small round badge (grey: none yet; dashed: not completed) */
+function medalBadge(medal, completed = true) {
+  const b = el('span', `mission-medal mission-medal-${medal || 'none'}${completed ? '' : ' is-open'}`);
+  b.title = medal ? `${MEDAL_LABELS[medal]} medal` : completed ? 'Completed, no medal' : 'Not completed yet';
+  return b;
+}
+
+/** The medals' time limits as a line: Gold 3:00 · Silver 4:00 · Bronze 6:00 */
+function medalLimits(def, current = null) {
+  const limits = missionMedals(def);
+  const line = el('p', 'mission-dialog-meta mission-medal-limits');
+  if (!limits) return line;
+  for (const m of ['gold', 'silver', 'bronze']) {
+    const span = el('span', `mission-limit${current === m ? ' is-held' : ''}`);
+    span.append(medalBadge(m), document.createTextNode(` ${MEDAL_LABELS[m]} ${formatTime(limits[m]).replace(/\.\d$/, '')}`));
+    line.append(span);
+  }
+  return line;
 }
 
 /** Disposes what a run built: the geometries, its own materials and their textures (not the shared ones, marked by
@@ -325,8 +361,8 @@ class MissionRun {
     const meta = el('p', 'mission-dialog-meta');
     meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
       el('span', 'mission-dialog-best', Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet'));
-    nodes.push(meta, el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'));
-    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
+    nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)), el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'));
+    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
   showEnd() {
@@ -338,8 +374,22 @@ class MissionRun {
     const line = el('p', 'mission-dialog-meta');
     if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? 'First best time' : `New best time (was ${formatTime(r.previous)})`));
     else line.append(el('span', null, `Best time ${formatTime(r.best)}`));
-    if (this.def.bonusMs && r.total < this.def.bonusMs) line.append(el('span', 'mission-bonus', `Bonus: under ${formatTime(this.def.bonusMs).replace(/\.\d$/, '')}`));
     nodes.push(line);
+    let medalNode = null;
+    const award = r.award;
+    if (award) {
+      medalNode = el('div', `mission-award mission-award-${award.medal || 'none'}`);
+      const big = el('span', `mission-medal mission-medal-big mission-medal-${award.medal || 'none'}`);
+      const words = el('div', 'mission-award-words');
+      words.append(el('strong', null, award.medal ? `${MEDAL_LABELS[award.medal]} medal` : 'No medal this time'));
+      const notes = [];
+      if (award.firstClear) notes.push(`first completion +${FIRST_CLEAR_POINTS}`);
+      if (award.medalUp && award.medal) notes.push(`${MEDAL_LABELS[award.medal]} +${MEDAL_POINTS[award.medal] - (MEDAL_POINTS[award.previousMedal] || 0)}`);
+      if (!award.points) notes.push(award.bestMedal ? `you hold ${MEDAL_LABELS[award.bestMedal]}: no new points` : 'no new points');
+      words.append(el('span', null, notes.join(' · ')));
+      medalNode.append(big, words, el('span', `mission-award-points${award.points ? '' : ' is-zero'}`, `+${award.points}`));
+      nodes.push(medalNode, medalLimits(this.def, award.bestMedal));
+    }
     const splits = el('ol', 'mission-dialog-splits');
     let prev = 0;
     for (const s of this.splits) {
@@ -351,18 +401,19 @@ class MissionRun {
     nodes.push(splits);
     for (const extra of this.def.summary?.(this.state) || []) nodes.push(el('p', 'mission-dialog-note', extra));
     nodes.push(el('p', 'mission-dialog-text', this.def.finish));
-    this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
+    this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
+    if (award?.points) requestAnimationFrame(() => this.hooks.flashPoints?.(award.points, medalNode.querySelector('.mission-award-points')));
   }
 
   showStopped(kicker, reason) {
     this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', `Time ${formatTime(this.elapsed)}`)],
-      [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true]]);
+      [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
   bindKeys() {
     const onKey = (e) => {
       if (isTypingInField(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.code === 'Enter' && this.phase === 'intro') { e.preventDefault(); this.start(); return; }
+      if (e.code === 'Enter' && this.phase === 'intro' && !e.repeat) { e.preventDefault(); this.start(); return; }
       if (e.code === 'KeyR' && !e.repeat && this.phase !== 'intro') { e.preventDefault(); this.restart(); return; }
       for (const f of Object.values(this.features)) f.key?.(this, e);
     };
@@ -516,7 +567,8 @@ class MissionRun {
     const total = now - this.startedAt;
     this.elapsed = total;
     const { best, previous, improved } = recordBestTime(globalThis.localStorage, this.bestKey, total);
-    this.result = { total, best, previous, improved };
+    const award = this.hooks.progress ? this.hooks.progress.record(this.def, total) : null;
+    this.result = { total, best, previous, improved, award };
     this.renderBest();
     this.marker.visible = false;
     for (const r of Object.values(this.rings)) r.visible = false;

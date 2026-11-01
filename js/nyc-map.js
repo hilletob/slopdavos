@@ -554,6 +554,9 @@ class NYCMapSystem {
     // Start with the Kongresszentrum as the active GPS waypoint.
     const ts = NYC_LANDMARKS.find((l) => l.id === 'kongress') || { x: 0, z: 0 };
     this.waypoint = { x: ts.x, z: ts.z, name: ts.name || 'Kongresszentrum' };
+    // Layers others draw over the maps (js/missions-world.js: the mission pins): { draw(ctx, view, isMinimap),
+    // hover(mx, my, view) -> label | null, click(mx, my, view) -> true when handled (no teleport then) }
+    this.overlays = [];
 
     // Street names measured before the web font arrived would be spaced for the fallback font: measure & draw again
     if (document.fonts) {
@@ -664,8 +667,11 @@ class NYCMapSystem {
         if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
           const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
           this.hoverWorld = wPos;
+          const fv = new MapView(this.viewCenterX, this.viewCenterZ, this.viewZoom, rect.width, rect.height);
+          const overlayLabel = (this.overlays || []).map((o) => o.hover?.(mx, my, fv)).find(Boolean);
+          this.fullCanvas.style.cursor = overlayLabel ? 'pointer' : '';
           if (this.elHoverInfo) {
-            this.elHoverInfo.textContent = `${getLocationLabel(wPos.x, wPos.z)} · Click to teleport here`;
+            this.elHoverInfo.textContent = overlayLabel || `${getLocationLabel(wPos.x, wPos.z)} · Click to teleport here`;
           }
         }
       });
@@ -679,6 +685,8 @@ class NYCMapSystem {
           const mx = e.clientX - rect.left;
           const my = e.clientY - rect.top;
           if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
+            const fv = new MapView(this.viewCenterX, this.viewCenterZ, this.viewZoom, rect.width, rect.height);
+            if ((this.overlays || []).some((o) => o.click?.(mx, my, fv))) { this.toggleFullMap(false); return; }
             const wPos = this.clampToManhattan(this.screenToWorld(mx, my, rect.width, rect.height));
             this.waypoint = {
               x: wPos.x,
@@ -1153,6 +1161,8 @@ class NYCMapSystem {
       drawWaypoint(ctx, wx, wy, 4.5);
     }
 
+    for (const o of this.overlays || []) o.draw?.(ctx, v, true);
+
     // Landmark blips
     for (const lm of NYC_LANDMARKS) {
       const lx = toX(lm.x);
@@ -1243,6 +1253,8 @@ class NYCMapSystem {
       drawRoute(ctx, toX(ent.position.x), toY(ent.position.z), wx, wy, 4,route&&route.map(p=>({x:toX(p.x),z:toY(p.z)})));
       drawWaypoint(ctx, wx, wy, 7);
     }
+
+    for (const o of this.overlays || []) o.draw?.(ctx, v, false);
 
     // Live Player Blip & Heading Arrow, with a slow pulse to find it at a glance
     const px = toX(ent.position.x);

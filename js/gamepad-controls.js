@@ -113,7 +113,7 @@ class GamepadControls {
     // Capture edges before callbacks: changing mode or opening the map may synchronously call reset().
     const toggleMap = edge(9), closeMap = edge(1);
     const cycleMode = Number(Boolean(edge(5))) - Number(Boolean(edge(4)));
-    const cycleCamera = edge(3), recenter = edge(11);
+    const cycleCamera = edge(3), recenter = edge(11), use = edge(2); // (2: X / Square, get in or out: js/gta.js)
     this.previousButtons = pressed;
 
     const target = document.activeElement;
@@ -139,6 +139,8 @@ class GamepadControls {
     if (cycleMode) this.callbacks.onCycleMode?.(cycleMode);
     if (revision !== this.revision) return;
     if (cycleCamera) this.callbacks.onCycleCamera?.(1);
+    if (revision !== this.revision) return;
+    if (use) this.callbacks.onUse?.();
     if (revision !== this.revision) return;
     if (recenter) this.camera.resetOrbit();
 

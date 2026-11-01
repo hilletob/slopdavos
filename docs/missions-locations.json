@@ -1,0 +1,509 @@
+{
+ "meta": {
+  "titel": "Missionsorte Davos",
+  "stand": "2026-11-01",
+  "frame": "x = LV95 E − 2782500, z = 1185500 − LV95 N (Meter; z zeigt nach Süden), y = Höhe − 1558",
+  "saisons": {
+   "winter": "Winter",
+   "sommer": "Sommer",
+   "ganzjaehrig": "Ganzjährig"
+  },
+  "unsicherheit": "niedrig = aus Spiel-/OSM-Daten direkt; mittel = Ort plausibel, Detail geschätzt oder Lokal-Info unbestätigt; hoch = Ort geraten"
+ },
+ "basen": [
+  {
+   "id": "spital-helipad",
+   "name": "Spital Davos, Rega-Helipad",
+   "x": -1139,
+   "z": 924.5,
+   "lv95": {
+    "E": 2781361,
+    "N": 1184576
+   },
+   "quelle": "js/missions-data.js SPITAL_PAD (js/helipad.js)"
+  },
+  {
+   "id": "polizei-start",
+   "name": "Polizei-Start Promenade, Davos Platz",
+   "x": -600,
+   "z": 60,
+   "lv95": {
+    "E": 2781900,
+    "N": 1185440
+   },
+   "quelle": "js/missions-data.js (teleport promenade)"
+  }
+ ],
+ "missions": [
+  {
+   "id": "dischma-loipe",
+   "status": "bestehend",
+   "name": "Dischma-Loipe präparieren",
+   "kurz": "Mit dem Pistenfahrzeug die Langlaufloipe «Dischmatal Warm-Up» (1.9 km) mit abgesenkter Fräse präparieren, bis 90 % gespurt sind.",
+   "saison": "winter",
+   "fahrzeug": "Pistenfahrzeug",
+   "anreise": "Start direkt am Loipenanfang (Dischma-Mündung)",
+   "ort": {
+    "name": "Loipenstart Dischma (Talmündung)",
+    "x": 1584.3,
+    "z": -150.6,
+    "lv95": {
+     "E": 2784084,
+     "N": 1185651
+    }
+   },
+   "punkte": [
+    {
+     "name": "Loipenende (erste Biegung Dischmabach)",
+     "x": 2530.3,
+     "z": 445.1,
+     "lv95": {
+      "E": 2785030,
+      "N": 1185055
+     }
+    }
+   ],
+   "route": {
+    "type": "loipe",
+    "id": "w1034080622"
+   },
+   "quelle": "js/missions-data.js (DISCHMA_MISSION) · OSM w1034080622 «Dischmatal Warm-Up» (DAVOS_DATA.loipen)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Direkt aus Spiel- und OSM-Daten.",
+   "nr": 1
+  },
+  {
+   "id": "rega-rettung",
+   "status": "bestehend",
+   "name": "Rega-Rettung Jakobshorn",
+   "kurz": "Verletzten Skifahrer auf der Jakobshorn Standard (Piste 8) oberhalb Ischalp per Rega-Heli aufnehmen und zum Spital fliegen.",
+   "saison": "winter",
+   "fahrzeug": "Helikopter (Rega)",
+   "anreise": "Start auf dem Spital-Helipad",
+   "ort": {
+    "name": "Unfallstelle Piste 8 «Jakobshorn Standard»",
+    "x": 812,
+    "z": 2544.2,
+    "lv95": {
+     "E": 2783312,
+     "N": 1182956
+    }
+   },
+   "punkte": [
+    {
+     "name": "Spital-Helipad (Start/Ziel)",
+     "x": -1139,
+     "z": 924.5,
+     "lv95": {
+      "E": 2781361,
+      "N": 1184576
+     }
+    }
+   ],
+   "route": {
+    "type": "piste",
+    "id": "w29262638"
+   },
+   "quelle": "js/missions-data.js (REGA_MISSION, pointOnRun w29262638 t=0.26) · js/ski-pistes-data.js",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Punkt auf der OSM-Piste, im Spiel verifiziert.",
+   "nr": 2
+  },
+  {
+   "id": "lawinen-sprengen",
+   "status": "bestehend",
+   "name": "Lawinen sprengen",
+   "kurz": "Vom Aussichtspunkt an der Strela-Seite vier Anrisszonen am SE-Hang unter dem Salezer Horn mit dem Lawinenwerfer auslösen (12 Schuss).",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss (Lawinenwerfer)",
+   "anreise": "Start am Aussichtspunkt (1970 m ü. M.)",
+   "ort": {
+    "name": "Lawinenhang unter dem Salezer Horn",
+    "x": -850,
+    "z": -1900,
+    "lv95": {
+     "E": 2781650,
+     "N": 1187400
+    }
+   },
+   "punkte": [
+    {
+     "name": "Aussichtspunkt / Werferstandort",
+     "x": -600,
+     "z": -1600,
+     "lv95": {
+      "E": 2781900,
+      "N": 1187100
+     }
+    }
+   ],
+   "quelle": "js/missions-data.js (LAWINEN_VIEW, LAWINEN_SLOPE, 4 Zonen)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Spielposition; Hang real (Lawine 1968 bis Davos Dorf), Zonen gegen Terrain geprüft.",
+   "nr": 3
+  },
+  {
+   "id": "toeff-unfall",
+   "status": "bestehend",
+   "name": "Töffunfall Rega",
+   "kurz": "Töffunfall in der Kurve der Flüelapassstrasse oberhalb Tschuggen: hinfliegen, neben der Strasse landen, Patient versorgen.",
+   "saison": "sommer",
+   "fahrzeug": "Helikopter (Rega)",
+   "anreise": "Start auf dem Spital-Helipad (6.4 km)",
+   "ort": {
+    "name": "Flüelapassstrasse, Kurve oberhalb Tschuggen (1794 m)",
+    "x": 4990,
+    "z": -888,
+    "lv95": {
+     "E": 2787490,
+     "N": 1186388
+    }
+   },
+   "punkte": [
+    {
+     "name": "Landeplatz Wiese südl. der Strasse",
+     "x": 5058,
+     "z": -856,
+     "lv95": {
+      "E": 2787558,
+      "N": 1186356
+     }
+    },
+    {
+     "name": "Spital-Helipad (Start)",
+     "x": -1139,
+     "z": 924.5,
+     "lv95": {
+      "E": 2781361,
+      "N": 1184576
+     }
+    }
+   ],
+   "quelle": "js/missions-data.js (TOEFF_SITE, TOEFF_LANDING) · OSM w186141612",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Spielposition. Saison im Code «winter» – für einen Töffunfall evtl. eher Sommer?",
+   "nr": 4,
+   "notes": "User 2026-11-01: Sommer-Mission."
+  },
+  {
+   "id": "toeff-unfall-polizei",
+   "status": "bestehend",
+   "name": "Töffunfall Polizei",
+   "kurz": "Mit Blaulicht von der Promenade zur Unfallstelle an der Flüelastrasse fahren, absperren, zwei Pylonen stellen, Rega einweisen.",
+   "saison": "sommer",
+   "fahrzeug": "Polizeiauto (+ zu Fuss)",
+   "anreise": "Start Promenade, Davos Platz",
+   "ort": {
+    "name": "Flüelapassstrasse, Kurve oberhalb Tschuggen",
+    "x": 4990,
+    "z": -888,
+    "lv95": {
+     "E": 2787490,
+     "N": 1186388
+    }
+   },
+   "punkte": [
+    {
+     "name": "Polizei-Start Promenade",
+     "x": -600,
+     "z": 60,
+     "lv95": {
+      "E": 2781900,
+      "N": 1185440
+     }
+    }
+   ],
+   "quelle": "js/missions-data.js (TOEFF_POLIZEI_MISSION, start teleport promenade)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Kein amenity=police im OSM-Ausschnitt, Start daher auf der Promenade.",
+   "nr": 5,
+   "notes": "User 2026-11-01: Sommer-Mission."
+  },
+  {
+   "id": "sesselbahn-beladen",
+   "status": "idee",
+   "name": "Sesselbahn maximal beladen (Carjöl)",
+   "kurz": "An der Talstation der Sesselbahn Carjöl in Davos Platz möglichst viele Gäste in kurzer Zeit auf die Sessel bringen.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss (Bahnpersonal) / Sesselbahn",
+   "anreise": "Jakobshornbahn + Skipiste bzw. Pistenfahrzeug",
+   "ort": {
+    "name": "Talstation Carjöl, Davos Platz",
+    "x": -740.8,
+    "z": 845.5,
+    "lv95": {
+     "E": 2781759,
+     "N": 1184654
+    }
+   },
+   "route": {
+    "type": "ropeway",
+    "name": "Clavadeler Bubble"
+   },
+   "quelle": "js/bergbahnen-data.js (Carjöl - Carjöler Rank), User-Wahl 2026-11-01",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Auswahl der Bahn offen. Alternativen: Parsenn Rapid (6er, 2600 P/h, Talst. Höhenweg -576/-2627), Bräma Jet (4er, Talst. Ischalp 299/961), Carjöl (2er, Talst. Davos Platz -741/846, gut erreichbar).",
+   "nr": 6
+  },
+  {
+   "id": "headbang-box",
+   "status": "idee",
+   "name": "Headbang-Contest in der Box",
+   "kurz": "Headbang-Wettbewerb im Live-Musik-Lokal «BOX Davos» (Bar/Pub mit Konzerten).",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Bus/Auto/RhB bis Davos Dorf, dann zu Fuss",
+   "ort": {
+    "name": "BOX Davos, Bahnhofstrasse 19, Davos Dorf",
+    "x": 996.5,
+    "z": -1829.2,
+    "lv95": {
+     "E": 2783497,
+     "N": 1187329
+    }
+   },
+   "quelle": "OSM node 9038967606 (tools/data/cache/osm_davos_shops.json, amenity=bar) · restaurantguru.com/Box-Davos (Live-Musik)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Ort eindeutig (einzige «Box» in OSM); offen ob der User dieses Lokal meint. Alternativer Club: «Bolgenschanze» (amenity=nightclub, Davos Platz).",
+   "nr": 7,
+   "notes": "User bestätigt: BOX Davos, Bahnhofstrasse 19."
+  },
+  {
+   "id": "tischfussball-la-onda",
+   "status": "idee",
+   "name": "Tischfussball im La Onda",
+   "kurz": "Tischfussball-Turnier in der Bar «La Onda» (Rock/Latin/Funk/Hip-Hop-Bar im Zentrum von Davos Platz).",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Zu Fuss über die Promenade",
+   "ort": {
+    "name": "Bar La Onda, Promenade, Davos Platz",
+    "x": -489.6,
+    "z": -310.3,
+    "lv95": {
+     "E": 2782010,
+     "N": 1185810
+    }
+   },
+   "quelle": "OSM node 599406857 «Bar LaOnda» (osm_davos_shops.json, amenity=pub) · davos.ch / graubuenden.ch Eintrag",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Ort gesichert; ob dort ein Töggelikasten steht, ist nicht belegt (C-Bar, Talstrasse 17, hat nachweislich Tischfussball). Adresse laut Tourismus «Obere Strasse 63».",
+   "nr": 8,
+   "notes": "User: in der Bar La Onda, drinnen (Innenraum)."
+  },
+  {
+   "id": "curling",
+   "status": "idee",
+   "name": "Curling",
+   "kurz": "Curling-Partie auf den Rinks beim Sportzentrum/Eistraum an der Natureisbahn (3 Rinks, Reservation).",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss (Curlingstein)",
+   "anreise": "Bus bis Eisstadion, zu Fuss",
+   "ort": {
+    "name": "Eisfeld Sportzentrum / Natureisbahn, Talstrasse 41",
+    "x": -337.1,
+    "z": -188.3,
+    "lv95": {
+     "E": 2782163,
+     "N": 1185688
+    }
+   },
+   "quelle": "js/landmark-buildings-data.js (EISBAHN.court) · OSM w37221745 Sportzentrum Davos · davos.ch «Curling and Bavarian curling» (Eistraum Davos, Talstrasse 41, 3 Rinks)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Genaue Lage der Curling-Rinks auf dem 18 000 m² Eisfeld nicht belegt; Pin auf das Hartplatz-Feld neben der 400-m-Bahn gesetzt.",
+   "nr": 9
+  },
+  {
+   "id": "eishockey-penalty",
+   "status": "idee",
+   "name": "Eishockey-Penalty im Stadion",
+   "kurz": "Penaltyschiessen gegen den Goalie im Eisstadion Davos (Zondacrypto/Vaillant Arena, Heimstadion HCD).",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss / Schlittschuhe",
+   "anreise": "Bus bis Kongress/Eisstadion",
+   "ort": {
+    "name": "Eisstadion Davos, Kurgartenstrasse 6",
+    "x": -241.6,
+    "z": -312.5,
+    "lv95": {
+     "E": 2782258,
+     "N": 1185813
+    }
+   },
+   "quelle": "OSM w37221744 (leisure=sports_hall, sport=ice_hockey) · js/landmark-buildings-data.js EISSTADION",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Hallenspiel: Eis ca. Aug.–April; ausserhalb der Wintersaison spielbar.",
+   "nr": 10
+  },
+  {
+   "id": "eisschnelllauf",
+   "status": "idee",
+   "name": "Eisschnelllauf 400 m",
+   "kurz": "Zeitrennen über 400 m (oder 1500 m) auf der historischen Natureisbahn Davos.",
+   "saison": "winter",
+   "fahrzeug": "Schlittschuhe",
+   "anreise": "Bus bis Eisstadion, zu Fuss",
+   "ort": {
+    "name": "Natureisbahn Davos, 400-m-Bahn",
+    "x": -271.5,
+    "z": -162.5,
+    "lv95": {
+     "E": 2782229,
+     "N": 1185663
+    }
+   },
+   "route": {
+    "type": "eisbahn"
+   },
+   "quelle": "js/landmark-buildings-data.js (EISBAHN.track, aus SWISSIMAGE eingepasst) · OSM w1304525522 / w262580839",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Bahngeometrie liegt im Spiel bereits vor.",
+   "nr": 11
+  },
+  {
+   "id": "golf",
+   "status": "idee",
+   "name": "Golf",
+   "kurz": "Eine Runde (oder ein Loch / Driving Range) im Golf Club Davos, 18 Loch Par 69.",
+   "saison": "sommer",
+   "fahrzeug": "Zu Fuss / Golf-Cart",
+   "anreise": "Auto/Bus bis Mattastrasse, Davos Dorf",
+   "ort": {
+    "name": "Golf Club Davos, Clubhaus (Mattastrasse 25)",
+    "x": 814.2,
+    "z": -379.8,
+    "lv95": {
+     "E": 2783314,
+     "N": 1185880
+    }
+   },
+   "route": {
+    "type": "golf"
+   },
+   "quelle": "js/golf-data.js (clubhouse, outline) · OSM relation 3333230",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Golfplatz komplett in den Daten.",
+   "nr": 12
+  },
+  {
+   "id": "mtb-rennen",
+   "status": "idee",
+   "name": "Mountainbike-Rennen",
+   "kurz": "Downhill-Rennen (~790 Hm) vom Jakobshorn-Gebiet über den Ischalptrail und den Bolgen-Trail («Chüggelibahn») bis Bolgen Plaza.",
+   "saison": "sommer",
+   "fahrzeug": "Mountainbike",
+   "anreise": "Jakobshornbahn (Bike-Transport) bis Jatz/Jakobshorn",
+   "ort": {
+    "name": "Start Ischalptrail (oberhalb Clavadeleralp)",
+    "x": 1383,
+    "z": 2890,
+    "lv95": {
+     "E": 2783883,
+     "N": 1182610
+    }
+   },
+   "punkte": [
+    {
+     "name": "Ziel Bolgen Plaza (Ende Bolgen Trail)",
+     "x": -498,
+     "z": 629,
+     "lv95": {
+      "E": 2782002,
+      "N": 1184871
+     }
+    },
+    {
+     "name": "Ischalp (Übergang Ischalptrail → Chüggelibahn)",
+     "x": 270,
+     "z": 924,
+     "lv95": {
+      "E": 2782770,
+      "N": 1184576
+     }
+    }
+   ],
+   "route": {
+    "type": "osm",
+    "ids": [
+     399449038,
+     445645220,
+     1083800662,
+     399449036,
+     1083799181,
+     399449035,
+     1424744532,
+     1427914213,
+     424165931,
+     973018088
+    ]
+   },
+   "quelle": "OSM «Ischalptrail» (mtb:scale=2) und «Chüggelibahn» / «Bolgen Trail» (mtb:scale=1) in tools/data/cache/osm_davos.json · graubuenden.ch «Bolgen-Trail (Kügelibahn)»",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Trail-Kette aus OSM vollständig bis auf ~300 m Lücke bei der Mittelstation Ischalp; Start (2411 m) und Ziel (Bolgen Plaza) gewählt, keine offizielle Rennstrecke. Alternative: Teufi trail (mtb:scale=2).",
+   "nr": 13
+  },
+  {
+   "id": "big-air",
+   "status": "idee",
+   "name": "Snowboard Big Air",
+   "kurz": "Big-Air-Sprung (18-m-Kicker) im Snowpark «JatzPark» am Jakobshorn – Austragungsort der Davos Open.",
+   "saison": "winter",
+   "fahrzeug": "Snowboard",
+   "anreise": "Jakobshornbahn + Jatz Quattro",
+   "ort": {
+    "name": "JatzPark, neben dem Skilift Jatz Junior",
+    "x": 1560,
+    "z": 3122,
+    "lv95": {
+     "E": 2784060,
+     "N": 1182378
+    }
+   },
+   "route": {
+    "type": "ropeway",
+    "name": "Jatz Junior"
+   },
+   "quelle": "myswitzerland.com / davosklostersmountains.ch («direkt unterhalb der Jatzhütte, beim Jatz Junior Lift») · js/bergbahnen-data.js (Jatz Junior)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Kein snow_park-Polygon in OSM; Pin auf Mitte des Jatz-Junior-Lifts geschätzt (±150 m).",
+   "nr": 14
+  },
+  {
+   "id": "ski-slalom",
+   "status": "idee",
+   "name": "Ski-Slalom Davos Vertical",
+   "kurz": "Slalom auf der Piste «Davos Vertical» am Jakobshorn (987 m, 423 m Gefälle).",
+   "saison": "winter",
+   "fahrzeug": "Ski",
+   "anreise": "Zu Fuss/Bus bis Bolgen Plaza, T-Bar Bolgen",
+   "ort": {
+    "name": "Start Davos Vertical, Jakobshorn",
+    "x": 228.8,
+    "z": 2003.3,
+    "lv95": {
+     "E": 2782729,
+     "N": 1183497
+    }
+   },
+   "punkte": [
+    {
+     "name": "Ziel Davos Vertical",
+     "x": -445.5,
+     "z": 1356.5,
+     "lv95": {
+      "E": 2782054,
+      "N": 1184144
+     }
+    }
+   ],
+   "route": {
+    "type": "piste",
+    "id": "w31065233"
+   },
+   "quelle": "js/ski-pistes-data.js w1202616660, User-Wahl 2026-11-01",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Hang eher flach (Übungshang). Steilere Alternativen: «Davos Vertical» Jakobshorn (987 m, 423 m Gefälle) oder Rinerhorn (Talstation ausserhalb des Kartenausschnitts, x≈-3560).",
+   "nr": 15
+  }
+ ]
+}

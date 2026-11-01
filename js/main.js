@@ -50,10 +50,19 @@ import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry }
 import { isWinter, onSeasonChange } from './season.js';
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
+import { buildGta, isClassicMode, hasGtaState } from './gta.js';
+import { GTA_START } from './vehicle-depots.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
 const SAVE_VERSION = 7; // 7: new starts for every player (controllers.js PLAYER_STARTS: the cyclist by the Seehof Seeli, the pedestrian at the Eisstadion, the Rega over the Jakobshornbahn, the groomer on the Bündawiese); 6: the VW T3 on the Dischmastrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
+
+// The GTA mode (js/gta.js): on foot, into the vehicles that stand about; ?classic=1 brings back the mode bar instead
+const GTA = !isClassicMode();
+// A first visit starts on foot by the Bahnhof Davos Platz (classic: by bike by the Seehof Seeli); a first visit of the
+// GTA mode ignores a save from before it (it starts afresh, see js/gta.js)
+const FIRST_START = GTA ? GTA_START : PLAYER_STARTS.cyclist;
+const FRESH_GTA = GTA && !hasGtaState();
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
@@ -191,8 +200,8 @@ async function initApp() {
   const breathe = () => (QUALITY.mobile ? new Promise((resolve) => setTimeout(resolve, 60)) : null);
   // The part of the valley built in detail (the mobile profile: QUALITY.worldRadius around where the player starts)
   {
-    let start = PLAYER_STARTS.cyclist; // (a first visit starts by bike, see below)
-    try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
+    let start = FIRST_START; // (a first visit starts on foot or by bike, see below)
+    if (!FRESH_GTA) try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
     setWorldCenter(start.x, start.z);
     if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
   }
@@ -299,14 +308,14 @@ async function initApp() {
   let swissStream = null;
   let buildingsSettled = false;
   try {
-    const savedSpawn = (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
+    const savedSpawn = FRESH_GTA ? null : (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
-    drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : PLAYER_STARTS.cyclist })
+    drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START })
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
     // (?qset=skip:buildings: no swissBUILDINGS3D, and no OSM buildings in their place either, see buildCityBlocks below)
     if (skipped('buildings')) throw new Error('skipped (?qset=skip:buildings)');
     const stream = swissStream = streamSwissBuildings(scene, {
-      center: Number.isFinite(savedSpawn?.x) ? savedSpawn : PLAYER_STARTS.cyclist,
+      center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START,
       nearRadius: QUALITY.buildingNear, concurrency: QUALITY.buildingLoads,
       onProgress: (done, total) => {
         if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${total}`);
@@ -577,8 +586,11 @@ async function initApp() {
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
   const elControlsHint = document.getElementById('hud-controls-hint');
+  let gta = null; // (the GTA mode, built with the UI below)
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
+    onUse: () => gta?.use(),
     onCycleMode: (step) => {
+      if (GTA) return; // (the GTA mode changes vehicles by getting in and out)
       const modes = ['person', 'car', 'cyclist', 'rhb', 'helicopter', 'snowcat'];
       selectMode(modes[(modes.indexOf(controllerManager.activeMode) + step + modes.length) % modes.length]);
     },
@@ -593,9 +605,12 @@ async function initApp() {
     car: [[['W', 'S'], 'Drive / Reverse'], [['A', 'D'], 'Steer'], [['Shift'], 'Boost'], [['B'], 'Horn'], [['Q', 'E'], 'Indicators'], [['L'], 'High beam'], [['Drag'], 'Orbit']],
     cyclist: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
     rhb: [[['W'], 'Throttle'], [['S'], 'Brake'], [['Drag'], 'Orbit']],
+    rhbPassenger: [[['Drag'], 'Orbit']], // (riding along, js/gta.js)
     helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost'], [['L'], 'Searchlight']],
     snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['L'], 'High beam'], [['K'], 'Beacon'], [['F'], 'Tiller'], [['Drag'], 'Orbit']]
   };
+  // The GTA mode: getting in and out with F (or G; F is the groomer's tiller: G gets out of it; Enter starts missions)
+  if (GTA) for (const [mode, hints] of Object.entries(controlHints)) hints.push([[mode === 'snowcat' ? 'G' : 'F'], mode === 'person' ? 'Get in' : 'Get out']);
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
 
@@ -638,7 +653,7 @@ async function initApp() {
     placeModeIndicator();
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
-    renderControlHints(mode);
+    renderControlHints(mode === 'rhb' && controllerManager.rhbPassenger ? 'rhbPassenger' : mode);
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
     const currentCam = cameraSystem.getActivePreset();
@@ -868,22 +883,22 @@ async function initApp() {
     if (isTypingInField(e)) return;
     switch (e.code) {
       case 'Digit1':
-        selectMode('person');
+        if (!GTA) selectMode('person');
         break;
       case 'Digit2':
-        selectMode('car');
+        if (!GTA) selectMode('car');
         break;
       case 'Digit3':
-        selectMode('cyclist');
+        if (!GTA) selectMode('cyclist');
         break;
       case 'Digit4':
-        selectMode('rhb');
+        if (!GTA) selectMode('rhb');
         break;
       case 'Digit5':
-        selectMode('helicopter');
+        if (!GTA) selectMode('helicopter');
         break;
       case 'Digit6':
-        selectMode('snowcat');
+        if (!GTA) selectMode('snowcat');
         break;
       case 'Digit7':
         selectCamera('pov', true);
@@ -926,8 +941,14 @@ async function initApp() {
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime('golden');
-  // Missions (js/missions.js): only with ?mission=<id> in the URL or from the list, switched without a reload
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, world });
+  // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, world, mapSystem });
+  // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
+  // Bahnhof Davos Platz)
+  if (GTA) {
+    document.body.classList.add('gta-mode');
+    gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState });
+  }
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
@@ -1115,7 +1136,8 @@ async function initApp() {
     if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
-    if (missions.active) missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers (?mission=)
+    missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers; else the pins in the world
+    gta?.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (the GTA mode)
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();

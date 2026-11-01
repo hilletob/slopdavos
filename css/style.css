@@ -2067,3 +2067,178 @@ body.touch-enabled .pop-item { min-height: 44px; }
 body:has(#mission-hud) .touch-look-hint { display: none; }
 
 body.hud-minimized .mission-hud { opacity: 1; }
+
+/* ------------------------------------------------------------------------------------------------------------------
+   Missions in the open world (js/missions-world.js): the points, the start prompt, the waypoint, the medals
+   ------------------------------------------------------------------------------------------------------------------ */
+.mission-score {
+  position: fixed;
+  top: calc(var(--edge) + 62px);
+  right: var(--edge);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.mission-score:hover { background: var(--hover); }
+.mission-score-star { color: var(--taxi); }
+.mission-score-label { font-weight: 600; color: var(--text-3); font-size: 11px; }
+.mission-score.is-bumped { animation: mission-score-bump 0.6s ease-out; }
+@keyframes mission-score-bump { 30% { transform: scale(1.18); box-shadow: 0 0 0 3px rgba(255, 194, 26, 0.45); } }
+body.hud-minimized .mission-score { opacity: 0; pointer-events: none; }
+
+.mission-points-pop {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--taxi);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  animation: mission-points-pop 1.7s ease-out forwards;
+}
+@keyframes mission-points-pop {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  15% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -260%) scale(1); }
+}
+
+.mission-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 31%;
+  z-index: 12;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 9px 16px 9px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--mission-colour, var(--taxi));
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 18px -4px var(--mission-colour, var(--taxi));
+}
+.mission-prompt[hidden] { display: none; }
+.mission-prompt kbd { color: var(--taxi-ink); background: var(--taxi); }
+.mission-prompt-body { display: flex; flex-direction: column; min-width: 0; }
+.mission-prompt-text { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mission-prompt-sub { font-size: 11px; color: var(--text-3); }
+body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 300px); padding: 12px 18px; }
+
+.mission-waypoint[hidden] { display: none; }
+.mission-waypoint-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+.mission-waypoint .mission-arrow { width: 18px; height: 18px; flex: none; }
+.mission-waypoint-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.mission-waypoint-clear {
+  border: 0; border-radius: 7px; padding: 1px 7px; font: inherit; font-size: 14px; line-height: 1.2;
+  color: var(--text-2); background: rgba(255, 255, 255, 0.08); cursor: pointer;
+}
+
+/* medals: a small disc (grey: none yet; dashed: not completed) */
+.mission-medal {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  background: #8b93a1;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+}
+.mission-medal-bronze { background: #c8814a; }
+.mission-medal-silver { background: #cfd6df; }
+.mission-medal-gold { background: #ffc83d; }
+.mission-medal.is-open { background: transparent; border: 1.5px dashed rgba(255, 255, 255, 0.35); box-shadow: none; }
+.mission-medal-big { width: 40px; height: 40px; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.22), 0 0 0 3px rgba(255, 255, 255, 0.12); }
+
+.mission-award {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-ctl);
+  background: rgba(255, 255, 255, 0.06);
+}
+.mission-award-words { display: flex; flex-direction: column; gap: 2px; flex: 1; font-size: 12px; color: var(--text-3); }
+.mission-award-words strong { font-size: 15px; color: var(--text); }
+.mission-award-points { font-size: 22px; font-weight: 800; color: var(--taxi); font-variant-numeric: tabular-nums; }
+.mission-award-points.is-zero { color: var(--text-3); font-size: 16px; }
+.mission-medal-limits { gap: 4px 12px; }
+.mission-limit { white-space: nowrap; opacity: 0.7; }
+.mission-limit.is-held { opacity: 1; font-weight: 700; color: var(--text); }
+
+.mission-list-total { display: flex; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: 13px; color: var(--text-3); }
+.mission-list-total strong { font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
+.mission-list-points { font-size: 11.5px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* touch screens and phones: the points small at the top left, under the brand; hidden during a mission (the strip) */
+body.touch-enabled .mission-score { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); right: auto; left: max(var(--edge), env(safe-area-inset-left)); padding: 4px 8px; font-size: 11px; }
+@media (max-width: 820px) {
+  .mission-score { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); right: auto; left: max(var(--edge), env(safe-area-inset-left)); padding: 4px 8px; font-size: 11px; }
+  .mission-score-label { display: none; }
+  .mission-waypoint-panel { font-size: 11px; padding: 4px 6px 4px 10px; }
+}
+@media (max-width: 820px) {
+  body:has(#mission-hud) .mission-score { display: none; }
+}
+.mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); }
+.mission-list li { flex-wrap: nowrap; }
+.mission-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mission-list-points { display: flex; flex-direction: column; align-items: flex-end; flex: none; white-space: nowrap; }
+.mission-list-points .mission-list-best { font-size: 10.5px; font-weight: 500; }
+@media (max-width: 820px) {
+  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 150px); }
+}
+
+/* The GTA mode (js/gta.js): no mode bar; the prompt to get in or out above the controls guide (under a mission's
+   start prompt); the touch screens' "Get in / Get out" button first among the action buttons, under the left thumb */
+body.gta-mode #mode-switch { display: none; }
+.gta-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--edge) + 64px);
+  z-index: 12;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+  padding: 7px 14px 7px 9px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.gta-prompt[hidden], .gta-prompt kbd[hidden], .gta-prompt-sub[hidden] { display: none; }
+.gta-prompt kbd { color: var(--taxi-ink); background: var(--taxi); }
+.gta-prompt-body { display: flex; flex-direction: column; min-width: 0; margin-left: 4px; text-align: left; }
+.gta-prompt-text { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gta-prompt-sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
+.touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
+.touch-tap-label { font-size: 11px; white-space: nowrap; }

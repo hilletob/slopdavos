@@ -5,6 +5,13 @@ import { WORLD_CELL, cellKey, cellsAround } from './world-cells.js';
 // reloading the page. The URL follows along (history.replaceState: ?mission=<id>, &night=1, ?mission=list), so that a
 // link can be shared and a reload comes back to the same mission. No three.js and no DOM in here: the run, the list and
 // the URL are handed in, so that tests/missions.test.mjs can drive the manager on its own.
+//
+// Keys (the open world, js/missions-world.js): Enter starts the mission whose start circle the player stands in (the
+// prompt "Enter: Start …", a button on touch screens). It is handled on window in the capture phase and stops the
+// event there, so a mission in reach takes precedence over anything else bound to Enter. Getting in and out of
+// vehicles therefore does NOT use Enter: use another key (F, as in GTA, is free outside the snowcat — there F lowers
+// the tiller — and the avalanche launcher, where it fires). Another module asks `missionStartInReach()` (below) to
+// find out whether a mission start is in reach before acting on a shared key or touch button. M is the map.
 
 /** ?mission=<id>[&night=1] -> { id, night }, or null when the URL asks for no mission */
 export function parseMissionSearch(search) {
@@ -38,6 +45,11 @@ export function worldCellsReady(world, x, z, radius = 600) {
   return true;
 }
 
+let _inReach = null;
+/** The mission whose start circle the player stands in (its id), or null; js/missions-world.js keeps it current */
+export const missionStartInReach = () => _inReach;
+export const setMissionStartInReach = (id) => { _inReach = id || null; };
+
 export class MissionManager {
   /**
    * @param {object} o
@@ -45,9 +57,10 @@ export class MissionManager {
    * @param {(def: object, opts: { night: boolean }) => object} o.createRun a run: { active, update(...), dispose() }
    * @param {(note?: string|null) => void} o.showList / o.hideList the list of the missions
    * @param {(search: string) => void} o.setSearch the URL's search part ('' for the free game)
+   * @param {(active: boolean, ...args) => void} o.onFrame every frame, a mission running or not (the open world's pins)
    */
-  constructor({ getMission, createRun, showList = () => {}, hideList = () => {}, setSearch = () => {}, onError = () => {} }) {
-    Object.assign(this, { getMission, createRun, _showList: showList, _hideList: hideList, setSearch, onError });
+  constructor({ getMission, createRun, showList = () => {}, hideList = () => {}, setSearch = () => {}, onError = () => {}, onFrame = () => {} }) {
+    Object.assign(this, { getMission, createRun, _showList: showList, _hideList: hideList, setSearch, onError, onFrame });
     this.run = null;
     this.listOpen = false;
   }
@@ -100,6 +113,7 @@ export class MissionManager {
 
   update(...args) {
     if (this.run) this.run.update(...args);
+    this.onFrame(!!this.run, ...args);
   }
 
   _end() {

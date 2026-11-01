@@ -660,6 +660,41 @@ test('in the RhB mode the player is bound to the rails: W and S go to the train,
   assert.equal(railway.taken, false, 'leaving the mode hands the train back to the timetable');
 });
 
+test('a passenger rides the train without its controls; leaving gets off; mode listeners hear every change', () => {
+  const { controller, key } = teleportHarness('car');
+  const sent = [];
+  const train = { id: 'south' };
+  const railway = {
+    taken: null, boarded: undefined,
+    takeOver(on) { this.taken = on; return on ? {} : null; },
+    board(t) { this.boarded = t; return t; },
+    setControls(throttle, brake) { sent.push([throttle, brake]); },
+    seat: (t) => (t === train ? { x: 5, y: 2, z: 7, heading: 1, speed: 3, visible: true } : null),
+    cab: () => ({ x: 12, y: 3, z: -40, heading: 2, speed: 9 })
+  };
+  const rhb = { type: 'rhb', label: 'RhB', position: { x: 0, y: 0, z: 0, set(x, y, z) { Object.assign(this, { x, y, z }); } }, heading: 0, speed: 0 };
+  controller.entities.rhb = rhb;
+  controller.setRailway(railway);
+  const changes = [];
+  controller.onModeChange((prev, next) => changes.push([prev, next]));
+  controller.setMode('rhb', { passenger: train });
+  assert.equal(railway.boarded, train);
+  assert.equal(railway.taken, null, 'a passenger does not take the train over');
+  assert.equal(controller.rhbPassenger, train);
+  assert.equal(rhb.label, 'RhB · Passenger');
+  controller.setMode('rhb'); // (the HUD's selectMode after boarding: no take-over)
+  assert.equal(railway.taken, null);
+  key('keydown', 'KeyW');
+  controller.updateRhB(0.1);
+  assert.equal(sent.length, 0, 'no throttle for a passenger');
+  assert.deepEqual({ x: rhb.position.x, z: rhb.position.z, heading: rhb.heading, speed: rhb.speed }, { x: 5, z: 7, heading: 1, speed: 3 });
+  controller.setMode('car');
+  assert.equal(railway.boarded, null, 'got off');
+  assert.equal(controller.rhbPassenger, null);
+  assert.equal(railway.taken, null, 'nothing handed back: it was never taken');
+  assert.deepEqual(changes, [['car', 'rhb'], ['rhb', 'car']]);
+});
+
 test('cargo bike teleport clearance includes its forward cargo deck and small front wheel', () => {
   const obstacle = { minX: -0.12, maxX: 0.12, minZ: 0.84, maxZ: 1.04, maxY: 20 };
   const { controller } = teleportHarness('cargobike', [obstacle]);

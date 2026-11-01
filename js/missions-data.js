@@ -16,7 +16,14 @@ import { SKI_PISTES } from './ski-pistes-data.js';
 //     objectives: [{ id, title, allowModes?, check(ctx, state) -> { done, progress (0-1 or null), text,
 //                    target { x, z, r?, style? } | null, hint (string | null), fail (string | null) } }],
 //     bonusMs: a time to beat for the bonus note on the finish panel, finish: the finish message,
-//     summary(state): extra lines for the finish panel }
+//     summary(state): extra lines for the finish panel,
+//     medals: { gold, silver, bronze } (ms: the slowest time for each medal; js/missions-progress.js turns the best
+//       medal into points), colour / icon: the mission's pin in the world and on the map (js/missions-world.js),
+//     pin: { x, z } where the pin stands when it is not the start (default: `start`) }
+// (the medal limits: gold = bonusMs, the time a clean run makes; silver ~ +35-50 %, a run with a detour or a retry;
+// bronze ~ double, any run that gets there. Estimated from the legs: the Rega's 2 x 2.6 km / 2 x 6.4 km at the H145's
+// ~60 m/s (the scripted test flights), the patrol car's ~7 km at ~80 km/h, the 1.9 km Loipe at the snowcat's pace with
+// a few turns, four shells with the launcher's reload and flight time)
 //
 // `ctx` is the frame as js/missions.js assembles it from the controllers:
 //   { mode, x, y, z, heading, speed, verticalSpeed, agl (m over the surface under the player), tillerRaised, tillerLift,
@@ -218,6 +225,9 @@ export const DISCHMA_MISSION = {
   season: 'winter',
   time: 'golden',
   bonusMs: 6 * 60 * 1000,
+  medals: { gold: 6 * 60000, silver: 9 * 60000, bronze: 12 * 60000 },
+  colour: '#ff8a3d',
+  icon: 'snowcat',
   finish: 'Trail groomed: the corduroy is down, the cross-country skiers can come.',
   get start() {
     const l = dischmaLoipe();
@@ -268,6 +278,9 @@ export const DISCHMA_MISSION = {
 // Mission 2: the Rega rescue on the Jakobshorn
 // The Rega pad on the roof of the Spital Davos (js/helipad.js HELIPAD; js/missions.js takes the built pad's position)
 export const SPITAL_PAD = { x: -1139, z: 924.5, r: 7 };
+// The Rega missions' pins: on the Spital's drive off the Promenade, below the pad (14.5 m up on the roof), one each
+const REGA_PIN = { x: -1140, z: 890 };
+const TOEFF_PIN = { x: -1122, z: 886 };
 // The injured skier: on the Jakobshorn Standard (OSM w29262638, run 8) above the Ischalp middle station
 const PATIENT_RUN = { id: 'w29262638', t: 0.26 };
 const PATIENT_FALLBACK = { x: 786, z: 2490 };
@@ -296,6 +309,10 @@ export const REGA_MISSION = {
   time: 'golden',
   nightTime: 'midnight',
   bonusMs: 3 * 60 * 1000,
+  medals: { gold: 3 * 60000, silver: 4 * 60000, bronze: 6 * 60000 },
+  colour: '#ff3b3b',
+  icon: 'rega',
+  pin: REGA_PIN,
   finish: 'Patient handed over: the Spital team takes it from here.',
   pad: SPITAL_PAD,
   get start() { return { x: this.pad.x, z: this.pad.z, heading: -2.0, onGround: true }; },
@@ -358,6 +375,9 @@ export const LAWINEN_MISSION = {
   time: 'golden',
   features: ['shooter'],
   bonusMs: 2 * 60 * 1000,
+  medals: { gold: 2 * 60000, silver: 3 * 60000, bronze: 4.5 * 60000 },
+  colour: '#ffc21a',
+  icon: 'blast',
   finish: 'Slope released: all four zones have slid, the road can reopen.',
   ammo: LAWINEN_AMMO,
   zones: lawinenZones(),
@@ -403,10 +423,14 @@ export const TOEFF_MISSION = {
   title: 'Motorbike crash on the pass road',
   intro: 'Alert: motorbike crash on the Flüelapassstrasse above Davos Dorf, the cantonal police are closing off the site. Fly out, land on the marked meadow beside the road, treat the patient and bring them to the Spital.',
   mode: 'helicopter',
-  season: 'winter',
+  season: 'summer', // (a motorbike crash on the pass: a summer mission)
   time: 'golden',
   nightTime: 'midnight',
   bonusMs: 7 * 60 * 1000,
+  medals: { gold: 7 * 60000, silver: 9.5 * 60000, bronze: 13 * 60000 },
+  colour: '#ff4f8b',
+  icon: 'rega',
+  pin: TOEFF_PIN,
   finish: 'Patient at the Spital: the rider is in good hands.',
   pad: SPITAL_PAD,
   features: ['trafficBlock'],
@@ -455,11 +479,14 @@ export const TOEFF_POLIZEI_MISSION = {
   title: 'Police: motorbike crash on the Flüela road',
   intro: 'Dispatch to patrol Davos: motorbike crash on the Flüelapassstrasse above the Tschuggen, one person injured. Drive there with blue lights (K), park across the road before the crash site, then on foot (1) set cones 50 m before and after the site and guide the Rega in.',
   mode: 'car',
-  season: 'winter',
+  season: 'summer', // (a motorbike crash on the pass: a summer mission)
   time: 'golden',
   nightTime: 'midnight',
   features: ['policeCar', 'regaScript'],
   bonusMs: 9 * 60 * 1000,
+  medals: { gold: 9 * 60000, silver: 12 * 60000, bronze: 16 * 60000 },
+  colour: '#3f8bff',
+  icon: 'police',
   finish: 'Call complete: the Rega has taken over the patient, the road is secured.',
   landing: TOEFF_LANDING,
   // The Polizeiposten Davos: OSM has no amenity=police in the frame, so the patrol starts on the Promenade in Davos Platz

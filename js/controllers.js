@@ -133,6 +133,13 @@ function aimBeam(spot, x, y, z, side, b) {
 }
 // The parked VW T3's box for the other players (its collisionBody below) and the cells of the tree trunks (setTrees)
 const PARKED_T3 = { halfW: 0.93, halfL: 2.33, top: 1.97 };
+// The boxes of the GTA mode's parked stand-ins (js/gta.js): the H145's fuselage and skids, a bicycle
+const PARKED_DIMS = {
+  car: PARKED_T3,
+  snowcat: SNOWCAT_MODEL,
+  helicopter: { halfW: 1.3, halfL: 4.6, top: 3.4 },
+  cyclist: { halfW: 0.3, halfL: 0.85, top: 1.1 }
+};
 const TREE_CELL = 16;
 // The lamp posts and sign posts (setKnockablePosts): a vehicle at this speed or more knocks one over, slower it stops
 const POST_CELL = 32;
@@ -438,6 +445,12 @@ class ThirdPersonControllerManager {
     this.highBeam = false; // L: high beam / searchlight of the driven vehicle
     this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter' | 'snowcat' | 'rhb'
     this.railway = null; // js/rhb.js, for the rhb mode (setRailway)
+    this.rhbPassenger = null; // the train the player rides in as a passenger (the rhb mode without the controls, js/gta.js)
+    // The GTA mode (js/gta.js): parked vehicles look parked (no rider on the bike, the rotor at rest) and the parked
+    // instances of the depots (js/vehicle-depots.js: { type, x, y, z, heading }) are solid like the parked T3
+    this.gtaParkedLook = false;
+    this.parkedVehicles = [];
+    this._modeListeners = new Set();
 
     this.keys = {
       forward: false,
@@ -614,14 +627,64 @@ class ThirdPersonControllerManager {
     this.railway = railway;
   }
 
-  setMode(mode) {
+  // `passenger`: a train of js/rhb.js to ride in (the rhb mode without the controls); `train`: the train to drive
+  // (otherwise the first one on the map)
+  setMode(mode, { passenger = null, train = null } = {}) {
     if (!this.entities[mode]) return;
-    if (mode === 'rhb' && !this.railway?.takeOver(true)) return; // no train to take over
-    if (this.activeMode === 'rhb' && mode !== 'rhb') this.railway?.takeOver(false);
+    const prev = this.activeMode;
+    if (mode === 'rhb') {
+      if (passenger) {
+        if (prev === 'rhb' && !this.rhbPassenger) this.railway?.takeOver(false);
+        if (!this.railway?.board?.(passenger)) return; // (no such train on the map)
+        this.rhbPassenger = passenger;
+      } else if (prev === 'rhb' && !train) {
+        // already on a train (driving it, or riding along: a mode button pressed again changes nothing)
+      } else {
+        if (this.rhbPassenger) { this.railway?.board?.(null); this.rhbPassenger = null; }
+        if (!this.railway?.takeOver(true, train)) return; // no train to take over
+      }
+    }
+    if (prev === 'rhb' && mode !== 'rhb') {
+      if (this.rhbPassenger) this.railway?.board?.(null);
+      else this.railway?.takeOver(false);
+      this.rhbPassenger = null;
+    }
+    if (this.entities.rhb) this.entities.rhb.label = this.rhbPassenger ? 'RhB · Passenger' : 'RhB';
     this.activeMode = mode;
     if (mode === 'rhb') this.updateRhB(0);
     const car = this.entities.car;
     if (mode !== 'car' && car?.carState) Object.assign(car.carState.value, { x: 0, y: 0, z: 0, w: 0 });
+    if (prev !== mode) for (const fn of this._modeListeners || []) fn(prev, mode);
+  }
+
+  // Called with (previous, next) after every change of the active mode (from the mode bar, a mission, getting in)
+  onModeChange(fn) {
+    (this._modeListeners ??= new Set()).add(fn);
+    return () => this._modeListeners.delete(fn);
+  }
+
+  // A player model out of the world (the GTA mode: the pedestrian while it sits in a vehicle, a vehicle whose parked
+  // stand-in is a lighter copy, js/gta.js); hidden ones are not solid either (dynamicColliders, snowcatTrafficBody)
+  setEntityHidden(mode, hidden) {
+    const e = this.entities[mode];
+    if (!e) return;
+    e.hidden = !!hidden;
+    e.mesh.visible = !hidden;
+    if (e.helmet) e.helmet.visible = !hidden;
+  }
+
+  // Is the spot free for a player of `mode` (no building, wall, parked vehicle or post, not in unbridged water)?
+  // js/gta.js asks it where the pedestrian steps out of a vehicle.
+  isSpotClear(mode, x, z, heading = 0) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
+    if (mode !== 'helicopter' && this.isUnbridgedWater(x, z)) return false;
+    const radius = mode === 'person' ? 0.48 : 0.65;
+    const body = collisionBody(mode, radius, heading, 0.15);
+    const y = this.getGroundHeight(x, z, mode);
+    const reach = Math.max(body.extX, body.extZ) + 1;
+    for (const c of this.nearColliders(x, z, reach)) if (buildingContact(c, x, y, z, body)) return false;
+    for (const c of this.dynamicColliders(this.entities[mode], x, z, reach)) if (buildingContact(c, x, y, z, body)) return false;
+    return true;
   }
 
   getActiveEntity() {
@@ -643,14 +706,34 @@ class ThirdPersonControllerManager {
       ent.heading = heading;
       ent.position.y = heli ? altitude : this.getGroundHeight(destination.x, destination.z, this.activeMode, savedAltitude ?? undefined);
     }
+    this._settle(this.activeMode, ent);
+    return { x: ent.position.x, z: ent.position.z };
+  }
+
+  // Sets the player of `mode` down exactly at (x, z) facing `heading`, at rest, without looking for a free spot (the
+  // caller has: js/gta.js getting in and out); `y`: its height (else the ground's; the helicopter's skids on it)
+  placeEntity(mode, x, z, heading, y = null) {
+    const ent = this.entities[mode];
+    if (!ent || mode === 'rhb' || !Number.isFinite(x) || !Number.isFinite(z)) return null;
+    ent.position.x = x;
+    ent.position.z = z;
+    if (Number.isFinite(heading)) ent.heading = heading;
+    ent.position.y = Number.isFinite(y) ? y : mode === 'helicopter' ? surfaceHeight(x, z) + 0.25 : this.getGroundHeight(x, z, mode);
+    this._settle(mode, ent);
+    return ent;
+  }
+
+  // A player brought to rest where it stands (after a teleport or being set down)
+  _settle(mode, ent) {
+    const heli = mode === 'helicopter';
     ent.speed = 0;
-    if (this.activeMode === 'person') {
+    if (mode === 'person') {
       ent.verticalVel = 0;
       ent.rig.reset(ent.position.x, ent.position.z, ent.heading, personGround, this);
       ent.crowd.begin();
       ent.crowd.add(ent.rig, 0);
       ent.crowd.end();
-    } else if (this.activeMode === 'car') {
+    } else if (mode === 'car') {
       ent.prevX = ent.position.x;
       ent.prevZ = ent.position.z;
       ent.vx = ent.vz = ent.angularVel = ent.steerAngle = 0;
@@ -661,12 +744,12 @@ class ThirdPersonControllerManager {
       for (const wheel of ent.wheels) if (wheel.isFront) wheel.steerPivot.rotation.y = 0;
       if (ent.carState) Object.assign(ent.carState.value, { x: 0, y: 0, z: 0, w: 0 });
       ent.indicator = null;
-    } else if (this.activeMode === 'cyclist' || this.activeMode === 'cargobike') {
+    } else if (mode === 'cyclist' || mode === 'cargobike') {
       ent.leanAngle = ent.leanPivot.rotation.z = 0;
       if (ent.frontSteerPivot) ent.frontSteerPivot.rotation.y = 0;
       if (ent.handlebarPivot) ent.handlebarPivot.rotation.y = 0;
       if (ent.bikeFrame) ent.bikeFrame.steerAngle = 0;
-    } else if (this.activeMode === 'snowcat') {
+    } else if (mode === 'snowcat') {
       ent.slopePitch = ent.slopeRoll = undefined;
     } else if (heli) {
       ent.verticalSpeed = ent.pitchAngle = ent.rollAngle = 0;
@@ -675,7 +758,6 @@ class ThirdPersonControllerManager {
     }
     ent.mesh.position.copy(ent.position);
     ent.mesh.rotation.y = ent.heading;
-    return { x: ent.position.x, z: ent.position.z };
   }
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
@@ -1730,6 +1812,7 @@ class ThirdPersonControllerManager {
       mesh: root,
       tiltPivot,
       mainRotorPivot,
+      rotorDisc: blurDisc, // (the spinning rotor's blur: hidden while it is at rest)
       tailRotorPivot,
       position: new THREE.Vector3(HELI_START.x, surfaceHeight(HELI_START.x, HELI_START.z) + HELI_START.agl, HELI_START.z),
       heading: HELI_START.heading,
@@ -1822,6 +1905,16 @@ class ThirdPersonControllerManager {
   // The entity follows the driven train's cab.
   updateRhB(dt) {
     const e = this.entities.rhb;
+    if (this.rhbPassenger) {
+      // Riding along: the seat in the second car, no controls (the timetable drives)
+      const seat = this.railway?.seat?.(this.rhbPassenger);
+      if (seat?.visible) {
+        e.position.set(seat.x, seat.y, seat.z);
+        e.heading = seat.heading;
+        e.speed = seat.speed;
+      }
+      return;
+    }
     this.railway?.setControls(this.keys.forward ? Number(this.keys.forward) : 0, this.keys.backward ? Number(this.keys.backward) : 0);
     const cab = this.railway?.cab();
     if (!cab) return;
@@ -2060,8 +2153,20 @@ class ThirdPersonControllerManager {
     for (const [type, dims] of [['snowcat', SNOWCAT_MODEL], ['car', PARKED_T3]]) {
       const e = this.entities?.[type];
       if (!e?.position || e === entity || e.mesh?.visible === false) continue;
+      this._pushParkedObstacle(out, e, type, dims, x, z, reach);
+    }
+    // The parked stand-ins of the GTA mode's depots (js/gta.js)
+    for (const v of this.parkedVehicles || []) {
+      const dims = PARKED_DIMS[v.type];
+      if (dims) this._pushParkedObstacle(out, v, v.type, dims, x, z, reach);
+    }
+    return this._dynamicTail(entity, x, z, reach, out);
+  }
+
+  _pushParkedObstacle(out, e, type, dims, x, z, reach) {
+    {
       const p = e.position;
-      if (Math.abs(p.x - x) > reach + dims.halfL || Math.abs(p.z - z) > reach + dims.halfL) continue;
+      if (Math.abs(p.x - x) > reach + dims.halfL || Math.abs(p.z - z) > reach + dims.halfL) return;
       const c = e._obstacle ??= { obb: { cx: 0, cz: 0, hx: dims.halfW, hz: dims.halfL, cs: 1, sn: 0 }, vehicle: e, parked: type };
       const cs = Math.cos(e.heading || 0), sn = Math.sin(e.heading || 0);
       const ex = Math.abs(cs) * dims.halfW + Math.abs(sn) * dims.halfL, ez = Math.abs(sn) * dims.halfW + Math.abs(cs) * dims.halfL;
@@ -2070,6 +2175,10 @@ class ThirdPersonControllerManager {
       c.minY = p.y - 0.5; c.maxY = p.y + dims.top;
       out.push(c);
     }
+  }
+
+  // The trees (for the driven groomer) and the posts, after the parked vehicles
+  _dynamicTail(entity, x, z, reach, out) {
     if (entity?.type === 'snowcat' && this._treeCells) {
       const pool = this._treePool ??= [];
       let used = 0;
@@ -2162,14 +2271,17 @@ class ThirdPersonControllerManager {
     const air = p.position.y - this.getGroundHeight(p.position.x, p.position.z, 'person', p.position.y);
     p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, air > 0.02 ? air : 0);
     p.crowd.begin();
-    p.crowd.add(p.rig, 0);
+    if (!p.hidden) p.crowd.add(p.rig, 0); // (the GTA mode: hidden while it sits in a vehicle)
     p.crowd.end();
 
     for (const mode of ['cyclist', 'cargobike']) {
       const bike = this.entities[mode];
       bike.riderRig.ride(bike.leanPivot, bike.pedalPhase, bike.bikeFrame);
+      // (the GTA mode: a parked bike has no rider)
+      const ridden = !bike.hidden && !(this.gtaParkedLook && this.activeMode !== mode);
+      bike.helmet.visible = ridden;
       bike.riderCrowd.begin();
-      bike.riderCrowd.add(bike.riderRig, 0);
+      if (ridden) bike.riderCrowd.add(bike.riderRig, 0);
       bike.riderCrowd.end();
       bike.helmet.quaternion.copy(bike.riderRig.headQuaternion);
       bike.helmet.position.set(0, 0.175, -0.012).applyQuaternion(bike.helmet.quaternion).add(bike.riderRig.headPosition);
@@ -2178,10 +2290,15 @@ class ThirdPersonControllerManager {
 
   update(dt, elapsed) {
     const heli = this.entities.helicopter;
-    heli.mainRotorPivot.rotation.y += dt * 24.0;
-    heli.tailRotorPivot.rotation.x += dt * 32.0;
+    // (the GTA mode: a parked helicopter's rotors are at rest and its strobes off)
+    const heliRunning = !(this.gtaParkedLook && this.activeMode !== 'helicopter');
+    if (heli.rotorDisc) heli.rotorDisc.visible = heliRunning;
+    if (heliRunning) {
+      heli.mainRotorPivot.rotation.y += dt * 24.0;
+      heli.tailRotorPivot.rotation.x += dt * 32.0;
+    } else if (heli.strobes) for (const m of heli.strobes) m.visible = false;
     // Anti-collision strobes: a double flash every 1.2 s
-    if (heli.strobes) { const t = (elapsed ?? performance.now() / 1000) % 1.2; const on = t < 0.05 || (t > 0.12 && t < 0.17); for (const m of heli.strobes) m.visible = on; }
+    if (heli.strobes && heliRunning) { const t = (elapsed ?? performance.now() / 1000) % 1.2; const on = t < 0.05 || (t > 0.12 && t < 0.17); for (const m of heli.strobes) m.visible = on; }
 
     if (this.activeMode === 'person') {
       this.updatePerson(dt, elapsed);
@@ -2522,7 +2639,7 @@ class ThirdPersonControllerManager {
     }
     // The traffic's view of it: where it stands while parked, out of the way while driven (then it is the player)
     const body = this.snowcatTrafficBody;
-    const parked = this.activeMode !== 'snowcat';
+    const parked = this.activeMode !== 'snowcat' && !s.hidden;
     body.x = body.prevX = parked ? s.position.x : 1e7;
     body.z = body.prevZ = parked ? s.position.z : 1e7;
     body.y = s.position.y;
