@@ -100,9 +100,11 @@ function intersectionHarness() {
   const edge = { to: n, axisIndex: 0, occ: [[]], opposite: null, inSide: 0, len: 100 };
   const car = { edge, move: { to: exit, out: [0], turn: 'S' }, lane: 0, s: 80, speed: 4,
     driver: { b: 3 }, half: 2.25, wait: 0, commit: null, isPolice: false };
-  const state = { phase: 'red', occupied: false, pedestrians: false, space: true, conflict: false };
+  const state = { phase: 'red', occupied: false, pedestrians: false, space: true, conflict: false, tram: false };
   const context = {
     LOOKAHEAD: 70,
+    tramBodies: [{}],
+    tramApproaching: () => state.tram,
     phaseOf: () => state.phase,
     canStopBefore: () => true,
     stopAt: () => -3,
@@ -131,6 +133,37 @@ test('police pass red and amber signals while ordinary cars stop', () => {
     assert.equal(mayEnter(car, 18), true);
     assert.equal(signalAhead(car, car.edge, 18), 0);
   }
+});
+
+test('cars wait at the line for a bus or tram about to cross the junction', () => {
+  const { car, state, mayEnter } = intersectionHarness();
+  state.phase = 'green';
+  assert.equal(mayEnter(car, 10), true);
+  state.tram = true;
+  assert.equal(mayEnter(car, 10), false);
+  state.tram = false;
+  assert.equal(mayEnter(car, 10), true);
+});
+
+test('a bus crossing ahead, or oncoming while turning, counts as approaching; one going the same way does not', () => {
+  const n = { x: 0, z: 0 };
+  const v = { tx: 0, tz: -1, y: 0 }; // heading north
+  const tramBodies = [];
+  const tramApproaching = trafficFunction('tramApproaching', { tramBodies, Math });
+  const bus = (x, z, heading, speed) => ({ x, z, y: 0, sin: Math.sin(heading), cos: Math.cos(heading), vx: Math.sin(heading) * speed, vz: Math.cos(heading) * speed, halfL: 6 });
+  tramBodies.push(bus(-30, 0, Math.PI / 2, 10)); // 30 m west of the node, heading east at 10 m/s: there in 3 s
+  assert.equal(tramApproaching(v, n, 'S'), true);
+  tramBodies[0] = bus(-80, 0, Math.PI / 2, 10); // 8 s away
+  assert.equal(tramApproaching(v, n, 'S'), false);
+  tramBodies[0] = bus(30, 0, Math.PI / 2, 10); // past the node, driving away
+  assert.equal(tramApproaching(v, n, 'S'), false);
+  tramBodies[0] = bus(0, -30, 0, 10); // oncoming from the north (heading south): only a turn waits for it
+  assert.equal(tramApproaching(v, n, 'S'), false);
+  assert.equal(tramApproaching(v, n, 'L'), true);
+  tramBodies[0] = bus(0, 30, Math.PI, 10); // behind, going the same way (north): queued behind v
+  assert.equal(tramApproaching(v, n, 'L'), false);
+  tramBodies[0] = bus(-30, 0, Math.PI / 2, 0); // standing (at a stop)
+  assert.equal(tramApproaching(v, n, 'S'), false);
 });
 
 test('police still wait for crossing traffic, pedestrians and a blocked exit', () => {
@@ -186,7 +219,7 @@ function populationContext() {
     hasView: true, camX: 0, camY: 10, camZ: 0, visible: () => true, groundHeight: () => 0,
     focusX: 0, focusZ: 0, player: { active: false },
     clock: 0,
-    VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, PED_AVOID_INTERVAL: 0.12,
+    VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, VEHICLE_SPACING: 30, PED_AVOID_INTERVAL: 0.12,
     nearEdges: [], nearSignals: [], track: {}, KERB: 1.6, QUEUE_GAP: 0.62,
     atCurb: () => {}, laneClear: () => true, nearTramBody: () => false, trackFull: () => false, trackLoad: new Map(), STUCK_TIME: 45,
     place: (v, e, lane, s) => Object.assign(v, { edge: e, lane, s })
@@ -250,6 +283,8 @@ test('long roads are available near their ends and spawn only in the local secti
   Object.assign(context, { edges: [edge, straightEdge(2000)], nodes: [], nearX: Infinity, nearZ: Infinity });
   trafficFunction('refreshNear', context)();
   assert.deepEqual(context.nearEdges, [edge]);
+  // (Davos) the lanes around the focus take one vehicle per VEHICLE_SPACING metres
+  assert.equal(context.capacity, Math.floor(2000 / 30));
   const car = { half: 2.25 };
   assert.equal(trafficFunction('spawnVehicle', context)(car, 0, 350, false), true);
   assert.ok(edge.sz + car.s <= 350);

@@ -52,6 +52,11 @@ const LOOKAHEAD = 70; // metres a driver looks ahead for vehicles, stop lines an
 const VEHICLE_RADIUS = 380;
 const NEAR_RADIUS = 350;
 const VEHICLE_SPAWN_DISTANCE = 250;
+// (Davos) The lanes within NEAR_RADIUS carry at most one vehicle per VEHICLE_SPACING metres: the pools above are
+// Manhattan's, and a mountain town's few, single-lane streets round the Promenade would otherwise be filled to jam
+// density (325 vehicles on some 5 km of lanes), gridlocking the loops of short links at every junction. Vehicles that
+// don't fit stay off the road until others leave the area.
+const VEHICLE_SPACING = 30;
 
 function createBusDestinationTexture() {
   const c = document.createElement('canvas');
@@ -513,6 +518,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const e = v.edge;
     const f = v.move.to;
     touchNode(e.to).box[e.axisIndex]++;
+    if (f.passThrough) touchNode(f.to).box[f.axisIndex]++; // and the junction beyond a link it drives through without stopping
     if (!v.conn || v.cs < v.half + 2.5) e.to.crossing[e.inSide]++; // until its tail is past the crosswalk on its way in
     if (v.move.turn !== 'L') touchEdge(e).through++;
     if (!v.yielding) cross(v);
@@ -601,17 +607,23 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // Edges and signalized intersections around the focus, to place vehicles and pedestrians on
   let nearX = Infinity;
   let nearZ = Infinity;
+  let capacity = Infinity; // vehicles the lanes around the focus take (VEHICLE_SPACING)
   function refreshNear() {
     if (Math.hypot(focusX - nearX, focusZ - nearZ) < 40) return;
     nearX = focusX;
     nearZ = focusZ;
     nearEdges.length = 0;
     nearSignals.length = 0;
+    let laneMetres = 0;
     for (const e of edges) {
       const s = clamp((focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz, 0, e.len);
       const dx = e.sx + e.dx * s - focusX, dz = e.sz + e.dz * s - focusZ;
-      if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) nearEdges.push(e);
+      if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) {
+        nearEdges.push(e);
+        laneMetres += e.len * e.lanes.length;
+      }
     }
+    capacity = Math.max(12, Math.floor(laneMetres / VEHICLE_SPACING));
     for (const n of nodes) {
       const dx = n.x - focusX, dz = n.z - focusZ;
       if (n.signal && dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) nearSignals.push(n);
@@ -805,9 +817,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   // At unsignalized corners, give way to the main road. Police passing a non-green signal yield to approaching
   // cross traffic as well as vehicles already in the intersection, instead of treating the light as a clear road.
-  function yieldToCrossTraffic(v, n) {
+  function yieldToCrossTraffic(v, n, group = v.edge.axisIndex) {
     for (const a of n.in) {
-      if (n.signal ? a.axisIndex === v.edge.axisIndex : a.axisIndex !== 0) continue;
+      if (n.signal ? a.axisIndex === group : a.axisIndex !== 0) continue;
       for (const list of a.occ) {
         const lead = leadOf(list);
         if (lead && !canStop(lead, a, !n.signal && v.wait > 8)) return true;
@@ -938,15 +950,59 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     return merger.v ? merger : null;
   }
 
+  // A tram or bus (tramBodies: trams.js, vbd.js, off the lane graph) bearing down on node n along a road crossing v's,
+  // or oncoming while v turns: v waits at its line for it to pass (within ~4 s of the node). The traffic cannot see
+  // them in its lane lists, so without this a car would turn into the bus's path and both would stand on each other.
+  // Those going v's way (ahead: tramGap brakes behind them; behind: queued behind v) and oncoming while v goes straight
+  // on pass by in their own lane.
+  function tramApproaching(v, n, turn) {
+    for (const b of tramBodies) {
+      const dx = n.x - b.x, dz = n.z - b.z;
+      if (Math.abs(dx) > 70 || Math.abs(dz) > 70) continue;
+      const dot = b.sin * v.tx + b.cos * v.tz;
+      if (dot > 0.7 || (dot < -0.7 && turn === 'S')) continue;
+      if (b.y !== undefined && v.y !== undefined && Math.abs(b.y - v.y) > 4) continue;
+      const dist = Math.hypot(dx, dz);
+      const closing = (b.vx * dx + b.vz * dz) / Math.max(dist, 1e-6); // its speed towards the node
+      if (closing < 0.5 || dist - b.halfL > closing * 4 + 6) continue; // standing, past it, or more than ~4 s away
+      return true;
+    }
+    return false;
+  }
+
+  // A link too short to wait on clear of the junction at its end (road-network.js: passThrough, e.g. the Tanzbühlstrasse's
+  // last 9 m into the Obere Strasse): v, about to enter lane j of it, d metres before the line, goes only when nobody is
+  // on it and it can cross that junction too, straight on from lane j (or along the link's straightest move): the
+  // light, the box, cross traffic, people on the crosswalks and room beyond. The way on is kept (v.through) for leave().
+  function throughClear(v, f, j, d) {
+    if (f.occ.some((list) => list.length)) return false;
+    const n = f.to;
+    let m2 = null;
+    for (const m of f.moves) if (m.out[j] >= 0 && (!m2 || (m.turn === 'S' && m2.turn !== 'S'))) m2 = m;
+    if (!m2) return false;
+    const j2 = m2.out[j];
+    if (n.signal && !v.isPolice && phaseOf(f) !== 'green') return false;
+    if (boxBusy(n, f.axisIndex)) return false;
+    if (!n.signal && f.axisIndex !== 0 && yieldToCrossTraffic(v, n, f.axisIndex)) return false;
+    if (tramBodies.length && tramApproaching(v, n, m2.turn)) return false;
+    const reach = d + f.len + 6; // (about: the link's connectors are short)
+    if (pedestrianOn(n, f.inSide, laneCoord(f, j), 0, timeTo(v, reach + 2.5 + 2 * v.half))) return false;
+    if (pedestrianOn(n, m2.to.outSide, laneCoord(m2.to, j2), timeTo(v, reach), timeTo(v, reach + 6 + 2 * v.half))) return false;
+    if (!room(m2.to, j2, v)) return false;
+    v.through = m2;
+    return true;
+  }
+
   // May v, its front bumper d metres before the stop line, enter the intersection now? Sets the exit lane.
-  // Once too close to stop, v is committed: it goes, and holds the intersection from then on.
+  // Once too close to stop, v is committed: it goes, and holds the intersection from then on (as it is all along a link
+  // it drives through without stopping).
   function mayEnter(v, d) {
     const e = v.edge;
     const n = e.to;
     const phase = n.signal ? phaseOf(e) : 'green';
     // Could it still stop? For a light that isn't green, also by crawling up to it, closer than it stops for lines
     const stoppable = canStopBefore(v, d) || (phase !== 'green' && v.speed * v.speed < 2 * v.driver.b * d);
-    if (stoppable) v.commit = null; // could stop after all: decide afresh
+    if (stoppable && !e.passThrough) v.commit = null; // could stop after all: decide afresh
     if (v.commit === n) return true;
     if (v.move.out[v.lane] < 0) {
       // missed the lane for the planned move: go wherever this lane goes instead
@@ -965,6 +1021,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     }
     if (!v.isPolice && (phase === 'red' || (phase === 'amber' && stoppable))) return false;
     if (boxBusy(n, e.axisIndex)) return false; // crossing traffic inside
+    if (tramBodies.length && tramApproaching(v, n, v.move.turn)) return false; // a bus or tram about to cross
     const lead = ahead(e.occ[v.lane], v.s, v);
     if (lead && lead.v.yielding) return false; // the vehicle ahead waits inside to turn: wait behind the line
     if (v.bus && besideTail(v)) return false; // its tail would swing out over that bus as it starts to turn
@@ -982,7 +1039,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (pedestrianOn(n, e.inSide, laneCoord(e, v.lane), 0, timeTo(v, d + 2.5 + 2 * v.half))) return false;
     if (wait < 0 && pedestrianOn(n, f.outSide, laneCoord(f, j), timeTo(v, d + c.len - 3), timeTo(v, d + c.len + 2 * v.half))) return false;
     const vs = v.s - e.len - c.len; // where on f it would be now
-    if (!room(f, j, v) || alongside(f, j, v, vs, m.turn !== 'S') || mergingAhead(v, f, j)) return false;
+    if (!room(f, j, v)) return false;
+    if (alongside(f, j, v, vs, m.turn !== 'S')) return false;
+    if (mergingAhead(v, f, j)) return false;
+    if (f.passThrough && !throughClear(v, f, j, d)) return false;
     v.out = j;
     v.yielding = wait >= 0;
     v.yieldAt = wait;
@@ -1153,6 +1213,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.conn = null;
     v.commit = null;
     v.move = chooseMove(v, false);
+    if (v.edge.passThrough) {
+      // through the junction at its end without stopping, the way checked on entering it (throughClear)
+      if (v.through && v.through.out[v.lane] >= 0) v.move = v.through;
+      v.out = v.move.out[v.lane];
+      v.commit = v.out >= 0 ? v.edge.to : null;
+      v.yielding = false;
+    }
+    v.through = null;
   }
 
   function drive(v, dt) {
@@ -1847,13 +1915,18 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     // Limit attempted placements, not just successes, and rotate through the pool so an awkward location
     // cannot monopolize a frame. Previous-frame lane lists protect spawn spacing; rebuild before driving.
     let budget = jump ? vehicles.length : 24;
+    let active = 0;
+    for (const v of vehicles) if (v.edge && Math.hypot(v.x - focusX, v.z - focusZ) <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) active++;
     for (let scanned = 0; scanned < vehicles.length && budget > 0; scanned++) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
       const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
       budget--;
-      spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump);
+      // no room for it on the lanes around here: off the road until others leave (it is far away, or everything is
+      // being placed afresh after a jump)
+      if (active >= capacity) { v.edge = null; continue; }
+      if (spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump)) active++;
     }
     buildOccupancy();
     for (const m of bodyMeshes) m.count = 0;

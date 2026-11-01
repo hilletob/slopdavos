@@ -3,7 +3,7 @@ import { attribute, float, fract, mix, mx_noise_float, positionWorld, smoothstep
 import { STREAMS } from './streams-data.js';
 import { groundHeight } from './terrain.js';
 import { winter, snowAltitude } from './season.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, segmentInWorld, WORLD } from './quality.js';
 
 // The streams of Davos (js/streams-data.js, tools/fetch-streams.mjs: OSM waterways): the Landwasser where its bed isn't
 // mapped as an area, the Dischmabach, Flüelabach and Sertigbach, the side creeks and ditches. Each is a ribbon of
@@ -202,7 +202,19 @@ export function buildStreams(scene) {
   const list = STREAMS?.streams || [];
   // (two sets: the small creeks, snowed under in winter, and the larger streams that stay open)
   const sets = [false, true].map((small) => ({ small, water: { position: [], uv: [], flow: [], size: [] }, bank: { position: [], uv: [], size: [] } }));
+  // (the mobile profile, js/quality.js worldRadius: only the stretches near the start)
+  const near = [];
   for (const s of list) {
+    if (WORLD.radius === Infinity) { near.push(s); continue; }
+    let run = null;
+    for (let i = 2; i < s.pts.length; i += 2) {
+      if (segmentInWorld(s.pts[i - 2], s.pts[i - 1], s.pts[i], s.pts[i + 1], 40)) {
+        if (!run) { run = [s.pts[i - 2], s.pts[i - 1]]; near.push({ ...s, pts: run }); }
+        run.push(s.pts[i], s.pts[i + 1]);
+      } else run = null;
+    }
+  }
+  for (const s of near) {
     const set = sets[s.width < SMALL ? 1 : 0];
     ribbon(s, set.water, s.kind !== 'ditch' && s.kind !== 'drain' ? set.bank : null);
   }

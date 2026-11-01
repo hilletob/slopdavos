@@ -215,7 +215,8 @@ export async function drapeTerrainOrthophotos(meshes, { center = { x: 0, z: 0 } 
   added.sort((p, q) => Math.hypot(p.x - center.x, p.z - center.z) - Math.hypot(q.x - center.x, q.z - center.z));
   // First pass: every chunk gets its light image (or the small one) — six at a time; hi-res comes with the streaming
   let next = 0;
-  await Promise.all(Array.from({ length: 6 }, async () => {
+  // (the mobile profile: one at a time, js/quality.js orthoLoads, so that decoded images never pile up at the start)
+  await Promise.all(Array.from({ length: QUALITY.mobile ? QUALITY.orthoLoads : 6 }, async () => {
     while (next < added.length) {
       const c = added[next++];
       if (c.level < 0 && c.loading < 0) await load(c, Math.min(1, wanted({ ...c, level: -1 }, center)));

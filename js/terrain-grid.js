@@ -185,11 +185,20 @@ export function subdivideTriangles(positions, maxEdge) {
 // of a rough relief left out). `secondary(a, b, c)`: full-detail triangles to set aside in a list of their own (the
 // lakes), only for step 1.
 // Returns { index (Uint16Array when the nodes allow it), levels: [{ step, start, count, error }], secondary: [] }.
-export function gridLevels(nx, nz, ys, steps = [1, 2, 4, 8], { secondary = null, quantile = 1 } = {}) {
+// (the index list grows in a scratch buffer kept between calls: the terrain's ~570 chunks at the start built theirs in
+// plain arrays, ~270 MB of garbage)
+let levelScratch = new Uint32Array(1 << 16);
+// `view`: the index as a view of that scratch buffer (no copy; valid until the next call: for a caller that only reads it)
+export function gridLevels(nx, nz, ys, steps = [1, 2, 4, 8], { secondary = null, quantile = 1, view = false } = {}) {
   const W = nx + 1, at = (i, j) => j * W + i;
-  const out = [], levels = [], aside = [];
+  const levels = [], aside = [];
+  let out = levelScratch, n = 0;
+  const emit = (a, b, c) => {
+    if (n + 3 > out.length) { const grown = new Uint32Array(out.length * 2); grown.set(out); out = levelScratch = grown; }
+    out[n] = a; out[n + 1] = b; out[n + 2] = c; n += 3;
+  };
   const lines = (n, s) => { const l = []; for (let k = 0; k < n; k += s) l.push(k); l.push(n); if (l.length > 2 && n - l[l.length - 2] < s / 2) l.splice(l.length - 2, 1); return l; };
-  const push = (a, b, c, step) => { if (step === 1 && secondary && secondary(a, b, c)) aside.push(a, b, c); else out.push(a, b, c); };
+  const push = (a, b, c, step) => { if (step === 1 && secondary && secondary(a, b, c)) aside.push(a, b, c); else emit(a, b, c); };
   const fineCell = (i0, i1, j0, j1, step) => {
     for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
       const a = at(i, j);
@@ -197,7 +206,7 @@ export function gridLevels(nx, nz, ys, steps = [1, 2, 4, 8], { secondary = null,
     }
   };
   for (const step of steps) {
-    const start = out.length;
+    const start = n;
     const xs = lines(nx, step), zs = lines(nz, step);
     let error = 0;
     const errors = quantile < 1 && step > 1 && ys ? new Float32Array(W * (nz + 1)) : null;
@@ -233,10 +242,10 @@ export function gridLevels(nx, nz, ys, steps = [1, 2, 4, 8], { secondary = null,
       for (let k = 1; k + 1 < ring.length; k++) push(apex, ring[(k0 + k) % ring.length], ring[(k0 + k + 1) % ring.length], step);
     }
     if (errors) { errors.sort(); error = errors[Math.min(errors.length - 1, Math.floor(errors.length * quantile))]; }
-    levels.push({ step, start, count: out.length - start, error });
+    levels.push({ step, start, count: n - start, error });
   }
   const big = W * (nz + 1) > 65535;
-  return { index: big ? new Uint32Array(out) : new Uint16Array(out), levels, secondary: aside };
+  return { index: view ? out.subarray(0, n) : big ? out.slice(0, n) : Uint16Array.from(out.subarray(0, n)), levels, secondary: aside };
 }
 
 /**

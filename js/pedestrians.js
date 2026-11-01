@@ -20,9 +20,39 @@ import {
   clamp,
   mix,
   step,
-  smoothstep
+  smoothstep,
+  textureLoad,
+  ivec2
 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { QUALITY } from './quality.js';
+
+/**
+ * The pose buffer of a crowd: `count` vec4s, read in the vertex stage by pose.element(i), written on the CPU into
+ * pose.value.array (then addUpdateRange, needsUpdate). WebGPU: a storage buffer. The WebGL 2 fallback has none: there
+ * three.js binds a storage array as a plain per-vertex attribute (count entries, fewer than a person's vertices:
+ * "glDrawElements: Vertex buffer is not big enough", and every vertex read its own entry instead of its bones'), so a
+ * float texture read texel by texel stands in for it.
+ */
+export function poseBuffer(count) {
+  if (QUALITY.backend === 'WebGPU') return attributeArray(count, 'vec4').toReadOnly();
+  const width = Math.min(count, 1024), height = Math.ceil(count / width);
+  const data = new Float32Array(width * height * 4);
+  const map = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
+  map.minFilter = map.magFilter = THREE.NearestFilter;
+  map.generateMipmaps = false;
+  map.needsUpdate = true;
+  const w = int(width);
+  return {
+    element: (i) => textureLoad(map, ivec2(int(i).mod(w), int(i).div(w))),
+    value: {
+      array: data,
+      clearUpdateRanges() {},
+      addUpdateRange() {},
+      set needsUpdate(on) { if (on) map.needsUpdate = true; }
+    }
+  };
+}
 
 // js/pedestrians.js
 // Skinned, procedurally animated New Yorkers: the sidewalk crowds (traffic.js), the player's pedestrian and the
@@ -899,7 +929,7 @@ class PersonCrowd {
   constructor(maxCount, { farDistance = 34, castShadow = true } = {}) {
     this.farDistance = farDistance;
     this.lods = [1, 0].map((detail) => {
-      const pose = attributeArray(maxCount * STRIDE, 'vec4').toReadOnly();
+      const pose = poseBuffer(maxCount * STRIDE);
       const mesh = new THREE.Mesh(buildPersonGeometry(detail), createPersonMaterial(pose));
       mesh.name = detail ? 'PeopleNear' : 'PeopleFar';
       mesh.count = 1; // one (degenerate) person until the first frame, so the pipelines compile up front

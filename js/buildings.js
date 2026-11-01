@@ -2481,6 +2481,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   // 7. Ground-floor storefront clustered SpotLights (awnings/fascia signs)
   const storeLightGroup = new THREE.Group();
   storeLightGroup.name = 'StoreClusteredLights';
+  // (the spots are set in world heights (surfaceHeight) every frame: placeOnTerrain must not lift the group too,
+  // which put every shop light 22 m under its street)
+  storeLightGroup.userData.terrain = 'absolute';
   scene.add(storeLightGroup);
 
   const storeThemeColors = [

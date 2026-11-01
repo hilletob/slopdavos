@@ -18,9 +18,12 @@ const LENGTH = 12, WIDTH = 2.55, HALF_WIDTH = WIDTH / 2, MASS = 1.4e4, LANE = 1.
 const MAX_SPEED = 12.5, ACCEL = 1.0, BRAKE = 1.6, DWELL = [12, 22], HEADWAY = 30;
 // The street traffic (js/traffic.js) in the bus's lane ahead: it stops CAR_GAP metres short of a car or bike, PED_GAP
 // short of people on a crosswalk, looking LOOK metres along its route in PROBE-metre pieces (so it follows the bends).
-// Held up by a vehicle for BLOCKED seconds (QUEUED behind one going its way, e.g. at a red light), it drives on regardless
-// for PUSH seconds at PUSH_SPEED (the car gets shoved aside): no bus and car wait for each other for ever at a junction.
-const CAR_GAP = 7, PED_GAP = 5, LOOK = 60, PROBE = 10, BLOCKED = 6, QUEUED = 45, PUSH = 4, PUSH_SPEED = 2.5;
+// Held up for BLOCKED seconds by a vehicle standing across its way (one crossing or turning in at a junction, which may
+// itself be waiting for the bus), it drives on regardless for PUSH seconds at PUSH_SPEED (the car gets shoved aside): no
+// bus and car wait for each other for ever at a junction. Behind a vehicle going its way it queues like everyone else,
+// however long (a car ahead never waits for the bus behind it, so there is nothing to break; pushing through a queue
+// only left cars and bikes tangled with the bus's front).
+const CAR_GAP = 7, PED_GAP = 5, LOOK = 60, PROBE = 10, BLOCKED = 6, PUSH = 4, PUSH_SPEED = 2.5;
 // Buses per line (one direction each, alternating)
 const FLEET = { 301: 4, 303: 2, 304: 2, 308: 2, 312: 2, 313: 2 };
 // Lines run with the articulated Citaro G (18 m): the busiest, the 301 through the valley
@@ -384,12 +387,12 @@ export function buildVBD(scene) {
         const v = Math.sqrt(Math.max(0, hit.speed * hit.speed + 2 * BRAKE * (gap - keep)));
         if (v < limit) { limit = v; heldBy = hit.kind === 'ped' ? null : hit.dot > 0.7 ? 'queue' : 'crossing'; }
       }
-      // ...not for ever: held up by a vehicle standing in its way, the bus pushes on after a while (people on a crosswalk
-      // always go first)
-      if (heldBy && b.speed < 0.5 && hit.own < 0.5) {
+      // ...not for ever: held up by a vehicle standing across its way, the bus pushes on after a while (people on a
+      // crosswalk always go first; a queue is a queue)
+      if (heldBy === 'crossing' && b.speed < 0.5 && hit.own < 0.5) {
         b.blocked = (b.blocked || 0) + dt;
-        if (b.blocked > (heldBy === 'queue' ? QUEUED : BLOCKED)) { b.push = PUSH; b.blocked = 0; }
-      } else if (!heldBy || b.speed > 1) b.blocked = 0; // (stop-and-go in a queue is no deadlock)
+        if (b.blocked > BLOCKED) { b.push = PUSH; b.blocked = 0; }
+      } else if (heldBy !== 'crossing' || b.speed > 1) b.blocked = 0;
       // pushing on: at a walking pace
       if (b.push > 0) limit = Math.min(limit, PUSH_SPEED);
       b.speed = b.speed < limit ? Math.min(limit, b.speed + ACCEL * dt) : Math.max(limit, b.speed - BRAKE * 2 * dt);

@@ -1298,32 +1298,33 @@ function createTreeField(scene, sites) {
     dummy.matrix.toArray(mats, i * 16);
     tint.setHex(SPECIES[sp].tints[Math.floor(r3 * 2.999)]).multiplyScalar(0.82 + r1 * 0.36);
     // w: species + (variant 1: 0.5) + a random fraction (the middle level's variant, see mergeVariants)
-    data.set([tint.r, tint.g, tint.b, sp + variant * 0.5 + r2 * 0.499], i * 4);
+    data[i * 4] = tint.r; data[i * 4 + 1] = tint.g; data[i * 4 + 2] = tint.b; data[i * 4 + 3] = sp + variant * 0.5 + r2 * 0.499;
     px[i] = t.x;
     py[i] = ground + (t.y || 0) + 6 * s;
     pz[i] = t.z;
     tier[i] = Math.min(2, t.tier || 0);
     const mi = meshIndex[sp];
-    const treeTypes = [mi.l0[t.near ?? nearVariant(SPECIES[sp], s, r1, variant)], mi.l1[0], mi.l2];
+    const near = mi.l0[t.near ?? nearVariant(SPECIES[sp], s, r1, variant)];
+    // (cells looked up by number; the name only made once a cell is: ~200,000 strings at the start otherwise)
     for (let l = 0; l < 3; l++) {
-      const size = TREE_CELL_SIZE[l];
-      const key = l + ':' + Math.floor(t.x / size) + ',' + Math.floor(t.z / size);
-      let cell = cells.get(key);
+      const size = TREE_CELL_SIZE[l], cx = Math.floor(t.x / size), cz = Math.floor(t.z / size);
+      let cell = cells.get((l * 200000 + cx + 100000) * 200000 + cz + 100000);
       if (!cell) {
+        const key = l + ':' + cx + ',' + cz;
         const cellGroup = new THREE.Group();
         cellGroup.name = `TreeCell_${key}`;
         cellGroup.visible = false;
         group.add(cellGroup);
-        cell = { group: cellGroup, level: l, trees: [], meshes: new Map() };
-        cells.set(key, cell);
+        cell = { group: cellGroup, level: l, trees: [], meshes: new Map(), key };
+        cells.set((l * 200000 + cx + 100000) * 200000 + cz + 100000, cell);
       }
       cell.trees.push(i);
       cellOf[i * 3 + l] = cell;
-      const type = treeTypes[l];
+      const type = l === 0 ? near : l === 1 ? mi.l1[0] : mi.l2;
       let index = cell.meshes.get(type);
       if (index === undefined) {
         index = meshes.length;
-        meshes.push({ type, cell, name: `${type.name}_${key}`, capacity: 0 });
+        meshes.push({ type, cell, name: `${type.name}_${cell.key}`, capacity: 0 });
         cell.meshes.set(type, index);
       }
       meshOf[i * 3 + l] = index;

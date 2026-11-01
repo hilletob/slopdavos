@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, surfaceHeight, ROAD_TOP } from './terrain.js';
 import { chunkedMeshes } from './scene-culling.js';
+import { segmentInWorld } from './quality.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 
 // Davos's tracks (OSM railway=rail / narrow_gauge / tram in js/davos-geodata.js):
@@ -108,6 +109,8 @@ function strips(list, offsets, width, y) {
       const ax = r.pts[i - 2], az = r.pts[i - 1], bx = r.pts[i], bz = r.pts[i + 1];
       const L = Math.hypot(bx - ax, bz - az);
       if (L < 0.05) continue;
+      // (the mobile profile, js/quality.js worldRadius: the track bed near the start only; the orthophoto shows it beyond)
+      if (!segmentInWorld(ax, az, bx, bz, 30)) { along += L; continue; }
       const nx = -(bz - az) / L, nz = (bx - ax) / L;
       for (const o of offsets) {
         const p = (s, side) => [(s ? bx : ax) + nx * (o + side * width / 2), y, (s ? bz : az) + nz * (o + side * width / 2)];

@@ -3,6 +3,7 @@ import { CROSSWALK } from './road-network.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { GEO } from './nyc-geodata.js';
+import { segmentInWorld } from './quality.js';
 
 // js/road-paint.js
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
@@ -28,6 +29,7 @@ function buildRoadPaint(scene, network) {
   function strip(ax, az, bx, bz, w, col, period = 1, duty = 1, phase = 0, flow = 1) {
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) return;
+    if (!segmentInWorld(ax, az, bx, bz)) return; // (the mobile profile: only the town around the start, js/quality.js)
     const sx = ((az - bz) / len) * w * 0.5;
     const sz = ((bx - ax) / len) * w * 0.5;
     const i = position.length / 3;

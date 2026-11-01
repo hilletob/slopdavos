@@ -43,7 +43,7 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
-import { QUALITY, setBackend, skipped, skipLabel } from './quality.js';
+import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
 import { isWinter, onSeasonChange } from './season.js';
 import { groomMap } from './groom-map.js';
@@ -186,7 +186,14 @@ async function initApp() {
   // (the mobile profile: a breath between the heavy builders, in which the browser's idle-time garbage collection can
   // free the hundreds of MB of temporary arrays each leaves behind before the next piles more on top)
   const breathe = () => (QUALITY.mobile ? new Promise((resolve) => setTimeout(resolve, 60)) : null);
-  const cityGrid = buildCityGrid(scene);
+  // The part of the valley built in detail (the mobile profile: QUALITY.worldRadius around where the player starts)
+  {
+    let start = defaultSpawn;
+    try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
+    setWorldCenter(start.x, start.z);
+    if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
+  }
+  const cityGrid = await buildCityGrid(scene); // (async: the mobile profile pauses within, js/city-grid.js)
   // (the mobile profile: the ground layers' vertices shared and their normals in bytes at once, js/gpu-memory.js:
   // ~85 MB of draped corners down to ~25 MB before the rest is built)
   const compacted = { geometries: 0, before: 0, after: 0 };
@@ -234,7 +241,11 @@ async function initApp() {
   await breathe();
   // The relief around the city, out to the Alps (swissALTIRegio)
   try {
-    if (!skipped('surroundings')) await buildSurroundings(scene);
+    // (the mobile profile: first of the deferred scenery, after the first frame, its build's garbage apart from the town's)
+    if (!skipped('surroundings')) {
+      if (QUALITY.deferScenery) deferred.unshift(() => buildSurroundings(scene).catch((error) => console.warn('[surroundings] the horizon stays empty:', error)));
+      else await buildSurroundings(scene);
+    }
   } catch (error) {
     console.warn('[surroundings] the horizon stays empty:', error);
   }
@@ -287,7 +298,7 @@ async function initApp() {
   const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders]);
 
   const streetDetails = skipped('details')
-    ? { footprints: [], signalIntersections: [], trees: [], signalClock: { value: 0 }, update: null }
+    ? { footprints: [], signalIntersections: [], trees: [], audioSignals: [], signalClock: { value: 0 }, update: null }
     : buildStreetDetails(scene);
   markInit('streetDetails');
   await breathe();
@@ -405,12 +416,12 @@ async function initApp() {
   let releasedMB = 0;
   // The deferred scenery (see buildLater), once the town is on screen: built, compacted, its matrices set (the scene's
   // are frozen) and, on WebGPU, its instances in storage buffers like the rest (below)
-  const buildDeferred = () => {
+  const buildDeferred = async () => {
     const build = deferred.shift();
     if (!build) return;
     const before = new Set(scene.children);
     try {
-      build();
+      await build(); // (the relief around the town loads its data first)
     } catch (error) {
       console.warn('[deferred]', error);
     }
@@ -423,6 +434,7 @@ async function initApp() {
     setTimeout(buildDeferred, 1500);
   };
   const releaseStatic = () => {
+    if (QUALITY.releaseCpu === false) return; // (?qset=releaseCpu:false keeps every CPU copy)
     const roots = scene.children.filter((o) => STATIC_ROOTS.has(o.name) || (buildingsSettled && o === swissStream?.group));
     const bytes = releaseUploadedGeometry(renderer, roots, {
       skip: (o) => o.name === 'Trees'
@@ -758,6 +770,19 @@ async function initApp() {
     };
     return destination;
   }
+  // A teleport (map, menu) beyond the town built in detail (the mobile profile, QUALITY.worldRadius): the player is
+  // saved at the destination and the page reloads, building the town around it instead
+  function userTeleport(x, z, heading) {
+    const destination = teleportTo(x, z, heading);
+    if (!inWorld(destination.x, destination.z, -250)) {
+      savePlayerState();
+      const status = document.getElementById('loading-status');
+      if (status) status.textContent = 'Moving the town…';
+      document.getElementById('loading-overlay')?.classList.remove('hidden');
+      setTimeout(() => window.location.reload(), 50);
+    }
+    return destination;
+  }
 
   const mapSystem = new NYCMapSystem({
     controllerManager,
@@ -773,7 +798,7 @@ async function initApp() {
         mapHint.textContent = 'Tap to teleport · Drag to pan · Use + / − to zoom';
       }
     },
-    onTeleport: teleportTo
+    onTeleport: (x, z, heading) => userTeleport(x, z, heading)
   });
 
   teleportButtons.forEach((btn) => {
@@ -781,7 +806,7 @@ async function initApp() {
       const key = btn.getAttribute('data-teleport');
       const loc = TELEPORT_LOCATIONS[key];
       if (loc) {
-        teleportTo(loc.x, loc.z, loc.heading);
+        userTeleport(loc.x, loc.z, loc.heading);
       }
       closePopovers();
     });

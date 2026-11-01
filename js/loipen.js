@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, segmentInWorld } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, FULL_DAY, groomSample, loipeBase, wearSince } from './groom-map.js';
 
@@ -33,6 +33,7 @@ function strips(trails, width) {
       const ax = r.pts[i - 2], az = r.pts[i - 1], bx = r.pts[i], bz = r.pts[i + 1];
       const L = Math.hypot(bx - ax, bz - az);
       if (L < 0.05) continue;
+      if (!segmentInWorld(ax, az, bx, bz, 20)) { along += L; continue; } // (the mobile profile: near the start only)
       const nx = -(bz - az) / L, nz = (bx - ax) / L;
       const p = (s, side) => [(s ? bx : ax) + nx * side * width / 2, 0, (s ? bz : az) + nz * side * width / 2];
       const t = (s, side) => [(side + 1) / 2, along + (s ? L : 0)];

@@ -41,6 +41,7 @@ import {
   CUT_Z,
   BERLIN_DATA,
   nearestRoads,
+  roadCloserThan,
   pointInPoly,
   waterAt
 } from './city-config.js';
@@ -71,7 +72,7 @@ import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree } from './trees.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, inWorld, boxInWorld, segmentInWorld } from './quality.js';
 import { indexGeometry } from './gpu-memory.js';
 import { FRAME } from './davos-frame.js';
 import { buildTerrainMeshes, carveDepths, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
@@ -88,7 +89,11 @@ let berlinStreetSites = [];
 const CITY_MERGE_CELL = 1000; // m: tiles of the merged ground layers (roads, sidewalks, curbs, lawns, paint, water)
 const CITY_MERGE_MAX_VERTICES = 1 << 20; // per merged mesh (non-indexed, ~32 MB of attributes at most)
 
-function buildBerlinCityGrid(scene) {
+// (the mobile profile: the build pauses now and then, so that Safari's garbage collector gets to free the pieces already
+// merged before the next pile up: without, JavaScriptCore let the build's short-lived arrays grow to ~2.5 GB)
+const buildPause = () => (QUALITY.mobile ? new Promise((resolve) => setTimeout(resolve, 30)) : null);
+
+async function buildBerlinCityGrid(scene) {
   const group = new THREE.Group();
   group.name = 'BerlinMitteCityGrid';
   // In winter (season.js) the streets lie under packed snow and slush, the lakes freeze over
@@ -120,7 +125,14 @@ function buildBerlinCityGrid(scene) {
 
   // The ground is the terrain model itself (swissALTI3D), carved a few metres under the rivers and the lake so that
   // their surfaces (the lowest ground around, see terrain.js) show over a dark bed.
-  const water = (BERLIN_DATA.water || []).filter(w => w.ring?.length >= 6);
+  // (the mobile profile, js/quality.js worldRadius: only the town around the start in detail; beyond it the terrain with
+  // its orthophoto)
+  const ringInWorld = (flat, pad = 0) => {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < flat.length; i += 2) { minX = Math.min(minX, flat[i]); maxX = Math.max(maxX, flat[i]); minZ = Math.min(minZ, flat[i + 1]); maxZ = Math.max(maxZ, flat[i + 1]); }
+    return boxInWorld(minX, maxX, minZ, maxZ, pad);
+  };
+  const water = (BERLIN_DATA.water || []).filter(w => w.ring?.length >= 6 && ringInWorld(w.ring));
   const carveStrips = []; // roads and paths at ground level: the drawn terrain sinks a little under them (terrain.js)
   for (const feature of water) {
     const ring = berlinPoints(feature.ring), holes = (feature.holes || []).map(berlinPoints);
@@ -152,7 +164,7 @@ function buildBerlinCityGrid(scene) {
     }
   }
   for (const park of BERLIN_DATA.parks || []) {
-    if (!park.ring || park.ring.length < 6) continue;
+    if (!park.ring || park.ring.length < 6 || !ringInWorld(park.ring)) continue;
     const ring = berlinPoints(park.ring), holes = (park.holes || []).map(berlinPoints);
     const paved = ['square', 'pedestrian', 'plaza'].includes(park.kind);
     // Meadows, woods and lawns are in the orthophoto draped on the terrain (swissimage.js); only plazas are paved over
@@ -166,6 +178,7 @@ function buildBerlinCityGrid(scene) {
   // Tempelhofer Feld retains the former airport's mapped runway and apron
   // surfaces. These are park ground geometry, not new traffic corridors.
   for (const feature of BERLIN_DATA.aeroways || []) {
+    if (!ringInWorld(feature.ring || feature.pts || [])) continue;
     if (feature.ring?.length >= 6) {
       collect(berlinPolygonGeometry(berlinPoints(feature.ring), (feature.holes || []).map(berlinPoints), 0.065), roadMat);
     } else if (feature.pts?.length >= 4) {
@@ -175,7 +188,11 @@ function buildBerlinCityGrid(scene) {
     }
   }
 
-  const roadSegments = berlinRoadSegments();
+  // (the segments within the radius are built; those a little beyond it still clip their sidewalks and curbs)
+  const segInWorld = (s, pad = 0) => segmentInWorld(s.a.x, s.a.z, s.b.x, s.b.z, pad);
+  const allSegments = berlinRoadSegments();
+  const roadSegments = allSegments.filter(s => segInWorld(s));
+  const nearSegments = roadSegments.length === allSegments.length ? allSegments : allSegments.filter(s => segInWorld(s, 80));
   // Joints: the consecutive segments of a way (OSM's bends are rounded into arcs, tools/build-davos-geodata.mjs) meet at
   // a miter, so that their strips tile the bend without a notch on the outside or an overlap on the inside, and their
   // markings run on in one dash phase (s0: metres along the way to the segment's start). `a`/`b`: the vector at that
@@ -220,7 +237,7 @@ function buildBerlinCityGrid(scene) {
   const isCarriageway = s => carriagewayKinds.has(s.road.kind) && !isSharedSurface(s);
   const carriagewayIndex = new Map();
   const indexCell = 48;
-  for (const s of roadSegments) {
+  for (const s of nearSegments) {
     if (!isCarriageway(s)) continue;
     const pad = s.width / 2 + 1;
     for (let x = Math.floor((Math.min(s.a.x, s.b.x) - pad) / indexCell); x <= Math.floor((Math.max(s.a.x, s.b.x) + pad) / indexCell); x++) {
@@ -529,9 +546,11 @@ function buildBerlinCityGrid(scene) {
     }
   }
   deckContext = false;
+  await buildPause();
   // The rounded corners' asphalt (between the two edges and the arc) and the curb stones along the arc (as along the
   // straight curbs: 0.16 m wide, its road side on the arc)
   for (const c of corners.list) {
+    if (!inWorld(c.O.x, c.O.z)) continue;
     collect(berlinPolygonGeometry(c.fillet, [], 0.06), roadMat);
     const r = c.R - 0.08, steps = 8;
     for (let k = 0; k < steps; k++) {
@@ -570,6 +589,7 @@ function buildBerlinCityGrid(scene) {
       const busSide = road.reverse ? 1 : -1, lane = busSide * road.width / 4;
       for (let d = 14 + WORD / 2; d <= total - 14 - WORD / 2; d += 70) {
         const p = at(d), p0 = at(d - WORD / 2), p1 = at(d + WORD / 2);
+        if (!inWorld(p.x, p.z)) continue;
         if (p0.ux * p1.ux + p0.uz * p1.uz < 0.985) continue; // (a bend: no lettering)
         // f: the buses' heading; r: their right
         const fx = road.reverse ? p.ux : -p.ux, fz = road.reverse ? p.uz : -p.uz, rx = -fz, rz = fx;
@@ -602,6 +622,7 @@ function buildBerlinCityGrid(scene) {
   {
     const CW = new THREE.Color(0xf6bf10);
     for (const c of CROSSWALKS) {
+      if (!inWorld(c.x, c.z)) continue;
       const rx = -c.uz, rz = c.ux, n = Math.max(2, Math.floor(c.w - 0.1));
       for (let k = 0; k < n; k++) {
         const o = k - (n - 1) / 2, x = c.x + rx * o, z = c.z + rz * o;
@@ -692,6 +713,7 @@ function buildBerlinCityGrid(scene) {
   // spruce country: outside the town ~70 % spruce and ~30 % larch, broadleaves only where the map says deciduous (and
   // above ~1600 m even then mostly larch); in town a fifth to a quarter mountain maple and birch, the rest spruce with
   // some larch. Nothing stands on a road, in the water or inside a building.
+  await buildPause();
   const tlmHash = (x, z, seed) => { const v = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453; return v - Math.floor(v); };
   const TREE_HEIGHT = SPECIES_HEIGHT; // trees.js species' natural heights at scale 1
   // Swiss stone pine (Arve) among the conifers from ~1800 m a.s.l., most of them near the treeline (~2100 m)
@@ -722,7 +744,7 @@ function buildBerlinCityGrid(scene) {
     for (let i = 3; i < path.length; i += 3) {
       const ax = path[i - 3], az = path[i - 1], bx = path[i], bz = path[i + 2];
       for (const [cx, cz] of [[ax, az], [bx, bz]]) {
-        const key = `${Math.floor(cx / 20)},${Math.floor(cz / 20)}`;
+        const key = Math.floor(cx / 20) * 100000 + Math.floor(cz / 20); // (numbers: no string a lookup, 240,000 lookups)
         if (!funicularCells.has(key)) funicularCells.set(key, []);
         funicularCells.get(key).push([ax, az, bx, bz]);
       }
@@ -731,7 +753,8 @@ function buildBerlinCityGrid(scene) {
   const onFunicular = (x, z) => {
     const gx = Math.floor(x / 20), gz = Math.floor(z / 20);
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-      for (const [ax, az, bx, bz] of funicularCells.get(`${gx + dx},${gz + dz}`) || []) {
+      const list = funicularCells.get((gx + dx) * 100000 + gz + dz);
+      if (list) for (const [ax, az, bx, bz] of list) {
         const ux = bx - ax, uz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1)));
         if (Math.hypot(x - ax - ux * t, z - az - uz * t) < FUNICULAR_CLEAR) return true;
       }
@@ -740,11 +763,12 @@ function buildBerlinCityGrid(scene) {
   };
   const clearSite = (x, z, margin) => {
     if (waterAt(x, z) || onPlayArea(x, z) || onFunicular(x, z)) return false;
-    if (nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
+    // (nearestRoads allocates its answer: asked only where some road comes that close at all)
+    if (roadCloserThan(x, z, 12, margin) && nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
     const block = blockAt(x, z);
     return !block || block.park || block.sidewalk;
   };
-  const inTown = (x, z) => groundHeight(x, z) < 130 && nearestRoads(x, z, 30).length > 0;
+  const inTown = (x, z) => groundHeight(x, z) < 130 && roadCloserThan(x, z, 30, Infinity);
   const pickTreeSpecies = (x, z, evergreen) => {
     const r = tlmHash(x, z, 11), broad = broadleaf(x, z), r2 = tlmHash(x, z, 22);
     if (inTown(x, z)) {
@@ -782,7 +806,7 @@ function buildBerlinCityGrid(scene) {
   const mappedTreeCount = parkTreeSites.length;
   const treeCells = new Map();
   const indexTree = tree => {
-    const key = `${Math.floor(tree.x / 8)}/${Math.floor(tree.z / 8)}`;
+    const key = Math.floor(tree.x / 8) * 100000 + Math.floor(tree.z / 8); // (numbers: no string a lookup)
     if (!treeCells.has(key)) treeCells.set(key, []);
     treeCells.get(key).push(tree);
   };
@@ -790,7 +814,8 @@ function buildBerlinCityGrid(scene) {
   const nearbyTree = (x, z, radius = 7) => {
     const ix = Math.floor(x / 8), iz = Math.floor(z / 8);
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-      if ((treeCells.get(`${ix + dx}/${iz + dz}`) || []).some(t => Math.hypot(t.x - x, t.z - z) < radius)) return true;
+      const list = treeCells.get((ix + dx) * 100000 + iz + dz);
+      if (list) for (const t of list) if (Math.hypot(t.x - x, t.z - z) < radius) return true;
     }
     return false;
   };
@@ -847,8 +872,9 @@ function buildBerlinCityGrid(scene) {
       }
     }
   }
+  await buildPause();
   const depths = carveDepths(carveStrips);
-  const terrainMeshes = buildTerrainMeshes(sidewalkMat, { depths, carve: (x, z) => (waterAt(x, z) ? 2.5 : 0) });
+  const terrainMeshes = buildTerrainMeshes(sidewalkMat, { depths, carve: (x, z) => (waterAt(x, z) && inWorld(x, z) ? 2.5 : 0) });
   for (const mesh of terrainMeshes) {
     mesh.userData.sharesPipelineWith = group.children[0];
     group.add(mesh);
@@ -857,8 +883,11 @@ function buildBerlinCityGrid(scene) {
   // equal corners at once (gpu-memory.js indexGeometry: a draped strip has ~5 corners a vertex) and merges them indexed:
   // the town's ground layers never stand in memory in full, non-indexed, twice over (~200 MB).
   const indexed = QUALITY.compactGeometry;
+  await buildPause();
+  let sincePause = 0;
   for (const [material, geometries] of collections) {
     for (let i = 0; i < geometries.length; i++) {
+      if (QUALITY.mobile && ++sincePause >= 600) { sincePause = 0; await buildPause(); }
       const g = geometries[i];
       if (!absolute.has(g)) {
         const deck = onDeck.has(g);
@@ -878,7 +907,9 @@ function buildBerlinCityGrid(scene) {
   // 1 km tiles make ~375, ~70 drawn. Smaller tiles cull better but multiply the draws: 400 m tiles drew ~270.)
   for (const [material, geometries] of collections) {
     let firstMesh;
-    for (const cell of berlinGeometryGroups(geometries, CITY_MERGE_CELL)) for (let i = 0; i < cell.length;) {
+    const cells = berlinGeometryGroups(geometries, CITY_MERGE_CELL);
+    if (QUALITY.mobile) geometries.length = 0; // (the cells hold them now, and let each batch go once merged)
+    for (const cell of cells) for (let i = 0; i < cell.length;) {
       const batch = [];
       for (let vertices = 0; i < cell.length && (batch.length === 0 || vertices < CITY_MERGE_MAX_VERTICES); i++) {
         const g = cell[i];
@@ -892,6 +923,7 @@ function buildBerlinCityGrid(scene) {
       });
       const merged = mergeGeometries(chunk, false);
       chunk.forEach(g => g.dispose());
+      if (QUALITY.mobile) { cell.fill(null, i - batch.length, i); await buildPause(); } // (the merged pieces may go)
       if (!merged) continue;
       const mesh = new THREE.Mesh(merged, material);
       mesh.receiveShadow = material !== waterMat; mesh.castShadow = material === curbMat;

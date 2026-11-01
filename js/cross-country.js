@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, vec2, vec3, color, attribute, instanceIndex, attributeArray, varying, sin, abs, fract, mix, step, smoothstep, max, normalize } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PERSON_BONES as BONE, buildPersonGeometry, createPersonMaterial, PersonRig } from './pedestrians.js';
+import { PERSON_BONES as BONE, buildPersonGeometry, createPersonMaterial, PersonRig, poseBuffer } from './pedestrians.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { LAYOUT } from './loipen.js';
 import { surfaceHeight, groundHeight } from './terrain.js';
@@ -453,7 +453,7 @@ export function buildCrossCountry(scene) {
   const probe = new SkierRig({});
   const stride = probe.pose.length / 4;
   const lods = [1, 0].map((detail) => {
-    const pose = attributeArray(MAX * stride, 'vec4').toReadOnly();
+    const pose = poseBuffer(MAX * stride); // (js/pedestrians.js: a texture on the WebGL 2 fallback)
     const mesh = new THREE.Mesh(buildPersonGeometry(detail), createSkierMaterial(pose, stride));
     mesh.name = detail ? 'CrossCountrySkiersNear' : 'CrossCountrySkiersFar';
     mesh.count = 1; // one (degenerate) skier until the first frame, so the pipelines compile up front

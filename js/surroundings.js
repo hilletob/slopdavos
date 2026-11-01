@@ -51,26 +51,30 @@ const curvatureDrop = (x, z, inner) => {
 // the skirt still meet it): the mobile profile's, js/quality.js, about a quarter of the vertices
 function coarseLevels(g, index, levels) {
   const keep = levels.filter((l) => l.step >= 2);
-  const map = new Int32Array(g.attributes.position.count).fill(-1);
-  const out = [], used = [];
+  // (typed buffers, no growing arrays)
+  const count = g.attributes.position.count, map = new Int32Array(count).fill(-1);
+  let total = 0;
+  for (const l of keep) total += l.count;
+  const out = new Uint32Array(total), used = new Uint32Array(count);
+  let no = 0, nu = 0;
   const kept = keep.map((l) => {
-    const start = out.length;
+    const start = no;
     for (let t = l.start; t < l.start + l.count; t++) {
       const a = index[t];
-      if (map[a] < 0) { map[a] = used.length; used.push(a); }
-      out.push(map[a]);
+      if (map[a] < 0) { map[a] = nu; used[nu++] = a; }
+      out[no++] = map[a];
     }
-    return { ...l, start, count: out.length - start };
+    return { ...l, start, count: no - start };
   });
   const c = new THREE.BufferGeometry();
   for (const [name, attr] of Object.entries(g.attributes)) {
-    const size = attr.itemSize, src = attr.array, dst = new src.constructor(used.length * size);
-    used.forEach((a, k) => { for (let i = 0; i < size; i++) dst[k * size + i] = src[a * size + i]; });
+    const size = attr.itemSize, src = attr.array, dst = new src.constructor(nu * size);
+    for (let k = 0; k < nu; k++) { const a = used[k]; for (let i = 0; i < size; i++) dst[k * size + i] = src[a * size + i]; }
     c.setAttribute(name, new THREE.BufferAttribute(dst, size, attr.normalized));
   }
   c.boundingBox = g.boundingBox; c.boundingSphere = g.boundingSphere;
   g.dispose();
-  return { g: c, index: used.length > 65535 ? new Uint32Array(out) : new Uint16Array(out), levels: kept };
+  return { g: c, index: nu > 65535 ? out : Uint16Array.from(out), levels: kept };
 }
 
 // The lake triangles of a tile drawn only while the land around them is in full detail (a function of its own: a
@@ -94,12 +98,11 @@ function ringMeshes(grid, hole, innerHeight, materials, skirt, { tile = 96, step
     const drop = curvatureDrop(x, z, CITY_RADIUS);
     surface[k] = h - drop; // (the shading's normals: the surface without the skirt)
     ys[k] = (inside(x, z) ? h - skirt : h) - drop; // the skirt, under the inner surface
-    // A lake is perfectly level in the survey
-    let flat = true;
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const ii = i + di, jj = j + dj;
-      if (ii >= 0 && jj >= 0 && ii < cols && jj < rows && Math.abs(heights[jj * cols + ii] - heights[k]) > 0.25) flat = false;
-    }
+    // A lake is perfectly level in the survey (the four neighbours written out: an array of them for each of the
+    // ~670,000 nodes was ~270 MB of garbage, which an iPhone's Safari kept)
+    const hk = heights[k];
+    const flat = !((i + 1 < cols && Math.abs(heights[k + 1] - hk) > 0.25) || (i > 0 && Math.abs(heights[k - 1] - hk) > 0.25) ||
+      (j + 1 < rows && Math.abs(heights[k + cols] - hk) > 0.25) || (j > 0 && Math.abs(heights[k - cols] - hk) > 0.25));
     lakes[k] = flat ? 1 : 0;
   }
   // The hole on the grid, and the tiles: each axis cut at the hole's edges, then into near-equal runs of <= `tile` cells

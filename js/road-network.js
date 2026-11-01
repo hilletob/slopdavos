@@ -1039,7 +1039,10 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
   // behind it, cut off from the rest of the network), its bend moves back along the road's run before it, as far as it
   // takes for a car waiting at the stop line to keep clear, or the run takes the link on altogether (one straight edge
   // from its start to the junction): as long as the road's centreline stays within BEND_SHIFT_DEVIATION of the bend's
-  // point on it and every lane involved clear of curbs and obstacles.
+  // point on it and every lane involved clear of curbs and obstacles. Where the bend is too sharp for either (the
+  // Tanzbühlstrasse into the Obere Strasse: 30° just 9 m short of a five-way junction), the link is driven through
+  // without stopping (`passThrough`): vehicles wait on the run before the bend, and only go round it once they can
+  // cross the junction at its end as well (traffic.js, mayEnter).
   const BEND_SHIFT_DEVIATION = 1.0;
   const inTheWayOut = new Set();
   const liveEdges = () => edges.filter((q) => !inTheWayOut.has(q));
@@ -1102,8 +1105,11 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     place(p);
     return 2;
   }
+  // ...driven through without stopping: the run before the bend (one road, going on into e) is long enough to wait on
+  const passable = (e) => (inOf.get(e.from) || []).some((p) => !inTheWayOut.has(p) && p.general && p.from !== e.to && p.len >= 8 && p.dx * e.dx + p.dz * e.dz > 0.5 && p.moves.some((m) => m.to === e));
   let bendsMoved = 0;
   let linksMerged = 0;
+  let passThrough = 0;
   for (const e of edges) {
     if (inTheWayOut.has(e) || !e.squeezed || !e.from.shape || !inTheWay(e)) continue;
     while (e.len > 6 && inTheWay(e)) e.len = Math.max(5.5, e.len - 1);
@@ -1111,11 +1117,13 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     const kept = keepClear(e);
     if (kept === 1) bendsMoved++;
     else if (kept === 2) linksMerged++;
+    else if (passable(e)) { e.passThrough = true; passThrough++; }
     else inTheWayOut.add(e); // even so
   }
-  if (bendsMoved || linksMerged || inTheWayOut.size) {
-    console.info(`[roads] short links in the way of a junction: ${bendsMoved} bends moved back, ${linksMerged} links merged into the run before, ${inTheWayOut.size - linksMerged} dropped`);
+  if (bendsMoved || linksMerged || passThrough || inTheWayOut.size) {
+    console.info(`[roads] short links in the way of a junction: ${bendsMoved} bends moved back, ${linksMerged} links merged into the run before, ${passThrough} driven through without stopping, ${inTheWayOut.size - linksMerged} dropped`);
   }
+
   if (inTheWayOut.size) {
     edges = edges.filter((e) => !inTheWayOut.has(e));
     for (const e of edges) e.moves = e.moves.filter((m) => !inTheWayOut.has(m.to));

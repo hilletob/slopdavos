@@ -63,7 +63,7 @@ function simpleMaterials() {
   M.roofGravel = make(snowRoof(vec3(0.27, 0.26, 0.25)), 0.92);
   M.stadiumRoof = make(snowRoof(vec3(0.09, 0.065, 0.05)), 0.7, 0.1);
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
-  M.parsenn = windowed(vec3(0.71, 0.71, 0.69), 3.2, 0.3, 0.75, 0.85, 0.4);
+  M.parsenn = windowed(vec3(0.71, 0.71, 0.69), 3.2, 0.24, 0.72, 0.85, 0.4);
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
     const map = parsennAtlas();
@@ -202,31 +202,41 @@ function materials() {
     M.stadiumRoof = r3;
   }
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
-  // The Parsennbahn's valley station: white render, red window frames, a red band at every floor (red-white bands);
-  // the street fronts (uv.y + 2000) glazed on the ground floor (the shop, lit at night) under a light fascia
+  // The Parsennbahn's valley station: white render; on every upper floor (3.2 m) a band of narrow portrait windows
+  // (0.85 × 1.5 m in bays of 1.45 m, a red frame and a red centre mullion each, now and then a closed pier so that the
+  // band runs in groups of two to six) over red-white-red stripes at the floor line; the street fronts (uv.y + 2000)
+  // glazed on the ground floor (the shop, lit at night) under a light fascia. At night the render is floodlit from the
+  // street (the photograph: a warm white wall, not the sky's blue) and the windows glow warm
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0 });
     const front = step(1500, V), v0 = V.sub(front.mul(2000)), plain = step(v0, -500), v = v0.add(plain.mul(1000));
     const ground = step(v, 4.2), shop = front.mul(ground).mul(step(0.25, v));
     const fascia = front.mul(step(4.2, v)).mul(step(v, 4.9));
     const fl = v.sub(5.15).div(3.2), fv = fract(fl).mul(3.2);
-    const band = step(4.9, v).mul(step(fv, 0.24)).max(step(4.9, v).mul(step(v, 5.15)));
-    const wu = fract(U.div(2.7)).mul(2.7);
-    const box = (pad) => step(0.35 - pad, wu).mul(step(wu, 2.35 + pad)).mul(step(1.0 - pad, fv)).mul(step(fv, 2.35 + pad));
-    const upper = float(1).sub(plain).mul(float(1).sub(shop)).mul(float(1).sub(fascia)).mul(step(1.0, v));
-    const win = box(0).mul(upper), frame = box(0.12).mul(upper).sub(win);
+    // the stripes: red 0–0.2, white, red 0.3–0.42 over every floor line (and the band under the first floor)
+    const stripes = step(fv, 0.42).mul(float(1).sub(step(0.2, fv).mul(step(fv, 0.3))));
+    const band = step(4.9, v).mul(stripes).max(step(4.9, v).mul(step(v, 5.15)));
+    const bay = floor(U.div(1.45)), bu = fract(U.div(1.45)).mul(1.45);
+    const pier = step(hash(bay.mul(13.7).add(5.1)), 0.22);
+    const box = (pad) => step(0.3 - pad, bu).mul(step(bu, 1.15 + pad)).mul(step(0.78 - pad, fv)).mul(step(fv, 2.3 + pad));
+    const upper = float(1).sub(plain).mul(float(1).sub(shop)).mul(float(1).sub(fascia)).mul(step(1.0, v)).mul(float(1).sub(pier));
+    const centre = smoothstep(0.045, 0.03, abs(bu.sub(0.725))).mul(near);
+    const win = box(0).mul(upper), frame = box(0.1).mul(upper).sub(win).max(win.mul(centre));
     const mullion = smoothstep(0.455, 0.47, abs(fract(U.div(2.4)).sub(0.5))).max(smoothstep(0.04, 0.02, abs(v.sub(2.9)))).mul(shop);
     const white = mix(vec3(0.66, 0.66, 0.64), vec3(0.76, 0.76, 0.74), weather);
     const red = vec3(0.52, 0.015, 0.02);
     let c = mix(white, red, band.max(frame));
     c = mix(c, vec3(0.5, 0.5, 0.49), fascia);
-    c = mix(c, vec3(0.02, 0.025, 0.03), win);
+    const glass = win.mul(float(1).sub(frame));
+    c = mix(c, vec3(0.02, 0.025, 0.03), glass);
     c = mix(c, mix(vec3(0.05, 0.06, 0.065), vec3(0.18, 0.18, 0.18), mullion), shop);
     m.colorNode = c;
-    m.roughnessNode = mix(float(0.85), float(0.1), win.max(shop.mul(float(1).sub(mullion))));
+    m.roughnessNode = mix(float(0.85), float(0.1), glass.max(shop.mul(float(1).sub(mullion))));
     m.metalnessNode = shop.mul(float(1).sub(mullion)).mul(0.5);
+    const night = smoothstep(0.6, 1.3, iGlow);
     const shopLight = vec3(1.0, 0.84, 0.64).mul(smoothstep(0.45, 1.1, iGlow).mul(0.42));
-    m.emissiveNode = lit(floor(U.div(2.7)), floor(fl), 23, 0.55).mul(win).mul(glow.mul(1.2)).add(shopLight.mul(shop).mul(float(1).sub(mullion)));
+    const flood = c.mul(vec3(1.0, 0.9, 0.76)).mul(night.mul(0.26)).mul(float(1).sub(glass)).mul(float(1).sub(shop));
+    m.emissiveNode = lit(bay, floor(fl), 23, 0.5).mul(glass).mul(glow.mul(1.2)).add(shopLight.mul(shop).mul(float(1).sub(mullion))).add(flood);
     M.parsenn = m;
   }
   // Its lettering, banner, signs and flags: one canvas atlas (js/landmark-buildings.js parsennAtlas), lit at night
@@ -234,7 +244,7 @@ function materials() {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
     const map = parsennAtlas();
     m.colorNode = texture(map, uv()).rgb;
-    m.emissiveNode = texture(map, uv()).rgb.mul(smoothstep(0.6, 1.3, iGlow).mul(0.5));
+    m.emissiveNode = texture(map, uv()).rgb.mul(vec3(1.0, 0.95, 0.88)).mul(smoothstep(0.6, 1.3, iGlow).mul(0.85));
     M.parsennSigns = m;
   }
   {

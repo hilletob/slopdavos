@@ -2760,12 +2760,17 @@ function getSmokeCloudTexture() {
   const data = imgData.data;
 
   // Adjacent texels and fBm samples reuse the same lattice points. Keep full-precision hashes for this bake only.
-  const hashRows = [];
+  // (in Maps: the rows were arrays, whose negative and far-out indices became string keys, ~100 MB of garbage)
+  const hashRows = new Map();
   const hash = (ix, iy) => {
-    const row = hashRows[iy] || (hashRows[iy] = []);
-    if (row[ix] !== undefined) return row[ix];
+    let row = hashRows.get(iy);
+    if (!row) hashRows.set(iy, (row = new Map()));
+    const cached = row.get(ix);
+    if (cached !== undefined) return cached;
     const s = Math.sin(ix * 127.1 + iy * 311.7 + 19.19) * 43758.5453;
-    return row[ix] = s - Math.floor(s);
+    const h = s - Math.floor(s);
+    row.set(ix, h);
+    return h;
   };
   const vnoise = (x, y) => {
     const ix = Math.floor(x);

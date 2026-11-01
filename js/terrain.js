@@ -294,7 +294,11 @@ const LOD_TOLERANCE = 1; // px
  *  level for this view's camera (the shadow cascades' keep the view's). */
 export function drawLevel(renderer, scene, camera, geometry) {
   if (camera.isOrthographicCamera) return;
-  const levels = this.userData.lodLevels, l = levels[pickLevel(levels, geometry.boundingBox, camera, renderer.domElement?.clientHeight || 800, this.userData.lodTolerance ?? LOD_TOLERANCE)];
+  // (the levels of the geometry being drawn: right after a chunk swaps between coarse and full, the renderer may still
+  // draw the other one, whose index ranges differ: the mesh's levels would point past its index buffer)
+  const levels = geometry.userData.lodLevels || this.userData.lodLevels;
+  if (!levels) return;
+  const l = levels[pickLevel(levels, geometry.boundingBox, camera, renderer.domElement?.clientHeight || 800, this.userData.lodTolerance ?? LOD_TOLERANCE)];
   geometry.drawRange.start = l.start; geometry.drawRange.count = l.count;
 }
 
@@ -307,6 +311,11 @@ export function drawLevel(renderer, scene, camera, geometry) {
 const TERRAIN_FULL = QUALITY.mobile ? [900, 1200] : [1500, 2000]; // full within, coarse beyond (hysteresis)
 const STEPS_FAR = QUALITY.mobile ? [4, 8] : [2, 4, 8];
 const terrainChunks = [];
+const scratchBuffers = {};
+const scratch = (name, Type, n) => {
+  const b = scratchBuffers[name];
+  return b && b.length >= n ? b.subarray(0, n) : (scratchBuffers[name] = new Type(n));
+};
 export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ, heights } = TERRAIN;
   const cut = new Uint16Array(cols * rows);
@@ -317,8 +326,10 @@ export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths 
   const n = { x: 0, y: 1, z: 0 };
   // One chunk's geometry: every node (`steps` null) or only those the given coarse levels use, renumbered
   const chunkGeometry = (i0, j0, nc, nr, steps = null) => {
-    // (normals as normalized bytes: a third of the memory, shading only)
-    const positions = new Float32Array(nc * nr * 3), normals = new Int8Array(nc * nr * 3);
+    // (normals as normalized bytes: a third of the memory, shading only; a coarse chunk's full grid only passes through,
+    // in scratch buffers kept between chunks)
+    const positions = steps ? scratch('positions', Float32Array, nc * nr * 3) : new Float32Array(nc * nr * 3);
+    const normals = steps ? scratch('normals', Int8Array, nc * nr * 3) : new Int8Array(nc * nr * 3);
     for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
       const i = i0 + c, j = j0 + r, v = (r * nc + c) * 3;
       positions[v] = minX + i * cell; positions[v + 2] = minZ + j * cell;
@@ -333,29 +344,37 @@ export function buildTerrainMeshes(material, { chunk = 64, carve = null, depths 
     // Levels of detail (terrain-grid.js gridLevels): every node near by, every 2nd, 4th or 8th further off as long as
     // the surface stays within a pixel of the full grid (the carved road and river beds count, so they stay in detail
     // wherever they show); the chunk's border keeps every node, so neighbours at any levels meet without cracks.
-    const ys = new Float32Array(nc * nr);
+    const ys = scratch('ys', Float32Array, nc * nr);
     for (let v = 0; v < ys.length; v++) ys[v] = positions[v * 3 + 1];
-    let { index, levels } = gridLevels(nc - 1, nr - 1, ys, LOD_STEPS);
+    let { index, levels } = gridLevels(nc - 1, nr - 1, ys, LOD_STEPS, { view: !!steps });
     const g = new THREE.BufferGeometry();
     const box = new THREE.Box3().setFromArray(positions), sphere = box.getBoundingSphere(new THREE.Sphere());
     let pos = positions, nor = normals;
     if (steps) {
       // The coarse levels' triangles only, their nodes renumbered
       const keep = levels.filter((l) => steps.includes(l.step));
-      const map = new Int32Array(nc * nr).fill(-1);
-      const out = [], used = [];
+      // (typed buffers: the ~570 chunks' coarse geometry is built at the start)
+      const map = scratch('map', Int32Array, nc * nr).fill(-1);
+      let total = 0;
+      for (const l of keep) total += l.count;
+      const out = scratch('out', Uint32Array, total), used = scratch('used', Uint32Array, nc * nr);
+      let no = 0, nu = 0;
       const kept = keep.map((l) => {
-        const start = out.length;
+        const start = no;
         for (let t = l.start; t < l.start + l.count; t++) {
           const a = index[t];
-          if (map[a] < 0) { map[a] = used.length; used.push(a); }
-          out.push(map[a]);
+          if (map[a] < 0) { map[a] = nu; used[nu++] = a; }
+          out[no++] = map[a];
         }
-        return { ...l, start, count: out.length - start };
+        return { ...l, start, count: no - start };
       });
-      pos = new Float32Array(used.length * 3); nor = new Int8Array(used.length * 3);
-      used.forEach((a, k) => { pos.set(positions.subarray(a * 3, a * 3 + 3), k * 3); nor.set(normals.subarray(a * 3, a * 3 + 3), k * 3); });
-      index = used.length > 65535 ? new Uint32Array(out) : new Uint16Array(out);
+      pos = new Float32Array(nu * 3); nor = new Int8Array(nu * 3);
+      for (let k = 0; k < nu; k++) {
+        const a = used[k] * 3;
+        pos[k * 3] = positions[a]; pos[k * 3 + 1] = positions[a + 1]; pos[k * 3 + 2] = positions[a + 2];
+        nor[k * 3] = normals[a]; nor[k * 3 + 1] = normals[a + 1]; nor[k * 3 + 2] = normals[a + 2];
+      }
+      index = nu > 65535 ? out.slice(0, no) : Uint16Array.from(out.subarray(0, no));
       levels = kept;
     }
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));

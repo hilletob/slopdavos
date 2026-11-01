@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { drapeOverlay, surfaceHeight } from './terrain.js';
 import { winter } from './season.js';
-import { QUALITY } from './quality.js';
+import { QUALITY, boxInWorld } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, groomSample, pisteBase, TILLER_HALF, wearSince } from './groom-map.js';
 
@@ -298,7 +298,15 @@ export function buildSkiPistes(scene) {
   const runs = SKI_PISTES.runs || [], areas = SKI_PISTES.areas || [];
   const groomed = runs.filter((r) => r.groomed);
   const flatGeometries = [...runBands(groomed), ...areaGeometries(areas.filter((a) => a.groomed))];
-  const draped = flatGeometries.map((g) => { const d = drapeOverlay(g, { maxEdge: 8, lift: 0.22 }); g.dispose(); return d; });
+  // (the mobile profile, js/quality.js worldRadius: only the runs near the start)
+  const near = flatGeometries.filter((g) => {
+    g.computeBoundingBox();
+    const b = g.boundingBox;
+    if (boxInWorld(b.min.x, b.max.x, b.min.z, b.max.z)) return true;
+    g.dispose();
+    return false;
+  });
+  const draped = near.map((g) => { const d = drapeOverlay(g, { maxEdge: 8, lift: 0.22 }); g.dispose(); return d; });
   let triangles = 0;
   if (draped.length) {
     const merged = mergeGeometries(draped, false);

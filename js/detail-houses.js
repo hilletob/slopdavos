@@ -150,7 +150,17 @@ function windowIn(B, glassParts, face, plane, [a0, a1, y0, y1], depth, id, bake,
   const w = a1 - a0 + 0.12;
   B.box('frame', F.axis === 'z' ? w : 0.14, 0.05, F.axis === 'z' ? 0.14 : w, sx, sy, sz);
   const g = wallPiece(face, plane - F.out * depth, [[a0, y0], [a1, y0], [a1, y1], [a0, y1]], [], bake, ctx);
-  g.setAttribute('uv1', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2).fill(id), 2));
+  const n = g.attributes.position.count, uv1 = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) { uv1[i * 2] = id; uv1[i * 2 + 1] = bake ? 0 : 1; }
+  if (!bake) {
+    // (a cellar window in the plinth, no photograph: uv runs 0–1 over the pane, for the small light in its middle)
+    const p = g.attributes.position, uvs = g.attributes.uv;
+    for (let i = 0; i < n; i++) {
+      const a = F.axis === 'z' ? p.getX(i) : p.getZ(i);
+      uvs.setXY(i, (a - a0) / (a1 - a0), (p.getY(i) - y0) / (y1 - y0));
+    }
+  }
+  g.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
   glassParts.push(g);
 }
 
@@ -351,11 +361,13 @@ function facadeMaterial(map) {
 // The glass: by day the curtains of the photograph behind a dark, glossy pane (without it: dark glass and lace); lit at
 // dusk and night like the swissBUILDINGS3D facades (js/swissbuildings3d.js windowLights): each window (its number in
 // uv1.x) on or off by its own hash, re-rolled every 5-15 min, mostly warm 2700 K, now and then a bluish TV — the glow
-// following the curtains
+// following the curtains. The cellar windows in the plinth (uv1.y = 1, no photograph) are dark glass, and at night
+// at most a dim bulb's light in the middle of the pane, lit less often
 function glassMaterial(map = null) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0.25 });
-  const id = floor(uv(1).x.add(0.5));
-  const behind = map ? texture(map).rgb : mix(vec3(0.04, 0.045, 0.05), vec3(0.55, 0.52, 0.46), mx_noise_float(positionWorld.mul(30)).mul(0.25).add(0.45));
+  const id = floor(uv(1).x.add(0.5)), cellar = step(0.5, uv(1).y);
+  const photo = map ? texture(map).rgb : mix(vec3(0.04, 0.045, 0.05), vec3(0.55, 0.52, 0.46), mx_noise_float(positionWorld.mul(30)).mul(0.25).add(0.45));
+  const behind = mix(photo, vec3(0.05, 0.05, 0.055), cellar);
   m.colorNode = behind.mul(0.45);
   const iGlow = cityUniforms.uInteriorGlow;
   const glow = smoothstep(0.7, 1.45, iGlow), late = smoothstep(1.3, 1.55, iGlow);
@@ -365,7 +377,12 @@ function glassMaterial(map = null) {
   const c = hn(5), tv = step(0.9, c);
   const tone = mix(mix(vec3(1.0, 0.56, 0.24), vec3(1.0, 0.68, 0.38), step(0.6, c)), vec3(0.36, 0.52, 1.0).mul(mx_noise_float(vec3(time.mul(3.1), h.mul(97), 0)).mul(0.45).add(0.75)), tv);
   const lum = dot(behind, vec3(0.3, 0.59, 0.11));
-  m.emissiveNode = tone.mul(lum.mul(0.9).add(0.3)).mul(hn(7).mul(0.4).add(0.85)).mul(on).mul(glow.mul(1.3));
+  const room = tone.mul(lum.mul(0.9).add(0.3)).mul(hn(7).mul(0.4).add(0.85)).mul(on).mul(glow.mul(1.3));
+  // the cellar: a soft patch over the middle two thirds of the pane, a sixth as bright, on half as often
+  const pane = uv();
+  const patch = smoothstep(0.1, 0.3, pane.x).mul(smoothstep(0.9, 0.7, pane.x)).mul(smoothstep(0.1, 0.35, pane.y)).mul(smoothstep(0.95, 0.7, pane.y));
+  const bulb = vec3(1.0, 0.7, 0.4).mul(patch).mul(on).mul(step(hn(8), 0.5)).mul(glow.mul(0.22));
+  m.emissiveNode = mix(room, bulb, cellar);
   return m;
 }
 

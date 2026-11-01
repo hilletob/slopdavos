@@ -21,8 +21,9 @@ import { createTreeField } from './trees.js';
 import { pavedPlazaRects, centralParkClearings, parkTreeSites, sidewalkBlocks, parkLampSites, berlinStreetSites } from './city-grid.js';
 import { bryantParkLawn } from './landmarks.js';
 import { nearestBerlinRoad } from './berlin-geometry.js';
-import { groundHeight } from './terrain.js';
+import { groundHeight, surfaceHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
+import { winter } from './season.js';
 
 // js/street-details.js
 // Populates Manhattan streets with authentic NYC street furniture using InstancedMesh:
@@ -207,7 +208,7 @@ function buildStreetDetails(scene) {
   const DAVOS_LAMP = { reach: 2.05, y: 8.93 };
   const davosMastMat = new THREE.MeshStandardNodeMaterial({ color: 0xb4b9bd, roughness: 0.38, metalness: 0.72 });
   const davosLampGlow = new THREE.MeshBasicNodeMaterial();
-  davosLampGlow.colorNode = mix(color(0x9a9d9f), color(0xfff3e4).mul(2.4), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
+  davosLampGlow.colorNode = mix(color(0x9a9d9f), color(0xeef2fa).mul(2.4), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow)); // (the same cool white as its spot below)
   const davosMastGeo = BERLIN_DATA ? mergeGeometries([
     new THREE.CylinderGeometry(0.13, 0.15, 0.5, 6).translate(0, 0.25, 0), // foot
     new THREE.CylinderGeometry(0.055, 0.085, 7.6, 6, 1, true).translate(0, 4.1, 0),
@@ -219,7 +220,7 @@ function buildStreetDetails(scene) {
   // ...and the cast-iron candelabra of the promenade in front of the hotels (anthracite post, curved side arms and three
   // hexagonal lanterns), glowing a little warmer
   const kandelaberGlow = new THREE.MeshBasicNodeMaterial();
-  kandelaberGlow.colorNode = mix(color(0xcfcdc4), color(0xffe9cc).mul(2.0), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
+  kandelaberGlow.colorNode = mix(color(0xcfcdc4), color(0xffdcae).mul(2.0), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow)); // (~3000 K, as its light)
   const KANDELABER_HEADS = [[0, 4.62], [-0.62, 4.08], [0.62, 4.08]]; // lantern centres (local x, y)
   const lanternGlass = (x, y) => new THREE.CylinderGeometry(0.15, 0.1, 0.4, 6).translate(x, y, 0);
   const kandelaberPostGeo = BERLIN_DATA ? mergeGeometries([
@@ -578,7 +579,10 @@ function buildStreetDetails(scene) {
           const x = s.x + s.ux * 11 * k, z = s.z + s.uz * 11 * k, b = blockAt(x, z);
           if (k && (Math.hypot(spot[0] - x, spot[1] - z) > 32 || (b && !b.sidewalk && !b.id?.toString().startsWith('sidewalk') && b.source && !b.park))) continue;
           setMatrix(kandelaberMatrices, x, 0, z, 1, 1, 1, -Math.atan2(s.uz, s.ux));
-          streetPointSites.push({ x, y: 4.3, z, color: 0xffe9cc, intensity: 30, dist: 13 });
+          // warm white (~3000 K); a point light at the lanterns' height lights the pavement in a ring ~10 m across
+          // (and the hotel's light facade 3 m behind it, which anything much stronger burns out to white: the light
+          // sits 1 m to the street side of the lanterns, away from the wall)
+          streetPointSites.push({ x: x + s.nx, y: 4.3, z: z + s.nz, color: 0xffd9a8, intensity: 36, dist: 11 });
           addPole(x, z, 0.17);
         }
       } else {
@@ -1264,12 +1268,21 @@ function buildStreetDetails(scene) {
 
   const streetLightsGroup = new THREE.Group();
   streetLightsGroup.name = 'StreetClusteredLights';
+  // The lamps are placed every frame in world space (flat-world site + the terrain's height there, below), so the
+  // group must not be lifted by placeOnTerrain (terrain.js): as a geometry-less group it was lifted rigidly by the
+  // terrain height at the origin (-22 m), which put every street light far below its street.
+  streetLightsGroup.userData.terrain = 'absolute';
   scene.add(streetLightsGroup);
 
   const streetlightSpotPool = [];
   for (let i = 0; i < STREETLIGHT_SPOT_POOL; i++) {
-    // Cobra-head LED luminaire: wide downward spread (0.96 rad half-angle) illuminating both road and sidewalk
-    const spot = new THREE.SpotLight(BERLIN_DATA ? 0xfff1e2 : 0xffe8c2, 0, 25, 0.96, 0.82, 1.25); // (Davos: neutral to cold white LEDs, ~4000 K)
+    // Cobra-head LED luminaire: wide downward spread (0.96 rad half-angle) illuminating both road and sidewalk.
+    // Davos: the masts' flat LED heads (cool white, ~4000 K) throw a bounded pool onto the asphalt, ~12 m across at
+    // the cone's edge from 8.9 m up (0.62 rad half-angle), full-bright over the inner ~5 m and soft beyond (penumbra
+    // 0.55), so each lamp reads as its own bright patch with dark asphalt between (reference: Davos Dorf at night).
+    const spot = BERLIN_DATA
+      ? new THREE.SpotLight(0xe8eefb, 0, 24, 0.62, 0.55, 1.25)
+      : new THREE.SpotLight(0xffe8c2, 0, 25, 0.96, 0.82, 1.25);
     spot.position.set(0, -1000, 0);
     spot.target.position.set(0, -1001, 0);
     streetLightsGroup.add(spot, spot.target);
@@ -1349,6 +1362,12 @@ function buildStreetDetails(scene) {
       return;
     }
 
+    // Candela at the lamp: ~15 units of irradiance under a Davos mast, a mid-grey pool on the dark, wet asphalt (88
+    // left it barely lighter than the moonlit street). Snow reflects it twenty times better than asphalt, so in
+    // winter the lamps are turned down, still leaving their pools clearly brighter than in summer, not burnt-out white.
+    const snowDim = 1 - 0.55 * winter.value;
+    const lampCandela = (BERLIN_DATA ? 190.0 : 88.0) * lampScale * snowDim;
+
     const cobraCount = nearbyLights(cobraCells, camera, STREETLIGHT_DIST, activeCobras);
 
     const cobraCutoff = cobraCount > STREETLIGHT_SPOT_POOL
@@ -1359,10 +1378,11 @@ function buildStreetDetails(scene) {
       const s = activeCobras[i];
       const fade = smoothFade(s._effDist, cobraCutoff * 0.62, cobraCutoff);
       const spot = streetlightSpotPool[i];
-      spot.position.set(s.x, s.y, s.z);
-      spot.target.position.set(s.tx, 0.0, s.tz);
+      const h = s._h ?? (s._h = surfaceHeight(s.x, s.z)); // the street's terrain height (the masts stand lifted by it)
+      spot.position.set(s.x, s.y + h, s.z);
+      spot.target.position.set(s.tx, h, s.tz);
       spot.target.updateMatrixWorld();
-      spot.intensity = 88.0 * lampScale * fade;
+      spot.intensity = lampCandela * fade;
     }
     for (let i = spotUsed; i < STREETLIGHT_SPOT_POOL; i++) {
       streetlightSpotPool[i].intensity = 0;
@@ -1380,9 +1400,9 @@ function buildStreetDetails(scene) {
       const fade = smoothFade(s._effDist, ptCutoff * 0.62, ptCutoff);
       const pt = streetPointPool[i];
       pt.color.setHex(s.color);
-      pt.position.set(s.x, s.y, s.z);
+      pt.position.set(s.x, s.y + (s._h ?? (s._h = surfaceHeight(s.x, s.z))), s.z);
       pt.distance = s.dist;
-      pt.intensity = s.intensity * lampScale * fade;
+      pt.intensity = s.intensity * lampScale * fade * snowDim;
     }
     for (let i = ptUsed; i < STREET_POINT_POOL; i++) {
       streetPointPool[i].intensity = 0;

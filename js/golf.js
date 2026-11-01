@@ -8,6 +8,7 @@ import { PARKING_DATA } from './parking-data.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { drapeOverlay, groundHeight, TERRAIN } from './terrain.js';
 import { winter } from './season.js';
+import { boxInWorld } from './quality.js';
 
 // The Golf Club Davos (js/golf-data.js from OSM: the 18-hole par-69 course on the valley floor between Dorf and Platz,
 // along the Landwasser) as it looks in summer: the rough a little darker and lusher over the whole course, the fairways
@@ -158,6 +159,8 @@ function buildSurfaceGeometry() {
     ...GOLF.areas.filter((a) => !a.drawn) // (the ponds the lakes already draw stay theirs)
   ];
   for (const s of surfaces) {
+    const [x0, z0, x1, z1] = bbox(s.ring);
+    if (!boxInWorld(x0, x1, z0, z1)) continue; // (the mobile profile: only near the start, js/quality.js worldRadius)
     const flat = polygonGeometry(s.ring);
     const g = drapeOverlay(flat, { maxEdge: MAX_EDGE[s.kind], lift: LIFT });
     flat.dispose();
@@ -176,6 +179,7 @@ function buildSurfaceGeometry() {
     g.setAttribute('golfMask', new THREE.BufferAttribute(mask, 1));
     parts.push(g);
   }
+  if (!parts.length) return null;
   const merged = mergeGeometries(parts, false);
   for (const g of parts) g.dispose();
   return merged;

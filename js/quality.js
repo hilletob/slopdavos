@@ -41,6 +41,7 @@ const PROFILES = {
     buildingLoads: 8, buildingNear: 450, // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
+    releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
     clusterLights: [256, 32, 28, 48], // ClusteredLighting: lights at most, tile px, depth slices, lights per cluster
@@ -52,6 +53,7 @@ const PROFILES = {
     treeAtlas: 2048, // the leaf atlas (px a side, 4 x 4 tiles)
     facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
     deferScenery: false, // build the golf course and the streams after the first frame (their build's garbage apart)
+    worldRadius: 0, // m: the streets, sidewalks, markings and draped overlays only this far from the start (0: everywhere)
   },
   mobile: {
     name: 'mobile',
@@ -64,7 +66,7 @@ const PROFILES = {
     shadowMapSize: 1024,
     shadowFarMax: 240,
     hires: false,
-    orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 2,
+    orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 1,
     roofOrthophotos: false,
     sharpRoofs: false, sharpRoofNear: 0, sharpRoofFar: 0,
     treeShare: 0.25,
@@ -76,6 +78,7 @@ const PROFILES = {
     buildingLoads: 2, buildingNear: 250, // (each tile peaks at tens of MB while parsed: fewer at once on a phone)
     precompile: false, // (on an iPhone the precompile killed the GPU process: the pipelines compile when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
+    releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     compactGeometry: true,
     precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
     clusterLights: [64, 64, 16, 16],
@@ -89,6 +92,11 @@ const PROFILES = {
     treeAtlas: 512,
     facadeAtlas: 512,
     deferScenery: true,
+    // (an iPhone 13 closed the tab while the town's ground layers were built, even with every other system left out:
+    // ~6.8 GB of short-lived arrays for the whole valley, which Safari's garbage collector let pile up to ~2.5 GB. Only
+    // the town within this radius of the start gets its streets, sidewalks, curbs, markings and draped overlays; beyond
+    // it, the terrain with its orthophoto. A teleport farther than the radius reloads the town around the destination.)
+    worldRadius: 1300,
   }
 };
 
@@ -155,6 +163,31 @@ export function setBackend(isWebGPU) {
     Object.assign(QUALITY, { shadows: false, orthoFullNear: 350, orthoFullFar: 500, orthoFullScale: 0.5, treeShare: 0.18, treeDistance: 0.5, bloomScale: 0.25 });
   }
   return QUALITY;
+}
+
+/**
+ * The part of the valley built in detail (QUALITY.worldRadius around the start; everywhere when 0): js/main.js sets
+ * its centre before building, the builders ask inWorld() / boxInWorld() for what to leave out.
+ */
+export const WORLD = { x: 0, z: 0, radius: Infinity };
+export function setWorldCenter(x, z) {
+  WORLD.x = x; WORLD.z = z;
+  WORLD.radius = QUALITY.worldRadius > 0 ? QUALITY.worldRadius : Infinity;
+}
+/** Whether (x, z) lies within the detailed part of the valley (`pad` metres beyond its edge too) */
+export const inWorld = (x, z, pad = 0) => WORLD.radius === Infinity || Math.hypot(x - WORLD.x, z - WORLD.z) <= WORLD.radius + pad;
+/** Whether the box reaches into the detailed part of the valley */
+export function boxInWorld(minX, maxX, minZ, maxZ, pad = 0) {
+  if (WORLD.radius === Infinity) return true;
+  const dx = Math.max(minX - WORLD.x, 0, WORLD.x - maxX), dz = Math.max(minZ - WORLD.z, 0, WORLD.z - maxZ);
+  return Math.hypot(dx, dz) <= WORLD.radius + pad;
+}
+/** Whether the segment a-b ({x, z}) comes within the detailed part of the valley */
+export function segmentInWorld(ax, az, bx, bz, pad = 0) {
+  if (WORLD.radius === Infinity) return true;
+  const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1e-9;
+  const t = Math.max(0, Math.min(1, ((WORLD.x - ax) * dx + (WORLD.z - az) * dz) / L2));
+  return Math.hypot(ax + t * dx - WORLD.x, az + t * dz - WORLD.z) <= WORLD.radius + pad;
 }
 
 export { PROFILES as QUALITY_PROFILES };

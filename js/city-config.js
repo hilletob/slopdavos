@@ -98,6 +98,28 @@ function nearestRoads(x, z, radius = 60) {
   return [...best.values()].sort((a, b) => a.dist - b.dist);
 }
 
+/**
+ * Whether some road segment lies within `radius` of (x, z) and nearer than its road's half width + `margin` (Infinity:
+ * any road within `radius`), without allocating: nearestRoads(x, z, radius).some(q => q.dist < q.road.w / 2 + margin)
+ * can only hold where this does.
+ */
+function roadCloserThan(x, z, radius, margin) {
+  const ix0 = Math.floor((x - radius) / ROAD_CELL), ix1 = Math.floor((x + radius) / ROAD_CELL);
+  const iz0 = Math.floor((z - radius) / ROAD_CELL), iz1 = Math.floor((z + radius) / ROAD_CELL);
+  for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
+    const list = ROAD_GRID.get(ix * 100000 + iz);
+    if (!list) continue;
+    for (const s of list) {
+      const dx = s.bx - s.ax, dz = s.bz - s.az;
+      const L2 = dx * dx + dz * dz || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (z - s.az) * dz) / L2));
+      const ex = s.ax + t * dx - x, ez = s.az + t * dz - z, d = Math.sqrt(ex * ex + ez * ez);
+      if (d - 1e-9 <= radius && d - 1e-9 < s.r.w / 2 + margin) return true; // (a hair generous: hypot vs sqrt)
+    }
+  }
+  return false;
+}
+
 // Spatial index of the blocks (64 m cells)
 const BLOCK_CELL = 64;
 const BLOCK_GRID = new Map();
@@ -197,6 +219,8 @@ function blockAt(x, z) {
 }
 const PEDESTRIAN_KINDS=new Set(['footway','pedestrian','path','cycleway','steps']);
 function sidewalkAt(x,z){
+  // (no road within reach: never a sidewalk; the woods' 240,000 tree sites ask, nearestRoads allocates its answer)
+  if(!roadCloserThan(x,z,24,Infinity))return null;
   const near=nearestRoads(x,z,24);
   if(waterAt(x,z)&&!near.some(q=>q.road.bridge&&q.dist<q.road.w/2+3))return null;
   // On a carriageway is never on a sidewalk, whatever the curbs of the streets around (junctions) or a footway
@@ -240,10 +264,11 @@ const waterCell=(k)=>(WATER_GRID[k>>2]>>((k&3)*2))&3;
   xs.sort((p,q)=>p-q);
   for(let t=0;t+1<xs.length;t+=2){const i0=Math.max(0,Math.ceil((xs[t]-minX)/WATER_CELL-.5)),i1=Math.min(WNX-1,Math.floor((xs[t+1]-minX)/WATER_CELL-.5));for(let i=i0;i<=i1;i++)waterCellSet(j*WNX+i,1);}
  }
+ const WATER_NEIGHBOURS=[[0,0],[1,0],[-1,0],[0,1],[0,-1]]; // (one list, not one per metre of shore)
  for(const r of rings)for(let i=0,k=r.length-1;i<r.length;k=i++){
   const a=r[i],b=r[k],n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/1));
   for(let t=0;t<=n;t++){const x=a.x+(b.x-a.x)*t/n,z=a.z+(b.z-a.z)*t/n;
-   for(const [dx,dz] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const gi=Math.floor((x-minX)/WATER_CELL)+dx,gj=Math.floor((z-minZ)/WATER_CELL)+dz;if(gi>=0&&gj>=0&&gi<WNX&&gj<WNZ)waterCellSet(gj*WNX+gi,2);}}
+   for(const [dx,dz] of WATER_NEIGHBOURS){const gi=Math.floor((x-minX)/WATER_CELL)+dx,gj=Math.floor((z-minZ)/WATER_CELL)+dz;if(gi>=0&&gj>=0&&gi<WNX&&gj<WNZ)waterCellSet(gj*WNX+gi,2);}}
  }
 }
 function waterAt(x,z){
@@ -338,7 +363,7 @@ function walkSignal(time, isAvenue) {
   return t < walk;
 }
 export {
-  BERLIN_DATA, BERLIN_AREAS, toPts, projectLonLat, pointInPoly, waterAt, waterAtExact, nearestDrivingPoint, defaultSpawn, sidewalkAt,
+  BERLIN_DATA, BERLIN_AREAS, toPts, projectLonLat, pointInPoly, waterAt, waterAtExact, nearestDrivingPoint, defaultSpawn, sidewalkAt, roadCloserThan,
   AVENUES,
   ALL_AVENUES,
   CENTRAL_PARK_BOUNDS,

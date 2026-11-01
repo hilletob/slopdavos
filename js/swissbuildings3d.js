@@ -193,12 +193,36 @@ export function bakeTile(gltf, tile, stats) {
   // order). Terraced houses come with both neighbours' copies of a shared wall, and where it shows (a taller neighbour,
   // a gap in the row) the two copies, styled apart, fought over the pixels: frames and shutters frayed into speckles.
   {
-    const seen = new Set(), q = (i) => `${Math.round(positions[i * 3] * 50)},${Math.round(positions[i * 3 + 1] * 50)},${Math.round(positions[i * 3 + 2] * 50)}`;
+    // (the three corners, to the centimetre, sorted, hashed into numbers: a string key per triangle was most of the
+    // tiles' garbage; a hash shared by two triangles is checked corner by corner)
+    const seen = new Map(), cur = new Float64Array(9), other = new Float64Array(9);
+    const corners = (t, out) => {
+      for (let j = 0; j < 3; j++) for (let c = 0; c < 3; c++) out[j * 3 + c] = Math.round(positions[(t + j) * 3 + c] * 50);
+      // (sorted: x, then y, then z)
+      const less = (a, b) => out[a] < out[b] || (out[a] === out[b] && (out[a + 1] < out[b + 1] || (out[a + 1] === out[b + 1] && out[a + 2] < out[b + 2])));
+      const swap = (a, b) => { for (let c = 0; c < 3; c++) { const x = out[a + c]; out[a + c] = out[b + c]; out[b + c] = x; } };
+      if (less(3, 0)) swap(0, 3);
+      if (less(6, 3)) swap(3, 6);
+      if (less(3, 0)) swap(0, 3);
+      return out;
+    };
+    const same = (a, b) => { for (let c = 0; c < 9; c++) if (a[c] !== b[c]) return false; return true; };
     let w = 0;
     for (let t = 0; t < total; t += 3) {
-      const key = [q(t), q(t + 1), q(t + 2)].sort().join(';');
-      if (seen.has(key)) { stats.duplicateTriangles = (stats.duplicateTriangles || 0) + 1; continue; }
-      seen.add(key);
+      corners(t, cur);
+      let h = 2166136261;
+      for (let c = 0; c < 9; c++) h = Math.imul(h ^ (cur[c] | 0), 16777619);
+      const kept = seen.get(h);
+      let dup = false;
+      if (kept !== undefined) {
+        if (typeof kept === 'number') dup = same(cur, corners(kept, other));
+        else for (const k of kept) if (same(cur, corners(k, other))) { dup = true; break; }
+      }
+      if (dup) { stats.duplicateTriangles = (stats.duplicateTriangles || 0) + 1; continue; }
+      // (the triangle's index once kept: it is moved to w below)
+      if (kept === undefined) seen.set(h, w);
+      else if (typeof kept === 'number') seen.set(h, [kept, w]);
+      else kept.push(w);
       if (w !== t) for (let j = 0; j < 3; j++) {
         const from = t + j, to = w + j;
         positions[to * 3] = positions[from * 3]; positions[to * 3 + 1] = positions[from * 3 + 1]; positions[to * 3 + 2] = positions[from * 3 + 2];

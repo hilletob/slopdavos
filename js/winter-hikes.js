@@ -5,6 +5,7 @@ import { WINTER_HIKES } from './winter-hikes-data.js';
 import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
 import { chunkedMeshes } from './scene-culling.js';
+import { boxInWorld } from './quality.js';
 
 // The signposted winter hiking trails of Davos (Winterwanderwege: the Landwasser Winterwanderweg over the meadows of
 // the valley floor, the Hohe Promenade, Schatzalp - Strela, the Dischma, Rinerhorn, Pischa...; ASTRA / SchweizMobil
@@ -80,6 +81,9 @@ function trailStrips(trails) {
       g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
       g.setIndex(index);
+      g.computeBoundingBox();
+      const box = g.boundingBox; // (the mobile profile, js/quality.js worldRadius: near the start only)
+      if (!boxInWorld(box.min.x, box.max.x, box.min.z, box.max.z)) { g.dispose(); continue; }
       geometries.push(drapeOverlay(g, { maxEdge: 3, lift: TRAIL_LIFT }));
       g.dispose();
     }

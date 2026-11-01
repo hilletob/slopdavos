@@ -7,6 +7,7 @@ import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, createLoftedCarMat
 import { createRoadSurfaceMaterial, createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { berlinPolygonGeometry } from './berlin-geometry.js';
+import { inWorld } from './quality.js';
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
 // bays and parked cars. In each lot the bays are laid out along its longest edge: thin lots (street-side and lane
@@ -198,7 +199,8 @@ export function buildParking(scene) {
   group.userData.terrain = 'absolute'; // laid on the terrain here
   scene.add(group);
   const obs = obstacles();
-  const lots = PARKING_DATA || [];
+  // (the mobile profile, js/quality.js worldRadius: only the car parks near the start)
+  const lots = (PARKING_DATA || []).filter((lot) => !lot.ring?.length || inWorld(lot.ring[0], lot.ring[1], 150));
   const bays = [];
   let photographed = 0;
   for (const lot of lots) {
