@@ -19,6 +19,12 @@ class TouchControls {
 
     if (!this.root || !this.stick || !this.knob) return;
 
+    // iOS Safari starts a text selection or the callout on a long press / drag over the page, even with
+    // user-select: none; only the form fields keep theirs
+    const inField = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    document.addEventListener('selectstart', (e) => { if (!inField(e.target)) e.preventDefault(); });
+    document.addEventListener('contextmenu', (e) => { if (!inField(e.target) && this.media.matches) e.preventDefault(); });
+
     this.stick.addEventListener('pointerdown', (event) => {
       if (!this.canInteract() || event.button !== 0 || this.stickPointer !== null || this.buttonPointers.has(event.pointerId)) return;
       event.preventDefault();

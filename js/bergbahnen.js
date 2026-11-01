@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { fract, mix, mx_noise_float, positionGeometry, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { float, fract, mix, mx_noise_float, positionGeometry, positionView, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
@@ -701,7 +701,11 @@ function buildRopeways(group) {
   // Ropes
   const ropeGeometry = new THREE.BufferGeometry();
   ropeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(ropes, 3));
-  const ropeLines = new THREE.LineSegments(ropeGeometry, new THREE.LineBasicNodeMaterial({ color: 0x1e2022 }));
+  // Steel-grey ropes that fade with distance: a one-pixel line reads as a hard black stroke from afar, where real
+  // ropes are barely visible
+  const ropeMaterial = new THREE.LineBasicNodeMaterial({ color: 0x74797e, transparent: true, depthWrite: false });
+  ropeMaterial.opacityNode = float(0.85).mul(float(1).sub(smoothstep(500, 2200, positionView.z.negate())));
+  const ropeLines = new THREE.LineSegments(ropeGeometry, ropeMaterial);
   ropeLines.name = 'Ropeway ropes';
   group.add(ropeLines);
   // Pylons: a mast (unit height, scaled) and a crossarm; heavy lattice towers for the aerial tramways

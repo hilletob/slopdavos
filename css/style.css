@@ -57,6 +57,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
+  -webkit-user-select: none; /* iOS Safari: a long press or a drag must never start a text selection */
+  -webkit-touch-callout: none;
   overscroll-behavior: none;
 }
 
@@ -1447,6 +1449,13 @@ body[data-mode='helicopter'] .gauge-alt {
 .touch-action[hidden] { display: none; }
 
 .touch-movement { text-align: center; }
+
+#canvas-container, #canvas-container canvas, .touch-action, #touch-controls, .mode-bar, .hint-bar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
 
 #touch-stick {
   position: relative;

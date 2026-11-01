@@ -217,7 +217,7 @@ class CameraSystem {
           entity.position.z - Math.cos(totalYaw) * horizDist
         );
 
-        const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.52 : entity.type === 'cargobike' ? 0.8 : 1.55;
+        const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.3 : entity.type === 'cargobike' ? 0.8 : 1.55; // (the van: a flatter view over its roof)
         const lookAhead = entity.type === 'cargobike' ? 0.35 : 5.2;
         desiredLook.set(
           entity.position.x + Math.sin(entity.heading) * lookAhead,

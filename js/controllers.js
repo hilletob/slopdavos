@@ -755,8 +755,8 @@ class ThirdPersonControllerManager {
       speed: 0,
       verticalVel: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.55, 0),
-      chaseDistance: 4.3,
-      chaseHeight: 1.95
+      chaseDistance: 5.2,
+      chaseHeight: 2.0
     };
   }
 
@@ -846,8 +846,8 @@ class ThirdPersonControllerManager {
       wheelSpin: 0,
       wheelRadius: T3.wheelRadius,
       cameraTargetOffset: new THREE.Vector3(0, 1.1, 0),
-      chaseDistance: 7.4,
-      chaseHeight: 2.4
+      chaseDistance: 10.5, // further back and flatter than the bike (the van is long and its roof is high)
+      chaseHeight: 1.7
     };
   }
 
@@ -1005,8 +1005,8 @@ class ThirdPersonControllerManager {
       leanAngle: 0,
       pedalPhase: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.35, 0),
-      chaseDistance: 4.8,
-      chaseHeight: 2.05
+      chaseDistance: 5.8,
+      chaseHeight: 2.1
     };
   }
 
@@ -1579,7 +1579,7 @@ class ThirdPersonControllerManager {
       frontWheel, rearWheel, frontWheelRadius, rearWheelRadius, crankPivot, pedals, bikeFrame, riderCrowd, riderRig,
       helmet, headLight,
       position: spawnPosition(1, -16, 0), heading: SPAWN_HEADING, speed: 0, leanAngle: 0, pedalPhase: 0,
-      cameraTargetOffset: new THREE.Vector3(0, 0.62, 0), chaseDistance: 6.2, chaseHeight: 2.35
+      cameraTargetOffset: new THREE.Vector3(0, 0.62, 0), chaseDistance: 7.4, chaseHeight: 2.4
     };
   }
 
@@ -1719,8 +1719,8 @@ class ThirdPersonControllerManager {
       pitchAngle: 0,
       rollAngle: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.65, -1.5),
-      chaseDistance: 13.5,
-      chaseHeight: 3.6
+      chaseDistance: 16,
+      chaseHeight: 4.0
     };
   }
 
@@ -1776,7 +1776,7 @@ class ThirdPersonControllerManager {
       speed: 0,
       turnRate: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.4, 0),
-      chaseDistance: 10.5,
+      chaseDistance: 12.5,
       chaseHeight: 3.6
     };
   }
@@ -1794,7 +1794,7 @@ class ThirdPersonControllerManager {
       heading: 0,
       speed: 0,
       cameraTargetOffset: new THREE.Vector3(0, 2.6, 0),
-      chaseDistance: 26,
+      chaseDistance: 30,
       chaseHeight: 9
     };
   }
