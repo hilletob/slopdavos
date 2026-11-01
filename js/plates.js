@@ -239,7 +239,7 @@ export function plateAtlasTexture() {
 export const LIVERY_ATLAS = {
   w: 1024, h: 256,
   side: { x: 0, y: 0, w: 1024, h: 128, zFront: 2.4, zRear: -2.4, top: 0.94, bottom: 0.3 },
-  hood: { x: 0, y: 128, w: 512, h: 128, halfWidth: 0.8, zFar: 1.95, zNear: 1.15 }
+  hood: { x: 0, y: 128, w: 512, h: 128, halfWidth: 0.8, zCowl: 1.15, zNose: 1.95 } // (the text's top towards the cowl)
 };
 export const POLICE_BLUE = '#1a3d8c';
 export const POLICE_ORANGE = '#ff5a14';
@@ -276,8 +276,8 @@ function drawLivery(ctx) {
   liveryText(ctx, 'Polizia cantonale dei Grigioni', X(-0.76), Y(0.68), 0.033, sx, sy, POLICE_BLUE, 'normal');
   // The bonnet: "POLIZEI" read from ahead, its top towards the windscreen
   const H = LIVERY_ATLAS.hood;
-  const hx = H.w / (2 * H.halfWidth), hy = H.h / (H.zFar - H.zNear);
-  liveryText(ctx, 'POLIZEI', H.x + H.w / 2, H.y + (H.zFar - 1.55) * hy, 0.2, hx, hy, POLICE_BLUE, 'bold', 0.03);
+  const hx = H.w / (2 * H.halfWidth), hy = H.h / (H.zNose - H.zCowl);
+  liveryText(ctx, 'POLIZEI', H.x + H.w / 2, H.y + (1.55 - H.zCowl) * hy, 0.2, hx, hy, POLICE_BLUE, 'bold', 0.03);
 }
 
 let livery = null;

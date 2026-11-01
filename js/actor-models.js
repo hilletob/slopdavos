@@ -5,6 +5,7 @@ import {
   Fn,
   float,
   vec2,
+  vec4,
   color,
   attribute,
   sin,
@@ -1311,13 +1312,13 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const sideV = float(LS.top).sub(p.y).div(LS.top - LS.bottom);
   const sideUV = vec2(sideU.mul(LS.w).add(LS.x).div(LA.w), one.sub(sideV.mul(LS.h).add(LS.y).div(LA.h)));
   const inSide = step(abs(sideU.sub(0.5)), 0.5).mul(step(abs(sideV.sub(0.5)), 0.5));
-  const sideDecal = livery ? texture(livery, sideUV) : color(0x000000);
+  const sideDecal = livery ? texture(livery, sideUV) : vec4(0.0);
   // The bonnet's decal, read from ahead
   const hoodU = p.x.add(LH.halfWidth).div(2 * LH.halfWidth);
-  const hoodV = float(LH.zFar).sub(p.z).div(LH.zFar - LH.zNear);
+  const hoodV = p.z.sub(LH.zCowl).div(LH.zNose - LH.zCowl);
   const hoodUV = vec2(hoodU.mul(LH.w).add(LH.x).div(LA.w), one.sub(hoodV.mul(LH.h).add(LH.y).div(LA.h)));
   const onHood = isPoliceCar.mul(isBody).mul(step(0.6, n.y)).mul(step(abs(hoodU.sub(0.5)), 0.5)).mul(step(abs(hoodV.sub(0.5)), 0.5));
-  const hoodDecal = livery ? texture(livery, hoodUV) : color(0x000000);
+  const hoodDecal = livery ? texture(livery, hoodUV) : vec4(0.0);
   const decalA = max(sideDecal.a.mul(inSide).mul(isPolice), hoodDecal.a.mul(onHood));
   const decalRGB = mix(sideDecal.rgb, hoodDecal.rgb, onHood);
   const foil = mix(color(POLICE_ORANGE), color(POLICE_BLUE), blueStripe);

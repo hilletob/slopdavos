@@ -141,7 +141,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   };
 
   // =========================================================================
-  // 1. 3D LOFTED NYC YELLOW TAXIS, SEDANS, SUVS & NYPD CRUISERS (200 VEHICLES)
+  // 1. 3D LOFTED TAXIS, ESTATES, HATCHBACKS, SUVS & KANTONSPOLIZEI PATROL CARS
   // =========================================================================
   function createVehicle(bus, half, halfWidth, axle, driver, v0) {
     return {
@@ -250,7 +250,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     }
   }
 
-  // NYPD roof light bars (the blue & white livery is painted by the sedan material from the instance's carState)
+  // The patrol cars' blue roof light bars (the Kantonspolizei Graubünden livery is painted by the estate material from the
+  // instance's carState, see actor-models.js)
   const policeLightbarInst = new THREE.InstancedMesh(buildLightbarGeometry(BODY_SPECS.sedan), createLightbarMaterial(), Math.max(1, policeCount));
   const carShadowInst = new THREE.InstancedMesh(unitPlane, contactShadowMat, NUM_CARS);
   carShadowInst.renderOrder = 998;
@@ -440,7 +441,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   const policeLightPool = [];
   for (let i = 0; i < POLICE_LIGHT_POOL_SIZE; i++) {
-    const pt = new THREE.PointLight(0xff1828, 0, 12.0, 1.25);
+    const pt = new THREE.PointLight(0x1868ff, 0, 12.0, 1.25); // (Swiss blue lights: no red)
     pt.position.set(0, -1000, 0);
     trafficLightsGroup.add(pt);
     policeLightPool.push(pt);
@@ -1813,7 +1814,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       spot.position.set(0, -1000, 0);
     }
 
-    // 1. NYPD emergency roof lightbar flashes (smoothly pulsing red/blue 360° PointLights on nearby patrol cruisers)
+    // 1. The patrol cars' blue lights (Swiss: blue only, no red): a pulsing 360° PointLight hopping between the two
+    // halves of the roof bar of each nearby police car
     let policeLightsUsed = 0;
     for (let i = 0; i < litVehicleCount && policeLightsUsed < POLICE_LIGHT_POOL_SIZE; i++) {
       const v = litVehicles[i];
@@ -1821,11 +1823,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       const fade = smoothDistFade(v._effDist, 52, 88);
       if (fade <= 0.001) continue;
       const wave = Math.sin((clock + v.blinkPhase) * Math.PI * 6.0);
-      const redPhase = wave >= 0;
       const pulse = 0.35 + 0.65 * Math.abs(wave);
-      const side = redPhase ? -0.36 : 0.36;
+      const side = wave >= 0 ? -0.36 : 0.36;
       const pt = policeLightPool[policeLightsUsed++];
-      pt.color.setHex(redPhase ? 0xff1828 : 0x1868ff);
       pt.position.set(v.x + side * v._cosY - 0.25 * v._sinY, v.y + 1.85, v.z - side * v._sinY - 0.25 * v._cosY);
       pt.distance = 12.0;
       pt.intensity = 42.0 * tailScale * fade * pulse;

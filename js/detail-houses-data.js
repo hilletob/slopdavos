@@ -19,7 +19,7 @@ export const DETAIL_HOUSES = [
     // The picket fence (local [x, z] segments) along the parcel (AV parcel 1390: a triangle that runs out to a point
     // south of the house between the Dischmastrasse and its straight eastern boundary): the street side from the
     // north corner to the point, back up the eastern boundary (with its bend) and along the north boundary
-    fence: [[[-19.02, -12.27], [-17.52, 30.29]], [[-17.52, 30.29], [13.34, 7.52]], [[13.34, 7.52], [11.11, -9.35]], [[11.11, -9.35], [-19.02, -12.27]]],
+    fence: [[[-8.24, -9.18], [-6.83, 30.76]], [[-6.83, 30.76], [13.34, 7.52]], [[13.34, 7.52], [11.11, -9.35]], [[11.11, -9.35], [-8.24, -9.18]]],
     // The swissBUILDINGS3D building it replaces: everything whose surveyed centre lies within r of (x, z)
     exclude: { x: 789.4, z: -1049.9, r: 6 },
     // The house as measured on the owner's 3D scan ("Grialetsch", Scaniverse/LiDAR, 2026-10-31) and built from those

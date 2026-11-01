@@ -148,6 +148,20 @@ for (const list of [DAVOS_DATA.roads, DAVOS_DATA.railways]) {
   }
 }
 
+/** Registers a landing platform: a disc of radius `r` round (x, z) whose surface lies at `y`. It counts as a deck for
+ *  surfaceHeight(), so the helicopter sets down on it (js/controllers.js: the floor is the surface) — the Rega pad on
+ *  the roof of the Spital Davos (js/helipad.js) */
+export function addPlatform(x, z, r, y) {
+  const s = { ax: x, az: z, bx: x, bz: z, ya: y, yb: y, half: r, road: null };
+  for (let ix = Math.floor((x - r) / DECK_CELL); ix <= Math.floor((x + r) / DECK_CELL); ix++) {
+    for (let iz = Math.floor((z - r) / DECK_CELL); iz <= Math.floor((z + r) / DECK_CELL); iz++) {
+      const k = ix * 65536 + iz;
+      if (!deckCells.has(k)) deckCells.set(k, []);
+      deckCells.get(k).push(s);
+    }
+  }
+}
+
 /** Height of the bridge deck under (x, z) (nearest bridge centreline within its half width), or NaN */
 export function deckHeight(x, z) {
   const list = deckCells.get(Math.floor(x / DECK_CELL) * 65536 + Math.floor(z / DECK_CELL));

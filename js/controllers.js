@@ -50,6 +50,23 @@ const CAR_HOME = (() => {
   const cx = 684.4 + tx * 6, cz = -1161.7 + tz * 6; // on the centreline
   return { x: cx - tz * 1.8, z: cz + tx * 1.8, heading: Math.atan2(tx, tz) }; // 1.8 m to the right of it
 })();
+// Where the other players wait on a first visit (world frame, heading = atan2(dx, dz); main.js sets them onto the
+// relief, SAVE_VERSION 7):
+// - the pedestrian on the forecourt north-west of the Eisstadion (Vaillant Arena, LV95 2782255/1185816), facing its
+//   WNW gable (js/landmark-buildings-data.js EISSTADION.outline)
+const PERSON_START = { x: -312, z: -352, heading: 1.136 };
+// - the cyclist on the Talstrasse in Davos Dorf beside the Seehof Seeli (OSM natural=water, DAVOS_DATA.water), riding
+//   towards Davos Platz and the Jakobshorn down the valley: the Talstrasse is one-way the other way (towards Dorf,
+//   OSM w1512988904 oneway=yes), its left lane the buses' and the cyclists' contraflow lane (bus:lanes:backward,
+//   oneway:bicycle=no), 1.6 m west of the centreline (784.6, -1422)
+const CYCLIST_START = { x: 782.9, z: -1422.3, heading: -0.15 };
+// - the Rega H145 hovering 80 m north-west of the Jakobshornbahn's valley station (-544, 457), 40 m over the ground,
+//   its nose towards the station
+const HELI_START = { x: -601, z: 400, heading: Math.PI / 4, agl: 40 };
+// - the snow groomer on the Bündawiese in Davos Dorf, 10 m off the "City-Trail Davos" cross-country track
+//   (DAVOS_DATA.loipen, (815.6, -1024.4) -> (947.5, -1067.9)) and well clear of the Bündastrasse, lined up with the track
+const SNOWCAT_START = { x: 900, z: -1062, heading: 1.889 };
+export const PLAYER_STARTS = { person: PERSON_START, cyclist: CYCLIST_START, car: CAR_HOME, helicopter: HELI_START, snowcat: SNOWCAT_START };
 const groundCollider = { type: 'ground' };
 
 const CAR_DRIVE = {
@@ -114,7 +131,6 @@ function aimBeam(spot, x, y, z, side, b) {
   spot.distance = b.distance;
   spot.decay = b.decay;
 }
-const SNOWCAT_START = { x: 785, z: -1006.6, heading: 1.956 }; // world frame, heading = atan2(dx, dz)
 // The parked VW T3's box for the other players (its collisionBody below) and the cells of the tree trunks (setTrees)
 const PARKED_T3 = { halfW: 0.93, halfL: 2.33, top: 1.97 };
 const TREE_CELL = 16;
@@ -753,8 +769,8 @@ class ThirdPersonControllerManager {
       mesh: root,
       crowd,
       rig,
-      position: spawnPosition(5.2, 8, SIDEWALK_TOP),
-      heading: SPAWN_HEADING,
+      position: new THREE.Vector3(PERSON_START.x, SIDEWALK_TOP, PERSON_START.z),
+      heading: PERSON_START.heading,
       speed: 0,
       verticalVel: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.55, 0),
@@ -1002,8 +1018,8 @@ class ThirdPersonControllerManager {
       riderRig,
       helmet,
       headLight,
-      position: spawnPosition(1, -12, 0),
-      heading: SPAWN_HEADING,
+      position: new THREE.Vector3(CYCLIST_START.x, 0, CYCLIST_START.z),
+      heading: CYCLIST_START.heading,
       speed: 0,
       leanAngle: 0,
       pedalPhase: 0,
@@ -1715,8 +1731,8 @@ class ThirdPersonControllerManager {
       tiltPivot,
       mainRotorPivot,
       tailRotorPivot,
-      position: spawnPosition(-60, -80, 96),
-      heading: SPAWN_HEADING,
+      position: new THREE.Vector3(HELI_START.x, surfaceHeight(HELI_START.x, HELI_START.z) + HELI_START.agl, HELI_START.z),
+      heading: HELI_START.heading,
       speed: 0,
       verticalSpeed: 0,
       pitchAngle: 0,
@@ -1772,8 +1788,8 @@ class ThirdPersonControllerManager {
       beaconAngle: 0,
       beaconLight,
       workLights,
-      // Parked on the cross-country trail (OSM "City-Trail Davos", DAVOS_DATA.loipen) between the Bünda and the
-      // Dischmastrasse in Davos Dorf, along its track
+      // Parked on the Bündawiese in Davos Dorf beside the cross-country track (OSM "City-Trail Davos", DAVOS_DATA.loipen),
+      // lined up with it (SNOWCAT_START)
       position: new THREE.Vector3(SNOWCAT_START.x, surfaceHeight(SNOWCAT_START.x, SNOWCAT_START.z) + ROAD_TOP, SNOWCAT_START.z),
       heading: SNOWCAT_START.heading,
       speed: 0,
@@ -2170,14 +2186,9 @@ class ThirdPersonControllerManager {
     if (this.activeMode === 'person') {
       this.updatePerson(dt, elapsed);
     } else {
-      // Keep the sidewalk pedestrian walking naturally when not actively controlled
-      const p = this.entities.person;
-      const walkSpeed = 1.48;
-      p.speed = walkSpeed;
-      p.position.x += Math.sin(p.heading) * walkSpeed * dt;
-      p.position.z += Math.cos(p.heading) * walkSpeed * dt;
-      if (p.position.z < -340) p.heading = 0;
-      else if (p.position.z > 340) p.heading = Math.PI;
+      // The pedestrian waits where it was left (Davos: at the Eisstadion on a first visit, PERSON_START; the Manhattan
+      // original had it strolling up and down the avenue meanwhile, which here walked it off its forecourt)
+      this.entities.person.speed = 0;
     }
 
     if (this.activeMode === 'car') {

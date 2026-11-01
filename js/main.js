@@ -20,6 +20,7 @@ import { buildCrossCountry } from './cross-country.js';
 import { buildWinterHikes } from './winter-hikes.js';
 import { buildWinterHikers } from './winter-hikers.js';
 import { buildGolf } from './golf.js';
+import { buildHelipad } from './helipad.js';
 import { buildSkiPistes } from './ski-pistes.js';
 import { buildWinterSports } from './winter-sports.js';
 import { buildSnowfall } from './snowfall.js';
@@ -36,7 +37,7 @@ import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
 import { buildRoadPaint } from './road-paint.js';
-import { ThirdPersonControllerManager } from './controllers.js';
+import { ThirdPersonControllerManager, PLAYER_STARTS } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
@@ -51,7 +52,7 @@ import { groomMap } from './groom-map.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
-const SAVE_VERSION = 6; // 6: the VW T3 starts on the Dischmastrasse by the Talstrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
+const SAVE_VERSION = 7; // 7: new starts for every player (controllers.js PLAYER_STARTS: the cyclist by the Seehof Seeli, the pedestrian at the Eisstadion, the Rega over the Jakobshornbahn, the groomer on the Bündawiese); 6: the VW T3 on the Dischmastrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
@@ -189,7 +190,7 @@ async function initApp() {
   const breathe = () => (QUALITY.mobile ? new Promise((resolve) => setTimeout(resolve, 60)) : null);
   // The part of the valley built in detail (the mobile profile: QUALITY.worldRadius around where the player starts)
   {
-    let start = defaultSpawn;
+    let start = PLAYER_STARTS.cyclist; // (a first visit starts by bike, see below)
     try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
     setWorldCenter(start.x, start.z);
     if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
@@ -289,6 +290,7 @@ async function initApp() {
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
   const { colliders: landmarkColliders } = buildLandmarks(scene);
+  buildHelipad(scene); // the Rega pad on the roof of the Spital Davos, the helicopter lands on it (js/helipad.js)
   markInit('landmarks');
   // Real swissBUILDINGS3D volumes stream in nearest first (the rest keeps loading while playing); the OSM-extruded
   // buildings remain the fallback when swisstopo's tiles can't be reached.
@@ -298,12 +300,12 @@ async function initApp() {
   try {
     const savedSpawn = (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
-    drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn })
+    drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : PLAYER_STARTS.cyclist })
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
     // (?qset=skip:buildings: no swissBUILDINGS3D, and no OSM buildings in their place either, see buildCityBlocks below)
     if (skipped('buildings')) throw new Error('skipped (?qset=skip:buildings)');
     const stream = swissStream = streamSwissBuildings(scene, {
-      center: Number.isFinite(savedSpawn?.x) ? savedSpawn : defaultSpawn,
+      center: Number.isFinite(savedSpawn?.x) ? savedSpawn : PLAYER_STARTS.cyclist,
       nearRadius: QUALITY.buildingNear, concurrency: QUALITY.buildingLoads,
       onProgress: (done, total) => {
         if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${total}`);
@@ -370,7 +372,7 @@ async function initApp() {
   controllerManager.setKnockablePosts([...streetDetails.knockablePosts, ...trafficSigns.knockablePosts]);
   controllerManager.entities.cargobike.mesh.visible = false; // the cargo bike is no longer offered in Davos
   // Reuse teleport placement so saved players return at rest, close to their last positions. A first visit (or a save
-  // from an older version) starts by bike at Bellevue (city-config.js defaultSpawn).
+  // from an older version) starts by bike on the Talstrasse by the Seehof Seeli (controllers.js PLAYER_STARTS).
   let restored = false;
   try {
     const saved = JSON.parse(localStorage.getItem('slopdavos-player-state'));
@@ -387,12 +389,13 @@ async function initApp() {
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
   if (!restored) {
-    // (the vehicles waiting at the spawn are set down on the relief too, not left at their built heights)
-    for (const mode of ['car', 'person']) {
+    // (every player waiting at its start is set down on the relief, not left at its built height; the helicopter keeps
+    // its height over the ground)
+    for (const mode of ['car', 'person', 'cyclist', 'snowcat', 'helicopter']) {
       const ent = controllerManager.entities[mode];
       if (!ent) continue;
       controllerManager.setMode(mode);
-      controllerManager.teleportActiveTo(ent.position.x, ent.position.z, ent.heading);
+      controllerManager.teleportActiveTo(ent.position.x, ent.position.z, ent.heading, mode === 'helicopter' ? ent.position.y : null);
     }
     controllerManager.setMode('cyclist');
   }

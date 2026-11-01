@@ -299,6 +299,7 @@ const streetZ=(n=37)=>defaultSpawn.z+(37-Number(n))*25;
 // null for the nearest drivable street), mapped landmark to face (LANDMARK_SITES, from its OSM footprint) or none]
 const NYC_LANDMARKS=[
  ['platz','Bahnhof Davos Platz','Davos Platz',2781839,1185061,'Davos Platz','Talstrasse',null],
+ ['spital','Spital Davos · Rega-Landeplatz','Spital',2781361,1184575,'Davos Platz','Promenade',null], // (the pad on the roof, js/helipad.js)
  ['promenade','Promenade · Davos Platz','Promenade',2781944,1185672,'Davos Platz','Promenade',null],
  ['schatzalp','Schatzalpbahn','Schatzalp',2781892,1185647,'Davos Platz','Promenade','Schatzalpbahn Talstation'],
  ['eisstadion','Eisstadion · Vaillant Arena','Eisstadion',2782255,1185816,'Davos Platz','Eisbahnstrasse','Eisstadion Davos'],
