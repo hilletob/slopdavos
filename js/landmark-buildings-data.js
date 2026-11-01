@@ -14,71 +14,89 @@
 
 // --- Eisstadion ------------------------------------------------------------------------------------------------------------
 // The roof: two crossed gable roofs on an octagon, four glazed gables (towards the Kurgartenstrasse NNE, the car park
-// ESE, the Eisbahn SSW and the Talstrasse WNW), the eaves sweeping down almost to the ground at the four corners between
-// them. Heights over the arena floor (the terrain there, flat); read off swissBUILDINGS3D (tile 11/1747/1012, batches 1
-// and 2: the apex 22.7 m, the gable tops 12.3–14.1 m, the corners and the outline at the ground).
+// ESE, the Eisbahn SSW and the Talstrasse WNW), the valleys between them running down to the four corners, where the
+// roof rests on the concrete stands. swissBUILDINGS3D (tile 11/1747/1012, batches 1 and 2; LiDAR, revised 2022) models
+// the arena as an open building — the roof alone — with its flat floor drawn at the roof's lowest point, 1547.7 m
+// a.s.l.: 10.4 m over the ground (1537.3 m, the lowest terrain under the outline). The flat ring between the pitched
+// roof and the outline is the stands' roof at that height (the orthophoto: the dark band round the roof, wide at the
+// corners, a few metres at the gables). Measured from the eaves: the apex 22.7 m (1570.4 m a.s.l., 33.1 m over the
+// ground), the gable tops 12.3–14.1 m (1560.0–1561.8 m, 22.7–24.5 m over the ground), the main ridge's kinks 16.7 m.
+// All `h` below over the eaves; stadiumVerge / stadiumFacets / stadiumRoofHeight add `eaves` and give heights over the
+// ground. (OSM w37221744 says height=16.5, a guess well under the survey.)
 export const EISSTADION = {
   id: 'eisstadion',
   name: 'Eisstadion Davos (Vaillant Arena)',
+  // the eaves (the stands' flat roofs, the pitched roof's lowest edge) over the ground at the foot
+  eaves: 10.4,
   apex: { x: -241.6, z: -312.5, h: 22.7 },
-  // The outline, round from the south corner: corner, gable, corner, … (gables: the top `h`; plan: the outline's point
-  // at the gable, which the gable's top stands `inset` m inside of)
+  // The outline (the stands' outer wall), round from the south corner: corner, gable, corner, …; the gables with the
+  // position of the top of the glazed gable (`top`, the end of the ridge) and its height
   outline: [
     { corner: true, x: -246.3, z: -370.5 },
-    { gable: 'NNE', x: -210.7, z: -359.1, h: 12.3 },
+    { gable: 'NNE', x: -210.7, z: -359.1, top: [-214.8, -353.9], h: 12.3 },
     { corner: true, x: -186.4, z: -331.0 },
-    { gable: 'ESE', x: -201.5, z: -284.6, h: 13.9 },
+    { gable: 'ESE', x: -201.5, z: -284.6, top: [-204.6, -288.1], h: 13.9 },
     { corner: true, x: -230.9, z: -258.0 },
-    { gable: 'SSW', x: -269.1, z: -270.2, h: 14.1 },
+    { gable: 'SSW', x: -269.1, z: -270.2, top: [-265.8, -275.4], h: 14.1 },
     { corner: true, x: -295.5, z: -300.3 },
-    { gable: 'WNW', x: -283.9, z: -338.2, h: 13.9 }
+    { gable: 'WNW', x: -283.9, z: -338.2, top: [-278.9, -336.6], h: 13.9 }
   ],
-  inset: 1.5,
-  // The eaves at the corners, and the verges' convex kink (as in the photographs: steep near the corners, flatter up to
-  // the gable): at `kinkAt` of the way from the corner to the gable, `kink` m over the straight line
-  cornerH: 2.2, kinkAt: 0.38, kink: 2.6, thickness: 1.2,
-  // The building under the roof: the OSM footprint (w37221744), its concrete base (stands, entrances) and the glass
-  // walls above it up to the roof
-  footprint: [
-    [-285.5, -314.7], [-279.2, -339.4], [-267.3, -348], [-261, -351.3], [-248.7, -347.3], [-235.1, -360], [-214.2, -354.9],
-    [-200.6, -338], [-208.6, -320.2], [-197.8, -311.1], [-204.1, -288.8], [-221, -273.5], [-233.9, -278.1], [-244.1, -269.3],
-    [-266, -277.8], [-279.4, -294], [-276.1, -304.4]
+  // The pitched roof's edge, round from the south corner (the survey): [x, z, h] — the eaves points at the corners
+  // (h 0; the middle one of each corner is the valley's foot) and the gable tops between them
+  verge: [
+    [-246.1, -269.0, 0], [-237.5, -277.0, 0], [-234.9, -279.3, 0], [-220.5, -274.0, 0],
+    [-204.6, -288.1, 13.9], // ESE
+    [-197.8, -309.6, 0], [-207.0, -319.4, 0], [-200.7, -338.0, 0],
+    [-214.8, -353.9, 12.3], // NNE
+    [-234.5, -360.5, 0], [-248.5, -347.0, 0], [-262.7, -350.5, 0],
+    [-278.9, -336.6, 13.9], // WNW
+    [-284.6, -316.8, 0], [-274.9, -305.5, 0], [-280.0, -286.6, 0],
+    [-265.8, -275.4, 14.1] // SSW
   ],
-  plinth: 4.5,
+  // The main ridge (WNW–ESE) is bent: the kinks a good 30 m off the apex
+  kinks: [[-267.1, -329.0, 16.7], [-216.8, -296.1, 16.8]],
+  // The roof's facets, the surveyed triangles: indices into [apex, …kinks, …verge]
+  faces: [
+    [18, 19, 17], [16, 1, 15], [2, 0, 5], [5, 0, 19], [4, 5, 19], [0, 1, 17], [3, 4, 19], [19, 0, 17], [17, 1, 16],
+    [7, 2, 6], [2, 5, 6], [0, 2, 9], [13, 0, 11], [14, 1, 13], [15, 1, 14], [8, 2, 7], [9, 2, 8], [11, 0, 9], [1, 0, 13],
+    [10, 11, 9], [12, 13, 11]
+  ],
+  thickness: 1.2,
+  // the glazed gables stand this far inside the roof's edge (the overhang)
+  glassInset: 1.0,
   // The north stand's glazed annex (2005, the "Nordside" restaurant and the boxes) in front of the NNE gable: the OSM
-  // footprint's bay there, in two steps
-  annex: { ring: [[-248.7, -347.3], [-235.1, -360], [-214.2, -354.9], [-200.6, -338]], low: 10.5, high: 14.0 },
+  // footprint's bay there (w37221744), the middle part of it rising over the stands' roof
+  annex: { ring: [[-248.7, -347.3], [-235.1, -360], [-214.2, -354.9], [-200.6, -338]], from: 0.35, to: 0.65, high: 14.0 },
   // swissBUILDINGS3D buildings it replaces (centres of the batch table, world x/z): the arena's roof (two batches, one
   // centre)
   exclude: [{ x: -240.9, z: -314.2, r: 2 }]
 };
 
-// The roof's corners in plan and height (the octagon with the verges' kinks): [{ x, z, h, kind }], round the outline
+// The roof's points with heights over the ground: [apex, …kinks, …verge] as { x, z, h, kind }
+export function stadiumPoints(S = EISSTADION) {
+  const pt = ([x, z, h], kind) => ({ x, z, h: S.eaves + h, kind });
+  return [
+    { x: S.apex.x, z: S.apex.z, h: S.eaves + S.apex.h, kind: 'apex' },
+    ...S.kinks.map((k) => pt(k, 'kink')),
+    ...S.verge.map((v) => pt(v, v[2] > 0 ? 'gable' : 'eaves'))
+  ];
+}
+
+// The pitched roof's edge in plan and height over the ground, round the roof: [{ x, z, h, kind: 'eaves' | 'gable', name }]
 export function stadiumVerge(S = EISSTADION) {
-  const n = S.outline.length, pts = [];
-  const top = (g) => {
-    const dx = g.x - S.apex.x, dz = g.z - S.apex.z, r = Math.hypot(dx, dz), k = (r - S.inset) / r;
-    return { x: S.apex.x + dx * k, z: S.apex.z + dz * k, h: g.h, kind: 'gable', name: g.gable };
-  };
-  for (let i = 0; i < n; i++) {
-    const p = S.outline[i], q = S.outline[(i + 1) % n];
-    const a = p.corner ? { x: p.x, z: p.z, h: S.cornerH, kind: 'corner' } : top(p);
-    const b = q.corner ? { x: q.x, z: q.z, h: S.cornerH, kind: 'corner' } : top(q);
-    pts.push(a);
-    // the kink, on the corner's side
-    const t = a.kind === 'corner' ? S.kinkAt : 1 - S.kinkAt;
-    pts.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, h: a.h + (b.h - a.h) * t + S.kink, kind: 'kink' });
-  }
+  const pts = stadiumPoints(S).slice(1 + S.kinks.length);
+  for (const p of pts) if (p.kind === 'gable') p.name = S.outline.find((g) => g.gable && Math.hypot(g.top[0] - p.x, g.top[1] - p.z) < 0.5)?.gable;
   return pts;
 }
 
-// The roof's facets: triangles [apex, verge i, verge i+1] in plan with heights
+// The roof's facets: triangles [{ x, z, h }, …] with heights over the ground
 export function stadiumFacets(S = EISSTADION) {
-  const v = stadiumVerge(S), A = S.apex;
-  return v.map((p, i) => [{ x: A.x, z: A.z, h: A.h }, p, v[(i + 1) % v.length]]);
+  const P = stadiumPoints(S);
+  return S.faces.map((f) => f.map((i) => P[i]));
 }
 
-// The height of the roof's top over the arena floor at (x, z), or null outside the outline
+// The height of the roof's top over the ground at (x, z): the pitched roof's facet there, the stands' flat roof (the
+// eaves) elsewhere inside the outline, or null outside it
 export function stadiumRoofHeight(x, z, S = EISSTADION) {
   for (const [a, b, c] of stadiumFacets(S)) {
     const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
@@ -87,7 +105,7 @@ export function stadiumRoofHeight(x, z, S = EISSTADION) {
     const l3 = 1 - l1 - l2;
     if (l1 >= -1e-6 && l2 >= -1e-6 && l3 >= -1e-6) return l1 * a.h + l2 * b.h + l3 * c.h;
   }
-  return null;
+  return pointInRing(S.outline.map((p) => [p.x, p.z]), x, z) ? S.eaves : null;
 }
 
 // --- Kongresszentrum, Kongress Hotel, eau-là-là ---------------------------------------------------------------------------

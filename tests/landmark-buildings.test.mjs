@@ -7,28 +7,44 @@ import {
 import { lv95ToWorld } from '../js/davos-frame.js';
 import { TELEPORT_LOCATIONS } from '../js/city-config.js';
 
-test('the Eisstadion: an octagon of four corners and four gables round its apex, the building under its roof', () => {
-  const S = EISSTADION, verge = stadiumVerge(S);
+test('the Eisstadion: the surveyed roof over the stands\' octagon, 33 m over the ground, the glazed gables and the annex under it', () => {
+  const S = EISSTADION, verge = stadiumVerge(S), ring = S.outline.map((p) => [p.x, p.z]);
   assert.equal(S.outline.filter((p) => p.corner).length, 4);
   assert.equal(S.outline.filter((p) => p.gable).length, 4);
-  assert.equal(verge.length, 16);
-  assert.equal(stadiumFacets(S).length, 16);
-  // about 109 m across (SWISSIMAGE), the apex 22.7 m and the highest point
-  const xs = verge.map((p) => p.x), zs = verge.map((p) => p.z);
-  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
-  assert.ok(span > 100 && span < 115, `span ${span}`);
-  assert.equal(stadiumRoofHeight(S.apex.x, S.apex.z), S.apex.h);
-  for (const p of verge) assert.ok(p.h < S.apex.h && p.h >= S.cornerH);
-  // the eaves come down low at the corners, the gables stand 12–14 m high
-  for (const p of verge.filter((v) => v.kind === 'gable')) assert.ok(p.h > 12 && p.h < 15);
-  // every corner of the footprint and the annex lies under the roof, high enough for the base and some glass
-  for (const [x, z] of [...S.footprint, ...S.annex.ring]) {
-    const h = stadiumRoofHeight(x, z);
-    assert.ok(h !== null, `(${x}, ${z}) under the roof`);
-    assert.ok(h - S.thickness > S.plinth + 2, `(${x}, ${z}): ${h}`);
-  }
-  // and the roof's outside is outside
+  // the roof's edge: four gable tops (named after the outline's gables) and the eaves points at the corners, all inside
+  // the outline; every surveyed triangle of the roof has its three points
+  assert.equal(verge.length, 17);
+  assert.deepEqual(verge.filter((p) => p.kind === 'gable').map((p) => p.name).sort(), ['ESE', 'NNE', 'SSW', 'WNW']);
+  assert.ok(verge.every((p) => pointInRing(ring, p.x, p.z)));
+  assert.equal(stadiumFacets(S).length, S.faces.length);
+  assert.ok(S.faces.every((f) => f.every((i) => i >= 0 && i < 1 + S.kinks.length + S.verge.length)));
+  // about 109 m across (the outline), the roof itself ~90 m
+  const span = (pts) => { const xs = pts.map((p) => p.x ?? p[0]), zs = pts.map((p) => p.z ?? p[1]); return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)); };
+  assert.ok(span(S.outline) > 100 && span(S.outline) < 115, `outline ${span(S.outline)}`);
+  assert.ok(span(verge) > 80 && span(verge) < 100, `roof ${span(verge)}`);
+  // Heights over the ground (swissBUILDINGS3D: the floor at the eaves, 1547.7 m a.s.l., the ground 1537.3 m): the apex
+  // 33.1 m and the highest point, the gable tops 22.7–24.5 m, the eaves 10.4 m, the stands' flat roof at the eaves out to
+  // the outline, nothing outside it
+  const apex = stadiumRoofHeight(S.apex.x, S.apex.z);
+  assert.ok(Math.abs(apex - 33.1) < 0.05, `apex ${apex}`);
+  for (const p of verge) assert.ok(p.h < apex && p.h >= S.eaves);
+  for (const p of verge.filter((v) => v.kind === 'gable')) assert.ok(p.h > 22 && p.h < 25, `${p.name} ${p.h}`);
+  for (const p of verge.filter((v) => v.kind === 'eaves')) assert.equal(p.h, S.eaves);
+  assert.ok(S.eaves > 10 && S.eaves < 11);
+  for (const { x, z } of S.outline.filter((p) => p.corner)) assert.equal(stadiumRoofHeight(x + (S.apex.x - x) * 0.02, z + (S.apex.z - z) * 0.02), S.eaves);
   assert.equal(stadiumRoofHeight(S.apex.x + 80, S.apex.z), null);
+  // the roof rises from the eaves everywhere just inside its edge, and is continuous across the ridges' kinks
+  for (const p of verge) {
+    const h = stadiumRoofHeight(S.apex.x + (p.x - S.apex.x) * 0.98, S.apex.z + (p.z - S.apex.z) * 0.98);
+    assert.ok(h !== null && h > p.h && h < p.h + 1, `(${p.x}, ${p.z}): ${h}`);
+  }
+  for (const [x, z, h] of S.kinks) assert.ok(Math.abs(stadiumRoofHeight(x, z) - S.eaves - h) < 1e-6);
+  // every corner of the annex lies under the roof, with room for a box over the stands' roof
+  for (const [x, z] of S.annex.ring) {
+    const h = stadiumRoofHeight(x, z);
+    assert.ok(h !== null && h >= S.eaves, `(${x}, ${z}): ${h}`);
+  }
+  assert.ok(S.annex.high > S.eaves + 2 && S.annex.high < stadiumRoofHeight(...S.outline.find((p) => p.gable === 'NNE').top));
   // the teleport target "Eisstadion" lies next to it
   const t = TELEPORT_LOCATIONS.eisstadion;
   assert.ok(Math.hypot(t.x - S.apex.x, t.z - S.apex.z) < 80);

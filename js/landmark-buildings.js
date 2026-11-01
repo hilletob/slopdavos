@@ -12,8 +12,9 @@ import {
 
 // Landmarks of Davos Platz rebuilt by hand from the survey (js/landmark-buildings-data.js), standing in for their
 // swissBUILDINGS3D volumes (left out of the streamed tiles: js/swissbuildings3d.js excludeBuildings):
-//  - the Eisstadion: the folded timber roof on its octagon, the eaves down to the ground at the corners, larch fascias
-//    and soffits, the four glazed gables over the concrete base, the north stand's glazed annex
+//  - the Eisstadion: the surveyed timber roof (two crossed gables, the apex 33 m over the ground) on the concrete
+//    stands' octagon with their flat roof 10.4 m up, larch fascias and soffits, the four glazed gables over the stands,
+//    the north stand's glazed annex
 //  - the Kongresszentrum with the Kongress Hotel and the eau-là-là: every part at its surveyed outline and height, in
 //    its own skin (Gisel's board-marked concrete with ribbon windows, Degelo's larch hall with the glazed entrance
 //    under the overhang, the hotel's white plaster, the pool's dark timber and its glazing towards the park), the roofs
@@ -344,12 +345,13 @@ class Builder {
     this.quad(mat, [ax, botA, az], [bx, botB, bz], [bx, topB, bz], [ax, topA, az],
       [u0, botA - vRef + off], [u0 + L, botB - vRef + off], [u0 + L, topB - vRef + off], [u0, topA - vRef + off], [n[0], 0, n[1]]);
   }
-  // A flat polygon (plan points [[x, z]]) at height y, facing up (dir 1) or down (−1)
-  cap(mat, pts, y, dir = 1) {
-    const contour = pts.map(([x, z]) => new THREE.Vector2(x, z));
-    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+  // A flat polygon (plan points [[x, z]], with holes [[[x, z]]]) at height y, facing up (dir 1) or down (−1)
+  cap(mat, pts, y, dir = 1, holes = []) {
+    const vec = (ring) => ring.map(([x, z]) => new THREE.Vector2(x, z));
+    const tris = THREE.ShapeUtils.triangulateShape(vec(pts), holes.map(vec));
+    const all = [...pts, ...holes.flat()];
     for (const [i, j, k] of tris) {
-      const a = pts[i], b = pts[j], c = pts[k];
+      const a = all[i], b = all[j], c = all[k];
       this.tri(mat, [a[0], y, a[1]], [b[0], y, b[1]], [c[0], y, c[1]], a, b, c, [0, dir, 0]);
     }
   }
@@ -409,80 +411,74 @@ function wallCollider(list, a, b, botY, topY, thick = 0.8) {
 
 // --- Eisstadion ----------------------------------------------------------------------------------------------------------------
 function buildEisstadion(B, colliders) {
-  const S = EISSTADION, fp = S.footprint;
-  const floorY = minGround(fp);
-  const T = S.thickness;
-  // The roof: its top (radial standing seams converging on the apex), the larch soffit under it, the fascia round it
+  const S = EISSTADION, outline = S.outline.map((p) => [p.x, p.z]);
+  // The foot: the lowest ground under the outline (the survey's reference, js/landmark-buildings-data.js)
+  const floorY = minGround(outline);
+  const T = S.thickness, eaves = floorY + S.eaves;
+  const A = S.apex;
+  // The pitched roof: its top (standing seams converging on the apex: u the angle round the apex × 50 m, v the
+  // distance from it), the larch soffit under it
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  for (const F of stadiumFacets(S)) {
+    const cx = F.reduce((s, p) => s + p.x, 0) / 3 - A.x, cz = F.reduce((s, p) => s + p.z, 0) / 3 - A.z, mid = Math.atan2(cz, cx);
+    const uv = (p) => { const dx = p.x - A.x, dz = p.z - A.z, r = Math.hypot(dx, dz); return [(mid + (r < 0.1 ? 0 : wrap(Math.atan2(dz, dx) - mid))) * 50, r]; };
+    const pts = F.map((p) => [p.x, floorY + p.h, p.z]), uvs = F.map(uv);
+    B.tri('stadiumRoof', pts[0], pts[1], pts[2], uvs[0], uvs[1], uvs[2], [0, 1, 0]);
+    const d = (v) => [v[0], v[1] - T, v[2]];
+    B.tri('larch', d(pts[0]), d(pts[1]), d(pts[2]), uvs[0], uvs[1], uvs[2], [0, -1, 0]);
+  }
+  // The larch fascia along the roof's edge, facing out (away from the apex)
   const verge = stadiumVerge(S);
   const us = [0];
   for (let i = 1; i <= verge.length; i++) { const a = verge[i - 1], b = verge[i % verge.length]; us.push(us[i - 1] + Math.hypot(b.x - a.x, b.z - a.z)); }
-  stadiumFacets(S).forEach(([A, P, Q], i) => {
-    const a = [A.x, floorY + A.h, A.z], p = [P.x, floorY + P.h, P.z], q = [Q.x, floorY + Q.h, Q.z];
-    const ua = [(us[i] + us[i + 1]) / 2, 40], up = [us[i], 0], uq = [us[i + 1], 0];
-    B.tri('stadiumRoof', a, p, q, ua, up, uq, [0, 1, 0]);
-    const d = (v) => [v[0], v[1] - T, v[2]];
-    B.tri('larch', d(a), d(p), d(q), ua, up, uq, [0, -1, 0]);
-    // fascia along the verge P→Q, facing out (away from the apex)
-    const n = [(P.x + Q.x) / 2 - A.x, (P.z + Q.z) / 2 - A.z], nl = Math.hypot(...n);
-    B.wall('larch', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, [n[0] / nl, n[1] / nl], us[i], floorY, false);
+  const away = (a, b) => { const n = [(a.x + b.x) / 2 - A.x, (a.z + b.z) / 2 - A.z], l = Math.hypot(...n); return [n[0] / l, n[1] / l]; };
+  verge.forEach((P, i) => {
+    const Q = verge[(i + 1) % verge.length];
+    B.wall('larch', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, away(P, Q), us[i], floorY, false);
   });
-  // The building: the concrete base (stands, entrances) and the glass walls above it up to the soffit
+  // The stands: the concrete outer wall round the outline up to the eaves (a low parapet over the roof), their flat
+  // gravel roof between the outline and the pitched roof
+  const parapet = eaves + 0.3;
   let u = 0;
-  for (let i = 0; i < fp.length; i++) {
-    const a = fp[i], b = fp[(i + 1) % fp.length], n = outward(fp, a, b);
-    for (const [p, q, t0, t1] of pieces(a, b, 3)) {
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i], b = outline[(i + 1) % outline.length], n = outward(outline, a, b);
+    for (const [p, q, t0] of pieces(a, b, 3)) {
       const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
-      const plinth = floorY + S.plinth;
-      B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, plinth, plinth, n, u + t0, floorY, false);
-      const rp = floorY + stadiumRoofHeight(p[0], p[1], S) - T - 0.02, rq = floorY + stadiumRoofHeight(q[0], q[1], S) - T - 0.02;
-      B.wall('glass', p[0], p[1], q[0], q[1], plinth, plinth, Math.max(plinth, rp), Math.max(plinth, rq), n, u + t0, floorY);
+      B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, parapet, parapet, n, u + t0, floorY, false);
     }
-    // a concrete ledge on top of the base, and the colliders (up to the roof)
-    wallCollider(colliders, a, b, floorY - 0.5, floorY + Math.max(stadiumRoofHeight(a[0], a[1], S), stadiumRoofHeight(b[0], b[1], S)), 1.2);
+    wallCollider(colliders, a, b, floorY - 0.5, parapet, 1.2);
     u += Math.hypot(b[0] - a[0], b[1] - a[1]);
   }
-  // The glazed gables: the glass reaches up under the verges (kink – top – kink, a metre inside them), closed off to the
-  // footprint's nearest corners on either side; concrete below the base's height
+  B.cap('roofGravel', outline, eaves, 1, [verge.map((p) => [p.x, p.z])]);
+  // The glazed gables: the glass stands a metre inside the roof's edge, from the stands' roof up under the verge (the
+  // eaves point on either side, the top between them); the panes' floors count from the eaves
+  const inset = (p) => { const dx = p.x - A.x, dz = p.z - A.z, r = Math.hypot(dx, dz), k = (r - S.glassInset) / r; return [A.x + dx * k, A.z + dz * k]; };
+  const roofUnder = (x, z) => floorY + stadiumRoofHeight(x, z, S) - T - 0.02;
   verge.forEach((g, i) => {
-    if (g.kind !== 'gable' || g.name === 'NNE') return; // (the annex stands before the NNE gable)
-    const inset = (p) => { const dx = p.x - S.apex.x, dz = p.z - S.apex.z, r = Math.hypot(dx, dz), k = (r - 1.0) / r; return [S.apex.x + dx * k, S.apex.z + dz * k]; };
-    const k1 = inset(verge[(i + verge.length - 1) % verge.length]), t = inset(g), k2 = inset(verge[(i + 1) % verge.length]);
-    const nearest = (p) => fp.reduce((a, b) => (Math.hypot(b[0] - p[0], b[1] - p[1]) < Math.hypot(a[0] - p[0], a[1] - p[1]) ? b : a));
-    const P = [nearest(k1), k1, t, k2, nearest(k2)];
+    if (g.kind !== 'gable') return;
+    const P = [inset(verge[(i + verge.length - 1) % verge.length]), inset(g), inset(verge[(i + 1) % verge.length])];
     let ug = 0;
     for (let j = 0; j + 1 < P.length; j++) {
-      const a = P[j], b = P[j + 1], n = outward(P, a, b);
+      const a = P[j], b = P[j + 1], n = away({ x: a[0], z: a[1] }, { x: b[0], z: b[1] });
       for (const [p, q, t0] of pieces(a, b, 3)) {
-        const plinth = floorY + S.plinth;
-        const rp = floorY + stadiumRoofHeight(p[0], p[1], S) - T - 0.02, rq = floorY + stadiumRoofHeight(q[0], q[1], S) - T - 0.02;
-        B.wall('concrete', p[0], p[1], q[0], q[1], floorY - 0.5, floorY - 0.5, Math.min(plinth, rp), Math.min(plinth, rq), n, ug + t0, floorY, false);
-        if (rp > plinth || rq > plinth) B.wall('glass', p[0], p[1], q[0], q[1], plinth, plinth, Math.max(plinth, rp), Math.max(plinth, rq), n, ug + t0, floorY);
+        const rp = roofUnder(p[0], p[1]), rq = roofUnder(q[0], q[1]);
+        B.wall('glass', p[0], p[1], q[0], q[1], eaves - 0.3, eaves - 0.3, Math.max(eaves - 0.3, rp), Math.max(eaves - 0.3, rq), n, ug + t0, eaves);
       }
-      wallCollider(colliders, a, b, floorY - 0.5, floorY + Math.max(stadiumRoofHeight(a[0], a[1], S), stadiumRoofHeight(b[0], b[1], S)), 1.0);
       ug += Math.hypot(b[0] - a[0], b[1] - a[1]);
     }
   });
-  // The annex in front of the NNE gable: glazed, in two steps under the roof
-  const roofAt = (x, z) => stadiumRoofHeight(x, z, S) - T - 0.3;
+  // The annex in front of the NNE gable: a glazed box rising from the stands' roof under the gable's glass
   const ring = S.annex.ring, [a0, b0, c0, d0] = ring;
   const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
-  const blocks = [
-    { pts: ring, h: S.annex.low },
-    { pts: [lerp(a0, d0, 0.3), lerp(b0, c0, 0.3), lerp(b0, c0, 0.7), lerp(a0, d0, 0.7)], h: S.annex.high }
-  ];
-  for (const { pts, h } of blocks) {
-    const top = floorY + Math.min(h, ...pts.map(([x, z]) => roofAt(x, z)));
-    B.cap('roofGravel', pts, top);
-    let ua = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b);
-      B.wall('glass', a[0], a[1], b[0], b[1], floorY - 0.3, floorY - 0.3, top, top, n, ua, floorY);
-      // the larch slab edges between the floors
-      for (let y = floorY + 3.4; y < top - 1; y += 3.4) B.wall('larch', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, y - 0.25, y - 0.25, y + 0.2, y + 0.2, n, ua, floorY, false);
-      B.wall('larch', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
-      wallCollider(colliders, a, b, floorY - 0.3, top);
-      ua += Math.hypot(b[0] - a[0], b[1] - a[1]);
-    }
+  const pts = [lerp(a0, d0, S.annex.from), lerp(b0, c0, S.annex.from), lerp(b0, c0, S.annex.to), lerp(a0, d0, S.annex.to)];
+  const top = floorY + Math.min(S.annex.high, ...pts.map(([x, z]) => stadiumRoofHeight(x, z, S) - T - 0.3));
+  B.cap('roofGravel', pts, top);
+  let ua = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b);
+    B.wall('glass', a[0], a[1], b[0], b[1], eaves - 0.3, eaves - 0.3, top, top, n, ua, eaves);
+    B.wall('larch', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
+    ua += Math.hypot(b[0] - a[0], b[1] - a[1]);
   }
 }
 

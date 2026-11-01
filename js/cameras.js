@@ -210,18 +210,23 @@ class CameraSystem {
         const dist = entity.chaseDistance * this.zoomMultiplier * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
         const height = entity.chaseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
         const horizDist = Math.cos(this.orbitPitchOffset) * dist + speedLag;
-
+        // Wheeled vehicles on Davos' slopes: the camera frame tilts with the road (entity.slopePitch, positive when
+        // the road falls away ahead), so that the camera stays over the road behind and the view down a hill keeps
+        // the framing of level ground instead of turning into a bird's eye
+        const slope = Math.tan(entity.slopePitch || 0) * Math.cos(this.orbitYawOffset);
         desiredPos.set(
           entity.position.x - Math.sin(totalYaw) * horizDist,
-          Math.max(0.65, entity.position.y + height),
+          entity.position.y + height + slope * horizDist,
           entity.position.z - Math.cos(totalYaw) * horizDist
         );
+        // (never under the ground behind: Davos' streets lie well below the flat world's y = 0)
+        desiredPos.y = Math.max(groundHeight(desiredPos.x, desiredPos.z) + 0.65, desiredPos.y);
 
-        const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.3 : entity.type === 'cargobike' ? 0.8 : 1.55; // (the van: a flatter view over its roof)
+        const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.45 : entity.type === 'cargobike' ? 0.8 : 1.55;
         const lookAhead = entity.type === 'cargobike' ? 0.35 : 5.2;
         desiredLook.set(
           entity.position.x + Math.sin(entity.heading) * lookAhead,
-          entity.position.y + entity.cameraTargetOffset.y + lookUpBias,
+          entity.position.y + entity.cameraTargetOffset.y + lookUpBias - slope * lookAhead,
           entity.position.z + Math.cos(entity.heading) * lookAhead
         );
         break;
@@ -234,7 +239,7 @@ class CameraSystem {
 
         desiredPos.set(
           entity.position.x - Math.sin(entity.heading) * backDist + Math.cos(entity.heading) * sideOffset,
-          Math.max(0.55, lowY),
+          Math.max(groundHeight(entity.position.x, entity.position.z) + 0.55, lowY),
           entity.position.z - Math.cos(entity.heading) * backDist - Math.sin(entity.heading) * sideOffset
         );
         desiredLook.set(
@@ -374,7 +379,7 @@ class CameraSystem {
       this.followLookOffset.lerp(desiredLook.sub(entity.position), k);
       this.currentPos.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followOffset);
       this.currentLookAt.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followLookOffset);
-      this.currentPos.y = Math.max(0.55, this.currentPos.y);
+      this.currentPos.y = Math.max(groundHeight(this.currentPos.x, this.currentPos.z) + 0.55, this.currentPos.y);
     } else {
       this.followEntity = null;
       const k = 1 - Math.exp(-dt * 8.5);
