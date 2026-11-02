@@ -1,5 +1,14 @@
 import { DAVOS_DATA } from './davos-geodata.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
+import { SNOW_MISSIONS } from './missions-data-snow.js'; // the slalom, the big air, the mountain bike race
+import { FUN_MISSIONS } from './missions-data-fun.js'; // the BOX, La Onda, the Carjöl lift, the RhB driver
+import { GOLF_MISSIONS } from './missions-data-golf.js'; // three holes at the Golf Club Davos
+import { ICE_MISSIONS } from './missions-data-ice.js'; // speed skating, the penalty shoot-out, curling
+import { SLEDGE_MISSIONS } from './missions-data-sledge.js'; // the horn sledge race at the Rinerhorn
+import { MINE_MISSIONS } from './missions-data-mine.js'; // ore in the Silberberg mine
+import { LOCAL_MISSIONS } from './missions-data-local.js'; // beer run, Gipfeli, raclette, ibex, squirrels, tennis, slide, Kirchner
+import { WORK_MISSIONS } from './missions-data-work.js'; // snow shovel, snow blower, lawn mowing, refuse round, Alpenrosen, mushrooms
+import { SPORT_MISSIONS } from './missions-data-sport.js'; // Davos Nordic, minigolf at the Waldhuus, darts at The Green Wildman, the Schüssla
 
 // js/missions-data.js
 // The missions (js/missions.js runs them): their definitions and the pure progress logic. No three.js and no DOM in
@@ -541,5 +550,5 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS];
 export const getMission = (id) => MISSIONS.find((m) => m.id === id) || null;

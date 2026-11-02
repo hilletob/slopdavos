@@ -438,6 +438,32 @@ class SkierRig extends PersonRig {
 }
 const i0 = (y) => !(y === y); // NaN
 
+/**
+ * Poses any PersonRig (the player's pedestrian, js/missions-sport.js) as a cross-country skier: `tech` (TECH), `phase`
+ * (0-1 of the gait cycle), speed v, grade, `style` (CLASSIC / SKATE) at (x, z) facing rig.yaw, `ground(x, z)` the
+ * trail's surface. Fills rig.skis (two matrices) and rig.hands (the grips) as the skiers' own rig does.
+ */
+export function poseSkierRig(rig, tech, phase, v, grade, style, x, z, ground) {
+  if (!rig._ski) {
+    const j = rig.bind;
+    rig._ski = { P: new Float32Array(N_PARAM) };
+    rig.thigh = j[BONE.THIGH_L].distanceTo(j[BONE.SHIN_L]);
+    rig.shin = j[BONE.SHIN_L].distanceTo(j[BONE.FOOT_L]);
+    rig.upperArm = j[BONE.UPPER_ARM_L].distanceTo(j[BONE.FOREARM_L]);
+    const arm = new THREE.Vector3().subVectors(j[BONE.FOREARM_L], j[BONE.UPPER_ARM_L]);
+    rig.armBind = Math.atan2(arm.x, -arm.y);
+    rig.toeVec = new THREE.Vector3().subVectors(j[BONE.TOE_L], j[BONE.FOOT_L]);
+    rig.toeHeight = j[BONE.TOE_L].y;
+    rig.skis = [new THREE.Matrix4(), new THREE.Matrix4()];
+    rig.hands = [new THREE.Vector3(), new THREE.Vector3()];
+  }
+  const P = rig._ski.P;
+  techniquePose(P, tech, phase, v, grade, style);
+  SkierRig.prototype.skiPose.call(rig, P, x, z, ground, grade, (style === CLASSIC ? 2.0 : 1.8) * rig.s);
+  return rig;
+}
+export { cadence as skierCadence, TECH as SKIER_TECH };
+
 // ---------------------------------------------------------------------------------------------------------------------
 // The skiers
 // ---------------------------------------------------------------------------------------------------------------------
@@ -550,6 +576,24 @@ export function buildCrossCountry(scene) {
     }
   }
 
+  // A race (js/missions-sport.js, Davos Nordic): api.race = { trail (a createSkiNetwork trail), racers: [{ s, v, style,
+  // offset, grade }] } drives the first skiers along the race trail where the mission puts them (their fixed pace is
+  // the mission's); the trail traffic is off meanwhile. null: the traffic as ever
+  api.race = null;
+  let raceWas = false;
+  function runRace() {
+    const R = api.race;
+    skiers.forEach((sk, i) => {
+      const r = R.racers[i];
+      if (!r) { sk.active = false; return; }
+      if (!sk.active || sk.trail !== R.trail) { sk.rig.placed = false; for (const pole of sk.poles) pole.planted = pole.used = false; }
+      Object.assign(sk, { active: true, trail: R.trail, dir: 1, s: Math.max(0, Math.min(R.trail.length, r.s)), offset: r.offset, laneOffset: r.offset, dodge: 0, style: r.style, v: r.v, target: r.v, grade: r.grade || 0 });
+      const tech = chooseTechnique(sk, sk.grade);
+      if (tech !== sk.tech && sk.blend >= 1) { sk.prevTech = sk.tech; sk.tech = tech; sk.blend = 0; }
+    });
+    raceWas = wasActive = true;
+  }
+
   api.update = function update(dt, camera) {
     if (winter.value < 0.5 || !net.trails.length || !api.enabled) {
       if (wasActive) deactivate();
@@ -558,6 +602,9 @@ export function buildCrossCountry(scene) {
     }
     dt *= api.timeScale;
     const cam = camera.position;
+    if (api.race) runRace(dt);
+    else {
+    if (raceWas) { deactivate(); raceWas = false; nearAt = null; wasActive = false; }
     // The trail near the camera (refreshed every second, or at once after a jump)
     refresh -= dt;
     const moved = nearAt ? Math.hypot(cam.x - nearAt.x, cam.z - nearAt.z) : Infinity;
@@ -605,6 +652,7 @@ export function buildCrossCountry(scene) {
     }
     keepApart(skiers, positions);
     for (const sk of skiers) if (sk.active) advanceSkier(sk, dt, rand);
+    }
 
     // Poses for the skiers in view
     projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);

@@ -139,14 +139,15 @@ export function canExit(mode, { speed = 0, agl = 0, station = null } = {}) {
  * facing the way the vehicle faces beside it (the chase camera behind it then stays clear of the vehicle), away from it
  * behind and in front.
  */
-export function exitSpots(type, x, z, heading) {
-  const f = VEHICLE_FOOTPRINTS[type] || { halfW: 0.5, halfL: 0.5 };
+export function exitSpots(type, x, z, heading, footprint = null) {
+  // (`footprint`: another body's { halfW, halfL, door } than the type's, a taken car or bus, js/hijack.js)
+  const f = footprint || VEHICLE_FOOTPRINTS[type] || { halfW: 0.5, halfL: 0.5 };
   const sn = Math.sin(heading), cs = Math.cos(heading);
   const lx = cs, lz = -sn; // the left
   const out = [];
   const push = (across, along, face) => out.push({ x: x + lx * across + sn * along, z: z + lz * across + cs * along, heading: heading + face });
   // the cyclist steps off beside the bike; the helicopter's crew door is ahead of the middle
-  const doorAlong = type === 'car' ? 0.9 : type === 'helicopter' ? 1.2 : type === 'snowcat' ? 0.6 : 0;
+  const doorAlong = footprint?.door ?? (type === 'car' ? 0.9 : type === 'helicopter' ? 1.2 : type === 'snowcat' ? 0.6 : 0);
   for (const extra of [0.8, 1.6, 2.6]) {
     push(f.halfW + extra, doorAlong, 0);
     push(-(f.halfW + extra), doorAlong, 0);

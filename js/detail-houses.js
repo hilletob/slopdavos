@@ -481,8 +481,13 @@ export function buildDetailHouses(scene) {
     box(m.laube, m.roof.ridgeY - 1.5);
     box(m.landing, m.landing.y + 1);
     box(m.stair, m.landing.y);
+    // (a slanting segment in pieces of ~0.5 m: one axis-aligned box over the whole of it would fill the garden)
     for (const [[ax, az], [bx, bz]] of house.fence) {
-      box({ x: [Math.min(ax, bx) - 0.05, Math.max(ax, bx) + 0.05], z: [Math.min(az, bz) - 0.05, Math.max(az, bz) + 0.05] }, 1.1);
+      const n = Math.max(1, Math.ceil(Math.min(Math.abs(bx - ax), Math.abs(bz - az)) / 0.5));
+      for (let i = 0; i < n; i++) {
+        const x0 = ax + ((bx - ax) * i) / n, x1 = ax + ((bx - ax) * (i + 1)) / n, z0 = az + ((bz - az) * i) / n, z1 = az + ((bz - az) * (i + 1)) / n;
+        box({ x: [Math.min(x0, x1) - 0.05, Math.max(x0, x1) + 0.05], z: [Math.min(z0, z1) - 0.05, Math.max(z0, z1) + 0.05] }, 1.1);
+      }
     }
   }
   scene.add(root);

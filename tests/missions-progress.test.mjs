@@ -21,10 +21,13 @@ test('every mission has medal limits, gold faster than silver faster than bronze
   for (const m of MISSIONS) {
     const l = m.medals;
     assert.ok(l, `${m.id} has medals`);
-    assert.ok(l.gold < l.silver && l.silver < l.bronze, `${m.id}: gold < silver < bronze`);
-    assert.equal(l.gold, m.bonusMs, `${m.id}: gold is the bonus time`);
+    if (m.scoreMode) assert.ok(l.gold > l.silver && l.silver > l.bronze && l.bronze > 0, `${m.id}: gold > silver > bronze points`);
+    else {
+      assert.ok(l.gold < l.silver && l.silver < l.bronze, `${m.id}: gold < silver < bronze`);
+      assert.equal(l.gold, m.bonusMs, `${m.id}: gold is the bonus time`);
+    }
     assert.match(m.colour, /^#[0-9a-f]{6}$/i);
-    assert.ok(['snowcat', 'rega', 'blast', 'police'].includes(m.icon));
+    assert.equal(typeof m.icon, 'string', `${m.id} has an icon`);
   }
 });
 

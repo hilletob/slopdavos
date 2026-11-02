@@ -25,7 +25,7 @@ const DATA = JSON.parse(fs.readFileSync(root('docs/missions-locations.json'), 'u
 const OUT = root('docs/missions-map.html');
 
 // The mapped window (world frame, metres): Frauenkirch to Wolfgang, Strela to the Flüela road
-const X0 = -2900, X1 = 5700, Z0 = -4300, Z1 = 3700;
+const X0 = -2900, X1 = 5700, Z0 = -4300, Z1 = 6300; // (south to the Rinerhorn's sled run)
 const W = X1 - X0, H = Z1 - Z0;
 
 // --- Geometry helpers ------------------------------------------------------------------------------------------------
@@ -148,6 +148,7 @@ function routeOf(m) {
   if (r.type === 'loipe') { const l = D.loipen.find((q) => q.id === r.id); return l ? pathD(pairs(l.pts), 2) : ''; }
   if (r.type === 'piste') { const p = SKI_PISTES.runs.find((q) => q.id === r.id); return p ? pathD(pairs(p.pts), 2) : ''; }
   if (r.type === 'ropeway') { const q = ropeways.find((w) => w.name === r.name); return q ? `M${n(q.a.x)} ${n(q.a.z)}L${n(q.b.x)} ${n(q.b.z)}` : ''; }
+  if (r.type === 'pts') return pathD(pairs(r.pts), 2); // (a route given as its points: x0, z0, x1, z1, …)
   if (r.type === 'eisbahn') return layers.eisbahn;
   if (r.type === 'golf') return layers.golf;
   if (r.type === 'osm') return r.ids.map((id) => osmWays.get(id)).filter(Boolean).map((e) => pathD(e.geometry.map((g) => { const p = lonLatToWorld(g.lon, g.lat); return [p.x, p.z]; }), 2)).join('');

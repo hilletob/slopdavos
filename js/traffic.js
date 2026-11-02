@@ -25,6 +25,7 @@ import {
 } from './actor-models.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attribute, mix, step, vec3 } from 'three/tsl';
+import { inService } from './hijack.js';
 
 // js/traffic.js
 // Manhattan traffic and pedestrians on the road graph road-network.js derives from the city as built:
@@ -1391,7 +1392,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     a.prevX = prevX; a.prevZ = prevZ;
     a.sin = Math.sin(heading); a.cos = Math.cos(heading);
     a.halfW = player.halfW; a.halfL = player.halfL;
-    a.mass = pe.type === 'snowcat' ? 9000 : pe.type === 'car' ? 1700 : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
+    a.mass = pe.type === 'snowcat' ? 9000 : pe.type === 'car' ? (pe.dims?.mass ?? 1700) : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
     a.vx = a.sin * (pe.speed || 0) + (pe.vx || 0);
     a.vz = a.cos * (pe.speed || 0) + (pe.vz || 0);
     a.angularVel = pe.type === 'car' ? pe.angularVel || 0 : 0;
@@ -1655,7 +1656,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const state = attrs.carState.array;
     const o4 = slot * 4;
     const blinkOn = c.blink !== 0 && (clock + c.blinkPhase) % 0.8 <= 0.4;
-    const b0 = c.acc < -0.8 || c.speed < 0.3 ? 1 : 0;
+    const b0 = !c.parked && (c.acc < -0.8 || c.speed < 0.3) ? 1 : 0;
     const b1 = blinkOn && c.blink < 0 ? 1 : 0;
     const b2 = blinkOn && c.blink > 0 ? 1 : 0;
     const b3 = c.isPolice ? 1 : 0;
@@ -1679,7 +1680,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const dzCam = c.z - camZ;
     const dyCam = camY - c.y;
     const distSq = dxCam * dxCam + dzCam * dzCam + dyCam * dyCam;
-    if (distSq < MAX_LIGHT_DIST_SQ) {
+    if (distSq < MAX_LIGHT_DIST_SQ && !c.parked) {
       const d = Math.sqrt(distSq);
       const forwardDot = dxCam * camFwdX + dzCam * camFwdZ;
       const effDist = d + Math.max(0, 5.0 - forwardDot) * 3.2;
@@ -1908,8 +1909,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       player.vx = player.fx * speed + (playerEntity.vx || 0);
       player.vz = player.fz * speed + (playerEntity.vz || 0);
     }
-    player.halfW = activeMode === 'cargobike' ? 0.38 : activeMode === 'cyclist' ? 0.35 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 2.2 : 0.93;
-    player.halfL = activeMode === 'cargobike' ? 1.34 : activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 3.6 : 2.33;
+    player.halfW = activeMode === 'cargobike' ? 0.38 : activeMode === 'cyclist' ? 0.35 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 2.2 : (playerEntity?.dims?.halfW ?? 0.93);
+    player.halfL = activeMode === 'cargobike' ? 1.34 : activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 3.6 : (playerEntity?.dims?.halfL ?? 2.33);
 
     // 1. Cars & buses
     // Limit attempted placements, not just successes, and rotate through the pool so an awkward location
@@ -1920,6 +1921,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     for (let scanned = 0; scanned < vehicles.length && budget > 0; scanned++) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
+      if (!inService(v)) continue; // (the player's, or left by the player: js/hijack.js)
       const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
       budget--;
@@ -1954,7 +1956,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (tramBodies.length) collideWithTrams();
     collideTraffic();
     for (const v of vehicles) {
-      if (!v.edge) continue;
+      if (!v.edge) {
+        if (v.parked && !v.bus && !v.bike) renderCar(v); // (a car the player left standing, js/hijack.js)
+        continue;
+      }
       if (v.bus) renderBus(v);
       else if (v.bike) renderBike(v);
       else renderCar(v);

@@ -15,14 +15,14 @@ const frame = (over = {}) => ({
 const memoryStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
 
 test('every mission is complete: id, title, intro, mode, start and checkable objectives', () => {
-  assert.equal(MISSIONS.length, 5);
+  assert.ok(MISSIONS.length >= 5);
   const ids = new Set();
   for (const m of MISSIONS) {
     assert.match(m.id, /^[a-z-]+$/);
     assert.ok(!ids.has(m.id), 'ids are unique');
     ids.add(m.id);
     assert.ok(m.title.length > 3 && m.intro.length > 40, `${m.id} has a title and an intro`);
-    assert.ok(['snowcat', 'helicopter', 'person', 'car'].includes(m.mode));
+    assert.ok(['snowcat', 'helicopter', 'person', 'car', 'cyclist', 'cargobike', 'rhb'].includes(m.mode), `${m.id}: a player mode`);
     const s = m.start;
     assert.ok(Number.isFinite(s.x) && Number.isFinite(s.z) && Number.isFinite(s.heading), `${m.id} has a start`);
     assert.ok(m.objectives.length >= 2);

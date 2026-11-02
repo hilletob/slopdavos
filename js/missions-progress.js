@@ -7,7 +7,9 @@ import { readBestTimes } from './missions-data.js';
 // Points: a mission's first completion earns FIRST_CLEAR_POINTS, its best medal MEDAL_POINTS on top. Only the best
 // medal a mission ever earned counts (a slower run or the same medal again earns nothing: no farming); the day and night
 // variants share one entry. Stored in localStorage under PROGRESS_KEY, versioned:
-//   { v: 1, missions: { [id]: { medal: 'gold' | 'silver' | 'bronze' | null, bestMs, runs, at (ms since 1970) } } }
+//   { v: 1, missions: { [id]: { medal: 'gold' | 'silver' | 'bronze' | null, bestMs, bestScore?, runs, at (ms since 1970) } } }
+// A mission with `scoreMode: true` is judged by its points instead (def.score(state), higher is better): its medals are
+// the lowest score for each medal, its entry keeps the best score (bestScore) beside the time of that run.
 // (an older or unreadable entry starts afresh, seeded from the best times js/missions-data.js kept before points came)
 
 export const PROGRESS_KEY = 'slopdavos-progress';
@@ -21,10 +23,11 @@ export const MEDAL_LABELS = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' }
 /** 0 for no medal, 1 bronze, 2 silver, 3 gold */
 export const medalRank = (medal) => MEDALS.indexOf(medal) + 1;
 
-/** The medal a time earns against the mission's limits { gold, silver, bronze } (ms, a time up to the limit counts) */
-export function medalFor(ms, medals) {
+/** The medal a time earns against the mission's limits { gold, silver, bronze } (ms, a time up to the limit counts);
+ *  `scoreMode`: a score against the lowest score for each medal (a score from the limit up counts) */
+export function medalFor(ms, medals, scoreMode = false) {
   if (!medals || !Number.isFinite(ms)) return null;
-  for (const m of ['gold', 'silver', 'bronze']) if (Number.isFinite(medals[m]) && ms <= medals[m]) return m;
+  for (const m of ['gold', 'silver', 'bronze']) if (Number.isFinite(medals[m]) && (scoreMode ? ms >= medals[m] : ms <= medals[m])) return m;
   return null;
 }
 
@@ -58,6 +61,7 @@ export const maxPoints = (missions) => missions.length * (FIRST_CLEAR_POINTS + M
 export function progressFromBestTimes(best, missions) {
   const progress = emptyProgress();
   for (const def of missions) {
+    if (def.scoreMode) continue; // (judged by points: no best time to seed from)
     let ms = null;
     for (const [key, t] of Object.entries(best || {})) {
       if ((key === def.id || key.startsWith(`${def.id}@`)) && Number.isFinite(t) && (ms === null || t < ms)) ms = t;
@@ -78,6 +82,7 @@ export function readProgress(storage, missions = null) {
       progress.missions[id] = {
         medal: MEDALS.includes(e.medal) ? e.medal : null,
         bestMs: Number.isFinite(e.bestMs) ? e.bestMs : null,
+        ...(Number.isFinite(e.bestScore) ? { bestScore: e.bestScore } : {}),
         runs: Number.isFinite(e.runs) ? e.runs : 1,
         at: Number.isFinite(e.at) ? e.at : 0
       };
@@ -94,10 +99,12 @@ export function saveProgress(storage, progress) {
 /**
  * A completed run of `def` in `ms`: the new progress (the old one is left as it was) and what it earned:
  * { progress, award: { points, medal (this run's), bestMedal, previousMedal, firstClear, medalUp } }
+ * (a scoreMode mission: `score` is what the medal goes by, the run's time is kept as bestMs alongside)
  */
-export function recordCompletion(progress, def, ms, now = 0) {
+export function recordCompletion(progress, def, ms, now = 0, score = null) {
   const prev = progress.missions[def.id] || null;
-  const medal = medalFor(ms, missionMedals(def));
+  const scored = !!def.scoreMode && Number.isFinite(score);
+  const medal = scored ? medalFor(score, missionMedals(def), true) : def.scoreMode ? null : medalFor(ms, missionMedals(def));
   const bestMedal = medalRank(medal) > medalRank(prev?.medal) ? medal : (prev?.medal ?? null);
   const entry = {
     medal: bestMedal,
@@ -105,6 +112,7 @@ export function recordCompletion(progress, def, ms, now = 0) {
     runs: (prev?.runs || 0) + 1,
     at: now
   };
+  if (scored || Number.isFinite(prev?.bestScore)) entry.bestScore = Math.max(scored ? score : -Infinity, prev?.bestScore ?? -Infinity);
   const next = { v: PROGRESS_VERSION, missions: { ...progress.missions, [def.id]: entry } };
   const points = entryPoints(entry) - entryPoints(prev);
   return {
@@ -123,8 +131,8 @@ export function createProgressStore(storage, missions) {
     get maxPoints() { return maxPoints(missions); },
     entry(id) { return progress.missions[id] || null; },
     medal(id) { return progress.missions[id]?.medal ?? null; },
-    record(def, ms, now = Date.now()) {
-      const { progress: next, award } = recordCompletion(progress, def, ms, now);
+    record(def, ms, now = Date.now(), score = null) {
+      const { progress: next, award } = recordCompletion(progress, def, ms, now, score);
       progress = next;
       saveProgress(storage, progress);
       for (const fn of listeners) fn(progress, award, def);

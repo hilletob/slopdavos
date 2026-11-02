@@ -11,6 +11,15 @@ import { setWorldCenter } from './quality.js';
 import { MissionManager, worldCellsReady } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
 import { buildMissionWorld } from './missions-world.js';
+import { SNOW_FEATURES } from './missions-snow.js';
+import { ICE_FEATURES } from './missions-ice.js';
+import { FUN_FEATURES } from './missions-fun.js';
+import { GOLF_FEATURES } from './missions-golf.js';
+import { SLEDGE_FEATURES } from './missions-sledge.js';
+import { MINE_FEATURES } from './missions-mine.js';
+import { LOCAL_FEATURES } from './missions-local.js';
+import { WORK_FEATURES } from './missions-work.js';
+import { SPORT_FEATURES } from './missions-sport.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -29,6 +38,8 @@ const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start b
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
+/** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points) */
+const scoreText = (def, v) => `${Math.round(v)} ${def.scoreUnit || 'pts'}`;
 
 export function buildMissions(scene, hooks) {
   // (the pad the helipad module built: the Rega missions start and end on it)
@@ -86,7 +97,8 @@ function showList(manager, progress, note = null) {
     li.append(medalBadge(entry?.medal, !!entry), a);
     const b = best[bestTimeKey(m.id)];
     const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `– / ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold}`);
-    if (Number.isFinite(b)) score.append(el('span', 'mission-list-best', formatTime(b)));
+    if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) score.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
+    else if (Number.isFinite(b)) score.append(el('span', 'mission-list-best', formatTime(b)));
     li.append(score);
     if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
@@ -115,7 +127,7 @@ function medalLimits(def, current = null) {
   if (!limits) return line;
   for (const m of ['gold', 'silver', 'bronze']) {
     const span = el('span', `mission-limit${current === m ? ' is-held' : ''}`);
-    span.append(medalBadge(m), document.createTextNode(` ${MEDAL_LABELS[m]} ${formatTime(limits[m]).replace(/\.\d$/, '')}`));
+    span.append(medalBadge(m), document.createTextNode(` ${MEDAL_LABELS[m]} ${def.scoreMode ? scoreText(def, limits[m]) : formatTime(limits[m]).replace(/\.\d$/, '')}`));
     line.append(span);
   }
   return line;
@@ -323,14 +335,27 @@ class MissionRun {
   }
 
   renderBest() {
-    const best = readBestTimes(globalThis.localStorage)[this.bestKey];
-    this.ui.best.textContent = Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet';
+    this.ui.best.textContent = this.bestText();
   }
+
+  /** "Best time 03:12.4" (a scoreMode mission: its best score) */
+  bestText() {
+    if (this.def.scoreMode) {
+      const s = this.hooks.progress?.entry(this.def.id)?.bestScore;
+      return Number.isFinite(s) ? `Best score ${Math.round(s)}` : 'No best score yet';
+    }
+    const best = readBestTimes(globalThis.localStorage)[this.bestKey];
+    return Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet';
+  }
+
+  /** The time penalties the mission has handed out so far (state.penaltyMs: a missed gate, a crash), in ms */
+  penaltyMs() { return this.state?.penaltyMs || 0; }
 
   renderSplits() {
     this.ui.splits.replaceChildren(...this.splits.map((s) => {
       const li = el('li', 'mission-split');
-      li.append(el('span', 'mission-split-title', s.title), el('span', 'mission-split-time', formatTime(s.t)));
+      // (a scoreMode mission: the score after the step, not its time)
+      li.append(el('span', 'mission-split-title', s.title), el('span', 'mission-split-time', Number.isFinite(s.score) ? scoreText(this.def, s.score) : formatTime(s.t)));
       return li;
     }));
     this.ui.splits.hidden = !this.splits.length;
@@ -356,11 +381,10 @@ class MissionRun {
   }
 
   showIntro() {
-    const best = readBestTimes(globalThis.localStorage)[this.bestKey];
     const nodes = [el('p', 'mission-dialog-text', this.def.intro)];
     const meta = el('p', 'mission-dialog-meta');
     meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
-      el('span', 'mission-dialog-best', Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet'));
+      el('span', 'mission-dialog-best', this.bestText()));
     nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)), el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'));
     this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
@@ -368,12 +392,16 @@ class MissionRun {
   showEnd() {
     const r = this.result;
     const nodes = [];
-    const time = el('div', 'mission-final-time', formatTime(r.total));
+    const scored = Number.isFinite(r.score);
+    const time = el('div', 'mission-final-time', scored ? scoreText(this.def, r.score) : formatTime(r.total));
     if (r.improved) time.classList.add('is-best');
     nodes.push(time);
     const line = el('p', 'mission-dialog-meta');
-    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? 'First best time' : `New best time (was ${formatTime(r.previous)})`));
-    else line.append(el('span', null, `Best time ${formatTime(r.best)}`));
+    const fmt = (v) => (scored ? scoreText(this.def, v) : formatTime(v));
+    const word = scored ? 'score' : 'time';
+    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? `First best ${word}` : `New best ${word} (was ${fmt(r.previous)})`));
+    else line.append(el('span', null, `Best ${word} ${fmt(r.best)}`));
+    if (scored) line.append(el('span', null, `Time ${formatTime(r.total)}`));
     nodes.push(line);
     let medalNode = null;
     const award = r.award;
@@ -492,9 +520,12 @@ class MissionRun {
 
   update(dt, cm, cs) {
     if (this.disposed) return;
-    const now = performance.now();
+    // The stopwatch runs on game time (the sum of the frames' dt, which main.js caps at 50 ms): at a low frame rate the
+    // simulation slows down, and a wall clock would then hand out slower times (and worse medals) on slower machines
+    this.gameClock = (this.gameClock || 0) + dt * 1000;
+    const now = this.gameClock;
     if (this.phase === 'loading') {
-      if (this.worldReady() || now - this.loadingSince > WORLD_WAIT_MAX_MS) { this.start(); if (this.phase === 'loading') { this.phase = 'ready'; this.ui.panel.dataset.phase = 'ready'; } }
+      if (this.worldReady() || performance.now() - this.loadingSince > WORLD_WAIT_MAX_MS) { this.start(); if (this.phase === 'loading') { this.phase = 'ready'; this.ui.panel.dataset.phase = 'ready'; } }
     }
     const ent = cm.getActiveEntity();
     const ctx = this.frame(cm, cs, dt, now);
@@ -503,7 +534,7 @@ class MissionRun {
       this.startedAt = now;
       this.ui.panel.dataset.phase = 'running';
     }
-    if (this.phase === 'running') this.elapsed = now - this.startedAt;
+    if (this.phase === 'running') this.elapsed = now - this.startedAt + this.penaltyMs();
     const live = this.phase === 'ready' || this.phase === 'running';
     let view = null;
     if (live) {
@@ -518,9 +549,9 @@ class MissionRun {
         this.ui.panel.dataset.phase = 'failed';
         this.showStopped('Mission failed', view.fail);
       } else if (view.done) {
-        const t = this.phase === 'running' ? now - this.startedAt : 0;
+        const t = this.phase === 'running' ? now - this.startedAt + this.penaltyMs() : 0;
         if (this.phase === 'ready') { this.phase = 'running'; this.startedAt = now; }
-        this.splits.push({ title: objective.title, t });
+        this.splits.push({ title: objective.title, t, score: this.def.scoreMode ? this.def.score(this.state) : null });
         this.onObjectiveDone(objective.id);
         this.renderSplits();
         this.index++;
@@ -564,11 +595,19 @@ class MissionRun {
   finish(now) {
     this.phase = 'done';
     this.ui.panel.dataset.phase = 'done';
-    const total = now - this.startedAt;
+    const total = now - this.startedAt + this.penaltyMs();
     this.elapsed = total;
-    const { best, previous, improved } = recordBestTime(globalThis.localStorage, this.bestKey, total);
-    const award = this.hooks.progress ? this.hooks.progress.record(this.def, total) : null;
-    this.result = { total, best, previous, improved, award };
+    let rec;
+    const score = this.def.scoreMode ? this.def.score(this.state) : null;
+    if (this.def.scoreMode) {
+      // (judged by points: the best score is kept with the progress, not with the best times)
+      const prev = this.hooks.progress?.entry(this.def.id)?.bestScore;
+      const previous = Number.isFinite(prev) ? prev : null;
+      rec = { best: previous === null ? score : Math.max(previous, score), previous, improved: previous === null || score > previous };
+    } else rec = recordBestTime(globalThis.localStorage, this.bestKey, total);
+    const { best, previous, improved } = rec;
+    const award = this.hooks.progress ? this.hooks.progress.record(this.def, total, Date.now(), score) : null;
+    this.result = { total, score, best, previous, improved, award };
     this.renderBest();
     this.marker.visible = false;
     for (const r of Object.values(this.rings)) r.visible = false;
@@ -874,3 +913,21 @@ const FEATURES = {
   // (the parked patrol car's traffic body is registered by buildProps: nothing per frame)
   trafficBlock: { setup() {} }
 };
+// skis, board, mtb (js/missions-snow.js)
+Object.assign(FEATURES, SNOW_FEATURES);
+// skates, speedTrack, hockey, curling (js/missions-ice.js)
+Object.assign(FEATURES, ICE_FEATURES);
+// the BOX's headbang contest, La Onda's table football, the Carjöl lift, the RhB driver (js/missions-fun.js)
+Object.assign(FEATURES, FUN_FEATURES);
+// golf at the Golf Club Davos (js/missions-golf.js)
+Object.assign(FEATURES, GOLF_FEATURES);
+// the horn sledge (js/missions-sledge.js)
+Object.assign(FEATURES, SLEDGE_FEATURES);
+// the Silberberg mine (js/missions-mine.js)
+Object.assign(FEATURES, MINE_FEATURES);
+// the eight missions at real places: beer run, Gipfeli, raclette, ibex, squirrels, tennis, slide, Kirchner (js/missions-local.js)
+Object.assign(FEATURES, LOCAL_FEATURES);
+// the snow shovel, the work vehicles, the lawn, the refuse round, the Alpenrosen, the mushrooms (js/missions-work.js)
+Object.assign(FEATURES, WORK_FEATURES);
+// Davos Nordic's skis and race, minigolf, darts, the skate bowl (js/missions-sport.js)
+Object.assign(FEATURES, SPORT_FEATURES);

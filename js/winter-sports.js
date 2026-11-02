@@ -439,3 +439,22 @@ export function buildWinterSports(scene) {
   if (typeof window !== 'undefined') window.__winterSports = api; // (probe hook)
   return api;
 }
+
+/**
+ * One figure of the same make for the player (js/missions-snow.js: the slalom skier, the big air's snowboarder): an
+ * instanced mesh of one, the near level of detail with its own material. The caller poses it through its single
+ * instance matrix (world space, the mesh itself left at the origin: the pole plant's offsets are world-space) and
+ * aPose (x, y, z: the direction of travel, w: the pole plant, + left, - right).
+ */
+export function createRiderFigure({ board = false, jacket = 0xd7261e, pants = 0x15161a, accent = 0xf2f2f0 } = {}) {
+  const geo = buildFigureGeometry(true);
+  geo.setAttribute('aLook', new THREE.InstancedBufferAttribute(new Float32Array([jacket, pants, accent, board ? 1 : 0]), 4));
+  geo.setAttribute('aPose', new THREE.InstancedBufferAttribute(new Float32Array([0, 0, 1, 0]), 4).setUsage(THREE.DynamicDrawUsage));
+  const mesh = new THREE.InstancedMesh(geo, createFigureMaterial(), 1);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = board ? 'Player snowboarder' : 'Player skier';
+  return mesh;
+}

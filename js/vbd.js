@@ -5,6 +5,7 @@ import { logoIndex, logoImage, drawLogo } from './logos.js';
 import { VBD_DATA } from './vbd-data.js';
 import { surfaceHeight, ROAD_TOP } from './terrain.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
+import { clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bellowsRingCount, trailerYaw, solveTrailerAxle, wrapAngle, MAX_BEND } from './bus-joint.js';
 
 // The buses of the Verkehrsbetrieb Davos (js/vbd-data.js, tools/fetch-vbd.mjs: OSM route relations): lines 301
 // (Glaris – Platz – Dorf – Wolfgang), 303/304 (Platz – Dorf – Stilli), 308 (Platz – Clavadel – Sertig), 312 (Dorf –
@@ -28,7 +29,11 @@ const CAR_GAP = 7, PED_GAP = 5, LOOK = 60, PROBE = 10, BLOCKED = 6, PUSH = 4, PU
 const FLEET = { 301: 4, 303: 2, 304: 2, 308: 2, 312: 2, 313: 2 };
 // Lines run with the articulated Citaro G (18 m): the busiest, the 301 through the valley
 const ARTICULATED = new Set(['301']);
-const JOINT = 0.9; // the bellows' length
+const JOINT = 0.9; // the bellows' length: the gap between the two cars' end walls, the turntable in its middle
+// The articulated bus cut from the 12 m model (z from -6 at the back to +6 at the front): the front car ahead of
+// CUT_FRONT (its front door, front axle and the middle axle), the rear car behind CUT_REAR (the middle door, the rear
+// axle and the back); REAR_AXLE: the model's rear axle (the rear car's)
+const CUT_FRONT = -4.7, CUT_REAR = 1.0, REAR_AXLE = -3.9;
 // Level of detail by the distance to the camera: the Citaro model (with its decals and display) near, a lettered box
 // beyond FAR_LOD (back to the model inside FAR_LOD - 20 m); shadows only from the buses within SHADOW_DISTANCE
 const FAR_LOD = 160, SHADOW_DISTANCE = 100;
@@ -171,37 +176,106 @@ async function loadCitaro() {
   geometry.setAttribute('aPart', new THREE.BufferAttribute(part, 1));
   geometry.computeBoundingBox(); geometry.computeBoundingSphere();
   // The articulated Citaro G from the same model: the front car (the front, the front door and the middle axle) and
-  // the rear car (the middle door, the rear axle and the back), each made of the triangles whose centre lies in its
-  // part of the body, centred along z; the bellows cover the cut
-  const section = (keep) => {
-    const pos = [], nor = [], prt = [];
-    for (let t = 0; t < count; t += 3) {
-      const zc = (position[t * 3 + 2] + position[t * 3 + 5] + position[t * 3 + 8]) / 3;
-      if (!keep(zc)) continue;
-      pos.push(...position.subarray(t * 3, t * 3 + 9)); nor.push(...normal.subarray(t * 3, t * 3 + 9)); prt.push(part[t], part[t + 1], part[t + 2]);
+  // the rear car (the middle door, the rear axle and the back), each clipped cleanly at its cut (js/bus-joint.js) and
+  // closed there by an end wall in the livery inside a dark frame; centred along z. `profile`: the bellows'
+  // cross-section, inside the frame.
+  const section = (cut, sign) => {
+    const c = clipTriangles(position, normal, part, cut, sign);
+    // the body's cross-section at the cut (its widest and highest points within 0.3 m of it)
+    let hw = 0, y0 = Infinity, y1 = 0;
+    for (let i = 0; i < c.position.length; i += 3) {
+      if (Math.abs(c.position[i + 2] - cut) > 0.3) continue;
+      const y = c.position[i + 1];
+      if (y < 0.2) continue; // (not the tyres)
+      hw = Math.max(hw, Math.abs(c.position[i])); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
     }
+    y0 = Math.max(0.28, y0);
+    const outer = roundedRectProfile(hw - 0.015, y0, y1 - 0.02, 0.32, 0.06, 5);
+    const inner = roundedRectProfile(hw - 0.13, y0 + 0.1, y1 - 0.13, 0.22, 0.04, 5);
+    const pos = [], nor = [], prt = [];
+    const nz = -sign; // (the end wall faces out of the car, away from its body)
+    // (a, b, d counter-clockwise seen from +z; flipped for an end wall facing -z)
+    const tri = (a, b, d, z, n, partId) => {
+      for (const v of nz > 0 ? [a, b, d] : [a, d, b]) { pos.push(v[0], v[1], v[2] ?? z); nor.push(n[0], n[1], n[2]); prt.push(partId); }
+    };
+    const wallZ = cut, frameZ = cut + nz * 0.035;
+    // the end wall: a fan over the outer outline (convex), in the livery
+    const cx = 0, cy = (y0 + y1) / 2;
+    for (let k = 0; k < outer.length; k++) {
+      const a = outer[k], b = outer[(k + 1) % outer.length];
+      tri([cx, cy, wallZ], [a[0], a[1], wallZ], [b[0], b[1], wallZ], wallZ, [0, 0, nz], 0);
+    }
+    // the frame: the band between the outer and inner outlines, standing proud of the wall, and its rim
+    for (let k = 0; k < outer.length; k++) {
+      const a = outer[k], b = outer[(k + 1) % outer.length], ia = inner[k], ib = inner[(k + 1) % inner.length];
+      tri([a[0], a[1], frameZ], [b[0], b[1], frameZ], [ib[0], ib[1], frameZ], frameZ, [0, 0, nz], 2);
+      tri([a[0], a[1], frameZ], [ib[0], ib[1], frameZ], [ia[0], ia[1], frameZ], frameZ, [0, 0, nz], 2);
+      // the rim round the frame's outside: outward normal (CCW outline: the right of the tangent)
+      const tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, n = [ty / l, -tx / l, 0];
+      const quad = [[a[0], a[1], wallZ], [b[0], b[1], wallZ], [b[0], b[1], frameZ], [a[0], a[1], frameZ]];
+      // (both windings: the rim is thin, seen from any side)
+      for (const order of [[0, 1, 2, 0, 2, 3], [0, 2, 1, 0, 3, 2]]) for (const i of order) { pos.push(...quad[i]); nor.push(...n); prt.push(2); }
+    }
+    const P = new Float32Array(c.position.length + pos.length);
+    P.set(c.position); P.set(pos, c.position.length);
+    const N = new Float32Array(c.normal.length + nor.length);
+    N.set(c.normal); N.set(nor, c.normal.length);
+    const R = new Float32Array(c.part.length + prt.length);
+    R.set(c.part); R.set(prt, c.part.length);
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    g.setAttribute('aPart', new THREE.Float32BufferAttribute(prt, 1));
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+    g.setAttribute('aPart', new THREE.BufferAttribute(R, 1));
     g.computeBoundingBox();
     const { min, max } = g.boundingBox;
-    g.translate(0, 0, -(min.z + max.z) / 2);
+    const shift = -(min.z + max.z) / 2;
+    g.translate(0, 0, shift);
     g.computeBoundingBox(); g.computeBoundingSphere();
-    return { geometry: g, len: max.z - min.z, front: (max.z - min.z) / 2 };
+    const profile = roundedRectProfile(hw - 0.08, y0 + 0.05, y1 - 0.08, 0.26, 0.05, 4);
+    return { geometry: g, len: max.z - min.z, front: (max.z - min.z) / 2, shift, profile };
   };
-  const frontCar = section((z) => z > -4.7), rearCar = section((z) => z < 1.0);
+  const frontCar = section(CUT_FRONT, 1), rearCar = section(CUT_REAR, -1);
+  // the rear car's axle behind its front wall (m)
+  rearCar.arm = CUT_REAR - REAR_AXLE;
   return { geometry, height: geometry.boundingBox.max.y, front: geometry.boundingBox.max.z, frontCar, rearCar };
 }
 
-// The bellows between the two cars of an articulated bus: a dark ribbed sleeve
-function bellowsGeometry(height) {
-  // (longer than the gap between the cars: it covers the ragged ends of the cut)
-  const g = new THREE.CylinderGeometry(1.2, 1.2, 1.7, 18, 8, true);
-  g.rotateX(Math.PI / 2);
-  g.scale(WIDTH / 2.4, (height - 0.35) / 2.4, 1);
-  g.translate(0, 0.35 + (height - 0.35) / 2, 0);
+// The joint between the two cars of an articulated bus (js/bus-joint.js), one mesh: the accordion bellows round the
+// body's cross-section (`profile`), spanned between the end walls and bent with the bus (setBellowsBend), and the
+// turntable under them. Its own geometry per bus (rewritten only when the bend changes); vertex colours: the crests a
+// dark grey, the valleys black, the turntable steel. Origin: the hinge on the ground, +z towards the front car.
+function bellowsGeometry(profile, gap) {
+  const rings = bellowsRingCount(), n = profile.length;
+  // the turntable: a flat disc on the floor between the cars, and its ring
+  const table = new THREE.CylinderGeometry(0.78, 0.82, 0.14, 24, 1).toNonIndexed();
+  table.translate(0, 0.3, 0);
+  const tableCount = table.attributes.position.count;
+  const count = rings * n + tableCount;
+  const position = new Float32Array(count * 3), colour = new Float32Array(count * 3);
+  for (let r = 0; r < rings; r++) {
+    const c = r === 0 || r === rings - 1 ? 0.02 : r % 2 ? 0.05 : 0.008;
+    for (let k = 0; k < n; k++) colour.set([c, c, c * 1.05], (r * n + k) * 3);
+  }
+  position.set(table.attributes.position.array, rings * n * 3);
+  for (let i = rings * n; i < count; i++) colour.set([0.2, 0.205, 0.21], i * 3);
+  const index = bellowsIndex(rings, n);
+  for (let i = 0; i < tableCount; i++) index.push(rings * n + i);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(colour, 3));
+  g.setIndex(index);
+  g.userData = { profile, gap, bend: NaN };
+  setBellowsBend(g, 0);
   return g;
+}
+function setBellowsBend(g, bend) {
+  if (Math.abs(bend - g.userData.bend) < 0.002) return;
+  g.userData.bend = bend;
+  const pos = g.attributes.position;
+  bellowsPositions(bend, g.userData.gap, g.userData.profile, { out: pos.array });
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
 }
 
 // The VBD livery on the model (Gemeinde Davos photo, Citaro no. 9): white body with the yellow lower body, dark glazing, grey trims, lit head- and tail-lights,
@@ -324,6 +398,9 @@ export function buildVBD(scene) {
   }
 
   const bodies = buses.map((b) => ({ x: 1e7, z: 1e7, prevX: 1e7, prevZ: 1e7, y: -1e4, sin: 0, cos: 1, halfW: HALF_WIDTH, halfL: b.len / 2, mass: b.art ? MASS * 1.4 : MASS, vx: 0, vz: 0, angularVel: 0, tram: true }));
+  // (bodies[i] goes with buses[i]; an articulated bus taken by the player (js/gta.js) has a second body for its rear car,
+  // after them: away at x 1e7 while the bus is in service, its one body then covering both cars)
+  for (const b of buses) if (b.art) bodies.push(b.rearBody = { x: 1e7, z: 1e7, prevX: 1e7, prevZ: 1e7, y: -1e4, sin: 0, cos: 1, halfW: HALF_WIDTH, halfL: 3.5, mass: MASS * 0.6, vx: 0, vz: 0, angularVel: 0, tram: true });
 
   const probe = {}, probe2 = {};
   // Distance to `p` ({ x, z, y? }) on the lane ahead of the bus's front, within `reach` (or Infinity)
@@ -359,6 +436,7 @@ export function buildVBD(scene) {
 
   function step(dt, player, barriers = [], traffic = null) {
     for (const b of buses) {
+      if (b.held || b.parked) continue; // (the player's, js/gta.js)
       if (b.push > 0) b.push -= dt;
       if (b.dwell > 0) { b.dwell -= dt; continue; }
       const r = b.route;
@@ -367,7 +445,7 @@ export function buildVBD(scene) {
       let limit = MAX_SPEED;
       if (stop) limit = Math.min(limit, Math.sqrt(2 * BRAKE * Math.max(0, stop.s - b.s - 0.3)));
       for (const o of buses) {
-        if (o === b || o.route !== r) continue;
+        if (o === b || o.route !== r || o.held || o.parked) continue;
         const gap = o.s - b.s - o.len;
         if (gap > -o.len && gap < 120) limit = Math.min(limit, Math.sqrt(2 * BRAKE * Math.max(0, gap - HEADWAY)));
       }
@@ -421,23 +499,53 @@ export function buildVBD(scene) {
     obj.rotation.copy(euler);
     return { cx, cy, cz, yaw };
   }
+  // The rear car of an articulated bus and its joint: the rear car hangs on the hinge (hx, hy, hz: on the ground, its
+  // y with ROAD_TOP) GAP/2 behind the front car's end wall, turned to `rearYaw` (bent by MAX_BEND at most against the
+  // front car's `yaw`); the bellows spanned between the two end walls, bent by the difference (js/bus-joint.js)
+  function placeRear(b, hx, hy, hz, yaw, rearYaw, pitch) {
+    const bend = Math.max(-MAX_BEND, Math.min(MAX_BEND, wrapAngle(rearYaw - yaw)));
+    rearYaw = yaw + bend;
+    const sn = Math.sin(rearYaw), cs = Math.cos(rearYaw), rl = b.rearLen, k = JOINT / 2 + rl / 2;
+    const cx = hx - sn * k, cz = hz - cs * k;
+    const ex = hx - sn * (JOINT / 2 + rl), ez = hz - cs * (JOINT / 2 + rl);
+    const ye = surfaceHeight(ex, ez, hy) + ROAD_TOP;
+    b.rear.position.set(cx, (hy + ye) / 2, cz);
+    b.rear.rotation.set(-Math.atan2(hy - ye, JOINT / 2 + rl), rearYaw, 0, 'YXZ');
+    b.joint.position.set(hx, hy, hz);
+    b.joint.rotation.set(pitch, yaw, 0, 'YXZ');
+    setBellowsBend(b.joint.geometry, bend);
+    b.rearYaw = rearYaw;
+    b.rearPose = { x: cx, z: cz, y: (hy + ye) / 2, yaw: rearYaw };
+  }
+  const hingeProbe = {}, axleProbe = {};
   function place() {
     buses.forEach((b, i) => {
+      if (b.held || b.parked) return; // (placed by pose(), js/gta.js)
       let c;
       if (b.art && b.rear) {
-        // Front car, bellows, rear car: each follows the route, so the bus bends in the curves
-        const fl = b.frontLen, rl = b.rearLen;
+        // The front car follows the route between its front and its end wall; the rear car hangs on the hinge, its
+        // axle on the route (so it cuts the corners like the real one); the bellows bend between them
+        const fl = b.frontLen;
         c = placeCar(b, b.mesh, b.s, b.s - fl, fl);
-        placeCar(b, b.joint, b.s - fl + 0.2, b.s - fl - JOINT - 0.2, JOINT + 0.4);
-        placeCar(b, b.rear, b.s - fl - JOINT, b.s - fl - JOINT - rl, rl);
         b.y = c.cy;
+        const sn = Math.sin(c.yaw), cs = Math.cos(c.yaw);
+        const hinge = { x: c.cx - sn * (fl / 2 + JOINT / 2), z: c.cz - cs * (fl / 2 + JOINT / 2) };
+        const hy = surfaceHeight(hinge.x, hinge.z, b.y) + ROAD_TOP;
+        const arm = JOINT / 2 + b.rearArm;
+        const sAxle = solveTrailerAxle((s) => pointAt(b.route, s, axleProbe), b.s - fl - JOINT / 2, hinge, arm);
+        const axle = pointAt(b.route, sAxle, axleProbe);
+        const far = Math.hypot(hinge.x - axle.x, hinge.z - axle.z) > 0.5 * arm;
+        placeRear(b, hinge.x, hy, hinge.z, c.yaw, far ? Math.atan2(hinge.x - axle.x, hinge.z - axle.z) : c.yaw, b.mesh.rotation.x);
         const tail = pointAt(b.route, b.s - b.len, rearP), head = pointAt(b.route, b.s, front);
+        b.cx = c.cx; b.cy = c.cy; b.cz = c.cz;
         c = { cx: (head.x + tail.x) / 2, cy: c.cy, cz: (head.z + tail.z) / 2, yaw: Math.atan2(head.x - tail.x, head.z - tail.z) };
       } else {
         c = placeCar(b, b.mesh, b.s, b.s - LENGTH * 0.8, LENGTH * 0.8);
         // (centre the body between the axles' points)
         b.y = c.cy;
+        b.cx = c.cx; b.cy = c.cy; b.cz = c.cz;
       }
+      b.yaw = b.mesh.rotation.y;
       const body = bodies[i];
       body.prevX = body.x; body.prevZ = body.z;
       body.x = c.cx; body.z = c.cz; body.y = b.y;
@@ -446,13 +554,61 @@ export function buildVBD(scene) {
     });
   }
 
+  // --- Taken by the player (js/gta.js, js/hijack.js) --------------------------------------------------------------------
+  // hold(): out of service, placed by pose() where the player drives it (the articulated bus's rear car swinging behind
+  // on its hinge, trailerYaw); park(): left standing, solid; release(): back on its line where it left it.
+  const setBody = (body, x, y, z, yaw, halfL, solid) => {
+    body.prevX = body.x; body.prevZ = body.z;
+    if (!solid) { body.x = body.z = body.prevX = body.prevZ = 1e7; body.vx = body.vz = 0; return; }
+    body.x = x; body.y = y; body.z = z; body.halfL = halfL;
+    body.sin = Math.sin(yaw); body.cos = Math.cos(yaw);
+    body.vx = body.vz = 0;
+  };
+  function hold(b) {
+    b.held = true; b.parked = false; b.speed = 0; b.dwell = 0; b.push = 0;
+    b.rearYaw ??= b.yaw;
+  }
+  // { x, y (the ground under the front car, road top included), z, yaw, pitch, roll, speed, dt, solid (left standing:
+  // both cars solid; driven: the rear car only, `own`: the player does not run into it) }
+  function pose(b, { x, y, z, yaw, pitch = 0, roll = 0, speed = 0, dt = 0, solid = false }) {
+    const i = buses.indexOf(b);
+    if (i < 0) return;
+    b.mesh.position.set(x, y, z);
+    b.mesh.rotation.set(pitch, yaw, roll, 'YXZ');
+    b.y = y - ROAD_TOP; b.cx = x; b.cy = b.y; b.cz = z; b.yaw = yaw;
+    const fl = b.art && b.rear ? b.frontLen : LENGTH;
+    setBody(bodies[i], x, b.y, z, yaw, fl / 2, solid);
+    if (b.art && b.rear) {
+      const sn = Math.sin(yaw), cs = Math.cos(yaw), k = fl / 2 + JOINT / 2;
+      b.rearYaw = trailerYaw(b.rearYaw ?? yaw, yaw, speed, dt, JOINT / 2 + b.rearArm);
+      placeRear(b, x - sn * k, y, z - cs * k, yaw, b.rearYaw, pitch);
+      const r = b.rearPose;
+      setBody(b.rearBody, r.x, r.y - ROAD_TOP, r.z, r.yaw, b.rearLen / 2, true);
+      b.rearBody.own = !solid;
+    }
+  }
+  function park(b) {
+    b.held = false; b.parked = true;
+    const i = buses.indexOf(b);
+    if (i < 0) return;
+    const fl = b.art && b.rear ? b.frontLen : LENGTH;
+    setBody(bodies[i], b.cx, b.cy, b.cz, b.yaw, fl / 2, true);
+    if (b.rearBody) b.rearBody.own = false;
+  }
+  function release(b) {
+    b.held = false; b.parked = false; b.speed = 0; b.dwell = DWELL[0];
+    const i = buses.indexOf(b);
+    if (i >= 0) bodies[i].halfL = b.len / 2;
+    if (b.rearBody) { setBody(b.rearBody, 0, 0, 0, 0, 0, false); b.rearBody.own = false; }
+  }
+
   // Near: the model, its decals and display, casting shadows within SHADOW_DISTANCE; far: the box (b.lod, set once
   // the model is in)
   function levelOfDetail(eye) {
     if (!eye) return;
     buses.forEach((b, i) => {
       if (!b.lod) return;
-      const body = bodies[i], d = Math.hypot(body.x - eye.x, body.y - eye.y, body.z - eye.z);
+      const d = Math.hypot((b.cx ?? 1e7) - eye.x, (b.cy ?? 0) - eye.y, (b.cz ?? 1e7) - eye.z);
       const far = b.lod.far ? d > FAR_LOD - 20 : d > FAR_LOD;
       if (far !== b.lod.far) {
         b.lod.far = far;
@@ -476,9 +632,10 @@ export function buildVBD(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return;
-    const halfW = mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : 0.86;
-    const halfL = mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : 2.18;
+    const halfW = mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : (pe.dims?.halfW ?? 0.86);
+    const halfL = mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : (pe.dims?.halfL ?? 2.18);
     for (const b of bodies) {
+      if (b.own && mode === 'car') continue; // (the rear car of the bus the player drives)
       const reach = b.halfL + halfL + HALF_WIDTH;
       if (Math.abs(pe.position.x - b.x) > reach + 2 || Math.abs(pe.position.z - b.z) > reach + 2) continue;
       if (pe.position.y > b.y + 3.6 || pe.position.y < b.y - 2) continue;
@@ -487,7 +644,7 @@ export function buildVBD(scene) {
       p.prevX = pe.prevX ?? p.x; p.prevZ = pe.prevZ ?? p.z;
       p.sin = Math.sin(heading); p.cos = Math.cos(heading);
       p.halfW = halfW; p.halfL = halfL;
-      p.mass = mode === 'car' ? 1700 : mode === 'cyclist' ? 95 : mode === 'snowcat' ? 9000 : 80;
+      p.mass = mode === 'car' ? (pe.dims?.mass ?? 1700) : mode === 'cyclist' ? 95 : mode === 'snowcat' ? 9000 : 80;
       p.vx = p.sin * (pe.speed || 0) + (pe.vx || 0);
       p.vz = p.cos * (pe.speed || 0) + (pe.vz || 0);
       p.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;
@@ -505,8 +662,7 @@ export function buildVBD(scene) {
   // The Citaro model replaces the box bodies once it is in (they stay if it can't be loaded)
   loadCitaro().then(({ geometry: citaro, height, front, frontCar, rearCar }) => {
     const citaroMaterial = createCitaroMaterial();
-    const bellowsMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x1a1a1a, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
-    const bellows = bellowsGeometry(height - 0.15);
+    const bellowsMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.05, side: THREE.DoubleSide });
     // The Gemeinde Davos decals (planes just off the body: both sides, the front)
     const decalMaterial = new THREE.MeshStandardNodeMaterial({ map: davosLogoTexture(), transparent: true, roughness: 0.4, metalness: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     const halfW = citaro.boundingBox.max.x;
@@ -551,7 +707,9 @@ export function buildVBD(scene) {
         rearBody.castShadow = rearBody.receiveShadow = true;
         const rearBox = farBox(rearCar.len);
         b.rear.add(rearBody, rearBox);
-        b.joint = new THREE.Mesh(bellows, bellowsMaterial);
+        b.rearArm = rearCar.arm;
+        b.joint = new THREE.Mesh(bellowsGeometry(frontCar.profile, JOINT), bellowsMaterial);
+        b.joint.castShadow = true;
         group.add(b.rear, b.joint);
         bodies[buses.indexOf(b)].halfL = b.len / 2;
         b.display.position.set(0, height - 0.32, frontCar.front + 0.03);
@@ -567,5 +725,5 @@ export function buildVBD(scene) {
   }).catch((error) => console.warn('[vbd] Citaro model:', error));
 
   group.userData.stats = { buses: buses.length, lines: [...new Set(buses.map((b) => b.ref))], routes: routes.length };
-  return { group, update, collidePlayer, bodies, buses, routes };
+  return { group, update, collidePlayer, bodies, buses, routes, hold, pose, park, release, JOINT };
 }

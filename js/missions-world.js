@@ -61,6 +61,215 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.closePath(); ctx.fill();
       break;
     }
+    case 'ski': { // two crossed skis (js/missions-data-snow.js: the slalom)
+      ctx.lineWidth = g * 0.26;
+      for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(-g * 0.8 * s, -g * 0.9); ctx.lineTo(g * 0.8 * s, g * 0.9); ctx.stroke(); }
+      break;
+    }
+    case 'snowboard': { // a board on a ramp
+      ctx.beginPath(); ctx.moveTo(-g, g * 0.85); ctx.lineTo(g, g * 0.85); ctx.lineTo(g, g * 0.15); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.rotate(-0.5); ctx.beginPath(); ctx.roundRect(-g * 0.85, -g * 0.62, g * 1.7, g * 0.36, g * 0.18); ctx.fill(); ctx.restore();
+      break;
+    }
+    case 'bike': { // two wheels and the frame
+      ctx.lineWidth = g * 0.17;
+      for (const s of [1, -1]) { ctx.beginPath(); ctx.arc(g * 0.55 * s, g * 0.3, g * 0.42, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(-g * 0.55, g * 0.3); ctx.lineTo(-g * 0.1, -g * 0.35); ctx.lineTo(g * 0.4, -g * 0.35); ctx.lineTo(g * 0.55, g * 0.3); ctx.moveTo(-g * 0.1, -g * 0.35); ctx.lineTo(0, g * 0.3); ctx.lineTo(g * 0.4, -g * 0.35); ctx.stroke();
+      break;
+    }
+    case 'skate': { // a skate: the boot over the long blade (js/missions-data-ice.js)
+      ctx.beginPath(); ctx.moveTo(-g * 0.55, -g * 0.85); ctx.lineTo(-g * 0.05, -g * 0.85); ctx.lineTo(0, -g * 0.1); ctx.lineTo(g * 0.7, g * 0.05); ctx.lineTo(g * 0.7, g * 0.4); ctx.lineTo(-g * 0.6, g * 0.4); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = g * 0.16; ctx.beginPath(); ctx.moveTo(-g * 0.9, g * 0.72); ctx.lineTo(g * 0.85, g * 0.72); ctx.quadraticCurveTo(g, g * 0.72, g, g * 0.5); ctx.stroke();
+      break;
+    }
+    case 'hockey': { // a stick and the puck
+      ctx.lineWidth = g * 0.2;
+      ctx.beginPath(); ctx.moveTo(-g * 0.55, -g * 0.95); ctx.lineTo(g * 0.15, g * 0.55); ctx.lineTo(g * 0.85, g * 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(-g * 0.45, g * 0.62, g * 0.36, g * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'curling': { // a stone with its handle
+      ctx.beginPath(); ctx.ellipse(0, g * 0.3, g * 0.85, g * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = g * 0.2; ctx.beginPath(); ctx.moveTo(-g * 0.35, -g * 0.15); ctx.lineTo(-g * 0.35, -g * 0.55); ctx.lineTo(g * 0.55, -g * 0.55); ctx.stroke();
+      break;
+    }
+    case 'music': { // a pair of quavers (js/missions-data-fun.js: the BOX)
+      ctx.lineWidth = g * 0.18;
+      for (const x of [-0.55, 0.45]) { ctx.beginPath(); ctx.ellipse(g * x, g * 0.55, g * 0.3, g * 0.22, -0.4, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(g * (x + 0.26), g * 0.5); ctx.lineTo(g * (x + 0.26), -g * 0.75); ctx.stroke(); }
+      ctx.lineWidth = g * 0.3; ctx.beginPath(); ctx.moveTo(-g * 0.29, -g * 0.72); ctx.lineTo(g * 0.71, -g * 0.82); ctx.stroke();
+      break;
+    }
+    case 'foosball': { // a rod with a man and the ball
+      ctx.lineWidth = g * 0.16;
+      ctx.beginPath(); ctx.moveTo(-g, -g * 0.35); ctx.lineTo(g, -g * 0.35); ctx.stroke();
+      ctx.fillRect(-g * 0.2, -g * 0.7, g * 0.4, g * 1.15);
+      ctx.beginPath(); ctx.arc(g * 0.62, g * 0.55, g * 0.3, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'gondola': { // the rope and a big cabin (js/missions-data-fun.js: the Jakobshornbahn)
+      ctx.lineWidth = g * 0.14;
+      ctx.beginPath(); ctx.moveTo(-g, -g * 0.85); ctx.lineTo(g, -g * 0.55); ctx.moveTo(0, -g * 0.7); ctx.lineTo(0, -g * 0.3); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(-g * 0.8, -g * 0.3, g * 1.6, g * 1.15, g * 0.22); ctx.fill();
+      ctx.fillStyle = def.colour || '#2fb3ff'; for (const x of [-0.5, 0, 0.5]) ctx.fillRect(g * (x - 0.17), -g * 0.12, g * 0.34, g * 0.4);
+      break;
+    }
+    case 'train': { // the Capricorn's nose
+      ctx.beginPath(); ctx.roundRect(-g * 0.7, -g * 0.85, g * 1.4, g * 1.45, g * 0.35); ctx.fill();
+      ctx.fillStyle = def.colour || '#e2001a'; ctx.fillRect(-g * 0.48, -g * 0.6, g * 0.96, g * 0.5);
+      for (const x of [-0.35, 0.35]) { ctx.beginPath(); ctx.arc(g * x, g * 0.25, g * 0.12, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#fff'; ctx.fillRect(-g * 0.75, g * 0.72, g * 1.5, g * 0.14);
+      break;
+    }
+    case 'sledge': { // a horn sledge from the side: the runner curving up into the horn, the seat (js/missions-data-sledge.js)
+      ctx.lineWidth = g * 0.18; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-g * 0.95, g * 0.6); ctx.lineTo(g * 0.35, g * 0.6); ctx.quadraticCurveTo(g * 0.85, g * 0.6, g * 0.8, -g * 0.1); ctx.quadraticCurveTo(g * 0.78, -g * 0.75, g * 0.45, -g * 0.8); ctx.stroke();
+      ctx.fillRect(-g * 0.9, -g * 0.05, g * 1.45, g * 0.22);
+      for (const x of [-0.7, -0.15, 0.35]) ctx.fillRect(g * (x - 0.07), 0, g * 0.14, g * 0.6);
+      break;
+    }
+    case 'mine': { // hammer and pick crossed, the miners' sign (js/missions-data-mine.js)
+      ctx.lineWidth = g * 0.17; ctx.lineCap = 'round';
+      for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(-g * 0.8 * s, g * 0.85); ctx.lineTo(g * 0.55 * s, -g * 0.5); ctx.stroke(); }
+      ctx.save(); ctx.translate(g * 0.55, -g * 0.5); ctx.rotate(Math.PI / 4); ctx.fillRect(-g * 0.4, -g * 0.17, g * 0.8, g * 0.34); ctx.restore();
+      ctx.save(); ctx.translate(-g * 0.55, -g * 0.5); ctx.rotate(-Math.PI / 4); ctx.beginPath(); ctx.moveTo(-g * 0.55, g * 0.1); ctx.quadraticCurveTo(0, -g * 0.35, g * 0.55, g * 0.1); ctx.lineTo(0, -g * 0.05); ctx.closePath(); ctx.fill(); ctx.restore();
+      break;
+    }
+    case 'golf': { // the flag in the hole and the ball (js/missions-data-golf.js)
+      ctx.lineWidth = g * 0.14;
+      ctx.beginPath(); ctx.moveTo(-g * 0.25, g * 0.75); ctx.lineTo(-g * 0.25, -g * 0.95); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-g * 0.25, -g * 0.95); ctx.lineTo(g * 0.75, -g * 0.62); ctx.lineTo(-g * 0.25, -g * 0.3); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-g * 0.25, g * 0.8, g * 0.6, g * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(g * 0.6, g * 0.5, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    // --- js/missions-data-local.js ---
+    case 'beer': { // a crate with bottles
+      ctx.fillRect(-g * 0.85, -g * 0.05, g * 1.7, g * 0.9);
+      ctx.fillStyle = def.colour || '#f5c518';
+      for (const x of [-0.55, 0, 0.55]) { ctx.fillRect(g * (x - 0.13), -g * 0.85, g * 0.26, g * 0.85); ctx.fillRect(g * (x - 0.07), -g * 1.0, g * 0.14, g * 0.2); }
+      ctx.fillStyle = '#fff'; for (const x of [-0.55, 0, 0.55]) ctx.fillRect(g * (x - 0.15), g * 0.15, g * 0.3, g * 0.08);
+      break;
+    }
+    case 'croissant': { // a Gipfeli
+      ctx.beginPath(); ctx.moveTo(-g, g * 0.35); ctx.quadraticCurveTo(-g * 0.7, -g * 0.7, 0, -g * 0.6); ctx.quadraticCurveTo(g * 0.7, -g * 0.7, g, g * 0.35); ctx.quadraticCurveTo(g * 0.6, -g * 0.05, 0, -g * 0.05); ctx.quadraticCurveTo(-g * 0.6, -g * 0.05, -g, g * 0.35); ctx.fill();
+      ctx.strokeStyle = def.colour || '#d98b2b'; ctx.lineWidth = g * 0.1; for (const x of [-0.35, 0, 0.35]) { ctx.beginPath(); ctx.moveTo(g * x, -g * 0.55); ctx.lineTo(g * x, -g * 0.1); ctx.stroke(); }
+      break;
+    }
+    case 'cheese': { // a half wheel under the grill
+      ctx.fillRect(-g * 0.9, -g * 0.95, g * 1.8, g * 0.22);
+      ctx.beginPath(); ctx.moveTo(-g * 0.85, g * 0.85); ctx.lineTo(-g * 0.85, -g * 0.1); ctx.arc(0, -g * 0.1, g * 0.85, Math.PI, 0); ctx.lineTo(g * 0.85, g * 0.85); ctx.fill();
+      ctx.fillStyle = def.colour || '#ffb627'; for (const [x, y] of [[-0.3, 0.2], [0.35, 0.45], [0.05, -0.15]]) { ctx.beginPath(); ctx.arc(g * x, g * y, g * 0.13, 0, Math.PI * 2); ctx.fill(); }
+      break;
+    }
+    case 'ibex': { // the head with the long curved horns
+      ctx.beginPath(); ctx.ellipse(0, g * 0.45, g * 0.32, g * 0.48, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = g * 0.2;
+      for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * g * 0.15, g * 0.05); ctx.quadraticCurveTo(s * g * 0.35, -g * 1.1, s * g * 0.95, -g * 0.55); ctx.stroke(); }
+      break;
+    }
+    case 'squirrel': { // sitting up, the bushy tail curled behind
+      ctx.beginPath(); ctx.ellipse(-g * 0.15, g * 0.25, g * 0.38, g * 0.55, 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-g * 0.05, -g * 0.45, g * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.2, -g * 0.65); ctx.lineTo(-g * 0.1, -g * 0.95); ctx.lineTo(g * 0.05, -g * 0.65); ctx.fill();
+      ctx.lineWidth = g * 0.4; ctx.beginPath(); ctx.moveTo(g * 0.15, g * 0.75); ctx.quadraticCurveTo(g * 1.05, g * 0.5, g * 0.6, -g * 0.5); ctx.stroke();
+      break;
+    }
+    case 'tennis': { // a racket and the ball
+      ctx.lineWidth = g * 0.16;
+      ctx.beginPath(); ctx.ellipse(-g * 0.15, -g * 0.3, g * 0.45, g * 0.6, -0.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(g * 0.2, g * 0.2); ctx.lineTo(g * 0.75, g * 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(g * 0.65, -g * 0.65, g * 0.24, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'slide': { // a tube winding down into the water
+      ctx.lineWidth = g * 0.28;
+      ctx.beginPath(); ctx.moveTo(-g * 0.8, -g * 0.9); ctx.bezierCurveTo(g * 1.2, -g * 0.8, -g * 1.2, g * 0.1, g * 0.6, g * 0.35); ctx.stroke();
+      ctx.lineWidth = g * 0.12; ctx.beginPath(); ctx.moveTo(-g, g * 0.8); ctx.quadraticCurveTo(-g * 0.5, g * 0.6, 0, g * 0.8); ctx.quadraticCurveTo(g * 0.5, g, g, g * 0.8); ctx.stroke();
+      break;
+    }
+    case 'brush': { // a brush and a stroke of paint
+      ctx.save(); ctx.rotate(-0.7);
+      ctx.fillRect(-g * 0.12, -g * 1.0, g * 0.24, g * 1.1);
+      ctx.beginPath(); ctx.moveTo(-g * 0.16, g * 0.1); ctx.lineTo(g * 0.16, g * 0.1); ctx.lineTo(0, g * 0.6); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#1f3fbf'; ctx.beginPath(); ctx.ellipse(g * 0.35, g * 0.65, g * 0.5, g * 0.18, -0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'shovel': { // a snow pusher: the shaft and the wide blade (js/missions-data-work.js)
+      ctx.lineWidth = g * 0.17;
+      ctx.beginPath(); ctx.moveTo(g * 0.55, -g * 0.9); ctx.lineTo(-g * 0.15, g * 0.35); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(g * 0.3, -g * 0.9); ctx.lineTo(g * 0.8, -g * 0.9); ctx.stroke();
+      ctx.save(); ctx.translate(-g * 0.25, g * 0.55); ctx.rotate(-0.5); ctx.fillRect(-g * 0.7, -g * 0.2, g * 1.4, g * 0.4); ctx.restore();
+      break;
+    }
+    case 'snowblower': { // the blower's body and the arc of snow out of its chute
+      ctx.fillRect(-g * 0.9, g * 0.1, g * 1.3, g * 0.6);
+      ctx.fillRect(-g * 0.55, -g * 0.35, g * 0.6, g * 0.45);
+      ctx.fillRect(g * 0.15, -g * 0.55, g * 0.18, g * 0.7);
+      ctx.lineWidth = g * 0.12; ctx.setLineDash([g * 0.14, g * 0.12]);
+      ctx.beginPath(); ctx.moveTo(g * 0.25, -g * 0.6); ctx.quadraticCurveTo(g * 0.7, -g * 1.15, g * 0.95, -g * 0.1); ctx.stroke(); ctx.setLineDash([]);
+      break;
+    }
+    case 'mower': { // a ride-on mower from the side: the seat, the wheels, the deck
+      ctx.fillRect(-g * 0.85, -g * 0.05, g * 1.7, g * 0.4);
+      ctx.fillRect(-g * 0.55, -g * 0.55, g * 0.18, g * 0.5); ctx.fillRect(-g * 0.55, -g * 0.15, g * 0.5, g * 0.15);
+      ctx.lineWidth = g * 0.12; ctx.beginPath(); ctx.moveTo(g * 0.35, -g * 0.05); ctx.lineTo(g * 0.15, -g * 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-g * 0.55, g * 0.55, g * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(g * 0.6, g * 0.6, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'garbage': { // a refuse truck: the cab, the body, the hopper
+      ctx.fillRect(-g * 0.95, -g * 0.55, g * 1.2, g * 1.0);
+      ctx.beginPath(); ctx.moveTo(g * 0.3, -g * 0.25); ctx.lineTo(g * 0.75, -g * 0.25); ctx.lineTo(g * 0.95, g * 0.1); ctx.lineTo(g * 0.95, g * 0.45); ctx.lineTo(g * 0.3, g * 0.45); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = def.colour || '#7c8b3a';
+      for (const x of [-0.6, 0.55]) { ctx.beginPath(); ctx.arc(g * x, g * 0.55, g * 0.22, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#fff'; for (const x of [-0.6, 0.55]) { ctx.beginPath(); ctx.arc(g * x, g * 0.55, g * 0.12, 0, Math.PI * 2); ctx.fill(); }
+      break;
+    }
+    case 'flower': { // an Alpenrose: five petals round the middle
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ctx.beginPath(); ctx.ellipse(Math.sin(a) * g * 0.45, -Math.cos(a) * g * 0.45, g * 0.32, g * 0.24, a, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = def.colour || '#e0457b'; ctx.beginPath(); ctx.arc(0, 0, g * 0.22, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'mushroom': { // a bolete: the round cap over the stout stem
+      ctx.beginPath(); ctx.ellipse(0, -g * 0.1, g * 0.95, g * 0.62, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.32, -g * 0.1); ctx.lineTo(-g * 0.4, g * 0.85); ctx.lineTo(g * 0.4, g * 0.85); ctx.lineTo(g * 0.32, -g * 0.1); ctx.closePath(); ctx.fill();
+      break;
+    }
+    // --- js/missions-data-sport.js ---
+    case 'xcski': { // a cross-country skier striding: body, poles, the long skis
+      ctx.lineWidth = g * 0.17;
+      ctx.beginPath(); ctx.arc(g * 0.15, -g * 0.72, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(g * 0.05, -g * 0.5); ctx.lineTo(-g * 0.15, g * 0.05); ctx.lineTo(g * 0.35, g * 0.45); ctx.moveTo(-g * 0.15, g * 0.05); ctx.lineTo(-g * 0.55, g * 0.45); ctx.moveTo(g * 0.0, -g * 0.35); ctx.lineTo(g * 0.55, -g * 0.05); ctx.stroke();
+      ctx.lineWidth = g * 0.09; ctx.beginPath(); ctx.moveTo(g * 0.55, -g * 0.05); ctx.lineTo(g * 0.2, g * 0.6); ctx.moveTo(-g * 0.05, -g * 0.3); ctx.lineTo(-g * 0.75, g * 0.45); ctx.stroke();
+      ctx.lineWidth = g * 0.12; ctx.beginPath(); ctx.moveTo(-g * 0.95, g * 0.62); ctx.lineTo(g * 0.95, g * 0.62); ctx.stroke();
+      break;
+    }
+    case 'minigolf': { // the putter and the ball by the cup
+      ctx.lineWidth = g * 0.16;
+      ctx.beginPath(); ctx.moveTo(g * 0.55, -g * 0.95); ctx.lineTo(-g * 0.1, g * 0.45); ctx.stroke();
+      ctx.fillRect(-g * 0.45, g * 0.38, g * 0.5, g * 0.22);
+      ctx.beginPath(); ctx.arc(g * 0.45, g * 0.55, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-g * 0.1, g * 0.85, g * 0.75, g * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'darts': { // the board's rings and a dart in the bull
+      ctx.lineWidth = g * 0.13;
+      for (const r of [0.85, 0.5]) { ctx.beginPath(); ctx.arc(-g * 0.1, g * 0.1, g * r, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(-g * 0.1, g * 0.1, g * 0.16, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = g * 0.12; ctx.beginPath(); ctx.moveTo(-g * 0.1, g * 0.1); ctx.lineTo(g * 0.75, -g * 0.75); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(g * 0.6, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.6); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'skateboard': { // the bowl's curve and a board over its lip
+      ctx.lineWidth = g * 0.16;
+      ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.1); ctx.quadraticCurveTo(-g * 0.9, g * 0.85, 0, g * 0.85); ctx.quadraticCurveTo(g * 0.9, g * 0.85, g * 0.95, -g * 0.1); ctx.stroke();
+      ctx.save(); ctx.translate(g * 0.1, -g * 0.45); ctx.rotate(-0.35);
+      ctx.beginPath(); ctx.roundRect(-g * 0.7, -g * 0.11, g * 1.4, g * 0.22, g * 0.11); ctx.fill();
+      for (const x of [-0.42, 0.42]) { ctx.beginPath(); ctx.arc(g * x, g * 0.2, g * 0.11, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+      break;
+    }
     default:
       ctx.beginPath(); ctx.arc(0, 0, g * 0.5, 0, Math.PI * 2); ctx.fill();
   }

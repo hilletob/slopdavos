@@ -947,7 +947,7 @@ async function initApp() {
   // Bahnhof Davos Platz)
   if (GTA) {
     document.body.classList.add('gta-mode');
-    gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState });
+    gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   }
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
@@ -1191,6 +1191,7 @@ async function initApp() {
           },
           info() { return renderer.info ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null; },
           quality: QUALITY, world,
+          get gta() { return gta; }, // (the GTA mode: its stand-ins, the taken vehicles, js/gta.js)
           releasedGeometry() { return { ...releasedGeometryStats(), MB: Math.round(releasedMB) }; },
         };
         initTimings = null;

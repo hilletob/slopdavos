@@ -9,6 +9,8 @@ import {
   DEPOTS, VEHICLE_LABELS, VEHICLE_FOOTPRINTS, BOARD_RADIUS, GTA_START,
   findEnterable, canExit, exitSpots, pickExitSpot, inSeason, seasonOf, depotsByDistance
 } from './vehicle-depots.js';
+import { createTakeover } from './gta-takeover.js';
+import { missionAllowsTakeover } from './hijack.js';
 
 // js/gta.js
 // The GTA mode: the player is a pedestrian who gets into the vehicles standing about the valley (F, or G; in the snow
@@ -25,6 +27,9 @@ import {
 // The RhB (js/rhb.js): at a station, beside a train standing at the platform, "Board the RhB" rides along as a
 // passenger (the camera follows the train, no controls) to any later station; at the line's end stations "T: Drive"
 // takes the train over (the rhb mode).
+// The vehicles on the road (js/gta-takeover.js, js/hijack.js): beside a car of the traffic standing or crawling, "Take
+// the <kind>" (F) puts the player into it (the T3 stays where it stood); a VBD bus standing at a stop: "Drive the bus";
+// a bike standing at a signal: "Take the bike". Got out of, they stand where they were left until the player is far away.
 
 const STATE_KEY = 'slopdavos-gta';
 const STATE_VERSION = 1;
@@ -49,7 +54,7 @@ export function isClassicMode(search = globalThis.location?.search || '') {
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
-export function buildGta({ scene, controllerManager: cm, touchControls, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null }) {
+export function buildGta({ scene, controllerManager: cm, touchControls, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
   cm.gtaParkedLook = true;
   const missionRun = () => missions?.run || null;
   const winter = () => isWinter();
@@ -116,6 +121,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     return copy;
   }
   for (const type of VEHICLES) templates[type] = buildTemplate(type);
+  // Taking over the vehicles on the road (after the templates: the car's T3 parts as they are)
+  const takeover = createTakeover({ scene, cm, traffic, vbd, trafficBodies, audio });
+  let savedTakeover = null;
 
   // --- The parked vehicles ------------------------------------------------------------------------------------------
   // { id, type, x, z, heading, season, label, depot, position: { x, y, z }, visual }
@@ -141,7 +149,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
   }
   // The stand-ins in this season are solid (controllers.js dynamicColliders)
   function refreshColliders() {
-    cm.parkedVehicles = parked.filter((p) => inSeason(p, winter()));
+    cm.parkedVehicles = parked.filter((p) => inSeason(p, winter())).concat(takeover.colliders());
   }
 
   // On the slope like the driven vehicles (controllers.js update: pitch over the wheelbase, roll over the track)
@@ -212,7 +220,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     try {
       localStorage.setItem(STATE_KEY, JSON.stringify({
         version: STATE_VERSION,
-        parked: parked.map(({ type, x, z, heading, label, depot }) => ({ type, x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(4), label, depot }))
+        parked: parked.map(({ type, x, z, heading, label, depot }) => ({ type, x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(4), label, depot })),
+        takeover: takeover.state()
       }));
       dirty = false;
     } catch { /* (no storage) */ }
@@ -223,6 +232,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
       const s = JSON.parse(localStorage.getItem(STATE_KEY));
       if (s?.version !== STATE_VERSION || !Array.isArray(s.parked)) return false;
       for (const p of s.parked) addParked(p);
+      savedTakeover = s.takeover || null;
       return true;
     } catch { return false; }
   }
@@ -256,6 +266,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     cm.teleportActiveTo(x, z, 0);
   }
   cm.setEntityHidden('person', cm.activeMode !== 'person');
+  takeover.restore(savedTakeover); // (the taken car or bus driven on, or the car put away)
   function applySeason() {
     // the groomer stays in its shed in summer (unless the player drives it)
     cm.setEntityHidden('snowcat', !winter() && cm.activeMode !== 'snowcat');
@@ -269,10 +280,15 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
   let switching = false; // (a change made here: no bookkeeping for code switches)
   let codeSwitch = null; // { type, x, z, heading, frames }: a vehicle taken by code, where it stood before
   cm.onModeChange((prev, next) => {
+    // (out of a taken vehicle by code, a mission's start: it stays where it stands)
+    if (prev === 'car' && !switching && takeover.body) takeover.leaveBody();
+    // (the car put away and taken by code: it comes back where the mission puts it, no stand-in for it)
+    const revived = next === 'car' && !switching && takeover.vacant;
+    if (revived) takeover.vacant = false;
     cm.setEntityHidden('person', next !== 'person');
     if (VEHICLES.includes(next) && cm.entities[next].hidden) cm.setEntityHidden(next, false);
     if (prev === 'snowcat' && !winter()) cm.setEntityHidden('snowcat', true);
-    if (!switching && VEHICLES.includes(next)) {
+    if (!switching && VEHICLES.includes(next) && !revived) {
       const e = cm.entities[next];
       codeSwitch = { type: next, x: e.position.x, z: e.position.z, heading: e.heading, frames: 0 };
     }
@@ -360,6 +376,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
         const drive = rhb.isTerminus?.(train.station);
         return { kind: 'board', train: train.train, station: train.station, drive, label: 'Board the RhB', sub: `${train.station.name}${drive ? ' · T: drive it' : ''}` };
       }
+      // the vehicles on the road (during a mission only if it allows it)
+      const taking = missionAllowsTakeover(missionRun()) ? takeover.candidate({ x: p.x, y: p.y, z: p.z }) : null;
+      if (taking && (!vehicle || taking.distance < vehicle.distance) && (!train || taking.distance < train.distance)) return taking;
       if (vehicle) return { kind: 'enter', target: vehicle, label: `Get in the ${VEHICLE_LABELS[vehicle.type]}`, sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
       return null;
     }
@@ -391,10 +410,35 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
           addParked({ type, x: ent.position.x, z: ent.position.z, heading: ent.heading, label: null });
         }
         removeParked(stand);
+        if (type === 'car') takeover.vacant = false;
         cm.setEntityHidden(type, false);
         cm.placeEntity(type, stand.x, stand.z, stand.heading);
       }
       selectMode(type);
+    } finally {
+      switching = false;
+    }
+    refreshColliders();
+    save();
+  }
+
+  // A vehicle of the road (js/gta-takeover.js): the player's entity of its type to its place, a stand-in left where the
+  // entity stood (unless it was put away)
+  function take(a) {
+    switching = true;
+    try {
+      takeover.take(a, {
+        place(type, x, z, heading, wear = null) {
+          const ent = cm.entities[type];
+          if (!ent.hidden && ent.mesh.visible !== false && !(type === 'car' && takeover.body)) {
+            addParked({ type, x: ent.position.x, z: ent.position.z, heading: ent.heading, label: null });
+          }
+          cm.setEntityHidden(type, false);
+          wear?.();
+          cm.placeEntity(type, x, z, heading);
+          selectMode(type);
+        }
+      });
     } finally {
       switching = false;
     }
@@ -425,7 +469,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     if (mode === 'rhb') {
       const train = cm.rhbPassenger || rhb?.trains?.find((t) => t.manual);
       spots = train ? rhb.alightSpots(train, { driver: !cm.rhbPassenger }) : [];
-    } else spots = exitSpots(mode, ent.position.x, ent.position.z, ent.heading);
+    } else spots = exitSpots(mode, ent.position.x, ent.position.z, ent.heading, mode === 'car' ? takeover.footprint() : null);
+    const leaving = mode === 'car' && !!takeover.body; // (a taken vehicle: it stays, the car is put away)
     const baseY = mode === 'rhb' ? ent.position.y - 0.9 : mode === 'helicopter' ? ent.position.y - 0.25 : ent.position.y;
     const free = (s) => cm.isSpotClear('person', s.x, s.z, s.heading) && !tooHigh(s, baseY);
     const spot = pickExitSpot(spots, free, onRoad) || spots[0];
@@ -441,6 +486,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
       else cm.teleportActiveTo(spot.x, spot.z, spot.heading); // (nothing free right beside it: the nearest clear spot)
     }
     if (mode === 'snowcat' && !winter()) cm.setEntityHidden('snowcat', true);
+    if (leaving) { takeover.leaveBody(); refreshColliders(); }
     save();
   }
 
@@ -482,6 +528,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     const a = currentAction();
     if (!a) return false;
     if (a.kind === 'enter') { enter(a.target); return true; }
+    if (a.kind === 'take') { take(a); return true; }
     if (a.kind === 'board') return board(a, drive && a.drive);
     if (a.kind === 'exit') {
       if (!a.ok) { flash(a.reason); return false; }
@@ -493,6 +540,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingInField(e)) return;
+    // K in a taken patrol car: the blue light and the siren (the mission's own patrol car has its own K)
+    if (e.code === 'KeyK' && !missionRun() && takeover.toggleBlue()) { e.preventDefault(); return; }
     // F, or G (F is the groomer's tiller: out of the groomer with G); Enter is the missions' start (js/missions-world.js)
     const useKey = e.code === 'KeyG' || (e.code === 'KeyF' && cm.activeMode !== 'snowcat');
     const drive = e.code === 'KeyT' && cm.activeMode === 'person';
@@ -531,7 +580,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
       promptSub.hidden = true;
     }
     // the touch button: also while moving (a tap then tells why not)
-    const label = !a ? null : a.kind === 'enter' ? 'Get in' : a.kind === 'board' ? 'Board' : a.kind === 'exit' ? (a.label === 'Get off' ? 'Get off' : 'Get out') : null;
+    const label = !a ? null : a.kind === 'take' ? (a.source === 'bus' ? 'Drive' : a.parked ? 'Get in' : 'Take') : a.kind === 'enter' ? 'Get in' : a.kind === 'board' ? 'Board' : a.kind === 'exit' ? (a.label === 'Get off' ? 'Get off' : 'Get out') : null;
     touchControls?.setTapButton?.(tapButton, label, !a ? null : a.kind === 'exit' ? GLYPHS.out : a.kind === 'board' ? GLYPHS.board : GLYPHS.in);
     if (tapButton) tapButton.classList.toggle('is-waiting', !!a && a.kind === 'exit' && !a.ok);
   }
@@ -581,6 +630,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     frame++;
     bookkeepCodeSwitch();
     followRide();
+    const leftBefore = takeover.left.length;
+    takeover.update(dt);
+    if (takeover.left.length !== leftBefore) dirty = true; // (one went back into service: its collider goes)
     if (frame % 6 === 0) updateVisuals(camera);
     action = mapSystem?.isFullMapOpen ? null : currentAction();
     render();
@@ -594,6 +646,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     update, use, save,
     get parked() { return parked; },
     get action() { return action; },
-    addParked, removeParked
+    addParked, removeParked, takeover,
+    setPlayerCarBody: takeover.setPlayerCarBody
   };
 }

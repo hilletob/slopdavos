@@ -368,20 +368,21 @@ function addBikeCable(parent, points, material, radius = 0.0032) {
 // Walking surface for the player's pedestrian (its rig samples it around its feet)
 const personGround = (controllers, x, z, nearY) => controllers.getGroundHeight(x, z, 'person', nearY);
 
-function collisionBody(mode, radius, heading, margin = 0) {
+// (`dims`: the car's box when it wears another body than the T3's, js/gta.js setPlayerCarBody)
+function collisionBody(mode, radius, heading, margin = 0, dims = null) {
   const car = mode === 'car';
   const cargoBike = mode === 'cargobike';
   const snowcat = mode === 'snowcat';
   const oriented = car || cargoBike || snowcat;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  const hx = (car ? 0.93 : cargoBike ? 0.38 : snowcat ? SNOWCAT_MODEL.halfW : radius) + margin;
-  const hz = (car ? 2.33 : cargoBike ? 1.34 : snowcat ? SNOWCAT_MODEL.halfL : radius) + margin;
+  const hx = (car ? dims?.halfW ?? 0.93 : cargoBike ? 0.38 : snowcat ? SNOWCAT_MODEL.halfW : radius) + margin;
+  const hz = (car ? dims?.halfL ?? 2.33 : cargoBike ? 1.34 : snowcat ? SNOWCAT_MODEL.halfL : radius) + margin;
   return {
     car, oriented, sin, cos, hx, hz, radius: radius + margin,
     extX: oriented ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: oriented ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: mode === 'helicopter' ? -0.25 : 0,
-    top: mode === 'helicopter' ? 3.2 : car ? 1.97 : snowcat ? SNOWCAT_MODEL.top : 1.9
+    top: mode === 'helicopter' ? 3.2 : car ? dims?.top ?? 1.97 : snowcat ? SNOWCAT_MODEL.top : 1.9
   };
 }
 
@@ -450,6 +451,9 @@ class ThirdPersonControllerManager {
     // instances of the depots (js/vehicle-depots.js: { type, x, y, z, heading }) are solid like the parked T3
     this.gtaParkedLook = false;
     this.parkedVehicles = [];
+    // A mission's own movement for the pedestrian (js/missions-snow.js: skis, a snowboard): (dt, manager) => void,
+    // called instead of updatePerson while set; null: walking as ever
+    this.personDriver = null;
     this._modeListeners = new Set();
 
     this.keys = {
@@ -679,7 +683,7 @@ class ThirdPersonControllerManager {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
     if (mode !== 'helicopter' && this.isUnbridgedWater(x, z)) return false;
     const radius = mode === 'person' ? 0.48 : 0.65;
-    const body = collisionBody(mode, radius, heading, 0.15);
+    const body = collisionBody(mode, radius, heading, 0.15, this.entities[mode]?.dims);
     const y = this.getGroundHeight(x, z, mode);
     const reach = Math.max(body.extX, body.extZ) + 1;
     for (const c of this.nearColliders(x, z, reach)) if (buildingContact(c, x, y, z, body)) return false;
@@ -767,7 +771,7 @@ class ThirdPersonControllerManager {
     const heli = this.activeMode === 'helicopter';
     const radius = heli ? 4.5 : this.activeMode === 'person' ? 0.48 : 0.65;
     const sinH = Math.sin(heading), cosH = Math.cos(heading);
-    const shape = collisionBody(this.activeMode, radius, heading, 0.1);
+    const shape = collisionBody(this.activeMode, radius, heading, 0.1, this.getActiveEntity()?.dims);
     const reach = Math.max(shape.extX, shape.extZ);
     const margin = heli ? 6000 : 0;
     const entity = this.getActiveEntity();
@@ -2035,7 +2039,7 @@ class ThirdPersonControllerManager {
     }
 
     const collisionEntity = entity || this.entities?.[this.activeMode];
-    const body = collisionBody(this.activeMode, radius, collisionEntity ? collisionEntity.heading : 0);
+    const body = collisionBody(this.activeMode, radius, collisionEntity ? collisionEntity.heading : 0, 0, collisionEntity?.dims);
     const { sin: sinH, cos: cosH, extX, extZ } = body;
     const contact = this._buildingContact ??= { nx: 0, nz: 0, depth: 0 };
 
@@ -2153,11 +2157,11 @@ class ThirdPersonControllerManager {
     for (const [type, dims] of [['snowcat', SNOWCAT_MODEL], ['car', PARKED_T3]]) {
       const e = this.entities?.[type];
       if (!e?.position || e === entity || e.mesh?.visible === false) continue;
-      this._pushParkedObstacle(out, e, type, dims, x, z, reach);
+      this._pushParkedObstacle(out, e, type, e.dims || dims, x, z, reach);
     }
     // The parked stand-ins of the GTA mode's depots (js/gta.js)
     for (const v of this.parkedVehicles || []) {
-      const dims = PARKED_DIMS[v.type];
+      const dims = v.dims || PARKED_DIMS[v.type]; // (v.dims: a taken traffic car left standing, js/gta.js)
       if (dims) this._pushParkedObstacle(out, v, v.type, dims, x, z, reach);
     }
     return this._dynamicTail(entity, x, z, reach, out);
@@ -2170,7 +2174,7 @@ class ThirdPersonControllerManager {
       const c = e._obstacle ??= { obb: { cx: 0, cz: 0, hx: dims.halfW, hz: dims.halfL, cs: 1, sn: 0 }, vehicle: e, parked: type };
       const cs = Math.cos(e.heading || 0), sn = Math.sin(e.heading || 0);
       const ex = Math.abs(cs) * dims.halfW + Math.abs(sn) * dims.halfL, ez = Math.abs(sn) * dims.halfW + Math.abs(cs) * dims.halfL;
-      Object.assign(c.obb, { cx: p.x, cz: p.z, cs, sn });
+      Object.assign(c.obb, { cx: p.x, cz: p.z, cs, sn, hx: dims.halfW, hz: dims.halfL });
       c.minX = p.x - ex; c.maxX = p.x + ex; c.minZ = p.z - ez; c.maxZ = p.z + ez;
       c.minY = p.y - 0.5; c.maxY = p.y + dims.top;
       out.push(c);
@@ -2268,8 +2272,12 @@ class ThirdPersonControllerManager {
   // pedals, helmet on its head
   poseCharacters(dt) {
     const p = this.entities.person;
-    const air = p.position.y - this.getGroundHeight(p.position.x, p.position.z, 'person', p.position.y);
-    p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, air > 0.02 ? air : 0);
+    // (a mission's own pose, js/missions-ice.js: the skater's crouch; (dt, person, manager) => void instead of the walk)
+    if (this.personPoser && this.activeMode === 'person') this.personPoser(dt, p, this);
+    else {
+      const air = p.position.y - this.getGroundHeight(p.position.x, p.position.z, 'person', p.position.y);
+      p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, air > 0.02 ? air : 0);
+    }
     p.crowd.begin();
     if (!p.hidden) p.crowd.add(p.rig, 0); // (the GTA mode: hidden while it sits in a vehicle)
     p.crowd.end();
@@ -2301,7 +2309,8 @@ class ThirdPersonControllerManager {
     if (heli.strobes && heliRunning) { const t = (elapsed ?? performance.now() / 1000) % 1.2; const on = t < 0.05 || (t > 0.12 && t < 0.17); for (const m of heli.strobes) m.visible = on; }
 
     if (this.activeMode === 'person') {
-      this.updatePerson(dt, elapsed);
+      if (this.personDriver) this.personDriver(dt, this);
+      else this.updatePerson(dt, elapsed);
     } else {
       // The pedestrian waits where it was left (Davos: at the Eisstadion on a first visit, PERSON_START; the Manhattan
       // original had it strolling up and down the avenue meanwhile, which here walked it off its forecourt)
@@ -2330,7 +2339,7 @@ class ThirdPersonControllerManager {
       e.mesh.rotation.y = e.heading;
       // Wheeled vehicles follow the slope of Davos' streets: pitch over the wheelbase, roll over the track
       if (e.type === 'car' || e.type === 'cyclist' || e.type === 'cargobike' || e.type === 'snowcat') {
-        const half = e.type === 'car' ? CAR_DRIVE.wheelbase / 2 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
+        const half = e.type === 'car' ? (e.drive || CAR_DRIVE).wheelbase / 2 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
         const track = e.type === 'car' ? 0.8 : e.type === 'snowcat' ? SNOWCAT_DRIVE.track : 0;
         const fx = Math.sin(e.heading), fz = Math.cos(e.heading), y = e.position.y;
         const front = surfaceHeight(e.position.x + fx * half, e.position.z + fz * half, y);
@@ -2375,7 +2384,7 @@ class ThirdPersonControllerManager {
         car._highBeam = high;
         car.headLights.forEach((spot, i) => {
           const side = i === 0 ? -1 : 1;
-          placeVehicleHeadlight(spot, T3, side);
+          placeVehicleHeadlight(spot, car.lightSpec || T3, side);
           aimBeam(spot, spot.position.x, spot.position.y, spot.position.z, side, beam);
         });
       }
@@ -2465,6 +2474,7 @@ class ThirdPersonControllerManager {
   updateCar(dt) {
     if (dt <= 0) return;
     const c = this.entities.car;
+    const CAR = c.drive || CAR_DRIVE; // (another body's handling, js/gta.js setPlayerCarBody)
 
     let throttle = 0;
     if (this.keys.forward) throttle = this.keys.forward;
@@ -2491,18 +2501,18 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const speed = driveSpeed(forward, throttle, step, CAR_DRIVE);
+      const speed = driveSpeed(forward, throttle, step, CAR);
       const acceleration = (speed - forward) / step;
       // Braking and cornering share tire grip; air resistance does not use it.
-      const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
-      const grip = Math.sqrt(Math.max(0, CAR_DRIVE.grip ** 2 - tireAcceleration ** 2));
+      const tireAcceleration = acceleration + CAR.drag * forward * Math.abs(forward);
+      const grip = Math.sqrt(Math.max(0, CAR.grip ** 2 - tireAcceleration ** 2));
 
       // Full lock at parking speeds, progressively less steering at road speeds.
-      const turn = CAR_DRIVE.wheelbase * CAR_DRIVE.cornering;
+      const turn = CAR.wheelbase * CAR.cornering;
       const maxSteer = Math.atan(turn / Math.max(speed * speed, turn / Math.tan(0.60)));
       c.steerAngle += (steerInput * maxSteer - c.steerAngle) * steerResponse;
       const yawLimit = grip / Math.max(2, Math.abs(speed));
-      const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / CAR_DRIVE.wheelbase));
+      const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / CAR.wheelbase));
       // Collision spin remains part of the yaw velocity; the tires gradually regain control.
       const yawStep = grip * 0.65 * step;
       c.angularVel += Math.max(-yawStep, Math.min(yawStep, (targetYaw - c.angularVel) * yawResponse));
@@ -2522,7 +2532,7 @@ class ThirdPersonControllerManager {
       c.position.z += (nextCos * c.speed + c.vz) * step;
       this.resolveHorizontalCollision(c.position, 1.35, c);
 
-      const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR_DRIVE.acceleration)) * 0.026;
+      const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR.acceleration)) * 0.026;
       const targetRoll = Math.max(-0.09, Math.min(0.09, correction / step * 0.012));
       c.pitchVel += ((targetPitch - c.chassisPivot.rotation.x) * 68 - c.pitchVel * 11.2) * step;
       c.rollVel += ((targetRoll - c.chassisPivot.rotation.z) * 68 - c.rollVel * 11.2) * step;

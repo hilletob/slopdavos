@@ -50,6 +50,12 @@
    "match": "^spar$",
    "background": "#ffffff",
    "aspect": 4.6545
+  },
+  "davoser-craft-beer": {
+   "file": "davoser-craft-beer.png",
+   "match": "davoser craft beer",
+   "background": "#001f5b",
+   "aspect": 3.9506
   }
  }
 }

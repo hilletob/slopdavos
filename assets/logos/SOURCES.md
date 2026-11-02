@@ -48,3 +48,10 @@ Canvas-Textur gesetzt, nach einem Nachtfoto der Promenade (elektron.ch): „DAVO
 (Eingang und Schild), „Parsenn“ (Fahnen) und das Banner „EIN HOCH AUF DAS TIEF“. Die Original-Logos werden nicht
 nachgebildet. „Davos Klosters“ und „Parsenn“ sind Marken der Davos Klosters Bergbahnen AG bzw. der Destination
 Davos Klosters; sie stehen hier nur, um das reale Gebäude darzustellen.
+
+## Davoser Craft Beer (Missionen, js/missions-data-local.js)
+
+| Marke | Datei | Quelle | Lizenz / Hinweis | Abgerufen |
+|---|---|---|---|---|
+| Davoser Craft Beer | `davoser-craft-beer.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2022/12/kleineslogo-4b42d710.svg (offizielle Website, Kopfzeile; auf 512 px gerastert) | Marke der Davoser Craft Beer GmbH, Bolgenstrasse 1, 7270 Davos. Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
+| Davoser Craft Beer (Emblem) | `davoser-craft-beer-emblem.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2023/01/cropped-Davoser_Logo_Gelb_quadrat-270x270.png (offizielle Website, Site-Icon; auf 128 px verkleinert) | wie oben, Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
