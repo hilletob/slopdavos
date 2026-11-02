@@ -100,6 +100,16 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.lineWidth = g * 0.3; ctx.beginPath(); ctx.moveTo(-g * 0.29, -g * 0.72); ctx.lineTo(g * 0.71, -g * 0.82); ctx.stroke();
       break;
     }
+    case 'discoball': { // a mirror ball on its string, its facets' lines in the disc's colour (js/missions-data-fun.js: the Bolgenschanze)
+      ctx.lineWidth = g * 0.12;
+      ctx.beginPath(); ctx.moveTo(0, -g * 0.95); ctx.lineTo(0, -g * 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, g * 0.15, g * 0.72, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = def.colour;
+      ctx.lineWidth = g * 0.08;
+      for (const dy of [-0.3, 0.15, 0.6]) { const w = Math.sqrt(0.72 * 0.72 - (dy - 0.15) * (dy - 0.15)); ctx.beginPath(); ctx.moveTo(-g * w, g * dy); ctx.lineTo(g * w, g * dy); ctx.stroke(); }
+      for (const k of [0.01, 0.4]) { ctx.beginPath(); ctx.ellipse(0, g * 0.15, g * k, g * 0.72, 0, 0, Math.PI * 2); ctx.stroke(); }
+      break;
+    }
     case 'foosball': { // a rod with a man and the ball
       ctx.lineWidth = g * 0.16;
       ctx.beginPath(); ctx.moveTo(-g, -g * 0.35); ctx.lineTo(g, -g * 0.35); ctx.stroke();

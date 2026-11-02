@@ -900,9 +900,11 @@ const qrot = (q, v) => v.add(cross(q.xyz, cross(q.xyz, v).add(v.mul(q.w))).mul(2
  * Material for one crowd mesh. `pose` is its storage buffer (STRIDE vec4s per instance). The vertex stage morphs the
  * bind pose (girth, female, hair & hairstyle) and skins it with two bones; the fragment stage dresses the person from
  * their seed: skin tone, hair & hairline (shaved sides under a mohawk, the ropes of dreadlocks), eyes, brows & mouth, a tailored jacket (lapels, shirt V) or casual coat (zip, hem,
- * collar), cuffs, trousers, sneakers or leather shoes with soles & laces.
+ * collar), cuffs, trousers, sneakers or leather shoes with soles & laces. `dress` replaces the city's wardrobe for this
+ * crowd (js/missions-fun.js: the venues' metalheads and skiers): the palettes coat, coatF, shirt, legs, legsF and hair
+ * (hex lists, each optional), casual: true for no tailored jackets.
  */
-function createPersonMaterial(pose) {
+function createPersonMaterial(pose, dress = {}) {
   const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
   const base = int(instanceIndex).mul(STRIDE);
   const info = pose.element(base.add(STRIDE - 1)); // seed, female, girth, hair + 2 * hairstyle
@@ -956,10 +958,10 @@ function createPersonMaterial(pose) {
 
     const skinCol = pickColorFromPalette(SKIN_COLORS, lane(17.0)).toVar();
     const mohawk = mohawkOf(vInfo.w);
-    const hairCol = mix(pickColorFromPalette(HAIR_COLORS, lane(3.0)), pickColorFromPalette(MOHAWK_COLORS, lane(3.0)), mohawk).toVar();
-    const coatCol = mix(pickColorFromPalette(COAT_COLORS, lane(29.0)), pickColorFromPalette(COAT_COLORS_F, lane(29.0)), female).toVar();
-    const shirtCol = pickColorFromPalette(SHIRT_COLORS, lane(71.0)).toVar();
-    const legsCol = mix(pickColorFromPalette(LEG_COLORS, lane(47.0)), pickColorFromPalette(LEG_COLORS_F, lane(47.0)), female);
+    const hairCol = mix(pickColorFromPalette(dress.hair || HAIR_COLORS, lane(3.0)), pickColorFromPalette(MOHAWK_COLORS, lane(3.0)), mohawk).toVar();
+    const coatCol = mix(pickColorFromPalette(dress.coat || COAT_COLORS, lane(29.0)), pickColorFromPalette(dress.coatF || COAT_COLORS_F, lane(29.0)), female).toVar();
+    const shirtCol = pickColorFromPalette(dress.shirt || SHIRT_COLORS, lane(71.0)).toVar();
+    const legsCol = mix(pickColorFromPalette(dress.legs || LEG_COLORS, lane(47.0)), pickColorFromPalette(dress.legsF || LEG_COLORS_F, lane(47.0)), female);
 
     // Head: skin, hairline (none for the bald, a few of the short-haired men, or under a mohawk), eyes, brows, lips
     const hd = normalize(vec2(q.x, q.z.add(0.01)));
@@ -988,7 +990,7 @@ function createPersonMaterial(pose) {
     );
 
     // Torso: collar & neck, tailored jacket (lapels, shirt V) or casual coat (zip, collar band), hem, trousers below
-    const tailored = step(0.42, lane(89.0));
+    const tailored = dress.casual ? float(0.0) : step(0.42, lane(89.0));
     const hemY = mix(mix(0.955, 1.0, lane(61.0)), mix(0.88, 1.0, lane(61.0)), female);
     const chestFront = smoothstep(0.035, 0.075, q.z);
     const opening = q.y.sub(1.33).mul(0.42);
@@ -1070,13 +1072,14 @@ function createPersonMaterial(pose) {
 class PersonCrowd {
   /**
    * @param {number} maxCount - most people drawn at once
-   * @param {{ farDistance?: number, castShadow?: boolean }} options - beyond farDistance (m) people use the far LOD
+   * @param {{ farDistance?: number, castShadow?: boolean, dress?: object }} options - beyond farDistance (m) people use
+   *   the far LOD; dress: this crowd's wardrobe (createPersonMaterial)
    */
-  constructor(maxCount, { farDistance = 34, castShadow = true } = {}) {
+  constructor(maxCount, { farDistance = 34, castShadow = true, dress } = {}) {
     this.farDistance = farDistance;
     this.lods = [1, 0].map((detail) => {
       const pose = poseBuffer(maxCount * STRIDE);
-      const mesh = new THREE.Mesh(buildPersonGeometry(detail), createPersonMaterial(pose));
+      const mesh = new THREE.Mesh(buildPersonGeometry(detail), createPersonMaterial(pose, dress));
       mesh.name = detail ? 'PeopleNear' : 'PeopleFar';
       mesh.count = 1; // one (degenerate) person until the first frame, so the pipelines compile up front
       mesh.frustumCulled = false;

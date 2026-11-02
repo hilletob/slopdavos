@@ -5,16 +5,17 @@ import { PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';
 import { routePoint } from './rhb-route.js';
 import {
-  HEADBANG, HEADBANG_LENGTH, BEAT_S, HEADBANG_SONG, createHeadbang, headbangTap, headbangAdvance, headbangMultiplier,
+  rhythmSection, createHeadbang, headbangTap, headbangAdvance, headbangMultiplier,
   FOOSBALL, FOOSBALL_RODS, PLAYER_RODS, createFoosball, foosballStep, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, createGondola, gondolaMove, gondolaRotate, gondolaDrop, gondolaDepart, gondolaStep, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, createRhbDrive, rhbDriveStep, rhbLimitAt, rhbDriveScore
 } from './missions-data-fun.js';
 
 // js/missions-fun.js
-// The runtime of the four fun missions (js/missions-data-fun.js has their definitions and the games' pure logic):
+// The runtime of the fun missions (js/missions-data-fun.js has their definitions and the games' pure logic):
 // js/missions.js merges FUN_FEATURES into its features, a mission asks for one by def.features.
-//  - headbang / foosball: an interior (the BOX's stage and crowd; the Bar La Onda with its table football) built once
+//  - headbang / foosball: an interior (a music venue, VENUES: the BOX's metal band, the Bolgenschanze's DJ; the Bar La
+//    Onda with its table football) built once
 //    the player walks through the door, as a small group of its own high above the door (nothing of the city in view),
 //    the camera inside it; disposed again with the run (the phone keeps no interior it does not need). Unlit
 //    materials with the shading baked into vertex colours (no extra lights: they would recompile the city's shaders).
@@ -136,8 +137,8 @@ function signPlane(text, w, h, { fg = '#ff4fd8', bg = 'rgba(0,0,0,0)', font = '9
 }
 
 /** A crowd of the city's figures, self-lit (the interiors have no lights of their own): `tint` colours the glow */
-function makeCrowd(max) {
-  const crowd = new PersonCrowd(max, { farDistance: 1e9, castShadow: false });
+function makeCrowd(max, dress) {
+  const crowd = new PersonCrowd(max, { farDistance: 1e9, castShadow: false, dress });
   const tint = uniform(new THREE.Color(1, 1, 1));
   for (const m of crowd.meshes) {
     m.receiveShadow = false;
@@ -146,10 +147,23 @@ function makeCrowd(max) {
   return { crowd, tint };
 }
 let seedN = 1;
-const metalhead = (female = Math.random() < 0.35) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, hair: 0.75 + Math.random() * 0.25, girth: 0.95 + Math.random() * 0.2, scale: female ? 0.95 : 1 + Math.random() * 0.06 });
 const guest = () => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female: Math.random() < 0.45, hair: Math.random(), girth: 0.92 + Math.random() * 0.2, scale: 0.94 + Math.random() * 0.1 });
 
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _p = new THREE.Vector3(), _t = new THREE.Vector3(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
+const _qC = new THREE.Quaternion(), _qU = new THREE.Quaternion(), _axisX = new THREE.Vector3(1, 0, 0), _axisZ = new THREE.Vector3(0, 0, 1);
+const ARM_BONES = [[PERSON_BONES.UPPER_ARM_L, PERSON_BONES.FOREARM_L], [PERSON_BONES.UPPER_ARM_R, PERSON_BONES.FOREARM_R]];
+const ARM_BIND_ABDUCTION = 0.14; // (the arms hang this far out from the body in the bind pose, js/pedestrians.js)
+/** Poses an arm from the shoulder (i: 0 left, 1 right; its pose solved): `flex` (rad) swung forward and up (0 hanging, π
+ *  straight up), `elbow` (rad) bent, `abd` (rad) out to the side */
+function raiseArm(rig, i, flex, elbow, abd) {
+  const a = rig.pose, o = PERSON_BONES.CHEST * 8, [upper, fore] = ARM_BONES[i], side = i ? -1 : 1;
+  _qC.set(a[o], a[o + 1], a[o + 2], a[o + 3]);
+  _p.copy(rig.bind[upper]).applyQuaternion(_qC).multiplyScalar(rig.s).add(_t.set(a[o + 4], a[o + 5], a[o + 6]));
+  _qU.copy(_qC).multiply(_q.setFromAxisAngle(_axisZ, side * (abd - ARM_BIND_ABDUCTION))).multiply(_q2.setFromAxisAngle(_axisX, -flex));
+  rig.writeBone(upper, _qU, _p);
+  _t.copy(rig.bind[fore]).sub(rig.bind[upper]).multiplyScalar(rig.s).applyQuaternion(_qU).add(_p);
+  rig.writeBone(fore, _qU.multiply(_q.setFromAxisAngle(_axisX, -elbow)), _t);
+}
 /** Nods a figure's head: pitched forward by `angle` (rad) about the neck, tilted sideways by `tilt` (its pose solved) */
 function nod(rig, angle, tilt = 0) {
   const a = rig.pose, o = PERSON_BONES.HEAD * 8;
@@ -214,10 +228,14 @@ class Interior {
   }
 }
 
-// --- Sound: a metal band from oscillators and noise (Web Audio, on the city's mix bus) -------------------------------------
-class MetalBand {
-  constructor(audio) {
+// --- Sound: the venues' music from oscillators and noise (Web Audio, on the city's mix bus) --------------------------------
+/** What every act shares: the clock over the song (js/missions-data-fun.js createRhythm), the drums, the crowd's cheer.
+ *  A subclass adds its instruments in voices() and plays one 16th note in step(k, at) */
+class PartyBand {
+  constructor(audio, rhythm) {
     this.audio = audio;
+    this.rhythm = rhythm;
+    this.beat = rhythm.beat;
     this.scheduled = -1; // the last 16th scheduled
     this.ctxStart = null; // the context's time at the song's t = 0
   }
@@ -231,64 +249,25 @@ class MetalBand {
     const n = Math.floor(ctx.sampleRate * 0.6), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     this.noise = buf;
-    // the guitars' fuzz
-    const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = Math.tanh(x * 9) * 0.9; }
-    this.drive = ctx.createWaveShaper(); this.drive.curve = curve; this.drive.oversample = '2x';
-    this.cab = ctx.createBiquadFilter(); this.cab.type = 'lowpass'; this.cab.frequency.value = 3200; this.cab.Q.value = 0.8;
-    this.hp = ctx.createBiquadFilter(); this.hp.type = 'highpass'; this.hp.frequency.value = 70;
-    this.gtrOut = ctx.createGain(); this.gtrOut.gain.value = 0.22;
-    this.drive.connect(this.hp).connect(this.cab).connect(this.gtrOut).connect(this.out);
+    this.voices();
     return true;
   }
-  /** The song's sections by beat (js/missions-data-fun.js HEADBANG_SONG) */
-  sectionAt(beat) {
-    let b = beat - HEADBANG.countIn;
-    if (b < 0) return 'count';
-    for (const part of HEADBANG_SONG) { if (b < part.bars * 4) return part.name; b -= part.bars * 4; }
-    return 'end';
-  }
+  voices() {}
+  /** The song's sections by beat */
+  sectionAt(beat) { return rhythmSection(this.rhythm, beat); }
   /** Schedules what falls within the next 0.25 s of song time t */
   pump(t) {
     if (!this.init()) return;
     const ctx = this.audio.context;
     if (this.ctxStart === null) this.ctxStart = ctx.currentTime - t + 0.05;
-    const sixteenth = BEAT_S / 4;
+    const sixteenth = this.beat / 4;
     const until = t + 0.25;
     for (let k = this.scheduled + 1; k * sixteenth < until; k++) {
       this.scheduled = k;
       const at = this.ctxStart + k * sixteenth;
-      if (at < ctx.currentTime - 0.01 || k * sixteenth > HEADBANG_LENGTH - HEADBANG.tail + BEAT_S) continue;
+      if (at < ctx.currentTime - 0.01 || k * sixteenth > this.rhythm.length - this.rhythm.tail + this.beat) continue;
       this.step(k, at);
     }
-  }
-  step(k, at) {
-    const beat = Math.floor(k / 4), sub = k % 4, inBar = beat % 4;
-    const section = this.sectionAt(beat);
-    if (section === 'end') return;
-    if (section === 'count') { if (sub === 0) this.stick(at, inBar === 3); return; }
-    const half = section === 'Intro riff' || section === 'Breakdown';
-    // drums
-    if (half) {
-      if (sub === 0 && inBar === 0) this.kick(at);
-      if (sub === 2 && inBar === 1) this.kick(at);
-      if (sub === 0 && inBar === 2) this.snare(at);
-      if (sub === 0) this.hat(at, 0.5);
-    } else {
-      if (sub === 0 && (inBar === 0 || inBar === 2)) this.kick(at);
-      if (section === 'Chorus' || section === 'Finale') { if (sub === 2) this.kick(at, 0.7); }
-      if (sub === 3 && inBar === 3 && section === 'Break') this.kick(at, 0.8);
-      if (sub === 0 && (inBar === 1 || inBar === 3)) this.snare(at);
-      if (sub === 0 || sub === 2) this.hat(at, sub === 0 ? 0.55 : 0.35);
-    }
-    if (k % 64 === 0 && beat > HEADBANG.countIn) this.crash(at);
-    // the riff: palm-muted E chugs on the 8ths, power chords on the accents (E5 G5 A5 / E5 D5 C5 B5)
-    const bar = Math.floor((beat - HEADBANG.countIn) / 4);
-    const prog = section === 'Chorus' || section === 'Finale' ? [40, 43, 45, 43] : section === 'Break' ? [40, 38, 36, 35] : [40, 40, 43, 45];
-    const root = prog[bar % 4];
-    if (half) { if (sub === 0 && (inBar === 0 || inBar === 2)) this.chord(at, root, BEAT_S * 1.8, false); }
-    else if (sub === 0 && inBar === 0) this.chord(at, root, BEAT_S * 0.9, false);
-    else if (sub % 2 === 0) this.chord(at, inBar === 3 && sub === 2 ? root + 3 : 40, BEAT_S * 0.22, true);
   }
   env(at, peak, decay) {
     const g = this.audio.context.createGain();
@@ -308,22 +287,22 @@ class MetalBand {
     const cg = this.env(at, 0.25 * v, 0.02);
     click.connect(hp).connect(cg).connect(this.out); click.start(at, 0, 0.03);
   }
-  snare(at) {
+  snare(at, v = 1) {
     const ctx = this.audio.context;
     const n = ctx.createBufferSource(); n.buffer = this.noise;
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.7;
-    const g = this.env(at, 0.6, 0.2);
+    const g = this.env(at, 0.6 * v, 0.2);
     n.connect(bp).connect(g).connect(this.out); n.start(at, Math.random() * 0.3, 0.22);
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(210, at); o.frequency.exponentialRampToValueAtTime(160, at + 0.08);
-    const og = this.env(at, 0.35, 0.1);
+    const og = this.env(at, 0.35 * v, 0.1);
     o.connect(og).connect(this.out); o.start(at); o.stop(at + 0.12);
   }
-  hat(at, v) {
+  hat(at, v, decay = 0.045) {
     const ctx = this.audio.context;
     const n = ctx.createBufferSource(); n.buffer = this.noise;
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
-    const g = this.env(at, 0.18 * v, 0.045);
-    n.connect(hp).connect(g).connect(this.out); n.start(at, Math.random() * 0.4, 0.06);
+    const g = this.env(at, 0.18 * v, decay);
+    n.connect(hp).connect(g).connect(this.out); n.start(at, Math.random() * 0.4, decay + 0.015);
   }
   crash(at) {
     const ctx = this.audio.context;
@@ -337,6 +316,61 @@ class MetalBand {
     const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = accent ? 1800 : 1400;
     const g = this.env(at, 0.12, 0.03);
     o.connect(g).connect(this.out); o.start(at); o.stop(at + 0.05);
+  }
+  cheer(strength = 1) {
+    if (!this.init()) return;
+    const ctx = this.audio.context, at = ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700 + i * 650; bp.Q.value = 1.4;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.12 * strength, at + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.6);
+      n.connect(bp).connect(g).connect(this.out); n.start(at, Math.random() * 0.5); n.stop(at + 1.7);
+    }
+  }
+  dispose() { try { this.out?.disconnect(); } catch { /* gone */ } this.out = null; }
+}
+
+/** The BOX's band: palm-muted guitars through fuzz, a live drummer, E minor at 140 BPM */
+class MetalBand extends PartyBand {
+  voices() {
+    const ctx = this.audio.context;
+    // the guitars' fuzz
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = Math.tanh(x * 9) * 0.9; }
+    this.drive = ctx.createWaveShaper(); this.drive.curve = curve; this.drive.oversample = '2x';
+    this.cab = ctx.createBiquadFilter(); this.cab.type = 'lowpass'; this.cab.frequency.value = 3200; this.cab.Q.value = 0.8;
+    this.hp = ctx.createBiquadFilter(); this.hp.type = 'highpass'; this.hp.frequency.value = 70;
+    this.gtrOut = ctx.createGain(); this.gtrOut.gain.value = 0.22;
+    this.drive.connect(this.hp).connect(this.cab).connect(this.gtrOut).connect(this.out);
+  }
+  step(k, at) {
+    const beat = Math.floor(k / 4), sub = k % 4, inBar = beat % 4;
+    const countIn = this.rhythm.countIn;
+    const section = this.sectionAt(beat);
+    if (section === 'end') return;
+    if (section === 'count') { if (sub === 0) this.stick(at, inBar === 3); return; }
+    const half = section === 'Intro riff' || section === 'Breakdown';
+    // drums
+    if (half) {
+      if (sub === 0 && inBar === 0) this.kick(at);
+      if (sub === 2 && inBar === 1) this.kick(at);
+      if (sub === 0 && inBar === 2) this.snare(at);
+      if (sub === 0) this.hat(at, 0.5);
+    } else {
+      if (sub === 0 && (inBar === 0 || inBar === 2)) this.kick(at);
+      if (section === 'Chorus' || section === 'Finale') { if (sub === 2) this.kick(at, 0.7); }
+      if (sub === 3 && inBar === 3 && section === 'Break') this.kick(at, 0.8);
+      if (sub === 0 && (inBar === 1 || inBar === 3)) this.snare(at);
+      if (sub === 0 || sub === 2) this.hat(at, sub === 0 ? 0.55 : 0.35);
+    }
+    if (k % 64 === 0 && beat > countIn) this.crash(at);
+    // the riff: palm-muted E chugs on the 8ths, power chords on the accents (E5 G5 A5 / E5 D5 C5 B5)
+    const bar = Math.floor((beat - countIn) / 4);
+    const prog = section === 'Chorus' || section === 'Finale' ? [40, 43, 45, 43] : section === 'Break' ? [40, 38, 36, 35] : [40, 40, 43, 45];
+    const root = prog[bar % 4];
+    if (half) { if (sub === 0 && (inBar === 0 || inBar === 2)) this.chord(at, root, this.beat * 1.8, false); }
+    else if (sub === 0 && inBar === 0) this.chord(at, root, this.beat * 0.9, false);
+    else if (sub % 2 === 0) this.chord(at, inBar === 3 && sub === 2 ? root + 3 : 40, this.beat * 0.22, true);
   }
   /** A power chord on MIDI `root` (root, fifth, octave), muted short or ringing */
   chord(at, root, len, muted) {
@@ -353,17 +387,129 @@ class MetalBand {
       o.connect(g); o.start(at); o.stop(at + len + 0.4);
     }
   }
-  cheer(strength = 1) {
-    if (!this.init()) return;
-    const ctx = this.audio.context, at = ctx.currentTime;
-    for (let i = 0; i < 3; i++) {
-      const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true;
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700 + i * 650; bp.Q.value = 1.4;
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.12 * strength, at + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.6);
-      n.connect(bp).connect(g).connect(this.out); n.start(at, Math.random() * 0.5); n.stop(at + 1.7);
+}
+
+const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+// The DJ's loop in A minor, four bars: the chords (Am7 Fmaj7 C G), the bass's roots, the hook over the drop (16ths)
+const HOUSE_CHORDS = [[57, 60, 64, 67], [53, 57, 60, 64], [55, 60, 64, 67], [55, 59, 62, 67]];
+const HOUSE_BASS = [33, 29, 36, 31];
+const HOUSE_STABS = [0, 3, 6, 10, 13]; // the stabs' 16ths in the bar: the push before the beat makes it house
+const _ = null;
+const HOUSE_HOOK = [
+  [69, _, 72, _, 76, _, 74, _, 72, _, _, 69, _, _, 67, _],
+  [65, _, 69, _, 72, _, 74, _, 72, _, _, 69, _, _, 65, _],
+  [72, _, 76, _, 79, _, 76, _, 74, _, _, 72, _, _, 67, _],
+  [71, _, 74, _, 79, _, 74, _, 71, _, _, 67, _, 74, _, 76]
+];
+
+/** The Bolgenschanze's DJ: four on the floor, off-beat hats, a bass rolling between the kicks, chord stabs and a plucked
+ *  hook pumping under the kick (sidechained), a breakdown with a pad and a snare roll into the drop; A minor at 126 BPM */
+class HouseBand extends PartyBand {
+  voices() {
+    const ctx = this.audio.context;
+    this.pumpBus = ctx.createGain(); // (what ducks under the kick: bass, stabs, pad, hook)
+    this.pumpBus.connect(this.out);
+    this.echo = ctx.createDelay(1); this.echo.delayTime.value = this.beat * 0.75; // (the hook's dotted-8th echo)
+    const fb = ctx.createGain(); fb.gain.value = 0.32;
+    this.echo.connect(fb).connect(this.echo);
+    this.echo.connect(this.pumpBus);
+  }
+  kick(at, v = 1) { // (tighter than the drummer's: a short thump for every beat)
+    const ctx = this.audio.context;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(155, at); o.frequency.exponentialRampToValueAtTime(50, at + 0.07);
+    const g = this.env(at, 0.95 * v, 0.2);
+    o.connect(g).connect(this.out); o.start(at); o.stop(at + 0.22);
+    const g2 = this.pumpBus.gain;
+    g2.setValueAtTime(0.3, at);
+    g2.linearRampToValueAtTime(1, at + this.beat * 0.6);
+  }
+  clap(at, v = 1) {
+    const ctx = this.audio.context;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 1.1;
+    bp.connect(this.out);
+    for (const [dt, dec] of [[0, 0.02], [0.011, 0.02], [0.023, 0.16]]) {
+      const n = ctx.createBufferSource(); n.buffer = this.noise;
+      n.connect(this.env(at + dt, 0.42 * v, dec)).connect(bp); n.start(at + dt, Math.random() * 0.4, dec + 0.02);
     }
   }
-  dispose() { try { this.out?.disconnect(); } catch { /* gone */ } this.out = null; }
+  bass(at, midi, len) {
+    const ctx = this.audio.context;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
+    lp.frequency.setValueAtTime(900, at); lp.frequency.exponentialRampToValueAtTime(160, at + len);
+    const g = this.env(at, 0.42, len);
+    lp.connect(g).connect(this.pumpBus);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(midi);
+    o.connect(lp); o.start(at); o.stop(at + len + 0.02);
+  }
+  /** A chord through a low-pass: short and bright (a stab) or long and swelling (the pad) */
+  chord(at, notes, len, from, to, peak) {
+    const ctx = this.audio.context;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2;
+    lp.frequency.setValueAtTime(from, at); lp.frequency.exponentialRampToValueAtTime(to, at + len);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + Math.min(0.01 + len * 0.15, 0.25));
+    g.gain.setTargetAtTime(0.0001, at + len * 0.7, len * 0.12);
+    lp.connect(g).connect(this.pumpBus);
+    for (const m of notes) for (const det of [-9, 9]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(m); o.detune.value = det;
+      o.connect(lp); o.start(at); o.stop(at + len * 1.5);
+    }
+  }
+  pluck(at, midi, v = 1) {
+    const ctx = this.audio.context;
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = midiHz(midi);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(3800, at); lp.frequency.exponentialRampToValueAtTime(700, at + 0.16);
+    const g = this.env(at, 0.17 * v, 0.2);
+    o.connect(lp).connect(g); g.connect(this.pumpBus); g.connect(this.echo);
+    o.start(at); o.stop(at + 0.22);
+  }
+  /** The noise rising through a band-pass over the build-up */
+  riser(at, len) {
+    const ctx = this.audio.context;
+    const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.5;
+    bp.frequency.setValueAtTime(400, at); bp.frequency.exponentialRampToValueAtTime(7000, at + len);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.2, at + len); g.gain.setTargetAtTime(0.0001, at + len, 0.03);
+    n.connect(bp).connect(g).connect(this.out); n.start(at); n.stop(at + len + 0.2);
+  }
+  step(k, at) {
+    const beat = Math.floor(k / 4), sub = k % 4, inBar = beat % 4;
+    const countIn = this.rhythm.countIn;
+    const section = this.sectionAt(beat);
+    if (section === 'end') return;
+    if (section === 'count') { if (sub === 0) this.clap(at, inBar === 3 ? 0.9 : 0.5); return; }
+    const pos = (k - countIn * 4) % 16, bar = Math.floor((beat - countIn) / 4);
+    const opening = pos === 0 && this.sectionAt(beat - 4) !== section; // (the section's first beat)
+    const ch = HOUSE_CHORDS[bar % 4], root = HOUSE_BASS[bar % 4];
+    const quiet = section === 'Breakdown' || section === 'Build-up';
+    const full = section === 'Drop';
+    // the drums: the kick on every beat but in the breakdown, the claps on two and four, hats between the kicks
+    if (!quiet && sub === 0) this.kick(at);
+    if (sub === 0 && (inBar === 1 || inBar === 3) && section !== 'Intro' && section !== 'Build-up') this.clap(at, quiet ? 0.5 : 1);
+    if (!quiet && sub === 2) this.hat(at, section === 'Off-beats' || full ? 1 : 0.7, 0.16); // (the open hat, "tss")
+    if (full && sub % 2 === 1) this.hat(at, 0.35);
+    if (opening && (full || section === 'Off-beats')) this.crash(at);
+    // the bass rolls between the kicks: off-beat 8ths, with an octave pickup before the next bar
+    if (!quiet && section !== 'Intro') {
+      if (sub === 2) this.bass(at, root, this.beat * 0.34);
+      if (pos === 15) this.bass(at, root + 12, this.beat * 0.2);
+    }
+    // the chords: stabs opening up through the song, the pad over the breakdown
+    if (section === 'Breakdown') { if (pos === 0) this.chord(at, ch, this.beat * 4, 350 + (bar % 4) * 500, 2600, 0.12); }
+    else if (section === 'Build-up') { if (pos === 0 && inBar === 0) this.chord(at, ch, this.beat * 4, 1200, 6000, 0.12); }
+    else if (HOUSE_STABS.includes(pos)) this.chord(at, ch, this.beat * 0.34, section === 'Intro' ? 500 + bar * 180 : full ? 3600 : 2400, 500, 0.12);
+    // the hook: over the drop and quietly over the breakdown
+    if (full || section === 'Breakdown') { const m = HOUSE_HOOK[bar % 4][pos]; if (m !== null) this.pluck(at, m + (full ? 12 : 0), full ? 1 : 0.6); }
+    // the build-up: the riser, the snare roll tightening into the drop
+    if (section === 'Build-up') {
+      if (opening) this.riser(at, this.beat * 8);
+      const second = bar % 2 === 1;
+      if (second ? true : sub % 2 === 0) this.snare(at, 0.28 + (pos / 16) * 0.25 + (second ? 0.2 : 0));
+    }
+  }
+  dispose() { try { this.echo?.disconnect(); this.pumpBus?.disconnect(); } catch { /* gone */ } super.dispose(); }
 }
 
 /** Short sounds for the table and the lift (clicks, a whistle, a buzzer) on the city's mix */
@@ -383,64 +529,236 @@ class Blips {
 }
 
 // =====================================================================================================================
-// Headbang contest (the BOX)
+// A music venue: the rhythm game of the BOX and the Bolgenschanze (the mission's def.venue picks the room, the act, the
+// crowd and their dance; def.rhythm the song)
 // =====================================================================================================================
-const BOX = { w: 14, d: 18, h: 6, stageD: 4.2, stageH: 0.85 };
+const PA_STACKS = (hw, sz) => [-1, 1].flatMap((s) => [[1.3, 2.6, 1.0, s * (hw - 1.0), 1.3, sz + 0.4, 0x0c0c0e], [1.1, 1.0, 0.04, s * (hw - 1.0), 0.75, sz + 0.92, 0x2a2a30], [1.1, 1.0, 0.04, s * (hw - 1.0), 1.95, sz + 0.92, 0x2a2a30]]);
 
-function buildBox(group, fx) {
-  const hw = BOX.w / 2, hd = BOX.d / 2, sz = -hd + BOX.stageD; // the stage's front edge (z)
-  // the room: floor, walls, ceiling (inside faces), the stage, the PA, the amps, the drums, the bar at the back
+const roomLayout = (room) => ({ ...room, hw: room.w / 2, hd: room.d / 2, sz: -room.d / 2 + room.stageD }); // sz: the stage's front edge (z)
+
+// The dances: air(r, s) is the lift off the floor before the figure's pose is solved, pose(r, s) moves what the walking
+// pose leaves alone. `s`: { now (ms), playing, phase (0-1 of the beat, or of two beats in a half-time section), hype, cheering, tapAge (s) }
+const DANCES = {
+  // Heads down: the crowd nods on the beat, the band harder; they only leave the floor to cheer
+  bang: {
+    air(r, s) { return r.role === 'crowd' && s.cheering ? Math.max(0, Math.sin((s.now / 1000) * 7 + r.phase * 6)) * 0.25 : 0; },
+    pose(r, s) {
+      let a = 0;
+      if (r.role === 'player') {
+        a = (s.tapAge < 0.07 ? (s.tapAge / 0.07) * 0.85 : 0.85 * Math.exp(-(s.tapAge - 0.07) / 0.11)) - 0.08;
+      } else if (s.playing) {
+        const p = (s.phase + r.phase * 0.08) % 1;
+        const amp = (r.role === 'crowd' ? 0.55 * s.hype * r.energy : 0.8) * (r.role === 'drums' ? 0.5 : 1);
+        a = amp * Math.pow(Math.max(0, Math.cos(p * Math.PI * 2)), 3) - 0.1;
+      }
+      nod(r.rig, a, r.role === 'band' ? Math.sin(s.now / 900 + r.phase * 5) * 0.12 : 0);
+    }
+  },
+  // Après-ski: everybody jumps on the beat, arms in the air (three ways of doing so: fists up, one arm waving, clapping)
+  jump: {
+    air(r, s) {
+      if (r.role === 'player') return s.tapAge < 0.34 ? 0.3 * Math.sin((s.tapAge / 0.34) * Math.PI) : 0;
+      if (r.role === 'dj') return 0;
+      if (s.cheering) return Math.max(0, Math.sin((s.now / 1000) * 8 + r.phase * 6)) * 0.3;
+      if (!s.playing) return 0;
+      const p = (s.phase + r.phase * 0.07) % 1;
+      return p < 0.42 ? Math.sin((p / 0.42) * Math.PI) * 0.2 * r.energy * (0.45 + 0.55 * s.hype) : 0;
+    },
+    pose(r, s) {
+      const pump = s.playing ? Math.pow(Math.max(0, Math.cos(((s.phase + r.phase * 0.07) % 1) * Math.PI * 2)), 2) : 0.3;
+      if (r.role === 'player') {
+        const up = Math.exp(-Math.max(0, s.tapAge) / 0.22);
+        raiseArm(r.rig, 0, 0.5 + 2.2 * up, 1.0 - 0.75 * up, 0.25);
+        raiseArm(r.rig, 1, 0.5 + 2.2 * up, 1.0 - 0.75 * up, 0.25);
+        nod(r.rig, 0.28 * up - 0.06);
+        return;
+      }
+      if (r.role === 'dj') {
+        raiseArm(r.rig, 0, 0.95, 1.25, 0.12); // (a hand on the deck)
+        raiseArm(r.rig, 1, 2.1 + 0.5 * pump, 0.3 + 0.5 * (1 - pump), 0.3);
+      } else if (r.arms === 0) {
+        for (const i of [0, 1]) raiseArm(r.rig, i, 2.45 + 0.35 * pump, 0.2 + 0.45 * (1 - pump), 0.28);
+      } else if (r.arms === 1) {
+        raiseArm(r.rig, r.left ? 0 : 1, 2.7, 0.2, 0.38 + 0.26 * Math.sin(s.now / 260 + r.phase * 6));
+        raiseArm(r.rig, r.left ? 1 : 0, 0.55, 1.5, 0.14); // (the other holds a beer)
+      } else {
+        for (const i of [0, 1]) raiseArm(r.rig, i, 1.25 + 0.75 * pump, 1.75 - 0.5 * pump, 0.04);
+      }
+      nod(r.rig, 0.3 * pump - 0.08, Math.sin(s.now / 700 + r.phase * 6) * 0.12);
+    }
+  }
+};
+
+const METAL_ROWS = (sz) => [[sz + 1.9, [-4.5, -3.3, -1.1, 1.1, 2.3, 3.6, 4.7]], [sz + 3.0, [-5, -3.8, -2.6, -1.5, 1.4, 2.7, 3.9, 5]], [sz + 4.3, [-4.3, -2.9, -1.6, -0.2, 1.3, 2.6, 4.1]], [sz + 5.7, [-3.4, -1.9, 0.6, 2.0, 3.6]]];
+const metalhead = (female = Math.random() < 0.35) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, hair: 0.75 + Math.random() * 0.25, girth: 0.95 + Math.random() * 0.2, scale: female ? 0.95 : 1 + Math.random() * 0.06 });
+const skier = (female = Math.random() < 0.48) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, hair: female ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3, girth: 0.98 + Math.random() * 0.2, scale: female ? 0.94 + Math.random() * 0.05 : 0.98 + Math.random() * 0.08 });
+
+const VENUES = {
+  box: {
+    room: { w: 14, d: 18, h: 6, stageD: 4.2, stageH: 0.85 },
+    shell: { floor: 0x16161a, back: 0x101014, front: 0x18181d, side: 0x1b1a20, ceiling: 0x0b0b0e, stage: 0x26262c, edge: 0xc0c0c8, truss: 0x5a5a62 },
+    // the amps, the PA, the drums, the mics, the bar at the back, the fence in front of the stage
+    decor({ h, hw, hd, sz, stageH }) {
+      return [
+        // amp stacks (black with grey grilles)
+        ...[-3.2, -2.1, 2.1, 3.2].flatMap((x) => [[1.0, 1.1, 0.5, x, stageH + 0.55, -hd + 0.6, 0x0d0d0f], [0.86, 0.9, 0.04, x, stageH + 0.55, -hd + 0.86, 0x34343a], [1.0, 0.55, 0.5, x, stageH + 1.38, -hd + 0.6, 0x0d0d0f], [0.86, 0.12, 0.04, x, stageH + 1.42, -hd + 0.86, 0xb08a3a]]),
+        ...PA_STACKS(hw, sz),
+        // drum riser and kit
+        [3.0, 0.4, 2.0, 0, stageH + 0.2, -hd + 1.4, 0x2d2d33],
+        [0.7, 0.6, 0.7, 0, stageH + 0.7, -hd + 1.3, 0x7a0b12],
+        [0.45, 0.25, 0.45, -0.6, stageH + 0.95, -hd + 1.5, 0xc8c8d0], [0.45, 0.25, 0.45, 0.6, stageH + 0.95, -hd + 1.5, 0xc8c8d0],
+        [0.04, 1.2, 0.04, -0.95, stageH + 1.0, -hd + 1.6, 0x9a9aa2], [0.7, 0.02, 0.7, -0.95, stageH + 1.6, -hd + 1.6, 0xd8b45a],
+        [0.04, 1.3, 0.04, 0.95, stageH + 1.05, -hd + 1.6, 0x9a9aa2], [0.7, 0.02, 0.7, 0.95, stageH + 1.7, -hd + 1.6, 0xd8b45a],
+        // mic stands
+        ...[-2.2, 0, 2.2].flatMap((x) => [[0.03, 1.5, 0.03, x, stageH + 0.75, sz - 0.9, 0x9a9aa2], [0.07, 0.12, 0.07, x, stageH + 1.52, sz - 0.86, 0x222226]]),
+        // the bar at the back, the fence in front of the stage
+        [6, 1.1, 0.7, -2.5, 0.55, hd - 0.8, 0x2e1c12], [6.2, 0.06, 0.8, -2.5, 1.12, hd - 0.8, 0x6b4a2a],
+        [hw * 2 - 2.4, 1.05, 0.08, 0, 0.53, sz + 0.75, 0x3c3c44],
+        ...[-5, -3, -1, 1, 3, 5].map((x) => [0.06, 1.05, 0.5, x, 0.53, sz + 0.95, 0x3c3c44])
+      ];
+    },
+    bottles: { x0: -5.3 },
+    signs: ({ hd, stageH }) => [
+      { text: 'BOX DAVOS', w: 8, h: 2, at: [0, stageH + 3.1, -hd + 0.02], fg: '#ff2a6d', bg: '#0a0a0c', font: '900 230px Impact, Inter, Arial, sans-serif', glow: 40 },
+      { text: 'METAL NIGHT', w: 4, h: 0.8, at: [-2.5, 3.2, hd - 0.02], rotY: Math.PI, fg: '#3fd6ff', font: '900 150px Inter, Arial, sans-serif' }
+    ],
+    beams: [0xff2a6d, 0x7a3cff, 0x3fd6ff, 0xff2a6d, 0x7a3cff, 0x3fd6ff],
+    haze: 0x7a3cff,
+    band: (audio, rhythm) => new MetalBand(audio, rhythm),
+    // the band's black shirts and jeans, long hair (the people glow magenta under the lights)
+    dress: { coat: [0x141416, 0x1c1c20, 0x101012, 0x26262a, 0x35161a], coatF: [0x141416, 0x1c1c20, 0x2a1020, 0x101012], legs: [0x18181c, 0x22252c, 0x2f3540], legsF: [0x18181c, 0x22252c, 0x2f3540], hair: [0x120f0d, 0x1a1512, 0x2a1f16, 0x3a2a1a, 0x584022], casual: true },
+    hue: (now) => (0.83 + Math.sin(now / 2400) * 0.12 + 1) % 1,
+    glow: 0.22,
+    dance: DANCES.bang,
+    button: 'BANG',
+    countIn: 'Get ready … the drummer counts in',
+    punter: metalhead,
+    performers(add, { hd, sz, stageH }) {
+      for (const [x, zOff] of [[-2.2, -0.6], [0, -0.55], [2.2, -0.6]]) add(metalhead(false), x, sz + zOff - 0.6, 0, stageH, 'band');
+      add(metalhead(false), 0, -hd + 1.75, 0, stageH + 0.4, 'drums');
+    },
+    rows: METAL_ROWS,
+    playerRig: () => new PersonRig({ seed: 0.137, hair: 1, girth: 1.02 })
+  },
+  bolgen: {
+    room: { w: 16, d: 18, h: 4.8, stageD: 3.4, stageH: 0.5 },
+    // a ski hut grown into a club: timber walls and ceiling, the DJ's booth on a low stage, skis on the walls
+    shell: { floor: 0x1c130c, back: 0x3a2414, front: 0x42291a, side: 0x4a2f1c, ceiling: 0x2a1a10, stage: 0x5a3a20, edge: 0xffb347, truss: 0x2e2e34 },
+    decor({ w, h, d, hw, hd, sz, stageH }) {
+      const skis = [];
+      [[-1, -3.2, 0xd8232a], [-1, -0.4, 0x1f6fe0], [-1, 2.4, 0xf4c20d], [1, -3.2, 0x18a558], [1, -0.4, 0xe8e8ee], [1, 2.4, 0xff5a1f]].forEach(([s, z, col]) => {
+        for (const dz of [-0.09, 0.09]) skis.push([0.03, 1.85, 0.09, s * (hw - 0.14), 2.15, z + dz, col], [0.035, 0.12, 0.1, s * (hw - 0.15), 2.05, z + dz, 0x25252a]);
+        skis.push([0.03, 1.2, 0.03, s * (hw - 0.13), 1.95, z + 0.3, 0x9a9aa2], [0.03, 1.2, 0.03, s * (hw - 0.13), 1.95, z + 0.42, 0x9a9aa2]);
+      });
+      return [
+        // the wall battens and the ceiling's beams
+        ...Array.from({ length: 10 }, (_, i) => -d / 2 + 0.9 + i * 1.8).flatMap((z) => [-1, 1].map((s) => [0.12, h, 0.16, s * (hw - 0.05), h / 2, z, 0x63422a])),
+        ...Array.from({ length: 6 }, (_, i) => -d / 2 + 1.5 + i * 3).map((z) => [w, 0.24, 0.32, 0, h - 0.12, z, 0x241509]),
+        // the DJ's booth: the desk, its glowing front, two decks and the mixer
+        [3.8, 1.02, 0.95, 0, stageH + 0.51, sz - 1.2, 0x17171c],
+        [3.9, 0.06, 1.05, 0, stageH + 1.05, sz - 1.2, 0x7b4f2b],
+        [0.56, 0.05, 0.56, -1.05, stageH + 1.1, sz - 1.25, 0x8e8e96], [0.56, 0.05, 0.56, 1.05, stageH + 1.1, sz - 1.25, 0x8e8e96],
+        [0.5, 0.08, 0.44, 0, stageH + 1.11, sz - 1.25, 0x26262c],
+        // the speakers, the skis, the bar at the back with its taps
+        ...PA_STACKS(hw, sz),
+        ...skis,
+        [7, 1.1, 0.7, -2.5, 0.55, hd - 0.8, 0x4a2c16], [7.2, 0.07, 0.82, -2.5, 1.13, hd - 0.8, 0x96683c],
+        ...[-4.5, -3.8, -3.1].map((x) => [0.07, 0.42, 0.07, x, 1.37, hd - 0.8, 0xd8d8e0]),
+        // high tables along the walls
+        ...[[-6.7, 1.0], [-6.7, 5.5], [6.7, 1.0], [6.7, 5.5]].flatMap(([x, z]) => [[0.1, 1.1, 0.1, x, 0.55, z, 0x2a1a10], [0.72, 0.05, 0.72, x, 1.12, z, 0x8a5c30]])
+      ];
+    },
+    bottles: { x0: -6.3 },
+    signs: ({ hw, hd, sz, stageH }) => [
+      { text: 'BOLGENSCHANZE', w: 8.4, h: 1.26, at: [0, stageH + 2.75, -hd + 0.02], fg: '#ffb347', bg: '#1a0f08', font: '900 142px Impact, Inter, Arial, sans-serif', glow: 34 },
+      { text: 'APRÈS-SKI', w: 4.2, h: 0.9, at: [-hw + 0.24, 3.55, -1.6], rotY: Math.PI / 2, fg: '#3fd6ff', font: '900 165px Inter, Arial, sans-serif' },
+      { text: 'SKI · BEER · BASS', w: 4.6, h: 0.8, at: [hw - 0.24, 3.55, -1.6], rotY: -Math.PI / 2, fg: '#ff4fd8', font: '900 110px Inter, Arial, sans-serif' },
+      { text: 'DJ SCHANZE', w: 3.5, h: 0.72, at: [0, stageH + 0.52, sz - 0.715], fg: '#fff2c4', bg: '#161017', font: '900 136px Inter, Arial, sans-serif', glow: 22 }
+    ],
+    beams: [0xffa21f, 0x2fd8ff, 0xffffff, 0xffa21f, 0x2fd8ff, 0xffffff],
+    haze: 0xff8a1f,
+    band: (audio, rhythm) => new HouseBand(audio, rhythm),
+    // bright ski jackets, salopettes, white and black ski trousers; fair to dark hair, no tailored coats on the slopes
+    dress: { coat: [0xe02a2a, 0x1f6fe0, 0xffb400, 0x13a06a, 0xff5a1f, 0x0d2e6e, 0xf2f2f6, 0x8a2be2], coatF: [0xff3f8f, 0x24c7d8, 0xfff14a, 0xe02a2a, 0x7c4dff, 0xf2f2f6, 0xff7a1a, 0x18b78a], legs: [0x12141a, 0x1b2c52, 0x323640, 0xc8ccd4, 0x7a1f1f], legsF: [0xf0f0f4, 0x12141a, 0x2a2f55, 0xe86aa6, 0x1aa0a8], hair: [0x1a1512, 0x584022, 0x8f6d43, 0xc9a35e, 0x5e3020, 0xe0c88a], casual: true },
+    hue: (now) => { const k = Math.sin(now / 1500) * 0.5 + 0.5; return 0.07 + k * 0.03; }, // (warm: the amber lights of a hut, the jackets keep their colours)
+    glow: 0.3,
+    dance: DANCES.jump,
+    button: 'JUMP',
+    countIn: 'Get ready … the DJ counts in',
+    punter: skier,
+    performers(add, { sz, stageH }) {
+      add(skier(false), 0, sz - 1.95, 0, stageH, 'dj');
+      for (const x of [-3.9, 3.9]) add(skier(), x, sz - 1.1, 0, stageH, 'band'); // (two ski instructors dancing on the stage)
+    },
+    rows: (sz) => [[sz + 1.2, [-5.8, -4.6, -3.4, -2.2, -1.0, 1.0, 2.2, 3.4, 4.6, 5.8]], [sz + 2.5, [-6.2, -5, -3.8, -2.6, -1.4, 1.4, 2.7, 3.9, 5.1, 6.2]], [sz + 3.9, [-5.6, -4.3, -3, -1.7, -0.3, 1.3, 2.6, 4.1, 5.5]], [sz + 5.4, [-4.6, -3, -1.3, 0.6, 2.0, 3.6, 5.2]]],
+    playerRig: () => new PersonRig({ seed: 0.291, hair: 0.25, girth: 1.02 }),
+    // a mirror ball and the dance floor's tiles, three colours taking turns on the beat
+    extras(group, fx, { hd, sz, h }) {
+      const tileGeo = [[], [], []];
+      for (let ix = -6; ix < 6; ix++) for (let iz = 0; iz < 11; iz++) {
+        const g = new THREE.PlaneGeometry(0.94, 0.94); g.rotateX(-Math.PI / 2); g.translate(ix + 0.5, 0.012, sz + 0.6 + iz);
+        if (sz + 0.6 + iz < hd - 1.4) tileGeo[((ix + 12) + iz) % 3].push(g); else g.dispose();
+      }
+      fx.tiles = tileGeo.map((parts, i) => {
+        const level = uniform(0.08);
+        const mat = new THREE.MeshBasicNodeMaterial({ color: [0xff8a1f, 0x2fd8ff, 0xff3fa0][i], transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+        mat.opacityNode = level;
+        group.add(mesh(mergeGeometries(parts), mat));
+        for (const p of parts) p.dispose();
+        return level;
+      });
+      const facets = new THREE.IcosahedronGeometry(0.42, 2);
+      const c = new THREE.Color(), cols = new Float32Array(facets.attributes.position.count * 3);
+      for (let i = 0; i < cols.length; i += 9) { const v = 0.35 + Math.random() * 0.65; c.setRGB(v, v, v * 1.05); for (let k = 0; k < 3; k++) { cols[i + k * 3] = c.r; cols[i + k * 3 + 1] = c.g; cols[i + k * 3 + 2] = c.b; } }
+      facets.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      fx.ball = mesh(facets);
+      fx.ball.position.set(-3.1, h - 1.2, sz - 0.2);
+      group.add(fx.ball);
+      group.add(mesh(shadedBoxes([[0.025, 0.8, 0.025, -3.1, h - 0.4, sz - 0.2, 0x9a9aa2]])));
+    },
+    animate(fx, { now, playing, beatPhase, beatIndex }) {
+      fx.ball.rotation.y = now / 1400;
+      fx.tiles.forEach((level, i) => { level.value = playing ? 0.05 + (beatIndex % 3 === i ? 0.42 * Math.pow(1 - beatPhase, 2) : 0.03) : 0.07; });
+    }
+  }
+};
+
+function buildVenue(group, fx, venue) {
+  const r = roomLayout(venue.room), s = venue.shell;
+  const { w, d, h, stageD, stageH, hw, hd, sz } = r;
+  // the room: floor, walls, ceiling (inside faces), the stage, its edge, the truss, what the venue has in it
   const room = [
-    [BOX.w, 0.1, BOX.d, 0, -0.05, 0, 0x16161a],
-    [BOX.w, BOX.h, 0.2, 0, BOX.h / 2, -hd - 0.1, 0x101014],
-    [BOX.w, BOX.h, 0.2, 0, BOX.h / 2, hd + 0.1, 0x18181d],
-    [0.2, BOX.h, BOX.d, -hw - 0.1, BOX.h / 2, 0, 0x1b1a20],
-    [0.2, BOX.h, BOX.d, hw + 0.1, BOX.h / 2, 0, 0x1b1a20],
-    [BOX.w, 0.2, BOX.d, 0, BOX.h + 0.1, 0, 0x0b0b0e],
-    // stage
-    [BOX.w - 0.4, BOX.stageH, BOX.stageD, 0, BOX.stageH / 2, -hd + BOX.stageD / 2, 0x26262c],
-    [BOX.w - 0.4, 0.06, 0.08, 0, BOX.stageH + 0.03, sz, 0xc0c0c8],
-    // amp stacks (black with grey grilles)
-    ...[-3.2, -2.1, 2.1, 3.2].flatMap((x) => [[1.0, 1.1, 0.5, x, BOX.stageH + 0.55, -hd + 0.6, 0x0d0d0f], [0.86, 0.9, 0.04, x, BOX.stageH + 0.55, -hd + 0.86, 0x34343a], [1.0, 0.55, 0.5, x, BOX.stageH + 1.38, -hd + 0.6, 0x0d0d0f], [0.86, 0.12, 0.04, x, BOX.stageH + 1.42, -hd + 0.86, 0xb08a3a]]),
-    // PA stacks either side of the stage
-    ...[-1, 1].flatMap((s) => [[1.3, 2.6, 1.0, s * (hw - 1.0), 1.3, sz + 0.4, 0x0c0c0e], [1.1, 1.0, 0.04, s * (hw - 1.0), 0.75, sz + 0.92, 0x2a2a30], [1.1, 1.0, 0.04, s * (hw - 1.0), 1.95, sz + 0.92, 0x2a2a30]]),
-    // drum riser and kit
-    [3.0, 0.4, 2.0, 0, BOX.stageH + 0.2, -hd + 1.4, 0x2d2d33],
-    [0.7, 0.6, 0.7, 0, BOX.stageH + 0.7, -hd + 1.3, 0x7a0b12],
-    [0.45, 0.25, 0.45, -0.6, BOX.stageH + 0.95, -hd + 1.5, 0xc8c8d0], [0.45, 0.25, 0.45, 0.6, BOX.stageH + 0.95, -hd + 1.5, 0xc8c8d0],
-    [0.04, 1.2, 0.04, -0.95, BOX.stageH + 1.0, -hd + 1.6, 0x9a9aa2], [0.7, 0.02, 0.7, -0.95, BOX.stageH + 1.6, -hd + 1.6, 0xd8b45a],
-    [0.04, 1.3, 0.04, 0.95, BOX.stageH + 1.05, -hd + 1.6, 0x9a9aa2], [0.7, 0.02, 0.7, 0.95, BOX.stageH + 1.7, -hd + 1.6, 0xd8b45a],
-    // mic stands
-    ...[-2.2, 0, 2.2].flatMap((x) => [[0.03, 1.5, 0.03, x, BOX.stageH + 0.75, sz - 0.9, 0x9a9aa2], [0.07, 0.12, 0.07, x, BOX.stageH + 1.52, sz - 0.86, 0x222226]]),
-    // light truss over the stage
-    [BOX.w - 1, 0.25, 0.25, 0, BOX.h - 0.6, sz - 0.3, 0x5a5a62],
-    // the bar at the back, the fence in front of the stage
-    [6, 1.1, 0.7, -2.5, 0.55, hd - 0.8, 0x2e1c12], [6.2, 0.06, 0.8, -2.5, 1.12, hd - 0.8, 0x6b4a2a],
-    [BOX.w - 2.4, 1.05, 0.08, 0, 0.53, sz + 0.75, 0x3c3c44],
-    ...[-5, -3, -1, 1, 3, 5].map((x) => [0.06, 1.05, 0.5, x, 0.53, sz + 0.95, 0x3c3c44])
+    [w, 0.1, d, 0, -0.05, 0, s.floor],
+    [w, h, 0.2, 0, h / 2, -hd - 0.1, s.back],
+    [w, h, 0.2, 0, h / 2, hd + 0.1, s.front],
+    [0.2, h, d, -hw - 0.1, h / 2, 0, s.side],
+    [0.2, h, d, hw + 0.1, h / 2, 0, s.side],
+    [w, 0.2, d, 0, h + 0.1, 0, s.ceiling],
+    [w - 0.4, stageH, stageD, 0, stageH / 2, -hd + stageD / 2, s.stage],
+    [w - 0.4, 0.06, 0.08, 0, stageH + 0.03, sz, s.edge],
+    [w - 1, 0.25, 0.25, 0, h - 0.6, sz - 0.3, s.truss],
+    ...venue.decor(r)
   ];
   group.add(mesh(shadedBoxes(room)));
   // the bottles behind the bar, glowing
   const bottles = [];
-  for (let i = 0; i < 26; i++) bottles.push([0.08, 0.28, 0.08, -5.3 + i * 0.22, 1.7 + (i % 2) * 0.42, hd - 0.12, [0x3fd67a, 0xffb02e, 0x3fa0ff, 0xff4f6a][i % 4]]);
+  for (let i = 0; i < 26; i++) bottles.push([0.08, 0.28, 0.08, venue.bottles.x0 + i * 0.22, 1.7 + (i % 2) * 0.42, hd - 0.12, [0x3fd67a, 0xffb02e, 0x3fa0ff, 0xff4f6a][i % 4]]);
   group.add(mesh(shadedBoxes(bottles)));
-  // the backdrop: the band's banner
-  const banner = signPlane('BOX DAVOS', 8, 2, { fg: '#ff2a6d', bg: '#0a0a0c', font: '900 230px Impact, Inter, Arial, sans-serif', glow: 40 });
-  banner.position.set(0, BOX.stageH + 3.1, -hd + 0.02);
-  group.add(banner);
-  const neon = signPlane('METAL NIGHT', 4, 0.8, { fg: '#3fd6ff', font: '900 150px Inter, Arial, sans-serif' });
-  neon.position.set(-2.5, 3.2, hd - 0.02); neon.rotation.y = Math.PI;
-  group.add(neon);
+  // the backdrop and the neons
+  for (const { text, w: sw, h: sh, at, rotY = 0, ...opts } of venue.signs(r)) {
+    const sign = signPlane(text, sw, sh, opts);
+    sign.position.set(at[0], at[1], at[2]); sign.rotation.y = rotY;
+    group.add(sign);
+  }
   // the beams: cones from the truss, additive, fading towards the floor
   const beamGeo = new THREE.CylinderGeometry(0.06, 0.9, 6, 20, 1, true).translate(0, -3, 0);
   fx.beams = [];
-  const colours = [0xff2a6d, 0x7a3cff, 0x3fd6ff, 0xff2a6d, 0x7a3cff, 0x3fd6ff];
-  for (let i = 0; i < 6; i++) {
-    const mat = new THREE.MeshBasicNodeMaterial({ color: colours[i], transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  for (let i = 0; i < venue.beams.length; i++) {
+    const mat = new THREE.MeshBasicNodeMaterial({ color: venue.beams[i], transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     const level = uniform(0.22);
     mat.opacityNode = smoothstep(float(-6), float(0), positionGeometry.y).mul(level);
     const b = mesh(beamGeo, mat);
-    b.position.set(-5 + i * 2, BOX.h - 0.75, sz - 0.3);
+    b.position.set(-5 + i * 2, h - 0.75, sz - 0.3);
     b.userData.level = level;
     group.add(b);
     fx.beams.push(b);
@@ -448,22 +766,24 @@ function buildBox(group, fx) {
   // the spots on the truss (lamp housings, their lenses glowing)
   const lens = new THREE.MeshBasicNodeMaterial({ color: 0xffffff });
   fx.lens = lens;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < venue.beams.length; i++) {
     const l = mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.05, 16), lens);
-    l.position.set(-5 + i * 2, BOX.h - 0.78, sz - 0.3);
+    l.position.set(-5 + i * 2, h - 0.78, sz - 0.3);
     group.add(l);
   }
   // a haze glow over the stage floor
-  const haze = new THREE.MeshBasicNodeMaterial({ color: 0x7a3cff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.12 });
-  const hazeMesh = mesh(new THREE.PlaneGeometry(BOX.w - 1, 3), haze);
-  hazeMesh.rotation.x = -Math.PI / 2; hazeMesh.position.set(0, BOX.stageH + 0.02, -hd + 2.2);
+  const haze = new THREE.MeshBasicNodeMaterial({ color: venue.haze, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.12 });
+  const hazeMesh = mesh(new THREE.PlaneGeometry(w - 1, 3), haze);
+  hazeMesh.rotation.x = -Math.PI / 2; hazeMesh.position.set(0, stageH + 0.02, -hd + 2.2);
   group.add(hazeMesh);
   fx.haze = haze;
+  venue.extras?.(group, fx, r);
 }
 
 const HEADBANG_FEATURE = {
   setup(run) {
     addStyle(run);
+    const venue = VENUES[run.def.venue];
     const hud = el('div', 'fun-hud');
     hud.hidden = true;
     const card = el('div', 'fun-card');
@@ -475,7 +795,7 @@ const HEADBANG_FEATURE = {
     lane.append(el('span', 'fun-lane-hit'));
     const notes = [];
     for (let i = 0; i < 14; i++) { const n = el('span', 'fun-lane-note'); n.hidden = true; lane.append(n); notes.push(n); }
-    const bang = el('button', 'fun-btn', 'BANG');
+    const bang = el('button', 'fun-btn', venue.button);
     bang.type = 'button';
     run.listen(bang, 'pointerdown', (e) => { e.preventDefault(); bang.classList.add('is-pressed'); HEADBANG_FEATURE.tap(run, e.timeStamp); });
     run.listen(bang, 'pointerup', () => bang.classList.remove('is-pressed'));
@@ -485,12 +805,12 @@ const HEADBANG_FEATURE = {
     // a tap on the view counts too (touch screens)
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (e.pointerType === 'touch' && run.hb?.interior) HEADBANG_FEATURE.tap(run, e.timeStamp); });
-    run.hb = { hud, score, sub, judge, lane, notes, interior: null, band: null, fx: {}, rigs: [], player: null, t0: 0, nodAt: -1e9, cheerAt: -1e9, lastJudge: null };
+    run.hb = { venue, rhythm: run.def.rhythm, hud, score, sub, judge, lane, notes, interior: null, band: null, fx: {}, rigs: [], player: null, t0: 0, nodAt: -1e9, cheerAt: -1e9, lastJudge: null };
   },
   reset(run) {
     const hb = run.hb;
     hb.interior?.dispose(); hb.interior = null;
-    hb.band?.dispose(); hb.band = new MetalBand(run.hooks.audio);
+    hb.band?.dispose(); hb.band = hb.venue.band(run.hooks.audio, hb.rhythm);
     hb.hud.hidden = true;
     hb.rigs = []; hb.player = null; hb.lastJudge = null;
     run.state.game = null; run.state.inside = false;
@@ -501,29 +821,27 @@ const HEADBANG_FEATURE = {
     run.hb.interior = null;
   },
   enter(run) {
-    const hb = run.hb;
+    const hb = run.hb, venue = hb.venue;
     const fx = hb.fx = {};
-    const { crowd, tint } = makeCrowd(40);
+    const { crowd, tint } = makeCrowd(46, venue.dress);
     hb.crowd = crowd; hb.tint = tint;
-    hb.interior = new Interior(run, run.def.interior.door, (g) => { buildBox(g, fx); for (const m of crowd.meshes) g.add(m); });
-    // the people: the band on the stage, the crowd, the player front and centre (long hair, of course)
-    const hd = BOX.d / 2, sz = -hd + BOX.stageD;
+    hb.interior = new Interior(run, run.def.interior.door, (g) => { buildVenue(g, fx, venue); for (const m of crowd.meshes) g.add(m); });
+    // the people: the act on the stage, the crowd, the player front and centre
+    const room = roomLayout(venue.room), { sz } = room;
     hb.rigs = [];
-    const add = (rig, x, z, yaw, y, role) => { hb.rigs.push({ rig, x, z, yaw, y, role, phase: Math.random(), energy: 0.6 + Math.random() * 0.4, jump: 0 }); return rig; };
+    const add = (rig, x, z, yaw, y, role) => { hb.rigs.push({ rig, x, z, yaw, y, role, phase: Math.random(), energy: 0.6 + Math.random() * 0.4, jump: 0, arms: hb.rigs.length % 3, left: Math.random() < 0.5 }); return rig; };
     const ground = (y) => () => y;
-    for (const [x, zOff] of [[-2.2, -0.6], [0, -0.55], [2.2, -0.6]]) add(metalhead(false), x, sz + zOff - 0.6, 0, BOX.stageH, 'band');
-    add(metalhead(false), 0, -hd + 1.75, 0, BOX.stageH + 0.4, 'drums');
-    const rows = [[sz + 1.9, [-4.5, -3.3, -1.1, 1.1, 2.3, 3.6, 4.7]], [sz + 3.0, [-5, -3.8, -2.6, -1.5, 1.4, 2.7, 3.9, 5]], [sz + 4.3, [-4.3, -2.9, -1.6, -0.2, 1.3, 2.6, 4.1]], [sz + 5.7, [-3.4, -1.9, 0.6, 2.0, 3.6]]];
-    for (const [z, xs] of rows) for (const x of xs) {
+    venue.performers(add, room);
+    for (const [z, xs] of venue.rows(sz)) for (const x of xs) {
       if (x > 0.4 && x < 2.9 && z > sz + 2.4) continue; // (the camera looks over the player's shoulder from there)
-      add(metalhead(), x + (Math.random() - 0.5) * 0.3, z + (Math.random() - 0.5) * 0.4, Math.PI + (Math.random() - 0.5) * 0.4, 0, 'crowd');
+      add(venue.punter(), x + (Math.random() - 0.5) * 0.3, z + (Math.random() - 0.5) * 0.4, Math.PI + (Math.random() - 0.5) * 0.4, 0, 'crowd');
     }
-    hb.player = add(new PersonRig({ seed: 0.137, hair: 1, girth: 1.02 }), 0, sz + 1.9, Math.PI, 0, 'player');
+    hb.player = add(venue.playerRig(), 0, sz + 1.9, Math.PI, 0, 'player');
     for (const r of hb.rigs) r.rig.reset(r.x, r.z, r.yaw, ground(r.y));
     hb.ground = ground;
     hb.hud.hidden = false;
-    hb.t0 = performance.now() + 1400; // (the fade, a breath, then the drummer counts in)
-    run.state.game = createHeadbang();
+    hb.t0 = performance.now() + 1400; // (the fade, a breath, then the count-in)
+    run.state.game = createHeadbang(hb.rhythm);
     run.state.inside = true;
   },
   songTime(run, stamp = performance.now()) { return (stamp - run.hb.t0) / 1000; },
@@ -531,7 +849,7 @@ const HEADBANG_FEATURE = {
     const hb = run.hb, g = run.state.game;
     if (!g || g.done || run.phase !== 'running' && run.phase !== 'ready') return;
     const t = HEADBANG_FEATURE.songTime(run, stamp) - hb.band.latency;
-    if (t < -BEAT_S) return;
+    if (t < -hb.rhythm.beat) return;
     const r = headbangTap(g, t);
     hb.nodAt = performance.now();
     HEADBANG_FEATURE.judge(run, r.grade);
@@ -566,33 +884,21 @@ const HEADBANG_FEATURE = {
     if (t > -0.3 && !g.done) hb.band.pump(t);
   },
   after(run, ctx, dt) {
-    const hb = run.hb;
+    const hb = run.hb, venue = hb.venue, rhythm = hb.rhythm;
     if (!hb.interior || run.phase === 'aborted') return;
     const g = run.state.game;
     const t = HEADBANG_FEATURE.songTime(run);
     const now = performance.now();
-    const playing = g && t >= 0 && t < HEADBANG_LENGTH - HEADBANG.tail;
-    const beatPhase = ((t / BEAT_S) % 1 + 1) % 1;
-    const halfTime = playing && /Intro|Breakdown/.test(hb.band.sectionAt(Math.floor(t / BEAT_S)));
-    const phase2 = (((t / (BEAT_S * (halfTime ? 2 : 1))) % 1) + 1) % 1;
-    const hype = g ? Math.min(1, 0.35 + g.combo / 24) : 0.3;
-    const cheering = now - hb.cheerAt < 1500 || (g?.done && run.phase === 'done');
+    const playing = g && t >= 0 && t < rhythm.length - rhythm.tail;
+    const beatPhase = ((t / rhythm.beat) % 1 + 1) % 1;
+    const halfTime = playing && /Intro|Breakdown/.test(hb.band.sectionAt(Math.floor(t / rhythm.beat)));
+    const phase = (((t / (rhythm.beat * (halfTime ? 2 : 1))) % 1) + 1) % 1;
+    const s = { now, playing, phase, hype: g ? Math.min(1, 0.35 + g.combo / 24) : 0.3, cheering: now - hb.cheerAt < 1500 || (g?.done && run.phase === 'done'), tapAge: (now - hb.nodAt) / 1000 };
     // the figures
     hb.crowd.begin();
     for (const r of hb.rigs) {
-      const air = (r.role === 'crowd' && cheering) ? Math.max(0, Math.sin((now / 1000) * 7 + r.phase * 6)) * 0.25 : 0;
-      r.rig.update(dt, r.x, r.z, r.yaw, hb.ground(r.y), null, air);
-      let a = 0;
-      if (r.role === 'player') {
-        const s = (now - hb.nodAt) / 1000;
-        a = s < 0.07 ? (s / 0.07) * 0.85 : 0.85 * Math.exp(-(s - 0.07) / 0.11);
-        a -= 0.08;
-      } else if (playing) {
-        const p = (phase2 + r.phase * 0.08) % 1;
-        const amp = (r.role === 'crowd' ? 0.55 * hype * r.energy : 0.8) * (r.role === 'drums' ? 0.5 : 1);
-        a = amp * Math.pow(Math.max(0, Math.cos(p * Math.PI * 2)), 3) - 0.1;
-      }
-      nod(r.rig, a, r.role === 'band' ? Math.sin(now / 900 + r.phase * 5) * 0.12 : 0);
+      r.rig.update(dt, r.x, r.z, r.yaw, hb.ground(r.y), null, venue.dance.air(r, s));
+      venue.dance.pose(r, s);
       hb.crowd.add(r.rig, 0);
     }
     hb.crowd.end();
@@ -603,8 +909,9 @@ const HEADBANG_FEATURE = {
       b.rotation.x = 0.35 + Math.sin(now / 900 + i) * 0.25;
       b.userData.level.value = (playing ? 0.14 + 0.2 * Math.pow(1 - beatPhase, 3) : 0.08) + (flash ? 0.25 : 0);
     });
-    const c = playing ? new THREE.Color().setHSL((0.83 + Math.sin(now / 2400) * 0.12 + 1) % 1, 0.8, 0.5) : new THREE.Color(0x6a5a8a);
-    hb.tint.value.copy(c).multiplyScalar(0.35 + (playing ? 0.35 * Math.pow(1 - beatPhase, 2) : 0.1) + (flash ? 0.3 : 0)).addScalar(0.22);
+    venue.animate?.(hb.fx, { now, playing, beatPhase, beatIndex: Math.floor(Math.max(0, t) / rhythm.beat) });
+    const c = playing ? new THREE.Color().setHSL(venue.hue(now), 0.8, 0.5) : new THREE.Color(0x6a5a8a);
+    hb.tint.value.copy(c).multiplyScalar(0.35 + (playing ? 0.35 * Math.pow(1 - beatPhase, 2) : 0.1) + (flash ? 0.3 : 0)).addScalar(venue.glow);
     // the camera: behind the player's right shoulder, the stage ahead
     const p = hb.player;
     const x = hb.rigs.find((r) => r.rig === p);
@@ -627,8 +934,8 @@ const HEADBANG_FEATURE = {
       for (; k < hb.notes.length; k++) hb.notes[k].hidden = true;
       const sc = g.score.toLocaleString('en-US');
       if (hb.score.textContent !== sc) hb.score.textContent = sc;
-      const left = Math.max(0, HEADBANG_LENGTH - Math.max(0, t));
-      const line = t < 0 ? 'Get ready … the drummer counts in' : `×${headbangMultiplier(g.combo)} · streak ${g.combo} · ${Math.ceil(left)} s`;
+      const left = Math.max(0, rhythm.length - Math.max(0, t));
+      const line = t < 0 ? venue.countIn : `×${headbangMultiplier(g.combo)} · streak ${g.combo} · ${Math.ceil(left)} s`;
       if (hb.sub.textContent !== line) hb.sub.textContent = line;
     }
     if (run.phase === 'done' || run.phase === 'failed') hb.hud.hidden = true;
