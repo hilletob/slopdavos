@@ -288,6 +288,18 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(-g * 0.4, g * 0.85); ctx.lineTo(-g * 0.4, -g * 0.8); ctx.lineTo(g * 0.1, -g * 0.8); ctx.arc(g * 0.1, -g * 0.3, g * 0.5, -Math.PI / 2, Math.PI / 2); ctx.lineTo(-g * 0.4, g * 0.2); ctx.stroke();
       break;
     }
+    case 'flame': { // a Flämmli: the flame over its glass (js/missions-data-gastro.js)
+      ctx.beginPath(); ctx.moveTo(0, -g * 1.05); ctx.bezierCurveTo(g * 0.75, -g * 0.35, g * 0.4, g * 0.15, 0, g * 0.15); ctx.bezierCurveTo(-g * 0.4, g * 0.15, -g * 0.75, -g * 0.35, 0, -g * 1.05); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.3); ctx.lineTo(g * 0.45, g * 0.3); ctx.lineTo(g * 0.32, g * 1.0); ctx.lineTo(-g * 0.32, g * 1.0); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'pizza': { // a slice: the crust, the point, the salami
+      ctx.beginPath(); ctx.moveTo(0, g * 1.0); ctx.lineTo(-g * 0.85, -g * 0.55); ctx.quadraticCurveTo(0, -g * 1.05, g * 0.85, -g * 0.55); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = def.colour || '#e4572e';
+      for (const [x, y] of [[-0.28, -0.32], [0.3, -0.38], [0.02, 0.2]]) { ctx.beginPath(); ctx.arc(g * x, g * y, g * 0.17, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#fff';
+      break;
+    }
     case 'skateboard': { // the bowl's curve and a board over its lip
       ctx.lineWidth = g * 0.16;
       ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.1); ctx.quadraticCurveTo(-g * 0.9, g * 0.85, 0, g * 0.85); ctx.quadraticCurveTo(g * 0.9, g * 0.85, g * 0.95, -g * 0.1); ctx.stroke();

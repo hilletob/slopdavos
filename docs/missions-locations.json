@@ -1909,6 +1909,89 @@
    "unsicherheit": "niedrig",
    "unsicherheitNotiz": "Platz real; Felder und Gasse aus dem Layout von js/parking.js, nicht aus der Luftbilderkennung.",
    "nr": 45
+  },
+  {
+   "id": "flaemmli-rot-liechtli",
+   "status": "bestehend",
+   "name": "Flämmli im Rot Liechtli",
+   "kurz": "Zu Fuss in den Pub, an der Bar 6 Runden Flämmli mit einem Knopf: bestellen, anzünden, im richtigen Moment ausblasen, trinken. Mit jedem Glas schwankt die Sicht mehr und die Zeitfenster werden enger. Drei Missgeschicke und der Wirt macht Schluss. Medaille nach Punkten.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Start an der Berglistutz, wenige Meter vor der Tür (Davos Platz)",
+   "ort": {
+    "name": "Rot Liechtli, Davos Platz",
+    "x": -588.8,
+    "z": 284.9,
+    "lv95": {
+     "E": 2781911,
+     "N": 1185215
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM n599407075 · js/missions-data-local.js BEER_STOPS (Tür, Strasse)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lage aus OSM; Innenraum frei erfunden.",
+   "nr": 46
+  },
+  {
+   "id": "pizza-heaven",
+   "status": "bestehend",
+   "name": "Pizza Heaven: belegen und ausliefern",
+   "kurz": "Im Laden 4 Pizzas nach Bon belegen (Reihenfolge, Tempo, keine Fehlgriffe), dann mit dem VW T3 an 4 Adressen liefern (Mechanik der Bierlieferung: parken, Schachtel aus dem Heck, zur Tür tragen). Der Hitzebalken fällt, heisse Pizzas geben mehr Punkte. Medaille nach Punkten.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "VW T3 + zu Fuss",
+   "anreise": "Pin an der Promenade 60 (Davos Platz), der Wagen steht davor",
+   "ort": {
+    "name": "Pizza Heaven, Promenade 60, 7270 Davos Platz",
+    "x": -559.1,
+    "z": -173.4,
+    "lv95": {
+     "E": 2781941,
+     "N": 1185673
+    }
+   },
+   "punkte": [
+    {
+     "name": "Eisstadion, Talstrasse 41",
+     "x": -195.5,
+     "z": -252.3,
+     "lv95": {
+      "E": 2782305,
+      "N": 1185752
+     }
+    },
+    {
+     "name": "Kongresszentrum, Talstrasse 49a",
+     "x": 148.2,
+     "z": -505.5,
+     "lv95": {
+      "E": 2782648,
+      "N": 1186006
+     }
+    },
+    {
+     "name": "Hotel Seehof, Promenade 159",
+     "x": 707.1,
+     "z": -1505.6,
+     "lv95": {
+      "E": 2783207,
+      "N": 1187006
+     }
+    },
+    {
+     "name": "Museumstrasse 2, Davos Dorf",
+     "x": 1012.2,
+     "z": -1362.1,
+     "lv95": {
+      "E": 2783513,
+      "N": 1186862
+     }
+    }
+   ],
+   "quelle": "davos.ch und graubuenden.ch (Pizza Heaven, Der Pizzakurier: Promenade 60) · swisstopo Gebäudeadressen (api3.geo.admin.ch)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
+   "nr": 47
   }
  ]
 }

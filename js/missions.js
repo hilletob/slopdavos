@@ -22,6 +22,7 @@ import { LOCAL_FEATURES } from './missions-local.js';
 import { WORK_FEATURES } from './missions-work.js';
 import { SPORT_FEATURES } from './missions-sport.js';
 import { RESORT_FEATURES } from './missions-resort.js';
+import { GASTRO_FEATURES } from './missions-gastro.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -935,3 +936,5 @@ Object.assign(FEATURES, WORK_FEATURES);
 Object.assign(FEATURES, SPORT_FEATURES);
 // the T-bar at the Hauptertäli, the waxing bench at Hofmänner, the marshal on the Jakobshorn car park (js/missions-resort.js)
 Object.assign(FEATURES, RESORT_FEATURES);
+// (js/missions-gastro.js: Flämmli in the Rot Liechtli, Pizza Heaven)
+Object.assign(FEATURES, GASTRO_FEATURES);
