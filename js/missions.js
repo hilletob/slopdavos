@@ -20,6 +20,7 @@ import { MINE_FEATURES } from './missions-mine.js';
 import { LOCAL_FEATURES } from './missions-local.js';
 import { WORK_FEATURES } from './missions-work.js';
 import { SPORT_FEATURES } from './missions-sport.js';
+import { GASTRO_FEATURES } from './missions-gastro.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -931,3 +932,5 @@ Object.assign(FEATURES, LOCAL_FEATURES);
 Object.assign(FEATURES, WORK_FEATURES);
 // Davos Nordic's skis and race, minigolf, darts, the skate bowl (js/missions-sport.js)
 Object.assign(FEATURES, SPORT_FEATURES);
+// (js/missions-gastro.js: Flämmli in the Rot Liechtli, Pizza Heaven)
+Object.assign(FEATURES, GASTRO_FEATURES);
