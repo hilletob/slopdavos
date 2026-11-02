@@ -1807,6 +1807,39 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Wald real (TLM); Pilzkontrolle am Waldrand fiktiv (die echte Pilzkontrolle ist im Ort).",
    "nr": 41
+  },
+  {
+   "id": "apres-bolgenschanze",
+   "status": "bestehend",
+   "name": "Après-Ski in der Bolgenschanze",
+   "kurz": "Après-Ski-Party im Nachtclub Bolgenschanze: dasselbe Rhythmus-Spiel wie in der BOX, aber mit DJ-Set (House, 126 BPM, Off-Beats) und einer hüpfenden Menge in bunten Skijacken. Medaille nach Punkten.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Pin auf der Skistrasse vor dem Club (Davos Platz), zu Fuss zur Tür",
+   "ort": {
+    "name": "Bolgenschanze, Skistrasse, Davos Platz",
+    "x": -333,
+    "z": 275,
+    "lv95": {
+     "E": 2782167,
+     "N": 1185225
+    }
+   },
+   "punkte": [
+    {
+     "name": "Eingang Bolgenschanze",
+     "x": -338.4,
+     "z": 273,
+     "lv95": {
+      "E": 2782162,
+      "N": 1185227
+     }
+    }
+   ],
+   "quelle": "OSM node 321757376 (tools/data/cache/osm_davos_shops.json, amenity=nightclub) · js/missions-data-fun.js BOLGEN_MISSION",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Node liegt im Gebäude an der Skistrasse; Türpunkt an dessen Ostwand zur Strasse geschätzt. Innenraum und Party fiktiv.",
+   "nr": 42
   }
  ]
 }

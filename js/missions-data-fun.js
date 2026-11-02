@@ -1,18 +1,20 @@
 // js/missions-data-fun.js
-// Four "fun" missions (js/missions-data.js spreads FUN_MISSIONS into MISSIONS; js/missions-fun.js has their runtime:
+// The "fun" missions (js/missions-data.js spreads FUN_MISSIONS into MISSIONS; js/missions-fun.js has their runtime:
 // the interiors, the mini games' input, camera, sound and HUD). Like js/missions-data.js: no three.js and no DOM in
 // here, so that tests/missions-fun.test.mjs drives the games' logic with synthetic frames. (Nothing is imported from
 // js/missions-data.js: it imports this module, and a cycle would leave FUN_MISSIONS undefined there.)
 //
 //  - headbang-box: a headbang contest in the BOX Davos (Bahnhofstrasse 19, Davos Dorf), at night. A rhythm game on a
 //    synthetic metal beat at 140 BPM: a tap on the beat nods the player's head; perfect / good / miss, a combo, 60 s.
+//  - apres-bolgenschanze: the same game at the Bolgenschanze (the nightclub on the Skistrasse, Davos Platz), an après-ski
+//    party on a winter evening: a DJ's house track at 126 BPM with off-beats to hit, a crowd in ski jackets that jumps.
 //  - foosball-la-onda: table football in the Bar La Onda (Davos Platz). 2D physics in the table: the ball, four rods a
 //    team with their men, the cushions and the goals, an AI opponent; first to 5 goals.
 //  - gondola-tetris: the Jakobshornbahn's big cabin at the valley station (Davos Platz), packed like Tetris: the
 //    passengers and their gear come in at the door as pieces, the player slides, turns and drops them; 100 s.
 //  - rhb-driver: drive the RhB from Davos Wolfgang to Davos Platz to the timetable: on time, at the stop board, within
 //    the speed limits, the doors open 20 s at every stop.
-// All four are scored by points (scoreMode: 'points', js/missions-progress.js): def.score(state) is the run's score
+// All of them are scored by points (scoreMode: 'points', js/missions-progress.js): def.score(state) is the run's score
 // and def.medals the lowest score for each medal.
 
 export const FUN_SCORE_MODE = 'points';
@@ -56,9 +58,9 @@ export const HEADBANG = {
   countIn: 4, // beats before the first note (the drummer's sticks)
   perfect: 0.05, // s either side of the beat
   good: 0.12,
-  points: { perfect: 100, good: 50 },
-  comboStep: 8, // every 8 hits in a row one more ×, up to ×4
-  maxMultiplier: 4,
+  points: { perfect: 250, good: 150 },
+  comboStep: 6, // every 6 hits in a row one more ×, up to ×5
+  maxMultiplier: 5,
   tail: 1.6 // s after the last note until the song ends
 };
 export const BEAT_S = 60 / HEADBANG.bpm;
@@ -89,15 +91,31 @@ export function headbangChart(song = HEADBANG_SONG, { bpm = HEADBANG.bpm, countI
   return notes;
 }
 
-export const HEADBANG_CHART = headbangChart();
-export const HEADBANG_LENGTH = HEADBANG_CHART[HEADBANG_CHART.length - 1].t + HEADBANG.tail; // ≈ 60 s
-
 export const headbangMultiplier = (combo) => Math.min(HEADBANG.maxMultiplier, 1 + Math.floor(combo / HEADBANG.comboStep));
 
+/** A song ready to play: its tempo, its notes, how long it runs, what it can score */
+export function createRhythm(song, { bpm = HEADBANG.bpm, countIn = HEADBANG.countIn, tail = HEADBANG.tail } = {}) {
+  const chart = headbangChart(song, { bpm, countIn });
+  return { song, bpm, beat: 60 / bpm, countIn, tail, chart, length: chart[chart.length - 1].t + tail, max: headbangMaxScore(chart) };
+}
+
+/** The song's section at a beat (from 0): its name, 'count' before the first note, 'end' after the last bar */
+export function rhythmSection(rhythm, beat) {
+  let b = beat - rhythm.countIn;
+  if (b < 0) return 'count';
+  for (const part of rhythm.song) { if (b < part.bars * 4) return part.name; b -= part.bars * 4; }
+  return 'end';
+}
+
+export const HEADBANG_RHYTHM = createRhythm(HEADBANG_SONG);
+export const HEADBANG_CHART = HEADBANG_RHYTHM.chart;
+export const HEADBANG_LENGTH = HEADBANG_RHYTHM.length; // ≈ 60 s
+
 /** A fresh contest */
-export function createHeadbang(chart = HEADBANG_CHART) {
+export function createHeadbang(rhythm = HEADBANG_RHYTHM) {
+  const { chart, length } = rhythm;
   return {
-    chart, next: 0, judged: new Uint8Array(chart.length), // 0 open, 1 perfect, 2 good, 3 miss
+    chart, length, next: 0, judged: new Uint8Array(chart.length), // 0 open, 1 perfect, 2 good, 3 miss
     score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, miss: 0, stray: 0, last: null, lastAt: -1e9, t: 0, done: false
   };
 }
@@ -149,7 +167,7 @@ export function headbangAdvance(game, t) {
     }
     game.next++;
   }
-  if (t >= HEADBANG_LENGTH) game.done = true;
+  if (t >= game.length) game.done = true;
   return game;
 }
 
@@ -159,55 +177,115 @@ export function headbangMaxScore(chart = HEADBANG_CHART) {
   for (let i = 0; i < chart.length; i++) s += HEADBANG.points.perfect * headbangMultiplier(i);
   return s;
 }
-export const HEADBANG_MAX = headbangMaxScore();
+export const HEADBANG_MAX = HEADBANG_RHYTHM.max;
 const roundTo = (v, step) => Math.round(v / step) * step;
+
+// The medals by the share of the song's maximum. A streak breaks with every miss and the multiplier starts over, so the
+// score grows far faster than the hit rate: in a simulation (90 % of the notes hit, a 60 ms spread) a decent player makes
+// about 25 % of the maximum, a good one (96 %, 45 ms) about 54 %, a casual one (75 %, 80 ms) about 13 %. Those three are
+// the medals' players: silver, gold and bronze.
+export const RHYTHM_MEDAL_SHARE = { gold: 0.5, silver: 0.2, bronze: 0.1 };
+export const rhythmMedals = (max) => ({ gold: roundTo(max * RHYTHM_MEDAL_SHARE.gold, 500), silver: roundTo(max * RHYTHM_MEDAL_SHARE.silver, 500), bronze: roundTo(max * RHYTHM_MEDAL_SHARE.bronze, 500) });
+
+/** A rhythm-game mission at a music venue (`venue`: js/missions-fun.js VENUES has its room, act, crowd and dance): the walk
+ *  to `door`, then the song `rhythm`. `action` is the button's word, `tuning` the line before the first note */
+function rhythmMission({ door, doorTitle, doorLabel, stepTitle, tuning, action, ...def }) {
+  return {
+    mode: 'person',
+    features: ['headbang'],
+    scoreMode: FUN_SCORE_MODE,
+    medals: rhythmMedals(def.rhythm.max),
+    interior: { door, facing: def.start.heading },
+    props: [],
+    createState() { return { game: null, inside: false }; },
+    score: (state) => state.game?.score ?? 0,
+    summary(state) {
+      const g = state.game;
+      if (!g) return [];
+      return [`${g.perfect} perfect · ${g.good} good · ${g.miss} missed · best streak ${g.maxCombo}`];
+    },
+    objectives: [
+      walkTo(door, doorTitle, doorLabel),
+      {
+        id: 'bang',
+        title: stepTitle,
+        allowModes: ['person'],
+        check(ctx, state) {
+          const g = state.game;
+          if (!g) return { done: false, progress: 0, text: tuning, target: null, hint: `Space / tap ${action} on the beat` };
+          const left = Math.max(0, g.length - g.t);
+          return {
+            done: g.done,
+            progress: Math.min(1, g.t / g.length),
+            text: `${g.score.toLocaleString('en-US')} pts · streak ${g.combo} · ×${headbangMultiplier(g.combo)} · ${fmtClock(left)}`,
+            target: null,
+            hint: `Space / J / K or ${action} on the beat`
+          };
+        }
+      }
+    ],
+    ...def
+  };
+}
 
 export const BOX_DOOR = { x: 996.9, z: -1834.6, r: 2.2 }; // the BOX Davos, Bahnhofstrasse 19: its door on the north side
 
-export const HEADBANG_MISSION = {
+export const HEADBANG_MISSION = rhythmMission({
   id: 'headbang-box',
   title: 'Headbang contest at the BOX',
-  intro: 'Metal night at the BOX Davos on the Bahnhofstrasse in Davos Dorf. Go in and bang your head to the band: hit Space (or tap BANG) right on the beat. Perfect hits score double, a streak multiplies your points, the crowd goes wild. One song, 60 seconds.',
-  mode: 'person',
+  intro: 'Metal night at the BOX Davos on the Bahnhofstrasse in Davos Dorf. Go in and bang your head to the band: hit Space (or tap BANG) right on the beat. Perfect hits score more, a streak multiplies your points up to ×5, the crowd goes wild. One song, 60 seconds.',
+  venue: 'box',
   season: null, // all year round
   time: 'midnight',
-  features: ['headbang'],
-  scoreMode: FUN_SCORE_MODE,
-  medals: { gold: roundTo(HEADBANG_MAX * 0.7, 500), silver: roundTo(HEADBANG_MAX * 0.45, 500), bronze: roundTo(HEADBANG_MAX * 0.22, 500) },
   colour: '#d33cff',
   icon: 'music',
   finish: 'The band throws you a pick: what a neck!',
-  interior: { door: BOX_DOOR, facing: Math.PI },
   start: { x: 997.2, z: -1829, heading: Math.PI }, // (on the street a few metres before the door, facing it: the old start lay inside the BOX's footprint)
-  props: [],
-  createState() { return { game: null, inside: false }; },
-  score: (state) => state.game?.score ?? 0,
-  summary(state) {
-    const g = state.game;
-    if (!g) return [];
-    return [`${g.perfect} perfect · ${g.good} good · ${g.miss} missed · best streak ${g.maxCombo}`];
-  },
-  objectives: [
-    walkTo(BOX_DOOR, 'Go into the BOX', 'the BOX'),
-    {
-      id: 'bang',
-      title: 'Headbang on the beat',
-      allowModes: ['person'],
-      check(ctx, state) {
-        const g = state.game;
-        if (!g) return { done: false, progress: 0, text: 'The band is tuning up …', target: null, hint: 'Space / tap BANG on the beat' };
-        const left = Math.max(0, HEADBANG_LENGTH - g.t);
-        return {
-          done: g.done,
-          progress: Math.min(1, g.t / HEADBANG_LENGTH),
-          text: `${g.score.toLocaleString('en-US')} pts · streak ${g.combo} · ×${headbangMultiplier(g.combo)} · ${fmtClock(left)}`,
-          target: null,
-          hint: 'Space / J / K or BANG on the beat'
-        };
-      }
-    }
-  ]
-};
+  rhythm: HEADBANG_RHYTHM,
+  door: BOX_DOOR,
+  doorTitle: 'Go into the BOX',
+  doorLabel: 'the BOX',
+  stepTitle: 'Headbang on the beat',
+  tuning: 'The band is tuning up …',
+  action: 'BANG'
+});
+
+// --- Après-ski at the Bolgenschanze: the DJ's track, the same game ------------------------------------------------------
+// Off-beats to hit after the groove ("tss" between the kicks), a breakdown to breathe in, the snare roll, the drop with a
+// double note in every bar. Beats as in HEADBANG_SONG.
+export const BOLGEN_SONG = [
+  { name: 'Intro', bars: 4, beats: [1, 3] },
+  { name: 'Groove', bars: 6, beats: [1, 2, 3, 4] },
+  { name: 'Off-beats', bars: 4, beats: [1.5, 2.5, 3.5, 4.5] },
+  { name: 'Breakdown', bars: 4, beats: [1, 3] },
+  { name: 'Build-up', bars: 2, beats: [1, 2, 3, 4] },
+  { name: 'Drop', bars: 8, beats: [1, 2, 2.5, 3, 4] },
+  { name: 'Outro', bars: 3, beats: [1, 2, 3, 4] }
+];
+export const BOLGEN_RHYTHM = createRhythm(BOLGEN_SONG, { bpm: 126 });
+
+// OSM n321757376 "Bolgenschanze" (amenity=nightclub) lies inside the building on the Skistrasse; the door on its east wall
+export const BOLGEN_DOOR = { x: -338.4, z: 273, r: 2.2 };
+
+export const BOLGEN_MISSION = rhythmMission({
+  id: 'apres-bolgenschanze',
+  title: 'Après-ski at the Bolgenschanze',
+  intro: 'Last run done, boots still on: the après-ski party at the Bolgenschanze on the Skistrasse in Davos Platz. Go in and jump with the crowd: hit Space (or tap JUMP) right on the beat, and when the DJ goes to the off-beats, between the kicks. Perfect hits score more, a streak multiplies your points up to ×5. One track, 60 seconds.',
+  venue: 'bolgen',
+  season: 'winter',
+  time: 'evening',
+  colour: '#ff8a1f',
+  icon: 'discoball',
+  finish: 'The DJ hands you the mic and the whole hut sings: legend of the Schanze!',
+  start: { x: -333, z: 275, heading: -1.93 }, // (on the Skistrasse, the door ahead)
+  rhythm: BOLGEN_RHYTHM,
+  door: BOLGEN_DOOR,
+  doorTitle: 'Go into the Bolgenschanze',
+  doorLabel: 'the Bolgenschanze',
+  stepTitle: 'Jump on the beat',
+  tuning: 'The DJ is lining up the track …',
+  action: 'JUMP'
+});
 
 // =====================================================================================================================
 // 2. Table football: the physics in the table (metres; x along the table, the player's goal at -x; y across)
@@ -933,4 +1011,4 @@ export const RHB_MISSION = {
   objectives: RHB_DRIVE.stops.map(rhbStopObjective)
 };
 
-export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION, RHB_MISSION];
+export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION, RHB_MISSION, BOLGEN_MISSION];

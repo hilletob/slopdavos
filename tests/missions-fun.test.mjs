@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  FUN_MISSIONS, HEADBANG, HEADBANG_CHART, HEADBANG_LENGTH, HEADBANG_MAX, BEAT_S, createHeadbang, headbangTap, headbangAdvance, gradeOffset, headbangMultiplier, headbangMaxScore,
+  FUN_MISSIONS, HEADBANG, HEADBANG_CHART, HEADBANG_LENGTH, HEADBANG_MAX, BEAT_S, HEADBANG_RHYTHM, HEADBANG_MISSION, createHeadbang, headbangTap, headbangAdvance, gradeOffset, headbangMultiplier, headbangMaxScore, rhythmSection, rhythmMedals, RHYTHM_MEDAL_SHARE,
+  BOLGEN_MISSION, BOLGEN_RHYTHM, BOLGEN_SONG, BOLGEN_DOOR, seededRandom,
   FOOSBALL, FOOSBALL_RODS, PLAYER_RODS, createFoosball, foosballStep, foosballKick, foosballScore, autoRod, rodRange, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, canPlace, createGondola, gondolaSpawn, gondolaMove, gondolaRotate, gondolaDrop, gondolaStep, gondolaDepart, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, rhbSpeedSections, rhbLimitAt, rhbRunTime, rhbTimetable, rhbStopScore, createRhbDrive, rhbDriveStep, rhbDriveScore
@@ -9,12 +10,14 @@ import {
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
 import { BERGBAHNEN } from '../js/bergbahnen-data.js';
+import { lonLatToWorld } from '../js/davos-frame.js';
+import { DAVOS_DATA } from '../js/davos-geodata.js';
 
-// (js/missions-data-fun.js is three.js-free: the four games' logic runs on synthetic frames here)
+// (js/missions-data-fun.js is three.js-free: the games' logic runs on synthetic frames here)
 
 const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
 
-test('the four fun missions are registered, scored by points, their medals ascending', () => {
+test('the fun missions are registered, scored by points, their medals ascending', () => {
   for (const m of FUN_MISSIONS) {
     assert.equal(getMission(m.id), m, `${m.id} is in MISSIONS`);
     assert.ok(MISSIONS.includes(m));
@@ -27,7 +30,7 @@ test('the four fun missions are registered, scored by points, their medals ascen
       assert.equal(typeof view.text, 'string');
     }
   }
-  assert.deepEqual(FUN_MISSIONS.map((m) => m.id), ['headbang-box', 'foosball-la-onda', 'gondola-tetris', 'rhb-driver']);
+  assert.deepEqual(FUN_MISSIONS.map((m) => m.id), ['headbang-box', 'foosball-la-onda', 'gondola-tetris', 'rhb-driver', 'apres-bolgenschanze']);
   // a score earns its medal (higher is better)
   const def = FUN_MISSIONS[2];
   assert.equal(medalFor(def.medals.gold, def.medals, true), 'gold');
@@ -62,7 +65,7 @@ test('headbang: taps are graded perfect / good / off, missed notes break the str
   const between = (n[2].t + n[3].t) / 2;
   assert.equal(headbangTap(g, between).grade, 'off');
   assert.equal(g.combo, 0);
-  assert.equal(g.score, 150);
+  assert.equal(g.score, HEADBANG.points.perfect + HEADBANG.points.good);
   // a note can only be hit once
   assert.equal(headbangTap(g, n[0].t).grade, 'off');
   // time running past the next notes: missed
@@ -75,8 +78,8 @@ test('headbang: taps are graded perfect / good / off, missed notes break the str
   assert.equal(g.perfect + g.good + g.miss, HEADBANG_CHART.length);
 });
 
-test('headbang: the streak multiplies up to ×4, a perfect run makes the maximum and gold', () => {
-  assert.deepEqual([0, 7, 8, 16, 24, 99].map(headbangMultiplier), [1, 1, 2, 3, 4, 4]);
+test('headbang: the streak multiplies up to ×5, a perfect run makes the maximum and gold', () => {
+  assert.deepEqual([0, 5, 6, 12, 18, 24, 99].map(headbangMultiplier), [1, 1, 2, 3, 4, 5, 5]);
   const g = createHeadbang();
   for (const note of HEADBANG_CHART) { headbangAdvance(g, note.t - 0.01); headbangTap(g, note.t + 0.01); }
   headbangAdvance(g, HEADBANG_LENGTH + 1);
@@ -90,6 +93,97 @@ test('headbang: the streak multiplies up to ×4, a perfect run makes the maximum
   HEADBANG_CHART.forEach((note, i) => { if (i % 2 === 0) { headbangAdvance(h, note.t); headbangTap(h, note.t); } });
   headbangAdvance(h, HEADBANG_LENGTH + 1);
   assert.notEqual(medalFor(h.score, m.medals, true), 'gold');
+});
+
+test('headbang: the same players score at least double what the old rules gave, and earn a better medal', () => {
+  // The old rules: 100 / 50 points, ×4 every 8 hits, gold 29000, silver 18500, bronze 9000
+  const oldScore = (hits) => {
+    let s = 0, combo = 0;
+    for (const grade of hits) {
+      if (!grade) { combo = 0; continue; }
+      s += (grade === 'perfect' ? 100 : 50) * Math.min(4, 1 + Math.floor(combo / 8));
+      combo++;
+    }
+    return s;
+  };
+  const oldMedals = { gold: 29000, silver: 18500, bronze: 9000 };
+  const play = (hitRate, spread, seed) => {
+    const rnd = seededRandom(seed), g = createHeadbang(), hits = [];
+    for (const note of HEADBANG_CHART) {
+      headbangAdvance(g, note.t - 0.13);
+      if (rnd() > hitRate) { hits.push(null); continue; }
+      const off = (rnd() + rnd() + rnd() + rnd() + rnd() + rnd() - 3) * Math.SQRT2 * spread;
+      const r = headbangTap(g, note.t + off);
+      hits.push(r.grade === 'perfect' || r.grade === 'good' ? r.grade : null);
+    }
+    headbangAdvance(g, HEADBANG_LENGTH + 1);
+    return { score: g.score, old: oldScore(hits) };
+  };
+  const median = (list) => list.sort((a, b) => a - b)[list.length >> 1];
+  const m = HEADBANG_MISSION;
+  const runs = (rate, spread) => Array.from({ length: 101 }, (_, i) => play(rate, spread, i + 1));
+  const decent = runs(0.9, 0.06), good = runs(0.96, 0.045), casual = runs(0.75, 0.08);
+  const scoreOf = (list) => median(list.map((r) => r.score)), oldOf = (list) => median(list.map((r) => r.old));
+  assert.ok(scoreOf(decent) >= 2 * oldOf(decent), `decent: ${scoreOf(decent)} against ${oldOf(decent)}`);
+  // the medal goes up with the points: bronze, silver, gold for those who earned nothing, bronze, silver before
+  assert.equal(medalFor(oldOf(casual), oldMedals, true), null);
+  assert.equal(medalFor(scoreOf(casual), m.medals, true), 'bronze');
+  assert.equal(medalFor(oldOf(decent), oldMedals, true), 'bronze');
+  assert.equal(medalFor(scoreOf(decent), m.medals, true), 'silver');
+  assert.equal(medalFor(oldOf(good), oldMedals, true), 'silver');
+  assert.equal(medalFor(scoreOf(good), m.medals, true), 'gold');
+});
+
+test('rhythm games: every song has its medals by the shares of its maximum, ascending', () => {
+  for (const r of [HEADBANG_RHYTHM, BOLGEN_RHYTHM]) {
+    const medals = rhythmMedals(r.max);
+    assert.ok(medals.gold > medals.silver && medals.silver > medals.bronze && medals.bronze > 0);
+    for (const k of ['gold', 'silver', 'bronze']) assert.ok(Math.abs(medals[k] - r.max * RHYTHM_MEDAL_SHARE[k]) <= 250, k);
+    assert.ok(medals.gold <= r.max, 'a perfect run reaches gold');
+  }
+  assert.deepEqual(HEADBANG_MISSION.medals, rhythmMedals(HEADBANG_MAX));
+  assert.deepEqual(BOLGEN_MISSION.medals, rhythmMedals(BOLGEN_RHYTHM.max));
+});
+
+test('Bolgenschanze: a mission of its own at the nightclub, a different song, the same game', () => {
+  const m = BOLGEN_MISSION;
+  assert.equal(getMission('apres-bolgenschanze'), m);
+  assert.deepEqual(m.features, HEADBANG_MISSION.features);
+  assert.notEqual(m.venue, HEADBANG_MISSION.venue);
+  assert.equal(m.icon, 'discoball');
+  assert.ok(m.scoreMode);
+  // the door by the OSM node (n321757376), on the building's wall, the start on the street before it
+  const osm = lonLatToWorld(9.8248179, 46.7933207);
+  assert.ok(Math.hypot(BOLGEN_DOOR.x - osm.x, BOLGEN_DOOR.z - osm.z) < 12, 'by the node');
+  const inRing = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) if ((r[i + 1] > z) !== (r[j + 1] > z) && x < ((r[j] - r[i]) * (z - r[i + 1])) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; return c; };
+  for (const p of [BOLGEN_DOOR, m.start]) assert.ok(!DAVOS_DATA.buildings.some((b) => inRing(p.x, p.z, b.ring)), `(${p.x}, ${p.z}) lies outside the buildings`);
+  assert.ok(Math.hypot(m.start.x - BOLGEN_DOOR.x, m.start.z - BOLGEN_DOOR.z) > BOLGEN_DOOR.r, 'the door is a walk from the start');
+  const ahead = { x: Math.sin(m.start.heading), z: Math.cos(m.start.heading) };
+  assert.ok(ahead.x * (BOLGEN_DOOR.x - m.start.x) + ahead.z * (BOLGEN_DOOR.z - m.start.z) > 4, 'the start faces the door');
+  const enter = m.objectives[0];
+  assert.equal(enter.check(frame({ x: m.start.x, z: m.start.z }), m.createState()).done, false);
+  assert.equal(enter.check(frame({ x: BOLGEN_DOOR.x, z: BOLGEN_DOOR.z }), m.createState()).done, true);
+  // another tempo and another chart, with off-beats, about a minute long too
+  assert.equal(BOLGEN_RHYTHM.bpm, 126);
+  assert.notEqual(BOLGEN_RHYTHM.bpm, HEADBANG_RHYTHM.bpm);
+  assert.ok(BOLGEN_RHYTHM.length > 55 && BOLGEN_RHYTHM.length < 65, `${BOLGEN_RHYTHM.length} s`);
+  assert.ok(BOLGEN_RHYTHM.chart.some((n) => n.beat % 1), 'off-beats to hit');
+  for (let i = 1; i < BOLGEN_RHYTHM.chart.length; i++) assert.ok(BOLGEN_RHYTHM.chart[i].t - BOLGEN_RHYTHM.chart[i - 1].t >= BOLGEN_RHYTHM.beat / 2 - 1e-9);
+  assert.equal(rhythmSection(BOLGEN_RHYTHM, 0), 'count');
+  assert.equal(rhythmSection(BOLGEN_RHYTHM, BOLGEN_RHYTHM.countIn), BOLGEN_SONG[0].name);
+  assert.equal(rhythmSection(BOLGEN_RHYTHM, BOLGEN_RHYTHM.countIn + 1000), 'end');
+  // the whole song played right: the maximum and gold; the contest ends at this song's end, not the BOX's
+  const g = createHeadbang(BOLGEN_RHYTHM);
+  for (const note of BOLGEN_RHYTHM.chart) { headbangAdvance(g, note.t - 0.01); assert.equal(headbangTap(g, note.t + 0.01).grade, 'perfect'); }
+  headbangAdvance(g, BOLGEN_RHYTHM.length - 0.05);
+  assert.equal(g.done, false);
+  headbangAdvance(g, BOLGEN_RHYTHM.length + 0.05);
+  assert.equal(g.done, true);
+  assert.equal(g.score, BOLGEN_RHYTHM.max);
+  assert.equal(medalFor(m.score({ game: g }), m.medals, true), 'gold');
+  const view = m.objectives[1].check(frame(), { game: g });
+  assert.equal(view.done, true);
+  assert.match(view.hint, /JUMP/);
 });
 
 test('table football: the rods, their ranges, the automatic rod', () => {
