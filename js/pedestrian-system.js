@@ -1,7 +1,7 @@
 import { blockAt } from './city-config.js';
 import { surfaceHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import { createPedestrianRoutes } from './pedestrian-routes.js';
-import { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION } from './pedestrians.js';
+import { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION, rollHairstyle } from './pedestrians.js';
 import { QUALITY } from './quality.js';
 
 // Local pedestrian population: connected walks, curb queues, conversations and player avoidance.
@@ -92,7 +92,7 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
         female,
         scale: (female ? 0.91 : 0.97) + hash(i, 4) * 0.1,
         girth: 0.9 + hash(i, 5) * 0.24,
-        hair: female ? (hairRoll < 0.68 ? 1 : 0.3 + hairRoll * 0.25) : hairRoll < 0.08 ? 1 : hairRoll * 0.35,
+        ...rollHairstyle(hairRoll, female),
         armSwing: 0.75 + hash(i, 6) * 0.5,
         stride: 0.94 + hash(i, 7) * 0.12
       })
