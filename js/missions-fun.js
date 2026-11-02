@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, float, positionGeometry, smoothstep, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
+import { HAIRSTYLE, PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';
 import { routePoint } from './rhb-route.js';
 import {
@@ -590,7 +590,12 @@ const DANCES = {
 };
 
 const METAL_ROWS = (sz) => [[sz + 1.9, [-4.5, -3.3, -1.1, 1.1, 2.3, 3.6, 4.7]], [sz + 3.0, [-5, -3.8, -2.6, -1.5, 1.4, 2.7, 3.9, 5]], [sz + 4.3, [-4.3, -2.9, -1.6, -0.2, 1.3, 2.6, 4.1]], [sz + 5.7, [-3.4, -1.9, 0.6, 2.0, 3.6]]];
-const metalhead = (female = Math.random() < 0.35) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, hair: 0.75 + Math.random() * 0.25, girth: 0.95 + Math.random() * 0.2, scale: female ? 0.95 : 1 + Math.random() * 0.06 });
+// Long hair for most in the pit, dreadlocks and mohawks for the rest (a mohawk's sides are shaved, dreadlocks lie close)
+const metalHair = () => {
+  const r = Math.random();
+  return r < 0.2 ? { hairstyle: HAIRSTYLE.DREADS, hair: 0.2 } : r < 0.35 ? { hairstyle: HAIRSTYLE.MOHAWK, hair: 0 } : { hair: 0.75 + Math.random() * 0.25 };
+};
+const metalhead = (female = Math.random() < 0.35) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, ...metalHair(), girth: 0.95 + Math.random() * 0.2, scale: female ? 0.95 : 1 + Math.random() * 0.06 });
 const skier = (female = Math.random() < 0.48) => new PersonRig({ seed: (seedN++ * 0.6180339) % 1, female, hair: female ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3, girth: 0.98 + Math.random() * 0.2, scale: female ? 0.94 + Math.random() * 0.05 : 0.98 + Math.random() * 0.08 });
 
 const VENUES = {

@@ -44,3 +44,26 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(saved.get('slopdavos-language'), 'de');
   assert.equal(buttons[0].pressed, 'true');
 });
+
+test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {
+  setLanguage('de');
+  assert.equal(t('Flämmli in the Rot Liechtli'), 'Flämmli im Rot Liechtli');
+  assert.match(t('Evening in the Rot Liechtli, the little pub in Davos Platz. A Flämmli is a Swiss shot.'), /^Abend im Rot Liechtli/);
+  assert.match(t('Friday night at Pizza Heaven, the Pizzakurier on the Promenade.'), /^Freitagabend im Pizza Heaven/);
+  assert.equal(t('Lift attendant at the Hauptertäli'), 'Liftwart am Hauptertäli');
+  assert.match(t('A sunny day on the Parsenn, and the lift hut’s radio plays a Ländler.'), /^Ein sonniger Tag/);
+  assert.equal(t('Waxing skis at Hofmänner'), 'Skis wachsen bei Hofmänner');
+  assert.match(t('Saturday morning at Sport Hofmänner on the Mattastrasse.'), /^Samstagmorgen/);
+  assert.equal(t('Parking marshal at the Jakobshornbahn'), 'Parkplatzeinweiser bei der Jakobshornbahn');
+  assert.match(t('A bluebird winter morning and half of Davos wants up the Jakobshorn.'), /^Ein Wintermorgen/);
+  assert.equal(t('Après-ski at the Bolgenschanze'), 'Après-Ski in der Bolgenschanze');
+  assert.match(t('Last run done, boots still on: the après-ski party at the Bolgenschanze.'), /SPRINGEN/);
+  assert.match(t('Metal night at the BOX Davos on the Bahnhofstrasse in Davos Dorf.'), /×5/);
+  assert.equal(t('JUMP'), 'SPRINGEN');
+  assert.equal(t('Alight  +45'), 'Es brennt  +45');
+  assert.equal(t('Margherita: flawless!  +160'), 'Margherita: makellos!  +160');
+  assert.equal(t('120 m to the Eisstadion, Talstrasse 41 · 80 % hot'), '120 m bis zum Eisstadion, Talstrasse 41 · 80 % heiss');
+  assert.equal(t('5 skiers up · 1:30 · run of 4'), '5 Skifahrer oben · 1:30 · Serie von 4');
+  assert.equal(t('12 skiers'), '12 Skifahrer');
+  assert.equal(t('pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)'), 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
+});

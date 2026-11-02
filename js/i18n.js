@@ -270,7 +270,131 @@ const pairs = [
   ['A/D aim · hold Space, let go to putt · or drag back from the ball and let go · V overview', 'A/D zielen · Space halten und zum Putten loslassen · oder Ball zurückziehen und loslassen · V Übersicht'],
   ['Mouse / WASD aim · hold Space or the mouse button, let go in the green · phone: touch to aim, swipe up to throw', 'Maus / WASD zielen · Space oder Maustaste halten, im grünen Bereich loslassen · Handy: antippen zum Zielen, nach oben wischen zum Werfen'],
   ['W pump · A/D carve / spin · Space hold: grab · grind: A/D balance, Space drops in', 'W Tempo holen · A/D lenken / drehen · Space halten: Grab · Grind: A/D balancieren, Space zurück in die Bowl'],
+  ['F: get out', 'F: aussteigen'],
+  ['F: get in', 'F: einsteigen'],
+  ['At the bar', 'An der Bar'],
+  ['Order a Flämmli', 'Flämmli bestellen'],
+  ['Pouring …', 'Es wird eingeschenkt …'],
+  ['Light it: bring the lighter over the glass', 'Anzünden: das Feuerzeug über das Glas bringen'],
+  ['Light it', 'Anzünden'],
+  ['The flame: blow it out in the green', 'Die Flamme: im grünen Bereich ausblasen'],
+  ['Blow it out', 'Ausblasen'],
+  ['The glass: down it when the rim is warm, not hot', 'Das Glas: kippen, wenn der Rand warm ist, nicht heiss'],
+  ['Down it', 'Runterkippen'],
+  ['Next round …', 'Nächste Runde …'],
+  ['Too long: the glass cracks!', 'Zu lange: das Glas springt!'],
+  ['Stone cold: a sad sip', 'Eiskalt: ein trauriger Schluck'],
+  ['All 6 down!', 'Alle 6 getrunken!'],
+  ['Ouch: singed fingers!', 'Autsch: angesengte Finger!'],
+  ['Missed the glass', 'Glas verfehlt'],
+  ['It catches at once!', 'Es zündet sofort!'],
+  ['Alight', 'Es brennt'],
+  ['Perfect flame!', 'Perfekte Flamme!'],
+  ['Nice flame', 'Schöne Flamme'],
+  ['Too early: it never got warm', 'Zu früh: es wurde nie warm'],
+  ['Late: that rim is hot', 'Zu spät: der Rand ist heiss'],
+  ['Down in one. Hopp!', 'Auf ex. Hopp!'],
+  ['Down it goes', 'Runter damit'],
+  ['Hot! The lip remembers that', 'Heiss! Die Lippe merkt sich das'],
+  ['Lukewarm by now', 'Schon lauwarm'],
+  ['Flämmli in the Rot Liechtli', 'Flämmli im Rot Liechtli'],
+  ['The red lamp turns gently. Take the Rufbus home: nobody is driving tonight.', 'Die rote Lampe dreht sich sanft. Nimm den Rufbus nach Hause: Heute Abend fährt niemand.'],
+  ['The landlord called time', 'Der Wirt hat Feierabend gerufen'],
+  ['Go into the Rot Liechtli', 'Ins Rot Liechtli gehen'],
+  ['Finding a place at the bar …', 'Platz an der Bar suchen …'],
+  ['Space or the button', 'Space oder die Taste'],
+  ['Tomato', 'Tomate'],
+  ['Basil', 'Basilikum'],
+  ['Ham', 'Schinken'],
+  ['Mushrooms', 'Pilze'],
+  ['Pineapple', 'Ananas'],
+  ['The Pizza Heaven rush', 'Der Ansturm im Pizza Heaven'],
+  ['The last box is at the door, and somebody tips in Rappen.', 'Die letzte Schachtel steht vor der Tür, und jemand gibt Trinkgeld in Rappen.'],
+  ['Go into Pizza Heaven', 'Ins Pizza Heaven gehen'],
+  ['Aprons on …', 'Schürzen an …'],
+  ['Keys 1-8 or tap the toppings, in the ticket\'s order', 'Tasten 1–8 oder Zutaten antippen, in der Reihenfolge auf dem Bon'],
+  ['Deliver to Eisstadion', 'Lieferung ans Eisstadion'],
+  ['Deliver to Kongresszentrum', 'Lieferung ans Kongresszentrum'],
+  ['Deliver to Hotel Seehof', 'Lieferung ans Hotel Seehof'],
+  ['Deliver to Museumstrasse 2', 'Lieferung an die Museumstrasse 2'],
+  ['Lift attendant at the Hauptertäli', 'Liftwart am Hauptertäli'],
+  ['The lunch break: the lane is empty, the Ländler plays on.', 'Mittagspause: Die Spur ist leer, der Ländler spielt weiter.'],
+  ['Go to the loading point', 'Zur Einstiegsstelle gehen'],
+  ['Send them up (2 min)', 'Sie nach oben schicken (2 Min.)'],
+  ['The lift is starting …', 'Der Lift läuft an …'],
+  ['Space / tap: hand over the bar', 'Space / Tippen: Bügel übergeben'],
+  ['Hand over!', 'Übergeben!'],
+  ['Perfect! +2', 'Perfekt! +2'],
+  ['Up they go +2', 'Und hinauf geht es +2'],
+  ['Too early: whoops, down he goes!', 'Zu früh: huch, da fällt er!'],
+  ['Too late: the bar got him!', 'Zu spät: der Bügel hat ihn erwischt!'],
+  ['Empty bar!', 'Leerer Bügel!'],
+  ['Nobody in place yet', 'Noch niemand an der Stelle'],
+  ['Yellow', 'Gelb'],
+  ['Red', 'Rot'],
+  ['Violet', 'Violett'],
+  ['Blue', 'Blau'],
+  ['Green', 'Grün'],
+  ['Waxing skis at Hofmänner', 'Skis wachsen bei Hofmänner'],
+  ['Closing time at the bench: the whole shop smells of wax.', 'Feierabend an der Werkbank: Der ganze Laden riecht nach Wachs.'],
+  ['Go into Sport Hofmänner', 'In Sport Hofmänner gehen'],
+  ['Wax Langlaufski (2:30)', 'Langlaufski wachsen (2:30)'],
+  ['The iron is heating up …', 'Das Bügeleisen heizt auf …'],
+  ['read the board, pick the wax (1-5 or tap)', 'Tafel lesen, Wachs wählen (1–5 oder antippen)'],
+  ['drag the iron, or hold → and keep it in the band', 'Bügeleisen ziehen oder → halten und im Band bleiben'],
+  ['scrape, tip to tail: drag, or hold →', 'abziehen, von der Spitze bis zum Ende: ziehen oder → halten'],
+  ['brush, tip to tail: drag, or hold →', 'bürsten, von der Spitze bis zum Ende: ziehen oder → halten'],
+  ['Parking marshal at the Jakobshornbahn', 'Parkplatzeinweiser bei der Jakobshornbahn'],
+  ['The lot is full, the first cabin is long gone: the marshal gets a coffee.', 'Der Parkplatz ist voll, die erste Gondel längst weg: Der Einweiser bekommt einen Kaffee.'],
+  ['Take your place in the aisle', 'Position in der Gasse einnehmen'],
+  ['Direct the cars (2 min)', 'Die Autos einweisen (2 Min.)'],
+  ['The first cars are turning in …', 'Die ersten Autos biegen ein …'],
+  ['← Left', '← Links'],
+  ['↑ Straight', '↑ Geradeaus'],
+  ['Right →', 'Rechts →'],
+  ['Stop', 'Stopp'],
+  ['Parked +100', 'Geparkt +100'],
+  ['Crooked +40', 'Schräg +40'],
+  ['Blocking the aisle! −80', 'Gasse blockiert! −80'],
+  ['Mind the skiers! −40', 'Achtung, Skifahrer! −40'],
+  ['Too late: he\'ll park crooked', 'Zu spät: Er parkt schräg'],
+  ['Nothing free there!', 'Dort ist nichts frei!'],
+  ['No sign from you: he does as he likes', 'Kein Zeichen von dir: Er macht, was er will'],
+  ['Skiers about to cross!', 'Skifahrer wollen gleich queren!'],
+  ['Skiers coming: hold the car!', 'Skifahrer kommen: Auto anhalten!'],
+  ['Skiers crossing!', 'Skifahrer queren!'],
+  ['Go into the BOX', 'In die BOX gehen'],
+  ['Après-ski at the Bolgenschanze', 'Après-Ski in der Bolgenschanze'],
+  ['The DJ hands you the mic and the whole hut sings: legend of the Schanze!', 'Der DJ gibt dir das Mikro und die ganze Hütte singt: Legende der Schanze!'],
+  ['Go into the Bolgenschanze', 'In die Bolgenschanze gehen'],
+  ['Jump on the beat', 'Im Takt springen'],
+  ['The DJ is lining up the track …', 'Der DJ bereitet den Track vor …'],
+  ['JUMP', 'SPRINGEN'],
+  ['Space / tap JUMP on the beat', 'Space / SPRINGEN im Takt tippen'],
+  ['Space / J / K or JUMP on the beat', 'Space / J / K oder SPRINGEN im Takt'],
+  ['Get ready … the DJ counts in', 'Mach dich bereit … der DJ zählt ein'],
+  ['Get ready … the drummer counts in', 'Mach dich bereit … der Drummer zählt ein'],
+  ['PERFECT', 'PERFEKT'],
+  ['GOOD', 'GUT'],
+  ['MISS', 'DANEBEN'],
+  ['OFF BEAT', 'NEBEN DEM TAKT'],
   ['Tilt', 'Neigung'], ['Auto rod', 'Automatische Stange'], ['GOAL!', 'TOR!'], ['Next', 'Nächste'],
+  ['snow temperature', 'Schneetemperatur'],
+  ['above', 'über'],
+  ['below', 'unter'],
+  ['to', 'bis'],
+  ['pair no.', 'Paar Nr.'],
+  ['too slow: burns', 'zu langsam: verbrennt'],
+  ['even', 'gleichmässig'],
+  ['too fast: no melt', 'zu schnell: schmilzt nicht'],
+  ['iron', 'Bügeleisen'],
+  ['ski', 'Ski'],
+  ['Scrape', 'Abziehen'],
+  ['Brush', 'Bürsten'],
+  ['tip → tail', 'Spitze → Ende'],
+  ['Which wax for this snow?', 'Welches Wachs für diesen Schnee?'],
+  ['Wax', 'Wachs'],
+  ['Iron', 'Bügeln'],
 ];
 
 const enToDe = new Map(pairs);
@@ -292,7 +416,7 @@ const missionIntros = [
   ['Race day on the Jakobshorn', 'Slalomrennen auf dem Jakobshorn: durch jedes rot-blaue Tor und ins Ziel fahren. Mit A/D lenken, W für die Hocke, S zum Bremsen. Ein ausgelassenes Tor gibt Zeitstrafe; zu viele führen zur Disqualifikation.'],
   ['The JatzPark has built', 'Drei Big-Air-Sprünge im JatzPark. Auf dem Anlauf Tempo holen; in der Luft mit A/D drehen, mit W/S einen Flip machen und mit Space einen Grab halten. Aufrecht und in Fahrtrichtung landen. Die Punkte aller drei Sprünge zählen.'],
   ['The bike race of the summer', 'Mountainbike-Abfahrt von der Ischalp nach Bolgen Plaza: 2,7 km und fast 400 Höhenmeter. Alle Checkpoints der Reihe nach durchfahren; bei einer Abkürzung zum ausgelassenen Punkt zurückkehren. Zu enge Kurven bei hohem Tempo führen zum Sturz und kosten fünf Sekunden.'],
-  ['Metal night at the BOX', 'Headbang-Wettbewerb in der BOX Davos. Space oder BANG genau im Takt drücken. Perfekte Treffer zählen doppelt; Serien erhöhen den Multiplikator. Ein Lied, 60 Sekunden.'],
+  ['Metal night at the BOX', 'Metal-Nacht in der BOX Davos an der Bahnhofstrasse in Davos Dorf. Geh hinein und headbange zur Band: Drücke Space (oder tippe BANG) genau im Takt. Perfekte Treffer zählen mehr, eine Serie vervielfacht deine Punkte bis ×5, die Menge dreht durch. Ein Song, 60 Sekunden.'],
   ['The regulars at the Bar La Onda', 'Tischfussball im La Onda: Du spielst Rot von links. Mit W/S oder der Maus die Stange beim Ball bewegen, mit 1–4 eine Stange wählen und mit Q zur Automatik zurückkehren. Space oder Klick schiesst. Auf dem Handy ziehen und SHOOT tippen. Wer zuerst fünf Tore erzielt, gewinnt.'],
   ['Rush hour at the valley station', 'Die Jakobshorn-Gondel wie bei Tetris füllen. Mit ←/→ oder A/D verschieben, mit ↑/W drehen, mit S oder Space abwerfen und mit E oder Enter die Gondel losschicken. Volle Reihen bringen Bonuspunkte, Lücken kosten Punkte. Auf dem Handy wischen und tippen. 100 Sekunden.'],
   ['Take the Capricorn from Davos Wolfgang', 'Den RhB-Capricorn von Davos Wolfgang nach Davos Platz fahren. In Davos Dorf und Kongress/Eisstadion fahrplanmässig anhalten, mit der Zugspitze an der Markierung stoppen, die Türen 20 Sekunden offen lassen und Tempolimits beachten. W gibt Gas, S bremst.'],
@@ -313,7 +437,24 @@ const missionIntros = [
   ['The nine red Eternit lanes', 'Neun Minigolfbahnen beim Hotel Waldhuus. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schlagen loslassen. Auf dem Handy den Ball wie bei einer Schleuder zurückziehen. Maximal sieben Schläge pro Bahn; ein Ball im Graben kostet einen Schlag. 20 Schläge oder weniger ergeben Gold.'],
   ['The Green Wildman, the Irish pub', 'Darts im Green Wildman: 301 Double Out mit möglichst wenigen Pfeilen. Mit Maus oder W/A/S/D zielen, Space oder Maustaste zum Ausholen halten und im grünen Bereich loslassen. Auf dem Handy auf die Scheibe tippen und nach oben wischen. Der letzte Wurf muss ein Doppel oder Bullseye sein. Höchstens 45 Pfeile.'],
   ["The Schüssla in the Färich", '60 Sekunden in der Schüssla skaten. W gibt Tempo, A/D lenkt. Über die Kante springen: A/D dreht, Space hält einen Grab. Langsam am Rand entlang für einen Grind; mit A/D balancieren, mit Space zurück in die Bowl. Tricks in kurzer Folge bilden Combos; ein Sturz löscht die Combo.'],
+  ['Evening in the Rot Liechtli', 'Abend im Rot Liechtli, dem kleinen Pub in Davos Platz. Ein Flämmli ist ein Schweizer Shot: ein Glas Schnaps, angezündet, ausgeblasen und getrunken. Geh hinein und setz dich an die Bar. Dann folgen sechs Runden mit einer einzigen Taste (Space, Enter oder Tippen): bestellen, anzünden, wenn das Feuerzeug über dem Glas ist, ausblasen, solange die Flamme im grünen Bereich ist, und kippen, wenn der Rand abgekühlt ist. Jeder Drink macht die Fenster enger und bringt den Raum zum Schwanken. Nach drei Pannen ruft der Wirt Feierabend. Du gehst heute Abend übrigens zu Fuss nach Hause.'],
+  ['Friday night at Pizza Heaven', 'Freitagabend im Pizza Heaven, dem Pizzakurier an der Promenade, und der Kurier hat sich krankgemeldet. Steig aus dem Lieferwagen (F) und geh in den Laden: Belege vier Pizzas mit den Zutaten auf dem Bon, in der angegebenen Reihenfolge (Tasten 1–8 oder Antippen), schnell und ohne falsche Zutat. Dann bring sie zu vier Adressen vom Eisstadion bis Davos Dorf: parken, die Schachtel hinten aus dem Lieferwagen nehmen und zur Tür tragen. Der Wärmebalken sinkt ab dem Moment, in dem die Pizzas den Laden verlassen, und heisse Pizzas zahlen sich aus.'],
+  ['A sunny day on the Parsenn', 'Ein sonniger Tag auf dem Parsenn, und im Radio der Liftbude läuft ein Ländler. Du bist der Liftwart am Hauptertäli-Bügellift: Die Skifahrer kommen paarweise die Spur herauf, und du reichst ihnen den Bügel genau dann, wenn er ankommt. Drücke Space (oder tippe), wenn der Bügel die grüne Markierung erreicht. Zu früh oder zu spät wirft er einen Skifahrer um (sie lachen es weg); tust du nichts, schwingt er leer nach oben. Der Andrang wächst: Der Chef dreht den Lift hoch. Zwei Minuten: Wie viele Skifahrer bringst du hinauf?'],
+  ['Saturday morning at Sport Hofmänner', 'Samstagmorgen bei Sport Hofmänner an der Mattastrasse: Die Langläufer wollen ihre Langlaufski gewachst haben. Lies die Schneetemperatur auf der Tafel ab und wähle das Wachs nach seiner Farbe (Tasten 1–5 oder Antippen). Bügle es in einem gleichmässigen Zug pro Ski auf, von der Spitze bis zum Ende: Zieh das Bügeleisen oder halte → / D und halte das Tempo im grünen Band. Zu langsam oder ein heisses Bügeleisen, das stillsteht, verbrennt den Belag. Dann abziehen und bürsten, von der Spitze bis zum Ende (ziehen oder → halten). Zweieinhalb Minuten: Es zählt die Qualität, aber auch die Anzahl Paare.'],
+  ['A bluebird winter morning', 'Ein Wintermorgen mit Kaiserwetter, und halb Davos will aufs Jakobshorn. In deiner Warnweste dirigierst du den Parkplatz Jakobshornbahn: Jedes Auto rollt die Gasse auf dich zu, und du winkst es nach links, rechts oder geradeaus (← → ↑ oder die Tasten) dorthin, wo grüne Pfeile freie Plätze zeigen. Winkst du rechtzeitig, parkt es gerade ein; zu spät, und es parkt schräg; ohne Zeichen macht der Fahrer, was er will, vielleicht quer über die Gasse. Wenn Skifahrer direkt vor deinen Füssen queren, halte das Auto an (↓ / Space) und winke es hinter ihnen durch. Zwei Minuten.'],
+  ['Last run done, boots still on', 'Letzte Abfahrt geschafft, die Skischuhe noch an: Après-Ski-Party in der Bolgenschanze an der Skistrasse in Davos Platz. Geh hinein und spring mit der Menge: Drücke Space (oder tippe SPRINGEN) genau im Takt, und wenn der DJ zu den Off-Beats wechselt, zwischen den Kicks. Perfekte Treffer zählen mehr, eine Serie vervielfacht deine Punkte bis ×5. Ein Track, 60 Sekunden.'],
 ];
+// Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
+const placeDe = new Map([
+  ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
+  ['the Bolgenschanze', ['zur Bolgenschanze', 'in die Bolgenschanze']], ['the BOX', ['zur BOX', 'in die BOX']],
+  ['the loading point', ['zur Einstiegsstelle', '']], ['your place', ['zu deinem Platz', '']],
+  ['the Eisstadion, Talstrasse 41', ['zum Eisstadion, Talstrasse 41', '']],
+  ['the Kongresszentrum, Talstrasse 49a', ['zum Kongresszentrum, Talstrasse 49a', '']],
+  ['the Hotel Seehof, Promenade 159', ['zum Hotel Seehof, Promenade 159', '']],
+  ['Museumstrasse 2, Davos Dorf', ['zur Museumstrasse 2, Davos Dorf', '']]
+]);
+const POP = '((?:  [+\\-−]?\\d+)?)'; // a feedback popup's points, after two spaces
 const sourceText = new WeakMap();
 const sourceAttributes = new WeakMap();
 const translatedText = new WeakMap();
@@ -334,6 +475,42 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
+  dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
+  dynamic = dynamic.replace(/(\d+) % hot\b/g, '$1 % heiss');
+  const popped = /^(\S.*?)(  [+\-−]?\d+)$/.exec(dynamic);
+  if (popped && enToDe.has(popped[1])) dynamic = enToDe.get(popped[1]) + popped[2];
+  dynamic = dynamic.replace(new RegExp(`^Not yet: (.+) next${POP}$`), (_, top, tail) => `Noch nicht: zuerst ${enToDe.get(top) || top}${tail}`);
+  dynamic = dynamic.replace(new RegExp(`^(.+): in the oven${POP}$`), '$1: ab in den Ofen$2');
+  dynamic = dynamic.replace(new RegExp(`^(.+): flawless!${POP}$`), '$1: makellos!$2');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) Flämmli down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Flämmli getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
+  dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
+  dynamic = dynamic.replace(/^Round (\d+) of (\d+) · (\d+) pts · (\d+)\/(\d+) mishaps$/, 'Runde $1 von $2 · $3 Pkt. · $4/$5 Pannen');
+  dynamic = dynamic.replace(/^Top (\d+) pizzas$/, 'Belege $1 Pizzas');
+  dynamic = dynamic.replace(/^Pizza (\d+) of (\d+) · (\d+) pts$/, 'Pizza $1 von $2 · $3 Pkt.');
+  dynamic = dynamic.replace(/^Pizza (\d+) of (\d+): (.+) for (.+)$/, 'Pizza $1 von $2: $3 für $4');
+  dynamic = dynamic.replace(/^Park here and get out \(F\) · (.+)$/, 'Hier parken und aussteigen (F) · $1');
+  dynamic = dynamic.replace(/^The van is (.+?) away: drive closer( · .+)?$/, (_, d, rest) => `Der Lieferwagen ist ${d} entfernt: näher fahren${rest || ''}`);
+  dynamic = dynamic.replace(/^Take the box from the back of the van( · .+)?$/, (_, rest) => `Schachtel hinten aus dem Lieferwagen nehmen${rest || ''}`);
+  dynamic = dynamic.replace(/^Handing over … (.+)$/, 'Übergabe … $1');
+  dynamic = dynamic.replace(/^Carry the box to the door · (.+)$/, 'Schachtel zur Tür tragen · $1');
+  dynamic = dynamic.replace(/^Hot pizzas (\d+) % · (\d+)\/(\d+) delivered · (\d+) pts( · carrying a box)?$/, (_, h, a, b, p, box) => `Heisse Pizzas ${h} % · ${a}/${b} geliefert · ${p} Pkt.${box ? ' · Schachtel in den Armen' : ''}`);
+  dynamic = dynamic.replace(/^(\d+) pairs up · (\d+) perfect hand-overs · best run (\d+) · (\d+) knocked over · (\d+) empty bars$/, '$1 Paare hinauf · $2 perfekte Übergaben · beste Serie $3 · $4 umgeworfen · $5 leere Bügel');
+  dynamic = dynamic.replace(/^(\d+) skiers up · (\d+:\d{2})(?: · run of (\d+))?$/, (_, n, clock, run) => `${n} Skifahrer oben · ${clock}${run ? ` · Serie von ${run}` : ''}`);
+  dynamic = dynamic.replace(/^(?:skier|skiers) up · (\d+) s · rope ([\d.]+) m\/s( · next pair ready| · moving up …)?( · kids: careful!)?$/, (_, s, rope, state, kids) => `Skifahrer oben · ${s} s · Seil ${rope} m/s${state ? (state.includes('ready') ? ' · nächstes Paar bereit' : ' · fährt hoch …') : ''}${kids ? ' · Kinder: Vorsicht!' : ''}`);
+  dynamic = dynamic.replace(/^(\d+) pairs waxed · (.+)$/, (_, n, rest) => `${n} Paare gewachst · ${rest === 'no pair finished' ? 'kein Paar fertig' : rest}`);
+  dynamic = dynamic.replace(/^(\d+) pts · (\d+) pairs · (\d+:\d{2})$/, '$1 Pkt. · $2 Paare · $3');
+  dynamic = dynamic.replace(/^pts · (\d+) pairs · (\d+) s · (.+)$/, (_, n, s, stage) => `Pkt. · ${n} Paare · ${s} s · ${enToDe.get(stage) || stage}`);
+  dynamic = dynamic.replace(/^(Close, but|Wrong:) (.+) was the wax$/, (_, kind, wax) => `${kind === 'Wrong:' ? 'Falsch:' : 'Knapp daneben:'} ${enToDe.get(wax) || wax} wäre das richtige Wachs gewesen`);
+  dynamic = dynamic.replace(/^(\d+) cars parked well · (\d+) crooked · (\d+) blockers · (\d+) close calls$/, '$1 Autos gut geparkt · $2 schräg · $3 blockiert · $4 Beinahe-Unfälle');
+  dynamic = dynamic.replace(/^(\d+) pts · (\d+) parked · (\d+:\d{2})$/, '$1 Pkt. · $2 geparkt · $3');
+  dynamic = dynamic.replace(/^pts · (\d+) good · (\d+) crooked · (\d+) blocking · (\d+) s · (.+)$/, (_, good, crooked, blocking, s, hand) => {
+    const place = hand.replace(/^held \((\d+) s\)$/, 'angehalten ($1 s)').replace(/^(\d+) m to the line$/, '$1 m bis zur Linie').replace(/^no car in sight$/, 'kein Auto in Sicht');
+    return `Pkt. · ${good} gut · ${crooked} schräg · ${blocking} blockiert · ${s} s · ${place}`;
+  });
+  dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
+  dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
   dynamic = dynamic.replace(/^Loading swissBUILDINGS3D (\d+\/\d+)…$/, 'swissBUILDINGS3D wird geladen $1 …');
   dynamic = dynamic.replace(/^Previous launch stopped at: (.+)$/, 'Letzter Start abgebrochen bei: $1');
   dynamic = dynamic.replace(/ · last shader #/, ' · letzter Shader #');

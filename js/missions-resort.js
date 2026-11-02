@@ -5,6 +5,7 @@ import { LIFT_CONTROLS } from './bergbahnen.js';
 import { lotBays } from './parking.js';
 import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-models.js';
 import { ParticleBatch } from './missions-fx.js';
+import { t } from './i18n.js';
 import {
   TBAR, TBAR_LIFT_ID, tbarStep, tbarHandOver, tbarTimeTo, tbarSpeed, tbarFrontReady, createTbarGame,
   LAENDLER, LAENDLER_TEMPO, midiHz, thirdBelow, laendlerLevel,
@@ -655,23 +656,23 @@ function drawBench(c, wx, b) {
   c.fillStyle = '#10261b'; c.beginPath(); c.roundRect(20, 14, 208, 136, 10); c.fill();
   c.strokeStyle = '#7a5a34'; c.lineWidth = 5; c.stroke();
   c.fillStyle = '#d9efe2'; c.textAlign = 'center'; c.font = '700 13px Inter, sans-serif'; c.fillText(`Loipe ${p.loipe}`, 124, 40);
-  c.fillText('snow temperature', 124, 60);
+  c.fillText(t('snow temperature'), 124, 60);
   c.font = '900 56px Inter, sans-serif'; c.fillStyle = '#fff'; c.fillText(`${p.temp > 0 ? '+' : p.temp < 0 ? '−' : ''}${Math.abs(p.temp)}°`, 124, 120);
   // the wax chart on the wall
   WAXES.forEach((w, i) => {
     const y = 18 + i * 27;
     c.fillStyle = w.colour; c.beginPath(); c.roundRect(244, y, 36, 22, 5); c.fill();
     c.fillStyle = '#fff'; c.textAlign = 'left'; c.font = '700 13px Inter, sans-serif';
-    c.fillText(`${w.name}  ${i === 0 ? `above ${w.to}°` : i === WAXES.length - 1 ? `below ${w.from}°` : `${w.from}° to ${w.to}°`}`, 288, y + 16);
+    c.fillText(`${t(w.name)}  ${i === 0 ? `${t('above')} ${w.to}°` : i === WAXES.length - 1 ? `${t('below')} ${w.from}°` : `${w.from}° ${t('to')} ${w.to}°`}`, 288, y + 16);
   });
   // the customer
   c.fillStyle = '#ffe9b0'; c.textAlign = 'right'; c.font = '800 15px Inter, sans-serif'; c.fillText(p.customer, WW - 20, 40);
-  c.font = '600 12px Inter, sans-serif'; c.fillStyle = 'rgba(255,255,255,.8)'; c.fillText(`pair no. ${p.id}`, WW - 20, 58);
+  c.font = '600 12px Inter, sans-serif'; c.fillStyle = 'rgba(255,255,255,.8)'; c.fillText(`${t('pair no.')} ${p.id}`, WW - 20, 58);
   const stage = ['wax', 'iron', 'scrape', 'brush'];
   stage.forEach((s, i) => {
     const on = s === p.stage, done = stage.indexOf(p.stage) > i;
     c.fillStyle = on ? '#ffe14f' : done ? '#7dffb0' : 'rgba(255,255,255,.35)';
-    c.fillText(s[0].toUpperCase() + s.slice(1), WW - 20, 84 + i * 18);
+    c.fillText(t(s[0].toUpperCase() + s.slice(1)), WW - 20, 84 + i * 18);
   });
   // the skis
   p.skis.forEach((cells, i) => drawSki(c, SKI_Y[i], cells, p, p.stage === 'iron' ? p.ski === i : true, p.wax));
@@ -691,10 +692,10 @@ function drawBench(c, wx, b) {
     c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(S(hi), 372, 490 - S(hi), 14);
     c.fillStyle = '#fff'; c.fillRect(S(Math.abs(p.v)) - 2, 368, 4, 22);
     c.font = '700 12px Inter, sans-serif'; c.textAlign = 'center';
-    c.fillText('too slow: burns', 212, 408); c.fillText('even', (S(lo) + S(hi)) / 2, 408); c.fillText('too fast: no melt', 440, 408);
-    c.textAlign = 'left'; c.fillText(`iron ${Math.round(110 + (heat - 0.85) * 120)}°`, 20, 384);
+    c.fillText(t('too slow: burns'), 212, 408); c.fillText(t('even'), (S(lo) + S(hi)) / 2, 408); c.fillText(t('too fast: no melt'), 440, 408);
+    c.textAlign = 'left'; c.fillText(`${t('iron')} ${Math.round(110 + (heat - 0.85) * 120)}°`, 20, 384);
     const pct = Math.round((skiMelted(p.skis[p.ski])) * 100);
-    c.fillText(`ski ${p.ski + 1}/2 · ${pct}%`, 512, 384);
+    c.fillText(`${t('ski')} ${p.ski + 1}/2 · ${pct}%`, 512, 384);
   } else if (p.stage === 'scrape' || p.stage === 'brush') {
     const yTop = SKI_Y[0] - 16, yBot = SKI_Y[1] + SKI_H + 16;
     if (p.stage === 'scrape') { c.fillStyle = 'rgba(180,220,255,.85)'; c.beginPath(); c.roundRect(toolX - 9, yTop, 18, yBot - yTop, 4); c.fill(); }
@@ -704,7 +705,7 @@ function drawBench(c, wx, b) {
     }
     c.fillStyle = '#fff'; c.font = '700 14px Inter, sans-serif'; c.textAlign = 'center';
     const n = p.stage === 'scrape' ? `${Math.round((1 - p.excess) * 100)}% of the wax off` : `${Math.round(p.shine * 100)}% brushed`;
-    c.fillText(`${p.stage === 'scrape' ? 'Scrape' : 'Brush'} tip → tail · ${n}`, WW / 2, 390);
+    c.fillText(`${t(p.stage === 'scrape' ? 'Scrape' : 'Brush')} ${t('tip → tail')} · ${n}`, WW / 2, 390);
     c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(SKI_X0, 402, SKI_X1 - SKI_X0, 6);
     c.fillStyle = '#7dffb0'; c.fillRect(SKI_X0, 402, (SKI_X1 - SKI_X0) * clamp(p.pass, 0, 1), 6);
   } else {
@@ -714,14 +715,14 @@ function drawBench(c, wx, b) {
       c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.roundRect(r.x + 3, r.y + 4, r.w, r.h, 9); c.fill();
       c.fillStyle = w.colour; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, 9); c.fill();
       c.fillStyle = i === 0 ? '#222' : '#fff'; c.font = '800 15px Inter, sans-serif'; c.textAlign = 'center';
-      c.fillText(`${i + 1} ${w.name}`, r.x + r.w / 2, r.y + 34);
+      c.fillText(`${i + 1} ${t(w.name)}`, r.x + r.w / 2, r.y + 34);
     });
     c.fillStyle = '#fff'; c.font = '700 14px Inter, sans-serif'; c.textAlign = 'center';
-    c.fillText('Which wax for this snow?', WW / 2, 342);
+    c.fillText(t('Which wax for this snow?'), WW / 2, 342);
   }
   if (wx.pop) {
     c.font = '900 24px Inter, sans-serif'; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.65)'; c.strokeText(wx.pop.text, WW / 2, 178);
-    c.fillStyle = wx.pop.good ? '#ffe14f' : '#ff8a7a'; c.fillText(wx.pop.text, WW / 2, 178);
+    c.fillStyle = wx.pop.good ? '#ffe14f' : '#ff8a7a'; c.fillText(t(wx.pop.text), WW / 2, 178);
   }
 }
 
