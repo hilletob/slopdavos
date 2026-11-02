@@ -6,7 +6,7 @@ import { createObstacleGrid } from './obstacle-grid.js';
 import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
-import { surfaceHeight, deckHeight, groundHeight, roadTunnelAt, ROAD_TOP } from './terrain.js';
+import { surfaceHeight, deckHeight, groundHeight, roadTunnelAt, getLandwasserTunnel, ROAD_TOP } from './terrain.js';
 import { QUALITY, skipped } from './quality.js';
 import {
   BODY_SPECS,
@@ -114,6 +114,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // =========================================================================
   const network = buildRoadNetwork(sidewalks, obstacles, signalIntersections);
   const { nodes, edges, connector, curvePoint } = network;
+  const landwasser = getLandwasserTunnel();
 
   // Sides of an intersection (road-network.js step 9): a grid intersection's are 0 east, 1 west, 2 south, 3 north;
   // centreline junctions number their arms from 4. Where lane i of edge e meets a crosswalk, measured along the
@@ -134,6 +135,20 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     e.to.road[e.inSide] = e.from.road[e.outSide] = e;
     e.through = 0; // vehicles from e crossing e.to straight on or to the right
     e.lefts = 0; // and to the left
+    // e.tunnel: a street under a mountain (no sidewalks to walk there, and its height is not the ground's)
+    const midX = e.x0 + e.dx * e.span / 2, midZ = e.z0 + e.dz * e.span / 2;
+    e.tunnel = !!roadTunnelAt(midX, midZ);
+    e.noBikes = e.tunnel && !!landwasser.project(midX, midZ, 6, true);
+  }
+  // Cyclists keep out of the 2.8 km Landwassertunnel. They can't overtake or be overtaken on its
+  // single lanes, and with no other street near, the vehicle pool fills it: at 4.5-7 m/s they held all traffic to their
+  // pace. The road leading only to it is no way for them either (chooseMove, spawnVehicle).
+  for (let found = true; found;) {
+    found = false;
+    for (const e of edges) {
+      if (e.noBikes || e.moves.length !== 1 || !e.moves[0].to.noBikes) continue;
+      e.noBikes = found = true;
+    }
   }
   // Is the intersection box held by vehicles of any road but group g's?
   const boxBusy = (n, g) => {
@@ -589,12 +604,13 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(viewProjection);
   }
-  // Could the camera see a sphere of radius r around ground point (x, z)? Side planes only: the near and far
-  // planes depend on depth conventions, and the side planes alone already rule out everything behind the camera.
-  // Side planes of the view frustum at 1 m above the ground at (x, z)
-  function visible(x, z, r) {
+  // Could the camera see a sphere of radius r, 1 m above the level `y` something stands on at (x, z)? Without a level,
+  // the ground: not for a vehicle on a road, whose level can be a bridge above it or a tunnel 160 m below (elevate).
+  // Side planes only: the near and far planes depend on depth conventions, and the side planes alone already rule out
+  // everything behind the camera.
+  function visible(x, z, r, y = groundHeight(x, z)) {
     if (!hasView) return false;
-    const y = groundHeight(x, z) + 1;
+    y += 1;
     for (let k = 0; k < 4; k++) {
       const { normal, constant } = frustum.planes[k];
       if (normal.x * x + normal.y * y + normal.z * z + constant < -r) return false;
@@ -602,14 +618,15 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     return true;
   }
 
-  function nearView(x, z, radius, distance) {
-    return hasView && Math.hypot(x - camX, camY - groundHeight(x, z), z - camZ) < distance && visible(x, z, radius);
+  function nearView(x, z, radius, distance, y = groundHeight(x, z)) {
+    return hasView && Math.hypot(x - camX, camY - y, z - camZ) < distance && visible(x, z, radius, y);
   }
 
   // Edges and signalized intersections around the focus, to place vehicles and pedestrians on
   let nearX = Infinity;
   let nearZ = Infinity;
   let capacity = Infinity; // vehicles the lanes around the focus take (VEHICLE_SPACING)
+  let bikeRoad = true; // is any of those lanes open to cyclists?
   function refreshNear() {
     if (Math.hypot(focusX - nearX, focusZ - nearZ) < 40) return;
     nearX = focusX;
@@ -617,12 +634,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     nearEdges.length = 0;
     nearSignals.length = 0;
     let laneMetres = 0;
+    bikeRoad = false;
     for (const e of edges) {
       const s = clamp((focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz, 0, e.len);
       const dx = e.sx + e.dx * s - focusX, dz = e.sz + e.dz * s - focusZ;
       if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) {
         nearEdges.push(e);
         laneMetres += e.len * e.lanes.length;
+        if (!e.noBikes) bikeRoad = true;
       }
     }
     capacity = Math.max(12, Math.floor(laneMetres / VEHICLE_SPACING));
@@ -759,6 +778,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       } else if (Math.abs(nearestLane(m, v.lane) - v.lane) * 22 > e.len - v.s) {
         w *= 0.02; // too little road left to change lanes for it
       }
+      if (v.bike && m.to.noBikes) w = 0; // (unless it is the only way on: see the retiring in update)
       weights[k] = w;
       total += w;
     }
@@ -1526,13 +1546,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // current height. A
   // vehicle (re)appearing starts on a deck only if its whole street lies on the bridge; otherwise the street passes
   // under it (the Hardbrücke spans several). `slope`: the pitch of the street over the vehicle's length.
+  function appearLevel(e, x, z) {
+    const onDeck = !!e && [0, 0.5, 1].every((t) => Number.isFinite(deckHeight(e.x0 + e.dx * e.span * t, e.z0 + e.dz * e.span * t)));
+    const tunnel = e && e.tunnel && roadTunnelAt(x, z);
+    return tunnel ? tunnel.y : surfaceHeight(x, z, onDeck ? Infinity : -Infinity);
+  }
   function elevate(v, half) {
-    if (v.y === undefined) {
-      const e = v.edge;
-      const onDeck = !!e && [0, 0.5, 1].every((t) => Number.isFinite(deckHeight(e.x0 + e.dx * e.span * t, e.z0 + e.dz * e.span * t)));
-      const tunnel = e && roadTunnelAt(e.x0 + e.dx * e.span / 2, e.z0 + e.dz * e.span / 2) && roadTunnelAt(v.x, v.z);
-      v.y = (tunnel ? tunnel.y : surfaceHeight(v.x, v.z, onDeck ? Infinity : -Infinity)) + ROAD_TOP;
-    } else v.y = surfaceHeight(v.x, v.z, v.y) + ROAD_TOP;
+    if (v.y === undefined) v.y = appearLevel(v.edge, v.x, v.z) + ROAD_TOP;
+    else v.y = surfaceHeight(v.x, v.z, v.y) + ROAD_TOP;
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
     const front = surfaceHeight(v.x + fx * half, v.z + fz * half, v.y), back = surfaceHeight(v.x - fx * half, v.z - fz * half, v.y);
     v.slope = Math.atan2(back - front, 2 * half);
@@ -1550,7 +1571,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   function spawnVehicle(v, rMin, rMax, protectView) {
     for (let attempt = 0; attempt < 12; attempt++) {
       const e = nearEdges[Math.floor(Math.random() * nearEdges.length)];
-      if (!e || (v.bus && e.axis !== 'ave') || e.len < 2 * v.half + 10) continue;
+      if (!e || (v.bus && e.axis !== 'ave') || (v.bike && e.noBikes) || e.len < 2 * v.half + 10) continue;
       const lane = Math.floor(Math.random() * e.lanes.length);
       const along = (focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz;
       const minS = Math.max(v.half + 5, along - rMax);
@@ -1560,7 +1581,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       const x = e.sx + e.dx * s + e.rx * e.lanes[lane];
       const z = e.sz + e.dz * s + e.rz * e.lanes[lane];
       const d = Math.hypot(x - focusX, z - focusZ);
-      if (d < rMin || d > rMax || (protectView && nearView(x, z, v.half + 4, VEHICLE_SPAWN_DISTANCE))) continue;
+      if (d < rMin || d > rMax || (protectView && nearView(x, z, v.half + 4, VEHICLE_SPAWN_DISTANCE, appearLevel(e, x, z)))) continue;
       if (player.active && Math.hypot(x - player.x, z - player.z) < 25) continue;
       if (!laneClear(e.occ[lane], s, v.half + 8)) continue;
       if (nearTramBody(x, z, v.half + 12)) continue;
@@ -1632,7 +1653,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const rawStep = forwardDist / spec.wheelRadius;
     c.wheelSpin = (c.wheelSpin + Math.sign(rawStep) * Math.min(Math.abs(rawStep), 0.48)) % (Math.PI * 2);
     elevate(c, spec.wheelZ); // also off screen, to keep to the level it drives on
-    if (hasView && !visible(c.x, c.z, 18)) return;
+    if (hasView && !visible(c.x, c.z, 18, c.y)) return;
 
     const near = Math.hypot(c.x - focusX, c.z - focusZ) < CAR_PROXY_DISTANCE;
     const bodyInst = near ? bodies[c.bodyType].near : bodies[c.bodyType].far;
@@ -1702,7 +1723,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   function renderBike(b) {
     elevate(b, 0.55);
-    if (hasView && !visible(b.x, b.z, 6)) return;
+    if (hasView && !visible(b.x, b.z, 6, b.y)) return;
     dummy.position.set(b.x, b.y, b.z);
     dummy.rotation.set(b.pitch + b.slope, b.yaw + b.yawOffset, b.roll, 'YXZ');
     dummy.scale.set(1, 1, 1);
@@ -1722,7 +1743,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const rawStep = forwardDist / BUS_SPEC.wheelRadius;
     b.wheelSpin = (b.wheelSpin + Math.sign(rawStep) * Math.min(Math.abs(rawStep), 0.48)) % (Math.PI * 2);
     elevate(b, BUS_SPEC.wheelZ || 3);
-    if (hasView && !visible(b.x, b.z, 22)) return;
+    if (hasView && !visible(b.x, b.z, 22, b.y)) return;
 
     const i = visibleBuses++;
     dummy.position.set(b.x, b.y + 0.018, b.z);
@@ -1923,12 +1944,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
       if (!inService(v)) continue; // (the player's, or left by the player: js/hijack.js)
+      // a cyclist whose only way on was a road closed to them leaves it unseen
+      if (v.bike && v.edge && v.edge.noBikes && !nearView(v.x, v.z, v.half + 4, VEHICLE_SPAWN_DISTANCE, v.y)) v.edge = null;
       const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
       budget--;
       // no room for it on the lanes around here: off the road until others leave (it is far away, or everything is
       // being placed afresh after a jump)
-      if (active >= capacity) { v.edge = null; continue; }
+      if (active >= capacity || (v.bike && !bikeRoad)) { v.edge = null; continue; }
       if (spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump)) active++;
     }
     buildOccupancy();
