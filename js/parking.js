@@ -381,3 +381,13 @@ export function buildParking(scene, region = worldRegion()) {
   if (region.all) console.info(`[parking] ${lots.length} lots (${photographed} with the bays painted in the aerial photo), ${bays.length} bays, ${cars.length} parked cars in ${cells.size} cells`);
   return { group, update, colliders, stats: group.userData.stats };
 }
+
+/** The bays of one lot as buildParking lays them out: [{ x, z, ux, uz, w, l, occupied }] (`occupied`: a parked car stands
+ *  there; the missions' marshal, js/missions-resort.js, sends cars to the free ones) */
+export function lotBays(lotId) {
+  const lot = (PARKING_DATA || []).find((l) => l.id === lotId);
+  if (!lot) return [];
+  const obs = sharedObstacles || (sharedObstacles = obstacles());
+  if (lot.bays?.length) return lot.bays.filter(([x, z]) => !obs.blocked(x, z, false)).map(([x, z, angle, w, l, occupied]) => ({ x, z, ux: Math.sin(angle), uz: Math.cos(angle), w, l, occupied: !!occupied }));
+  return layoutLot(lot, obs).map((b) => ({ ...b, occupied: hash(Math.round(b.x * 10) * 73856093 ^ Math.round(b.z * 10) * 19349663) <= OCCUPANCY }));
+}

@@ -261,6 +261,22 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(g * 0.6, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.6); ctx.closePath(); ctx.fill();
       break;
     }
+    case 'tbar': { // a T-bar hanging from the rope (js/missions-data-resort.js)
+      ctx.lineWidth = g * 0.15;
+      ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.7); ctx.lineTo(g * 0.95, -g * 0.4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -g * 0.55); ctx.lineTo(0, g * 0.6); ctx.moveTo(-g * 0.6, g * 0.6); ctx.lineTo(g * 0.6, g * 0.6); ctx.stroke();
+      break;
+    }
+    case 'wax': { // the waxing iron over a ski
+      ctx.beginPath(); ctx.moveTo(-g * 0.8, g * 0.1); ctx.lineTo(g * 0.7, g * 0.1); ctx.quadraticCurveTo(g * 0.7, -g * 0.55, -g * 0.1, -g * 0.55); ctx.lineTo(-g * 0.4, -g * 0.55); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = g * 0.17; ctx.beginPath(); ctx.moveTo(-g * 0.95, g * 0.6); ctx.lineTo(g * 0.8, g * 0.6); ctx.quadraticCurveTo(g, g * 0.6, g, g * 0.3); ctx.stroke();
+      break;
+    }
+    case 'parking': { // the P of a car park
+      ctx.lineWidth = g * 0.3;
+      ctx.beginPath(); ctx.moveTo(-g * 0.4, g * 0.85); ctx.lineTo(-g * 0.4, -g * 0.8); ctx.lineTo(g * 0.1, -g * 0.8); ctx.arc(g * 0.1, -g * 0.3, g * 0.5, -Math.PI / 2, Math.PI / 2); ctx.lineTo(-g * 0.4, g * 0.2); ctx.stroke();
+      break;
+    }
     case 'skateboard': { // the bowl's curve and a board over its lip
       ctx.lineWidth = g * 0.16;
       ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.1); ctx.quadraticCurveTo(-g * 0.9, g * 0.85, 0, g * 0.85); ctx.quadraticCurveTo(g * 0.9, g * 0.85, g * 0.95, -g * 0.1); ctx.stroke();
