@@ -1840,6 +1840,75 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Node liegt im Gebäude an der Skistrasse; Türpunkt an dessen Ostwand zur Strasse geschätzt. Innenraum und Party fiktiv.",
    "nr": 42
+  },
+  {
+   "id": "tbar-attendant",
+   "status": "bestehend",
+   "name": "Liftwart am Hauptertäli",
+   "kurz": "Bügellift Hauptertäli (Parsenn): den Skifahrerpaaren den Bügel im richtigen Moment reichen, Ländler aus der Lifthütte, das Seil wird schneller. 2 min, Wertung: Skifahrer oben.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Parsenn, Talstation Hauptertäli-Lift (2441 m)",
+   "ort": {
+    "name": "Hauptertäli, Talstation",
+    "x": -2256.9,
+    "z": -3220.6,
+    "lv95": {
+     "E": 2780243,
+     "N": 1188721
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM w51510598 (aerialway=t-bar), n658524654; js/missions-data-resort.js TBAR; Bügel: js/bergbahnen.js",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lift real und im Spiel; Lifthütte und Warteschlange am Einstieg sind gesetzt.",
+   "nr": 43
+  },
+  {
+   "id": "wax-hofmaenner",
+   "status": "bestehend",
+   "name": "Langlaufski wachsen bei Hofmänner",
+   "kurz": "Wachsbank bei Sport Hofmänner: Schneetemperatur ablesen, Wachs nach Farbe wählen, gleichmässig einbügeln, abziehen, bürsten. 2:30 min, Wertung nach Qualität und Anzahl Paare.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Mattastrasse, Davos Platz",
+   "ort": {
+    "name": "Sport Hofmänner, Mattastrasse",
+    "x": -240.6,
+    "z": 199.5,
+    "lv95": {
+     "E": 2782259,
+     "N": 1185300
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM n4068557218 (shop=sports); js/missions-data-resort.js HOFMAENNER",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Laden real; Eingangstür an der Südseite des Gebäudes geschätzt, Wachsservice im Laden angenommen.",
+   "nr": 44
+  },
+  {
+   "id": "parking-marshal",
+   "status": "bestehend",
+   "name": "Parkplatzeinweiser Jakobshornbahn",
+   "kurz": "Parkplatz Jakobshornbahn am Wintermorgen: jedes Auto mit Gesten links, rechts, geradeaus in eine freie Lücke weisen, für querende Skifahrer anhalten. 2 min, Punkte abzüglich Querparker und Blockierer.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Brämabüelstrasse, Davos Platz",
+   "ort": {
+    "name": "Parkplatz Jakobshornbahn",
+    "x": -487.9,
+    "z": 453,
+    "lv95": {
+     "E": 2782012,
+     "N": 1185047
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM w37349398 (amenity=parking); js/parking.js lotBays; js/missions-data-resort.js MARSHAL",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Platz real; Felder und Gasse aus dem Layout von js/parking.js, nicht aus der Luftbilderkennung.",
+   "nr": 45
   }
  ]
 }

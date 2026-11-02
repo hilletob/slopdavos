@@ -631,6 +631,10 @@ function tbarGeometry() {
   return boxes([[0.06, 3.0, 0.06, 0, -1.5, 0, 0x5c5f63], [1.0, 0.08, 0.08, 0, -3.0, 0, 0x2b2d30], [0.25, 0.25, 0.3, 0, -0.1, 0, 0x2b2d30]]);
 }
 
+// The circulating lifts' handles (r.id -> { clock { t, speed, kick }, count, spacing, loopLen, place(s, out) on the up rope }):
+// js/missions-resort.js drives the T-bar's clock so that the bar in its game is the bar on the rope.
+export const LIFT_CONTROLS = new Map();
+
 function buildRopeways(group) {
   const ropes = [], pylons = [], movers = [];
   const geoms = { cabin: new Map(), gondola: gondolaGeometry(), chair: new Map(), tbar: tbarGeometry() };
@@ -679,8 +683,9 @@ function buildRopeways(group) {
       const speed = LIFT_SPEED(r), occ = r.occupancy || (r.kind === 'gondola' ? 8 : 2), cap = r.capacity || 1000;
       const spacing = Math.max(12, (speed * 3600 * occ) / cap), loopLen = right.len + left.len;
       const count = Math.min(400, Math.floor(loopLen / spacing));
-      const clock = { t: Math.random() * loopLen };
-      movers.push({ update: (dt) => { clock.t = (clock.t + speed * dt) % loopLen; } });
+      const clock = { t: Math.random() * loopLen, speed, kick: null };
+      movers.push({ update: (dt) => { clock.t = (clock.t + clock.speed * dt) % loopLen; } });
+      LIFT_CONTROLS.set(r.id, { clock, count, spacing, loopLen, place: (s, out) => at(right, s, out) });
       const geometry = r.kind === 'gondola' || r.kind === 'mixed_lift' ? geoms.gondola
         : r.kind === 'chair_lift' ? (geoms.chair.get(occ) || (() => { const g = chairGeometry(occ); geoms.chair.set(occ, g); return g; })())
         : geoms.tbar;
@@ -693,7 +698,8 @@ function buildRopeways(group) {
             if (p < right.len) { at(right, p, out); out.down = false; } else { at(left, left.len - (p - right.len), out); out.dx = -out.dx; out.dz = -out.dz; out.down = true; }
             return out;
           },
-          tbar: geometry === geoms.tbar
+          tbar: geometry === geoms.tbar,
+          kick: () => (clock.kick?.index === k ? clock.kick.value : 0)
         });
       }
     }
@@ -749,7 +755,7 @@ function buildRopeways(group) {
         if (en.line) at(en.line, en.s(), probe); else en.place(probe);
         // Hanging plumb, turned along the rope; a tramway cabin swings with its acceleration, the others gently
         const swing = en.sway ? Math.max(-0.08, Math.min(0.08, en.sway() * 0.06)) + Math.sin(time * 0.9 + (en.phase ?? i)) * 0.006 : Math.sin(time * 1.3 + i * 1.7) * 0.02;
-        e.set(swing, Math.atan2(probe.dx, probe.dz), 0);
+        e.set(swing + (en.kick?.() || 0), Math.atan2(probe.dx, probe.dz), 0);
         mesh.setMatrixAt(i, m.compose(pos.set(probe.x, probe.y, probe.z), q.setFromEuler(e), en.tbar && probe.down ? short : one));
       });
       mesh.instanceMatrix.needsUpdate = true;
