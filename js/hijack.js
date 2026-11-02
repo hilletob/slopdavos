@@ -6,6 +6,12 @@
 // player car's physics (js/controllers.js updateCar, with the vehicle's size, mass and handling). Got out of, it stands
 // where the player left it (parked in its own system, drawn with its own instances, solid) until the player is
 // RELEASE_DISTANCE away; then it goes back into service.
+// The cars parked in the car parks (js/parking.js) are empty and can be got into too (no driver, no fist). They have no
+// slot of their own: the player's car wears the parked car's body (its kind, its paint), and for what follows, driving it
+// and leaving it standing, it borrows a traffic car of the same kind out of the pool (the farthest away; borrowVehicle),
+// so that the left-standing logic above holds for it as it is. Meanwhile the bay stands empty (createLotRegistry, kept
+// by bay, not by car: the mobile profile rebuilds the cells of js/parking.js). When a left car goes back into service, the
+// pool car gets its own paint back and the parked car is back in its bay, as soon as the player is away (bayIsClear).
 // Pure data and functions (no three.js), shared by the game and the tests.
 
 /** How close (m) the pedestrian must stand to the outline of a car / bus / bike to take it */
@@ -122,6 +128,101 @@ export function findTakeableBus(player, buses, bodies, { radius = TAKE_RADIUS.bu
     if (d <= radius && d < bestD) { best = { bus: b, index: i }; bestD = d; }
   });
   return best ? { ...best, distance: bestD } : null;
+}
+
+// --- The cars of the car parks (js/parking.js) ------------------------------------------------------------------------
+/** A bay's identity: the same whichever cell build lays it out (bays are deterministic) */
+export const bayKey = (x, z) => `${Math.round(x * 10)},${Math.round(z * 10)}`;
+/** A bay gets its car back only while the player is this far away (m), not to pop up under their nose */
+export const BAY_RETURN_DISTANCE = 40;
+
+/**
+ * The parked cars now built, in a spatial hash, and the bays whose car is in use. Cars ({ key, kind, x, y, z, heading, half,
+ * halfWidth }) come and go with the cells of js/world-stream.js; the taken bays outlive them, so a rebuilt cell knows.
+ */
+export function createLotRegistry({ cell = 16 } = {}) {
+  const grid = new Map(), byKey = new Map(), taken = new Set();
+  const gridKey = (i, j) => (i + 32768) * 65536 + (j + 32768);
+  const cellOf = (car) => gridKey(Math.floor(car.x / cell), Math.floor(car.z / cell));
+  return {
+    add(car) {
+      byKey.set(car.key, car);
+      const k = cellOf(car);
+      const list = grid.get(k);
+      if (list) list.push(car); else grid.set(k, [car]);
+    },
+    remove(car) {
+      if (byKey.get(car.key) === car) byKey.delete(car.key);
+      const k = cellOf(car), list = grid.get(k);
+      const i = list ? list.indexOf(car) : -1;
+      if (i < 0) return;
+      list.splice(i, 1);
+      if (!list.length) grid.delete(k);
+    },
+    get: (key) => byKey.get(key) || null,
+    isTaken: (key) => taken.has(key),
+    take(key) { taken.add(key); },
+    give(key) { taken.delete(key); },
+    get size() { return byKey.size; },
+    /** The nearest parked car within `radius` of the pedestrian (to its outline) and 3 m of height: { car, distance } or null */
+    find(player, { radius = TAKE_RADIUS.car } = {}) {
+      const reach = radius + 3.5; // (+ the longest car's half length: its centre may lie in the next cell)
+      const i0 = Math.floor((player.x - reach) / cell), i1 = Math.floor((player.x + reach) / cell);
+      const j0 = Math.floor((player.z - reach) / cell), j1 = Math.floor((player.z + reach) / cell);
+      let best = null, bestD = Infinity;
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const list = grid.get(gridKey(i, j));
+        if (!list) continue;
+        for (const car of list) {
+          if (taken.has(car.key)) continue;
+          if (Number.isFinite(player.y) && Number.isFinite(car.y) && Math.abs(player.y - car.y) > 3) continue;
+          const d = distanceToBox(car.halfWidth, car.half, car.x, car.z, car.heading, player.x, player.z);
+          if (d <= radius && d < bestD) { best = car; bestD = d; }
+        }
+      }
+      return best ? { car: best, distance: bestD } : null;
+    }
+  };
+}
+
+/**
+ * The traffic car lent to a parked car of this body type: a plain one (no patrol car or taxi, not the player's), one
+ * waiting in the pool if any, else the one farthest from (px, pz). null if the pool has none left.
+ */
+export function pickPoolCar(cars, bodyType, px, pz) {
+  let best = null, bestD = -1;
+  for (const v of cars || []) {
+    if (v.bodyType !== bodyType || v.bus || v.bike || v.isPolice || v.isTaxi || !inService(v)) continue;
+    if (!v.edge) return v;
+    const d = Math.hypot(v.x - px, v.z - pz);
+    if (d > bestD) { best = v; bestD = d; }
+  }
+  return best;
+}
+/** v stands in for the parked car of bay `key`: it wears its paint and is held by the player */
+export function borrowVehicle(v, { key, paint }) {
+  v.lotBay = key;
+  v.ownPaint = v.paint;
+  v.paint = [...paint];
+  return holdVehicle(v);
+}
+/** v goes back to being itself: its own paint again. Returns the bay it stood in for, or null */
+export function endBorrow(v) {
+  const key = v.lotBay || null;
+  if (key) { v.paint = v.ownPaint; v.lotBay = v.ownPaint = null; }
+  return key;
+}
+/**
+ * May the parked car come back to its bay ({ x, z })? Not while the player is near, nor with something standing in it
+ * (`others`: vehicles, with a `position` or x and z).
+ */
+export function bayIsClear(bay, player, others = [], { playerDistance = BAY_RETURN_DISTANCE, gap = 3.5 } = {}) {
+  if (player && Math.hypot(bay.x - player.x, bay.z - player.z) < playerDistance) return false;
+  for (const o of others) {
+    const p = o.position || o;
+    if (Math.hypot(bay.x - p.x, bay.z - p.z) < gap) return false;
+  }
+  return true;
 }
 
 /** Should a vehicle left at (x, z) go back into service, the player being at (px, pz)? */

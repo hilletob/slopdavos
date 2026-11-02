@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   findTakeableCar, findTakeableBike, findTakeableBus, holdVehicle, parkVehicle, releaseVehicle, inService, shouldRelease,
-  missionAllowsTakeover, driveFor, trafficLabel, TAKE_RADIUS, TAKE_MAX_SPEED, RELEASE_DISTANCE
+  missionAllowsTakeover, driveFor, trafficLabel, TAKE_RADIUS, TAKE_MAX_SPEED, RELEASE_DISTANCE,
+  bayKey, createLotRegistry, pickPoolCar, borrowVehicle, endBorrow, bayIsClear, BAY_RETURN_DISTANCE
 } from '../js/hijack.js';
 import {
   clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bellowsRingCount, trailerYaw, solveTrailerAxle, MAX_BEND
@@ -161,4 +162,91 @@ test('the rear car follows its hinge: it straightens out driving on, never bends
   const R = 20, circle = (q) => ({ x: R * Math.sin(q / R), z: R - R * Math.cos(q / R) });
   const h = circle(50), q = solveTrailerAxle(circle, 50, h, 5), a = circle(q);
   assert.ok(Math.abs(Math.hypot(a.x - h.x, a.z - h.z) - 5) < 1e-3);
+});
+
+// --- The cars of the car parks (js/parking.js) --------------------------------------------------------------------------
+// A parked car as js/parking.js has it: heading east, 4.6 m long
+const parkedCar = (over = {}) => {
+  const x = over.x ?? 0, z = over.z ?? 0;
+  return { key: bayKey(x, z), kind: 'sedan', x, y: 0, z, heading: Math.PI / 2, half: 2.3, halfWidth: 0.95, paint: [0.1, 0.2, 0.3], ...over };
+};
+
+test('a parked car is found from beside it, by its outline, at its height, and the nearest of several', () => {
+  const lots = createLotRegistry(), c = parkedCar(), other = parkedCar({ x: 0, z: -6 });
+  lots.add(c); lots.add(other);
+  assert.equal(lots.size, 2);
+  assert.equal(lots.find({ x: 0, z: 0.95 + 2, y: 0 })?.car, c);
+  assert.ok(Math.abs(lots.find({ x: 0, z: 0.95 + 2 }).distance - 2) < 1e-9);
+  assert.equal(lots.find({ x: 0, z: 0.95 + TAKE_RADIUS.car + 0.5 }), null, 'out of reach');
+  assert.equal(lots.find({ x: 2.3 + 2.5, z: 0 })?.car, c, 'off its nose: the outline counts, not the centre');
+  assert.equal(lots.find({ x: 0, z: 2, y: 6 }), null, 'a street above');
+  assert.equal(lots.find({ x: 0, z: -2.5 })?.car, c, 'the nearer one');
+  assert.equal(lots.find({ x: 0, z: -3.6 })?.car, other);
+});
+
+test('the lookup sees across the cells of its grid', () => {
+  // the car's centre in one 16 m cell, the player in the next, on either side of a border and across the origin
+  for (const [cx, px] of [[15.5, 19], [-0.5, 2.5], [0.5, -2.5], [16.5, 13]]) {
+    const lots = createLotRegistry({ cell: 16 }), c = parkedCar({ x: cx, z: 0, heading: 0, half: 2.3, halfWidth: 0.95 });
+    lots.add(c);
+    assert.equal(lots.find({ x: px, z: 0 })?.car, c, `car at ${cx}, player at ${px}`);
+  }
+});
+
+test('a taken bay stays empty when its cell is torn down and built anew, until it is given back', () => {
+  const lots = createLotRegistry(), c = parkedCar();
+  lots.add(c);
+  lots.take(c.key);
+  assert.equal(lots.find({ x: 0, z: 2 }), null, 'no prompt for the car in use');
+  lots.remove(c);
+  assert.equal(lots.get(c.key), null);
+  assert.equal(lots.size, 0);
+  assert.ok(lots.isTaken(c.key), 'the bay outlives the cell');
+  const rebuilt = parkedCar();
+  assert.equal(rebuilt.key, c.key, 'the same bay gets the same key');
+  lots.add(rebuilt);
+  assert.equal(lots.get(c.key), rebuilt);
+  assert.equal(lots.find({ x: 0, z: 2 }), null);
+  lots.give(c.key);
+  assert.equal(lots.find({ x: 0, z: 2 })?.car, rebuilt);
+  // the old cell going after the new one came does not take the new car with it
+  lots.remove(c);
+  assert.equal(lots.get(rebuilt.key), rebuilt);
+});
+
+test('a parked car borrows a plain car of its kind from the pool: an idle one, else the farthest', () => {
+  const idle = car({ edge: null, x: 5, z: 0 }), near = car({ x: 10, z: 0 }), far = car({ x: 900, z: 0 });
+  assert.equal(pickPoolCar([near, far, idle], 'sedan', 0, 0), idle);
+  assert.equal(pickPoolCar([near, far], 'sedan', 0, 0), far);
+  assert.equal(pickPoolCar([near, far], 'suv', 0, 0), null);
+  for (const o of [{ isPolice: true }, { isTaxi: true }, { held: true }, { parked: true }, { bus: true }, { bike: true }]) {
+    assert.equal(pickPoolCar([car(o)], 'sedan', 0, 0), null, JSON.stringify(o));
+  }
+});
+
+test('the borrowed car wears the parked car\'s paint, and gets its own back with its bay handed over', () => {
+  const own = [0.9, 0.9, 0.9], v = car({ paint: own, conn: {} });
+  borrowVehicle(v, { key: '1,2', paint: [0.1, 0.2, 0.3] });
+  assert.ok(v.held && !v.edge && !inService(v), 'held like a taken car');
+  assert.deepEqual(v.paint, [0.1, 0.2, 0.3]);
+  // it stands and is found again like any car left by the player, still knowing its bay
+  parkVehicle(v, { x: 10, z: 0, yaw: 0 });
+  assert.equal(findTakeableCar({ x: 10 + 0.9 + 1, z: 0 }, [v], { parked: true, maxSpeed: Infinity }).car, v);
+  holdVehicle(v);
+  parkVehicle(v, { x: 10, z: 0, yaw: 0 });
+  assert.equal(v.lotBay, '1,2');
+  assert.equal(endBorrow(v), '1,2');
+  assert.equal(v.paint, own);
+  assert.equal(endBorrow(v), null, 'once');
+  assert.equal(endBorrow(car()), null, 'a plain traffic car has no bay');
+});
+
+test('a bay gets its car back with the player away and nothing standing in it', () => {
+  const bay = { x: 0, z: 0 };
+  assert.ok(bayIsClear(bay, { x: BAY_RETURN_DISTANCE + 1, z: 0 }));
+  assert.ok(!bayIsClear(bay, { x: 5, z: 0 }), 'not under the player\'s nose');
+  const away = { x: 500, z: 0 };
+  assert.ok(!bayIsClear(bay, away, [{ position: { x: 1, z: 1 } }]), 'a stand-in or left car in the bay');
+  assert.ok(!bayIsClear(bay, away, [{ x: 1, z: 1 }]));
+  assert.ok(bayIsClear(bay, away, [{ position: { x: 9, z: 1 } }]), 'in the next bay but two');
 });
