@@ -1,5 +1,6 @@
 import { GEO } from './nyc-geodata.js';
 import { lonLatToWorld, lv95ToWorld } from './davos-frame.js';
+import { isDrivableTunnel } from './tunnel-profile.js';
 import { streetCorners, inCornerCut } from './street-corners.js';
 
 // Davos spatial adapter for mrdoob/slop-newyork's engine (via colorfield/slop-zurich and the irregular-city data path of
@@ -25,7 +26,7 @@ const ROOSEVELT_ISLAND_POLYGON=[],GOVERNORS_ISLAND_POLYGON=[],NJ_SHORELINE_POLYG
 const LIBERTY_STATUE_POS={x:0,z:0};
 // The legacy park bounds describe a raised Central Park lawn: Davos has none.
 const CENTRAL_PARK_BOUNDS={minX:-99999,maxX:-99998,minZ:-99999,maxZ:-99998};
-const ROADS=BERLIN_DATA.roads.filter(r=>!r.tunnel).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
+const ROADS=BERLIN_DATA.roads.filter(r=>!r.tunnel||isDrivableTunnel(r.name)).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
 const DRIVABLE=new Set(['motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','residential','unclassified','living_street']);
 const ROAD_DRIVING=ROADS.filter(r=>DRIVABLE.has(r.kind));
 const BERLIN_AREAS=(BERLIN_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
@@ -310,6 +311,11 @@ const NYC_LANDMARKS=[
  ['dorf','Bahnhof Davos Dorf','Davos Dorf',2783393,1187097,'Davos Dorf','Bahnhofstrasse',null],
  ['see','Davosersee · Strandbad','Davosersee',2784149,1187714,'Davos Dorf',null,null],
  ['frauenkirch','Frauenkirch','Frauenkirch',2780246,1182443,'Frauenkirch','Landwasserstrasse','Frauenkirch'],
+ ['glaris','Bahnhof Davos Glaris','Glaris',2778883,1179794,'Glaris',null,null],
+ ['monstein','Davos Monstein','Monstein',2778304,1176103,'Monstein',null,null],
+ ['monstein_bahnhof','Bahnhof Davos Monstein','Bhf. Monstein',2777458,1176483,'Monstein',null,null],
+ ['wiesen','Davos Wiesen','Wiesen',2774088,1175135,'Wiesen',null,null],
+ ['wiesen_bahnhof','Bahnhof Davos Wiesen','Bhf. Wiesen',2774174,1174133,'Wiesen',null,null],
  ['teufi','Dischma · Teufi','Teufi',2786574,1182992,'Dischma','Dischmastrasse',null],
  ['duerrboden','Dürrboden','Dürrboden',2789560,1177880,'Dischma','Dischmastrasse',null],
 ].map(([id,name,short,E,N,district,road,landmark])=>{

@@ -3,6 +3,7 @@
 const terrain = {
   groundHeight: () => 0,
   surfaceHeight: () => 0,
+  cameraGround: () => 0,
   deckHeight: () => NaN,
   deckHalfWidth: () => 3,
   waterSurfaceHeight: () => 0,

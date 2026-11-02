@@ -11,8 +11,8 @@ import {
 //
 // The run: the Rinerhorn sled run (OSM w265318293, relation 3565542 "Davos Rinerhorn", piste:type=sled) from the
 // Jatzmeder (the gondola's top station, 2052 m in swissALTI3D) through the hairpins of the forest road down towards
-// Davos Glaris, 3.3 km in all. The map ends at x = -2900 (js/davos-geodata.js meta.bounds): the race takes the 2.04 km
-// within it, 350 m of drop (17 % on average), the finish at its last hairpin above the Glaris meadows (~1700 m).
+// Davos Glaris, 3.3 km in all. This race uses the original 2.04 km course, 350 m of drop (17 % on average),
+// finishing at its last hairpin above the Glaris meadows (~1700 m); the landscape now continues past that point.
 //
 // The horn sledge (Hornschlitten): the old wooden goods sledge of the Grisons, its runners curving up in front into
 // the two horns the driver holds. The driver sits in front and steers with the body and the feet (dragging a heel

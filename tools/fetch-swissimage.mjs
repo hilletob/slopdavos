@@ -61,7 +61,8 @@ await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
     // World z grows to the south: the chunk's north edge is z0
     const sw = worldToLv95(t.x0, t.z1), ne = worldToLv95(t.x1, t.z0);
     const w = Math.round((t.x1 - t.x0) / t.res), h = Math.round((t.z1 - t.z0) / t.res);
-    const jpg = path.join(CACHE, `${t.i0}-${t.j0}-${t.res}-m${MARGIN}.jpg`);
+    // Cache by geographic extent, not grid index: expanding the frame shifts every index.
+    const jpg = path.join(CACHE, `${t.x0}-${t.z0}-${t.x1}-${t.z1}-${t.res}.jpg`);
     if (!fs.existsSync(jpg)) {
       const params = new URLSearchParams({
         SERVICE: 'WMS', VERSION: '1.3.0', REQUEST: 'GetMap', LAYERS: 'ch.swisstopo.swissimage', STYLES: '', CRS: 'EPSG:2056',

@@ -8,6 +8,9 @@ import { lonLatToWorld, WORLD_BOUNDS } from '../js/davos-frame.js';
 
 const DRIVE = /^(primary|secondary|tertiary|residential|unclassified|living_street|service)(_link)?$/;
 const MAX_LENGTH = 60; // (m) longer ones are real tunnels
+// Checked by hand on the map: this only suits a level yard above the road, not a line on a hillside (the Landwasserstrasse
+// or the Gründjistrasse further down the valley would need a look of their own).
+const BUILT = new Set([75116483]); // the Hofstrasse in Davos Platz
 const isOn = (v) => !!v && v !== 'no';
 const world = (e) => e.geometry.map((p) => lonLatToWorld(p.lon, p.lat));
 const crosses = (a, b, c, d) => {
@@ -24,7 +27,7 @@ export function findUnderpasses(osm) {
   const out = [];
   for (const way of ways) {
     const t = way.tags || {};
-    if (!DRIVE.test(t.highway || '') || !isOn(t.tunnel) || t.tunnel === 'building_passage' || t.access === 'private' || t.access === 'no') continue;
+    if (!BUILT.has(way.id) || !DRIVE.test(t.highway || '') || !isOn(t.tunnel) || t.tunnel === 'building_passage' || t.access === 'private' || t.access === 'no') continue;
     const pts = world(way), a = pts[0], b = pts[pts.length - 1], len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len > MAX_LENGTH || len < 1) continue;
     const [x0, z0, x1, z1] = WORLD_BOUNDS;

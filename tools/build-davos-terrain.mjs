@@ -30,7 +30,8 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 
 // --- 1 km tiles covering the frame (latest acquisition of each), 2 m resolution ----------------------------------------
 const [minE, minN, maxE, maxN] = FRAME.lv95;
-const corners = [[minE, minN], [maxE, minN], [minE, maxN], [maxE, maxN]].map(([e, n]) => lv95ToWgs84(e, n));
+// Bilinear sampling at an exact kilometre boundary needs the previous tile's last pixel.
+const corners = [[minE - 2, minN - 2], [maxE + 2, minN - 2], [minE - 2, maxN + 2], [maxE + 2, maxN + 2]].map(([e, n]) => lv95ToWgs84(e, n));
 const bbox = [
   Math.min(...corners.map((c) => c.lon)), Math.min(...corners.map((c) => c.lat)),
   Math.max(...corners.map((c) => c.lon)), Math.max(...corners.map((c) => c.lat))
@@ -42,7 +43,7 @@ for (let url = `${STAC}?bbox=${bbox}&limit=100`; url;) {
     const m = /_(\d{4})_(\d{4})-(\d{4})$/.exec(f.id);
     if (!m) continue;
     const [, year, e, n] = m;
-    if (+e * 1000 + 1000 <= minE || +e * 1000 >= maxE || +n * 1000 + 1000 <= minN || +n * 1000 >= maxN) continue;
+    if (+e * 1000 + 1000 < minE || +e * 1000 > maxE || +n * 1000 + 1000 < minN || +n * 1000 > maxN) continue;
     const asset = Object.entries(f.assets).find(([k]) => /_2_2056_5728\.tif$/.test(k));
     const key = `${e}-${n}`;
     if (asset && (!latest.has(key) || latest.get(key).year < +year)) latest.set(key, { year: +year, e: +e, n: +n, href: asset[1].href });

@@ -14,6 +14,7 @@ import { drapeTerrainOrthophotos } from './swissimage.js';
 import { buildSurroundings } from './surroundings.js';
 import { buildTrams } from './trams.js';
 import { buildRhB } from './rhb.js';
+import { buildTunnels } from './tunnels.js';
 import { buildVBD } from './vbd.js';
 import { buildLevelCrossings } from './level-crossings.js';
 import { buildLoipen } from './loipen.js';
@@ -32,7 +33,7 @@ import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
-import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks } from './terrain.js';
+import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder } from './world-stream.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
@@ -294,6 +295,7 @@ async function initApp() {
   const trams = skipped('traffic') ? noVehicles() : buildTrams(scene);
   if (world && !skipped('traffic')) world.addBuilder(trackBuilder()); // (the track bed cell by cell round the player, js/world-stream.js)
   const rhb = skipped('rhb') ? noVehicles() : buildRhB(scene);
+  buildTunnels(scene);
   const bergbahnen = skipped('bergbahnen') ? { update: NOOP } : buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
   const vbd = skipped('traffic') ? noVehicles() : buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
   const levelCrossings = skipped('rhb') ? noVehicles() : buildLevelCrossings(scene, rhb); // booms and flashing lights where roads cross the RhB
@@ -1101,6 +1103,7 @@ async function initApp() {
     vbd.update(dt, { player: controllerManager.getActiveEntity().position, barriers: levelCrossings.bodies, camera: cameraSystem.camera.position, traffic: trafficSystem });
     levelCrossings.update(dt);
     controllerManager.update(dt, elapsed);
+    constrainToTunnel(controllerManager.getActiveEntity().position);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
     trafficSystem.update(

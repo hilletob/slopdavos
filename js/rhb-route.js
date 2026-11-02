@@ -3,7 +3,7 @@
 //
 // The tracks are densified and joined where they meet (OSM ways meet at shared nodes, or at a switch in the middle of
 // another way); the line runs between the two track ends nearest the edges of the map, northbound (to Wolfgang and
-// Klosters) and southbound (to Frauenkirch and Filisur). The southbound route is the shortest path; the northbound one
+// Klosters) and southbound (through Wiesen to Filisur). The southbound route is the shortest path; the northbound one
 // avoids the southbound's track where there is another (×1.6 cost), so that in the stations with a passing loop the two
 // directions stand on different tracks. Stations are railway=station/halt nodes within 40 m of both routes (the node often sits on the station building).
 

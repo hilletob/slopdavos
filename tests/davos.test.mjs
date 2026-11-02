@@ -34,6 +34,22 @@ test('the terrain grid covers the frame with plausible Davos heights', () => {
   assert.ok(heightAt(2781000, 1185700) > 1800, 'Schatzalp high above Davos Platz');
   assert.ok(heightAt(2789814, 1177412) > 1950, 'Dürrboden at the head of the Dischma');
   assert.ok(heightAt(2780124, 1182149) < 1530, 'Frauenkirch down the Landwasser');
+  assert.ok(Math.abs(heightAt(FRAME.lv95[0], 1175135) - heightAt(FRAME.lv95[0] + 8, 1175135)) < 40, 'western grid edge has surveyed terrain');
+});
+
+test('Silberberg, Monstein and Wiesen have terrain, roads and orthophotos inside the world', () => {
+  const photos = JSON.parse(fs.readFileSync(new URL('../data/swissimage/index.json', import.meta.url), 'utf8')).tiles;
+  for (const [name, E, N, low, high] of [
+    ['Silberberg', 2776580, 1174338, 1450, 1600],
+    ['Monstein', 2778304, 1176103, 1550, 1700],
+    ['Wiesen', 2774088, 1175135, 1350, 1500]
+  ]) {
+    const { x, z } = lv95ToWorld(E, N);
+    assert.ok(heightAt(E, N) > low && heightAt(E, N) < high, `${name} height`);
+    assert.ok(DAVOS_DATA.roads.some((r) => r.pts.some((v, i) => i % 2 === 0 && Math.hypot(v - x, r.pts[i + 1] - z) < 300)), `${name} roads`);
+    assert.ok(photos.some((t) => x >= t.x0 && x <= t.x1 && z >= t.z0 && z <= t.z1), `${name} orthophoto`);
+  }
+  for (const name of ['Davos Glaris', 'Davos Monstein', 'Davos Wiesen']) assert.ok(DAVOS_DATA.stations.some((s) => s.name === name), name);
 });
 
 test('every bridge has a deck height per point, never below the terrain it spans', () => {
@@ -59,6 +75,63 @@ test('one stands on a bridge, or under it on the ground', async () => {
   assert.ok(high.d - high.g > 4, 'a road bridge well above the ground');
   assert.equal(surfaceHeight(high.x, high.z, high.g), high.g, 'under the bridge');
   assert.equal(surfaceHeight(high.x, high.z, high.d), high.d, 'on the bridge');
+});
+
+test('Landwasser road and RhB trains follow underground tunnel grades', async () => {
+  const { groundHeight, surfaceHeight, getLandwasserTunnel, getRhBTunnels, getRoadTunnels, railTunnelHeight, tunnelOpenRuns, constrainToTunnel, cameraGround, TUNNEL_ROOF } = await import('../js/terrain.js');
+  const road = getLandwasserTunnel();
+  assert.ok(road.length > 2500, 'Landwassertunnel centreline');
+  assert.ok(getRoadTunnels().length >= 4, 'the tunnels of the Landwasserstrasse too');
+  assert.ok(DAVOS_DATA.roadGraph.links.some((l) => DAVOS_DATA.roadGraph.names[l[2]] === 'Landwassertunnel'), 'road tunnel is routable');
+  for (const s of [road.length * 0.25, road.length * 0.5, road.length * 0.75]) {
+    const p = road.at(s);
+    assert.ok(groundHeight(p.x, p.z) > p.y + 5, 'mountain above road');
+    assert.ok(Math.abs(surfaceHeight(p.x, p.z, p.y + 0.11) - p.y) < 0.1, 'car stays underground');
+    assert.ok(Math.abs(cameraGround(p.x, p.z, p.y + 0.11) - p.y) < 0.1, 'the camera follows it down');
+    assert.ok(groundHeight(p.x, p.z) - surfaceHeight(p.x, p.z) < 0.1, 'surface remains accessible');
+    assert.ok(groundHeight(p.x, p.z) - surfaceHeight(p.x, p.z, groundHeight(p.x, p.z)) < 0.1, 'someone on the mountain stays on it');
+    // Against the wall: back between the walls, and still at the tunnel's level
+    const pos = { x: p.x - p.dz * 7, y: p.y + 0.11, z: p.z + p.dx * 7 };
+    assert.equal(constrainToTunnel(pos), true);
+    assert.ok(Math.hypot(pos.x - p.x, pos.z - p.z) <= road.width / 2, 'held by the wall');
+  }
+  // The mouths: an open cut at both ends, the mountain over the roof where it ends
+  for (const t of [road]) {
+    const runs = tunnelOpenRuns(t);
+    assert.ok(runs[0].from === 0 && runs.at(-1).to === t.length, 'open at both ends');
+    assert.ok(runs[0].to < 60 && t.length - runs.at(-1).from < 60, 'the cuts are short');
+    const m = t.at(runs[0].to + 4);
+    assert.ok(groundHeight(m.x, m.z) > m.y + TUNNEL_ROOF.road, 'the bore lies under the ground');
+  }
+  // Just outside a mouth the road is on the ground again
+  const out = road.at(0), beyond = { x: out.x - out.dx * 3, z: out.z - out.dz * 3 };
+  assert.equal(surfaceHeight(beyond.x, beyond.z, out.y + 0.11), surfaceHeight(beyond.x, beyond.z), 'the open road');
+  const rail = getRhBTunnels().find((t) => {
+    const q = t.at(t.length / 2);
+    return groundHeight(q.x, q.z) > q.y + 2;
+  });
+  assert.ok(rail, 'mapped RhB tunnel under the mountain');
+  assert.ok(getRhBTunnels().every((t) => t.length < 2000), 'not the Vereina, which only clips the map');
+  const p = rail.at(rail.length / 2);
+  assert.ok(groundHeight(p.x, p.z) > p.y + 2, 'mountain above train');
+  assert.ok(Math.abs(railTunnelHeight(p.x, p.z) - p.y) < 0.1, 'train follows rail tunnel');
+});
+
+test('the road network runs through the tunnels from Davos to Monstein and Wiesen', () => {
+  const { nodes, links } = DAVOS_DATA.roadGraph;
+  const n = nodes.length / 2, adjacent = Array.from({ length: n }, () => []);
+  for (const [a, b] of links) { adjacent[a].push(b); adjacent[b].push(a); }
+  const nearest = (E, N) => {
+    const { x, z } = lv95ToWorld(E, N);
+    let best = 0, d = Infinity;
+    for (let i = 0; i < n; i++) { const q = Math.hypot(nodes[i * 2] - x, nodes[i * 2 + 1] - z); if (q < d) { d = q; best = i; } }
+    return best;
+  };
+  const from = nearest(2782500, 1185500), seen = new Set([from]), queue = [from];
+  while (queue.length) for (const k of adjacent[queue.pop()]) if (!seen.has(k)) { seen.add(k); queue.push(k); }
+  for (const [name, E, N] of [['Glaris', 2778883, 1179794], ['Monstein', 2778304, 1176103], ['Bahnhof Monstein', 2777458, 1176483], ['Wiesen', 2774088, 1175135]]) {
+    assert.ok(seen.has(nearest(E, N)), name);
+  }
 });
 
 test('the valley keeps its landmarks, lake, railways and road graph', () => {
@@ -98,13 +171,13 @@ test('the swissBUILDINGS3D tiles are stored in the repository, complete', () => 
   }
 });
 
-test('the RhB line runs Wolfgang – Dorf – Platz – Frauenkirch, with passing loops in the three larger stations', async () => {
+test('the RhB line runs Wolfgang – Dorf – Platz – Monstein – Wiesen, with passing loops', async () => {
   const { buildLine, routePoint } = await import('../js/rhb-route.js');
   const line = buildLine(DAVOS_DATA.railways, DAVOS_DATA.stations, DAVOS_DATA.meta.bounds);
   assert.ok(line, 'a route between the two ends of the line');
-  assert.ok(line.south.len > 10000 && Math.abs(line.south.len - line.north.len) < 50, `${line.south.len.toFixed(0)} m`);
-  assert.deepEqual(line.stations.map((s) => s.name), ['Davos Wolfgang', 'Davos Dorf', 'Davos Kongress/Eisstadion', 'Davos Platz', 'Davos Frauenkirch']);
-  assert.deepEqual(line.stations.filter((s) => s.loop).map((s) => s.name), ['Davos Dorf', 'Davos Platz', 'Davos Frauenkirch']);
+  assert.ok(line.south.len > 20000 && Math.abs(line.south.len - line.north.len) < 50, `${line.south.len.toFixed(0)} m`);
+  assert.deepEqual(line.stations.map((s) => s.name), ['Davos Wolfgang', 'Davos Dorf', 'Davos Kongress/Eisstadion', 'Davos Platz', 'Davos Frauenkirch', 'Davos Glaris', 'Davos Monstein', 'Davos Wiesen']);
+  assert.deepEqual(line.stations.filter((s) => s.loop).map((s) => s.name), ['Davos Dorf', 'Davos Platz', 'Davos Frauenkirch', 'Davos Glaris', 'Davos Monstein', 'Davos Wiesen']);
   // Northbound, the stations come in the reverse order; on the loops the two directions stand on parallel tracks
   for (let i = 1; i < line.stations.length; i++) assert.ok(line.stations[i].north < line.stations[i - 1].north);
   for (const s of line.stations.filter((st) => st.loop)) {

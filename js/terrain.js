@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel } from './terrain-grid.js';
+import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel, cutTriangles } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { QUALITY } from './quality.js';
+import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
 //  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
@@ -123,6 +124,76 @@ const inWater = (x, z) => WATER.some((w) => x >= w.minX && x <= w.maxX && z >= w
 export const groundHeight = (x, z) => gridHeight(TERRAIN, x, z);
 export const groundNormal = (x, z, out) => gridNormal(TERRAIN, x, z, out);
 
+// --- Tunnels --------------------------------------------------------------------------------------------------------------
+// The terrain is the surface of the mountain; the road and the track run below it on the grade of tunnel-profile.js.
+// (Built on first use: the ground's fills further down this module are in by then.)
+export const TUNNEL_ROOF = { road: 5.8, rail: 5.5 };
+let roadTunnels = null, rhbTunnels = null, cutRects = null;
+export const getRoadTunnels = () => roadTunnels || (roadTunnels = DAVOS_DATA.roads
+  .filter((r) => r.tunnel && isDrivableTunnel(r.name))
+  .map((r) => tunnelProfile(r, groundHeight, 5)));
+export const getLandwasserTunnel = () => getRoadTunnels().find((t) => t.name === 'Landwassertunnel');
+// (The tunnels of the line through the map: a way running off it, like the Vereina's, has no mouth to open.)
+export const getRhBTunnels = () => {
+  if (rhbTunnels) return rhbTunnels;
+  const [x0, z0, x1, z1] = DAVOS_DATA.meta.bounds;
+  const inside = (x, z) => x > x0 && x < x1 && z > z0 && z < z1;
+  return rhbTunnels = DAVOS_DATA.railways
+    .filter((r) => r.kind === 'narrow_gauge' && r.tunnel && r.pts.length >= 4 && inside(r.pts[0], r.pts[1]) && inside(r.pts.at(-2), r.pts.at(-1)))
+    .map((r) => tunnelProfile(r, groundHeight, 3));
+};
+const allTunnels = () => [...getRoadTunnels(), ...getRhBTunnels()];
+const roofOf = (profile) => getRoadTunnels().includes(profile) ? TUNNEL_ROOF.road : TUNNEL_ROOF.rail;
+/** The stretches of a tunnel open to the sky (tunnel-profile.js openRuns) */
+export const tunnelOpenRuns = (profile) => profile.openRuns || (profile.openRuns = openRuns(profile, groundHeight, roofOf(profile)));
+const tunnelCuts = () => cutRects || (cutRects = allTunnels().flatMap((t) => runRects(t, tunnelOpenRuns(t), t.width / 2 + 0.1)));
+export function railTunnelHeight(x, z) {
+  for (const tunnel of getRhBTunnels()) { const p = tunnel.project(x, z, 4); if (p) return p.y; }
+  return NaN;
+}
+/** The road tunnel at (x, z), whatever lies above it */
+export function roadTunnelAt(x, z, margin = 6) {
+  for (const t of getRoadTunnels()) {
+    if (x < t.minX - margin || x > t.maxX + margin || z < t.minZ - margin || z > t.maxZ + margin) continue;
+    const p = t.project(x, z, margin, true);
+    if (p) return p;
+  }
+  return null;
+}
+const inTunnel = (x, z, nearY, margin) => {
+  for (const t of allTunnels()) {
+    if (x < t.minX - margin || x > t.maxX + margin || z < t.minZ - margin || z > t.maxZ + margin) continue;
+    const p = t.project(x, z, t.width / 2 + margin, true);
+    if (!p) continue;
+    const g = groundHeight(x, z);
+    // Entering at a mouth, or already down at the tunnel's level (not on the mountain above it)
+    if ((g - p.y < 2 && nearY < g + 1.4) || Math.abs(nearY - p.y) < 2.5) return { p, t, g };
+  }
+  return null;
+};
+/** The floor of the tunnel someone at about `nearY` is in at (x, z), or NaN */
+export function tunnelFloor(x, z, nearY) {
+  if (!Number.isFinite(nearY)) return NaN;
+  const hit = inTunnel(x, z, nearY, 3);
+  return hit ? hit.p.y : NaN;
+}
+/** The ground under a camera at about `nearY`: the mountain, or the floor when it follows someone through a tunnel */
+export function cameraGround(x, z, nearY) {
+  const floor = tunnelFloor(x, z, nearY);
+  return Number.isFinite(floor) ? floor : groundHeight(x, z);
+}
+/** Keeps someone between a tunnel's walls: without them, the surface beyond the wall would be the top of the mountain */
+export function constrainToTunnel(position, radius = 1.2) {
+  const hit = inTunnel(position.x, position.z, position.y, 3);
+  if (!hit) return false;
+  const limit = hit.t.width / 2 - radius, { p, g } = hit;
+  if (p.distance <= limit || g - p.y < 1) return false;
+  const k = limit / p.distance;
+  position.x = p.x + (position.x - p.x) * k;
+  position.z = p.z + (position.z - p.z) * k;
+  return true;
+}
+
 // --- Bridge decks -------------------------------------------------------------------------------------------------------
 const DECK_CELL = 32;
 /** Half width of a bridge's deck: the carriageway plus the sidewalks city-grid.js lays along it (width / 2 + 2.8 m), a
@@ -195,6 +266,9 @@ export function deckHeight(x, z) {
 /** The surface at (x, z) for something at about `nearY`: a bridge deck, or the ground under a bridge (never the water) */
 export function surfaceHeight(x, z, nearY) {
   const g = groundHeight(x, z);
+  // (a tunnel's floor lies beneath the surveyed mountain: only for someone entering a mouth or already down there)
+  const floor = tunnelFloor(x, z, nearY);
+  if (floor === floor) return floor;
   const d = deckHeight(x, z);
   if (!(d === d)) return g;
   if (nearY === undefined || d - g < 2) return d > g ? d : g;
@@ -239,7 +313,7 @@ export function pierClear(x, z, ux, uz, half) {
 }
 
 // --- Tunnel approaches: the ramps down to the road tunnels' mouths are filled to the street ------------------------------
-// The engine has no underground: the tunnels are not drawn and their mouths are filled by the data tool, but the open
+// Most road tunnels are not drawn (js/tunnels.js has those of the Landwasser road) and their mouths are filled by the data tool, but the open
 // ramps leading down to them stay in the bare-earth survey as trenches between retaining walls, which the 4 m grid
 // turns into lumpy slopes (the Ulmbergtunnel's ramps on the Tunnelstrasse, the Letten tunnel's on the
 // Wasserwerkstrasse). The trench along the streets within APPROACH m of a road tunnel's mouth, from the mouth on, is
@@ -433,6 +507,17 @@ function chunkGeometry(i0, j0, nc, nr, steps = null) {
   const g = new THREE.BufferGeometry();
   const box = new THREE.Box3().setFromArray(positions), sphere = box.getBoundingSphere(new THREE.Sphere());
   let pos = positions, nor = normals;
+  if (!steps) {
+    // A tunnel's mouth in this chunk: the surface is cut open there, in full detail at every distance (only the coarse
+    // geometry, beyond TERRAIN_FULL, stays closed)
+    const x0 = minX + i0 * cell, z0 = minZ + j0 * cell, x1 = x0 + (nc - 1) * cell, z1 = z0 + (nr - 1) * cell;
+    const cuts = tunnelCuts().filter((r) => Math.max(r.ax, r.bx) + r.half >= x0 && Math.min(r.ax, r.bx) - r.half <= x1 && Math.max(r.az, r.bz) + r.half >= z0 && Math.min(r.az, r.bz) - r.half <= z1);
+    if (cuts.length) {
+      const cut = cutTriangles(positions, normals, index, levels[0].start, levels[0].count, cuts);
+      pos = cut.positions; nor = cut.normals; index = cut.index;
+      levels = [{ ...levels[0], start: 0, count: index.length }];
+    }
+  }
   if (steps) {
     // The coarse levels' triangles only, their nodes renumbered
     const keep = levels.filter((l) => steps.includes(l.step));

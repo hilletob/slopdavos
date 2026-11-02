@@ -1,8 +1,8 @@
 # Slop Davos
 
 A simulation of Davos (Graubünden) built with [three.js](https://threejs.org/), WebGPURenderer and TSL. Explore Davos
-Platz and Davos Dorf, the Promenade, the Kongresszentrum and the Eisstadion, the Davosersee, Frauenkirch and the Dischma
-valley up to Dürrboden on foot, by car, by bicycle or cargo bike, or by helicopter, at 1:1 and **on the real alpine
+Platz and Davos Dorf, the Promenade, the Kongresszentrum and the Eisstadion, the Davosersee, Frauenkirch, Monstein,
+Silberberg and Wiesen, and the Dischma valley up to Dürrboden on foot, by car, by bicycle or cargo bike, or by helicopter, at 1:1 and **on the real alpine
 relief**.
 
 A port of [Slop Zürich](https://github.com/colorfield/slop-zurich) by colorfield, which is based on
@@ -12,8 +12,8 @@ and Warsaw forks and [Slop Utrecht](https://github.com/bertt/slop-utrecht) by be
 
 ## The area
 
-The mapped area is LV95 E 2779600–2790400, N 1176800–1189800 (10.8 × 13 km), set in `js/davos-frame.js`: the
-Landwassertal from Frauenkirch in the south-west through Davos Platz and Davos Dorf to the Davosersee and Wolfgang in
+The mapped area is LV95 E 2773000–2790400, N 1173600–1189800 (17.4 × 16.2 km), set in `js/davos-frame.js`: the
+Landwassertal from Wiesen through Monstein, the Silberberg and Frauenkirch to Davos Platz, Davos Dorf, the Davosersee and Wolfgang in
 the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the south-east.
 
 ## What makes it Davos
@@ -23,7 +23,7 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
   affine map from the rigorous ECEF → LV95 transformation, and its heights are calibrated on the surveyed roof tops
   (`DACH_MAX`) rather than on a geoid model. The OSM footprints remain as colliders and as the fallback when the
   tiles can't be loaded.
-- **swisstopo swissALTI3D**: the terrain model (2 m, resampled to an 8 m grid over the 140 km²) under everything:
+- **swisstopo swissALTI3D**: the terrain model (2 m, resampled to an 8 m grid over the 282 km²) under everything:
   streets, meadows, the Landwasser, the lake shore and the slopes up to the Schatzalp and the Jakobshorn. Cars pitch
   and roll with the streets, pedestrians' feet find the ground, the helicopter's floor is the relief.
 - **Bridges at their real height**: the terrain model is bare earth, so deck heights are sampled from
@@ -46,11 +46,17 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
   The WGS84 ↔ LV95 transformation (`js/swiss-projection.js`) matches swisstopo REFRAME to the millimetre.
 - **Trees from OpenStreetMap**, place names from the mapped boundaries, and teleports for the stations of Davos Platz
   and Davos Dorf, the Promenade, the Schatzalpbahn, the Eisstadion, the Kirchner Museum, the Kongresszentrum, the
-  Jakobshorn and Parsenn valley stations, the Davosersee, Frauenkirch, Teufi and Dürrboden, plus seven viewpoints.
+  Jakobshorn and Parsenn valley stations, the Davosersee, Frauenkirch, Glaris, Monstein, Wiesen, Teufi and Dürrboden,
+  plus seven viewpoints.
+
+- **Tunnels you can drive**: the Landwassertunnel and the shorter tunnels on the road to Monstein and Wiesen are part of
+  the road network, and the RhB runs through its tunnels on the line (`js/tunnels.js`, `js/tunnel-profile.js`). The
+  bare-earth relief has no holes, so the terrain chunks are cut open along the mouths (`cutTriangles` in
+  `js/terrain-grid.js`); where the mountain does not cover the roof, the tunnel is an open cut between retaining walls.
 
 - **The Rhaetian Railway**: two red four-car units, modelled after the ABe 4/16 "Capricorn" (no freely licensed model
   of it exists, so they are built in code), run the single-track line Wolfgang – Dorf – Kongress/Eisstadion – Platz –
-  Frauenkirch, stop at every station and cross on the passing loops of Dorf, Platz and Frauenkirch under block
+  Frauenkirch – Glaris – Monstein – Wiesen, stop at every station and cross on the passing loops under block
   signalling (`js/rhb.js`, `js/rhb-route.js`), under the overhead line (masts, cantilevers, staggered contact wire). The
   track has ballast, concrete sleepers and rails (`js/trams.js`).
 

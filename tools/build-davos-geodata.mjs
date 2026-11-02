@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { FRAME, WORLD_BOUNDS, lonLatToWorld, lv95ToWorld } from '../js/davos-frame.js';
 import { parseTerrain, gridHeight } from '../js/terrain-grid.js';
 import { findUnderpasses } from './underpass.mjs';
+import { isDrivableTunnel } from '../js/tunnel-profile.js';
 import { toWorld, flat, geomPts, inFrame, ringArea, bbox, bboxInFrame, rdp, cleanRing, polygons, clipToFrame } from './osm-geometry.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -300,7 +301,7 @@ for (const e of osm.elements) {
   if (t.footway === 'sidewalk') record.sidewalkWay = 1;
   roads.push(record);
   noteLevel(e, pts, rounded ? [] : kept, record, bridge, tunnel);
-  if (DRIVABLE.has(kind) && !tunnel && t.access !== 'no' && t.motor_vehicle !== 'no' && e.nodes && e.nodes.length === e.geometry.length) {
+  if (DRIVABLE.has(kind) && (!tunnel || isDrivableTunnel(t.name)) && t.access !== 'no' && t.motor_vehicle !== 'no' && e.nodes && e.nodes.length === e.geometry.length) {
     // (rounded ways: the graph is cut at the kept nodes of the rounded line; `null` marks a point of an arc)
     drivable.push({ name: t.name || '', width: r1(width), lanes, dir: !oneway ? 0 : t.oneway === '-1' ? -1 : 1,
       nodes: rounded ? rounded.map((q) => q.id) : e.nodes, pts: rounded ? kept : pts, bridge, bus: busBack ? (busLane ? 2 : 1) : 0, sidewalk });
@@ -494,7 +495,12 @@ const terrainPatches = []; // bridgeheads where the terrain must rise to the sur
   const smooth = h;
   for (const way of deckWays) {
     // Decks never dip below the terrain they cross; heights in the world frame (above FRAME.H0)
-    way.record.ys = way.kept.map((i) => r2(Math.max(smooth.get(way.nodes[i]), gridHeight(TERRAIN, way.pts[i][0], way.pts[i][1]))));
+    way.record.ys = way.kept.map((i, k) => {
+      // The saved centreline is rounded to decimetres; sample that exact position so steep slopes
+      // cannot lift the rendered terrain above the stored bridge deck.
+      const x = way.record.pts[k * 2], z = way.record.pts[k * 2 + 1];
+      return Math.ceil(Math.max(smooth.get(way.nodes[i]), gridHeight(TERRAIN, x, z)) * 100) / 100;
+    });
   }
   log(`bridge decks: ${deckWays.length} ways, ${adj.size} nodes (${measured - rejected} surveyed, ${rejected} rejected samples, ${canopy} under trees), ${terrainPatches.length} bridgeheads raised, ${sidewalks} sidewalks onto their carriageway's deck`);
 }

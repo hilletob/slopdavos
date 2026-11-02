@@ -1017,7 +1017,7 @@
    },
    "quelle": "js/missions-data-sledge.js · OSM w265318293 / Relation 3565542 «Davos Rinerhorn» (piste:type=sled), 3.3 km Jatzmeder–Glaris; Höhen swissALTI3D",
    "unsicherheit": "mittel",
-   "unsicherheitNotiz": "Die OSM-Schlittelbahn ist 3.3 km lang; der Kartenausschnitt endet bei x = −2900 (LV95 E 2779600). Das Rennen nimmt die 2.04 km innerhalb (bis zur Kehre bei E 2779619 / N 1179820); die untersten 1.25 km bis Glaris liegen ausserhalb.",
+   "unsicherheitNotiz": "Die OSM-Schlittelbahn ist 3.3 km lang und liegt nun vollständig im Kartenausschnitt. Das bestehende Rennen nutzt weiterhin den ursprünglichen 2.04-km-Kurs bis zur Kehre bei E 2779619 / N 1179820.",
    "nr": 24
   },
   {
@@ -1027,19 +1027,19 @@
    "kurz": "Mit Öllampe, Schlägel und Eisen in den Stollen: glitzernde Erzadern (Bleiglanz silbergrau, Zinkblende braun-gelb, taubes Gestein fast wertlos) abbauen, im Korb (16 kg) zum Hunt tragen, Hunt zum Mundloch schieben. Lampenöl 4 min. Stollen mit 3–5 Seitengängen aus dem Tages-Seed. Wertung kg × Erzwert × Gehalt.",
    "saison": "ganzjaehrig",
    "fahrzeug": "Zu Fuss",
-   "anreise": "Landwasserstrasse bis zum Höfji (Westrand), Feldweg zum Mundloch",
+   "anreise": "Über Schmelzboden zum Dalvazzerstollen am Silberberg",
    "ort": {
-    "name": "Mundloch (Stellvertreter am Hangfuss südlich der Landwasserstrasse)",
-    "x": -2850,
-    "z": 4700,
+    "name": "Dalvazzerstollen am Silberberg",
+    "x": -5920,
+    "z": 11162,
     "lv95": {
-     "E": 2779650,
-     "N": 1180800
+     "E": 2776580,
+     "N": 1174338
     }
    },
    "punkte": [
     {
-     "name": "Bergwerk Silberberg, Dalvazzerstollen (echt, ausserhalb der Karte)",
+     "name": "Bergwerk Silberberg, Dalvazzerstollen",
      "x": -5920,
      "z": 11162,
      "lv95": {
@@ -1048,7 +1048,7 @@
      }
     },
     {
-     "name": "Bergbaumuseum Graubünden, Schmelzboden (ausserhalb)",
+     "name": "Bergbaumuseum Graubünden, Schmelzboden",
      "x": -5123,
      "z": 9310,
      "lv95": {
@@ -1059,7 +1059,7 @@
    ],
    "quelle": "js/missions-data-mine.js · OSM node 519783936 «Bergwerk Silberberg» (Blei-Zink, Ende 14. Jh.–1848), node 11123596662 «Dalvazzerstollen», Bergbaumuseum Graubünden (way 503464173)",
    "unsicherheit": "hoch",
-   "unsicherheitNotiz": "Das echte Bergwerk liegt ~3 km jenseits der Südwest-Ecke des Ausschnitts (x ≈ −5920, z ≈ 11160). Das Mundloch steht stellvertretend dort, wo das Landwassertal Richtung Schmelzboden den Ausschnitt verlässt (Hangfuss südlich der Landwasserstrasse, ~1547 m).",
+   "unsicherheitNotiz": "Das Mundloch steht am kartierten Dalvazzerstollen (x ≈ −5920, z ≈ 11162); die Ausrichtung folgt der ansteigenden Hangseite.",
    "nr": 25
   },
   {

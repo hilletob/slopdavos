@@ -101,3 +101,29 @@ test('every level of detail covers the block once and keeps every node of its bo
     }
   }
 });
+
+test('cutTriangles opens a rectangle in a surface and keeps the rest, in its plane and winding', async () => {
+  const { cutTriangles } = await import('../js/terrain-grid.js');
+  // Two triangles of a 10 x 10 m tilted square (y = x / 10)
+  const positions = new Float32Array([0, 0, 0, 10, 1, 0, 0, 0, 10, 10, 1, 10]);
+  const normals = new Int8Array([0, 127, 0, 0, 127, 0, 0, 127, 0, 0, 127, 0]);
+  const index = new Uint32Array([0, 2, 3, 0, 3, 1]);
+  const rect = { ax: 3, az: 2, bx: 7, bz: 2, half: 1 }; // x 3–7, z 1–3
+  const { positions: p, normals: n, index: out } = cutTriangles(positions, normals, index, 0, 6, [rect]);
+  let area = 0;
+  for (let t = 0; t < out.length; t += 3) {
+    const [a, b, c] = [out[t], out[t + 1], out[t + 2]].map((v) => [p[v * 3], p[v * 3 + 1], p[v * 3 + 2]]);
+    const signed = ((b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2])) / 2;
+    assert.ok(signed > -1e-5, 'winding kept');
+    area += Math.abs(signed);
+    const m = [(a[0] + b[0] + c[0]) / 3, (a[2] + b[2] + c[2]) / 3];
+    assert.ok(!(m[0] > 3 && m[0] < 7 && m[1] > 1 && m[1] < 3), 'nothing inside the rectangle');
+    for (const v of [a, b, c]) assert.ok(Math.abs(v[1] - v[0] / 10) < 1e-5, 'in the plane');
+  }
+  assert.ok(Math.abs(area - (100 - 8)) < 1e-3, `the area less the rectangle (${area})`);
+  assert.equal(n.length, p.length);
+  // Outside its reach the triangles stay as they are
+  const same = cutTriangles(positions, normals, index, 0, 6, [{ ax: 50, az: 50, bx: 60, bz: 50, half: 1 }]);
+  assert.deepEqual([...same.index], [...index]);
+  assert.equal(same.positions.length, positions.length);
+});

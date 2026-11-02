@@ -262,3 +262,73 @@ export function pickLevel(levels, box, camera, height, tolerance = 1) {
   for (let l = 1; l < levels.length; l++) if (levels[l].error * k <= tolerance * d) pick = l; else break;
   return pick;
 }
+
+/**
+ * Cuts rectangles { ax, az, bx, bz, half } (a centre line and half its width) out of the triangles `index[start .. start
+ * + count]` of a surface: a heightfield has no holes, so a tunnel's mouth is opened this way. Triangles overlapping a
+ * rectangle are split along its edges (the new vertices lie in their plane) and the part inside is dropped; the winding
+ * is kept. Returns { positions, normals, index } with the new vertices appended, of the same array types.
+ */
+export function cutTriangles(positions, normals, index, start, count, rects) {
+  const extra = [], tris = [];
+  let next = positions.length / 3;
+  const vertex = (a) => [positions[a * 3], positions[a * 3 + 1], positions[a * 3 + 2], normals[a * 3], normals[a * 3 + 1], normals[a * 3 + 2], a];
+  // The part of a polygon where f(x, z) >= 0 (Sutherland–Hodgman)
+  const clip = (poly, f) => {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length], fp = f(p), fq = f(q);
+      if (fp >= 0) out.push(p);
+      if ((fp > 0 && fq < 0) || (fp < 0 && fq > 0)) {
+        const t = fp / (fp - fq), v = new Array(7);
+        for (let k = 0; k < 6; k++) v[k] = p[k] + (q[k] - p[k]) * t;
+        v[6] = -1;
+        out.push(v);
+      }
+    }
+    return out;
+  };
+  const planes = rects.map((r) => {
+    const dx = r.bx - r.ax, dz = r.bz - r.az, len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len;
+    const along = (p) => (p[0] - r.ax) * ux + (p[2] - r.az) * uz, across = (p) => (p[0] - r.ax) * -uz + (p[2] - r.az) * ux;
+    const reach = len + r.half + 1;
+    return { minX: Math.min(r.ax, r.bx) - reach, maxX: Math.max(r.ax, r.bx) + reach, minZ: Math.min(r.az, r.bz) - reach, maxZ: Math.max(r.az, r.bz) + reach,
+      outside: [(p) => -along(p), (p) => along(p) - len, (p) => -across(p) - r.half, (p) => across(p) - r.half] };
+  });
+  const id = (v) => {
+    if (v[6] >= 0) return v[6];
+    extra.push(v);
+    v[6] = next++;
+    return v[6];
+  };
+  for (let t = start; t < start + count; t += 3) {
+    const tri = [vertex(index[t]), vertex(index[t + 1]), vertex(index[t + 2])];
+    const minX = Math.min(tri[0][0], tri[1][0], tri[2][0]), maxX = Math.max(tri[0][0], tri[1][0], tri[2][0]);
+    const minZ = Math.min(tri[0][2], tri[1][2], tri[2][2]), maxZ = Math.max(tri[0][2], tri[1][2], tri[2][2]);
+    let pieces = [tri];
+    for (const r of planes) {
+      if (maxX < r.minX || minX > r.maxX || maxZ < r.minZ || minZ > r.maxZ) continue;
+      const kept = [];
+      for (const piece of pieces) {
+        let rest = piece; // (peeled plane by plane: what lies outside one is kept, what is left at the end is inside)
+        for (const f of r.outside) {
+          const out = clip(rest, f);
+          if (out.length >= 3) kept.push(out);
+          rest = clip(rest, (p) => -f(p));
+          if (rest.length < 3) break;
+        }
+      }
+      pieces = kept;
+    }
+    for (const poly of pieces) for (let k = 1; k + 1 < poly.length; k++) tris.push(id(poly[0]), id(poly[k]), id(poly[k + 1]));
+  }
+  const total = positions.length + extra.length * 3;
+  const outPos = new positions.constructor(total), outNor = new normals.constructor(total);
+  outPos.set(positions); outNor.set(normals);
+  extra.forEach((v, i) => {
+    const a = positions.length + i * 3;
+    outPos[a] = v[0]; outPos[a + 1] = v[1]; outPos[a + 2] = v[2];
+    outNor[a] = Math.round(v[3]); outNor[a + 1] = Math.round(v[4]); outNor[a + 2] = Math.round(v[5]);
+  });
+  return { positions: outPos, normals: outNor, index: Uint32Array.from(tris) };
+}

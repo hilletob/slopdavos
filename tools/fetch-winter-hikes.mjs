@@ -9,7 +9,7 @@
 // Each trail is clipped to the map, resampled every ~4 m and flagged per segment where it runs on a carriageway or a
 // bridge (`road`: a string of '0'/'1' per segment): the rolled strip is drawn only off the streets (on the meadows,
 // the paths and the tracks), the walkers follow the whole line. Simplified to 0.5 m within each stretch.
-// usage: node tools/fetch-winter-hikes.mjs   (re-download: delete tools/data/cache/astra_winterwanderwege.json)
+// usage: node tools/fetch-winter-hikes.mjs [--refresh]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,7 @@ const OUT = path.join(DIR, '..', 'js', 'winter-hikes-data.js');
 const log = (...a) => console.log('[winter-hikes]', ...a);
 const LAYER = 'ch.astra.winterwanderwege';
 
-if (!fs.existsSync(CACHE)) {
+if (process.argv.includes('--refresh') || !fs.existsSync(CACHE)) {
   const box = FRAME.lv95.join(',');
   const url = `https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometryType=esriGeometryEnvelope&geometry=${box}` +
     `&imageDisplay=1000,1000,96&mapExtent=${box}&tolerance=0&layers=all:${LAYER}&sr=2056&geometryFormat=geojson&limit=200`;
