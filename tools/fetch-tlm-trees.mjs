@@ -152,7 +152,7 @@ for (const t of tlmTrees.values()) {
   const f = near(t.x, t.z, 4, 'tree');
   if (f) { matched++; f.used = true; }
   // [x, z, height (m, 0 unknown), evergreen (1 / 0 / -1 unknown)]
-  trees.push([t.x, t.z, f?.h ? r1(f.h) : 0, f ? (f.evergreen ? 1 : 0) : -1]);
+  trees.push([t.x, t.z, f?.h > 0 && f.h < 60 ? r1(f.h) : 0, f ? (f.evergreen ? 1 : 0) : -1]);
 }
 const shrubs = [];
 for (const f of bafuWorld) if (f.type === 'shrub' && inFrame(f.x, f.z)) shrubs.push([r1(f.x), r1(f.z), f.h ? r1(f.h) : 2.5, f.evergreen ? 1 : 0]);

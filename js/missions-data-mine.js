@@ -6,10 +6,8 @@
 // The place: the Bergwerk Silberberg above Schmelzboden (Davos Monstein; OSM node 519783936, the Dalvazzer adit
 // node 11123596662, the Bergbaumuseum Graubünden at Schmelzboden), the biggest lead and zinc mine of Switzerland,
 // worked from the late 14th century to 1848: galena (Bleiglanz, lead with a little silver) and sphalerite (Zinkblende).
-// It lies at x ≈ -5920, z ≈ 11160 in the world frame, 3 km beyond the map's south-west corner (js/davos-geodata.js
-// meta.bounds: x >= -2900, z <= 8700). The mission's adit is therefore set where the Landwassertal leaves the map
-// towards Schmelzboden: at the foot of the slope south of the Landwasserstrasse below the Höfji (x -2850, z 4700,
-// ~1547 m), the portal facing north into the valley — a stand-in, documented in docs/missions-locations.json.
+// Its Dalvazzer adit is at x ≈ -5920, z ≈ 11162 in the world frame. The portal faces west out of the hillside;
+// the real mine is now inside the mapped area (docs/missions-locations.json).
 //
 // The game: inside, a gallery with timbering and the rails of the hunt (the mine cart), side drifts off it (3–5,
 // from a seed: the mine of the day). Glittering spots in the walls are ore: galena (silver-grey), sphalerite
@@ -367,10 +365,9 @@ export function botShiftInput(g, M = MINE, { reserve = 45 } = {}) {
 }
 
 // --- The mission -------------------------------------------------------------------------------------------------------
-// (the portal: its centre at the foot of the slope, the gallery heading into it along +z (south); the miner arrives on
-// the farm road below)
-export const MINE_ADIT = { x: -2850, z: 4700, heading: 0 }; // heading: into the mountain
-export const MINE_DOOR = { x: -2850, z: 4697.2, r: 2.4 };
+// The portal sits on the east-facing slope; the gallery heads east into the mountain.
+export const MINE_ADIT = { x: -5920, z: 11162, heading: Math.PI / 2 };
+export const MINE_DOOR = { x: -5922.8, z: 11162, r: 2.4 };
 /** The mine of the day: a new layout every day (the same all day: a best score to beat) */
 export const mineSeedOfDay = (date = new Date()) => date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
 
@@ -401,7 +398,7 @@ export const MINE_MISSION = {
   icon: 'mine',
   finish: 'Back in daylight, black with dust: the ore goes down to the smelter at Schmelzboden.',
   interior: { door: MINE_DOOR },
-  start: { x: -2858, z: 4634, heading: 0 },
+  start: { x: -5920, z: 11145, heading: 0 },
   props: [],
   createState() { return { shift: null, seed: null }; },
   summary(state) {

@@ -26,7 +26,7 @@ test('city module preloads start after the import map and before stylesheets', (
 
 test('native module entry and imports share canonical preloaded URLs on GitHub Pages', () => {
   const links = preloads.map((match) => match[1]);
-  assert.equal(links.length, 125); // (+ js/missions-data-fun.js, js/missions-fun.js; js/gta-takeover.js, js/hijack.js, js/bus-joint.js; js/missions-data-golf.js, js/missions-golf.js; js/missions-data-local.js, js/missions-local.js; js/missions-data-sledge.js, js/missions-sledge.js, js/missions-data-mine.js, js/missions-mine.js; js/missions-data-work.js, js/missions-work.js; js/missions-data-sport.js, js/missions-sport.js)
+  assert.equal(links.length, 127); // (+ js/missions-data-fun.js, js/missions-fun.js; js/gta-takeover.js, js/hijack.js, js/bus-joint.js; js/missions-data-golf.js, js/missions-golf.js; js/missions-data-local.js, js/missions-local.js; js/missions-data-sledge.js, js/missions-sledge.js, js/missions-data-mine.js, js/missions-mine.js; js/missions-data-work.js, js/missions-work.js; js/missions-data-sport.js, js/missions-sport.js)
   assert.equal(new Set(links).size, links.length, 'each module is preloaded once');
   assert.equal(entries.length, 1);
   assert.equal(entries[0][1], './js/main.js');

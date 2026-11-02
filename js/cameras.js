@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { bryantParkLawn } from './landmarks.js';
-import { groundHeight } from './terrain.js';
+import { groundHeight, cameraGround } from './terrain.js';
 import { lv95ToWorld } from './davos-frame.js';
 
 // js/cameras.js
@@ -220,7 +220,7 @@ class CameraSystem {
           entity.position.z - Math.cos(totalYaw) * horizDist
         );
         // (never under the ground behind: Davos' streets lie well below the flat world's y = 0)
-        desiredPos.y = Math.max(groundHeight(desiredPos.x, desiredPos.z) + 0.65, desiredPos.y);
+        desiredPos.y = Math.max(cameraGround(desiredPos.x, desiredPos.z, entity.position.y) + 0.65, desiredPos.y);
 
         const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.45 : entity.type === 'cargobike' ? 0.8 : 1.55;
         const lookAhead = entity.type === 'cargobike' ? 0.35 : 5.2;
@@ -239,7 +239,7 @@ class CameraSystem {
 
         desiredPos.set(
           entity.position.x - Math.sin(entity.heading) * backDist + Math.cos(entity.heading) * sideOffset,
-          Math.max(groundHeight(entity.position.x, entity.position.z) + 0.55, lowY),
+          Math.max(cameraGround(entity.position.x, entity.position.z, entity.position.y) + 0.55, lowY),
           entity.position.z - Math.cos(entity.heading) * backDist - Math.sin(entity.heading) * sideOffset
         );
         desiredLook.set(
@@ -379,7 +379,7 @@ class CameraSystem {
       this.followLookOffset.lerp(desiredLook.sub(entity.position), k);
       this.currentPos.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followOffset);
       this.currentLookAt.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followLookOffset);
-      this.currentPos.y = Math.max(groundHeight(this.currentPos.x, this.currentPos.z) + 0.55, this.currentPos.y);
+      this.currentPos.y = Math.max(cameraGround(this.currentPos.x, this.currentPos.z, entity.position.y) + 0.55, this.currentPos.y);
     } else {
       this.followEntity = null;
       const k = 1 - Math.exp(-dt * 8.5);

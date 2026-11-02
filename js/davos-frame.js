@@ -9,10 +9,10 @@ export const FRAME = {
   E0: 2782500,
   N0: 1185500,
   H0: 1558,
-  // LV95 extent of the mapped area [minE, minN, maxE, maxN]: Frauenkirch in the south-west, the Davosersee and Wolfgang
-  // in the north, the Dischma up to Dürrboden in the south-east (10.8 × 13 km)
-  lv95: [2779600, 1176800, 2790400, 1189800],
-  // Grid spacing of the terrain model (tools/build-davos-terrain.mjs): 8 m keeps the 140 km² mesh at ~2.2 M vertices
+  // LV95 extent [minE, minN, maxE, maxN]: Wiesen, Monstein and Silberberg in the south-west,
+  // Wolfgang in the north, and the Dischma up to Dürrboden in the south-east (17.4 × 16.2 km).
+  lv95: [2773000, 1173600, 2790400, 1189800],
+  // Grid spacing of the terrain model (tools/build-davos-terrain.mjs).
   terrainCell: 8
 };
 

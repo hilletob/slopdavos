@@ -6,7 +6,7 @@ import { createObstacleGrid } from './obstacle-grid.js';
 import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
-import { surfaceHeight, deckHeight, groundHeight, ROAD_TOP } from './terrain.js';
+import { surfaceHeight, deckHeight, groundHeight, roadTunnelAt, ROAD_TOP } from './terrain.js';
 import { QUALITY, skipped } from './quality.js';
 import {
   BODY_SPECS,
@@ -1530,7 +1530,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (v.y === undefined) {
       const e = v.edge;
       const onDeck = !!e && [0, 0.5, 1].every((t) => Number.isFinite(deckHeight(e.x0 + e.dx * e.span * t, e.z0 + e.dz * e.span * t)));
-      v.y = surfaceHeight(v.x, v.z, onDeck ? Infinity : -Infinity) + ROAD_TOP;
+      const tunnel = e && roadTunnelAt(e.x0 + e.dx * e.span / 2, e.z0 + e.dz * e.span / 2) && roadTunnelAt(v.x, v.z);
+      v.y = (tunnel ? tunnel.y : surfaceHeight(v.x, v.z, onDeck ? Infinity : -Infinity)) + ROAD_TOP;
     } else v.y = surfaceHeight(v.x, v.z, v.y) + ROAD_TOP;
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
     const front = surfaceHeight(v.x + fx * half, v.z + fz * half, v.y), back = surfaceHeight(v.x - fx * half, v.z - fz * half, v.y);

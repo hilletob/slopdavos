@@ -24,8 +24,8 @@ const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const DATA = JSON.parse(fs.readFileSync(root('docs/missions-locations.json'), 'utf8'));
 const OUT = root('docs/missions-map.html');
 
-// The mapped window (world frame, metres): Frauenkirch to Wolfgang, Strela to the Flüela road
-const X0 = -2900, X1 = 5700, Z0 = -4300, Z1 = 6300; // (south to the Rinerhorn's sled run)
+// The mapped window (world frame, metres): Wiesen and Silberberg to Wolfgang and Dürrboden.
+const [X0, Z0, X1, Z1] = D.meta.bounds;
 const W = X1 - X0, H = Z1 - Z0;
 
 // --- Geometry helpers ------------------------------------------------------------------------------------------------

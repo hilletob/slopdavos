@@ -4,14 +4,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { logoIndex, logoImage, drawLogo } from './logos.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { LEVEL_CROSSINGS } from './level-crossings-data.js';
-import { surfaceHeight, groundHeight, deckHeight } from './terrain.js';
+import { surfaceHeight, groundHeight, deckHeight, railTunnelHeight } from './terrain.js';
 import { buildLine, routePoint, project } from './rhb-route.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 
 // The Rhaetian Railway through Davos (js/rhb-route.js): red four-car RhB multiple units, in the spirit of the ABe 4/16
 // "Capricorn" that has run Landquart – Davos since 2022, ply the single-track line Wolfgang – Davos Dorf –
-// Kongress/Eisstadion – Davos Platz – Frauenkirch and back, stopping at every station. The line is cut into blocks
-// between the stations with a passing loop (Dorf, Platz, Frauenkirch) and the ends of the map; a train enters a block
+// Kongress/Eisstadion – Davos Platz – Frauenkirch – Glaris – Monstein – Wiesen and back, stopping at every station.
+// The line is cut into blocks between the stations with a passing loop and the ends of the map; a train enters a block
 // only when no other train holds it, so opposing trains wait for each other and cross on the loops, each on its own
 // track. Beyond the map's edge a train turns back after a while. Every car is a solid body: the player bounces off it,
 // and the traffic (traffic.js) brakes behind it. (No freely licensed model of the real units exists: the cars are built
@@ -613,8 +613,7 @@ export function buildRhB(scene) {
     place();
   }
 
-  // Vehicles: centred between their couplings along the route, pitched to the surface they cross; hidden in tunnels
-  // and off the map
+  // Vehicles: centred between their couplings along the route, pitched to the surface or tunnel grade they cross.
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0);
   const euler = new THREE.Euler(0, 0, 0, 'YXZ'), a = {}, b = {};
   function place() {
@@ -630,12 +629,14 @@ export function buildRhB(scene) {
         if (car.end) mesh.geometry.attributes.aDest.array[i] = t.dir === 'south' ? 0 : 1;
         const visible = t.off <= 0 && s1 > 0 && s0 < route.len;
         routePoint(route, s0, a); routePoint(route, s1, b);
-        if (!visible || (a.tunnel && b.tunnel) || !line.inside((a.x + b.x) / 2, (a.z + b.z) / 2)) {
+        if (!visible || !line.inside((a.x + b.x) / 2, (a.z + b.z) / 2)) {
           mesh.setMatrixAt(index, m.compose(pos.set(0, -1e4, 0), q.identity(), zero));
           body.prevX = body.x = 1e7; body.prevZ = body.z = 1e7; body.y = -1e4;
           return;
         }
-        const ya = surfaceHeight(a.x, a.z, t.y), yb = surfaceHeight(b.x, b.z, t.y);
+        const ta = railTunnelHeight(a.x, a.z), tb = railTunnelHeight(b.x, b.z);
+        const ya = Number.isFinite(ta) && a.tunnel ? ta : surfaceHeight(a.x, a.z, t.y);
+        const yb = Number.isFinite(tb) && b.tunnel ? tb : surfaceHeight(b.x, b.z, t.y);
         if (c === 0) t.y = ya;
         const yaw = Math.atan2(a.x - b.x, a.z - b.z), cx = (a.x + b.x) / 2, cz = (a.z + b.z) / 2;
         euler.set(Math.atan2(yb - ya, len) * (car.flip ? -1 : 1), yaw + (car.flip ? Math.PI : 0), 0);
