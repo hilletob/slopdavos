@@ -756,6 +756,32 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       }
     }
   }
+  // The road underpasses (tools/underpass.mjs): the lid over the trench, flush with the yard, the walls along the road
+  // inside (and a few metres out along the ramps, hiding the sides of the cut), a railing over each mouth.
+  collector.deckContext = false;
+  for (const u of BERLIN_DATA.underpasses || []) {
+    if (!region.owns(u.ax + u.ux * u.len / 2, u.az + u.uz * u.len / 2)) continue;
+    const nx = -u.uz, nz = u.ux, angle = -Math.atan2(u.uz, u.ux), floor = Math.min(groundHeight(u.ax, u.az), groundHeight(u.ax + u.ux * u.len, u.az + u.uz * u.len));
+    // A box from s0 to s1 along the road, from v0 to v1 across it, from y0 to y1
+    const box = (s0, s1, v0, v1, y0, y1, solid = false) => {
+      const g = new THREE.BoxGeometry(s1 - s0, y1 - y0, v1 - v0);
+      const s = (s0 + s1) / 2, v = (v0 + v1) / 2, cx = u.ax + u.ux * s + nx * v, cz = u.az + u.uz * s + nz * v;
+      g.rotateY(angle);
+      g.translate(cx, (y0 + y1) / 2, cz);
+      collect(g, curbMat, { world: true });
+      if (!solid) return;
+      const hx = (s1 - s0) / 2, hz = (v1 - v0) / 2, cs = u.ux, sn = -u.uz;
+      const ex = Math.abs(cs) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(cs) * hz;
+      colliders.push({ minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, baseY: y0, minY: y0, maxY: y1, obb: { cx, cz, hx, hz, cs, sn } });
+    };
+    box(0, u.len, -u.left, u.right, u.y - 0.5, u.y - 0.02);
+    const wall = u.half + 0.6, WING = 6, THICK = 0.4;
+    for (const side of [-1, 1]) {
+      const v0 = side < 0 ? -wall - THICK : wall, v1 = v0 + THICK;
+      box(-WING, u.len + WING, v0, v1, floor - 0.5, u.y - 0.4, true);
+    }
+    for (const s of [0, u.len]) box(s - 0.15, s + 0.15, -wall - THICK, wall + THICK, u.y - 0.02, u.y + 1.05, true);
+  }
   const meshes = await mergeCollections(collector, { mergeCell });
   return { meshes, colliders, carveStrips, raised, stats: { roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets,
     clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, sidewalkSlabs, busMarkings, crosswalkBars, roundedCorners } };

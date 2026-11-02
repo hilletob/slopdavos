@@ -301,7 +301,8 @@ function buildOverheadLine(group) {
       prev = wire;
       const mx = p.x + nx * MAST_OFFSET, mz = p.z + nz * MAST_OFFSET;
       if (near(mx, mz) || near(p.x - nx * MAST_OFFSET, p.z - nz * MAST_OFFSET)) continue;
-      const mast = { x: mx, z: mz, base: groundHeight(mx, mz), top: y + CONTACT_WIRE + MESSENGER + 0.3, yaw: Math.atan2(-nx, -nz), wireY: y + CONTACT_WIRE };
+      const deckBase = deckHeight(mx, mz); // (on the lid of an underpass: not down through its roof onto the road below)
+      const mast = { x: mx, z: mz, base: deckBase === deckBase ? deckBase : groundHeight(mx, mz), top: y + CONTACT_WIRE + MESSENGER + 0.3, yaw: Math.atan2(-nx, -nz), wireY: y + CONTACT_WIRE };
       masts.push(mast);
       const key = `${Math.floor(mx / 8)},${Math.floor(mz / 8)}`;
       if (!cells.has(key)) cells.set(key, []);

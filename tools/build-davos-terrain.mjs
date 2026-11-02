@@ -18,6 +18,7 @@ import { FRAME, WORLD_BOUNDS, worldToLv95, lonLatToWorld } from '../js/davos-fra
 import { polygons, bbox as ringBox } from './osm-geometry.mjs';
 import { lv95ToWgs84 } from '../js/swiss-projection.js';
 import { buildLine, routePoint } from '../js/rhb-route.js';
+import { findUnderpasses, approachFrom } from './underpass.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUT = process.argv[2] || path.join(DIR, '..', 'data', 'davos-terrain.bin');
@@ -483,6 +484,58 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
     set++;
   }
   log(`railway bed: the line ${line ? Math.round(line.south.len) : 0} m, ${tracks} tracks laid on it or smoothed, ${set} grid nodes set`);
+}
+
+// --- The trenches of the road underpasses -------------------------------------------------------------------------------
+// tools/underpass.mjs. The 2 m model keeps the ramps and bridges the tunnel itself with the yard above. Done last: the
+// pit filling and the railway bed have laid the ground over it. The road's height: the model along the ramps, a line
+// between the two mouths through the tunnel, smoothed; the nodes under the carriageway sink to it (and never rise).
+{
+  const STEP = 2, SIGMA = 4, BANK = 1, APPROACH = 30, MOUTH = 6;
+  const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
+  for (const u of findUnderpasses(osm)) {
+    const nodes = u.way.nodes, S = [];
+    const lay = (pts, s0, sign) => {
+      const out = [];
+      let s = 0;
+      for (let k = 1; k < pts.length; k++) {
+        const a = pts[k - 1], b = pts[k], L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(L / STEP));
+        for (let m = 1; m <= n; m++) out.push({ x: a.x + ((b.x - a.x) * m) / n, z: a.z + ((b.z - a.z) * m) / n, s: s0 + sign * (s + (L * m) / n) });
+        s += L;
+      }
+      return out;
+    };
+    const before = lay(approachFrom(osm, u, nodes[0], APPROACH), 0, -1).reverse();
+    const after = lay(approachFrom(osm, u, nodes[nodes.length - 1], APPROACH), u.len, 1);
+    S.push(...before, { x: u.a.x, z: u.a.z, s: 0 }, ...lay([u.a, u.b], 0, 1), ...after);
+    for (const p of S) p.h = groundAt(p.x, p.z);
+    const lowest = (s0, s1) => Math.min(...S.filter((p) => p.s >= s0 && p.s <= s1).map((p) => p.h));
+    const floorA = lowest(-4, MOUTH), floorB = lowest(u.len - MOUTH, u.len + 4);
+    for (const p of S) if (p.s >= -2 && p.s <= u.len + 2) p.h = floorA + (floorB - floorA) * Math.max(0, Math.min(1, p.s / u.len));
+    const prof = S.map((p) => {
+      let sum = 0, w = 0;
+      for (const q of S) { const d = q.s - p.s, g = Math.exp(-(d * d) / (2 * SIGMA * SIGMA)); sum += q.h * g; w += g; }
+      return sum / w;
+    });
+    let set = 0;
+    const done = new Set();
+    const reach = u.half + BANK;
+    const sink = (x, z, target) => {
+      const fu = (x - minX) / cell, fv = (z - minZ) / cell, i = Math.floor(fu), j = Math.floor(fv);
+      if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) return;
+      const k = j * cols + i;
+      for (const q of [k, k + cols + 1, fu - i >= fv - j ? k + 1 : k + cols]) {
+        if (H[q] > target) { H[q] = target; if (!done.has(q)) { done.add(q); set++; } }
+      }
+    };
+    for (let k = 1; k < S.length; k++) {
+      const a = S[k - 1], b = S[k], L = Math.hypot(b.x - a.x, b.z - a.z) || 1e-6, ux = (b.x - a.x) / L, uz = (b.z - a.z) / L;
+      for (let f = 0; f < L; f += 1) for (let o = -reach; o <= reach + 1e-6; o += 1) {
+        sink(a.x + ux * f - uz * o, a.z + uz * f + ux * o, prof[k - 1] + ((prof[k] - prof[k - 1]) * f) / L);
+      }
+    }
+    log(`underpass ${u.way.tags.name || u.way.id}: floor ${floorA.toFixed(1)}-${floorB.toFixed(1)} m a.s.l., ${set} grid nodes sunk`);
+  }
 }
 
 const heights = new Int16Array(cols * rows);

@@ -135,3 +135,21 @@ test('the roof atlases are stored, complete and consistent with their index', ()
   }
   console.log(`roof atlases: ${tiles.length} tiles, ${rects} boxes, ${(bytes / 1048576).toFixed(1)} MB`);
 });
+
+test('the Hofstrasse runs under the RhB: an open road in a cut, the tracks on a short deck over it', async () => {
+  const u = (DAVOS_DATA.underpasses || []).find((p) => p.name === 'Hofstrasse');
+  assert.ok(u, 'the underpass');
+  assert.ok(DAVOS_DATA.roads.some((r) => r.id === u.id && !r.tunnel && !r.bridge), 'the road is drawn and driven');
+  const at = (s) => ({ x: u.ax + u.ux * s, z: u.az + u.uz * s });
+  for (const s of [0, u.len / 2, u.len]) {
+    const p = at(s);
+    assert.ok(u.y - gridHeight(TERRAIN, p.x, p.z) > 3.5, `headroom at ${s} m`);
+  }
+  const decks = DAVOS_DATA.railways.filter((r) => r.bridge && r.kind === 'narrow_gauge' && r.ys.some((y) => y === u.y));
+  assert.ok(decks.length >= 1, 'the line crosses on a deck at the height of the lid');
+  for (const r of decks) {
+    let len = 0;
+    for (let i = 2; i < r.pts.length; i += 2) len += Math.hypot(r.pts[i] - r.pts[i - 2], r.pts[i + 1] - r.pts[i - 1]);
+    assert.ok(len < u.left + u.right + 20, `only as long as the lid, ${len} m`);
+  }
+});

@@ -148,6 +148,20 @@ for (const list of [DAVOS_DATA.roads, DAVOS_DATA.railways]) {
   }
 }
 
+// The lids of the road underpasses (tools/underpass.mjs), rectangles one can stand and drive on: the segment runs across
+// the road, half way through the underpass, and `half` is half its length along the road
+for (const u of DAVOS_DATA.underpasses || []) {
+  const mx = u.ax + u.ux * u.len / 2, mz = u.az + u.uz * u.len / 2;
+  const s = { ax: mx + u.uz * u.left, az: mz - u.ux * u.left, bx: mx - u.uz * u.right, bz: mz + u.ux * u.right, ya: u.y, yb: u.y, half: u.len / 2, road: null, lid: true };
+  const ix0 = Math.floor((Math.min(s.ax, s.bx) - s.half) / DECK_CELL), ix1 = Math.floor((Math.max(s.ax, s.bx) + s.half) / DECK_CELL);
+  const iz0 = Math.floor((Math.min(s.az, s.bz) - s.half) / DECK_CELL), iz1 = Math.floor((Math.max(s.az, s.bz) + s.half) / DECK_CELL);
+  for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
+    const k = ix * 65536 + iz;
+    if (!deckCells.has(k)) deckCells.set(k, []);
+    deckCells.get(k).push(s);
+  }
+}
+
 /** Registers a landing platform: a disc of radius `r` round (x, z) whose surface lies at `y`. It counts as a deck for
  *  surfaceHeight(), so the helicopter sets down on it (js/controllers.js: the floor is the surface) — the Rega pad on
  *  the roof of the Spital Davos (js/helipad.js) */
@@ -169,7 +183,9 @@ export function deckHeight(x, z) {
   let best = Infinity, h = NaN;
   for (const s of list) {
     const dx = s.bx - s.ax, dz = s.bz - s.az, L2 = dx * dx + dz * dz || 1e-9;
-    const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (z - s.az) * dz) / L2));
+    const raw = ((x - s.ax) * dx + (z - s.az) * dz) / L2;
+    if (s.lid && (raw < 0 || raw > 1)) continue; // (a rectangle, no round ends: its long sides fall away into the cut)
+    const t = Math.max(0, Math.min(1, raw));
     const d = Math.hypot(s.ax + t * dx - x, s.az + t * dz - z);
     if (d <= s.half && d < best) { best = d; h = s.ya + t * (s.yb - s.ya); }
   }

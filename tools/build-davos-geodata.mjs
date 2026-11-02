@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FRAME, WORLD_BOUNDS, lonLatToWorld, lv95ToWorld } from '../js/davos-frame.js';
 import { parseTerrain, gridHeight } from '../js/terrain-grid.js';
+import { findUnderpasses } from './underpass.mjs';
 import { toWorld, flat, geomPts, inFrame, ringArea, bbox, bboxInFrame, rdp, cleanRing, polygons, clipToFrame } from './osm-geometry.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -48,6 +49,82 @@ for (const e of osm.elements) {
     });
   }
 }
+
+// --- Road underpasses (tools/underpass.mjs) ------------------------------------------------------------------------------
+// The road comes out of its tunnel into the trench the terrain tool has cut. The lid over it reaches across the cut, to
+// where the ground is back at the level of the yard. Every track and road crossing the lid is cut into a deck over it
+// (the bridge ways below: their nodes on the lid take its height, the ends the ground just beyond its edge).
+const underpasses = [];
+const lidAnchors = new Map(); // node id -> height of the lid it lies on
+{
+  const MARGIN = 3, FAR = 34;
+  let nextId = -1;
+  for (const u of findUnderpasses(osm)) {
+    const ground = (s, v) => gridHeight(TERRAIN, u.a.x + u.ux * s - u.uz * v, u.a.z + u.uz * s + u.ux * v);
+    const yard = [];
+    for (let s = 2; s < u.len - 2; s += 2) for (const v of [-FAR, -FAR + 4, FAR - 4, FAR]) yard.push(ground(s, v));
+    yard.sort((p, q) => p - q);
+    const y = r2(yard[yard.length >> 1]);
+    const side = (sign) => {
+      let reach = u.half + 1.5;
+      for (let s = 0; s <= u.len; s += 2) for (let v = FAR; v > reach; v -= 1) if (ground(s, sign * v) < y - 0.4) { reach = v; break; }
+      return reach + 1;
+    };
+    const left = side(-1), right = side(1);
+    u.way.tags = { ...u.way.tags, underpass: 'yes' };
+    delete u.way.tags.tunnel; delete u.way.tags.layer; delete u.way.tags.covered;
+    underpasses.push({ id: `w${u.way.id}`, name: u.way.tags.name || '', ax: r2(u.a.x), az: r2(u.a.z), ux: u.ux, uz: u.uz, len: r2(u.len), half: u.half, left: r1(left), right: r1(right), y });
+    // Local frame of the lid: s along the road, v across it
+    const local = (p) => { const dx = p.x - u.a.x, dz = p.z - u.a.z; return { s: dx * u.ux + dz * u.uz, v: -dx * u.uz + dz * u.ux }; };
+    const inside = (q, m) => q.s >= -m && q.s <= u.len + m && q.v >= -left - m && q.v <= right + m;
+    const portals = new Set([u.way.nodes[0], u.way.nodes[u.way.nodes.length - 1]]);
+    const added = [];
+    for (let w = osm.elements.length - 1; w >= 0; w--) {
+      const e = osm.elements[w], t = e.tags || {};
+      if (e.type !== 'way' || !e.geometry || !e.nodes || e === u.way || e.nodes.length !== e.geometry.length) continue;
+      if (e.nodes.some((id) => portals.has(id)) || isTunnelTag(t) || (t.bridge && t.bridge !== 'no')) continue;
+      if (!t.highway && !(t.railway && /^(rail|narrow_gauge)$/.test(t.railway) && !/^(yard|spur)$/.test(t.service || ''))) continue;
+      const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), locals = pts.map(local);
+      if (!locals.some((q, i) => inside(q, MARGIN) || (i > 0 && segmentMeetsBox(locals[i - 1], q, u.len, left, right, 0)))) continue;
+      // The way's nodes, with new ones where it enters the outer box (MARGIN) and the lid
+      const list = [];
+      e.nodes.forEach((id, i) => {
+        if (i > 0) for (const f of [...boxCrossings(locals[i - 1], locals[i], u.len, left, right, MARGIN), ...boxCrossings(locals[i - 1], locals[i], u.len, left, right, 0)].sort((p, q) => p - q)) {
+          const g = e.geometry;
+          list.push({ id: nextId--, lat: g[i - 1].lat + (g[i].lat - g[i - 1].lat) * f, lon: g[i - 1].lon + (g[i].lon - g[i - 1].lon) * f });
+        }
+        list.push({ id, lat: e.geometry[i].lat, lon: e.geometry[i].lon });
+      });
+      for (const n of list) { const q = local(lonLatToWorld(n.lon, n.lat)); n.outer = inside(q, MARGIN + 1e-3); n.lid = inside(q, 1e-3); if (n.lid) lidAnchors.set(n.id, y); }
+      // Cut at the outer box (a boundary node belongs to both sides): a stretch inside it that reaches the lid is a deck
+      const inside2 = (i) => list[i].outer && list[i + 1].outer;
+      const pieces = [];
+      for (let i = 0, from = 0; i < list.length - 1; i++) {
+        if (i === list.length - 2 || inside2(i) !== inside2(i + 1)) { pieces.push({ run: list.slice(from, i + 2), over: inside2(i) }); from = i + 1; }
+      }
+      const ways = pieces.map(({ run, over }, k) => {
+        const tags = over && run.some((n) => n.lid) ? { ...t, bridge: 'yes', layer: '1' } : t;
+        return { ...e, id: `${e.id}${k ? `_${k}` : ''}`, tags, nodes: run.map((n) => n.id), geometry: run.map((n) => ({ lat: n.lat, lon: n.lon })) };
+      });
+      added.push([w, ways]);
+    }
+    for (const [w, ways] of added) osm.elements.splice(w, 1, ...ways);
+    log(`underpass ${u.way.tags.name}: lid ${r1(left + right)} x ${r1(u.len)} m at ${y} m, ${added.length} ways over it (${added.map(([, ws]) => ws[0].tags.name || ws[0].tags.railway || ws[0].tags.highway).join(', ')})`);
+  }
+}
+function isTunnelTag(t) { return (t.tunnel && t.tunnel !== 'no') || t.covered === 'yes' || (num(t.layer) ?? 0) < 0; }
+// The fractions along segment p -> q where it crosses the outline of the box (s in [-m, len + m], v in [-left - m, right + m])
+function boxCrossings(p, q, len, left, right, m) {
+  const out = [];
+  const edge = (a, b, c) => { if ((a - c) * (b - c) < 0) return (c - a) / (b - a); return null; };
+  const inBox = (s, v) => s >= -m - 1e-6 && s <= len + m + 1e-6 && v >= -left - m - 1e-6 && v <= right + m + 1e-6;
+  for (const [a, b, c] of [[p.s, q.s, -m], [p.s, q.s, len + m], [p.v, q.v, -left - m], [p.v, q.v, right + m]]) {
+    const f = edge(a, b, c);
+    if (f !== null && inBox(p.s + (q.s - p.s) * f, p.v + (q.v - p.v) * f)) out.push(f);
+  }
+  return out;
+}
+function segmentMeetsBox(p, q, len, left, right, m) { return boxCrossings(p, q, len, left, right, m).length > 0; }
 
 // --- Roads & railways ---------------------------------------------------------------------------------------------------
 const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5, pedestrian: 6, cycleway: 2.5, footway: 2, path: 1.5, steps: 2.5, track: 3 };
@@ -332,6 +409,7 @@ const terrainPatches = []; // bridgeheads where the terrain must rise to the sur
     const loose = new Set(edges.map(([b]) => b)).size < 2;
     const onLand = !inWater(pos.get(id));
     const junction = onLand && (groundNodes.has(id) || (!majorDeck.has(id) && minorGroundNodes.has(id)));
+    if (lidAnchors.has(id)) { anchored.add(id); h.set(id, lidAnchors.get(id)); continue; } // (on the lid of an underpass)
     if (junction || loose) {
       anchored.add(id);
       const g = ground(id), survey = surveyed[id] - FRAME.H0;
@@ -490,7 +568,7 @@ const data = {
     areas,
     counts: { buildings: buildings.length, roads: roads.length, water: water.length, parks: parks.length, railways: railways.length, trees: trees.length, signals: signals.length, fountains: fountains.length, tramStops: tramStops.length, stations: stations.length, loipen: loipen.length }
   },
-  buildings, roads, water, parks, railways, trees, signals, fountains, tramStops, stations, loipen, landmarks, roadGraph, terrainPatches
+  buildings, roads, water, parks, railways, trees, signals, fountains, tramStops, stations, loipen, landmarks, roadGraph, terrainPatches, underpasses
 };
 fs.writeFileSync(OUT, `// js/davos-geodata.js — GENERATED by tools/build-davos-geodata.mjs, do not edit by hand.\n// Davos (Landwassertal and Dischma) in the LV95 world frame of js/davos-frame.js. © OpenStreetMap contributors (ODbL), swisstopo.\nexport const DAVOS_DATA = ${JSON.stringify(data)};\n`);
 log(`wrote ${OUT} (${(fs.statSync(OUT).size / 1048576).toFixed(1)} MB)`, JSON.stringify(data.meta.counts));
