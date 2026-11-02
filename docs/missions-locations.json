@@ -255,11 +255,11 @@
    "anreise": "Bus/Auto/RhB bis Davos Dorf, dann zu Fuss",
    "ort": {
     "name": "BOX Davos, Bahnhofstrasse 19, Davos Dorf",
-    "x": 996.5,
-    "z": -1829.2,
+    "x": 988,
+    "z": -1835.5,
     "lv95": {
-     "E": 2783497,
-     "N": 1187329
+     "E": 2783488,
+     "N": 1187336
     }
    },
    "quelle": "OSM node 9038967606 (tools/data/cache/osm_davos_shops.json, amenity=bar) · restaurantguru.com/Box-Davos (Live-Musik)",

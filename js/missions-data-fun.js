@@ -240,7 +240,7 @@ export const HEADBANG_MISSION = rhythmMission({
   colour: '#d33cff',
   icon: 'music',
   finish: 'The band throws you a pick: what a neck!',
-  start: { x: 997.2, z: -1829, heading: Math.PI }, // (on the street a few metres before the door, facing it: the old start lay inside the BOX's footprint)
+  start: { x: 988, z: -1835.5, heading: Math.PI / 2 }, // (in the lane north of the building, walking east to the door; outside every footprint)
   rhythm: HEADBANG_RHYTHM,
   door: BOX_DOOR,
   doorTitle: 'Go into the BOX',

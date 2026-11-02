@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   FUN_MISSIONS, HEADBANG, HEADBANG_CHART, HEADBANG_LENGTH, HEADBANG_MAX, BEAT_S, HEADBANG_RHYTHM, HEADBANG_MISSION, createHeadbang, headbangTap, headbangAdvance, gradeOffset, headbangMultiplier, headbangMaxScore, rhythmSection, rhythmMedals, RHYTHM_MEDAL_SHARE,
-  BOLGEN_MISSION, BOLGEN_RHYTHM, BOLGEN_SONG, BOLGEN_DOOR, seededRandom,
+  BOLGEN_MISSION, BOLGEN_RHYTHM, BOLGEN_SONG, BOLGEN_DOOR, BOX_DOOR, seededRandom,
   FOOSBALL, FOOSBALL_RODS, PLAYER_RODS, createFoosball, foosballStep, foosballKick, foosballScore, autoRod, rodRange, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, canPlace, createGondola, gondolaSpawn, gondolaMove, gondolaRotate, gondolaDrop, gondolaStep, gondolaDepart, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, rhbSpeedSections, rhbLimitAt, rhbRunTime, rhbTimetable, rhbStopScore, createRhbDrive, rhbDriveStep, rhbDriveScore
@@ -459,4 +459,14 @@ test('RhB: running through a station misses it; the halt counts only within the 
   for (let i = 0; i < 40; i++) rhbDriveStep(e, { t: 660 + i * 0.1, s: STOPS[3].s + 0.4, speed: 0, dt: 0.1 });
   assert.ok(e.done);
   assert.equal(e.results[0].doors, 50);
+});
+
+test('the BOX: neither the start nor the door lies inside a building, and the start faces the door', () => {
+  const inRing = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { if ((r[i + 1] > z) !== (r[j + 1] > z) && x < ((r[j] - r[i]) * (z - r[i + 1])) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; } return c; };
+  const m = HEADBANG_MISSION;
+  for (const p of [m.start, BOX_DOOR]) assert.ok(!DAVOS_DATA.buildings.some((b) => inRing(p.x, p.z, b.ring)), `(${p.x}, ${p.z}) lies in a building`);
+  const dx = BOX_DOOR.x - m.start.x, dz = BOX_DOOR.z - m.start.z;
+  assert.ok(Math.sin(m.start.heading) * dx + Math.cos(m.start.heading) * dz > 4, 'the door lies ahead');
+  // the straight walk to the door stays clear of the buildings
+  for (let t = 0; t <= 1; t += 0.05) assert.ok(!DAVOS_DATA.buildings.some((b) => inRing(m.start.x + dx * t, m.start.z + dz * t, b.ring)), `blocked at ${t}`);
 });
