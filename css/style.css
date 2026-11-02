@@ -543,6 +543,20 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   gap: 2px;
 }
 
+.language-switch { display: inline-flex; gap: 2px; margin-left: 3px; }
+.language-btn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 5px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+.language-btn:hover { color: var(--text); background: var(--hover); }
+.language-btn[aria-pressed="true"] { color: #121314; background: var(--text); }
+
 .time-btn {
   height: 36px;
   padding: 0 9px;
@@ -1422,6 +1436,10 @@ body[data-mode='helicopter'] .gauge-alt {
 }
 
 @media (max-width: 620px) {
+  .hud-top-right { max-width: calc(100vw - 2 * var(--edge)); }
+  .hud-top-right .toolbar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .hud-top-right .toolbar::-webkit-scrollbar { display: none; }
+  .hud-top-right .toolbar > * { flex-shrink: 0; }
   .time-btn.active .seg-label { display: none; }
   .time-btn.active { padding: 0 9px; gap: 0; }
   .radar { display: none; }
@@ -1546,6 +1564,7 @@ body.touch-enabled .hud-top-right { top: max(var(--edge), env(safe-area-inset-to
 body.touch-enabled .toolbar { gap: 2px; padding: 4px; }
 body.touch-enabled .time-btn,
 body.touch-enabled .time-btn.active { height: 44px; min-width: 44px; padding: 0 8px; gap: 0; }
+body.touch-enabled .language-btn { height: 44px; min-width: 30px; }
 body.touch-enabled .tool-btn { min-width: 44px; min-height: 44px; }
 body.touch-enabled .tool-label { display: none; }
 body.touch-enabled .hud-bottom-center { bottom: max(var(--edge), env(safe-area-inset-bottom)); }

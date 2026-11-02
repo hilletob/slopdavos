@@ -13,7 +13,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Davos" />
-  <meta name="description" content="Slop Davos: Davos Platz, Davos Dorf, the Davosersee, Frauenkirch and the Dischma valley at 1:1 on their real alpine relief, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D, SWISSIMAGE) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, RhB train, Helicopter, snow groomer), and 11 cinematic cameras at 60 FPS." />
+  <meta name="description" content="Slop Davos: Davos Platz, Davos Dorf, Davosersee, Frauenkirch und Dischmatal im Massstab 1:1 auf echtem Alpenrelief. Explore Davos at 1:1 on its real alpine terrain, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D, SWISSIMAGE) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, RhB train, Helicopter, snow groomer), and 11 cinematic cameras at 60 FPS." />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <!-- three.js dev branch pinned to a commit (builds committed to mrdoob/three.js@dev, served by jsDelivr) -->
   <script type="importmap">
@@ -28,6 +28,7 @@
   </script>
   <!-- Fetch the city modules in parallel before stylesheets; the module graph controls evaluation order. -->
   <link rel="modulepreload" href="./js/davos-geodata.js" />
+  <link rel="modulepreload" href="./js/i18n.js" />
   <link rel="modulepreload" href="./js/swiss-projection.js" />
   <link rel="modulepreload" href="./js/davos-frame.js" />
   <link rel="modulepreload" href="./js/quality.js" />
@@ -241,6 +242,10 @@
       <button id="btn-winter" class="time-btn season-btn" type="button" title="Winter" aria-label="Winter" aria-pressed="false">
         <svg class="icon" aria-hidden="true"><use href="#i-snow"/></svg><span class="seg-label">Winter</span>
       </button>
+      <div class="language-switch" role="group" aria-label="Language / Sprache">
+        <button id="lang-de" class="language-btn" type="button" lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
+        <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
+      </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="Teleport the active player">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">Teleport</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
@@ -362,7 +367,7 @@
       <div class="gauge">
         <div class="gauge-top">
           <span id="hud-active-mode" class="gauge-label">Davos Cyclist</span>
-          <span class="gauge-alt"><span class="gauge-alt-label">Alt</span> <span id="hud-altitude">0</span> m ü. M.</span>
+          <span class="gauge-alt"><span class="gauge-alt-label">Alt</span> <span id="hud-altitude">0</span> m a.s.l.</span>
         </div>
         <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
         <div class="gauge-meter" aria-hidden="true"><span id="hud-speed-meter"></span></div>
@@ -428,7 +433,7 @@
       <div class="panel fullmap-title">
         <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
         <div>
-          <h2>Davos Karte</h2>
+          <h2>Davos Map</h2>
           <p id="fullmap-player-info" class="fullmap-subtitle">You are on the Promenade</p>
         </div>
       </div>

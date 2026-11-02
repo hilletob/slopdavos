@@ -1,8 +1,8 @@
 {
   "name": "Slop Davos",
   "short_name": "Davos",
-  "description": "Davos Platz, Davos Dorf, the Davosersee, Frauenkirch and the Dischma valley at 1:1 on their real alpine relief.",
-  "lang": "de-CH",
+  "description": "Davos Platz, Davos Dorf, Davosersee, Frauenkirch und Dischmatal im Massstab 1:1 auf echtem Alpenrelief. Explore Davos at 1:1 on its real alpine terrain.",
+  "lang": "mul",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

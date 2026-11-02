@@ -1,3 +1,4 @@
+import './i18n.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -109,7 +110,7 @@ async function initApp() {
     const note = document.createElement('p');
     note.className = 'loader-crash-note';
     note.style.cssText = 'margin-top:12px;font-size:12px;opacity:.75;max-width:90vw;word-break:break-word';
-    note.textContent = `Letzter Start abgebrochen bei: ${boot.previous.stage}` + (boot.previous.errors?.length ? ` · ${boot.previous.errors.join(' | ')}` : '');
+    note.textContent = `Previous launch stopped at: ${boot.previous.stage}` + (boot.previous.errors?.length ? ` · ${boot.previous.errors.join(' | ')}` : '');
     (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
     console.warn('[boot] the previous start stopped at', boot.previous);
   }
@@ -121,7 +122,7 @@ async function initApp() {
     note.className = 'loader-crash-note';
     note.style.cssText = 'margin-top:8px;font-size:11px;opacity:.7;max-width:90vw;word-break:break-word';
     const last = gpuLog.last?.at(-1);
-    note.textContent = `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}` + (last ? ` · letzter Shader #${last.n} ${last.label} ${last.length} B #${last.hash}` : '');
+    note.textContent = `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}` + (last ? ` · last shader #${last.n} ${last.label} ${last.length} B #${last.hash}` : '');
     (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
     console.warn('[gpu] the previous start:', gpuLog);
   }

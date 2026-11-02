@@ -11,6 +11,7 @@ import { setWorldCenter } from './quality.js';
 import { MissionManager, worldCellsReady } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
 import { buildMissionWorld } from './missions-world.js';
+import { t as translateUI, setLocalizedText } from './i18n.js';
 import { SNOW_FEATURES } from './missions-snow.js';
 import { ICE_FEATURES } from './missions-ice.js';
 import { FUN_FEATURES } from './missions-fun.js';
@@ -623,11 +624,11 @@ class MissionRun {
     const objective = this.def.objectives[Math.min(this.index, this.def.objectives.length - 1)];
     u.stepTitle.textContent = this.phase === 'done' ? 'Mission complete' : objective.title;
     if (view) {
-      if (u.text.textContent !== view.text) u.text.textContent = view.text || '';
+      if (u.text.textContent !== translateUI(view.text || '')) setLocalizedText(u.text, view.text || '');
       u.bar.hidden = view.progress == null;
       if (view.progress != null) u.fill.style.transform = `scaleX(${Math.max(0, Math.min(1, view.progress))})`;
       const hint = view.hint || (this.phase === 'ready' ? 'Ready: the clock starts with your first input' : '');
-      if (u.hint.textContent !== hint) u.hint.textContent = hint;
+      if (u.hint.textContent !== translateUI(hint || '')) setLocalizedText(u.hint, hint || '');
       u.hint.hidden = !hint;
       this.placeTarget(view.target, ctx);
     } else if (this.phase === 'loading') {
@@ -796,7 +797,7 @@ const FEATURES = {
       const off = predicted ? Math.hypot(predicted.x - zone.x, predicted.z - zone.z) : null;
       const reload = Math.max(0, LAUNCHER.reloadS - (performance.now() - s.lastShot) / 1000);
       const info = `Elevation ${elev.toFixed(1)}°${predicted ? ` · impact ${formatDistance(Math.hypot(predicted.x - ctx.x, predicted.z - ctx.z))}` : ''}${off != null ? (off <= zone.r ? ' · in the zone' : ` · ${Math.round(off)} m off the zone`) : ''}${s.shell ? ' · in flight' : reload > 0 ? ` · reloading ${reload.toFixed(1)} s` : ''} · ${s.ammo} ${s.ammo === 1 ? 'round' : 'rounds'}`;
-      if (run.ui.aimInfo.textContent !== info) run.ui.aimInfo.textContent = info;
+      if (run.ui.aimInfo.textContent !== translateUI(info)) setLocalizedText(run.ui.aimInfo, info);
       run.ui.aimInfo.classList.toggle('is-on-target', off != null && off <= zone.r);
       if (reload <= 0) run.ui.fire?.classList.remove('is-reloading');
       // the shell in flight

@@ -7,6 +7,7 @@ import { setMissionStartInReach } from './missions-manager.js';
 import { surfaceHeight } from './terrain.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { QUALITY } from './quality.js';
+import { t, setLocalizedText } from './i18n.js';
 
 // js/missions-world.js
 // The missions in the open world (js/missions.js builds it with the manager): a pin at every mission's start — a
@@ -425,7 +426,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
           ctx.font = '600 11px Inter, system-ui, sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'top';
           ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8, 12, 20, 0.85)'; ctx.fillStyle = '#fff';
-          ctx.strokeText(pin.def.title, x, y + r + 3); ctx.fillText(pin.def.title, x, y + r + 3);
+          ctx.strokeText(t(pin.def.title), x, y + r + 3); ctx.fillText(t(pin.def.title), x, y + r + 3);
         }
       }
     },
@@ -442,7 +443,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       const pin = overlay.pick(mx, my, v);
       if (!pin) return null;
       const medal = progress.medal(pin.def.id);
-      return `Mission: ${pin.def.title}${medal ? ` · ${MEDAL_LABELS[medal]}` : ''} · Click to set the waypoint`;
+      return t(`Mission: ${t(pin.def.title)}${medal ? ` · ${t(MEDAL_LABELS[medal])}` : ''} · Click to set the waypoint`);
     },
     click(mx, my, v) {
       const pin = overlay.pick(mx, my, v);
@@ -484,7 +485,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       setMissionStartInReach(reach?.def.id);
       if (reach) {
         const medal = progress.medal(reach.def.id);
-        promptText.textContent = `Start ${reach.def.title}`;
+        setLocalizedText(promptText, `Start ${reach.def.title}`);
         promptSub.textContent = medal ? `${MEDAL_LABELS[medal]} · best medal` : progress.entry(reach.def.id) ? 'Completed · no medal yet' : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
         prompt.style.setProperty('--mission-colour', reach.def.colour || '#3fd6ff');
       }
@@ -501,7 +502,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       arrow.style.transform = `rotate(${(-rel * 180) / Math.PI}deg)`;
       arrow.style.color = def.colour;
       const text = `${def.title} · ${formatDistance(d)}`;
-      if (wayText.textContent !== text) wayText.textContent = text;
+      if (wayText.textContent !== t(text)) setLocalizedText(wayText, text);
     } else way.hidden = true;
   }
 
