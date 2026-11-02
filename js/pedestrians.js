@@ -59,7 +59,8 @@ export function poseBuffer(count) {
 // cyclist's rider (controllers.js).
 // - One continuous lofted body (torso & neck, trouser legs, sleeves, hands, head, hair, shoes) skinned to a 15-bone
 //   skeleton, with bind-pose morphs for build (girth), female proportions and hair volume & length; a near and a far
-//   level of detail.
+//   level of detail. Mohawk crest & dreadlocks are part of that one geometry too, folded to a point inside the head for
+//   everyone who doesn't wear them (HAIRSTYLE): no extra draw, material or texture per hairstyle.
 // - A whole crowd is one instanced draw per level of detail: every person's bone transforms (quaternion, translation &
 //   scale) live in a storage buffer the vertex stage skins from, and a per-person seed dresses them (TSL material).
 // - PersonRig walks a body along whatever path its owner moves it on: footsteps are planted in the world (heel strike,
@@ -89,7 +90,8 @@ const BONE = {
   TOE_R: 14
 };
 const BONE_COUNT = 15;
-// vec4s per person in the pose buffer: (quaternion) and (translation, scale) per bone, then (seed, female, girth, hair)
+// vec4s per person in the pose buffer: (quaternion) and (translation, scale) per bone, then (seed, female, girth,
+// hair + 2 * hairstyle)
 const STRIDE = BONE_COUNT * 2 + 1;
 
 // Bind pose (metres, a 1.75 m person standing at the origin facing +Z, +X on their left): legs straight down, arms
@@ -140,7 +142,34 @@ const BIND = [bindJoints(false), bindJoints(true)];
 // ============================================================================
 // 2. SKINNED LOFTED BODY GEOMETRY
 // ============================================================================
-const PART = { BODY: 0, LEG: 1, SHOE: 2, ARM: 3, HAND: 4, HEAD: 5, HAIR: 6, LONG_HAIR: 7 };
+const PART = { BODY: 0, LEG: 1, SHOE: 2, ARM: 3, HAND: 4, HEAD: 5, HAIR: 6, LONG_HAIR: 7, MOHAWK: 8, DREADS: 9 };
+
+// What sits on the head besides the hair volume & length of `hair` (long hair is simply hair = 1 on PLAIN). The
+// materials of the skiers & hikers read hair < 0.4 as "wears a beanie": they don't use these (and if they ever did, the
+// encoded value of a mohawk or dreadlocks is 2 or more, so no beanie would clip through them).
+const HAIRSTYLE = { PLAIN: 0, MOHAWK: 1, DREADS: 2 };
+
+// Shares among the city's women and men; whoever is left has short hair (men) or a voluminous cut (women)
+const HAIRSTYLE_SHARE = {
+  female: { mohawk: 0.02, dreads: 0.06, long: 0.62 },
+  male: { mohawk: 0.04, dreads: 0.06, long: 0.16 }
+};
+
+/**
+ * The hair of one person from a hash `roll` in [0, 1): the PersonRig options { hairstyle, hair }. A mohawk's sides are
+ * shaved (no volume); dreadlocks lie close on the scalp they grow out of.
+ */
+function rollHairstyle(roll, female) {
+  const share = female ? HAIRSTYLE_SHARE.female : HAIRSTYLE_SHARE.male;
+  let edge = share.mohawk;
+  if (roll < edge) return { hairstyle: HAIRSTYLE.MOHAWK, hair: 0 };
+  edge += share.dreads;
+  if (roll < edge) return { hairstyle: HAIRSTYLE.DREADS, hair: 0.2 };
+  edge += share.long;
+  if (roll < edge) return { hairstyle: HAIRSTYLE.PLAIN, hair: 1 };
+  const rest = (roll - edge) / (1 - edge);
+  return { hairstyle: HAIRSTYLE.PLAIN, hair: female ? 0.45 + rest * 0.1 : rest * 0.35 };
+}
 
 // Superellipse ring around a vertical axis (x across, z to the front `rzF` or back `rzB`); `bump(a)` pushes points out
 function ringY(y, rx, rzF, rzB, cz, n, ex = 2, bump = null, cx = 0) {
@@ -247,7 +276,8 @@ class BodyBuilder {
     this.geometries = [];
   }
 
-  // rows: { pts, ptsF (female), ptsH (more hair volume), ptsL (long hair), skin: [boneA, boneB, weightB], axis }
+  // rows: { pts, ptsF (female), ptsH (more hair volume), ptsL (long hair, mohawk, dreadlocks: the shape it unfolds
+  // to), skin: [boneA, boneB, weightB], axis }
   // flattenBelow: normals of vertices lower than this face less downwards (the crotch of the trousers reads as cloth,
   // not as a dark gap between the legs)
   loft(rows, part, { capStart = false, capEnd = false, flattenBelow = -1 } = {}) {
@@ -279,7 +309,8 @@ class BodyBuilder {
     }
 
     // Packed (WebGPU allows 8 vertex buffers): skin = (bone A, bone B, weight of B, part), extra = (girth direction
-    // x & z, u along the loft), femaleDelta, hairDelta (hair volume on the shell, hair length on the long hair)
+    // x & z, u along the loft), femaleDelta, hairDelta (hair volume on the shell, hair length on the long hair,
+    // unfolding on the mohawk & the dreadlocks)
     const pos = lo.positions;
     const count = pos.length / 3;
     const skin = new Float32Array(count * 4);
@@ -555,6 +586,92 @@ const LONG_HAIR = [
   [1.36, 0.066, 0.02, 0.052, -0.068]
 ];
 
+// Where the mohawk & the dreadlocks wait, folded to a single point inside the head (their triangles have no area, so
+// the people without them only pay for the vertices, none of it reaches the rasterizer)
+const FOLDED_HAIR = new THREE.Vector3(0, 1.64, -0.012);
+const foldedRing = (n) => Array.from({ length: n }, () => FOLDED_HAIR.clone());
+
+// The male scalp where a ray from the middle of the head leaves it, in the head's mirror plane (x = 0); theta in the
+// plane from the front (0) over the top (pi / 2) to the back (pi). Returns the point's distance from that middle.
+const HEAD_MIDDLE = new THREE.Vector3(0, 1.635, -0.012);
+function scalpRadius(theta) {
+  const inside = (t) => {
+    const y = HEAD_MIDDLE.y + Math.sin(theta) * t;
+    const z = HEAD_MIDDLE.z + Math.cos(theta) * t;
+    if (y >= HEAD.m[0][0]) return false;
+    const [, , rzF, rzB, cz] = headAt(HEAD.m, y);
+    return z - cz >= 0 ? z - cz < rzF : cz - z < rzB;
+  };
+  let t = 0.05;
+  while (inside(t) && t < 0.2) t += 0.002;
+  return t;
+}
+
+// Mohawk: one fin of triangular section from the hairline over the crown to the nape, its edge serrated into spikes
+// that fan out of the scalp; rows from the front to the back, closed by tapering at both ends. The foot stays 8 mm
+// under the male scalp, so it doesn't float over the slightly smaller female head.
+const MOHAWK_FRONT = 0.5; // theta of the first row (the hairline over the forehead, rad)
+const MOHAWK_BACK = 3.55; // ... and the last (the back of the head)
+function mohawkRows(rows, notch) {
+  const out = [];
+  for (let i = 0; i < rows; i++) {
+    const u = i / (rows - 1);
+    const theta = MOHAWK_FRONT + (MOHAWK_BACK - MOHAWK_FRONT) * u;
+    const dir = new THREE.Vector3(0, Math.sin(theta), Math.cos(theta));
+    const foot = HEAD_MIDDLE.clone().addScaledVector(dir, scalpRadius(theta) - 0.008);
+    const taper = Math.min(1, Math.min(u, 1 - u) * 6) ** 0.6;
+    const spike = i % 2 ? 1 : notch; // the edge alternates between a tip and a notch
+    const halfWidth = 0.004 + 0.011 * taper;
+    const tip = foot.clone().addScaledVector(dir, 0.014 + 0.085 * taper * spike);
+    out.push({
+      pts: foldedRing(3),
+      ptsL: [foot.clone().setX(-halfWidth), tip, foot.clone().setX(halfWidth)],
+      skin: [BONE.HEAD, BONE.HEAD, 0],
+      axis: null
+    });
+  }
+  return out;
+}
+
+// One dreadlock: a rope of triangular section from the crown along the scalp, then hanging straight down to `tipY`, at
+// its full thickness until just above the tip that closes it. `a` is the angle round the head (as in ringY: 0 to the
+// left, pi / 2 to the front; the head reaches further to the back). Ropes over the shoulders stop on them, those behind
+// the neck hang clear of the torso and follow the chest as the long hair does. `r` is the rope's radius; `hi` adds the
+// blunt end (near level of detail; the far head is coarser and narrower, so its ropes hang closer in, not as handles).
+function dreadRows(a, tipY, r, hi) {
+  const side = Math.cos(a);
+  const back = Math.sin(a);
+  const at = (y, radius, thick) => {
+    const z = -0.014 + back * radius * (back < 0 ? 1.18 : 1);
+    return { y, thick, x: side * radius, z };
+  };
+  const hang = hi ? 0.11 : 0.092;
+  const profile = [at(1.73, 0.066, r * 0.75), at(1.66, hi ? 0.104 : 0.086, r), at(hi ? tipY + 0.022 : tipY, hang, hi ? r * 0.85 : r * 0.45)];
+  if (hi) profile.push(at(tipY, hang, r * 0.2));
+  return profile.map(({ x, y, z, thick }) => ({
+    pts: foldedRing(3),
+    ptsL: ringY(y, thick, thick, thick, z, 3, 2, null, x),
+    skin: y > 1.56 ? [BONE.HEAD, BONE.HEAD, 0] : y > 1.47 ? [BONE.HEAD, BONE.CHEST, 0.4] : [BONE.HEAD, BONE.CHEST, 0.8],
+    axis: null
+  }));
+}
+
+// The dreadlocks round the sides & the back of the head, leaving the face free: fewer & thicker ones far away. Their
+// lengths are varied by a fixed pattern, the same on everyone who wears them.
+function dreadlockRopes(hi) {
+  const count = hi ? 14 : 6;
+  const ropes = [];
+  for (let i = 0; i < count; i++) {
+    const a = 0.56 - ((0.56 * 2 + Math.PI) * i) / (count - 1);
+    const behind = -Math.sin(a);
+    const t = Math.min(1, Math.max(0, (behind - 0.55) / 0.3));
+    const jitter = [0, 0.018, -0.012, 0.009, -0.02][i % 5];
+    const tipY = 1.515 + (1.335 - 1.515) * t * t * (3 - 2 * t) + jitter * (0.3 + 0.7 * t);
+    ropes.push(dreadRows(a, tipY, hi ? 0.015 : 0.026, hi));
+  }
+  return ropes;
+}
+
 // [z from the ankle, half width, top, sole, keepInFarLod] (relative to the ankle joint)
 const SHOE = [
   [-0.088, 0.02, -0.02, -0.066, 1],
@@ -732,6 +849,10 @@ function buildPersonGeometry(detail = 1) {
   }));
   B.loft(longRows, PART.LONG_HAIR, { capEnd: true });
 
+  // Mohawk & dreadlocks (unfolding from a point inside the head on those who wear them)
+  B.loft(mohawkRows(hi ? 13 : 7, hi ? 0.42 : 0.72), PART.MOHAWK);
+  for (const rope of dreadlockRopes(hi)) B.loft(rope, PART.DREADS);
+
   // Shoes, heel to toe (the toes bend at the ball of the foot)
   SIDES.forEach((side, k) => {
     const rows = SHOE.filter((r) => keep(r, 4)).map(([z, hw, top, sole]) => ({
@@ -757,7 +878,9 @@ const SHIRT_COLORS = [0xe8e6e0, 0xb8c4d8, 0xcfc8b8, 0x9aa7b8];
 const LEG_COLORS = [0x22242c, 0x35485b, 0x51473d, 0x7c7160, 0x252526];
 const LEG_COLORS_F = [0x1c1c22, 0x2f4a6e, 0x46413b, 0xcfc8bb, 0x5a2a2e];
 const SKIN_COLORS = [0xc68863, 0xa96f4c, 0x8a5535, 0x6b3d24, 0xd9a077];
-const HAIR_COLORS = [0x1a1512, 0x3a2a1a, 0x584022, 0x6e6862, 0x2a2624, 0x8f6d43, 0x5e3020];
+const HAIR_COLORS = [0x1a1512, 0x3a2a1a, 0x584022, 0x6e6862, 0x2a2624, 0x8f6d43, 0x5e3020, 0xb08a52, 0xcdb078];
+// Mohawks are worn loud: black, pink, green, electric blue, flame red, bleached
+const MOHAWK_COLORS = [0x16120f, 0xd81b72, 0x2aa84a, 0x1f6fd8, 0xd8421a, 0xe4d26a];
 
 // Branchless TSL palette selector from an array of hex colors and a [0..1) hash value
 function pickColorFromPalette(hexArray, tNode) {
@@ -775,20 +898,35 @@ const qrot = (q, v) => v.add(cross(q.xyz, cross(q.xyz, v).add(v.mul(q.w))).mul(2
 
 /**
  * Material for one crowd mesh. `pose` is its storage buffer (STRIDE vec4s per instance). The vertex stage morphs the
- * bind pose (girth, female, hair) and skins it with two bones; the fragment stage dresses the person from their seed:
- * skin tone, hair & hairline, eyes, brows & mouth, a tailored jacket (lapels, shirt V) or casual coat (zip, hem,
+ * bind pose (girth, female, hair & hairstyle) and skins it with two bones; the fragment stage dresses the person from
+ * their seed: skin tone, hair & hairline (shaved sides under a mohawk, the ropes of dreadlocks), eyes, brows & mouth, a tailored jacket (lapels, shirt V) or casual coat (zip, hem,
  * collar), cuffs, trousers, sneakers or leather shoes with soles & laces.
  */
 function createPersonMaterial(pose) {
   const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
   const base = int(instanceIndex).mul(STRIDE);
-  const info = pose.element(base.add(STRIDE - 1)); // seed, female, girth, hair
+  const info = pose.element(base.add(STRIDE - 1)); // seed, female, girth, hair + 2 * hairstyle
+  // w: 0..1 plain hair, 2..3 mohawk, 4..5 dreadlocks (thresholds between those ranges, safe against interpolation)
+  const mohawkOf = (w) => step(1.5, w).sub(step(3.5, w));
+  const dreadsOf = (w) => step(3.5, w);
 
   mat.positionNode = Fn(() => {
     const skin = attribute('skin', 'vec4');
     const extra = attribute('extra', 'vec3');
-    // hair volume on the shell (part 6), hair length on the long hair (part 7)
-    const hairAmount = mix(clamp(info.w.mul(2.0), 0.0, 1.0), clamp(info.w.mul(2.0).sub(1.0), 0.0, 1.0), step(PART.LONG_HAIR - 0.5, skin.w));
+    // hair volume on the shell (part 6), hair length on the long hair (part 7), and the mohawk (8) & the dreadlocks
+    // (9) all or nothing
+    const mohawk = mohawkOf(info.w);
+    const dreads = dreadsOf(info.w);
+    const hair = info.w.sub(mohawk.mul(2.0)).sub(dreads.mul(4.0));
+    const hairAmount = mix(
+      mix(
+        mix(clamp(hair.mul(2.0), 0.0, 1.0), clamp(hair.mul(2.0).sub(1.0), 0.0, 1.0), step(PART.LONG_HAIR - 0.5, skin.w)),
+        mohawk,
+        step(PART.MOHAWK - 0.5, skin.w)
+      ),
+      dreads,
+      step(PART.DREADS - 0.5, skin.w)
+    );
     const p = attribute('position', 'vec3')
       .add(vec3(extra.x, 0.0, extra.y).mul(info.z.sub(1.0)))
       .add(attribute('femaleDelta', 'vec3').mul(info.y))
@@ -817,14 +955,15 @@ function createPersonMaterial(pose) {
     const along = attribute('extra', 'vec3').z;
 
     const skinCol = pickColorFromPalette(SKIN_COLORS, lane(17.0)).toVar();
-    const hairCol = pickColorFromPalette(HAIR_COLORS, lane(3.0)).toVar();
+    const mohawk = mohawkOf(vInfo.w);
+    const hairCol = mix(pickColorFromPalette(HAIR_COLORS, lane(3.0)), pickColorFromPalette(MOHAWK_COLORS, lane(3.0)), mohawk).toVar();
     const coatCol = mix(pickColorFromPalette(COAT_COLORS, lane(29.0)), pickColorFromPalette(COAT_COLORS_F, lane(29.0)), female).toVar();
     const shirtCol = pickColorFromPalette(SHIRT_COLORS, lane(71.0)).toVar();
     const legsCol = mix(pickColorFromPalette(LEG_COLORS, lane(47.0)), pickColorFromPalette(LEG_COLORS_F, lane(47.0)), female);
 
-    // Head: skin, hairline (none for the bald), eyes, brows, lips
+    // Head: skin, hairline (none for the bald, a few of the short-haired men, or under a mohawk), eyes, brows, lips
     const hd = normalize(vec2(q.x, q.z.add(0.01)));
-    const bald = step(lane(41.0), 0.08).mul(float(1.0).sub(female));
+    const bald = max(step(lane(41.0), 0.08).mul(float(1.0).sub(female)).mul(step(vInfo.w, 0.45)), mohawk);
     const hairline = hd.y.mul(0.055).add(1.62).sub(hd.x.mul(hd.x).sub(hd.y.mul(hd.y)).mul(0.005)).add(bald.mul(0.3));
     const hairMask = smoothstep(hairline.sub(0.004), hairline.add(0.004), q.y);
     const front = smoothstep(0.06, 0.08, q.z);
@@ -839,7 +978,14 @@ function createPersonMaterial(pose) {
     );
     const headCol = mix(faceCol, hairCol, hairMask);
     const hairStrands = hairCol.mul(sin(q.x.mul(170.0).add(q.z.mul(130.0))).mul(0.06).add(0.97));
-    const hairPartCol = mix(hairStrands, skinCol, bald.mul(step(q.y, 1.755)));
+    // the bald scalp on the shell (a mohawk's sides are a little darker: shaved, not bald), the ropes of the dreadlocks
+    const scalpCol = skinCol.mul(float(1.0).sub(mohawk.mul(0.08)));
+    const ropes = sin(along.mul(60.0)).mul(0.13).add(0.9);
+    const hairPartCol = mix(
+      mix(hairStrands, hairCol.mul(ropes), isPart(partId, PART.DREADS)),
+      scalpCol,
+      bald.mul(step(q.y, 1.755)).mul(isPart(partId, PART.HAIR))
+    );
 
     // Torso: collar & neck, tailored jacket (lapels, shirt V) or casual coat (zip, collar band), hem, trousers below
     const tailored = step(0.42, lane(89.0));
@@ -1056,9 +1202,10 @@ function makeFoot(side) {
 class PersonRig {
   /**
    * @param {object} o - seed (dresses them), scale (height / 1.75 m), female, girth (build, ~0.9-1.15),
-   *   hair (0 short .. 0.5 voluminous .. 1 long), armSwing & stride (gait personality, ~1)
+   *   hair (0 short .. 0.5 voluminous .. 1 long), hairstyle (HAIRSTYLE; for the city's crowds see rollHairstyle),
+   *   armSwing & stride (gait personality, ~1)
    */
-  constructor({ seed = 0, scale = 1, female = false, girth = 1, hair = 0.2, armSwing = 1, stride = 1 } = {}) {
+  constructor({ seed = 0, scale = 1, female = false, girth = 1, hair = 0.2, hairstyle = HAIRSTYLE.PLAIN, armSwing = 1, stride = 1 } = {}) {
     this.seed = seed;
     this.s = scale;
     this.female = female ? 1 : 0;
@@ -1085,7 +1232,7 @@ class PersonRig {
     this.time = seed * 7.3;
     this.feet = [makeFoot(1), makeFoot(-1)];
     this.pose = new Float32Array(STRIDE * 4);
-    this.pose.set([seed, this.female, girth, hair], (STRIDE - 1) * 4);
+    this.pose.set([seed, this.female, girth, Math.min(1, Math.max(0, hair)) + hairstyle * 2], (STRIDE - 1) * 4);
   }
 
   get legLength() {
@@ -1646,4 +1793,4 @@ class PersonRig {
   }
 }
 
-export { BONE as PERSON_BONES, buildPersonGeometry, createPersonMaterial, PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION };
+export { BONE as PERSON_BONES, buildPersonGeometry, createPersonMaterial, HAIRSTYLE, PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION, rollHairstyle };
