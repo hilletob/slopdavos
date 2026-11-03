@@ -24,7 +24,7 @@ export const RELEASE_DISTANCE = 600;
 export const MAX_LEFT = 6;
 
 /** The traffic's body classes (js/traffic.js KINDS) in the prompt */
-export const TRAFFIC_LABELS = { sedan: 'estate car', hatch: 'hatchback', suv: 'SUV', van: 'minibus', taxi: 'taxi', police: 'patrol car' };
+export const TRAFFIC_LABELS = { sedan: 'estate car', hatch: 'hatchback', suv: 'SUV', van: 'minibus', taxi: 'taxi', truck: 'box lorry', police: 'patrol car' };
 export const trafficLabel = (car) => (car?.isPolice ? TRAFFIC_LABELS.police : TRAFFIC_LABELS[car?.bodyType] || 'car');
 
 /**
@@ -33,6 +33,10 @@ export const trafficLabel = (car) => (car?.isPolice ? TRAFFIC_LABELS.police : TR
  * circle: ~6 m for the solo Citaro, the articulated one driven as one rigid bus with its front car's).
  */
 export function driveFor(kind, { wheelbase = 2.6, police = false } = {}) {
+  if (kind === 'truck') {
+    // the 7.5-tonner: slower and heavier than a car, livelier than the bus, the box making it roll in the bends
+    return { speed: 24, reverseSpeed: 6, acceleration: 2.2, powerSpeed: 10, rolling: 0.22, drag: 0.001, coast: 0.5, brake: 7, wheelbase, grip: 7.5, cornering: 5.5 };
+  }
   if (kind === 'bus') {
     return { speed: 16, reverseSpeed: 4, acceleration: 1.3, powerSpeed: 7, rolling: 0.25, drag: 0.0009, coast: 0.45, brake: 5.5, wheelbase, grip: 6.5, cornering: 4.2 };
   }

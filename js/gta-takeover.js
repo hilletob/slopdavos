@@ -29,7 +29,7 @@ import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 // K, as in the mission.
 
 const DEFAULT_TOP = 1.55;
-const MASS = { van: 2400, suv: 1800, hatch: 1300, sedan: 1600, taxi: 1600 };
+const MASS = { van: 2400, suv: 1800, hatch: 1300, sedan: 1600, taxi: 1600, truck: 7500 };
 const BUS = { halfW: 1.28, top: 3.2, wheelbase: 5.9, mass: 14000, door: null, chase: [17, 4.6] };
 
 export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
@@ -137,10 +137,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       const halfL = (spec.zFront - spec.zRear) / 2;
       Object.assign(car, {
         wheels: m.wheels, wheelRadius: spec.wheelRadius,
-        dims: { halfW, halfL, top: body.bodyType === 'van' ? 2.0 : DEFAULT_TOP, mass: MASS[body.bodyType] || 1600 },
-        drive: driveFor('car', { wheelbase: 2 * spec.wheelZ, police: body.police }),
+        dims: { halfW, halfL, top: body.bodyType === 'truck' ? 3.1 : body.bodyType === 'van' ? 2.0 : DEFAULT_TOP, mass: MASS[body.bodyType] || 1600 },
+        drive: driveFor(body.bodyType === 'truck' ? 'truck' : 'car', { wheelbase: 2 * spec.wheelZ, police: body.police }),
         lightSpec: spec, label: body.police ? 'Kapo patrol car' : trafficLabel({ bodyType: body.bodyType }),
-        chaseDistance: 7.6, chaseHeight: 1.75
+        chaseDistance: body.bodyType === 'truck' ? 11.5 : 7.6, chaseHeight: body.bodyType === 'truck' ? 3.2 : 1.75
       });
       if (t3.shadow) t3.shadow.scale.set((2 * halfW + 0.2) / 2.1, 1, (2 * halfL + 0.2) / 4.95);
     } else {

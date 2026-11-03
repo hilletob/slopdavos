@@ -46,6 +46,8 @@ const NUM_BIKES = QUALITY.bikes; // 225 (60 on the mobile profile)
 // acceleration drivers accept in bends, which sets how fast they take each turn or lane shift
 const CAR_DRIVER = { a: 2.0, b: 3.0, T: 1.2, s0: 2.0, aLat: 3.5 };
 const BUS_DRIVER = { a: 1.1, b: 2.5, T: 1.5, s0: 2.5, aLat: 2.0 };
+// The lorry pulls away slowly, brakes early, keeps a longer gap and takes the bends gently (7.5 t with a high box)
+const TRUCK_DRIVER = { a: 1.0, b: 2.4, T: 1.6, s0: 2.6, aLat: 2.0 };
 const LOOKAHEAD = 70; // metres a driver looks ahead for vehicles, stop lines and signals
 
 // Retire distant actors even when looking their way: keeping them indefinitely starves upcoming streets.
@@ -172,9 +174,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     };
   }
 
-  // European body classes (actor-models.js): estate ('sedan', also the police car), hatchback, compact SUV, minibus
-  // and the taxi (an estate with a roof sign), each with separate spinning wheels
-  const KINDS = ['taxi', 'sedan', 'hatch', 'suv', 'van'];
+  // European body classes (actor-models.js): estate ('sedan', also the police car), hatchback, compact SUV, minibus,
+  // the taxi (an estate with a roof sign) and the 7.5-tonne box lorry, each with separate spinning wheels
+  const KINDS = ['taxi', 'sedan', 'hatch', 'suv', 'van', 'truck'];
   const carWheelLeftGeo = buildSteerableWheelGeo(BODY_SPECS.sedan, -1);
   const carWheelRightGeo = buildSteerableWheelGeo(BODY_SPECS.sedan, 1);
   const carWheelMat = createLoftedCarMaterial(BODY_SPECS.sedan, 0xffbe14);
@@ -188,7 +190,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     sedan: swiss,
     hatch: [...swiss, 0xb22d23, 0x6f8fa8],
     suv: [0x15181c, 0xf1f2f3, 0x8e9399, 0x2f3338, 0x1f2f4d, 0x3c4a3e],
-    van: [0xf1f2f3, 0xf1f2f3, 0x8e9399, 0x15181c, 0x1f2f4d, 0xffcc00]
+    van: [0xf1f2f3, 0xf1f2f3, 0x8e9399, 0x15181c, 0x1f2f4d, 0xffcc00],
+    truck: [0xf1f2f3, 0xf1f2f3, 0x8e9399, 0x1f2f4d, 0xffcc00, 0xb8451f, 0x2e5d3a] // mostly white vans' lorries, a Post yellow and a brewery's red
   };
   const pick = (kind, i) => new THREE.Color(PALETTES[kind][(i * 7 + 3) % PALETTES[kind].length]);
 
@@ -199,8 +202,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   for (let i = 0; i < NUM_CARS; i++) {
     const isPolice = (i % 100) === 6;
     const k = i % 20;
-    // 30% estates, 30% hatchbacks, 20% compact SUVs, 10% minibuses, 10% taxis (Davos has many)
-    const bodyType = isPolice ? 'sedan' : k < 2 ? 'taxi' : k < 8 ? 'sedan' : k < 14 ? 'hatch' : k < 18 ? 'suv' : 'van';
+    // 25% estates, 30% hatchbacks, 20% compact SUVs, 10% minibuses, 10% taxis (Davos has many), 5% box lorries
+    const bodyType = isPolice ? 'sedan' : k < 2 ? 'taxi' : k < 7 ? 'sedan' : k < 13 ? 'hatch' : k < 17 ? 'suv' : k < 19 ? 'van' : 'truck';
     counts[bodyType]++;
     if (isPolice) policeCount++;
     const isTaxi = bodyType === 'taxi', isSUV = bodyType === 'suv' || bodyType === 'van';
@@ -208,7 +211,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const spec = BODY_SPECS[bodyType];
     const half = (spec.zFront - spec.zRear) / 2;
     const halfWidth = Math.max(...spec.halfWidth.map((w) => w[1])) - 0.02;
-    const car = createVehicle(false, half, halfWidth, spec.wheelZ, CAR_DRIVER, (bodyType === 'van' ? 9.5 : 10) + (i % 5) * 0.9);
+    const v0 = bodyType === 'truck' ? 8.4 : bodyType === 'van' ? 9.5 : 10; // (a laden lorry is the slowest thing on the road)
+    const car = createVehicle(false, half, halfWidth, spec.wheelZ, bodyType === 'truck' ? TRUCK_DRIVER : CAR_DRIVER, v0 + (i % 5) * 0.9);
     // paint as float32 values, so renderCar() can tell whether an instance slot's paint changes by comparing
     const paint = [Math.fround(col.r), Math.fround(col.g), Math.fround(col.b)];
     Object.assign(car, { isTaxi, isPolice, isSUV, bodyType, paint });
@@ -1374,7 +1378,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     body.halfW = v.halfWidth;
     // (cars: their own body length — hatchbacks to minibuses)
     body.halfL = v.bus ? 5.72 : v.bike ? 0.95 : v.half - 0.07;
-    body.mass = v.bus ? 12000 : v.bike ? 95 : v.bodyType === 'van' ? 2400 : v.isSUV ? 1800 : v.bodyType === 'hatch' ? 1300 : 1600;
+    body.mass = v.bus ? 12000 : v.bike ? 95 : v.bodyType === 'truck' ? 7500 : v.bodyType === 'van' ? 2400 : v.isSUV ? 1800 : v.bodyType === 'hatch' ? 1300 : 1600;
     body.vx = v.tx * v.speed + v.vx;
     body.vz = v.tz * v.speed + v.vz;
     body.angularVel = v.yawRate + v.yawVel;
@@ -2091,13 +2095,14 @@ function createHighwayTraffic(scene, lanes) {
   const group = new THREE.Group();
   group.name = 'HighwayTraffic';
   scene.add(group);
-  const KINDS = ['taxi', 'sedan', 'hatch', 'suv', 'van'];
+  const KINDS = ['taxi', 'sedan', 'hatch', 'suv', 'van', 'truck'];
   const PALETTES = {
     taxi: [0x15181c, 0xf1f2f3],
     sedan: [0xc3c7cb, 0x8e9399, 0x2f3338, 0x15181c, 0xf1f2f3, 0x1f2f4d, 0x8e1b1b],
     hatch: [0xc3c7cb, 0x5a5f66, 0x15181c, 0xf1f2f3, 0x2b3f63, 0xb22d23],
     suv: [0x15181c, 0xf1f2f3, 0x8e9399, 0x2f3338, 0x3c4a3e],
-    van: [0xf1f2f3, 0x8e9399, 0x15181c, 0xffcc00]
+    van: [0xf1f2f3, 0x8e9399, 0x15181c, 0xffcc00],
+    truck: [0xf1f2f3, 0x8e9399, 0x1f2f4d, 0xffcc00, 0xb8451f]
   };
   let seed = 20240917;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -2120,7 +2125,7 @@ function createHighwayTraffic(scene, lanes) {
     lane.cars = [];
     for (let u = rand() * 30; u < lane.len - 12; u += 24 + rand() * 50) {
       const h = rand();
-      const kind = h < 0.06 ? 'taxi' : h < 0.4 ? 'sedan' : h < 0.7 ? 'hatch' : h < 0.9 ? 'suv' : 'van';
+      const kind = h < 0.06 ? 'taxi' : h < 0.38 ? 'sedan' : h < 0.66 ? 'hatch' : h < 0.84 ? 'suv' : h < 0.93 ? 'van' : 'truck';
       const col = new THREE.Color(PALETTES[kind][Math.floor(rand() * PALETTES[kind].length)]);
       // (float32 values, so update() can tell whether an instance slot's paint changes by comparing with the buffer)
       const car = {

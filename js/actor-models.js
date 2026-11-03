@@ -450,6 +450,55 @@ BODY_SPECS.van = {
   rails: false,
   rearWiper: true
 };
+// A 7.5-tonne box lorry in the manner of a Mercedes-Benz Atego: the short cab-over cab in front, the dry freight box
+// behind it standing a good half metre higher (the step over the cab is the body's own top edge, not the glasshouse),
+// the chassis frame dark under both. Delivery lorries like this are what Davos sees: Volg, Coop, the breweries, the
+// Werkhof. Boxier sections than a car (lowerRound / upperRound as on the bus).
+BODY_SPECS.truck = {
+  ...BODY_SPECS.van,
+  name: 'truck',
+  zFront: 3.5,
+  zRear: -3.5,
+  wheelRadius: 0.47,
+  wheelZ: 2.1,
+  wheelX: 1.0,
+  archGap: 0.09,
+  archFlare: 0.02,
+  tuck: 0.05,
+  lowerRound: 2.6,
+  upperRound: 6,
+  halfWidth: [[3.5, 1.06], [2.6, 1.16], [1.5, 1.19], [0, 1.19], [-2.6, 1.19], [-3.5, 1.18]],
+  sill: [[3.5, 0.52], [1.5, 0.48], [1.2, 0.78], [-3.5, 0.8]], // the frame under the cab, the box's floor behind it
+  shoulder: [[3.5, 1.0], [1.5, 1.05], [1.2, 1.9], [-3.5, 1.95]],
+  edge: [[3.42, 1.5], [2.6, 1.62], [1.5, 1.64], [1.22, 2.92], [0, 3.0], [-3.42, 3.0]],
+  crown: [[3.42, 0.03], [1.5, 0.02], [1.22, 0.004], [-3.42, 0.004]],
+  tumble: [[3.5, 0.05], [1.5, 0.05], [1.2, 0.02], [-3.5, 0.02]],
+  nose: { halfWidth: [0.26, 0.9, 2.4], edge: [0.14, 1.36, 2.6], crown: [0.14, 0.01, 2], sill: [0.12, 0.56, 2], shoulder: [0.2, 0.95, 2.2] },
+  tail: { halfWidth: [0.14, 1.12, 2.6], edge: [0.05, 2.98, 4], crown: [0.05, 0, 2], sill: [0.1, 0.84, 2], shoulder: [0.1, 1.9, 2.4] },
+  cabin: {
+    ...BODY_SPECS.van.cabin,
+    cowl: 2.62, roofFront: 2.14, roofRear: 1.78, deck: 1.62,
+    roofY: [[2.14, 2.72], [1.78, 2.72]],
+    rail: [1.04, 1.04],
+    inset: 0.025,
+    bulge: 0.004,
+    roofRound: 5,
+    pillars: []
+  },
+  doors: [2.48, 1.66],
+  handles: [2.0],
+  headlight: [0.74, 0.92, 0.24, 0.08],
+  taillight: [0.92, 0.95, 0.09, 0.22],
+  grille: [1.22, 0.56, 0.16],
+  intake: [0.66, 0.62, 0.07],
+  plates: [0.62, 0.72],
+  bumperLine: [1.02, 0.95],
+  bumpers: [[0.58, 0.07], [0.58, 0.06]],
+  chrome: false,
+  cladding: 0.56,
+  rails: false,
+  rearWiper: false
+};
 // Davos taxis: ordinary estates (black, white or dark grey) with a lit roof sign
 BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true, rails: false });
 for (const spec of Object.values(BODY_SPECS)) {
