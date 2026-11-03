@@ -130,7 +130,7 @@ export function yieldStep(speed, side, dt, { brake = 6, kerb = 2.3, rate = 1.6 }
 
 // =========================================================================================================================
 // 1. The escort
-export const ESCORT_START = { x: 943.5, z: -1675.5, heading: -0.739 };
+export const ESCORT_START = { x: 967, z: -1701, heading: -0.739 }; // (on the Bahnhofstrasse, a little before Heldstab and the quad's pin)
 export const PICKUP = { x: 848.4, z: -1562.2, r: 7, name: 'the Bahnhof Davos Dorf' };
 // The service lane in front of the station, the limousines waiting on it (OSM), to its mouth on the Bahnhofstrasse
 export const ESCORT_SEED = [919, -1631.1, 878, -1574.9, 875.5, -1572.5, 871, -1570.7, 866.5, -1571.4, 860.8, -1574.6];

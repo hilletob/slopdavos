@@ -59,6 +59,8 @@ test('the bar missions translate names, intros and generated texts', () => {
   assert.equal(t('Bent the nail: turn lost'), 'Nagel verbogen: Zug verloren');
   assert.equal(t('Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.'), 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.');
   setLanguage('en');
+});
+
 test('the expert missions translate names, intros, generated texts and every text of their canvases', async () => {
   setLanguage('de');
   assert.equal(t('Eye test at Meerkämper Optik'), 'Sehtest bei Meerkämper Optik');
@@ -85,6 +87,8 @@ test('the expert missions translate names, intros, generated texts and every tex
   ];
   const same = new Set(['Thermometer']);
   for (const text of texts) if (!same.has(text)) assert.notEqual(t(text), text, `"${text}" has its German`);
+});
+
 test('the rural missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Quad ride from Heldstab'), 'Quadfahrt ab Heldstab');
@@ -96,6 +100,8 @@ test('the rural missions translate names, intros and generated texts', () => {
   assert.equal(t('Loading … 40 % · Space: reject the barrel'), 'Laden … 40 % · Leertaste: Fass stehen lassen');
   assert.equal(t('2 clean jumps (-3 s) · 4 mud and snow patches crossed'), '2 saubere Sprünge (-3 s) · 4 Schlamm- und Schneefelder durchquert');
   assert.equal(t('Biogas plant'), 'Biogasanlage');
+});
+
 test('the care missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Snowshoeing on the Junkerboden'), 'Schneeschuhlaufen am Junkerboden');
@@ -148,6 +154,8 @@ test('the rope park and the Seehofseeli translate names, intros and generated te
   assert.equal(t('You 2 : 1 Locals · 2:05'), 'Du 2 : 1 Einheimische · 2:05');
   assert.equal(t('Won 5 : 2 · your goals: 3'), 'Gewonnen 5 : 2 · deine Tore: 3');
   assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
+});
+
 test('the WEF missions translate names, intros, generated texts and slogans', () => {
   setLanguage('de');
   assert.equal(t('Escort at the WEF'), 'Eskorte am WEF');
