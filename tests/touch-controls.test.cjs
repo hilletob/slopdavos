@@ -262,3 +262,34 @@ test('the tap button (the GTA mode\'s get in / out): first among the actions, fi
   controls.setTapButton(button, null);
   assert.equal(button.hidden, true);
 });
+
+test('a stick whose finger never reported its release lets go when the touches say so, or a new finger takes over', () => {
+  const { controls, document, stick, knob, input } = harness();
+  stick.contains = (target) => target === stick || target === knob;
+  stick.dispatch('pointerdown', { pointerId: 1, clientY: 20 });
+  assert.equal(input.forward, 1);
+  // a camera finger comes and goes, the stick's thumb still down: it stays held
+  document.dispatch('touchend', { touches: [{ target: knob }] });
+  assert.equal(input.forward, 1, 'still held while its finger is down');
+  // the thumb's pointerup never comes, only the touch list shows it gone
+  document.dispatch('touchend', { touches: [{ target: {} }] });
+  assert.equal(input.forward, 0, 'released');
+  assert.equal(controls.stickPointer, null);
+  // and with no touch event either: the next finger on the stick is not ignored
+  stick.dispatch('pointerdown', { pointerId: 2, clientY: 20 });
+  assert.equal(input.forward, 1);
+  stick.dispatch('pointerdown', { pointerId: 3, clientY: 108 });
+  assert.equal(controls.stickPointer, 3);
+  assert.equal(input.forward, 0);
+  assert.equal(input.backward, 1, 'the new finger steers');
+});
+
+test('a held button lets go when no finger is on it any more', () => {
+  const { document, buttons, input } = harness({ mode: 'helicopter' });
+  buttons.up.contains = (target) => target === buttons.up;
+  buttons.up.dispatch('pointerdown', { pointerId: 2 });
+  assert.equal(input.up, 1);
+  document.dispatch('touchcancel', { touches: [] });
+  assert.equal(input.up, 0);
+  assert.equal(buttons.up.getAttribute('aria-pressed'), 'false');
+});

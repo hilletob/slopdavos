@@ -47,6 +47,7 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { createFrameGuard, watchDeviceLost, showFault } from './frame-guard.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -180,6 +181,12 @@ async function initApp() {
   } else {
     renderer.backend.device?.lost?.then((info) => boot.error(`GPU device lost: ${info.reason || ''} ${info.message || ''}`));
   }
+  watchDeviceLost(renderer.backend.device, {
+    storage: localStorage,
+    save: () => { try { savePlayerState(); gameClock.save(); } catch { /* (lost during the start: nothing to save yet) */ } },
+    reload: () => window.location.reload(),
+    notify: (text) => showFault(`Grafikfehler: ${text}`)
+  });
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
   // The profile tightens on the WebGL 2 fallback; the HUD names the backend actually drawing
@@ -877,6 +884,10 @@ async function initApp() {
       const status = document.getElementById('loading-status');
       if (status) status.textContent = 'Moving the town…';
       document.getElementById('loading-overlay')?.classList.remove('hidden');
+      // (the new page is built while the old one is still in memory unless its GPU memory is given back first: on an iPhone
+      // the two together were too much)
+      renderer.setAnimationLoop(null);
+      try { renderer.backend.device?.destroy?.(); } catch { /* the reload frees it anyway */ }
       setTimeout(() => window.location.reload(), 50);
     }
     return destination;
@@ -1148,7 +1159,8 @@ async function initApp() {
 
   if (elFps) elFps.textContent = '60';
 
-  renderer.setAnimationLoop((now) => {
+  const frameGuard = createFrameGuard({ storage: localStorage, notify: (text) => showFault(`Spielfehler: ${text}`) });
+  const gameFrame = (now) => {
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
@@ -1306,7 +1318,8 @@ async function initApp() {
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
       renderLocation(getLocationLabel(where.x, where.z));
     }
-  });
+  };
+  renderer.setAnimationLoop((now) => frameGuard.run(gameFrame, () => renderPipeline.render(), now));
 }
 
 initApp().catch((error) => {

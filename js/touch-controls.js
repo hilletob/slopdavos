@@ -26,9 +26,11 @@ class TouchControls {
     document.addEventListener('contextmenu', (e) => { if (!inField(e.target) && this.media.matches) e.preventDefault(); });
 
     this.stick.addEventListener('pointerdown', (event) => {
-      if (!this.canInteract() || event.button !== 0 || this.stickPointer !== null || this.buttonPointers.has(event.pointerId)) return;
+      if (!this.canInteract() || event.button !== 0 || this.buttonPointers.has(event.pointerId)) return;
       event.preventDefault();
       event.stopPropagation();
+      // A new finger on the stick while it counts as held: the old finger's release never came, so the new one takes over
+      if (this.stickPointer !== null) this.releaseStick(this.stickPointer);
       const rect = this.stick.getBoundingClientRect();
       this.stickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
       this.stickRadius = Math.min(MAX_RADIUS, Math.min(rect.width, rect.height) / 2) || MAX_RADIUS;
@@ -62,6 +64,11 @@ class TouchControls {
       }
     }
 
+    // iOS can lose a pointer's pointerup when a second finger moves the camera at the same time, which left the stick (or a
+    // button) held where it was. The touch events still say which fingers are down, so they settle what is held.
+    for (const type of ['touchend', 'touchcancel']) {
+      document.addEventListener(type, (event) => this.releaseLiftedFingers(event.touches), { capture: true, passive: true });
+    }
     this.media.addEventListener('change', () => this.updateAvailability());
     // Hybrid devices can report a fine pointer until their first touch. Capture runs before the control handlers.
     document.addEventListener('pointerdown', (event) => {
@@ -212,6 +219,13 @@ class TouchControls {
     this.buttonPointers.delete(pointerId);
     this.releaseCapture(pointer.button, pointerId);
     this.updateButton(pointer.button, pointer.action);
+  }
+
+  // Lets go of whatever no finger in `touches` (the touches still down) started on
+  releaseLiftedFingers(touches) {
+    const heldOn = (element) => { for (let i = 0; i < touches.length; i++) if (element.contains(touches[i].target)) return true; return false; };
+    if (this.stickPointer !== null && !heldOn(this.stick)) this.releaseStick(this.stickPointer);
+    for (const [pointerId, { button }] of [...this.buttonPointers]) if (!heldOn(button)) this.releaseButton(pointerId);
   }
 
   reset() {

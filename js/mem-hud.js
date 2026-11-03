@@ -117,6 +117,12 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
     requestAnimationFrame(frame);
   };
 
+  // The last fault of a frame (js/frame-guard.js), of this run or an earlier one, and any error the page reports
+  let fault = null;
+  try { fault = localStorage.getItem('slopdavos-frame-error'); } catch { /* storage off */ }
+  addEventListener('error', (e) => { fault = `${e.message} @ ${String(e.filename).split('/').pop()}:${e.lineno}`; });
+  addEventListener('unhandledrejection', (e) => { fault = `unhandled: ${e.reason?.message || e.reason}`.slice(0, 300); });
+
   const render = (now) => {
     const info = renderer.info, mem = info?.memory || {}, frameInfo = info?.render || {};
     const heap = performance.memory?.usedJSHeapSize; // (Chrome only)
@@ -126,6 +132,7 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
     const { season = '?', winterScenery = '?' } = state();
     const minutes = Math.floor((now - started) / 60000);
     if (now - cpuAt >= 5000) { cpuAt = now; cpuBytes = cpuVertexBytes(scene); }
+    try { fault = localStorage.getItem('slopdavos-frame-error') || fault; } catch { /* storage off */ }
     const lines = [
       `fps ${fps} (low ${seconds.length ? Math.min(...seconds) : fps}) up ${minutes} min`,
       `js heap ${heap == null ? 'n/a' : `${mb(heap)} MB (peak ${mb(peak.heap)})`}`,
@@ -134,7 +141,8 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
       `geo ${mem.geometries ?? '?'} tex ${mem.textures ?? '?'} buf# ${counts.buffers} tex# ${counts.textures}`,
       `draws ${frameInfo.drawCalls ?? '?'} tris ${Math.round((frameInfo.triangles || 0) / 1000)}k`,
       `shaders ${counts.shaders} pipes ${counts.pipelines}`,
-      `${season}, winter scenery ${winterScenery}`
+      `${season}, winter scenery ${winterScenery}`,
+      ...(fault ? [`fault: ${fault}`] : [])
     ];
     box.textContent = lines.join('\n') + (last ? `\nlast run: ${last}` : '');
     if (now - lastSave >= SAVE_EVERY * 1000) {
