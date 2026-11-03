@@ -99,9 +99,10 @@ const table = (rows, h) => {
   }
   return rows[rows.length - 1][1];
 };
-// The window light and street lamps (uInteriorGlow; the lamps' smoothstep(0.4, 1.1) is halfway at 0.75) switch at civil
-// dusk and dawn, whichever hour that is in the season: -6 deg is halfway through the change
-const GLOW = [[-12, 1.55], [-7.4, 1.25], [-5.4, 0.55], [8, 0.48], [30, 0.24]];
+// The window light and street lamps (uInteriorGlow; the lamps' smoothstep(0.4, 1.1) is halfway at 0.75) switch soon after
+// sunset and before sunrise, whichever hour that is in the season: the sun's direct light is gone at the horizon and the moon
+// is still faint, so the streets are dark long before civil dusk. -1 deg is halfway through the change
+const GLOW = [[-12, 1.55], [-2.5, 1.25], [-0.5, 0.55], [8, 0.48], [30, 0.24]];
 // The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens. A low sun meets
 // the walls head on, and a high one the ground: what matters is the larger of intensity * cos(height) and * sin(height),
 // so that the light walls keep their shade at 09:00 as the plazas do at noon.

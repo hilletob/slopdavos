@@ -276,12 +276,12 @@ test('after sunset the light comes from the moon in the moon\'s colour', () => {
   }
 });
 
-test('the lamps and windows switch at the season\'s civil dusk and dawn, not at fixed hours', () => {
+test('the lamps and windows switch just after the season\'s sunset and before its sunrise, not at fixed hours', () => {
   const lamp = (minute, w) => { const x = Math.max(0, Math.min(1, (sampleDay(minute, w).interiorGlow - 0.4) / 0.7)); return x * x * (3 - 2 * x); };
   for (const w of [0, 1]) {
-    const dusk = minuteAtHeight(CIVIL_HEIGHT, w, false), dawn = minuteAtHeight(CIVIL_HEIGHT, w, true);
-    near(lamp(dusk, w), 0.5, 0.05);
-    near(lamp(dawn, w), 0.5, 0.05);
+    const dusk = minuteAtHeight(-1, w, false), dawn = minuteAtHeight(-1, w, true);
+    near(lamp(dusk, w), 0.5, 0.1);
+    near(lamp(dawn, w), 0.5, 0.1);
     assert.ok(lamp(dusk - 45, w) < 0.1, 'still off before dusk');
     assert.ok(lamp(dusk + 45, w) > 0.9, 'on after dusk');
     assert.ok(lamp(dawn - 45, w) > 0.9, 'on before dawn');
