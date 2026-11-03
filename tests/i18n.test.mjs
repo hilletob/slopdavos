@@ -202,3 +202,16 @@ test('the game\'s clock, the fast-forward and the missions\' windows speak Germa
   assert.equal(t('Opens at 18:00'), 'Opens at 18:00');
   setLanguage('de');
 });
+
+test('the end panels: failed and aborted, the awards, the score units and the summaries come in German', () => {
+  setLanguage('de');
+  assert.equal(t('Mission failed'), 'Mission gescheitert');
+  assert.equal(t('Mode switch (car): the mission was aborted.'), 'Moduswechsel (car): Die Mission wurde abgebrochen.');
+  assert.equal(t('first completion +250 · Silver +300'), 'erster Abschluss +250 · Silber +300');
+  assert.equal(t('3 goals'), '3 Tore');
+  assert.equal(t('Gold 3 goals ahead'), 'Gold 3 Tore Vorsprung');
+  assert.equal(t('2 shots · 1 hit · 1 missed'), '2 Schüsse · 1 Treffer · 1 daneben');
+  assert.equal(t('1 crash (+5 s)'), '1 Sturz (+5 s)');
+  assert.equal(t('Over the limit 4 s (up to +7 km/h): −20 pts'), 'Über dem Limit 4 s (bis +7 km/h): −20 Pkt.');
+  assert.equal(t('Down the Chüggelibahn'), 'Die Chüggelibahn hinunter');
+});
