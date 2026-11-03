@@ -1,3 +1,5 @@
+import { minuteAtHeight, CIVIL_HEIGHT } from './solar.js';
+
 // js/game-clock.js
 // The game's own time: the day number and the time of day, and from them the season. No three.js and no DOM in here
 // (tests/game-clock.test.mjs drives it); js/main.js ticks it every frame and hands what it says on to the light and the
@@ -5,9 +7,10 @@
 //
 // The time is one number: `total`, the game minutes since day 0, 00:00.
 //
-// The mapping: one game day takes exactly 24 real minutes (1440 s), the night (22:00-06:00) running twice as fast as the
-// day. "1 game minute = 1 s by day, 0.5 s by night" alone would make a day of 960 s + 240 s = 20 min, so both rates are
-// stretched by 1.2: a game minute takes 1.2 s by day (16 game hours = 19.2 min) and 0.6 s by night (8 game hours = 4.8 min).
+// The mapping: every game day takes exactly 24 real minutes (1440 s), the night (civil dusk to civil dawn, js/solar.js)
+// running twice as fast as the day. The hours of daylight differ by season, so the rate does too (DAY_PROFILES below, from
+// the sun): a summer day has 16 h 44 of daylight at 1.18 s a game minute and a night at 0.59 s; a winter day 10 h 05 at
+// 1.41 s and a night at 0.70 s; the day of the thaw lies between them.
 //
 // The year has 8 game days, the real calendar plays no part: days 0-3 are summer, days 4-7 winter, and the season changes
 // at midnight, in the dark, which is when what only exists in one season is switched (`seasonAt`). What the eye sees is a
@@ -15,10 +18,6 @@
 // the first winter day, the thaw takes the last winter day from 06:00 to 18:00.
 
 export const MINUTES_PER_DAY = 1440;
-export const NIGHT_START = 22 * 60;
-export const NIGHT_END = 6 * 60;
-export const DAY_SECONDS_PER_MINUTE = 1.2;
-export const NIGHT_SECONDS_PER_MINUTE = 0.6;
 export const REAL_SECONDS_PER_DAY = 1440;
 export const YEAR_DAYS = 8;
 export const SEASON_DAYS = 4;
@@ -35,23 +34,35 @@ export const minuteOfDay = (total) => ((total % MINUTES_PER_DAY) + MINUTES_PER_D
 export const dayOf = (total) => Math.floor(total / MINUTES_PER_DAY);
 const yearDay = (day) => ((day % YEAR_DAYS) + YEAR_DAYS) % YEAR_DAYS;
 export const dayOfYear = (total) => yearDay(dayOf(total));
-export const isNightMinute = (minute) => minute >= NIGHT_START || minute < NIGHT_END;
 export const seasonOfDay = (dayInYear) => (dayInYear < SEASON_DAYS ? 'summer' : 'winter');
 export const seasonAt = (total) => seasonOfDay(dayOfYear(total));
 
-// (the game minutes from `m` to the next change of rate)
-const toRateEdge = (m) => (isNightMinute(m) ? (m >= NIGHT_START ? MINUTES_PER_DAY - m + NIGHT_END : NIGHT_END - m) : NIGHT_START - m);
+// A game day's rates: its civil dawn and dusk, and the seconds a game minute takes by day and by night so that the whole
+// day is exactly REAL_SECONDS_PER_DAY. Per calendar day, not per moment, or the snowfall and the thaw would bend the total.
+function dayProfile(w) {
+  const dawn = minuteAtHeight(CIVIL_HEIGHT, w, true), dusk = minuteAtHeight(CIVIL_HEIGHT, w, false);
+  const daylight = dusk - dawn, night = MINUTES_PER_DAY - daylight;
+  const perDay = REAL_SECONDS_PER_DAY / (daylight + night / 2);
+  return { dawn, dusk, day: perDay, night: perDay / 2 };
+}
+const SUMMER_DAY = dayProfile(0), WINTER_DAY = dayProfile(1), THAW_DAY = dayProfile(0.5);
+export const DAY_PROFILES = Array.from({ length: YEAR_DAYS }, (_, d) => (d < SEASON_DAYS ? SUMMER_DAY : d === YEAR_DAYS - 1 ? THAW_DAY : WINTER_DAY));
 
-/** Where the clock stands `seconds` of real time after `total` (the rate changes at 06:00 and 22:00) */
+// (past an edge for certain: dawn and dusk aren't whole minutes, and rounding could leave the clock a hair short of one for ever)
+const EDGE_NUDGE = 1e-7;
+
+/** Where the clock stands `seconds` of real time after `total` (the rate changes at dawn, at dusk and at midnight) */
 export function advance(total, seconds) {
   let t = total, left = seconds;
   while (left > 0) {
     const m = minuteOfDay(t);
-    const perMinute = isNightMinute(m) ? NIGHT_SECONDS_PER_MINUTE : DAY_SECONDS_PER_MINUTE;
-    const edge = toRateEdge(m);
+    const p = DAY_PROFILES[dayOfYear(t)];
+    const dark = m < p.dawn || m >= p.dusk;
+    const perMinute = dark ? p.night : p.day;
+    const edge = (m < p.dawn ? p.dawn : m < p.dusk ? p.dusk : MINUTES_PER_DAY) - m;
     const need = edge * perMinute;
     if (left < need) return t + left / perMinute;
-    t += edge;
+    t += edge + EDGE_NUDGE;
     left -= need;
   }
   return t;
@@ -62,9 +73,11 @@ export function realSecondsBetween(from, to) {
   let t = from, s = 0;
   while (t < to) {
     const m = minuteOfDay(t);
-    const step = Math.min(toRateEdge(m), to - t);
-    s += step * (isNightMinute(m) ? NIGHT_SECONDS_PER_MINUTE : DAY_SECONDS_PER_MINUTE);
-    t += step;
+    const p = DAY_PROFILES[dayOfYear(t)];
+    const dark = m < p.dawn || m >= p.dusk;
+    const step = Math.min((m < p.dawn ? p.dawn : m < p.dusk ? p.dusk : MINUTES_PER_DAY) - m, to - t);
+    s += step * (dark ? p.night : p.day);
+    t += step + EDGE_NUDGE;
   }
   return s;
 }
@@ -188,8 +201,9 @@ export function createGameClock({ storage = null, key = STORAGE_KEY } = {}) {
   return clock;
 }
 
-/** The URL's debug switches: ?winter / ?summer a full day of that season (same time of day), ?time=<HH:MM|preset> holds the time */
-export function applyClockSwitches(clock, search, presetMinutes = {}) {
+/** The URL's debug switches: ?winter / ?summer a full day of that season (same time of day), ?time=<HH:MM|preset> holds the time;
+ *  `presetMinute(id, w)`: when a named time of day is in that season (js/day-cycle.js) */
+export function applyClockSwitches(clock, search, presetMinute = () => undefined) {
   const q = new URLSearchParams(search || '');
   const wantWinter = q.has('winter');
   if (wantWinter || q.has('summer')) {
@@ -203,7 +217,7 @@ export function applyClockSwitches(clock, search, presetMinutes = {}) {
   const time = q.get('time');
   if (time) {
     const hm = /^(\d{1,2}):(\d{2})$/.exec(time);
-    const minute = hm ? Math.min(23, +hm[1]) * 60 + Math.min(59, +hm[2]) : presetMinutes[time];
+    const minute = hm ? Math.min(23, +hm[1]) * 60 + Math.min(59, +hm[2]) : presetMinute(time, clock.winterBlend);
     if (Number.isFinite(minute)) { clock.setMinute(minute); clock.freeze(true); }
   }
 }

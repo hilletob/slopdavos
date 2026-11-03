@@ -53,7 +53,7 @@ import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js
 import { gameClock } from './game-clock.js';
 import { missionClockTime } from './mission-windows.js';
 import { buildFastForward } from './fast-forward.js';
-import { TIME_MINUTES, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
+import { presetMinute, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
 import { buildGta, isClassicMode, hasGtaState } from './gta.js';
@@ -687,7 +687,7 @@ async function initApp() {
   }
 
   // The game's clock (js/game-clock.js) drives the light and the season: a tick every frame costs nothing, what it says
-  // is applied every few seconds (the sun moves in steps of about half a degree; uniforms only, nothing recompiles) and
+  // is applied every few seconds (the sun moves in steps of well under a degree; uniforms only, nothing recompiles) and
   // at once when the time jumps. `force`: the environment map too.
   const LIGHT_STEP = 3; // real seconds
   const daySample = createSample();
@@ -701,14 +701,14 @@ async function initApp() {
     else setSeason(gameClock.isWinter);
     setWinterBlend(w);
     snowfall.setAmount?.(gameClock.snowfall);
-    sampleDay(gameClock.minute, daySample);
+    sampleDay(gameClock.minute, w, daySample);
     lightingSystem.applySample(daySample, w, force);
     colorGrade.applyLook(daySample);
     if (!skipped('winter')) groomMap.setWearHours(wearHoursAt(gameClock.minute));
   }
   // (the debug switches: __slopdavos.time(id), ?time=: that time of day, held there; time('run') lets it go on)
   function selectTime(timeId) {
-    const minute = TIME_MINUTES[timeId];
+    const minute = presetMinute(timeId, gameClock.winterBlend);
     if (!Number.isFinite(minute)) return;
     gameClock.setMinute(minute);
     gameClock.freeze(true);

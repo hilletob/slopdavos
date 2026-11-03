@@ -1,7 +1,7 @@
 import { uniform, float, vec3, mix, max, min, dot, normalize, smoothstep, step, mx_noise_float, positionWorld, normalWorld, normalWorldGeometry, cameraViewMatrix, cameraPosition } from 'three/tsl';
 import { QUALITY } from './quality.js';
 import { gameClock, applyClockSwitches } from './game-clock.js';
-import { TIME_MINUTES } from './day-cycle.js';
+import { presetMinute } from './day-cycle.js';
 
 // (the mobile profile, js/quality.js simpleMaterials: the snow below without its noise fields, altitude bands, rock and
 // slush, a few lines of WGSL instead of a few hundred in every snowed-on material; `SIMPLE` read when a material is built)
@@ -169,6 +169,6 @@ export function snowyStreet(material, { cover = 0.75, top = false, paint = false
 
 // The URL's debug switches (?winter, ?summer, ?time=...) move the clock before anything is built: the winter scenery goes
 // by isWinter() as the world is built (js/main.js)
-if (typeof location !== 'undefined') applyClockSwitches(gameClock, location.search, TIME_MINUTES);
+if (typeof location !== 'undefined') applyClockSwitches(gameClock, location.search, presetMinute);
 target = gameClock.isWinter ? 1 : 0;
 winter.value = gameClock.winterBlend;

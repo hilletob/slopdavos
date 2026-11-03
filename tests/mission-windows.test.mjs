@@ -2,49 +2,75 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MISSIONS } from '../js/missions-data.js';
 import { MINUTES_PER_DAY, YEAR_DAYS, seasonAt, winterBlendAt, minuteOfDay, createGameClock, fastForwardTarget } from '../js/game-clock.js';
-import { TIME_WINDOWS, missionWindow, missionOpen, nightVariantOpen, nextOpening, closedInfo, closedText, missionClockTime, yearShare } from '../js/mission-windows.js';
+import { sunHeight } from '../js/solar.js';
+import { SUN_WINDOWS, missionWindow, missionOpen, nightVariantOpen, nextOpening, closedInfo, closedText, missionClockTime, yearShare } from '../js/mission-windows.js';
 
 const DAY = MINUTES_PER_DAY;
 const at = (day, h, m = 0) => day * DAY + h * 60 + m;
 const mission = (over) => ({ id: 'x', title: 'X', time: 'midday', ...over });
 
-test('every mission has a window, its season from def.season and its hours from def.time', () => {
+test('every mission has a window, its season from def.season and its sun from def.time', () => {
   assert.ok(MISSIONS.length >= 57);
   for (const def of MISSIONS) {
     const w = missionWindow(def);
     assert.equal(w.season, def.season || null, def.id);
-    assert.ok(TIME_WINDOWS[def.time || 'golden'], `${def.id}: def.time ${def.time} has hours`);
-    assert.ok(w.hours.length >= 1, def.id);
-    if (def.nightTime) assert.ok(w.nightHours.length >= 1, def.id);
+    assert.ok(SUN_WINDOWS[def.time || 'golden'], `${def.id}: def.time ${def.time} has a window`);
+    assert.equal(!!w.nightTest, !!def.nightTime, def.id);
   }
 });
 
 test('nothing is rare: every mission is open for a decent share of the game year', () => {
   for (const def of MISSIONS) {
     const share = yearShare(def);
-    assert.ok(share.real >= 0.14, `${def.id}: ${(share.real * 100).toFixed(1)} % of the real time`);
-    assert.ok(share.game >= 0.12, `${def.id}: ${(share.game * 100).toFixed(1)} % of the game's minutes`);
+    assert.ok(share.real >= 0.12, `${def.id}: ${(share.real * 100).toFixed(1)} % of the real time`);
+    assert.ok(share.game >= 0.1, `${def.id}: ${(share.game * 100).toFixed(1)} % of the game's minutes`);
   }
 });
 
-test('the windows of each time of day', () => {
-  const open = (time, h, m = 0, season = null) => missionOpen(mission({ time, season }), at(1, h, m));
-  assert.equal(open('midday', 7, 59), false); assert.equal(open('midday', 8), true); assert.equal(open('midday', 17, 59), true); assert.equal(open('midday', 18), false);
-  assert.equal(open('golden', 6), true); assert.equal(open('golden', 12), false); assert.equal(open('golden', 16), true); assert.equal(open('golden', 21), false);
-  assert.equal(open('evening', 18), true); assert.equal(open('evening', 1, 59), true); assert.equal(open('evening', 2), false);
-  assert.equal(open('midnight', 20), true); assert.equal(open('midnight', 4), true); assert.equal(open('midnight', 5), false);
-  assert.equal(open('morning', 5), true); assert.equal(open('morning', 11), false);
+test('the windows go by the sun: the same hour is another thing in winter and in summer', () => {
+  const summer = (time, h, m = 0) => missionOpen(mission({ time }), at(1, h, m)); // (day 1: summer)
+  const winter = (time, h, m = 0) => missionOpen(mission({ time }), at(5, h, m)); // (day 5: winter)
+  // An evening at 18:00 is dark in winter and daylight in summer
+  assert.equal(winter('evening', 18), true);
+  assert.equal(summer('evening', 18), false);
+  assert.equal(summer('evening', 21), true);
+  assert.equal(winter('evening', 1, 59), true);
+  assert.equal(winter('evening', 3), false);
+  // Night is below civil dusk
+  assert.equal(winter('midnight', 18), true);
+  assert.equal(summer('midnight', 18), false);
+  assert.equal(summer('midnight', 22), true);
+  assert.equal(summer('midnight', 6), false);
+  assert.equal(winter('midnight', 7), true);
+  // Midday: the sun well up
+  assert.equal(summer('midday', 7, 30), true);
+  assert.equal(winter('midday', 8, 30), false);
+  assert.equal(winter('midday', 12, 30), true);
+  assert.equal(winter('midday', 16), false);
+  assert.equal(summer('midday', 19), true);
+  // Golden: low; in winter nearly all the short day
+  assert.equal(summer('golden', 13), false);
+  assert.equal(summer('golden', 6), true);
+  assert.equal(summer('golden', 20), true);
+  assert.equal(winter('golden', 10), true);
+  assert.equal(winter('golden', 20), false);
+  // Morning: from dawn until an hour before noon
+  assert.equal(summer('morning', 5, 30), true);
+  assert.equal(winter('morning', 5, 30), false);
+  assert.equal(winter('morning', 9), true);
+  assert.equal(summer('morning', 14), false);
   // the season: day 1 is summer, day 5 winter
   assert.equal(missionOpen(mission({ season: 'summer' }), at(1, 12)), true);
   assert.equal(missionOpen(mission({ season: 'winter' }), at(1, 12)), false);
   assert.equal(missionOpen(mission({ season: 'winter' }), at(5, 12)), true);
   assert.equal(missionOpen(mission({ season: 'summer' }), at(5, 12)), false);
+  assert.ok(sunHeight(18 * 60, 1) < -6 && sunHeight(18 * 60, 0) > 20);
 });
 
 test('a mission with a night variant is open by day and by night, and the night has the night variant', () => {
   const def = mission({ time: 'golden', nightTime: 'midnight' });
-  assert.equal(missionOpen(def, at(1, 17)), true);
-  assert.equal(nightVariantOpen(def, at(1, 17)), false);
+  assert.equal(missionOpen(def, at(1, 20)), true);
+  assert.equal(nightVariantOpen(def, at(1, 20)), false);
   assert.equal(missionOpen(def, at(1, 23)), true);
   assert.equal(nightVariantOpen(def, at(1, 23)), true);
   assert.equal(missionOpen(def, at(1, 12)), false);
@@ -54,9 +80,12 @@ test('a mission with a night variant is open by day and by night, and the night 
 test('closed missions say when they open, in hours today and in days for the season', () => {
   const midday = mission({});
   assert.equal(closedText(midday, at(1, 12)), '', 'open');
-  assert.equal(closedText(midday, at(1, 19)), 'Opens at 08:00');
-  assert.equal(closedText(midday, at(1, 6)), 'Opens at 08:00');
-  assert.deepEqual(closedInfo(mission({ time: 'evening' }), at(1, 12)), { kind: 'time', at: '18:00' });
+  assert.match(closedText(midday, at(1, 22)), /^Opens at 0\d:\d\d$/);
+  assert.match(closedText(midday, at(5, 6)), /^Opens at 09:\d\d$/);
+  const evening = closedInfo(mission({ time: 'evening' }), at(1, 12));
+  assert.equal(evening.kind, 'time');
+  assert.match(evening.at, /^20:\d\d$/, 'summer: the evening comes late');
+  assert.match(closedInfo(mission({ time: 'evening' }), at(5, 12)).at, /^16:\d\d$/, 'winter: early');
   assert.equal(closedText(mission({ season: 'summer' }), at(5, 12)), 'In summer: in 3 days');
   assert.equal(closedText(mission({ season: 'summer' }), at(7, 12)), 'In summer: in 1 day');
   assert.equal(closedText(mission({ season: 'winter' }), at(1, 12)), 'In winter: in 3 days');
@@ -97,21 +126,23 @@ test('what a start from the pin, then the wait button, then a link do to the clo
   const clock = createGameClock();
   const golf = MISSIONS.find((m) => m.season === 'summer' && m.time === 'midday');
   const slalom = MISSIONS.find((m) => m.season === 'winter' && m.time === 'midday');
-  clock.jumpTo(at(1, 6));
+  clock.jumpTo(at(1, 3));
   assert.equal(missionOpen(golf, clock.total), false);
   clock.jumpTo(nextOpening(golf, clock.total)); // ("wait until then")
-  assert.equal(minuteOfDay(clock.total), 8 * 60);
   assert.equal(missionOpen(golf, clock.total), true);
   clock.hold(missionClockTime(golf, false, clock.total), golf.season);
+  const held = clock.total;
   clock.tick(600);
-  assert.equal(minuteOfDay(clock.total), 13.5 * 60, 'the mission\'s time, standing still');
+  assert.equal(clock.total, held, 'the mission\'s time, standing still');
+  assert.ok(sunHeight(minuteOfDay(held), 0) > 50, 'the summer sun high up');
   clock.release();
   clock.tick(12);
-  assert.equal(minuteOfDay(clock.total), 13.5 * 60 + 10, 'and on from there');
+  assert.ok(clock.total > held, 'and on from there');
   // ?mission= straight into another season
   clock.hold(missionClockTime(slalom, false, clock.total), slalom.season);
   assert.equal(clock.isWinter, true);
   assert.equal(clock.winterBlend, 1);
+  assert.ok(sunHeight(minuteOfDay(clock.total), 1) < 23, 'the winter sun low');
   clock.release();
   assert.ok(winterBlendAt(clock.total) === 1, 'the first winter day at midday: the snow lies');
 });

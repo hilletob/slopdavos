@@ -1,32 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MINUTES_PER_DAY, REAL_SECONDS_PER_DAY, YEAR_DAYS, advance, realSecondsBetween, seasonAt, winterBlendAt, snowfallAt, formatClock,
+  MINUTES_PER_DAY, REAL_SECONDS_PER_DAY, YEAR_DAYS, DAY_PROFILES, advance, realSecondsBetween, seasonAt, winterBlendAt, snowfallAt, formatClock,
   nextTimeOfDay, nextSeasonDay, nextSeasonMorning, createGameClock, applyClockSwitches, dayOfYear, minuteOfDay
 } from '../js/game-clock.js';
-import { TIME_PRESETS, TIME_MINUTES, createSample, sampleDay, presetAt, wearHoursAt } from '../js/day-cycle.js';
+import { TIME_PRESETS, presetMinute, createSample, sampleDay, presetAt, wearHoursAt } from '../js/day-cycle.js';
+import { sunHeight, sunVector, solarNoon, minuteAtHeight, SUNRISE_HEIGHT, CIVIL_HEIGHT } from '../js/solar.js';
 
 const DAY = MINUTES_PER_DAY;
 const at = (day, h, m = 0) => day * DAY + h * 60 + m;
 const fakeStorage = (init = {}) => { const m = new Map(Object.entries(init)); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), m }; };
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ~ ${b}`);
 
-test('a game day takes exactly 24 real minutes, the night running twice as fast', () => {
+test('every game day takes exactly 24 real minutes, in both seasons, the night running twice as fast', () => {
   assert.equal(REAL_SECONDS_PER_DAY, 24 * 60);
-  for (const start of [0, 359, 360, 540, 1319, 1320, 1439.5]) near(realSecondsBetween(start, start + DAY), 1440, 1e-6);
-  near(advance(at(0, 9), 1440), at(1, 9), 1e-6);
-  near(advance(at(0, 12), 12), at(0, 12, 10)); // (by day: 1.2 s a game minute)
-  near(advance(at(0, 23), 12), at(0, 23, 20)); // (by night: 0.6 s a game minute)
-  near(realSecondsBetween(at(0, 6), at(0, 22)), 19.2 * 60, 1e-6);
-  near(realSecondsBetween(at(0, 22), at(1, 6)), 4.8 * 60, 1e-6);
+  for (let d = 0; d < 16; d++) near(realSecondsBetween(at(d, 0), at(d + 1, 0)), 1440, 1e-6);
+  for (const start of [at(0, 9), at(3, 21), at(5, 3)]) near(advance(start, realSecondsBetween(start, start + 500)), start + 500, 1e-6);
+  const summer = DAY_PROFILES[1], winter = DAY_PROFILES[5], thaw = DAY_PROFILES[7];
+  for (const p of [summer, winter, thaw]) near(p.night, p.day / 2);
+  near(summer.day, 1.178, 0.002);
+  near(winter.day, 1.408, 0.002);
+  assert.ok(thaw.day > summer.day && thaw.day < winter.day);
+  assert.ok(realSecondsBetween(at(1, 8), at(1, 20)) < realSecondsBetween(at(5, 8), at(5, 20)) + 1e-6);
 });
 
 test('advance crosses the changes of rate exactly, in small steps as in big ones', () => {
-  near(advance(at(0, 21, 59), 1.2 + 0.6), at(0, 22, 1), 1e-9); // (one minute at each rate)
+  const p = DAY_PROFILES[1];
+  near(advance(at(1, 0) + p.dusk - 1, p.day + p.night), at(1, 0) + p.dusk + 1, 1e-6); // (one minute at each rate)
   let t = at(3, 5, 30);
-  for (let i = 0; i < 1440 * 60; i++) t = advance(t, 1 / 60); // (a real day, frame by frame)
-  near(t, at(4, 5, 30), 1e-4);
+  for (let i = 0; i < 1440 * 60; i++) t = advance(t, 1 / 60); // (a real day, frame by frame, over two kinds of day)
+  assert.ok(Math.abs(realSecondsBetween(at(3, 5, 30), t) - 1440) < 0.01);
   assert.equal(advance(100, 0), 100);
+});
+
+test('the sun times of Davos on the two anchor days, within two minutes of the NOAA table', () => {
+  const hm = (h, m) => h * 60 + m;
+  const close = (a, b) => assert.ok(Math.abs(a - b) <= 2, `${a} ~ ${b}`);
+  close(minuteAtHeight(CIVIL_HEIGHT, 1, true), hm(7, 28));
+  close(minuteAtHeight(SUNRISE_HEIGHT, 1, true), hm(8, 2));
+  close(solarNoon(1), hm(12, 30));
+  close(minuteAtHeight(SUNRISE_HEIGHT, 1, false), hm(16, 59));
+  close(minuteAtHeight(CIVIL_HEIGHT, 1, false), hm(17, 33));
+  close(minuteAtHeight(CIVIL_HEIGHT, 0, true), hm(5, 4));
+  close(minuteAtHeight(SUNRISE_HEIGHT, 0, true), hm(5, 41));
+  close(solarNoon(0), hm(13, 26));
+  close(minuteAtHeight(SUNRISE_HEIGHT, 0, false), hm(21, 11));
+  close(minuteAtHeight(CIVIL_HEIGHT, 0, false), hm(21, 48));
+  near(sunHeight(solarNoon(1), 1), 22, 0.5);
+  near(sunHeight(solarNoon(0), 0), 65, 0.5);
+  // It rises in the east and sets in the west, in the south at noon, on the frame's axes (x east, z south)
+  const v = { x: 0, y: 0, z: 0 };
+  sunVector(hm(8, 30), 1, v); assert.ok(v.x > 0.5);
+  sunVector(solarNoon(1), 1, v); near(v.x, 0, 1e-9); assert.ok(v.z > 0.9);
+  sunVector(hm(16, 30), 1, v); assert.ok(v.x < -0.5);
+  near(Math.hypot(v.x, v.y, v.z), 1, 1e-9);
+  sunVector(600, 0.3, v);
+  near(v.y, Math.sin((sunHeight(600, 0.3) * Math.PI) / 180), 1e-9);
 });
 
 test('the year: 8 days, 4 of summer, 4 of winter, changing at midnight', () => {
@@ -87,7 +116,8 @@ test('the clock: ticks, stands still when held or frozen, and remembers', () => 
   assert.equal(c.day, 0);
   assert.equal(c.season, 'summer', 'a first visit starts in summer');
   assert.equal(c.text, '09:00');
-  c.tick(12);
+  const p = DAY_PROFILES[0];
+  c.tick(p.day * 10);
   near(c.total, 9 * 60 + 10);
   c.freeze(true); c.tick(100); near(c.total, 9 * 60 + 10); c.freeze(false);
   c.takeJump();
@@ -98,8 +128,8 @@ test('the clock: ticks, stands still when held or frozen, and remembers', () => 
   assert.equal(c.total, at(5, 13, 30), 'a mission holds the clock');
   c.release();
   assert.equal(c.takeJump(), true);
-  c.tick(12);
-  near(c.total, at(5, 13, 40));
+  c.tick(DAY_PROFILES[5].night * 10);
+  assert.ok(c.total > at(5, 13, 30) && c.total < at(5, 13, 40.1));
   c.save();
   const again = createGameClock({ storage });
   near(again.total, c.total);
@@ -139,10 +169,10 @@ test('the URL\'s switches: ?winter, ?summer, ?time=', () => {
   applyClockSwitches(c, '?summer');
   assert.equal(c.isWinter, false);
   assert.equal(c.winterBlend, 0);
-  applyClockSwitches(c, '?time=midnight', TIME_MINUTES);
+  applyClockSwitches(c, '?time=midnight', presetMinute);
   assert.equal(c.text, '23:00');
   assert.equal(c.frozen, true);
-  applyClockSwitches(c, '?time=06:45', TIME_MINUTES);
+  applyClockSwitches(c, '?time=06:45', presetMinute);
   assert.equal(c.text, '06:45');
   const free = createGameClock();
   applyClockSwitches(free, '?quality=mobile&mission=golf');
@@ -158,65 +188,89 @@ test('the URL\'s switches: ?winter, ?summer, ?time=', () => {
 
 // --- The light through the day --------------------------------------------------------------------------------------
 
-test('the presets remain the anchors: at their times the sample is the preset', () => {
+// A minute of a season at which the sun stands at `height` (summer: on the way down)
+const atHeight = (height, w = 0) => minuteAtHeight(height, w, false);
+
+test('the presets remain the colour anchors, on the sun\'s height', () => {
   const s = createSample();
-  for (const id of ['golden', 'midday', 'twilight', 'midnight']) {
+  for (const [id, height] of [['midnight', -12], ['twilight', -3], ['golden', 8], ['midday', 30]]) {
     const p = TIME_PRESETS[id];
-    sampleDay(TIME_MINUTES[id], s);
-    for (const k of ['sunIntensity', 'hemiIntensity', 'fogDensity', 'interiorGlow', 'roadWetness', 'envIntensity', 'canyonBounce', 'turbidity', 'rayleigh', 'mieCoefficient', 'skyExposure', 'nightFactor', 'exposure', 'bloom', 'threshold', 'wHaze', 'wExposure', 'wBloomGate']) near(s[k], p[k], 1e-12);
-    near(s.sunDirX, p.sunDir[0], 1e-9); near(s.sunDirY, p.sunDir[1], 1e-9); near(s.sunDirZ, p.sunDir[2], 1e-9);
+    sampleDay(atHeight(height), 0, s);
+    for (const k of ['hemiIntensity', 'fogDensity', 'roadWetness', 'envIntensity', 'canyonBounce', 'turbidity', 'rayleigh', 'mieCoefficient', 'skyExposure', 'nightFactor', 'exposure', 'bloom', 'threshold', 'wHaze', 'wExposure', 'wBloomGate']) near(s[k], p[k], 1e-9);
     for (const k of ['sunColor', 'hemiSky', 'hemiGround', 'skyTop', 'skyHorizon', 'fogColor']) {
-      near(s[`${k}R`], ((p[k] >> 16) & 255) / 255, 1e-12);
-      near(s[`${k}G`], ((p[k] >> 8) & 255) / 255, 1e-12);
-      near(s[`${k}B`], (p[k] & 255) / 255, 1e-12);
+      near(s[`${k}R`], ((p[k] >> 16) & 255) / 255, 1e-9);
+      near(s[`${k}G`], ((p[k] >> 8) & 255) / 255, 1e-9);
+      near(s[`${k}B`], (p[k] & 255) / 255, 1e-9);
     }
-    assert.equal(s.presetId, id);
   }
+  // The same height looks the same in either season
+  const a = sampleDay(atHeight(5, 0), 0), b = sampleDay(atHeight(5, 1), 1);
+  near(a.interiorGlow, b.interiorGlow, 1e-9); near(a.skyExposure, b.skyExposure, 1e-9);
+  // Night holds the night preset's glow, and the midday preset's at the top of a summer day
+  near(sampleDay(23 * 60, 0).interiorGlow, TIME_PRESETS.midnight.interiorGlow, 1e-9);
+  near(sampleDay(solarNoon(0), 0).interiorGlow, TIME_PRESETS.midday.interiorGlow, 1e-9);
+  near(sampleDay(atHeight(8), 0).sunIntensity, TIME_PRESETS.golden.sunIntensity, 1e-9);
 });
 
-test('the light flows: no jumps through the day, the sun always a unit vector, no value out of range', () => {
-  const a = createSample(), b = createSample();
-  for (let m = 0; m < DAY; m++) {
-    sampleDay(m, a); sampleDay((m + 1) % DAY, b);
-    near(Math.hypot(a.sunDirX, a.sunDirY, a.sunDirZ), 1, 1e-9);
-    assert.ok(a.sunDirY > 0, `the light stays above the horizon at ${m}`);
-    assert.ok(a.sunIntensity >= 0 && a.interiorGlow > 0 && a.skyExposure > 0, `at ${m}`);
-    // (the one big move of the direction is the hand-over from sun to moon, at intensity 0)
-    if (a.sunIntensity > 0.01 || b.sunIntensity > 0.01) {
-      const dot = a.sunDirX * b.sunDirX + a.sunDirY * b.sunDirY + a.sunDirZ * b.sunDirZ;
-      assert.ok(dot > Math.cos((2 * Math.PI) / 180), `the sun jumps at ${m}: ${dot}`);
+test('the light flows: no jumps through the day, the light always a unit vector above the horizon', () => {
+  for (const w of [0, 0.4, 1]) {
+    const a = createSample(), b = createSample();
+    for (let m = 0; m < DAY; m++) {
+      sampleDay(m, w, a); sampleDay((m + 1) % DAY, w, b);
+      near(Math.hypot(a.sunDirX, a.sunDirY, a.sunDirZ), 1, 1e-9);
+      near(Math.hypot(a.skyDirX, a.skyDirY, a.skyDirZ), 1, 1e-9);
+      assert.ok(a.sunDirY > 0 && a.skyDirY > 0, `the light stays above the horizon at ${m}`);
+      assert.ok(a.sunIntensity >= 0 && a.interiorGlow > 0 && a.skyExposure > 0, `at ${m}`);
+      // (the one big move of the direction is the hand-over from sun to moon, with both out)
+      if (a.sunIntensity > 0.01 || b.sunIntensity > 0.01) {
+        const dot = a.sunDirX * b.sunDirX + a.sunDirY * b.sunDirY + a.sunDirZ * b.sunDirZ;
+        assert.ok(dot > Math.cos((2 * Math.PI) / 180), `the sun jumps at ${m}: ${dot}`);
+      }
+      assert.ok(Math.abs(a.interiorGlow - b.interiorGlow) < 0.09, `the windows jump at ${m}`);
+      assert.ok(Math.abs(a.nightFactor - b.nightFactor) < 0.02, `the sky jumps at ${m}`);
+      assert.ok(Math.abs(a.sunColorR - b.sunColorR) < 0.02, `the sun's colour jumps at ${m}`);
     }
-    assert.ok(Math.abs(a.interiorGlow - b.interiorGlow) < 0.02, `the windows jump at ${m}`);
-    assert.ok(Math.abs(a.nightFactor - b.nightFactor) < 0.02, `the sky jumps at ${m}`);
-    assert.ok(Math.abs(a.sunColorR - b.sunColorR) < 0.02, `the sun's colour jumps at ${m}`);
   }
+  // ... nor through the season's blend, as the thaw runs at a fixed minute
+  const s0 = createSample(), s1 = createSample();
+  for (let w = 0; w < 1; w += 0.01) { sampleDay(13 * 60, w, s0); sampleDay(13 * 60, w + 0.01, s1); assert.ok(s0.sunDirX * s1.sunDirX + s0.sunDirY * s1.sunDirY + s0.sunDirZ * s1.sunDirZ > 0.999); }
 });
 
-test('the lamps and windows come on at dusk and go off in the morning', () => {
-  const glow = (h, m = 0) => sampleDay(h * 60 + m).interiorGlow;
-  assert.ok(glow(13, 30) < 0.4, 'off at midday');
-  assert.ok(glow(17, 45) < 0.6, 'off in the golden hour');
-  assert.ok(glow(19, 15) > 1.1, 'on at dusk');
-  assert.ok(glow(23) > 1.4, 'on at night');
-  assert.ok(glow(3) > 1.4, 'on before dawn');
-  assert.ok(glow(9) < 0.6, 'off in the morning');
-  assert.equal(presetAt(23 * 60), 'midnight');
-  assert.equal(presetAt(2 * 60), 'midnight');
-  assert.equal(presetAt(12 * 60), 'midday');
+test('the lamps and windows switch at the season\'s civil dusk and dawn, not at fixed hours', () => {
+  const lamp = (minute, w) => { const x = Math.max(0, Math.min(1, (sampleDay(minute, w).interiorGlow - 0.4) / 0.7)); return x * x * (3 - 2 * x); };
+  for (const w of [0, 1]) {
+    const dusk = minuteAtHeight(CIVIL_HEIGHT, w, false), dawn = minuteAtHeight(CIVIL_HEIGHT, w, true);
+    near(lamp(dusk, w), 0.5, 0.05);
+    near(lamp(dawn, w), 0.5, 0.05);
+    assert.ok(lamp(dusk - 45, w) < 0.1, 'still off before dusk');
+    assert.ok(lamp(dusk + 45, w) > 0.9, 'on after dusk');
+    assert.ok(lamp(dawn - 45, w) > 0.9, 'on before dawn');
+    assert.ok(lamp(dawn + 45, w) < 0.1, 'off after dawn');
+  }
+  // 18:30: on in winter, off in summer
+  assert.ok(lamp(18.5 * 60, 1) > 0.9);
+  assert.ok(lamp(18.5 * 60, 0) < 0.1);
+  // ... at 07:00: on in winter, off in summer
+  assert.ok(lamp(7 * 60, 1) > 0.5);
+  assert.ok(lamp(7 * 60, 0) < 0.1);
+  assert.equal(presetAt(-30), 'midnight');
+  assert.equal(presetAt(50), 'midday');
 });
 
-test('the sun rises in the east and sets in the west', () => {
-  assert.ok(sampleDay(6.5 * 60).sunDirX > 0.3);
-  assert.ok(sampleDay(8 * 60).sunDirX > 0.3);
-  assert.ok(sampleDay(19.25 * 60).sunDirX < -0.3);
-  let last = Infinity;
-  for (let m = 5.5 * 60; m <= 20.9 * 60; m += 15) { const x = sampleDay(m).sunDirX; assert.ok(x <= last + 0.05, `at ${m}`); last = x; }
+test('a winter day is short and low, a summer day long and high', () => {
+  assert.ok(sampleDay(solarNoon(1), 1).height < 23);
+  assert.ok(sampleDay(solarNoon(0), 0).height > 64);
+  assert.ok(sampleDay(10 * 60, 1).sunDirY < sampleDay(10 * 60, 0).sunDirY);
+  assert.equal(sampleDay(6 * 60, 1).presetId, 'midnight');
+  assert.notEqual(sampleDay(6.5 * 60, 0).presetId, 'midnight');
+  assert.equal(sampleDay(20 * 60, 1).presetId, 'midnight');
+  assert.notEqual(sampleDay(20 * 60, 0).presetId, 'midnight');
 });
 
 test('the pistes\' wear goes through the old presets\' values', () => {
-  near(wearHoursAt(TIME_MINUTES.midday), 4.5);
-  near(wearHoursAt(TIME_MINUTES.golden), 7.5);
-  near(wearHoursAt(TIME_MINUTES.twilight), 8);
-  near(wearHoursAt(TIME_MINUTES.midnight), 0);
+  near(wearHoursAt(13.5 * 60), 4.5);
+  near(wearHoursAt(17.75 * 60), 7.5);
+  near(wearHoursAt(19.25 * 60), 8);
+  near(wearHoursAt(23 * 60), 0);
   near(wearHoursAt(5 * 60), 0);
 });

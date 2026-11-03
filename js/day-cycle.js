@@ -1,11 +1,11 @@
 import { MINUTES_PER_DAY } from './game-clock.js';
+import { sunHeight, sunVector, solarNoon, minuteAtHeight } from './solar.js';
 
 // js/day-cycle.js
-// The light through the day, as data and without three.js (tests/day-cycle.test.mjs): the four tuned presets remain the
-// anchors (at their own times every value is exactly the preset's), keyframes between them carry the dawn, the sunset and
-// the moon; `sampleDay` interpolates all of it. js/lighting.js and js/post-processing.js read a sample.
-
-const dir = (x, y, z) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; };
+// The light through the day, as data and without three.js (tests/game-clock.test.mjs): the sun's position comes from
+// js/solar.js, by the clock and the season, and the four tuned presets remain the colour anchors, keyed to the sun's
+// height rather than to hours: winter's short low day never quite reaches the midday anchor, summer stays there for hours.
+// js/lighting.js and js/post-processing.js read a sample.
 
 // The sky's, the sun's and the camera's settings of each preset; `w*` are the values winter mixes towards (see lighting.js
 // and post-processing.js for what they do).
@@ -13,7 +13,7 @@ export const TIME_PRESETS = {
   golden: {
     id: 'golden', name: 'Golden Hour · 17:45',
     // Crisp canyon sun slicing across the streets so buildings, cars, trees & pedestrians cast sharp shadows
-    sunDir: dir(-0.44, 0.58, -0.68), sunColor: 0xffca92, sunIntensity: 5.8,
+    sunColor: 0xffca92, sunIntensity: 5.8,
     hemiSky: 0x9abbe6, hemiGround: 0xc88a62, hemiIntensity: 1.48, // (warm terracotta / limestone bounce)
     skyTop: 0x2c568c, skyHorizon: 0xebd1b5, fogColor: 0xdcc5ae, fogDensity: 0.00024,
     interiorGlow: 0.48, roadWetness: 0.28, envIntensity: 0.54, canyonBounce: 0.52,
@@ -25,7 +25,7 @@ export const TIME_PRESETS = {
   },
   midday: {
     id: 'midday', name: 'Sunny Midday · 13:30',
-    sunDir: dir(-0.34, 0.82, -0.46), sunColor: 0xfff5e8, sunIntensity: 6.6,
+    sunColor: 0xfff5e8, sunIntensity: 6.6,
     hemiSky: 0xaad2ff, hemiGround: 0xb89678, hemiIntensity: 1.58, // (warm sunlit masonry & pavement bounce)
     skyTop: 0x225ea8, skyHorizon: 0xc8dff5, fogColor: 0xc6dcf2, fogDensity: 0.00018,
     interiorGlow: 0.24, roadWetness: 0.08, envIntensity: 0.58, canyonBounce: 0.58,
@@ -37,7 +37,7 @@ export const TIME_PRESETS = {
   },
   twilight: {
     id: 'twilight', name: 'Blue Hour · 19:15',
-    sunDir: dir(-0.52, 0.36, -0.77), sunColor: 0xff9466, sunIntensity: 3.1,
+    sunColor: 0xff9466, sunIntensity: 3.1,
     hemiSky: 0x4c6ca8, hemiGround: 0x6e5048, hemiIntensity: 0.85,
     skyTop: 0x102248, skyHorizon: 0xb86b6c, fogColor: 0x353c58, fogDensity: 0.00032,
     interiorGlow: 1.25, roadWetness: 0.55, envIntensity: 0.36, canyonBounce: 0.32,
@@ -49,7 +49,7 @@ export const TIME_PRESETS = {
   },
   midnight: {
     id: 'midnight', name: 'Night · 23:00',
-    sunDir: dir(0.42, 0.68, -0.60), sunColor: 0x8cb0e8, sunIntensity: 1.45, // (the moon)
+    sunColor: 0x8cb0e8, sunIntensity: 1.45, // (the moon)
     hemiSky: 0x263a62, hemiGround: 0x382e36, hemiIntensity: 0.72,
     skyTop: 0x060c1a, skyHorizon: 0x182640, fogColor: 0x0c1424, fogDensity: 0.00036,
     interiorGlow: 1.55, roadWetness: 0.62, envIntensity: 0.30, canyonBounce: 0.18,
@@ -63,95 +63,110 @@ export const TIME_PRESETS = {
 
 const hm = (h, m = 0) => h * 60 + m;
 
-// When each time of day is (the missions' def.time too: 'morning' and 'evening' have no preset of their own, the day's
-// keyframes carry them)
-export const TIME_MINUTES = { golden: hm(17, 45), midday: hm(13, 30), twilight: hm(19, 15), midnight: hm(23), morning: hm(9), evening: hm(20) };
+// Where each preset sits on the sun's height (degrees); above and below the ends the end holds
+const ANCHOR_HEIGHT = { midnight: -12, twilight: -3, golden: 8, midday: 30 };
+
+/** When a named time of day is in a season: the missions' def.time and the debug switches. The presets' own heights where
+ *  that reads well; twilight just before the sun goes, so that it still lights the scene as the blue-hour preset did. */
+export function presetMinute(id, w) {
+  switch (id) {
+    case 'midday': return solarNoon(w) + 30;
+    case 'golden': return minuteAtHeight(ANCHOR_HEIGHT.golden, w, false);
+    case 'twilight': return minuteAtHeight(1.5, w, false);
+    case 'evening': return minuteAtHeight(-7, w, false);
+    case 'morning': return minuteAtHeight(14, w, true);
+    case 'midnight': case 'night': return hm(23);
+    default: return undefined;
+  }
+}
 
 const COLOURS = ['sunColor', 'hemiSky', 'hemiGround', 'skyTop', 'skyHorizon', 'fogColor'];
-const NUMBERS = Object.keys(TIME_PRESETS.golden).filter((k) => !['id', 'name', 'sunDir', ...COLOURS].includes(k));
+const NUMBERS = Object.keys(TIME_PRESETS.golden).filter((k) => !['id', 'name', ...COLOURS].includes(k));
+const COLOUR_NAMES = COLOURS.map((c) => [`${c}R`, `${c}G`, `${c}B`]);
 
-// A keyframe as a flat list: the numbers, the sun's direction, then each colour's sRGB channels
+// An anchor as a flat list: the numbers, then each colour's sRGB channels
 function flatten(p) {
   const out = NUMBERS.map((k) => p[k]);
-  out.push(...p.sunDir);
   for (const k of COLOURS) { const c = p[k]; out.push(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255); }
   return out;
 }
-const DIR_AT = NUMBERS.length;
-const COLOUR_AT = DIR_AT + 3;
-const mixList = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-const withDir = (list, d, sunIntensity = null) => {
-  const out = list.slice();
-  out[DIR_AT] = d[0]; out[DIR_AT + 1] = d[1]; out[DIR_AT + 2] = d[2];
-  if (sunIntensity !== null) out[NUMBERS.indexOf('sunIntensity')] = sunIntensity;
-  return out;
-};
-const GOLDEN = flatten(TIME_PRESETS.golden), MIDDAY = flatten(TIME_PRESETS.midday), TWILIGHT = flatten(TIME_PRESETS.twilight), MIDNIGHT = flatten(TIME_PRESETS.midnight);
-const mirrored = (p) => dir(-p.sunDir[0], p.sunDir[1], p.sunDir[2]);
+const ANCHORS = ['midnight', 'twilight', 'golden', 'midday'].map((id) => [ANCHOR_HEIGHT[id], flatten(TIME_PRESETS[id])]);
 
-// The day: the sun rises in the east (+x; the frame's x is east) and sets in the west, through the presets' own positions,
-// which stand high in the north-west since they were tuned for the street canyons. The moon crosses the same way. The sun
-// hands over to the moon where both are out (intensity 0), so that the shadows never sweep across the sky.
-const DUSK = mixList(TWILIGHT, MIDNIGHT, 0.45);
-const LATE_DUSK = mixList(TWILIGHT, MIDNIGHT, 0.8);
-const PRE_DAWN = mixList(MIDNIGHT, TWILIGHT, 0.4);
-const KEYFRAMES = [
-  [hm(4, 30), withDir(MIDNIGHT, dir(-0.62, 0.22, -0.76), 1.1)],
-  [hm(5, 15), withDir(PRE_DAWN, dir(-0.7, 0.06, -0.71), 0)], // the moon sets ...
-  [hm(5, 16), withDir(PRE_DAWN, dir(0.6, 0.03, -0.8), 0)], // ... before the sun comes up
-  [hm(6, 30), withDir(TWILIGHT, mirrored(TIME_PRESETS.twilight))],
-  [hm(8), withDir(GOLDEN, mirrored(TIME_PRESETS.golden))],
-  [hm(10, 30), withDir(mixList(GOLDEN, MIDDAY, 0.7), dir(0.08, 0.76, -0.64))],
-  [TIME_MINUTES.midday, MIDDAY],
-  [TIME_MINUTES.golden, GOLDEN],
-  [TIME_MINUTES.twilight, TWILIGHT],
-  [hm(20, 30), withDir(DUSK, dir(-0.6, 0.05, -0.8), 0.6)],
-  [hm(20, 45), withDir(LATE_DUSK, dir(-0.6, 0.02, -0.8), 0)], // the sun is gone ...
-  [hm(20, 46), withDir(LATE_DUSK, dir(0.7, 0.1, -0.7), 0)], // ... and the moon rises (quickly: no dark gap between them)
-  [hm(21, 30), withDir(mixList(LATE_DUSK, MIDNIGHT, 0.4), dir(0.62, 0.36, -0.7), 1)],
-  [TIME_MINUTES.midnight, MIDNIGHT]
-];
+const table = (rows, h) => {
+  if (h <= rows[0][0]) return rows[0][1];
+  for (let i = 1; i < rows.length; i++) {
+    if (h <= rows[i][0]) return rows[i - 1][1] + (rows[i][1] - rows[i - 1][1]) * ((h - rows[i - 1][0]) / (rows[i][0] - rows[i - 1][0]));
+  }
+  return rows[rows.length - 1][1];
+};
+// The window light and street lamps (uInteriorGlow; the lamps' smoothstep(0.4, 1.1) is halfway at 0.75) switch at civil
+// dusk and dawn, whichever hour that is in the season: -6 deg is halfway through the change
+const GLOW = [[-12, 1.55], [-7.4, 1.25], [-5.4, 0.55], [8, 0.48], [30, 0.24]];
+// The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens
+const SUN_LIGHT = [[0, 0], [2, 3.1], [8, 5.8], [30, 6.6]];
+const MOON_LIGHT = [[-12, 1.45], [-6, 0.9], [-1, 0]];
+const MIN_LIGHT_SIN = Math.sin((3 * Math.PI) / 180), MIN_MOON_SIN = Math.sin((15 * Math.PI) / 180), MIN_SKY_SIN = Math.sin((1.5 * Math.PI) / 180);
+
+// Raises a unit vector to at least the height whose sine is `minSin`, keeping its compass direction
+function lift(v, minSin) {
+  if (v.y >= minSin) return;
+  const flat = Math.hypot(v.x, v.z) || 1, k = Math.sqrt(1 - minSin * minSin) / flat;
+  v.x *= k; v.z *= k; v.y = minSin;
+}
+const _sun = { x: 0, y: 1, z: 0 };
 
 /** A sample's object, to be reused (nothing is allocated per call) */
 export function createSample() {
-  const s = { minute: 0, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0 };
+  const s = { minute: 0, height: 0, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0, skyDirX: 0, skyDirY: 1, skyDirZ: 0 };
   for (const k of NUMBERS) s[k] = 0;
-  for (const k of COLOURS) { s[`${k}R`] = 0; s[`${k}G`] = 0; s[`${k}B`] = 0; }
+  for (const names of COLOUR_NAMES) for (const n of names) s[n] = 0;
   return s;
 }
 
 /** The preset nearest in mood (the audio's night, anything that only needs a word for the time of day) */
-export function presetAt(minute) {
-  if (minute >= hm(20, 30) || minute < hm(5, 30)) return 'midnight';
-  if (minute >= hm(18, 30) || minute < hm(7)) return 'twilight';
-  if (minute >= hm(15, 30) || minute < hm(10)) return 'golden';
+export function presetAt(height) {
+  if (height < -8) return 'midnight';
+  if (height < -1) return 'twilight';
+  if (height < 20) return 'golden';
   return 'midday';
 }
 
-const COLOUR_NAMES = COLOURS.map((c) => [`${c}R`, `${c}G`, `${c}B`]);
-
-/** The light at `minute` (0..1440) into `out` */
-export function sampleDay(minute, out = createSample()) {
-  const n = KEYFRAMES.length;
-  let i = n - 1; // the keyframe at or before the minute (before the first: the last, of the day before)
-  for (let k = 0; k < n; k++) { if (KEYFRAMES[k][0] <= minute) i = k; else break; }
-  const ta = KEYFRAMES[i][0], a = KEYFRAMES[i][1];
-  const next = KEYFRAMES[(i + 1) % n];
-  const tb = next[0], b = next[1];
-  const span = (tb - ta + MINUTES_PER_DAY) % MINUTES_PER_DAY;
-  const t = ((minute - ta + MINUTES_PER_DAY) % MINUTES_PER_DAY) / span;
+/** The light at `minute` (0..1440) of a season's blend `w` into `out` */
+export function sampleDay(minute, w = 0, out = createSample()) {
+  const h = sunHeight(minute, w);
+  let i = 0;
+  while (i < ANCHORS.length - 2 && h > ANCHORS[i + 1][0]) i++;
+  const ha = ANCHORS[i][0], a = ANCHORS[i][1], hb = ANCHORS[i + 1][0], b = ANCHORS[i + 1][1];
+  const t = Math.max(0, Math.min(1, (h - ha) / (hb - ha)));
   for (let k = 0; k < NUMBERS.length; k++) out[NUMBERS[k]] = a[k] + (b[k] - a[k]) * t;
-  const dx = a[DIR_AT] + (b[DIR_AT] - a[DIR_AT]) * t, dy = a[DIR_AT + 1] + (b[DIR_AT + 1] - a[DIR_AT + 1]) * t, dz = a[DIR_AT + 2] + (b[DIR_AT + 2] - a[DIR_AT + 2]) * t;
-  const l = Math.hypot(dx, dy, dz);
-  out.sunDirX = dx / l; out.sunDirY = dy / l; out.sunDirZ = dz / l;
   for (let c = 0; c < COLOURS.length; c++) {
-    const at = COLOUR_AT + c * 3, names = COLOUR_NAMES[c];
+    const at = NUMBERS.length + c * 3, names = COLOUR_NAMES[c];
     out[names[0]] = a[at] + (b[at] - a[at]) * t;
     out[names[1]] = a[at + 1] + (b[at + 1] - a[at + 1]) * t;
     out[names[2]] = a[at + 2] + (b[at + 2] - a[at + 2]) * t;
   }
+  out.interiorGlow = table(GLOW, h);
+
+  // The sky always has the sun where it is, just over the horizon when it has gone (the night factor darkens it)
+  sunVector(minute, w, _sun);
+  const sx = _sun.x, sy = _sun.y, sz = _sun.z;
+  lift(_sun, MIN_SKY_SIN);
+  out.skyDirX = _sun.x; out.skyDirY = _sun.y; out.skyDirZ = _sun.z;
+  // One light: the sun, or from where they are both out the (full) moon, opposite it
+  if (h > -0.5) {
+    _sun.x = sx; _sun.y = sy; _sun.z = sz;
+    lift(_sun, MIN_LIGHT_SIN);
+    out.sunIntensity = table(SUN_LIGHT, h);
+  } else {
+    _sun.x = -sx; _sun.y = -sy; _sun.z = -sz;
+    lift(_sun, MIN_MOON_SIN);
+    out.sunIntensity = table(MOON_LIGHT, h);
+  }
+  out.sunDirX = _sun.x; out.sunDirY = _sun.y; out.sunDirZ = _sun.z;
+
   out.minute = minute;
-  out.presetId = presetAt(minute);
+  out.height = h;
+  out.presetId = presetAt(h);
   return out;
 }
 

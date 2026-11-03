@@ -28,7 +28,7 @@ import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
 import { winter } from './season.js';
 import { QUALITY } from './quality.js';
-import { TIME_PRESETS, TIME_MINUTES, createSample, sampleDay } from './day-cycle.js';
+import { TIME_PRESETS, createSample, sampleDay, presetMinute } from './day-cycle.js';
 
 // js/lighting.js
 // Physically-Based Atmospheric Sky (Preetham SkyMesh + Beer-Powder Clouds),
@@ -134,7 +134,7 @@ class LightingSystem {
     // Three.js r186 SunLight with automatic 2-Cascade Shadow Map (SunLightShadow + SunShadowNode)
     // Shines from its position vector toward the origin (no .target needed)
     this.sunLight = new SunLight(0xffca92, 5.8);
-    this.sunLight.position.set(...TIME_PRESETS.golden.sunDir);
+    this.sunLight.position.set(0, 1, 0);
     this.sunLight.castShadow = QUALITY.shadows;
     // 3072x3072 per cascade = 6144x3072 2-cascade shadow atlas (an 8192x4096 one cost ~20% fps and caused hitches),
     // 2048 where the device allows less. The near cascade spans ~0.35-55 m of the view at street level (see update)
@@ -205,8 +205,8 @@ class LightingSystem {
 
   /** The light of a named time of day, at once (the constructor; the game goes by applySample) */
   applyPreset(presetId) {
-    const id = Object.hasOwn(TIME_MINUTES, presetId) ? presetId : 'golden';
-    this.applySample(sampleDay(TIME_MINUTES[id], this.sample), winter.value, true);
+    const minute = presetMinute(presetId, winter.value) ?? presetMinute('golden', winter.value);
+    this.applySample(sampleDay(minute, winter.value, this.sample), winter.value, true);
   }
 
   /**
@@ -239,14 +239,14 @@ class LightingSystem {
     sky.cloudCoverage.value = s.cloudCoverage + (s.wCloudCoverage - s.cloudCoverage) * w;
     sky.mieDirectionalG.value = s.mieDirectionalG;
     sky.cloudDensity.value = s.cloudDensity;
-    sky.sunPosition.value.set(s.sunDirX, s.sunDirY, s.sunDirZ);
+    sky.sunPosition.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
     this.uSkyExposure.value = s.skyExposure;
     this.uNightFactor.value = s.nightFactor;
 
     cityUniforms.uSunColor.value.setRGB(s.sunColorR, s.sunColorG, s.sunColorB, THREE.SRGBColorSpace);
     cityUniforms.uSkyTopColor.value.setRGB(s.skyTopR, s.skyTopG, s.skyTopB, THREE.SRGBColorSpace);
     cityUniforms.uSkyHorizonColor.value.setRGB(s.skyHorizonR, s.skyHorizonG, s.skyHorizonB, THREE.SRGBColorSpace);
-    cityUniforms.uSkySunDir.value.set(s.sunDirX, s.sunDirY, s.sunDirZ);
+    cityUniforms.uSkySunDir.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
     cityUniforms.uInteriorGlow.value = s.interiorGlow;
     cityUniforms.uRoadWetness.value = s.roadWetness;
     if (cityUniforms.uCanyonBounce) cityUniforms.uCanyonBounce.value = s.canyonBounce;
@@ -255,14 +255,14 @@ class LightingSystem {
     const b = this.baked;
     const now = performance.now();
     const moved = now - b.at >= MIN_BAKE_MS && (
-      s.sunDirX * b.x + s.sunDirY * b.y + s.sunDirZ * b.z < BAKE_SUN_COS
+      s.skyDirX * b.x + s.skyDirY * b.y + s.skyDirZ * b.z < BAKE_SUN_COS
       || Math.abs(s.nightFactor - b.night) > 0.02
       || Math.abs(s.skyExposure - b.exposure) > 0.005
       || Math.abs(sky.turbidity.value - b.turbidity) > 0.4
       || Math.abs(w - b.w) > 0.05);
     if (bake || moved) {
       this.bakeEnvironmentMap();
-      b.at = now; b.x = s.sunDirX; b.y = s.sunDirY; b.z = s.sunDirZ;
+      b.at = now; b.x = s.skyDirX; b.y = s.skyDirY; b.z = s.skyDirZ;
       b.night = s.nightFactor; b.exposure = s.skyExposure; b.turbidity = sky.turbidity.value; b.w = w;
       this.bakes++;
     }
