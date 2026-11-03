@@ -1605,4 +1605,5 @@ const RHB_FEATURE = {
   }
 };
 
+export { raiseArm }; // (for js/missions-bars.js)
 export const FUN_FEATURES = { headbang: HEADBANG_FEATURE, foosball: FOOSBALL_FEATURE, gondola: GONDOLA_FEATURE, rhbDriver: RHB_FEATURE };

@@ -119,15 +119,15 @@ function makeCrowd(spots, group) {
   const crowd = new PersonCrowd(spots.length, { farDistance: 40, castShadow: false });
   for (const m of crowd.meshes) { m.receiveShadow = false; m.material.emissiveNode = m.material.colorNode; group.add(m); }
   const people = spots.map((s, i) => {
-    const rig = new PersonRig({ seed: ((i + 3) * 0.6180339) % 1, female: !!s.female, hair: (i * 0.37) % 1, girth: 1 + (i % 3) * 0.08, scale: 1 });
+    const rig = new PersonRig({ seed: ((i + 3) * 0.6180339) % 1, female: !!s.female, hair: (i * 0.37) % 1, girth: 1 + (i % 3) * 0.08, scale: 1, ...s.look });
     rig.reset(s.x, s.z, s.yaw, () => 0);
     return { rig, ...s };
   });
   return { crowd, people };
 }
-function poseCrowd(c, dt) {
+function poseCrowd(c, dt, pose = null) {
   c.crowd.begin();
-  for (const p of c.people) { p.rig.update(dt, p.x, p.z, p.yaw, () => 0); c.crowd.add(p.rig, 0); }
+  for (const p of c.people) { p.rig.update(dt, p.x, p.z, p.yaw, () => 0); pose?.(p); c.crowd.add(p.rig, 0); }
   c.crowd.end();
 }
 
@@ -618,3 +618,5 @@ const pizzaRun = {
 };
 
 export const GASTRO_FEATURES = { flaemmli, pizzaRun };
+// (the indoor framework, for js/missions-bars.js)
+export { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, Room, blip, flashPop };

@@ -274,6 +274,38 @@ const pairs = [
   ['F: get in', 'F: einsteigen'],
   ['At the bar', 'An der Bar'],
   ['Order a Flämmli', 'Flämmli bestellen'],
+  // Nageln in the Tijuana Bar, Barista at the Kafi Klatsch (js/missions-data-bars.js)
+  ['Nageln in the Tijuana Bar', 'Nageln in der Tijuana Bar'], ['Go into the Tijuana Bar', 'In die Tijuana Bar gehen'],
+  ['Finding a place at the stump …', 'Du suchst dir einen Platz am Stock …'],
+  ['Space or the buttons', 'Leertaste oder die Knöpfe'], ['Aim', 'Zielen'], ['Strike', 'Zuschlagen'], ['Big Hans', 'Der grosse Hans'],
+  ['Aim: stop the hammer over the nail', 'Zielen: Halte den Hammer über dem Nagel an'], ['Power: strike in the green', 'Kraft: Schlag im grünen Bereich zu'],
+  ['Your stroke', 'Dein Schlag'], ['You drove it flush!', 'Du hast ihn ganz versenkt!'], ['Right on the head!', 'Genau auf den Kopf!'],
+  ['A glancing blow', 'Nur gestreift'], ['Straightened it again', 'Wieder gerade geklopft'], ['Bent the nail: turn lost', 'Nagel verbogen: Zug verloren'],
+  ['Into the wood: turn lost', 'Ins Holz: Zug verloren'], ['King of the stump!', 'König des Baumstamms!'],
+  ['Hopp!', 'Hopp!'], ['That one went in.', 'Der sitzt.'], ['Right on the head.', 'Genau auf den Kopf.'], ['Clean!', 'Sauber!'],
+  ['Ouch. Next round is on you.', 'Autsch. Die nächste Runde zahlst du.'], ['Who taught you that?', 'Wer hat dir das beigebracht?'], ['The stump is winning.', 'Der Stock gewinnt.'], ['That nail looks sad.', 'Der Nagel sieht traurig aus.'],
+  ['Flush! Your round, everyone else.', 'Drin! Ihr anderen zahlt die Runde.'], ['Down it goes. Prost!', 'Und weg ist er. Prost!'], ['And that is how it is done!', 'Und so macht man das!'],
+  ['Not bad for a tourist!', 'Nicht schlecht für einen Touristen!'], ['Hoi! Look at that one!', 'Hoi! Schau dir den an!'], ['Beginner’s luck!', 'Anfängerglück!'], ['Now you are scaring us.', 'Jetzt machst du uns Angst.'],
+  ['Ha! The wrong end of the evening.', 'Ha! Das falsche Ende des Abends.'], ['Try the nail next time.', 'Versuch es nächstes Mal mit dem Nagel.'], ['Another beer, that will help.', 'Noch ein Bier, das hilft.'], ['That stump has seen better.', 'Der Stock hat schon Besseres gesehen.'],
+  ['Flush! Give that one a beer!', 'Drin! Gebt dem ein Bier!'], ['Lucky swing! One more game!', 'Glückstreffer! Noch eine Partie!'], ['Prost, champion!', 'Prost, Champion!'],
+  ['Turn the music up!', 'Mach die Musik lauter!'], ['Who is buying?', 'Wer zahlt?'], ['Rock’n’roll, not Ländler!', 'Rock’n’Roll, nicht Ländler!'], ['Nachos for table two!', 'Nachos für Tisch zwei!'],
+  ['This stump is older than the Parsenn.', 'Der Stock ist älter als die Parsenn.'], ['One more, then home. Really.', 'Noch eins, dann heim. Wirklich.'], ['Did you see the snow up on the Jakobshorn?', 'Hast du den Schnee oben am Jakobshorn gesehen?'],
+  ['Barista at the Kafi Klatsch', 'Barista im Kafi Klatsch'], ['Go into the Kafi Klatsch', 'Ins Kafi Klatsch gehen'], ['Get through the morning rush', 'Den Morgenansturm überstehen'],
+  ['Tying on the apron …', 'Du bindest die Schürze um …'], ['Wiping the counter …', 'Du wischst die Theke …'], ['The usual: which was it?', 'Wie immer: Was war es schon wieder?'],
+  ['Grind', 'Mahlen'], ['Tamp', 'Tampen'], ['Pull', 'Beziehen'], ['Steam', 'Schäumen'], ['Pour', 'Giessen'], ['Serve', 'Servieren'], ['Ask again', 'Nochmals fragen'],
+  ['Grind: stop at the right dose', 'Mahlen: Stopp bei der richtigen Menge'], ['Tamp: press in the green', 'Tampen: Drück im grünen Bereich'], ['Pull the shot: stop in the green', 'Kaffee beziehen: Stopp im grünen Bereich'],
+  ['Steam the milk: stop in the green', 'Milch schäumen: Stopp im grünen Bereich'], ['Pour: tip the jug in the green', 'Giessen: Kipp das Kännchen im grünen Bereich'], ['Serve it!', 'Servieren!'],
+  ['Spot on', 'Punktgenau'], ['Nearly', 'Beinahe'], ['Too early', 'Zu früh'], ['Too late', 'Zu spät'], ['The cup overflows!', 'Die Tasse läuft über!'], ['Burnt milk!', 'Milch verbrannt!'], ['Far too much coffee!', 'Viel zu viel Kaffee!'],
+  ['The usual, remembered!', 'Wie immer, und du weisst es noch!'], ['Wrong: that is not the usual', 'Falsch: Das ist nicht das Übliche'], ['Gone: they got tired of waiting', 'Weg: Das Warten wurde zu lang'],
+  ['the usual', 'wie immer'], ['The usual, please!', 'Wie immer, bitte!'], ['Rüeblitorte today', 'Heute Rüeblitorte'],
+  ['A Schale, dear, like every morning. Remember that!', 'Eine Schale, wie jeden Morgen. Merk dir das!'], ['Café crème, young one. Always the same, you will see.', 'Café crème, junger Mensch. Immer dasselbe, du wirst sehen.'], ['Cappuccino! You’ll know it next time, right?', 'Cappuccino! Das weisst du nächstes Mal, oder?'],
+  ['I’ll get a coffee at the Bahnhof then!', 'Dann hole ich mir halt einen Kaffee am Bahnhof!'], ['You remembered! Merci vilmal.', 'Du hast es dir gemerkt! Merci vilmal.'], ['Merci vilmal!', 'Merci vilmal!'], ['Now that is coffee.', 'Das nenne ich Kaffee.'], ['Exactly how it should be.', 'Genau so muss er sein.'],
+  ['Hm. Is the machine new?', 'Hm. Ist die Maschine neu?'], ['I have had worse. In Chur.', 'Ich hatte schon schlechteren. In Chur.'], ['Well. It is warm.', 'Nun ja. Er ist warm.'], ['No no no. Not that one.', 'Nein, nein, nein. Den nicht.'],
+  ['Have you heard? The Hoffmanns’ dog got the Landammann’s sausage again.', 'Hast du gehört? Der Hund von Hoffmanns hat dem Landammann wieder die Wurst geklaut.'], ['And she wore skis to the church bazaar. In June!', 'Und sie kam mit den Skis an den Kirchenbasar. Im Juni!'],
+  ['They say the new Landwasser bridge has been painted twice. Twice!', 'Die neue Landwasserbrücke soll zweimal gestrichen worden sein. Zweimal!'], ['My cousin says the WEF left a whole crate of pens behind.', 'Mein Cousin sagt, das WEF habe eine ganze Kiste Kugelschreiber zurückgelassen.'],
+  ['The baker has a new girlfriend from Klosters. From Klosters!', 'Der Bäcker hat eine neue Freundin aus Klosters. Aus Klosters!'], ['The Rüeblitorte was smaller last week. I measured it.', 'Die Rüeblitorte war letzte Woche kleiner. Ich habe nachgemessen.'],
+  ['I knew that ski instructor when he was afraid of the T-bar.', 'Den Skilehrer kannte ich, als er noch Angst vor dem Bügellift hatte.'], ['Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.', 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.'],
+  ['The postman reads the postcards. Everyone knows.', 'Der Pöstler liest die Postkarten. Das weiss jeder.'], ['Don’t tell anyone, but the Föhn is coming on Thursday.', 'Sag es niemandem, aber am Donnerstag kommt der Föhn.'],
   ['Pouring …', 'Es wird eingeschenkt …'],
   ['Light it: bring the lighter over the glass', 'Anzünden: das Feuerzeug über das Glas bringen'],
   ['Light it', 'Anzünden'],
@@ -437,6 +469,10 @@ const missionIntros = [
   ['The nine red Eternit lanes', 'Neun Minigolfbahnen beim Hotel Waldhuus. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schlagen loslassen. Auf dem Handy den Ball wie bei einer Schleuder zurückziehen. Maximal sieben Schläge pro Bahn; ein Ball im Graben kostet einen Schlag. 20 Schläge oder weniger ergeben Gold.'],
   ['The Green Wildman, the Irish pub', 'Darts im Green Wildman: 301 Double Out mit möglichst wenigen Pfeilen. Mit Maus oder W/A/S/D zielen, Space oder Maustaste zum Ausholen halten und im grünen Bereich loslassen. Auf dem Handy auf die Scheibe tippen und nach oben wischen. Der letzte Wurf muss ein Doppel oder Bullseye sein. Höchstens 45 Pfeile.'],
   ["The Schüssla in the Färich", '60 Sekunden in der Schüssla skaten. W gibt Tempo, A/D lenkt. Über die Kante springen: A/D dreht, Space hält einen Grab. Langsam am Rand entlang für einen Grind; mit A/D balancieren, mit Space zurück in die Bowl. Tricks in kurzer Folge bilden Combos; ein Sturz löscht die Combo.'],
+  ['Rock’n’roll in the Tijuana Bar', 'Rock’n’Roll in der Tijuana Bar an der Talstrasse, und heute Abend kommt der Baumstamm hervor. Nageln ist das Beizenspiel aus den Alpen: Jeder hat seinen Nagel im Stock angeschlagen, pro Zug ein Schlag mit der schmalen Keilseite des Hammers, und wer ihn zuerst ganz versenkt, gewinnt. Geh hinein, dann drei Partien gegen die Leute an der Bar. Eine Taste (Leertaste, Enter oder Antippen): Halte den Hammer über deinem Nagel an und schlag zu, wenn die Kraft im grünen Bereich ist. Zu hart oder neben den Kopf, und der Nagel verbiegt sich, ein Fehlschlag geht ins Holz; beides kostet dich den Zug. Siege und wenige Schläge zahlen sich aus.'],
+  ['Morning rush at the Kafi Klatsch', 'Morgenansturm im Kafi Klatsch an der Promenade (auf dem Schild steht Kaffeeklatsch). Geh hinein und stell dich hinter die Theke: Café crème, Schale, Espresso, Latte Macchiato, Cappuccino, Gast um Gast. Für jede Station eine Taste, und nur die aktuelle zählt (Knöpfe, Tasten 1–6 oder einfach die Leertaste): mahlen, tampen, Kaffee beziehen, Milch auf die richtige Temperatur schäumen, giessen, servieren, jedes Mal im grünen Bereich anhalten. Serviere, bevor der Gast aufgibt. Und hör zu: Die Stammgäste sagen dir ihre Bestellung einmal. Beim nächsten Mal heisst es nur noch «wie immer», und wer es sich gemerkt hat, verdient mehr.'],
+  ['The stump goes back in the corner', 'Der Baumstamm kommt zurück in die Ecke, der Hammer hinter die Bar. Dein Nagel bleibt im Holz.'],
+  ['The rush is over', 'Der Ansturm ist vorbei, das Milchkännchen im Spülbecken. Bis Mittag weiss ganz Davos, wie es lief.'],
   ['Evening in the Rot Liechtli', 'Abend im Rot Liechtli, dem kleinen Pub in Davos Platz. Ein Flämmli ist ein Schweizer Shot: ein Glas Schnaps, angezündet, ausgeblasen und getrunken. Geh hinein und setz dich an die Bar. Dann folgen sechs Runden mit einer einzigen Taste (Space, Enter oder Tippen): bestellen, anzünden, wenn das Feuerzeug über dem Glas ist, ausblasen, solange die Flamme im grünen Bereich ist, und kippen, wenn der Rand abgekühlt ist. Jeder Drink macht die Fenster enger und bringt den Raum zum Schwanken. Nach drei Pannen ruft der Wirt Feierabend. Du gehst heute Abend übrigens zu Fuss nach Hause.'],
   ['Friday night at Pizza Heaven', 'Freitagabend im Pizza Heaven, dem Pizzakurier an der Promenade, und der Kurier hat sich krankgemeldet. Steig aus dem Lieferwagen (F) und geh in den Laden: Belege vier Pizzas mit den Zutaten auf dem Bon, in der angegebenen Reihenfolge (Tasten 1–8 oder Antippen), schnell und ohne falsche Zutat. Dann bring sie zu vier Adressen vom Eisstadion bis Davos Dorf: parken, die Schachtel hinten aus dem Lieferwagen nehmen und zur Tür tragen. Der Wärmebalken sinkt ab dem Moment, in dem die Pizzas den Laden verlassen, und heisse Pizzas zahlen sich aus.'],
   ['A sunny day on the Parsenn', 'Ein sonniger Tag auf dem Parsenn, und im Radio der Liftbude läuft ein Ländler. Du bist der Liftwart am Hauptertäli-Bügellift: Die Skifahrer kommen paarweise die Spur herauf, und du reichst ihnen den Bügel genau dann, wenn er ankommt. Drücke Space (oder tippe), wenn der Bügel die grüne Markierung erreicht. Zu früh oder zu spät wirft er einen Skifahrer um (sie lachen es weg); tust du nichts, schwingt er leer nach oben. Der Andrang wächst: Der Chef dreht den Lift hoch. Zwei Minuten: Wie viele Skifahrer bringst du hinauf?'],
@@ -446,6 +482,7 @@ const missionIntros = [
 ];
 // Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
 const placeDe = new Map([
+  ['the Tijuana Bar', ['zur Tijuana Bar', 'in die Tijuana Bar']], ['the Kafi Klatsch', ['zum Kafi Klatsch', 'ins Kafi Klatsch']],
   ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
   ['the Bolgenschanze', ['zur Bolgenschanze', 'in die Bolgenschanze']], ['the BOX', ['zur BOX', 'in die BOX']],
   ['the loading point', ['zur Einstiegsstelle', '']], ['your place', ['zu deinem Platz', '']],
@@ -486,6 +523,25 @@ function translate(value) {
   dynamic = dynamic.replace(new RegExp(`^(.+): flawless!${POP}$`), '$1: makellos!$2');
   dynamic = dynamic.replace(/^(\d+) of (\d+) Flämmli down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Flämmli getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
   dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
+  // Nageln, Barista (js/missions-data-bars.js)
+  dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
+  dynamic = dynamic.replace(/^Game (\d+) of (\d+) · round (\d+) · (\d+) won · (\d+) pts$/, 'Partie $1 von $2 · Runde $3 · $4 gewonnen · $5 Pkt.');
+  dynamic = dynamic.replace(/^Game (\d+) of (\d+) · (\d+) won · (\d+) strokes · (\d+) pts$/, 'Partie $1 von $2 · $3 gewonnen · $4 Schläge · $5 Pkt.');
+  dynamic = dynamic.replace(/^Game (\d+) of (\d+): nails ready$/, 'Partie $1 von $2: Nägel bereit');
+  dynamic = dynamic.replace(/^You win game (\d+)$/, 'Du gewinnst Partie $1');
+  dynamic = dynamic.replace(/^(.+) wins game (\d+)$/, (_, who, n) => `${enToDe.get(who) || who} gewinnt Partie ${n}`);
+  dynamic = dynamic.replace(/^(.+) swings …$/, (_, who) => `${enToDe.get(who) || who} holt aus …`);
+  dynamic = dynamic.replace(new RegExp(`^(.+) wins this one${POP}$`), (_, who, tail) => `${enToDe.get(who) || who} gewinnt diese Partie${tail}`);
+  dynamic = dynamic.replace(new RegExp(`^In by ([\\d.]+) cm${POP}$`), '$1 cm tiefer$2');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) games won · (\d+) strokes · (\d+) perfect · (\d+) bent · (\d+) missed$/, '$1 von $2 Partien gewonnen · $3 Schläge · $4 perfekt · $5 verbogen · $6 daneben');
+  dynamic = dynamic.replace(/^Order (\d+) of (\d+) · (\d+) pts · (\d+) walked out$/, 'Bestellung $1 von $2 · $3 Pkt. · $4 gegangen');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) orders served · quality (\d+) % · (\d+) flawless · (\d+) walked out$/, '$1 von $2 Bestellungen serviert · Qualität $3 % · $4 makellos · $5 gegangen');
+  dynamic = dynamic.replace(/^Usuals remembered: (\d+) of (\d+)$/, '«Wie immer» gemerkt: $1 von $2');
+  dynamic = dynamic.replace(new RegExp(`^A fine (.+?)${POP}$`), 'Ein feiner $1$2');
+  dynamic = dynamic.replace(new RegExp(`^(.+): it will do${POP}$`), '$1: Es geht so$2');
+  dynamic = dynamic.replace(new RegExp(`^(.+): nobody says a word${POP}$`), '$1: Niemand sagt ein Wort$2');
+  dynamic = dynamic.replace(/^(.+), please!$/, '$1, bitte!');
+  dynamic = dynamic.replace(/^(.+)! After all these years\.$/, '$1! Nach all den Jahren.');
   dynamic = dynamic.replace(/^Round (\d+) of (\d+) · (\d+) pts · (\d+)\/(\d+) mishaps$/, 'Runde $1 von $2 · $3 Pkt. · $4/$5 Pannen');
   dynamic = dynamic.replace(/^Top (\d+) pizzas$/, 'Belege $1 Pizzas');
   dynamic = dynamic.replace(/^Pizza (\d+) of (\d+) · (\d+) pts$/, 'Pizza $1 von $2 · $3 Pkt.');

@@ -45,6 +45,22 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(buttons[0].pressed, 'true');
 });
 
+test('the bar missions translate names, intros and generated texts', () => {
+  setLanguage('de');
+  assert.equal(t('Nageln in the Tijuana Bar'), 'Nageln in der Tijuana Bar');
+  assert.match(t('Rock’n’roll in the Tijuana Bar on the Talstrasse, and tonight the stump comes out.'), /^Rock’n’Roll in der Tijuana Bar/);
+  assert.equal(t('Barista at the Kafi Klatsch'), 'Barista im Kafi Klatsch');
+  assert.match(t('Morning rush at the Kafi Klatsch on the Promenade.'), /^Morgenansturm im Kafi Klatsch/);
+  assert.equal(t('Game 2 of 3 · round 4 · 1 won · 350 pts'), 'Partie 2 von 3 · Runde 4 · 1 gewonnen · 350 Pkt.');
+  assert.equal(t('Flurin swings …'), 'Flurin holt aus …');
+  assert.equal(t('Order 3 of 12 · 120 pts · 0 walked out'), 'Bestellung 3 von 12 · 120 Pkt. · 0 gegangen');
+  assert.equal(t('Schale, please!'), 'Schale, bitte!');
+  assert.equal(t('12 m to the Tijuana Bar'), '12 m bis zur Tijuana Bar');
+  assert.equal(t('Bent the nail: turn lost'), 'Nagel verbogen: Zug verloren');
+  assert.equal(t('Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.'), 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.');
+  setLanguage('en');
+});
+
 test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Flämmli in the Rot Liechtli'), 'Flämmli im Rot Liechtli');
