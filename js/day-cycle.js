@@ -74,7 +74,7 @@ export function presetMinute(id, w) {
     case 'golden': return minuteAtHeight(ANCHOR_HEIGHT.golden, w, false);
     case 'twilight': return minuteAtHeight(1.5, w, false);
     case 'evening': return minuteAtHeight(-7, w, false);
-    case 'predawn': return minuteAtHeight(-12, w, true);
+    case 'predawn': return minuteAtHeight(-8, w, true);
     case 'morning': return minuteAtHeight(14, w, true);
     case 'midnight': case 'night': return hm(23);
     default: return undefined;

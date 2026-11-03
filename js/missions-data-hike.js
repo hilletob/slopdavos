@@ -66,7 +66,7 @@ export const hikeProgress = (h) => h.furthest / (h.total || 1);
 
 // --- The dawn ------------------------------------------------------------------------------------------------------
 export const DAWN = {
-  startHeight: -12, // deg: the sun's height at the start (the stars still out)
+  startHeight: -8, // deg: the sun's height at the start (the first grey in the east: any darker and a phone shows nothing of the path)
   climb: 480, // s of hiking from the start's dark to the sunrise, if the climb doesn't get there first
   afterglow: 12, // game minutes the clock runs on past the sunrise
   watch: 14 // s from the summit to the sunrise, when you are there before it
@@ -117,7 +117,7 @@ const SH_START = SCHWARZHORN_ROUTE[0];
 export const SCHWARZHORN_MISSION = {
   id: 'schwarzhorn-sunrise',
   title: 'Sunrise on the Flüela Schwarzhorn',
-  intro: 'Four in the morning on the road below the Flüelapass, 2333 m, and 800 metres of climbing to the summit of the Schwarzhorn at 3146 m. The sky goes on getting lighter while you climb, and it won’t wait for you. Follow the red and white waymarks. Up there before the sun: gold.',
+  intro: 'Before five in the morning on the road below the Flüelapass, 2333 m, and 800 metres of climbing to the summit of the Schwarzhorn at 3146 m. The sky goes on getting lighter while you climb, and it won’t wait for you. Follow the red and white waymarks. Up there before the sun: gold.',
   mode: 'person',
   season: 'summer',
   time: 'predawn',

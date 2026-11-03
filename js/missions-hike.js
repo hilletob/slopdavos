@@ -36,7 +36,7 @@ function buildPath(route) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9c8f78, roughness: 1, emissive: 0x4a4436, emissiveIntensity: 0.35, side: THREE.DoubleSide }));
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xb0a288, roughness: 1, emissive: 0x8a8068, emissiveIntensity: 0.3, side: THREE.DoubleSide }));
   m.frustumCulled = false;
   return m;
 }
