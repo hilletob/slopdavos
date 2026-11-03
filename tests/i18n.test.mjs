@@ -179,3 +179,26 @@ test('the WEF missions translate names, intros, generated texts and slogans', ()
   assert.equal(t('Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed'), 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
   assert.equal(t('DAVOS FOR THE DAVOSERS'), 'DAVOS DEN DAVOSERN');
 });
+
+test('the game\'s clock, the fast-forward and the missions\' windows speak German', () => {
+  setLanguage('de');
+  assert.equal(t('Day 5 · Winter'), 'Tag 5 · Winter');
+  assert.equal(t('Day 1 · Summer'), 'Tag 1 · Sommer');
+  assert.equal(t('Day 12 · Summer · 07:30'), 'Tag 12 · Sommer · 07:30');
+  assert.equal(t('Fast-forward'), 'Vorspulen');
+  assert.equal(t('To the next morning'), 'Zum nächsten Morgen');
+  assert.equal(t('To the winter'), 'Zum Winter');
+  assert.equal(t('In 3 days · 07:00'), 'In 3 Tagen · 07:00');
+  assert.equal(t('Tomorrow · 07:00'), 'Morgen · 07:00');
+  assert.equal(t('Opens at 18:00'), 'Öffnet um 18:00');
+  assert.equal(t('In summer: in 3 days'), 'Im Sommer: in 3 Tagen');
+  assert.equal(t('In winter: in 1 day'), 'Im Winter: in 1 Tag');
+  assert.equal(t('Wait until then'), 'Bis dann warten');
+  assert.equal(t('Ready: the clock starts with your first input'), 'Bereit: Die Stoppuhr läuft ab deiner ersten Eingabe');
+  assert.equal(t('first completion +250'), 'erster Abschluss +250');
+  assert.equal(t(' Silver 4:00'), ' Silber 4:00');
+  assert.equal(t(' Gold 120 pts'), ' Gold 120 Pkt.');
+  setLanguage('en');
+  assert.equal(t('Opens at 18:00'), 'Opens at 18:00');
+  setLanguage('de');
+});

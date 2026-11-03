@@ -31,7 +31,11 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
 - **swisstopo SWISSIMAGE**: the orthophoto mosaic draped on the terrain (meadows, woods, ski runs, the golf course, the
   sports grounds) and, from above, on the roofs of the swissBUILDINGS3D tiles: one WebP per 512 m terrain chunk, at
   0.5 m on the valley floor, 1 m on the lower slopes and 2 m higher up (`js/swissimage.js`).
-- **Winter**: the snowflake button in the top bar (or `?winter` in the URL) snows the valley in: snow on the
+- **Time and seasons**: the game has its own clock (`js/game-clock.js`): a day takes 24 real minutes, a year 8 days,
+  4 of summer and 4 of winter; the light flows between the time-of-day presets (`js/day-cycle.js`) and the top bar's
+  fast-forward jumps ahead. Missions open by time and season (`js/mission-windows.js`). For debugging: `?winter`,
+  `?summer`, `?time=midnight` or `?time=14:30` (holds the time).
+- **Winter**: the first snowfall night (or `?winter` in the URL) snows the valley in: snow on the
   orthophoto's open ground and gentle slopes, dusted woods, grey slush on the roads, snow on the roofs and the tree
   crowns, the snowline of the surroundings down to the valley floor, frozen mountain lakes (`js/season.js`).
 - **Device profiles**: phones, tablets and small-memory devices get a lighter profile (`js/quality.js`): no MSAA,
