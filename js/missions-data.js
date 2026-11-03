@@ -15,6 +15,7 @@ import { BARS_MISSIONS } from './missions-data-bars.js'; // Nageln in the Tijuan
 import { SPORT_MISSIONS } from './missions-data-sport.js'; // Davos Nordic, minigolf at the Waldhuus, darts at The Green Wildman, the Schüssla
 import { EXPERT_MISSIONS } from './missions-data-expert.js'; // the eye test at Meerkämper Optik, the snow profile for the SLF
 import { WEF_MISSIONS } from './missions-data-wef.js'; // the WEF week: the motorcade's escort, the march
+import { RURAL_MISSIONS } from './missions-data-rural.js'; // the quad from Heldstab, green waste to the biogas plant
 
 // js/missions-data.js
 // The missions (js/missions.js runs them): their definitions and the pure progress logic. No three.js and no DOM in
@@ -556,5 +557,5 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS];
 export const getMission = (id) => MISSIONS.find((m) => m.id === id) || null;

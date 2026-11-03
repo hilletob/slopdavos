@@ -23,7 +23,7 @@ let _metalMat = null;
 const metalMaterial = () => (_metalMat ??= shared(new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.7 })));
 
 // A geometry painted in one colour (vertex colours, non-indexed and with normals, so that it can be merged)
-function painted(geometry, hex) {
+export function painted(geometry, hex) {
   let g = geometry.index ? geometry.toNonIndexed() : geometry;
   for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
   if (!g.attributes.normal) g.computeVertexNormals();
