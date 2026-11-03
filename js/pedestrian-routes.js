@@ -25,6 +25,7 @@ function createPedestrianRoutes({ walkable, onSidewalk }, blockAt) {
     if (sidewalks.has(e)) return sidewalks.get(e);
     const result = [];
     sidewalks.set(e, result);
+    if (e.tunnel) return result; // (no sidewalks through a road tunnel: they would be laid on the mountain above it)
     // Two walking lines on each side leave room for people to pass or stop together.
     // Along a raised sidewalk (e.walk: its widths [left, right], js/road-network.js) both lines lie on it, and a street
     // with one on one side only is walked there.

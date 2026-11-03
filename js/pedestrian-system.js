@@ -572,7 +572,8 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
   // Every rig's gait advances every frame; only those the camera may see (or whose shadow it may see) solve their
   // bone transforms and are drawn, the far ones with the light LOD.
   function renderPed(p, dt) {
-    const draw = !hasView || visible(p.x, p.z, 7);
+    // (the level it walks on: before its first frame, surfaceY is unset and the ground stands in)
+    const draw = !hasView || visible(p.x, p.z, 7, p.surfaceY);
     const partner = p.conversation && (p.conversation.a === p ? p.conversation.b : p.conversation.a);
     const sideStep = p.dodgeTarget - p.dodge;
     const diveTime = clock - p.diveStart;
@@ -594,7 +595,7 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
       p.anchorTime = clock + STUCK_TIME;
       return false;
     }
-    return !nearView(p.x, p.z, 2, PED_SPAWN_DISTANCE);
+    return !nearView(p.x, p.z, 2, PED_SPAWN_DISTANCE, p.surfaceY);
   }
 
   function update(dt, elapsed, x, z, jump, view, activeMode) {

@@ -217,6 +217,7 @@ function populationContext() {
     Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
     clamp: (x, lo, hi) => Math.max(lo, Math.min(hi, x)),
     hasView: true, camX: 0, camY: 10, camZ: 0, visible: () => true, groundHeight: () => 0,
+    appearLevel: () => 0,
     focusX: 0, focusZ: 0, player: { active: false },
     clock: 0,
     VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, VEHICLE_SPACING: 30, PED_AVOID_INTERVAL: 0.12,
@@ -322,4 +323,70 @@ test('pedestrians are not placed on sidewalk lines that are already full', () =>
   assert.equal(trafficFunction('spawnPed', context)(ped, 60, 280, true), true);
   assert.equal(context.trackLoad.get(context.track.route), 1);
   assert.equal(ped.anchorTime, 45);
+});
+
+// (A tunnel 150 m under the ground: the camera at its floor, level, looking along +z, with a 30 degree cone upwards)
+function tunnelView(ground = -100, floor = -250) {
+  const up = { normal: { x: 0, y: -1, z: 0.58 }, constant: floor + 2 }; // above the plane through the camera: out of view
+  const open = { normal: { x: 0, y: 0, z: 1 }, constant: 1e4 };
+  const context = {
+    Math, hasView: true, camX: 0, camY: floor + 2, camZ: 0, groundHeight: () => ground,
+    frustum: { planes: [up, open, open, open] }
+  };
+  context.visible = trafficFunction('visible', context);
+  context.nearView = trafficFunction('nearView', context);
+  return context;
+}
+
+test('a vehicle is culled at its own level, not at the ground high above its tunnel', () => {
+  const { visible } = tunnelView();
+  assert.equal(visible(0, 6, 1), false, 'at the ground: 150 m above the top of the view');
+  assert.equal(visible(0, 6, 1, -250), true, 'at the floor: right in front of the camera');
+});
+
+test('the same on a level the camera is under: the deck of a viaduct', () => {
+  const { visible } = tunnelView(-250, -250);
+  assert.equal(visible(0, 6, 1, -100), false);
+  assert.equal(visible(0, 6, 1), true);
+});
+
+test('nearby and visible counts the distance to its own level, for spawning and retiring', () => {
+  const { nearView } = tunnelView();
+  assert.equal(nearView(0, 40, 1, 100, -250), true, 'in the tunnel, 40 m ahead');
+  assert.equal(nearView(0, 40, 1, 100), false, 'the ground over it is 150 m off');
+});
+
+test('a vehicle appears on the tunnel floor only where its street runs through the tunnel', () => {
+  const context = {
+    deckHeight: () => NaN, surfaceHeight: () => -100, roadTunnelAt: () => ({ y: -250 }), Number
+  };
+  const appearLevel = trafficFunction('appearLevel', context);
+  const street = { x0: 0, z0: 0, dx: 0, dz: 1, span: 100 };
+  assert.equal(appearLevel({ ...street, tunnel: true }, 0, 50), -250);
+  assert.equal(appearLevel({ ...street, tunnel: false }, 0, 50), -100, 'a street crossing over it');
+  assert.equal(appearLevel(null, 0, 50), -100, 'a car left standing');
+});
+
+test('cyclists stay out of a road closed to them, and turn off for it if they can', () => {
+  const context = populationContext();
+  const closed = { ...straightEdge(290), noBikes: true };
+  context.nearEdges.push(closed);
+  const spawnVehicle = trafficFunction('spawnVehicle', context);
+  assert.equal(spawnVehicle({ half: 0.9, bike: true }, 100, 350, true), false);
+  assert.equal(spawnVehicle({ half: 2.25 }, 100, 350, true), true);
+
+  const toClosed = { to: closed, turn: 'S', out: [0] }, away = { to: {}, turn: 'R', out: [0] };
+  const edge = { moves: [toClosed, away], len: 500 };
+  const choose = trafficFunction('chooseMove', { Math, weights: [], nearestLane: () => 0 });
+  assert.equal(choose({ bike: true, edge, lane: 0, s: 0 }, false), away);
+  assert.equal(choose({ bike: true, edge: { moves: [toClosed], len: 500 }, lane: 0, s: 0 }, false), toClosed, 'its only way on');
+  assert.equal(choose({ edge: { moves: [toClosed], len: 500 }, lane: 0, s: 0 }, false), toClosed);
+});
+
+test('no sidewalks through a road tunnel', async () => {
+  const { createPedestrianRoutes } = await import('../js/pedestrian-routes.js');
+  const routes = createPedestrianRoutes({ walkable: () => true, onSidewalk: () => true }, () => 'block');
+  const street = { sx: 0, sz: 0, dx: 0, dz: 1, rx: -1, rz: 0, len: 100, half: 4, from: {}, to: {} };
+  assert.ok(routes.along(street).length > 0, 'on an open street');
+  assert.equal(routes.along({ ...street, tunnel: true }).length, 0);
 });
