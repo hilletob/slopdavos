@@ -219,6 +219,11 @@ const pairs = [
   ['Police: motorbike crash on the Flüela road', 'Polizei: Motorradunfall an der Flüelastrasse'],
   ['Davos Nordic: 4.3 km race', 'Davos Nordic: 4,3-km-Rennen'],
   ['Minigolf at the Hotel Waldhuus', 'Minigolf beim Hotel Waldhuus'],
+  ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
+  ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
+  ['A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview', 'A/D zielen · Space halten und zum Schiessen loslassen · oder Puck zurückziehen und loslassen · V Übersicht'],
+  ['Shoot', 'Schiessen'],
+  ['Face-off', 'Bully'], ['The blue line', 'Die blaue Linie'], ['The snow bank', 'Der Schneewall'], ['The penalty box', 'Die Strafbank'], ['The players\u2019 tunnel', 'Der Spielertunnel'], ['The boards', 'Die Bande'], ['The goal crease', 'Der Torraum'], ['The grandstand', 'Die Tribüne'], ['The icing line', 'Die Icing-Linie'], ['The hat-trick', 'Der Hattrick'], ['The Zamboni', 'Die Eismaschine'], ['The short side', 'Die kurze Ecke'], ['The slapshot', 'Der Slapshot'], ['The power play', 'Das Powerplay'], ['The one-timer', 'Der Direktschuss'], ['The spin-o-rama', 'Die Pirouette'], ['Overtime', 'Die Verlängerung'], ['The Spengler Cup', 'Der Spengler Cup'],
   ['Darts at The Green Wildman', 'Darts im The Green Wildman'],
   ['Skating the Schüssla', 'Skaten in der Schüssla'],
   ['Beer run for the Davoser Craft Beer', 'Bierlieferung für Davoser Craft Beer'],
@@ -897,6 +902,7 @@ const missionIntros = [
   ['July, and the Alpenrosen', 'Zwölf blühende Alpenrosenzweige unter dem Strelaberg pflücken. Zu einem blühenden Busch gehen und Space oder „Pflücken“ halten. Unblühende Büsche und das eingezäunte Schutzgebiet meiden; beides gibt Zeitstrafe. Danach zum Start zurückkehren.'],
   ['Late summer rain', 'Zehn Pilze im Dischmawald sammeln oder fünf Minuten lang suchen. Steinpilze und Eierschwämme sind gut; Gallenröhrling, falscher Pfifferling und Fliegenpilz meiden. Das HUD beschreibt den Pilz vor dir. Mit Space oder „Pflücken“ aufnehmen und den Korb zur Pilzkontrolle bringen.'],
   ['Davos Nordic, the World Cup', '4,3-km-Langlaufrennen auf den Flüela-Loipen. Mit 1 klassisch oder mit 2 Skating wählen. W halten, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit Q auf flachen Strecken Doppelstockschub, bergab W loslassen für die Hocke; A/D lenkt, S bremst. Gegen sieben Läufer antreten.'],
+  ['Eighteen lanes of ice on the Arkadenplatz', 'Achtzehn Eisbahnen auf dem Arkadenplatz zwischen Promenade und Kulturplatz, gespielt mit Hockeystock und Puck: Schneewall, Spielertunnel, Bully-Punkt, Bande und die Rampe zur Tribüne. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schiessen loslassen. Auf dem Handy den Puck wie bei einer Schleuder zurückziehen und loslassen. Der Puck gleitet viel weiter, als ein Ball rollt, ein leichter Schlag gewinnt also. Höchstens sieben Schläge pro Loch. Punkte: 7 pro Loch minus deine Schläge (126 minus das Total): 45 Schläge oder weniger sind Gold (Par 42).'],
   ['The nine red Eternit lanes', 'Neun Minigolfbahnen beim Hotel Waldhuus. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schlagen loslassen. Auf dem Handy den Ball wie bei einer Schleuder zurückziehen. Maximal sieben Schläge pro Bahn; ein Ball im Graben kostet einen Schlag. 20 Schläge oder weniger ergeben Gold.'],
   ['The Green Wildman, the Irish pub', 'Darts im Green Wildman: 301 Double Out mit möglichst wenigen Pfeilen. Mit Maus oder W/A/S/D zielen, Space oder Maustaste zum Ausholen halten und im grünen Bereich loslassen. Auf dem Handy auf die Scheibe tippen und nach oben wischen. Der letzte Wurf muss ein Doppel oder Bullseye sein. Höchstens 45 Pfeile.'],
   ["The Schüssla in the Färich", '60 Sekunden in der Schüssla skaten. W gibt Tempo, A/D lenkt. Über die Kante springen: A/D dreht, Space hält einen Grab. Langsam am Rand entlang für einen Grind; mit A/D balancieren, mit Space zurück in die Bowl. Tricks in kurzer Folge bilden Combos; ein Sturz löscht die Combo.'],
@@ -1070,7 +1076,9 @@ function translate(value) {
   dynamic = dynamic.replace(/^Up to (\d+) points$/, 'Bis zu $1 Punkte');
   dynamic = dynamic.replace(/^Stop at (.+)$/, 'Bei $1 anhalten');
   dynamic = dynamic.replace(/^Split (\d+) at (.+)$/, 'Zwischenzeit $1 bei $2');
-  dynamic = dynamic.replace(/^Hole (\d+): (.+) \(par (\d+)\)$/, 'Loch $1: $2 (Par $3)');
+  dynamic = dynamic.replace(/^Hole (\d+): (.+) \(par (\d+)\)$/, (_, n, name, par) => `Loch ${n}: ${enToDe.get(name) || name} (Par ${par})`);
+  dynamic = dynamic.replace(/^Hole (\d+)\/(\d+) · (.+) · par (\d+)$/, (_, n, of, name, par) => `Loch ${n}/${of} · ${enToDe.get(name) || name} · Par ${par}`);
+  dynamic = dynamic.replace(/^Stroke (\d+) · total (\d+)$/, 'Schlag $1 · total $2');
   dynamic = dynamic.replace(/^Hole (\d+) · Par (\d+)$/, 'Loch $1 · Par $2');
   dynamic = dynamic.replace(/^Lap (\d+) of (\d+): to the finish$/, 'Runde $1 von $2: ins Ziel');
   dynamic = dynamic.replace(/^Lap (\d+) of (\d+)$/, 'Runde $1 von $2');
@@ -1169,6 +1177,7 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) goals? · (\d+) s left$/, (_, n, t) => `${n} ${plural(n, 'Tor', 'Tore')} · noch ${t} s`);
   dynamic = dynamic.replace(/^Stone (\d+) of (\d+) · (\d+) points$/, 'Stein $1 von $2 · $3 Punkte');
   dynamic = dynamic.replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, 'Schlag $1 · $2 m zur Fahne · $3');
+  dynamic = dynamic.replace(/^Stroke (\d+) · sliding … · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · gleitet … · total $2 (Par $3)');
   dynamic = dynamic.replace(/^Stroke (\d+) · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · total $2 (Par $3)');
   dynamic = dynamic.replace(/^Collected (\d+\/\d+) · next ([\d,.]+ (?:m|km))$/, 'Eingesammelt $1 · nächste $2');
   dynamic = dynamic.replace(/: (?:The )?(hill|tube|ramp|loop|centre island|round island|angle|bridge|Two posts) \(Par (\d)\)$/, (whole, name, par) => { const de = { 'Two posts': 'Zwei Pfosten', hill: 'Der Hügel', tube: 'Die Röhre', ramp: 'Die Rampe', loop: 'Der Looping', 'centre island': 'Die Mittelinsel', 'round island': 'Die runde Insel', angle: 'Der Winkel', bridge: 'Die Brücke' }[name]; return de ? `: ${de} (Par ${par})` : whole; });

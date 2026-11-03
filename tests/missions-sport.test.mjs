@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SPORT_MISSIONS, DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, DARTS_MISSION, SKATE_BOWL_MISSION,
+  SPORT_MISSIONS, DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, ICE_MINIGOLF_MISSION, ICE_HOLES, ICE_MINIGOLF, ARKADENPLATZ_COURSE, ICE_PAR, DARTS_MISSION, SKATE_BOWL_MISSION,
   XC_ROUTE, XC_LINE, XC_LENGTH, XC_PROFILE, XC_PROFILE_STEP, XC_SPLITS, XC_PARAMS, XC_FLAT, XC_FIELD, WC_POINTS, xcGrade, linePoint, projectOnLine,
   createXcSkier, stepXc, xcNeedle, createField, racerAt, racerTimeAt, placeAt, createXcState, updateXcRace, xcPoints, aiSpeed,
   MINIGOLF, MINIGOLF_HOLES, MINIGOLF_PAR, MINIGOLF_PATH, holeFrame, holeToWorld, onLane, holeHeight, createBall, puttBall, stepBall, simulatePutt,
@@ -20,7 +20,7 @@ const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''}
 const frame = (o = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, verticalSpeed: 0, agl: 0, dt: 1 / 60, t: 0, night: false, ...o });
 
 test('the sport missions are listed, complete and score by points', () => {
-  assert.deepEqual(SPORT_MISSIONS.map((m) => m.id), ['davos-nordic', 'minigolf-waldhaus', 'darts-bar', 'skate-bowl']);
+  assert.deepEqual(SPORT_MISSIONS.map((m) => m.id), ['davos-nordic', 'minigolf-waldhaus', 'ice-minigolf', 'darts-bar', 'skate-bowl']);
   for (const m of SPORT_MISSIONS) {
     assert.ok(MISSIONS.includes(m), `${m.id} is in MISSIONS`);
     assert.equal(getMission(m.id), m);
@@ -341,4 +341,20 @@ test('the skate bowl: combos multiply, a bail loses them, the run lasts 60 s', (
   for (let i = 0; i < 61; i++) SKATE_BOWL_MISSION.update(frame({ dt: 1 }), state);
   assert.ok(state.over);
   assert.equal(SKATE_BOWL_MISSION.objectives[1].check(frame(), state).done, true);
+});
+
+test('ice minigolf: 18 lanes on the Arkadenplatz, each can be holed, and a puck slides further than a ball', () => {
+  assert.equal(ICE_HOLES.length, 18);
+  assert.equal(ICE_PAR, ICE_HOLES.reduce((a, h) => a + h.par, 0));
+  assert.equal(ICE_MINIGOLF_MISSION.season, 'winter');
+  assert.deepEqual(ICE_MINIGOLF_MISSION.features, ['iceMinigolf']);
+  assert.equal(ICE_MINIGOLF_MISSION.objectives.length, 18);
+  const state = ICE_MINIGOLF_MISSION.createState();
+  assert.equal(state.game.course, ARKADENPLATZ_COURSE);
+  const felt = simulatePutt(MINIGOLF_MISSION.createState().game.course.holes[0], [0, 0.45], 0, 0.3);
+  const ice = simulatePutt(ICE_HOLES[0], [0, 0.45], 0, 0.05, { phys: ICE_MINIGOLF });
+  assert.ok(ice.t > 0 && felt.t > 0);
+  // the straight lanes without anything on their centre line drop with a soft straight shot
+  const holed = (hole) => { for (let k = 0; k < 40; k++) { const r = simulatePutt(hole, hole.tee, 0, k / 40, { phys: ICE_MINIGOLF }); if (r.ball.holed) return true; } return false; };
+  assert.ok(holed(ICE_HOLES[0]), 'Face-off');
 });

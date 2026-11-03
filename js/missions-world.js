@@ -282,6 +282,13 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.ellipse(-g * 0.1, g * 0.85, g * 0.75, g * 0.12, 0, 0, Math.PI * 2); ctx.fill();
       break;
     }
+    case 'ice-minigolf': { // the hockey stick and the puck by the hole
+      ctx.lineWidth = g * 0.16;
+      ctx.beginPath(); ctx.moveTo(g * 0.55, -g * 0.95); ctx.lineTo(-g * 0.15, g * 0.42); ctx.lineTo(-g * 0.75, g * 0.42); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(g * 0.45, g * 0.5, g * 0.3, g * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-g * 0.1, g * 0.85, g * 0.75, g * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
     case 'darts': { // the board's rings and a dart in the bull
       ctx.lineWidth = g * 0.13;
       for (const r of [0.85, 0.5]) { ctx.beginPath(); ctx.arc(-g * 0.1, g * 0.1, g * r, 0, Math.PI * 2); ctx.stroke(); }

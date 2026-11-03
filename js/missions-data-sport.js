@@ -782,7 +782,7 @@ export const ICE_MINIGOLF_MISSION = {
   icon: 'ice-minigolf',
   finish: 'Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.',
   get start() { const f = holeFrame(0, ARKADENPLATZ_COURSE), p = holeToWorld(f, -0.95, -0.9); return { x: p.x, z: p.z, heading: f.heading }; },
-  pin: { x: ICE_SITE.x, z: ICE_SITE.z },
+  pin: { x: -556.0, z: -61.7 }, // (the square's south-east end: the Meerkämper's door is on its other side)
   props: [],
   createState() { return { game: createMinigolfGame(ARKADENPLATZ_COURSE) }; },
   score: (state) => minigolfScore(state.game),
@@ -1264,4 +1264,4 @@ export const SKATE_BOWL_MISSION = {
   ]
 };
 
-export const SPORT_MISSIONS = [DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, DARTS_MISSION, SKATE_BOWL_MISSION];
+export const SPORT_MISSIONS = [DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, ICE_MINIGOLF_MISSION, DARTS_MISSION, SKATE_BOWL_MISSION];

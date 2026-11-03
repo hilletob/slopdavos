@@ -8,7 +8,7 @@ import { poseSkater } from './missions-ice.js';
 import {
   XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, XC_PLAYER_BIB, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
   racerAt, aiSpeed, placeAt,
-  MINIGOLF, MINIGOLF_HOLES, MINIGOLF_SITE, MINIGOLF_PATH, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
+  MINIGOLF, MINIGOLF_SITE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
   BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA
 } from './missions-data-sport.js';
@@ -23,6 +23,7 @@ import {
 //   xcRace    — Davos Nordic's stadium on the Bünda (the start/finish arch, the fences and boards, the crowd), the split
 //               gantries, the race field (js/cross-country.js api.race drives seven of its skiers at their fixed pace),
 //               the countdown, the live place and the split flashes
+//   iceMinigolf — the same game on 18 lanes of ice on the Arkadenplatz, with a stick and a puck
 //   minigolf  — six lanes beside the Hotel Waldhuus (felt, boards, ramp, loop, posts, windmill, bend, bridge over the
 //               water), the ball, the putter; aim and power (keys, hold-and-release, a slingshot drag), its camera
 //   darts     — The Green Wildman's bar room (built at the door, high above it as js/missions-fun.js does its interiors),
@@ -563,8 +564,8 @@ const xcRace = {
 const FELT = 0xb44a3c, BOARD_COL = 0xd9d4cc, DITCH = 0x4a3b2a; // (the red Eternit lanes, their concrete boards)
 
 /** A lane's height: level, just over the highest ground under it (the lanes stand on the path on low feet) */
-function holeBaseY(i) {
-  const f = holeFrame(i), h = MINIGOLF_HOLES[i];
+function holeBaseY(i, course) {
+  const f = holeFrame(i, course), h = course.holes[i];
   let m = -Infinity;
   for (const [x, y] of h.outline) { const p = holeToWorld(f, x, y); m = Math.max(m, groundHeight(p.x, p.z)); }
   const mid = holeToWorld(f, h.cup[0] / 2, h.cup[1] / 2);
@@ -572,10 +573,10 @@ function holeBaseY(i) {
 }
 
 /** The light paved path under the lanes, draped over the terrain (the orthophoto's quads) */
-function buildPath() {
+function buildPath(course, look) {
   const pos = [];
-  const N = 6;
-  for (const q of MINIGOLF_PATH) {
+  const N = look.pathAcross;
+  for (const q of course.path) {
     const [a, b, c, d] = q;
     const len = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(d[0] - a[0], d[1] - a[1]));
     const M = Math.max(2, Math.ceil(len / 1.5));
@@ -596,12 +597,12 @@ function buildPath() {
     if (uz * vx - ux * vz < 0) for (let c = 0; c < 3; c++) { const v = a[t + 3 + c]; a[t + 3 + c] = a[t + 6 + c]; a[t + 6 + c] = v; }
   }
   g.computeVertexNormals();
-  tint(g, 0xd8d2c6);
+  tint(g, look.path);
   return mesh(g, litMat({ roughness: 0.9 }), false);
 }
 
 /** One lane's static meshes (in its own frame: x across, y along, the felt at height 0 + holeHeight) */
-function buildHole(hole, i) {
+function buildHole(hole, i, course, look) {
   const g = new THREE.Group();
   const felt = [], boards = [], dark = [], water = [];
   // the felt: a grid following the ramps; on the bridge hole only the bridge's plank between the banks
@@ -613,7 +614,7 @@ function buildHole(hole, i) {
   const inside = (x, y) => onLane(hole, x, y);
   const b = hole.bridge;
   const pos = [], col = [];
-  const cF = new THREE.Color(FELT);
+  const cF = new THREE.Color(look.felt);
   for (let iy = 0; iy < ys.length - 1; iy++) for (let ix = 0; ix < xs.length - 1; ix++) {
     const xa = xs[ix], xb = xs[ix + 1], ya = ys[iy], yb = ys[iy + 1];
     const cx = (xa + xb) / 2, cy = (ya + yb) / 2;
@@ -641,16 +642,16 @@ function buildHole(hole, i) {
       const box = new THREE.BoxGeometry(0.045, h + 0.09, L / n + 0.045).toNonIndexed();
       box.rotateY(Math.atan2(bx - ax, by - ay));
       box.translate(px, (h + 0.09) / 2, py);
-      boards.push(shade(box, BOARD_COL));
+      boards.push(shade(box, look.board));
     }
   }
   for (const c of hole.posts || []) {
     const cyl = new THREE.CylinderGeometry(c.r, c.r, 0.16, 14).toNonIndexed();
     cyl.translate(c.x, 0.08 + holeHeight(hole, c.x, c.y).h, c.y);
-    boards.push(shade(cyl, 0xd43b2a));
+    boards.push(shade(cyl, look.post));
   }
   // the cup: a dark disc, the flag
-  const cup = new THREE.CircleGeometry(MINIGOLF.cupR, 20).rotateX(-Math.PI / 2).toNonIndexed();
+  const cup = new THREE.CircleGeometry(course.phys.cupR, 20).rotateX(-Math.PI / 2).toNonIndexed();
   const ch = holeHeight(hole, hole.cup[0], hole.cup[1]).h;
   cup.translate(hole.cup[0], ch + 0.004, hole.cup[1]);
   dark.push(tint(cup, 0x0b0b0b));
@@ -662,7 +663,7 @@ function buildHole(hole, i) {
   // the lane's concrete body under the felt, its outline down to the ground
   const body = new THREE.Shape(hole.outline.map(([x, y]) => new THREE.Vector2(x, y)));
   const slab = new THREE.ExtrudeGeometry(body, { depth: 0.9, bevelEnabled: false, curveSegments: 4 }).rotateX(Math.PI / 2).translate(0, -0.006, 0);
-  boards.push(shade(slab.toNonIndexed(), 0xa8a39a));
+  boards.push(shade(slab.toNonIndexed(), look.body));
   // the tube: a half pipe over the narrow channel
   if (hole.tube) {
     const t = hole.tube;
@@ -689,7 +690,7 @@ function buildHole(hole, i) {
     water.push(tint(wat, DITCH));
   }
   // (built with z = y along the lane; the group's frame has the lane along −z: mirrored into it, winding kept)
-  const matFelt = litMat({ roughness: 0.95 });
+  const matFelt = litMat({ roughness: look.feltRoughness });
   g.add(mesh(flipZ(mergeGeometries(felt.map(plain))), matFelt, false));
   g.add(mesh(flipZ(mergeGeometries(boards.map(plain))), litMat({ roughness: 0.6 }), true));
   g.add(mesh(flipZ(mergeGeometries(dark.map(plain))), litMat({ roughness: 0.9 }), false));
@@ -750,35 +751,46 @@ function createPutter() {
   return g;
 }
 
+/** The hockey stick: the shaft up to the hands, the blade flat on the ice */
+function createStick() {
+  const g = new THREE.Group();
+  const shaft = mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.05, 6).translate(0, 0.525, 0), new THREE.MeshStandardMaterial({ color: 0xc9a56b, roughness: 0.6 }), true);
+  const blade = mesh(new THREE.BoxGeometry(0.26, 0.05, 0.016).translate(0.11, 0.025, 0), new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 0.7 }), true);
+  g.add(shaft, blade);
+  return g;
+}
+
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _plane = new THREE.Plane(), _hit = new THREE.Vector3();
+/** The game on one course (its physics, lanes and ground in the data; `look` what it is made of and how it is played) */
+function minigolfFeature(course, look) {
 const minigolf = {
   setup(run) {
-    const mg = run.mg = { bases: MINIGOLF_HOLES.map((h, i) => holeBaseY(i)), holes: [], aim: 0, power: 0, charging: false, chargeT: 0, drag: null, wait: 0, cam: null, overview: false, blips: new Blips(run.hooks.audio) };
+    const mg = run.mg = { bases: course.holes.map((h, i) => holeBaseY(i, course)), holes: [], aim: 0, power: 0, charging: false, chargeT: 0, drag: null, wait: 0, cam: null, overview: false, blips: new Blips(run.hooks.audio) };
     const g = mg.group = new THREE.Group();
-    g.name = 'MinigolfWaldhuus';
+    g.name = look.name;
     run.group.add(g);
-    MINIGOLF_HOLES.forEach((hole, i) => {
-      const f = holeFrame(i);
-      const hg = buildHole(hole, i);
+    course.holes.forEach((hole, i) => {
+      const f = holeFrame(i, course);
+      const hg = buildHole(hole, i, course, look);
       hg.position.set(f.x, mg.bases[i], f.z);
       hg.rotation.y = f.heading + Math.PI; // (local +z (= y along) to the lane's direction, local +x to its right)
       g.add(hg);
       mg.holes.push({ frame: f, group: hg });
     });
     // the ball, the putter, the aim dots
-    mg.ball = mesh(new THREE.SphereGeometry(MINIGOLF.ballR, 16, 12), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.35 }), true);
-    mg.putter = createPutter();
+    mg.ball = look.ball();
+    mg.putter = look.club();
     const dotGeo = new THREE.SphereGeometry(0.018, 8, 6);
     mg.dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicNodeMaterial({ color: 0xffffff }), 12);
     mg.dots.frustumCulled = false;
-    g.add(buildPath(), mg.ball, mg.putter, run.storage(mg.dots));
+    g.add(buildPath(course, look), mg.ball, mg.putter, run.storage(mg.dots));
     // HUD: the hole, the strokes, the power bar; the scorecard
     const { hud, big } = hudPanel(run);
     mg.ui = { hud, big, title: el('div', 'sport-flash is-gold'), line: el('div'), card: el('div', 'sport-board') };
     mg.ui.meter = meter();
     const row = el('div', 'sport-row');
     row.append(el('span', null, 'Power'), mg.ui.meter.m);
-    hud.append(mg.ui.title, mg.ui.line, row, mg.ui.card, el('div', 'sport-keys', 'A/D aim · hold Space, let go to putt · or drag back from the ball and let go · V overview'));
+    hud.append(mg.ui.title, mg.ui.line, row, mg.ui.card, el('div', 'sport-keys', look.keys));
     // the slingshot: drag from anywhere on the view, the ball goes the other way, the drag's length is the power
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (!minigolf.ready(run) || e.button !== 0) return; mg.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, power: 0 }; });
@@ -804,14 +816,14 @@ const minigolf = {
     const mg = run.mg;
     mg.aim = 0; mg.power = 0; mg.charging = false; mg.drag = null; mg.wait = 0; mg.cam = null; mg.lastHole = -1;
     run._sportEdge_up = true;
-    touchButton(run, 'up', 'Putt');
+    touchButton(run, 'up', look.button);
   },
   ready(run) { const g = run.state?.game; return live(run) && g && !g.done && !g.ball.moving && !g.ball.holed; },
   /** World position of a point on the current hole (x across, y along) at the felt's height + `lift` */
   world(run, x, y, lift = 0) {
-    const mg = run.mg, g = run.state.game, f = holeFrame(g.hole);
+    const mg = run.mg, g = run.state.game, f = holeFrame(g.hole, course);
     const p = holeToWorld(f, x, y);
-    return new THREE.Vector3(p.x, mg.bases[g.hole] + holeHeight(MINIGOLF_HOLES[g.hole], x, y).h + lift, p.z);
+    return new THREE.Vector3(p.x, mg.bases[g.hole] + holeHeight(course.holes[g.hole], x, y).h + lift, p.z);
   },
   dragTo(run, cx, cy) {
     const mg = run.mg, g = run.state?.game;
@@ -829,7 +841,7 @@ const minigolf = {
     if (!a || !b) return;
     const dx = a.x - b.x, dz = a.z - b.z, L = Math.hypot(dx, dz);
     if (L < 0.03) { mg.drag.power = 0; return; }
-    const f = holeFrame(g.hole);
+    const f = holeFrame(g.hole, course);
     // the world direction to the lane's frame: along (fx, fz), across to the right (rx, rz); aim positive to the left
     const along = dx * f.fx + dz * f.fz, across = dx * f.rx + dz * f.rz;
     mg.aim = Math.atan2(-across, along);
@@ -856,8 +868,8 @@ const minigolf = {
       else if (mg.charging) { mg.charging = false; mg.chargeT = 0; if (mg.power > 0.02) minigolf.putt(run, mg.power); }
     } else { mg.charging = false; mg.chargeT = 0; }
     // the player stands beside the ball, facing across the lane (a right-handed putt)
-    const hole = MINIGOLF_HOLES[g.hole];
-    const f = holeFrame(g.hole);
+    const hole = course.holes[g.hole];
+    const f = holeFrame(g.hole, course);
     const ca = Math.cos(mg.aim), sa = Math.sin(mg.aim);
     // the aim's direction in the lane (x, y) and the player's place: 0.42 m to the left of the line, a little behind
     const dirX = -sa, dirY = ca;
@@ -888,7 +900,7 @@ const minigolf = {
         }
       }
       if (g.ball.holed) {
-        if (!mg.wait) { mg.wait = 1.8; const s = g.strokes[g.hole]; bigText(run, mg.ui.big, strokeName(s, MINIGOLF_HOLES[g.hole].par), `${s} ${s === 1 ? 'stroke' : 'strokes'}`, 1700); }
+        if (!mg.wait) { mg.wait = 1.8; const s = g.strokes[g.hole]; bigText(run, mg.ui.big, strokeName(s, course.holes[g.hole].par), `${s} ${s === 1 ? 'stroke' : 'strokes'}`, 1700); }
         mg.wait -= dt;
         if (mg.wait <= 0) { mg.wait = 0; minigolfNext(g); mg.aim = 0; mg.cam = null; }
       }
@@ -896,16 +908,16 @@ const minigolf = {
     // the windmills turn
     for (let i = 0; i < mg.holes.length; i++) {
       const rotor = mg.holes[i].group.userData.rotor;
-      if (rotor) rotor.rotation.z = -windmillAngle(MINIGOLF_HOLES[i].windmill, g.clock);
+      if (rotor) rotor.rotation.z = -windmillAngle(course.holes[i].windmill, g.clock);
     }
     // the HUD
-    const hole = MINIGOLF_HOLES[Math.min(g.hole, MINIGOLF_HOLES.length - 1)];
-    setText(mg.ui.title, `Hole ${g.hole + 1}/${MINIGOLF_HOLES.length} · ${hole.name} · par ${hole.par}`);
+    const hole = course.holes[Math.min(g.hole, course.holes.length - 1)];
+    setText(mg.ui.title, `Hole ${g.hole + 1}/${course.holes.length} · ${hole.name} · par ${hole.par}`);
     setText(mg.ui.line, `Stroke ${g.strokes[g.hole] + (g.ball.moving || g.ball.holed ? 0 : 1)} · total ${minigolfTotal(g)}`);
     mg.ui.meter.set(mg.drag ? mg.drag.power : mg.power);
     if (mg.lastHole !== g.hole || mg.lastStrokes !== minigolfTotal(g)) {
       mg.lastHole = g.hole; mg.lastStrokes = minigolfTotal(g);
-      mg.ui.card.replaceChildren(...MINIGOLF_HOLES.flatMap((h, i) => {
+      mg.ui.card.replaceChildren(...course.holes.flatMap((h, i) => {
         const c = el('span', i === g.hole && !g.done ? 'is-now' : null, `${i + 1}: ${i < g.history.length || i === g.hole ? g.strokes[i] : '–'}`);
         return [c];
       }));
@@ -915,18 +927,18 @@ const minigolf = {
     const mg = run.mg, g = run.state?.game;
     mg.ui.hud.hidden = !live(run);
     if (!g || run.phase === 'intro' || run.phase === 'aborted') return;
-    const hole = MINIGOLF_HOLES[g.hole];
+    const hole = course.holes[g.hole];
     // the ball (in the loop: round the ring)
     let bp;
     if (g.ball.inLoop) {
-      const lp = hole.loop, t = g.ball.loopT / MINIGOLF.loopTime, a = t * Math.PI * 2;
+      const lp = hole.loop, t = g.ball.loopT / course.phys.loopTime, a = t * Math.PI * 2;
       const cy = (lp.y + lp.exitY) / 2;
       bp = minigolfWorldLoop(run, cy - Math.sin(a) * 0.42, 0.45 - Math.cos(a) * 0.42, t);
-    } else bp = minigolf.world(run, g.ball.x, g.ball.y, MINIGOLF.ballR);
+    } else bp = minigolf.world(run, g.ball.x, g.ball.y, look.ballLift);
     if (g.ball.holed && g.ball.x === hole.cup[0]) bp.y -= 0.03;
     mg.ball.position.copy(bp);
     // the putter: behind the ball along the aim, swung back with the power while charging
-    const f = holeFrame(g.hole);
+    const f = holeFrame(g.hole, course);
     const dirX = -Math.sin(mg.aim), dirY = Math.cos(mg.aim);
     const back = 0.04 + (mg.charging || mg.drag ? mg.power * 0.3 : 0);
     const ph = minigolf.world(run, g.ball.x - dirX * back, g.ball.y - dirY * back);
@@ -951,11 +963,11 @@ const minigolf = {
     mg.dots.instanceMatrix.needsUpdate = true;
     // the camera: behind the ball along the aim (following it while it rolls), or over the whole lane (V)
     const cam = ctx.camera;
-    let pos, look;
+    let pos, target;
     if (mg.overview) {
-      const mid = minigolf.world(run, hole.width > 2 ? hole.width / 2 - 0.5 : 0, hole.length / 2);
+      const mid = minigolf.world(run, hole.width > 2 ? Math.sign(hole.cup[0] || 1) * (hole.width / 2 - 0.5) : 0, hole.length / 2);
       pos = mid.clone().add(new THREE.Vector3(-f.fx * 2, Math.max(hole.length, hole.width) * 0.95, -f.fz * 2));
-      look = mid;
+      target = mid;
     } else {
       const ball = mg.ball.position;
       const vx = g.ball.moving ? g.ball.vx : dirX, vy = g.ball.moving ? g.ball.vy : dirY;
@@ -964,18 +976,33 @@ const minigolf = {
       const wx = f.rx * ux + f.fx * uy, wz = f.rz * ux + f.fz * uy;
       // (behind the ball and a little to the right: the player stands on its left)
       pos = new THREE.Vector3(ball.x - wx * 2.4 - wz * 0.75, ball.y + 1.75, ball.z - wz * 2.4 + wx * 0.75);
-      look = new THREE.Vector3(ball.x + wx * 1.6, ball.y, ball.z + wz * 1.6);
+      target = new THREE.Vector3(ball.x + wx * 1.6, ball.y, ball.z + wz * 1.6);
     }
-    if (!mg.cam) mg.cam = { pos: pos.clone(), look: look.clone() };
+    if (!mg.cam) mg.cam = { pos: pos.clone(), look: target.clone() };
     const k = 1 - Math.exp(-dt * (g.ball.moving ? 3 : 6));
-    mg.cam.pos.lerp(pos, k); mg.cam.look.lerp(look, k);
+    mg.cam.pos.lerp(pos, k); mg.cam.look.lerp(target, k);
     cam.position.copy(mg.cam.pos);
     cam.lookAt(mg.cam.look);
     cam.updateMatrixWorld();
   }
 };
+return minigolf;
+}
+const minigolf = minigolfFeature(WALDHUUS_COURSE, {
+  name: 'MinigolfWaldhuus', felt: FELT, feltRoughness: 0.95, board: BOARD_COL, post: 0xd43b2a, body: 0xa8a39a, path: 0xd8d2c6, pathAcross: 6,
+  ball: () => mesh(new THREE.SphereGeometry(MINIGOLF.ballR, 16, 12), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.35 }), true),
+  ballLift: MINIGOLF.ballR, club: createPutter, button: 'Putt',
+  keys: 'A/D aim · hold Space, let go to putt · or drag back from the ball and let go · V overview'
+});
+// Eis-Minigolf on the Arkadenplatz: the same game on rink ice between wooden boards, with a stick and a black puck
+const iceMinigolf = minigolfFeature(ARKADENPLATZ_COURSE, {
+  name: 'IceMinigolfArkadenplatz', felt: 0xdcebf4, feltRoughness: 0.25, board: 0xb98a55, post: 0x2b6fb3, body: 0xe6eef2, path: 0xeef5f9, pathAcross: 24,
+  ball: () => mesh(new THREE.CylinderGeometry(ICE_MINIGOLF.ballR, ICE_MINIGOLF.ballR, 0.025, 20), new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.5 }), true),
+  ballLift: 0.0125, club: createStick, button: 'Shoot',
+  keys: 'A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview'
+});
 function minigolfWorldLoop(run, y, h, t) {
-  const g = run.state.game, f = holeFrame(g.hole);
+  const g = run.state.game, f = holeFrame(g.hole, g.course);
   const p = holeToWorld(f, 0.08 * t, y);
   return new THREE.Vector3(p.x, run.mg.bases[g.hole] + h + MINIGOLF.ballR, p.z);
 }
@@ -1639,6 +1666,6 @@ const skateBowl = {
   }
 };
 
-export const SPORT_FEATURES = { xcSkis, xcRace, minigolf, darts, skateBowl };
+export const SPORT_FEATURES = { xcSkis, xcRace, minigolf, iceMinigolf, darts, skateBowl };
 // (test hooks: the probe scripts read the bowl's surface, the board's fields)
 export const __sportInternals = { bowlSurface, floorEdge, BOWL_SIGMA, MINIGOLF_SITE };

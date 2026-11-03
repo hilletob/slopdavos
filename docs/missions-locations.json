@@ -2909,6 +2909,29 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Die Schneedeponie im Davosersee ist belegt (Südostschweiz, mit enger Zufahrt), die genaue Kippstelle aber nicht: Sie ist ans Südwestufer neben der Seepromenade gesetzt. Dass die Bündastrasse so geräumt wird und die Lastwagen über diese Route fahren, ist Annahme. Die Route folgt OSM-Strassen, darunter schmale Servicestrassen.",
    "nr": 62
+  },
+  {
+   "id": "ice-minigolf",
+   "status": "neu",
+   "name": "Eis-Minigolf auf dem Arkadenplatz",
+   "kurz": "Achtzehn Eisbahnen mit Hockeystock und Puck auf dem Arkadenplatz zwischen Promenade und Kulturplatz.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Zu Fuss über die Promenade",
+   "ort": {
+    "name": "Arkadenplatz, Südostende",
+    "x": -556.0,
+    "z": -61.7,
+    "lv95": {
+     "E": 2781944,
+     "N": 1185562
+    }
+   },
+   "punkte": [],
+   "quelle": "js/missions-data-sport.js (MINIGOLF_HOLES, MINIGOLF_PATH) · Lage und Anordnung aus dem SWISSIMAGE-Orthofoto (data/hires/swissimage/384-512.webp, 0.25 m) und dem Luftbild des Users · OSM n12164199579 «Minigolf Hotel Waldhuus» (leisure=miniature_golf)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lage/Anordnung aus dem Orthofoto (±0.5 m). Im Bild sind 9 rote Bahnen klar erkennbar (nicht 12); die Hindernistypen der einzelnen Bahnen sind geschätzt (Eternit-Typen). Der OSM-Punkt liegt ~25 m östlich (Rezeption).",
+   "nr": 63
   }
  ]
 }
