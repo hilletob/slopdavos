@@ -4,3 +4,6 @@ tools/data/cache/
 screenshots/
 data/hires/
 .env.local
+kraftwerk-data/output/
+kraftwerk-data/repos/
+.env
