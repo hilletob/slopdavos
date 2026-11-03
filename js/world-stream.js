@@ -235,7 +235,7 @@ export function parkingBuilder() {
       const parking = buildParking(holder, region);
       parking.group.removeFromParent();
       if (!parking.stats.lots) { parking.group.traverse((m) => { m.geometry?.dispose(); if (m.isInstancedMesh) m.dispose(); }); return { objects: [] }; }
-      return { objects: [parking.group], colliders: parking.colliders, update: parking.update };
+      return { objects: [parking.group], colliders: parking.colliders, update: parking.update, dispose: parking.dispose };
     }
   };
 }

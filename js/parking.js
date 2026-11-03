@@ -2,12 +2,13 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PARKING_DATA } from './parking-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
-import { drapeOverlay, surfaceHeight } from './terrain.js';
+import { drapeOverlay, surfaceHeight, liftColliders } from './terrain.js';
 import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, createLoftedCarMaterial } from './actor-models.js';
 import { createRoadSurfaceMaterial, createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { berlinPolygonGeometry } from './berlin-geometry.js';
 import { worldRegion } from './quality.js';
+import { bayKey, createLotRegistry } from './hijack.js';
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
 // bays and parked cars. In each lot the bays are laid out along its longest edge: thin lots (street-side and lane
@@ -24,6 +25,9 @@ import { worldRegion } from './quality.js';
 // service roads and the streets crossing a lot win; the bay lines, in the road paint (anti-aliased, worn, faded under
 // the snow), lie on it and are pulled forward. As in Switzerland the lines are white on public car parks, blue for the
 // blue zone along the streets and yellow on private ground (hotel car parks, the small lots of the houses).
+// The player can get into the parked cars (js/gta-takeover.js, the rules in js/hijack.js): lotCars knows the cars built and
+// the bays whose car is in use, which stay empty (near and far instances hidden, collider gone), also when the mobile
+// profile's cell is torn down and built anew. Taken bays are not saved, except the one of the car being driven.
 
 const BAY_W = 2.5, BAY_D = 5, AISLE = 6, PARALLEL_L = 6, PARALLEL_W = 2.3, LINE = 0.12;
 const SURFACE_LIFT = 0.06, LINE_LIFT = 0.085; // m over the terrain (the streets lie at 0.11)
@@ -193,6 +197,21 @@ function lotSurface(lot) {
   return draped;
 }
 
+/** The parked cars built so far and the taken bays (js/hijack.js createLotRegistry) */
+export const lotCars = createLotRegistry();
+/** The car of bay `key` is in use: its bay stands empty, now (if it is built) and whenever its cell is built */
+export function takeLotBay(key, controllers) {
+  lotCars.take(key);
+  const car = lotCars.get(key);
+  if (car) car.setTaken(car, true, controllers);
+}
+/** The car of bay `key` is back */
+export function returnLotBay(key, controllers) {
+  lotCars.give(key);
+  const car = lotCars.get(key);
+  if (car) car.setTaken(car, false, controllers);
+}
+
 let sharedObstacles = null, sharedMaterials = null, sharedFarGeometry = null;
 /**
  * The car parks in `region` (js/quality.js regions: everything on the desktop profile; on the mobile one
@@ -258,7 +277,8 @@ export function buildParking(scene, region = worldRegion()) {
     const col = new THREE.Color(PALETTE[Math.floor(hash(i * 13 + 5) * PALETTE.length)]);
     // Nose in or nose out
     const flip = hash(i * 31 + 7) < 0.35 ? -1 : 1;
-    cars.push({ x: b.x, z: b.z, ux: b.ux * flip, uz: b.uz * flip, kind, col });
+    const key = bayKey(b.x, b.z);
+    cars.push({ key, x: b.x, z: b.z, ux: b.ux * flip, uz: b.uz * flip, kind, col, taken: lotCars.isTaken(key) });
   });
 
   // Far: the lofted proxies, instanced per 200 m cell and body type (frustum-culled per cell, no shadows), shown within
@@ -297,17 +317,21 @@ export function buildParking(scene, region = worldRegion()) {
         c.matrix = m.compose(p.set(c.x, c.y, c.z), q.setFromEuler(e), one).clone();
         c.paint = [Math.fround(c.col.r), Math.fround(c.col.g), Math.fround(c.col.b)];
         c.mesh = mesh; c.slot = i; c.near = false;
+        c.heading = yaw; c.half = half; c.halfWidth = 0.95; c.setTaken = setTaken;
         mesh.setMatrixAt(i, c.matrix);
         paint.set(c.paint, i * 3);
         entry.cars.push(c);
-        colliders.push({
+        c.collider = {
           minX: c.x - Math.abs(c.ux) * half - Math.abs(sx) * 0.95, maxX: c.x + Math.abs(c.ux) * half + Math.abs(sx) * 0.95,
           minZ: c.z - Math.abs(c.uz) * half - Math.abs(sz) * 0.95, maxZ: c.z + Math.abs(c.uz) * half + Math.abs(sz) * 0.95,
           minY: 0, maxY: kind === 'suv' ? 1.75 : 1.5,
           obb: { cx: c.x, cz: c.z, hx: 0.95, hz: half, cs: Math.cos(yaw), sn: Math.sin(yaw) }
-        });
+        };
+        if (!c.taken) colliders.push(c.collider);
+        lotCars.add(c);
       });
       mesh.computeBoundingSphere();
+      for (const c of list) if (c.taken) mesh.setMatrixAt(c.slot, hidden); // (after the sphere: a zero matrix would stretch it to the origin)
       mesh.castShadow = false;
       mesh.receiveShadow = true;
       mesh.visible = false;
@@ -333,12 +357,13 @@ export function buildParking(scene, region = worldRegion()) {
   }));
 
   // Every 0.3 s: the cells within FAR show their proxies; the cars within NEAR (NEAR + 12 m to leave) the full model
-  let last = -1e9;
+  let last = -1e9, lastCamera = null;
   const nearCars = [];
   function update(camera) {
     const now = performance.now();
     if (now - last < 300) return;
     last = now;
+    lastCamera = camera;
     nearCars.length = 0;
     const reach = NEAR + 12 + CELL * 0.71;
     for (const c of cellMeshes) {
@@ -347,6 +372,7 @@ export function buildParking(scene, region = worldRegion()) {
       if (d > reach && !c.anyNear) continue;
       let any = false;
       for (const car of c.cars) {
+        if (car.taken) continue;
         const dc = Math.hypot(car.x - camera.x, car.y - camera.y, car.z - camera.z);
         const isNear = dc < (car.near ? NEAR + 12 : NEAR);
         if (isNear !== car.near) {
@@ -377,9 +403,30 @@ export function buildParking(scene, region = worldRegion()) {
     }
   }
 
+  // A car goes out of its bay or back into it (takeLotBay, returnLotBay): at once, not at the next refill
+  function setTaken(car, taken, controllers) {
+    if (car.taken === taken) return;
+    car.taken = taken;
+    car.near = false;
+    car.mesh.setMatrixAt(car.slot, taken ? hidden : car.matrix);
+    car.mesh.instanceMatrix.needsUpdate = true;
+    if (taken) {
+      const i = colliders.indexOf(car.collider);
+      if (i >= 0) colliders.splice(i, 1);
+      controllers?.removeColliders([car.collider]);
+    } else {
+      liftColliders([car.collider]); // (a cell built with the bay empty has not been lifted with the rest)
+      colliders.push(car.collider);
+      controllers?.addColliders([car.collider]);
+    }
+    last = -1e9;
+    if (lastCamera) update(lastCamera);
+  }
+  const dispose = () => { for (const c of cars) lotCars.remove(c); };
+
   group.userData.stats = { lots: lots.length, photographed, bays: bays.length, cars: cars.length, cells: cells.size };
   if (region.all) console.info(`[parking] ${lots.length} lots (${photographed} with the bays painted in the aerial photo), ${bays.length} bays, ${cars.length} parked cars in ${cells.size} cells`);
-  return { group, update, colliders, stats: group.userData.stats };
+  return { group, update, colliders, dispose, stats: group.userData.stats };
 }
 
 /** The bays of one lot as buildParking lays them out: [{ x, z, ux, uz, w, l, occupied }] (`occupied`: a parked car stands

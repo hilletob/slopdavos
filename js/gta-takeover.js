@@ -6,8 +6,9 @@ import { createHelper } from './missions-props.js';
 import { MissionAudio } from './missions-fx.js';
 import {
   findTakeableCar, findTakeableBike, findTakeableBus, trafficLabel, driveFor, holdVehicle, parkVehicle, releaseVehicle,
-  shouldRelease, MAX_LEFT
+  shouldRelease, MAX_LEFT, pickPoolCar, borrowVehicle, endBorrow, bayIsClear
 } from './hijack.js';
+import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 
 // js/gta-takeover.js
 // The GTA mode (js/gta.js): taking over the vehicles on the road (the rules: js/hijack.js). The player's car (the
@@ -21,6 +22,9 @@ import {
 // instances; the bus stays the bus), solid for the player and the traffic, and the car entity is put away (hidden,
 // `vacant`); it goes back into service once the player is RELEASE_DISTANCE away. A bike standing at a signal is taken
 // by the player's bike (the traffic's goes back into its pool at once).
+// A car parked in a car park (js/parking.js) is got into the same way, empty (no driver, no horn): its bay goes empty, a
+// traffic car of its kind is borrowed from the pool for the slot (hijack.js borrowVehicle) with the parked car's paint, and
+// from there on it is a taken car like the others. When it goes back into service the parked car is back in its bay.
 // The driver gets out by the driver's door, waves a fist and walks off; a horn. The patrol car's blue light and siren:
 // K, as in the mission.
 
@@ -45,6 +49,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
   let vacant = false; // the car entity put away (the vehicle it was got out of stands in its own system)
   let blue = false;
   const left = []; // { kind: 'traffic' | 'bus', ref, x, z, heading, collider, trafficBody }
+  const returning = []; // the bays whose car went back into service, until they are clear for it
 
   // --- The traffic cars' bodies for the player's car (one per kind and livery, made once, shared materials) -----------
   const models = new Map();
@@ -163,6 +168,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       if (l) opts.push({ source: 'car', ref: l.car, distance: l.distance, label: `Get in the ${trafficLabel(l.car)}`, sub: null, parked: true });
       const k = findTakeableBike(p, traffic.bikes);
       if (k) opts.push({ source: 'bike', ref: k.bike, distance: k.distance, label: 'Take the bike', sub: null });
+      const parkedCar = lotCars.find(p);
+      if (parkedCar && pickPoolCar(traffic.cars, parkedCar.car.kind, p.x, p.z)) {
+        opts.push({ source: 'lot', ref: parkedCar.car, distance: parkedCar.distance, label: `Get in the ${trafficLabel({ bodyType: parkedCar.car.kind })}`, sub: null, parked: true });
+      }
     }
     if (vbd?.buses?.length) {
       const b = findTakeableBus(p, vbd.buses, vbd.bodies);
@@ -185,8 +194,21 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
   }
   function releaseLeft(rec) {
     dropLeft(rec.ref);
-    if (rec.kind === 'traffic') releaseVehicle(rec.ref);
-    else vbd?.release?.(rec.ref);
+    if (rec.kind === 'traffic') {
+      const bay = endBorrow(rec.ref);
+      if (bay) returning.push(bay);
+      releaseVehicle(rec.ref);
+    } else vbd?.release?.(rec.ref);
+  }
+  // The parked cars back in their bays, once these are clear (not under the player's nose, nor where a vehicle stands)
+  function settleBays(player) {
+    const others = [...(cm.parkedVehicles || []), ...(car.hidden ? [] : [car])];
+    for (let i = returning.length - 1; i >= 0; i--) {
+      const parkedCar = lotCars.get(returning[i]);
+      if (parkedCar && !bayIsClear(parkedCar, player, others)) continue;
+      returnLotBay(returning[i], cm);
+      returning.splice(i, 1);
+    }
   }
   /** The car entity's vehicle stays where it stands; the entity is put away (getting out, js/gta.js exit) */
   function leaveBody() {
@@ -230,6 +252,13 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       place('car', x, z, yaw, () => setPlayerCarBody({ kind: 'traffic', v, bodyType: v.bodyType, paint: [...v.paint], police: !!v.isPolice }));
       car.speed = speed * 0.5;
       if (!wasParked) flee(x, z, yaw, (car.dims?.halfW ?? 0.9) + 0.5, true);
+    } else if (a.source === 'lot') {
+      const c = a.ref, v = pickPoolCar(traffic.cars, c.kind, c.x, c.z);
+      if (!v) return;
+      borrowVehicle(v, { key: c.key, paint: c.paint });
+      takeLotBay(c.key, cm);
+      place('car', c.x, c.z, c.heading, () => setPlayerCarBody({ kind: 'traffic', v, bodyType: v.bodyType, paint: [...v.paint], police: false }));
+      car.speed = 0;
     } else if (a.source === 'bus') {
       const b = a.ref, wasParked = !!b.parked;
       dropLeft(b);
@@ -295,9 +324,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     if (body?.kind === 'bus') poseBus(dt, !active);
     updateWalker(dt);
     // far enough away: back into service
-    if (frame % 30 === 0 && left.length) {
+    if (frame % 30 === 0 && (left.length || returning.length)) {
       const e = cm.getActiveEntity()?.position;
       if (e) for (const rec of [...left]) if (shouldRelease(rec, e.x, e.z)) releaseLeft(rec);
+      if (e && returning.length) settleBays(e);
     }
   }
 
@@ -312,7 +342,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
 
   // --- Saved with the GTA state (js/gta.js) ------------------------------------------------------------------------------
   function state() {
-    const d = body?.kind === 'traffic' ? { kind: 'traffic', bodyType: body.bodyType, paint: body.paint.map((c) => +c.toFixed(4)), police: !!body.police }
+    const d = body?.kind === 'traffic' ? { kind: 'traffic', bodyType: body.bodyType, paint: body.paint.map((c) => +c.toFixed(4)), police: !!body.police, lotBay: body.v?.lotBay || undefined }
       : body?.kind === 'bus' ? { kind: 'bus', index: vbd.buses.indexOf(body.bus) } : null;
     return { vacant, body: d };
   }
@@ -323,7 +353,9 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
         const v = traffic.cars.find((c) => c.bodyType === s.body.bodyType && !!c.isPolice === !!s.body.police && !c.held && !c.parked && !c.edge)
           || traffic.cars.find((c) => c.bodyType === s.body.bodyType && !!c.isPolice === !!s.body.police && !c.held && !c.parked);
         if (v) {
-          if (Array.isArray(s.body.paint) && s.body.paint.length === 3) v.paint = s.body.paint.map(Math.fround);
+          // (a parked car driven on: its bay stays empty, no second one; the other taken bays come back filled)
+          if (s.body.lotBay) { borrowVehicle(v, { key: s.body.lotBay, paint: s.body.paint.map(Math.fround) }); takeLotBay(s.body.lotBay, cm); }
+          else if (Array.isArray(s.body.paint) && s.body.paint.length === 3) v.paint = s.body.paint.map(Math.fround);
           holdVehicle(v);
           setPlayerCarBody({ kind: 'traffic', v, bodyType: v.bodyType, paint: [...v.paint], police: !!v.isPolice });
         }
@@ -345,6 +377,8 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     get vacant() { return vacant; },
     set vacant(v) { vacant = !!v; },
     get left() { return left; },
+    /** The bays waiting to get their car back */
+    get returning() { return returning; },
     /** The colliders of the cars left standing (js/controllers.js parkedVehicles) */
     colliders() { return left.filter((r) => r.collider).map((r) => r.collider); },
     /** Where the pedestrian gets out of the worn body: its footprint and door (js/vehicle-depots.js exitSpots) */

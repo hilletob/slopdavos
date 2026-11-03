@@ -29,7 +29,8 @@ import { missionAllowsTakeover } from './hijack.js';
 // takes the train over (the rhb mode).
 // The vehicles on the road (js/gta-takeover.js, js/hijack.js): beside a car of the traffic standing or crawling, "Take
 // the <kind>" (F) puts the player into it (the T3 stays where it stood); a VBD bus standing at a stop: "Drive the bus";
-// a bike standing at a signal: "Take the bike". Got out of, they stand where they were left until the player is far away.
+// a bike standing at a signal: "Take the bike"; a car parked in a car park (js/parking.js): "Get in the <kind>". Got out
+// of, they stand where they were left until the player is far away.
 
 const STATE_KEY = 'slopdavos-gta';
 const STATE_VERSION = 1;
