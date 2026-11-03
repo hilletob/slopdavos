@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { QUALITY, rectRegion, setWorldCenter } from './quality.js';
+import { releaseRenderState } from './gpu-memory.js';
 import { WORLD_CELL, cellKey, cellDistance, cellsAround, cellsToDrop } from './world-cells.js';
 import { buildGroundLayers } from './city-grid.js';
 import { buildRoadPaint } from './road-paint.js';
@@ -101,7 +102,7 @@ export class WorldStreamer {
       o.removeFromParent();
       o.traverse((m) => {
         if (m.geometry) m.geometry.dispose();
-        if (m.isInstancedMesh) m.dispose();
+        releaseRenderState(m);
       });
     }
     if (part.dispose) part.dispose();
