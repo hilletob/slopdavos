@@ -395,12 +395,38 @@ const pairs = [
   ['Which wax for this snow?', 'Welches Wachs für diesen Schnee?'],
   ['Wax', 'Wachs'],
   ['Iron', 'Bügeln'],
+  // the rope park in the Färich, hockey on the Seehofseeli (js/missions-data-outdoor.js)
+  ['Rope park in the Färich', 'Seilpark im Färich'], ['Walk to the first tree', 'Zum ersten Baum gehen'], ['Up the ladder', 'Die Leiter hinauf'],
+  ['Wobbly bridge', 'Wackelbrücke'], ['Balance beam', 'Balancierbalken'], ['Tyre traverse', 'Pneu-Traverse'], ['The wild bridge', 'Die wilde Brücke'], ['Zipline finale', 'Zipline zum Schluss'],
+  ['Hold W to climb', 'W gedrückt halten zum Klettern'], ['Clip both carabiners first!', 'Zuerst beide Karabiner einhängen!'],
+  ['Clipped: W, step off the deck', 'Eingehängt: W, von der Plattform abstossen'], ['Clipped: W, out onto the crossing', 'Eingehängt: W, hinaus auf die Querung'],
+  ['Dangling in your harness: the guide winches you back', 'Du baumelst im Klettergurt: der Guide zieht dich zurück'],
+  ['A/D: lean against the sway · W: walk on', 'A/D: gegen das Schwanken lehnen · W: weitergehen'], ['Space: clip · W: walk', 'Space: einhängen · W: gehen'],
+  ['S: brake now!', 'S: jetzt bremsen!'], ['S: brake before the mattress', 'S: vor der Matte bremsen'],
+  ['Harness off, helmet off, the knees still a little soft.', 'Gurt ab, Helm ab, die Knie noch ein wenig weich.'],
+  ['A clean run: no fall, no carabiner forgotten', 'Ein sauberer Lauf: kein Sturz, kein Karabiner vergessen'],
+  ['The guide: Carabiners! BOTH of them!  +8 s', 'Der Guide: Karabiner! BEIDE!  +8 s'],
+  ['The guide: Do you want to explain that to your mother? Clip in!  +8 s', 'Der Guide: Willst du das deiner Mutter erklären? Einhängen!  +8 s'],
+  ['The guide: Two carabiners. It is not a suggestion.  +8 s', 'Der Guide: Zwei Karabiner. Das ist kein Vorschlag.  +8 s'],
+  ['Click: one carabiner', 'Klick: ein Karabiner'], ['Click: both clipped', 'Klick: beide eingehängt'], ['WHISTLE!', 'PFIFF!'],
+  ['Whoops: hanging in your harness  +5 s', 'Hoppla: du hängst im Gurt  +5 s'], ['WHOOPS!', 'HOPPLA!'], ['The guide winches you back', 'Der Guide zieht dich zurück'],
+  ['New deck: clip in again', 'Neue Plattform: wieder einhängen'], ['Off you go!', 'Und los!'], ['A soft landing', 'Eine weiche Landung'],
+  ['Into the mattress at full speed  +3 s', 'Mit vollem Tempo in die Matte  +3 s'], ['OOF!', 'UFF!'], ['Balance', 'Gleichgewicht'], ['Clip', 'Einhängen'],
+  ['W walk · A/D balance · Space clip · S brake', 'W gehen · A/D balancieren · Space einhängen · S bremsen'],
+  ['Hockey on the Seehofseeli', 'Hockey auf dem Seehofseeli'], ['Skate to the centre spot', 'Zum Mittelpunkt laufen'], ['First to 5', 'Wer zuerst 5 hat'],
+  ['Space: shoot or pass', 'Space: schiessen oder passen'], ['Space: call for the puck', 'Space: Puck verlangen'], ['Space: poke check', 'Space: Stockcheck'], ['Get to the puck', 'Hol dir den Puck'],
+  ['FACE-OFF', 'BULLY'], ['Puck stolen!', 'Puck erobert!'], ['Poked at nothing', 'Ins Leere gestochert'], ['Blocked by your team', 'Von deinem Team geblockt'], ['Blocked!', 'Geblockt!'],
+  ['Next goal wins', 'Das nächste Tor entscheidet'], ['next goal wins', 'das nächste Tor entscheidet'], ['Locals score', 'Tor für die Einheimischen'], ['Your goal!', 'Dein Tor!'],
+  ['W skate · A/D steer · S stop · Space shoot / poke · drag to aim', 'W laufen · A/D lenken · S stoppen · Space schiessen / stochern · ziehen zum Zielen'],
+  ['Boots back on, jackets back on, and somebody knows a Glühwein at the Seehof.', 'Schuhe an, Jacken an, und jemand weiss von einem Glühwein im Seehof.'],
 ];
 
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
 const missionIntros = [
+  ['The Adventure Park Färich, in the trees', 'Der Adventure Park Färich, in den Bäumen am Eingang des Flüelatals. Die Leiter hinauf, dann von Plattform zu Plattform: Wackelbrücke, Balancierbalken, Pneu-Traverse, eine wildere Brücke und die Zipline. Auf jeder Plattform hängst du mit Space (Knopf „Einhängen“) BEIDE Karabiner ein, bevor du losgehst: Vergisst du es, pfeift dich der Guide zurück, +8 s. Auf einer Querung gehst du mit W und lehnst dich mit A/D gegen das Schwanken. Fällst du, baumelst du nur komisch und unverletzt im Gurt, +5 s. Auf der Zipline bremst du mit S vor der Matte. Ein sauberer Lauf holt Gold.'],
+  ['Dusk on the Seehof Seeli', 'Abenddämmerung auf dem Seehof Seeli, dem kleinen Teich beim Hotel Seehof in Davos Dorf. Den Einheimischen fehlt ein Spieler: drei gegen drei, Schuhe und Jacken als Torpfosten, keine Torhüter, wer zuerst 5 hat oder 3 Minuten. Laufen mit W, A/D und S. Space mit dem Puck schiesst dorthin, wohin du schaust, oder passt, wenn du einen Mitspieler anschaust. Space ohne Puck stochert nach dem Puckführenden oder verlangt den Pass von einem Mitspieler. Du greifst das Osttor an. Je grösser der Vorsprung am Schluss, desto besser die Medaille.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -511,6 +537,16 @@ function translate(value) {
   });
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
+  // the rope park, the Seehofseeli
+  dynamic = dynamic.replace(/^(\d+) m to the ladder$/, '$1 m bis zur Leiter');
+  dynamic = dynamic.replace(/^(\d+) m to the next deck$/, '$1 m bis zur nächsten Plattform');
+  dynamic = dynamic.replace(/^(\d+) m to the face-off$/, '$1 m bis zum Bully');
+  dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
+  dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');
+  dynamic = dynamic.replace(/^(\d+) (?:fall|falls) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${a === '1' ? 'Sturz' : 'Stürze'} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'mit vollem Tempo in die Matte'}`);
+  dynamic = dynamic.replace(/^You (\d+) : (\d+) Locals · (.+)$/, (_, a, b, c) => `Du ${a} : ${b} Einheimische · ${c === 'next goal wins' ? 'das nächste Tor entscheidet' : c}`);
+  dynamic = dynamic.replace(/^(Won|Drawn|Lost) (\d+) : (\d+) · your goals: (\d+)$/, (_, r, a, b, m) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[r]} ${a} : ${b} · deine Tore: ${m}`);
+  dynamic = dynamic.replace(/(\d+) goals ahead\b/g, '$1 Tore Vorsprung');
   dynamic = dynamic.replace(/^Loading swissBUILDINGS3D (\d+\/\d+)…$/, 'swissBUILDINGS3D wird geladen $1 …');
   dynamic = dynamic.replace(/^Previous launch stopped at: (.+)$/, 'Letzter Start abgebrochen bei: $1');
   dynamic = dynamic.replace(/ · last shader #/, ' · letzter Shader #');

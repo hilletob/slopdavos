@@ -67,3 +67,17 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('12 skiers'), '12 Skifahrer');
   assert.equal(t('pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)'), 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
 });
+
+test('the rope park and the Seehofseeli translate names, intros and generated texts', () => {
+  setLanguage('de');
+  assert.equal(t('Rope park in the Färich'), 'Seilpark im Färich');
+  assert.match(t('The Adventure Park Färich, in the trees at the mouth of the Flüela valley.'), /^Der Adventure Park Färich/);
+  assert.equal(t('Hockey on the Seehofseeli'), 'Hockey auf dem Seehofseeli');
+  assert.match(t('Dusk on the Seehof Seeli, the little pond.'), /^Abenddämmerung/);
+  assert.equal(t('Clip your carabiners: Space (1/2)'), 'Karabiner einhängen: Space (1/2)');
+  assert.equal(t('12 m to the next deck'), '12 m bis zur nächsten Plattform');
+  assert.equal(t('1 fall · 0 forgotten · soft landing'), '1 Sturz · 0 vergessen · weiche Landung');
+  assert.equal(t('You 2 : 1 Locals · 2:05'), 'Du 2 : 1 Einheimische · 2:05');
+  assert.equal(t('Won 5 : 2 · your goals: 3'), 'Gewonnen 5 : 2 · deine Tore: 3');
+  assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
+});

@@ -57,7 +57,7 @@ function ensureStyle() {
   document.head.append(s);
 }
 
-function buildIceHud(run) {
+export function buildIceHud(run) {
   ensureStyle();
   const hud = el('div', 'panel ice-hud');
   const flash = el('div', 'ice-flash');
@@ -67,7 +67,7 @@ function buildIceHud(run) {
   return { hud, flash, big };
 }
 
-function meter() {
+export function meter() {
   const m = el('div', 'ice-meter');
   const zone = el('span', 'ice-meter-zone'), fill = el('span', 'ice-meter-fill'), mark = el('span', 'ice-meter-mark'), needle = el('span', 'ice-meter-needle');
   m.append(zone, fill, mark, needle);
@@ -76,7 +76,7 @@ function meter() {
 }
 
 /** The touch screens' action button ("Jump") relabelled for the mission; given back at the end */
-function touchLabel(run, text) {
+export function touchLabel(run, text) {
   const label = document.querySelector('[data-touch-label="up"]');
   const button = document.querySelector('[data-touch-action="up"]');
   if (!label) return;
@@ -89,7 +89,7 @@ function touchLabel(run, text) {
 }
 
 /** The rising edge of a held key action (keys.up: Space, E, the touch button) */
-function edge(run, cm, action = 'up') {
+export function edge(run, cm, action = 'up') {
   const on = !!cm.keys[action];
   const key = `_edge_${action}`;
   const was = !!run[key];
@@ -280,7 +280,8 @@ const skates = {
     p.speed = sk.speed;
     p.position.x += Math.sin(sk.heading) * sk.speed * dt;
     p.position.z += Math.cos(sk.heading) * sk.speed * dt;
-    if (ice.cfg.ice === 'rink') {
+    if (ice.contain) ice.contain(p, sk); // (a sheet of another mission's own: js/missions-outdoor.js, the Seehof Seeli)
+    else if (ice.cfg.ice === 'rink') {
       const l = rinkLocal(p.position.x, p.position.z);
       if (clampToRink(l, 0.45)) { sk.speed *= 0.35; const w = rinkWorld(l.x, l.y); p.position.x = w.x; p.position.z = w.z; }
     } else {
@@ -592,7 +593,7 @@ const hockey = {
     if (run.phase === 'intro') return;
     const p = cm.entities.person, cs = run.hooks.cameraSystem, cam = ctx.camera;
     const yaw = p.heading + clamp(cs.orbitYawOffset || 0, -0.6, 0.6);
-    const fx = Math.sin(yaw), fz = Math.cos(yaw), y = rinkIceY();
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), y = run.ice.surf(); // (rinkIceY, or the pond's: js/missions-outdoor.js)
     const want = { x: p.position.x - fx * 4.6 - fz * 0.5, y: y + 2.7, z: p.position.z - fz * 4.6 + fx * 0.5, lx: p.position.x + fx * 9, ly: y + 0.6, lz: p.position.z + fz * 9 };
     const c = run.iceCam || (run.iceCam = { ...want });
     const k = Math.min(1, dt * 6);

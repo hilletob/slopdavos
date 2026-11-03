@@ -1992,6 +1992,144 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
    "nr": 47
+  },
+  {
+   "id": "seilpark-faerich",
+   "status": "bestehend",
+   "name": "Seilpark im Färich",
+   "kurz": "Zu Fuss in den Bäumen: über Wackelbrücke, Balancierbalken, Pneu-Traverse und eine wilde Brücke von Plattform zu Plattform, zum Schluss die Zipline. Auf jeder Plattform beide Karabiner einhängen (vergessen: Standpauke und +8 s), mit A/D gegen das Schwanken balancieren (Sturz: komisches Baumeln im Gurt, +5 s). Medaille nach Zeit: Gold 0:46, Silber 1:05, Bronze 1:40.",
+   "saison": "sommer",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Pin beim Hüttchen des Parks (Fussweg), der Skate-Bowl-Pin steht weiter östlich im selben Park; Parkplatz Färich nebenan",
+   "ort": {
+    "name": "Adventure Park Färich (Seilpark Färich), Flüelastrasse, Davos Dorf",
+    "x": 1904,
+    "z": -1734,
+    "lv95": {
+     "E": 2784404,
+     "N": 1187234
+    }
+   },
+   "punkte": [
+    {
+     "name": "Leiter am ersten Baum",
+     "x": 1919.1,
+     "z": -1734.9,
+     "lv95": {
+      "E": 2784419,
+      "N": 1187235
+     }
+    },
+    {
+     "name": "Plattform 2",
+     "x": 1918,
+     "z": -1721,
+     "lv95": {
+      "E": 2784418,
+      "N": 1187221
+     }
+    },
+    {
+     "name": "Plattform 3",
+     "x": 1932,
+     "z": -1712,
+     "lv95": {
+      "E": 2784432,
+      "N": 1187212
+     }
+    },
+    {
+     "name": "Plattform 4",
+     "x": 1946,
+     "z": -1715,
+     "lv95": {
+      "E": 2784446,
+      "N": 1187215
+     }
+    },
+    {
+     "name": "Plattform 5, Zipline-Start",
+     "x": 1959,
+     "z": -1712,
+     "lv95": {
+      "E": 2784459,
+      "N": 1187212
+     }
+    },
+    {
+     "name": "Zipline-Landung",
+     "x": 1992,
+     "z": -1706,
+     "lv95": {
+      "E": 2784492,
+      "N": 1187206
+     }
+    }
+   ],
+   "quelle": "OSM w1386979568 (landuse=recreation_ground, alt_name Seilpark Färich), graubuenden.ch 46.810671 / 9.85356; Bäume swissTLM3D (js/tlm-trees-data.js)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Name und Umriss aus OSM (w1386979568). Die Koordinate von graubuenden.ch liegt rund 105 m westlich davon an der Flüelastrasse, also derselbe Ort, aber nicht derselbe Punkt. Der Park liegt am Eingang des Flüelatals bei Davos Dorf, nicht bei Davos Platz. Die Hausnummer ist in den Quellen uneinheitlich (Flüelastrasse 26 / 27). Der echte Parcours ist nicht kartiert: Plattformen stehen auf echten TLM-Baumstandorten, Abfolge, Höhen und Hindernisse sind erfunden.",
+   "nr": 48
+  },
+  {
+   "id": "seehofseeli-hockey",
+   "status": "bestehend",
+   "name": "Hockey auf dem Seehofseeli",
+   "kurz": "Abends Pond-Hockey auf dem zugefrorenen Seeli: 3 gegen 3 gegen Einheimische, Schuhe und Jacken als Torpfosten, ohne Torhüter, wer zuerst 5 Tore hat oder 3 Minuten (bei Gleichstand entscheidet das nächste Tor). Medaille nach Tor-Vorsprung: Gold 3, Silber 2, Bronze 1.",
+   "saison": "winter",
+   "fahrzeug": "Schlittschuhe",
+   "anreise": "Pin am Westufer, Start auf dem Eis",
+   "ort": {
+    "name": "Seehof Seeli, Davos Dorf",
+    "x": 712,
+    "z": -1419,
+    "lv95": {
+     "E": 2783212,
+     "N": 1186919
+    }
+   },
+   "punkte": [
+    {
+     "name": "Mittelpunkt (Bully)",
+     "x": 727,
+     "z": -1419,
+     "lv95": {
+      "E": 2783227,
+      "N": 1186919
+     }
+    },
+    {
+     "name": "Tor West",
+     "x": 705,
+     "z": -1419,
+     "lv95": {
+      "E": 2783205,
+      "N": 1186919
+     }
+    },
+    {
+     "name": "Tor Ost",
+     "x": 749,
+     "z": -1419,
+     "lv95": {
+      "E": 2783249,
+      "N": 1186919
+     }
+    },
+    {
+     "name": "Hotel Seehof, Promenade 159",
+     "x": 707.1,
+     "z": -1505.6,
+     "lv95": {
+      "E": 2783207,
+      "N": 1187006
+     }
+    }
+   ],
+   "quelle": "OSM w37389726 (natural=water, name Seehof Seeli), DAVOS_DATA.water; OSM w117012182 (Hotel Seehof)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Der Umriss des Seelis ist aus OSM. Dass dort tatsächlich Hockey gespielt wird oder das Eis trägt, ist nicht belegt; Spielfeldlage, Tore, Schneewälle und Zuschauer sind erfunden.",
+   "nr": 49
   }
  ]
 }
