@@ -28,6 +28,18 @@ const pairs = [
   ['Enable sound', 'Ton einschalten'], ['Clean view: hide the HUD [H]', 'Freie Sicht: HUD ausblenden [H]'],
   ['Enable sound [N]', 'Ton einschalten [N]'], ['Show the HUD [H]', 'HUD einblenden [H]'],
   ['Web Audio is unavailable', 'Web Audio ist nicht verfügbar'],
+  // The end panels and the steps the audit under the game clock found still in English (tools/mission-smoke.mjs --lang de)
+  ['Mission failed', 'Mission gescheitert'], ['Mission aborted', 'Mission abgebrochen'],
+  ['Teleport: the mission was aborted.', 'Teleport: Die Mission wurde abgebrochen.'],
+  ['Go into the Bar La Onda', 'Geh in die Bar La Onda'], ['Go to the Jakobshornbahn', 'Geh zur Jakobshornbahn'],
+  ['Down the Chüggelibahn', 'Die Chüggelibahn hinunter'], ['Bolgen Trail to the finish', 'Bolgen Trail bis ins Ziel'],
+  ['Down from the Jatzmeder', 'Vom Jatzmeder hinunter'], ['The hairpins in the forest', 'Die Haarnadelkurven im Wald'], ['Down to the finish', 'Hinunter ins Ziel'],
+  ['Go into the Bäckerei Weber', 'Geh in die Bäckerei Weber'], ['Go into Gourmet Käch', 'Geh zu Gourmet Käch'],
+  ['Walk to the Eichhörnliplatz', 'Geh zum Eichhörnliplatz'], ['Go into the Sporthalle Färbi', 'Geh in die Sporthalle Färbi'],
+  ['Up the slide tower', 'Auf den Rutschbahnturm'], ['Go to the easel at the Kirchner Museum', 'Geh zur Staffelei beim Kirchner Museum'],
+  ['Go to the adit of the Silberberg', 'Geh zum Stollen am Silberberg'], ['Go into The Green Wildman', 'Geh in The Green Wildman'],
+  ['No shot fired', 'Kein Schuss abgegeben'], ['An empty basket', 'Ein leerer Korb'], ['no cast finished', 'kein Gips fertig'],
+  ['The lamp went out.', 'Die Lampe ging aus.'],
   ['Hide HUD', 'HUD ausblenden'], ['Show HUD', 'HUD einblenden'],
   ['Data & credits', 'Daten & Quellen'], ['Close', 'Schliessen'],
   ['Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.', 'Slop Davos basiert auf offenen Behördendaten und OpenStreetMap. Es ist ein inoffizielles Projekt ohne Verbindung zu swisstopo oder der Gemeinde Davos.'],
@@ -1096,6 +1108,51 @@ function translate(value) {
   dynamic = dynamic.replace(/ · your serve$/, ' · dein Aufschlag').replace(/ · coach serves$/, ' · Trainer schlägt auf');
   dynamic = dynamic.replace(/ · this turn (\d+)$/, ' · in dieser Runde $1');
   dynamic = dynamic.replace(/ · streak (\d+)/g, ' · Serie $1');
+  // The end panels' summaries and scores (the missions' summary(): each template's words, the numbers as they come)
+  const plural = (n, one, many) => (n === '1' ? one : many);
+  const medalDe = (m) => enToDe.get(m) || m;
+  dynamic = dynamic.replace(/^Mode switch \((.+)\): the mission was aborted\.$/, 'Moduswechsel ($1): Die Mission wurde abgebrochen.');
+  dynamic = dynamic.replace(/^(?:first completion \+(\d+))?(?: · )?(?:(Gold|Silver|Bronze) \+(\d+))?$/, (whole, first, medal, n) => (whole ? [first && `erster Abschluss +${first}`, medal && `${medalDe(medal)} +${n}`].filter(Boolean).join(' · ') : whole));
+  const unitDe = { goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', points: 'Punkte', 'WC pts': 'Weltcup-Punkte' };
+  dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${unitDe[unit]}`);
+  dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
+  dynamic = dynamic.replace(/^(\d+) (?:shot|shots) · (\d+) (?:hit|hits) · (\d+) missed$/, (_, a, b, c) => `${a} ${plural(a, 'Schuss', 'Schüsse')} · ${b} Treffer · ${c} daneben`);
+  dynamic = dynamic.replace(/^(\d+) of (\d+) gates clean · (\d+) missed( \(\+[\d.]+ s\))?$/, '$1 von $2 Toren sauber · $3 verpasst$4');
+  dynamic = dynamic.replace(/^(\d+) (?:crash|crashes)( \(\+[\d.]+ s\))?$/, (_, n, s) => `${n} ${plural(n, 'Sturz', 'Stürze')}${s || ''}`);
+  dynamic = dynamic.replace(/^(\d+) (?:crash|crashes)( \(\+[\d.]+ s\))? · (\d+) (?:net|nets) touched · top speed (\d+) km\/h$/, (_, n, s, nets, v) => `${n} ${plural(n, 'Sturz', 'Stürze')}${s || ''} · ${nets} ${plural(nets, 'Netz', 'Netze')} berührt · Höchsttempo ${v} km/h`);
+  dynamic = dynamic.replace(/\bLap (\d+): /g, 'Runde $1: ');
+  dynamic = dynamic.replace(/^(?:(.+) · top|Top) speed ([\d.]+) km\/h · (\d+) power strokes of (\d+)(?: · (\d+) stumbles)?$/, (_, label, v, a, b, c) => `${label ? `${label} · ` : ''}Höchsttempo ${v} km/h · ${a} Kraftschritte von ${b}${c ? ` · ${c} Stolperer` : ''}`);
+  dynamic = dynamic.replace(/^(\d+) of (\d+) scored:/, '$1 von $2 getroffen:');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) stones in the house · (\d+) points$/, '$1 von $2 Steinen im Haus · $3 Punkte');
+  dynamic = dynamic.replace(/^(\d+) strokes, par (\d+): (.+)$/, '$1 Schläge, Par $2: $3');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) bars served$/, '$1 von $2 Bars beliefert');
+  dynamic = dynamic.replace(/^(\d+) squirrels fed · best streak (\d+) · (\d+) scared away$/, '$1 Eichhörnchen gefüttert · beste Serie $2 · $3 verscheucht');
+  dynamic = dynamic.replace(/^(\d+) plates · (\d+) just right · (\d+) burnt · (\d+) guests left hungry$/, '$1 Teller · $2 genau richtig · $3 verbrannt · $4 Gäste hungrig gegangen');
+  dynamic = dynamic.replace(/^Tiebreak (\d+) : (\d+) · (\d+) aces · (\d+) winners$/, 'Tiebreak $1 : $2 · $3 Asse · $4 Winner');
+  dynamic = dynamic.replace(/^Top speed (\d+) km\/h · on the wall ([\d.]+) s · jolts ([\d.]+) s$/, 'Höchsttempo $1 km/h · an der Wand $2 s · Schläge $3 s');
+  dynamic = dynamic.replace(/^Likeness (\d+) % · colour (\d+) % · contours (\d+) %$/, 'Ähnlichkeit $1 % · Farbe $2 % · Konturen $3 %');
+  dynamic = dynamic.replace(/^(\d+) shovels thrown onto the heaps · (\d+) % of the path cleared$/, '$1 Schaufeln auf die Haufen geworfen · $2 % des Wegs geräumt');
+  dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${plural(n, 'parkiertes Auto', 'parkierte Autos')} getroffen (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
+  dynamic = dynamic.replace(/^(\d+) bed patch(?:es)? trodden \(\+([\d.]+) s\)$/, (_, n, a) => `${n} ${plural(n, 'Beet', 'Beete')} zertrampelt (+${a} s)`);
+  dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
+  dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
+  dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
+  dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
+  dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
+  dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
+  dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
+  dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
+  dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');
+  dynamic = dynamic.replace(/^(.+) · doors (\d+) s → (-?\d+) pts$/, '$1 · Türen $2 s → $3 Pkt.');
+  dynamic = dynamic.replace(/^Over the limit (\d+) s \(up to \+(\d+) km\/h\): −(\d+) pts$/, 'Über dem Limit $1 s (bis +$2 km/h): −$3 Pkt.');
+  dynamic = dynamic.replace(/^(\d+) tricks( · best: )?/, (_, n, best) => `${n} Tricks${best ? ' · beste: ' : ''}`);
+  dynamic = dynamic.replace(/^(\d+) airs · (\d+) grinds · (\d+) bails?$/, (_, a, b, c) => `${a} Airs · ${b} Grinds · ${c} ${plural(c, 'Sturz', 'Stürze')}`);
+  dynamic = dynamic.replace(/^301 checked out in (\d+) darts · best turn (\d+) · (\d+) busts?$/, (_, a, b, c) => `301 ausgecheckt in ${a} Pfeilen · beste Runde ${b} · ${c}× überworfen`);
+  dynamic = dynamic.replace(/(^| · )bust(?= · |$)/g, '$1überworfen');
+  dynamic = dynamic.replace(/ — (\d+) strokes \(par (\d+), ([+-]?\d+)\)$/, ' — $1 Schläge (Par $2, $3)');
+  dynamic = dynamic.replace(/^(\d+) (?:falls?) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${plural(a, 'Sturz', 'Stürze')} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'volle Fahrt in die Matratze'}`);
+  dynamic = dynamic.replace(/^(Won|Drawn|Lost) (\d+) : (\d+) · your goals: (\d+)$/, (_, r, a, b, c) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[r]} ${a} : ${b} · deine Tore: ${c}`);
+  dynamic = dynamic.replace(/^Jump (\d+): (.+) · (.+) landing · (-?\d+) pts$/, 'Sprung $1: $2 · Landung $3 · $4 Pkt.');
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
   const seasonDe = (season) => (season === 'Summer' ? 'Sommer' : 'Winter');
   dynamic = dynamic.replace(/^Day (\d+) · (Summer|Winter)( · \d\d:\d\d)?$/, (_, n, season, time) => `Tag ${n} · ${seasonDe(season)}${time || ''}`);
