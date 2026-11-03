@@ -272,6 +272,13 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(g * 0.6, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.6); ctx.closePath(); ctx.fill();
       break;
     }
+    case 'ropes': { // a platform on its post and the cable going off it (js/missions-data-outdoor.js)
+      ctx.lineWidth = g * 0.17;
+      ctx.beginPath(); ctx.moveTo(-g * 0.6, -g * 0.95); ctx.lineTo(-g * 0.6, g * 0.95); ctx.moveTo(-g * 0.95, g * 0.15); ctx.lineTo(-g * 0.25, g * 0.15); ctx.stroke();
+      ctx.lineWidth = g * 0.11;
+      ctx.beginPath(); ctx.moveTo(-g * 0.6, -g * 0.6); ctx.lineTo(g * 0.95, -g * 0.15); ctx.moveTo(-g * 0.25, g * 0.15); ctx.quadraticCurveTo(g * 0.35, g * 0.6, g * 0.95, g * 0.3); ctx.stroke();
+      break;
+    }
     case 'tbar': { // a T-bar hanging from the rope (js/missions-data-resort.js)
       ctx.lineWidth = g * 0.15;
       ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.7); ctx.lineTo(g * 0.95, -g * 0.4); ctx.stroke();

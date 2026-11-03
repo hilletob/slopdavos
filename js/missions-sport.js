@@ -221,7 +221,7 @@ function poseCrowd(c, dt, ground, cheer = 0) {
 // (arms up and waving: the upper arms' bones lifted round their shoulder)
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _va = new THREE.Vector3(), _vb = new THREE.Vector3();
 const AXX = new THREE.Vector3(1, 0, 0), AXY = new THREE.Vector3(0, 1, 0), AXZ = new THREE.Vector3(0, 0, 1);
-function cheerArms(rig, ph, amount) {
+export function cheerArms(rig, ph, amount) {
   const a = rig.pose;
   for (const [b, side] of [[3, 1], [5, -1]]) {
     const o = b * 8;
