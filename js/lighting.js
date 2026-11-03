@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { groundHeight } from './terrain.js';
+import { groundHeight, tunnelFloor } from './terrain.js';
 
 // The presets' haze was tuned for New York's harbour air; over the Swiss plateau the Alps stand out 50-80 km away on a
 // clear day, so the aerial haze (which thins with altitude, see createAerialFogNode) is much lighter.
@@ -20,7 +20,8 @@ import {
   max,
   exp,
   abs,
-  select
+  select,
+  smoothstep
 } from 'three/tsl';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { SunLight } from 'three/addons/lights/SunLight.js';
@@ -67,6 +68,15 @@ function stabiliseShadowPassMaterial(scene) {
 // visibly moved on, and not more often than this. The fog samples it too.
 const MIN_BAKE_MS = 8000;
 const BAKE_SUN_COS = Math.cos(4 * Math.PI / 180);
+// Where the sky's radiance leaves off rising in a straight line, and where it ends
+const SKY_KNEE = 1.0, SKY_TOP = 2.4;
+const GLINT_FULL = 2.5; // the direct light at which glints reach full strength
+// In a bore (the camera under the mountain) neither sun nor sky reach anyone: the fill light takes the lamps' colour (the
+// lining itself is lit by its own shader, js/tunnels.js), or the cars are black silhouettes against it at night. Metres of
+// mountain above the floor that make it a bore, not an open cut; how fast the light changes, per second.
+const BORE_COVER = 6, BORE_RATE = 2.5;
+const BORE_SKY = new THREE.Color().setRGB(1.0, 0.62, 0.3), BORE_GROUND = new THREE.Color().setRGB(0.6, 0.38, 0.2);
+const BORE_FILL = 2.2, BORE_ENV = 0.08;
 
 class LightingSystem {
   constructor(scene, renderer = null) {
@@ -105,12 +115,18 @@ class LightingSystem {
     // Calibrate SkyMesh raw radiance (EE=1000 * 0.04) into standard exposure=1.0 HDR range
     this.uSkyExposure = uniform(0.148);
     this.uNightFactor = uniform(0.0);
+    this.uTwilightBlue = uniform(0.0);
     this.uNightSkyColor = uniform(new THREE.Color(0x0b1528));
     const rawSkyNode = this.sky.material.colorNode;
     this.sky.material.colorNode = Fn(() => {
       const raw = rawSkyNode;
-      const dayCol = raw.rgb.mul(this.uSkyExposure);
-      const finalSky = mix(dayCol, this.uNightSkyColor, this.uNightFactor);
+      const up = normalize(positionWorld.sub(cameraPosition)).y;
+      const dayCol = raw.rgb.mul(this.uSkyExposure).add(vec3(0.01, 0.028, 0.10).mul(this.uTwilightBlue).mul(smoothstep(0.02, 0.4, up))).toVar();
+      // The sky round the sun and the disc, without limit in the model, end in a soft shoulder (scaled together, so that
+      // they keep their colour): a bright glow and a small bloom, not a white wall over half the view
+      const peak = max(max(dayCol.r, dayCol.g), dayCol.b).toVar();
+      const limited = float(SKY_KNEE).add(float(SKY_TOP - SKY_KNEE).mul(float(1).sub(exp(peak.sub(SKY_KNEE).div(SKY_TOP - SKY_KNEE).negate())))).div(peak);
+      const finalSky = mix(dayCol.mul(select(peak.greaterThan(SKY_KNEE), limited, float(1))), this.uNightSkyColor, this.uNightFactor);
       return vec4(finalSky, float(1.0));
     })();
 
@@ -157,6 +173,14 @@ class LightingSystem {
     this.hemiLight.position.set(0, 300, 0);
     this.scene.add(this.hemiLight);
 
+    this.sunDisc = 1;
+    this.bore = 0; // 0 outside .. 1 in a bore
+    this.boreAt = 0;
+    this.hemiSky = new THREE.Color();
+    this.hemiGround = new THREE.Color();
+    this.direct = 0;
+    this.fill = 0;
+    this.env = 0;
     this.sample = createSample();
     this.baked = { at: -Infinity, x: 0, y: 0, z: 0, night: -1, exposure: -1, turbidity: -1, w: -1 };
     this.bakes = 0;
@@ -199,7 +223,7 @@ class LightingSystem {
       renderTarget: this.envRenderTarget
     });
     this.scene.environment = this.envRenderTarget.texture;
-    this.sky.showSunDisc.value = this.sunDiscOn === false ? 0 : 1;
+    this.sky.showSunDisc.value = this.sunDisc;
     this.scene.add(this.sky);
   }
 
@@ -217,14 +241,16 @@ class LightingSystem {
   applySample(s, w, bake = false) {
     this.activePresetId = s.presetId;
 
-    this.sunLight.color.setRGB(s.sunColorR, s.sunColorG, s.sunColorB, THREE.SRGBColorSpace);
-    this.sunLight.intensity = s.sunIntensity;
+    this.sunLight.color.setRGB(s.lightColorR, s.lightColorG, s.lightColorB, THREE.SRGBColorSpace);
+    this.direct = s.sunIntensity;
     this.sunLight.position.set(s.sunDirX, s.sunDirY, s.sunDirZ);
     this.sunLight.updateMatrixWorld();
 
-    this.hemiLight.color.setRGB(s.hemiSkyR, s.hemiSkyG, s.hemiSkyB, THREE.SRGBColorSpace);
-    this.hemiLight.groundColor.setRGB(s.hemiGroundR, s.hemiGroundG, s.hemiGroundB, THREE.SRGBColorSpace);
-    this.hemiLight.intensity = s.hemiIntensity;
+    this.hemiSky.setRGB(s.hemiSkyR, s.hemiSkyG, s.hemiSkyB, THREE.SRGBColorSpace);
+    this.hemiGround.setRGB(s.hemiGroundR, s.hemiGroundG, s.hemiGroundB, THREE.SRGBColorSpace);
+    this.fill = s.hemiIntensity;
+    this.env = s.envIntensity;
+    this.applyBore();
 
     this.scene.fog.color.setRGB(s.fogColorR, s.fogColorG, s.fogColorB, THREE.SRGBColorSpace);
     this.scene.fog.density = s.fogDensity;
@@ -235,31 +261,32 @@ class LightingSystem {
     const sky = this.sky;
     sky.turbidity.value = s.turbidity + (s.wTurbidity - s.turbidity) * w;
     sky.rayleigh.value = s.rayleigh + (s.wRayleigh - s.rayleigh) * w;
-    sky.mieCoefficient.value = s.mieCoefficient + (s.wMieCoefficient - s.mieCoefficient) * w;
+    sky.mieCoefficient.value = (s.mieCoefficient + (s.wMieCoefficient - s.mieCoefficient) * w) * s.skyMie;
     sky.cloudCoverage.value = s.cloudCoverage + (s.wCloudCoverage - s.cloudCoverage) * w;
     sky.mieDirectionalG.value = s.mieDirectionalG;
     sky.cloudDensity.value = s.cloudDensity;
     sky.sunPosition.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
-    this.sunDiscOn = s.showSunDisc; // (once the sun is down its disc doesn't stay in the sky model's lifted place)
-    sky.showSunDisc.value = s.showSunDisc ? 1 : 0;
+    this.sunDisc = s.sunDisc;
+    sky.showSunDisc.value = s.sunDisc;
     this.uSkyExposure.value = s.skyExposure;
     this.uNightFactor.value = s.nightFactor;
+    this.uTwilightBlue.value = s.twilightBlue;
 
-    cityUniforms.uSunColor.value.setRGB(s.sunColorR, s.sunColorG, s.sunColorB, THREE.SRGBColorSpace);
+    // (the glints on glass and paint: as strong as the light they mirror, none in the gap between sun and moon)
+    cityUniforms.uSunColor.value.setRGB(s.lightColorR, s.lightColorG, s.lightColorB, THREE.SRGBColorSpace).multiplyScalar(Math.min(1, s.sunIntensity / GLINT_FULL));
     cityUniforms.uSkyTopColor.value.setRGB(s.skyTopR, s.skyTopG, s.skyTopB, THREE.SRGBColorSpace);
     cityUniforms.uSkyHorizonColor.value.setRGB(s.skyHorizonR, s.skyHorizonG, s.skyHorizonB, THREE.SRGBColorSpace);
-    cityUniforms.uSkySunDir.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
+    cityUniforms.uSkySunDir.value.set(s.sunDirX, s.sunDirY, s.sunDirZ); // (glints on glass and paint: the light that is there)
     cityUniforms.uInteriorGlow.value = s.interiorGlow;
     cityUniforms.uRoadWetness.value = s.roadWetness;
     if (cityUniforms.uCanyonBounce) cityUniforms.uCanyonBounce.value = s.canyonBounce;
-    this.scene.environmentIntensity = s.envIntensity;
 
     const b = this.baked;
     const now = performance.now();
     const moved = now - b.at >= MIN_BAKE_MS && (
       s.skyDirX * b.x + s.skyDirY * b.y + s.skyDirZ * b.z < BAKE_SUN_COS
       || Math.abs(s.nightFactor - b.night) > 0.02
-      || Math.abs(s.skyExposure - b.exposure) > 0.005
+      || Math.abs(s.skyExposure - b.exposure) > 0.1 * b.exposure
       || Math.abs(sky.turbidity.value - b.turbidity) > 0.4
       || Math.abs(w - b.w) > 0.05);
     if (bake || moved) {
@@ -270,7 +297,29 @@ class LightingSystem {
     }
   }
 
+  /** The direct light, the fill and the environment, by the day's values and how far the camera is into a bore */
+  applyBore() {
+    const k = this.bore;
+    this.sunLight.intensity = this.direct * (1 - k);
+    this.hemiLight.color.copy(this.hemiSky).lerp(BORE_SKY, k);
+    this.hemiLight.groundColor.copy(this.hemiGround).lerp(BORE_GROUND, k);
+    this.hemiLight.intensity = this.fill + (BORE_FILL - this.fill) * k;
+    this.scene.environmentIntensity = this.env + (BORE_ENV - this.env) * k;
+  }
+
+  updateBore(p) {
+    const now = performance.now(), dt = Math.min(0.1, (now - this.boreAt) / 1000);
+    this.boreAt = now;
+    const floor = tunnelFloor(p.x, p.z, p.y - 2);
+    const inside = Number.isFinite(floor) && groundHeight(p.x, p.z) - floor > BORE_COVER ? 1 : 0;
+    if (inside === this.bore) return;
+    const step = BORE_RATE * dt;
+    this.bore = Math.abs(inside - this.bore) <= step ? inside : this.bore + Math.sign(inside - this.bore) * step;
+    this.applyBore();
+  }
+
   update(focusPos) {
+    if (focusPos) this.updateBore(focusPos);
     // SunLightShadow automatically fits & texel-snaps its 2 cascades to the view camera frustum
     // every frame inside SunShadowNode.renderShadow(), splitting [near, far] halfway between a uniform and a
     // logarithmic split (the near cascade ends at ~far / 4). Shadows only where they read: 200 m at street level (the

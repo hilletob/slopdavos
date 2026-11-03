@@ -14,43 +14,43 @@ export const TIME_PRESETS = {
     id: 'golden', name: 'Golden Hour · 17:45',
     // Crisp canyon sun slicing across the streets so buildings, cars, trees & pedestrians cast sharp shadows
     sunColor: 0xffca92, sunIntensity: 5.8,
-    hemiSky: 0x9abbe6, hemiGround: 0xc88a62, hemiIntensity: 1.48, // (warm terracotta / limestone bounce)
+    hemiSky: 0x9abbe6, hemiGround: 0xb89a7a, hemiIntensity: 1.35, // (warm terracotta / limestone bounce)
     skyTop: 0x2c568c, skyHorizon: 0xebd1b5, fogColor: 0xdcc5ae, fogDensity: 0.00024,
-    interiorGlow: 0.48, roadWetness: 0.28, envIntensity: 0.54, canyonBounce: 0.52,
+    interiorGlow: 0.48, roadWetness: 0.28, envIntensity: 0.35, canyonBounce: 0.52,
     turbidity: 8.0, rayleigh: 2.8, mieCoefficient: 0.008, mieDirectionalG: 0.88, cloudCoverage: 0.36, cloudDensity: 0.38,
-    skyExposure: 0.148, nightFactor: 0.0,
+    skyExposure: 0.50, nightFactor: 0.0,
     exposure: 1.04, contrast: 1.12, saturation: 1.08, balanceR: 1.045, balanceG: 1.00, balanceB: 0.955, bloom: 0.24, threshold: 1.20,
-    wHaze: 0.40, wTurbidity: 2.6, wRayleigh: 2.2, wMieCoefficient: 0.0030, wCloudCoverage: 0.24,
+    wHaze: 0.40, wTurbidity: 2.6, wRayleigh: 2.8, wMieCoefficient: 0.0060, wCloudCoverage: 0.24,
     wExposure: 0.84, wContrast: 1.05, wSaturation: 1.00, wBloomGate: 0.50
   },
   midday: {
     id: 'midday', name: 'Sunny Midday · 13:30',
-    sunColor: 0xfff5e8, sunIntensity: 6.6,
-    hemiSky: 0xaad2ff, hemiGround: 0xb89678, hemiIntensity: 1.58, // (warm sunlit masonry & pavement bounce)
+    sunColor: 0xfff5e8, sunIntensity: 4.6,
+    hemiSky: 0xaad2ff, hemiGround: 0xb89678, hemiIntensity: 1.4, // (warm sunlit masonry & pavement bounce)
     skyTop: 0x225ea8, skyHorizon: 0xc8dff5, fogColor: 0xc6dcf2, fogDensity: 0.00018,
-    interiorGlow: 0.24, roadWetness: 0.08, envIntensity: 0.58, canyonBounce: 0.58,
+    interiorGlow: 0.24, roadWetness: 0.08, envIntensity: 0.30, canyonBounce: 0.58,
     turbidity: 6.5, rayleigh: 2.4, mieCoefficient: 0.006, mieDirectionalG: 0.86, cloudCoverage: 0.32, cloudDensity: 0.35,
-    skyExposure: 0.142, nightFactor: 0.0,
+    skyExposure: 0.30, nightFactor: 0.0,
     exposure: 1.00, contrast: 1.10, saturation: 1.06, balanceR: 1.015, balanceG: 1.00, balanceB: 0.985, bloom: 0.18, threshold: 1.35,
     wHaze: 0.35, wTurbidity: 2.2, wRayleigh: 1.9, wMieCoefficient: 0.0025, wCloudCoverage: 0.20,
     wExposure: 0.80, wContrast: 1.06, wSaturation: 0.98, wBloomGate: 0.45
   },
   twilight: {
     id: 'twilight', name: 'Blue Hour · 19:15',
-    sunColor: 0xff9466, sunIntensity: 3.1,
-    hemiSky: 0x4c6ca8, hemiGround: 0x6e5048, hemiIntensity: 0.85,
+    sunColor: 0xffa878, sunIntensity: 3.1,
+    hemiSky: 0x4c6ca8, hemiGround: 0x5e5450, hemiIntensity: 1.5,
     skyTop: 0x102248, skyHorizon: 0xb86b6c, fogColor: 0x353c58, fogDensity: 0.00032,
-    interiorGlow: 1.25, roadWetness: 0.55, envIntensity: 0.36, canyonBounce: 0.32,
+    interiorGlow: 1.25, roadWetness: 0.55, envIntensity: 0.50, canyonBounce: 0.32,
     turbidity: 9.5, rayleigh: 3.4, mieCoefficient: 0.010, mieDirectionalG: 0.90, cloudCoverage: 0.40, cloudDensity: 0.42,
-    skyExposure: 0.115, nightFactor: 0.28,
+    skyExposure: 0.45, nightFactor: 0.28,
     exposure: 1.06, contrast: 1.10, saturation: 1.08, balanceR: 1.025, balanceG: 0.995, balanceB: 1.015, bloom: 0.28, threshold: 1.05,
-    wHaze: 0.75, wTurbidity: 6.5, wRayleigh: 3.0, wMieCoefficient: 0.0080, wCloudCoverage: 0.36,
+    wHaze: 0.75, wTurbidity: 6.5, wRayleigh: 3.4, wMieCoefficient: 0.0080, wCloudCoverage: 0.36,
     wExposure: 0.96, wContrast: 1.02, wSaturation: 1.00, wBloomGate: 0.85
   },
   midnight: {
     id: 'midnight', name: 'Night · 23:00',
     sunColor: 0x8cb0e8, sunIntensity: 1.45, // (the moon)
-    hemiSky: 0x263a62, hemiGround: 0x382e36, hemiIntensity: 0.72,
+    hemiSky: 0x263a62, hemiGround: 0x382e36, hemiIntensity: 0.82,
     skyTop: 0x060c1a, skyHorizon: 0x182640, fogColor: 0x0c1424, fogDensity: 0.00036,
     interiorGlow: 1.55, roadWetness: 0.62, envIntensity: 0.30, canyonBounce: 0.18,
     turbidity: 4.0, rayleigh: 1.5, mieCoefficient: 0.004, mieDirectionalG: 0.80, cloudCoverage: 0.22, cloudDensity: 0.25,
@@ -102,11 +102,28 @@ const table = (rows, h) => {
 // The window light and street lamps (uInteriorGlow; the lamps' smoothstep(0.4, 1.1) is halfway at 0.75) switch at civil
 // dusk and dawn, whichever hour that is in the season: -6 deg is halfway through the change
 const GLOW = [[-12, 1.55], [-7.4, 1.25], [-5.4, 0.55], [8, 0.48], [30, 0.24]];
-// The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens
-// (a low sun meets the walls head on, which the presets' high sun never did: it only reaches their full strength high up)
-const SUN_LIGHT = [[0, 0], [2, 2.6], [8, 4.6], [25, 4.8], [45, 5.6], [60, 6.6]];
+// The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens. A low sun meets
+// the walls head on, and a high one the ground: what matters is the larger of intensity * cos(height) and * sin(height),
+// so that the light walls keep their shade at 09:00 as the plazas do at noon.
+const SUN_LIGHT = [[0, 0], [2, 1.6], [8, 2.5], [15, 2.6], [30, 2.6], [45, 3.2], [60, 4.6]];
 const MOON_LIGHT = [[-12, 1.15], [-6, 0.8], [-1, 0]];
-const MIN_LIGHT_SIN = Math.sin((3 * Math.PI) / 180), MIN_MOON_SIN = Math.sin((15 * Math.PI) / 180), MIN_SKY_SIN = Math.sin((14 * Math.PI) / 180);
+const MOON_COLOUR = TIME_PRESETS.midnight.sunColor; // (whatever the sky does at dusk: an orange moon turned the walls pink)
+const MOON_R = ((MOON_COLOUR >> 16) & 255) / 255, MOON_G = ((MOON_COLOUR >> 8) & 255) / 255, MOON_B = (MOON_COLOUR & 255) / 255;
+const MIN_LIGHT_SIN = Math.sin((3 * Math.PI) / 180), MIN_MOON_SIN = Math.sin((15 * Math.PI) / 180);
+
+// The sky model (Preetham) at a sun of height h: its zenith is ten times darker at 14 deg than at 65, and 150 times at 1 deg,
+// while the glow round its sun grows as the square of what lies in front of it. So its exposure rises as the sun sinks, to
+// keep a blue sky at any height (the anchors' values at their heights), and its Mie term (the glow) falls, down to none
+// once the sun has gone: a night sky has no sun in it. Under the horizon the model has nothing left to work with, so its
+// sun waits at SKY_MIN_SIN, on its true bearing, and the exposure and the night factor do the darkening.
+const SKY_EXPOSURE = [[-12, 0.022], [-9, 0.06], [-6, 0.2], [-3, 0.45], [1, 0.9], [3, 0.7], [5, 0.6], [8, 0.5], [14, 0.42], [22, 0.35], [30, 0.30], [45, 0.21], [65, 0.142]];
+const SKY_MIE = [[-6, 0], [-1, 0.12], [3, 0.25], [14, 0.3], [30, 0.55], [50, 1]];
+const SKY_MIN_SIN = Math.sin(Math.PI / 180);
+// The environment map is that sky, so the light it gives must not rise with its exposure (the anchors' values at their heights)
+const ENV_LIGHT = [[-12, 0.30], [-3, 0.50], [8, 0.35], [14, 0.32], [30, 0.30], [45, 0.42], [65, 0.58]];
+// Round sunset the model's sky turns green, between its orange horizon and a blue it can no longer make: what it leaves out
+// is the blue of the ozone, seen when the sun is low (added above the horizon, js/lighting.js)
+const TWILIGHT_BLUE = [[-12, 0], [-6, 0.6], [0, 1], [8, 0.6], [20, 0]];
 
 // Raises a unit vector to at least the height whose sine is `minSin`, keeping its compass direction
 function lift(v, minSin) {
@@ -118,7 +135,7 @@ const _sun = { x: 0, y: 1, z: 0 };
 
 /** A sample's object, to be reused (nothing is allocated per call) */
 export function createSample() {
-  const s = { minute: 0, height: 0, showSunDisc: true, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0, skyDirX: 0, skyDirY: 1, skyDirZ: 0 };
+  const s = { minute: 0, height: 0, sunDisc: 1, skyMie: 1, lightColorR: 1, lightColorG: 1, lightColorB: 1, twilightBlue: 0, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0, skyDirX: 0, skyDirY: 1, skyDirZ: 0 };
   for (const k of NUMBERS) s[k] = 0;
   for (const names of COLOUR_NAMES) for (const n of names) s[n] = 0;
   return s;
@@ -148,25 +165,32 @@ export function sampleDay(minute, w = 0, out = createSample()) {
   }
   out.interiorGlow = table(GLOW, h);
 
-  // The sky model goes black as its sun nears the horizon, long before a real sky does: it keeps the sun at 14 deg or more,
-  // on its true bearing, and the anchors' sky exposure and night factor do the darkening
+  out.skyExposure = table(SKY_EXPOSURE, h);
+  out.skyMie = table(SKY_MIE, h);
+  out.envIntensity = table(ENV_LIGHT, h);
+  out.twilightBlue = table(TWILIGHT_BLUE, h);
+
   sunVector(minute, w, _sun);
   const sx = _sun.x, sy = _sun.y, sz = _sun.z;
-  lift(_sun, MIN_SKY_SIN);
+  lift(_sun, SKY_MIN_SIN);
   out.skyDirX = _sun.x; out.skyDirY = _sun.y; out.skyDirZ = _sun.z;
   // One light: the sun, or from where they are both out the (full) moon, opposite it
   if (h > -0.5) {
     _sun.x = sx; _sun.y = sy; _sun.z = sz;
     lift(_sun, MIN_LIGHT_SIN);
     out.sunIntensity = table(SUN_LIGHT, h);
+    out.lightColorR = out.sunColorR; out.lightColorG = out.sunColorG; out.lightColorB = out.sunColorB;
   } else {
     _sun.x = -sx; _sun.y = -sy; _sun.z = -sz;
     lift(_sun, MIN_MOON_SIN);
     out.sunIntensity = table(MOON_LIGHT, h);
+    out.lightColorR = MOON_R; out.lightColorG = MOON_G; out.lightColorB = MOON_B;
   }
   out.sunDirX = _sun.x; out.sunDirY = _sun.y; out.sunDirZ = _sun.z;
 
-  out.showSunDisc = h > 2;
+  // (the disc goes as it reaches the horizon, and sits there at the sky model's lowest sun)
+  const disc = Math.max(0, Math.min(1, h / 2));
+  out.sunDisc = disc * disc * (3 - 2 * disc);
   out.minute = minute;
   out.height = h;
   out.presetId = presetAt(h);

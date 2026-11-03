@@ -237,6 +237,45 @@ test('the light flows: no jumps through the day, the light always a unit vector 
   for (let w = 0; w < 1; w += 0.01) { sampleDay(13 * 60, w, s0); sampleDay(13 * 60, w + 0.01, s1); assert.ok(s0.sunDirX * s1.sunDirX + s0.sunDirY * s1.sunDirY + s0.sunDirZ * s1.sunDirZ > 0.999); }
 });
 
+test('the sky: its sun where the sun is, no sun in the night sky, and no jumps as it rises', () => {
+  for (const w of [0, 1]) {
+    const a = createSample(), b = createSample();
+    for (let m = 0; m < DAY; m++) {
+      sampleDay(m, w, a); sampleDay((m + 1) % DAY, w, b);
+      // True height from 1 deg up, on the true bearing below it
+      if (a.height >= 1) near(Math.asin(a.skyDirY) * 180 / Math.PI, a.height, 1e-6);
+      else near(Math.asin(a.skyDirY) * 180 / Math.PI, 1, 1e-6);
+      // Once it has gone: no disc, soon no glow; and a sky with no sun in it at night
+      if (a.height <= 0) assert.equal(a.sunDisc, 0);
+      if (a.height <= -6) assert.equal(a.skyMie, 0);
+      if (a.height >= 2) assert.equal(a.sunDisc, 1);
+      // A step of the clock changes the sky's exposure by little (it is steepest at dusk)
+      assert.ok(Math.abs(a.skyExposure - b.skyExposure) < 0.03, `the sky's exposure jumps at ${m}`);
+      assert.ok(Math.abs(a.skyMie - b.skyMie) < 0.02, `the sky's glow jumps at ${m}`);
+      assert.ok(Math.abs(a.envIntensity - b.envIntensity) < 0.02, `the environment jumps at ${m}`);
+      assert.ok(Math.abs(a.twilightBlue - b.twilightBlue) < 0.03, `the twilight's blue jumps at ${m}`);
+      // The light on a wall facing it and on the ground stays where the materials keep their shade
+      if (a.height > 0) {
+        const r = a.height * Math.PI / 180;
+        assert.ok(a.sunIntensity * Math.cos(r) <= 3, `walls burn out at ${m}`);
+        assert.ok(a.sunIntensity * Math.sin(r) <= 4.6, `the ground burns out at ${m}`);
+      }
+    }
+  }
+});
+
+test('after sunset the light comes from the moon in the moon\'s colour', () => {
+  const m = TIME_PRESETS.midnight.sunColor;
+  for (const w of [0, 1]) {
+    const dusk = minuteAtHeight(-3, w, false), s = sampleDay(dusk, w);
+    near(s.lightColorR, ((m >> 16) & 255) / 255, 1e-9);
+    near(s.lightColorB, (m & 255) / 255, 1e-9);
+    assert.ok(s.sunColorR > s.sunColorB, 'the sky\'s colours stay warm at dusk');
+    const day = sampleDay(solarNoon(w), w);
+    near(day.lightColorR, day.sunColorR, 1e-9);
+  }
+});
+
 test('the lamps and windows switch at the season\'s civil dusk and dawn, not at fixed hours', () => {
   const lamp = (minute, w) => { const x = Math.max(0, Math.min(1, (sampleDay(minute, w).interiorGlow - 0.4) / 0.7)); return x * x * (3 - 2 * x); };
   for (const w of [0, 1]) {
