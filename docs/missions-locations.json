@@ -1992,6 +1992,126 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
    "nr": 47
+  },
+  {
+   "id": "quad-heldstab",
+   "status": "bestehend",
+   "name": "Quadfahrt ab Heldstab",
+   "kurz": "Zeitfahren mit dem Quad (eigenes leichtes Fahrzeug auf der Autophysik): vom Platz vor Heldstab durchs Dorf zum Bedraweg, 1,2 km Gelände auf echten Track-Wegen und über zwei Wiesen, Buckel mit Sprüngen (sauberer Sprung -1,5 s), Schlamm und Altschnee kosten Grip, zurück über die Mühlestrasse. Medaille nach Zeit.",
+   "saison": "sommer",
+   "fahrzeug": "Quad (neues Fahrzeug)",
+   "anreise": "Start auf der Bahnhofstrasse vor Hausnummer 11 (ausserhalb des Gebäudeumrisses), Blick nach Nordosten",
+   "ort": {
+    "name": "HELDSTAB AG, Motorgeräte & Landtechnik, Bahnhofstrasse 11, 7260 Davos Dorf",
+    "x": 929.0,
+    "z": -1674.5,
+    "lv95": {
+     "E": 2783429,
+     "N": 1187174
+    }
+   },
+   "punkte": [
+    {
+     "name": "Start auf der Bahnhofstrasse",
+     "x": 943.2,
+     "z": -1669.4,
+     "lv95": {
+      "E": 2783443,
+      "N": 1187169
+     }
+    },
+    {
+     "name": "Beginn Gelände: Bedraweg (OSM w758955996/w758955995)",
+     "x": 1263,
+     "z": -1530,
+     "lv95": {
+      "E": 2783763,
+      "N": 1187030
+     }
+    },
+    {
+     "name": "Wiesenquerung zu OSM w967261892",
+     "x": 1583,
+     "z": -1592,
+     "lv95": {
+      "E": 2784083,
+      "N": 1187092
+     }
+    },
+    {
+     "name": "Wiesenquerung zum Bedraweg OSM w538810151",
+     "x": 1230,
+     "z": -1320,
+     "lv95": {
+      "E": 2783730,
+      "N": 1186820
+     }
+    },
+    {
+     "name": "Ende Gelände: Mühlestrasse",
+     "x": 1093,
+     "z": -1282,
+     "lv95": {
+      "E": 2783593,
+      "N": 1186782
+     }
+    },
+    {
+     "name": "Ziel vor Heldstab",
+     "x": 931,
+     "z": -1659,
+     "lv95": {
+      "E": 2783431,
+      "N": 1187159
+     }
+    }
+   ],
+   "quelle": "Adresse vom Benutzer; Koordinate swisstopo SearchServer (api3.geo.admin.ch, Gebäudeadresse Bahnhofstrasse 11: E 2783429.0, N 1187174.5), passt zum OSM-Umriss w116881220 und zum OSM-Knoten n9458904783 (shop=tractor) · heldstab.com (Motorgeräte, Landtechnik, PowerSports, Can-Am ATV) · Strecke aus OSM-Wegen in DAVOS_DATA.roads",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Adresse und Standort belegt. Der Betrieb verkauft laut heldstab.com Can-Am-ATVs; Vermietung oder Probefahrten nennt die Website nicht: Die Quadfahrt selbst ist erfunden. Zwei Wiesenquerungen (kein Weg), Buckel und Schlamm- und Schneefelder sind erfunden; der Bedraweg ist teils landwirtschaftlich beschränkt.",
+   "nr": 48
+  },
+  {
+   "id": "bio-round",
+   "status": "bestehend",
+   "name": "Bioabfall zur Biogasanlage",
+   "kurz": "Offener Transporter durch Davos Dorf: 10 runde Fässer an den Sammelpunkten, die Crew hebt sie von der Seite auf die Ladefläche, solange du stehst (Halte-Logik der Kehrichtrunde), und stellt ein leeres hin; die Fässer stapeln sich sichtbar. In 2 Fässern steckt Plastik: erkennen und mit Leertaste/E stehen lassen, sonst ist die Fuhre verdorben. Ladeanzeige, Fliegen und Gestank. Bei der Anlage werden die Fässer in den Annahmebunker gekippt. Medaille nach Punkten (Fässer, saubere Ladung, Zeit).",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Offener Transporter mit Ladefläche (neues Fahrzeug)",
+   "anreise": "Start auf der Bahnhofstrasse bei der Flüelakreuzung (Davos Dorf), Blick nach Nordosten",
+   "ort": {
+    "name": "Biogasanlage Duchli Ranch (Davos Biogas GmbH), Annahmebunker am Duchliweg",
+    "x": 1506.44,
+    "z": -413.81,
+    "lv95": {
+     "E": 2784006.44,
+     "N": 1185913.81
+    }
+   },
+   "punkte": [
+    {
+     "name": "Start Bahnhofstrasse bei der Flüelakreuzung",
+     "x": 1004.1,
+     "z": -1743,
+     "lv95": {
+      "E": 2783504,
+      "N": 1187243
+     }
+    },
+    {
+     "name": "Zufahrt Duchliweg (OSM w1443014922), 7 m neben dem Bunker",
+     "x": 1502.7,
+     "z": -407.8,
+     "lv95": {
+      "E": 2784003,
+      "N": 1185908
+     }
+    }
+   ],
+   "quelle": "Koordinaten der Anlage und Fässer/Transporter vom Benutzer (LV95 E 2784006.44, N 1185913.81) · nau.ch «Davos startet Bioabfall-Pilotprojekt» (Biogasanlage Duchli Ranch, Pilot ab 29.6.2026, Sammelstellen Flüelakreuzung, Symonds-Parkplatz, Bubenbrunnenplatz, Metz-Parkplatz) · Kompass-Eintrag Davos Biogas GmbH, Duchliweg 13 (nur Suchtreffer, Seite nicht abrufbar)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Standort der Anlage vom Benutzer, passt zum Duchliweg 13 (rund 85 m entfernt). Runde Fässer auf offenem Transporter laut Benutzer. Anlage im Spiel frei modelliert (Bunker, zwei Fermenter); die zehn Sammelpunkte und die Tourenführung sind erfunden, im Pilotprojekt von 2026 bringen die Haushalte den Bioabfall zu vier Sammelstellen. Der Duchliweg ist für Motorfahrzeuge beschränkt (private/destination).",
+   "nr": 49
   }
  ]
 }

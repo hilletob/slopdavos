@@ -45,7 +45,7 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const mat = (color, o = {}) => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.75, ...o });
 
 // --- Shared: the hold key (Space / E, the touch button), a toast ---------------------------------------------------------
-function holdButton(run, label) {
+export function holdButton(run, label) {
   const b = el('button', 'panel mission-fire', label);
   b.type = 'button';
   const on = (v) => (e) => { e.preventDefault(); run.work.touchHold = v; };
@@ -70,7 +70,7 @@ function holdKey(run, e) {
 }
 const holding = (run) => !!(run.work.keyHold || run.work.touchHold);
 
-function createToast(run) {
+export function createToast(run) {
   const t = el('div');
   Object.assign(t.style, {
     position: 'fixed', left: '50%', top: '36%', transform: 'translate(-50%, -50%)', zIndex: 14, pointerEvents: 'none',
@@ -87,7 +87,7 @@ function createToast(run) {
 }
 
 /** The particle batch of the run (the throws, the chute, the clippings); torn down with it */
-function particles(run) {
+export function particles(run) {
   if (run.workParticles) return run.workParticles;
   const p = run.workParticles = new ParticleBatch(run.scene);
   run.storage(p.mesh);
@@ -95,7 +95,7 @@ function particles(run) {
   return p;
 }
 /** A lump flying from (a) to (b) in `T` s (ballistic) */
-function lump(pb, a, b, T, { size = 0.35, grow = 0.6, r = 0.93, g = 0.95, bl = 1, alpha = 0.95 } = {}) {
+export function lump(pb, a, b, T, { size = 0.35, grow = 0.6, r = 0.93, g = 0.95, bl = 1, alpha = 0.95 } = {}) {
   pb.spawn({ x: a.x, y: a.y, z: a.z, vx: (b.x - a.x) / T, vy: (b.y - a.y) / T + 0.5 * 9.81 * T, vz: (b.z - a.z) / T, gravity: 9.81, life: T + 0.15, size0: size, size1: size + grow, alpha, r, g, b: bl, kind: 'lump' });
 }
 
@@ -375,7 +375,7 @@ function buildGarbageModel() {
   };
 }
 
-const VEHICLES = { blower: buildBlowerModel, mower: buildMowerModel, garbage: buildGarbageModel };
+export const VEHICLES = { blower: buildBlowerModel, mower: buildMowerModel, garbage: buildGarbageModel }; // (js/missions-rural.js adds its own)
 
 const workVehicle = {
   setup(run) {
@@ -414,6 +414,7 @@ const workVehicle = {
       w.mesh.rotation.x += ((car.speed || 0) * dt) / w.r;
       if (w.front) w.mesh.rotation.y = car.steerAngle || 0;
     }
+    v.pose?.(g, car, dt); // (a vehicle's own body motion over the physics: the quad of js/missions-rural.js)
     g.updateMatrixWorld(true);
     if (v.driver) {
       v.driver.rig.ride(g, 0, v.seat);

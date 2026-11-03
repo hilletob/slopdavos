@@ -309,6 +309,21 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.restore();
       break;
     }
+    case 'quad': { // a quad from the side: the fat wheels, the body, the bars (js/missions-data-rural.js)
+      for (const x of [-0.58, 0.58]) { ctx.beginPath(); ctx.arc(g * x, g * 0.5, g * 0.36, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillRect(-g * 0.72, -g * 0.08, g * 1.44, g * 0.3);
+      ctx.fillRect(-g * 0.42, -g * 0.34, g * 0.6, g * 0.26);
+      ctx.lineWidth = g * 0.13;
+      ctx.beginPath(); ctx.moveTo(g * 0.3, -g * 0.08); ctx.lineTo(g * 0.48, -g * 0.62); ctx.lineTo(g * 0.76, -g * 0.62); ctx.stroke();
+      break;
+    }
+    case 'biogas': { // the digester's dome over its wall, and a green leaf
+      ctx.beginPath(); ctx.arc(0, g * 0.1, g * 0.8, Math.PI, 0); ctx.fill();
+      ctx.fillRect(-g * 0.8, g * 0.1, g * 1.6, g * 0.6);
+      ctx.fillStyle = '#2f8f35';
+      ctx.beginPath(); ctx.moveTo(0, g * 0.55); ctx.quadraticCurveTo(-g * 0.5, -g * 0.05, 0, -g * 0.5); ctx.quadraticCurveTo(g * 0.5, -g * 0.05, 0, g * 0.55); ctx.fill();
+      break;
+    }
     default:
       ctx.beginPath(); ctx.arc(0, 0, g * 0.5, 0, Math.PI * 2); ctx.fill();
   }

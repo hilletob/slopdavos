@@ -395,12 +395,49 @@ const pairs = [
   ['Which wax for this snow?', 'Welches Wachs für diesen Schnee?'],
   ['Wax', 'Wachs'],
   ['Iron', 'Bügeln'],
+  // the rural missions (js/missions-data-rural.js)
+  ['Quad ride from Heldstab', 'Quadfahrt ab Heldstab'],
+  ['Through Davos Dorf to the Bedraweg', 'Durch Davos Dorf zum Bedraweg'],
+  ['Round the off-road course', 'Rund um den Geländeparcours'],
+  ['Back to the Heldstab yard', 'Zurück auf den Heldstab-Platz'],
+  ['Too slow: Heldstab wants the quad back before closing time.', 'Zu langsam: Heldstab will das Quad vor Feierabend zurück.'],
+  ['Back onto the quad', 'Zurück aufs Quad'],
+  ['In the air!', 'In der Luft!'],
+  ['Mud: ease off, the quad slides', 'Schlamm: Gas weg, das Quad rutscht'],
+  ['Old snow: hardly any grip', 'Altschnee: kaum Grip'],
+  ['Back in the Heldstab yard, mud up to the ears. They hose the quad down without a word and ask if you would like to see the invoice for a new one.', 'Zurück auf dem Heldstab-Platz, Dreck bis über die Ohren. Sie spritzen das Quad wortlos ab und fragen, ob du die Rechnung für ein neues sehen möchtest.'],
+  ['Green waste to the biogas plant', 'Bioabfall zur Biogasanlage'],
+  ['Collect the barrels', 'Fässer einsammeln'],
+  ['Unload at the biogas plant', 'Bei der Biogasanlage abladen'],
+  ['Open transporter', 'Offener Transporter'],
+  ['Biogas plant', 'Biogasanlage'],
+  ['Load', 'Ladung'],
+  ['Smell', 'Gestank'],
+  ['Reject', 'Stehen lassen'],
+  ['Plastic in the batch: it is spoiled', 'Plastik in der Ladung: Sie ist verdorben'],
+  ['Stop with the load bed beside the barrel. Plastic in it? Reject!', 'Mit der Ladefläche neben dem Fass anhalten. Plastik drin? Stehen lassen!'],
+  ['Stop with the load bed beside the hopper', 'Mit der Ladefläche neben dem Annahmebunker anhalten'],
+  ['Stand still while the barrels are tipped', 'Stehen bleiben, während die Fässer gekippt werden'],
+  ['Back into the truck', 'Zurück in den Wagen'],
+  ['Stop with the load bed beside a barrel first', 'Zuerst mit der Ladefläche neben einem Fass anhalten'],
+  ['Plastic! The barrel stays behind', 'Plastik! Das Fass bleibt stehen'],
+  ['Plastic in the load! The batch is spoiled', 'Plastik in der Ladung! Die ganze Fuhre ist verdorben'],
+  ['The flies have found you', 'Die Fliegen haben dich gefunden'],
+  ['Cyclists overtake you holding their noses', 'Velofahrer überholen dich mit zugehaltener Nase'],
+  ['Even the cows look the other way', 'Sogar die Kühe schauen weg'],
+  ['The barrels are overflowing and the wasps have taken over the village: too slow.', 'Die Fässer quellen über und die Wespen haben das Dorf übernommen: zu langsam.'],
+  ['The load has started to ferment on its own: too slow.', 'Die Ladung gärt schon von selbst: zu langsam.'],
+  ['The hopper swallows the load, the digester burps contentedly. Electricity and district heat by Thursday, and the flies stay at the plant.', 'Der Bunker schluckt die Ladung, der Fermenter rülpst zufrieden. Bis Donnerstag gibt das Strom und Fernwärme, und die Fliegen bleiben bei der Anlage.'],
+  ["Batch spoiled: the plastic went into the digester's hopper", 'Fuhre verdorben: Das Plastik ist im Annahmebunker gelandet'],
+  ['A clean load: the plant manager nods', 'Eine saubere Ladung: Der Anlagenleiter nickt'],
 ];
 
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
 const missionIntros = [
+  ['Heldstab AG on the Bahnhofstrasse', 'Die Heldstab AG an der Bahnhofstrasse in Davos Dorf verkauft Landmaschinen und auch Quads. Heute gehört dir eines für eine Probefahrt: durchs Dorf zum Bedraweg, rund um die Wege und Wiesen oberhalb von Dorf und über die Mühlestrasse zurück. Das Quad ist leicht und nervös. Nimm die Buckel schnell: Ein sauberer Sprung schenkt dir 1,5 s. Schlamm und der letzte Altschnee nehmen dir den Grip, und in der Luft lenkt nichts mehr.'],
+  ['Davos collects green waste now', 'Davos sammelt jetzt Bioabfall in runden Fässern, und der kommt in die Biogasanlage bei der Duchli Ranch. Fahr mit dem offenen Transporter durch Davos Dorf: Halte mit der Ladefläche neben jedem Fass, die Crew hebt es hinauf, solange du stehst, und stellt ein leeres an seinen Platz. Schau in die Fässer: In zweien steckt Plastik. Lass sie mit Leertaste oder E (oder der Taste «Stehen lassen») stehen, bevor sie oben sind, sonst ist die ganze Fuhre verdorben. Dann den Duchliweg hinunter zum Annahmebunker des Fermenters, wo die Fässer gekippt werden. Punkte gibt es für Fässer, eine saubere Ladung und die Zeit.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -548,6 +585,17 @@ function translate(value) {
   dynamic = dynamic.replace(/^Next stop (.+)$/, 'Nächster Halt: $1');
   dynamic = dynamic.replace(/^(\d+) of (\d+) rolled · (\d+) pts$/, '$1 von $2 gerollt · $3 Pkt.');
   dynamic = dynamic.replace(/^(\d+) pts · (\d+) plates · (.+)$/, '$1 Pkt. · $2 Teller · $3');
+  // the rural missions (js/missions-data-rural.js)
+  dynamic = dynamic.replace(/^Gate (\d+\/\d+)(?: · ([\d,.]+ (?:m|km)))?(?: · (\d+) clean (?:jump|jumps))?$/, (_, gate, dist, jumps) => `Tor ${gate}${dist ? ` · ${dist}` : ''}${jumps ? ` · ${jumps} ${jumps === '1' ? 'sauberer Sprung' : 'saubere Sprünge'}` : ''}`);
+  dynamic = dynamic.replace(/^Air time ([\d.]+) s: -([\d.]+) s$/, 'Flugzeit $1 s: -$2 s');
+  dynamic = dynamic.replace(/^(\d+) clean (?:jump|jumps) \(-([\d.]+) s\) · (\d+) mud and snow (?:patch|patches) crossed$/, (_, n, s, p) => `${n} ${n === '1' ? 'sauberer Sprung' : 'saubere Sprünge'} (-${s} s) · ${p} Schlamm- und Schneefelder durchquert`);
+  dynamic = dynamic.replace(/^Barrels (\d+\/\d+) · load (\d+) %(?: · next (.+))?$/, (_, n, l, next) => `Fässer ${n} · Ladung ${l} %${next ? ` · nächstes ${next}` : ''}`);
+  dynamic = dynamic.replace(/^Barrel up: (\d+) on the bed$/, 'Fass oben: $1 auf der Ladefläche');
+  dynamic = dynamic.replace(/^Loading … (\d+) % · Space: reject the barrel$/, 'Laden … $1 % · Leertaste: Fass stehen lassen');
+  dynamic = dynamic.replace(/^To the hopper · (.+)$/, 'Zum Annahmebunker · $1');
+  dynamic = dynamic.replace(/^Unloading … (\d+) %$/, 'Abladen … $1 %');
+  dynamic = dynamic.replace(/^That one was clean: (-?\d+) pts$/, 'Die war sauber: $1 Pkt.');
+  dynamic = dynamic.replace(/^(\d+) clean barrels · (\d+) of 2 plastic barrels rejected(?: · (\d+) clean left behind)?(?: · (\d+) left out)?$/, (_, a, b, c, d) => `${a} saubere Fässer · ${b} von 2 Plastik-Fässern stehen gelassen${c ? ` · ${c} saubere stehen gelassen` : ''}${d ? ` · ${d} ausgelassen` : ''}`);
   dynamic = dynamic.replace(/^Path cleared (.+) of (.+)$/, 'Weg geräumt: $1 von $2');
   dynamic = dynamic.replace(/^Road cleared (.+) of (.+)$/, 'Strasse geräumt: $1 von $2');
   dynamic = dynamic.replace(/^Lawn mown (.+) of (.+)$/, 'Rasen gemäht: $1 von $2');

@@ -45,6 +45,19 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(buttons[0].pressed, 'true');
 });
 
+test('the rural missions translate names, intros and generated texts', () => {
+  setLanguage('de');
+  assert.equal(t('Quad ride from Heldstab'), 'Quadfahrt ab Heldstab');
+  assert.equal(t('Green waste to the biogas plant'), 'Bioabfall zur Biogasanlage');
+  assert.match(t('Heldstab AG on the Bahnhofstrasse in Davos Dorf sells'), /^Die Heldstab AG/);
+  assert.match(t('Davos collects green waste now, in round barrels'), /runden Fässern/);
+  assert.equal(t('Gate 3/11 · 120 m · 2 clean jumps'), 'Tor 3/11 · 120 m · 2 saubere Sprünge');
+  assert.equal(t('Barrels 4/10 · load 38 % · next 90 m'), 'Fässer 4/10 · Ladung 38 % · nächstes 90 m');
+  assert.equal(t('Loading … 40 % · Space: reject the barrel'), 'Laden … 40 % · Leertaste: Fass stehen lassen');
+  assert.equal(t('2 clean jumps (-3 s) · 4 mud and snow patches crossed'), '2 saubere Sprünge (-3 s) · 4 Schlamm- und Schneefelder durchquert');
+  assert.equal(t('Biogas plant'), 'Biogasanlage');
+});
+
 test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Flämmli in the Rot Liechtli'), 'Flämmli im Rot Liechtli');
