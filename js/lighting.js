@@ -28,119 +28,12 @@ import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
 import { winter } from './season.js';
 import { QUALITY } from './quality.js';
+import { TIME_PRESETS, TIME_MINUTES, createSample, sampleDay } from './day-cycle.js';
 
 // js/lighting.js
 // Physically-Based Atmospheric Sky (Preetham SkyMesh + Beer-Powder Clouds),
 // Live PMREMGenerator IBL Cubemap, Three.js r186 SunLight (2-Cascade CSM),
 // and Occlusion-Aware Urban Canyon Global Illumination for Three.js r186 WebGPURenderer
-
-const TIME_PRESETS = {
-  golden: {
-    id: 'golden',
-    name: 'Golden Hour · 17:45',
-    // Crisp Manhattan canyon sun slicing across avenues & intersections so buildings, cars, trees & pedestrians cast sharp shadows
-    sunDir: new THREE.Vector3(-0.44, 0.58, -0.68).normalize(),
-    sunColor: 0xffca92,
-    sunIntensity: 5.8,
-    hemiSky: 0x9abbe6,
-    hemiGround: 0xc88a62, // Warm terracotta / limestone upward canyon bounce
-    hemiIntensity: 1.48,
-    skyTop: 0x2c568c,
-    skyHorizon: 0xebd1b5,
-    fogColor: 0xdcc5ae,
-    fogDensity: 0.00024,
-    interiorGlow: 0.48,
-    roadWetness: 0.28,
-    envIntensity: 0.54,
-    canyonBounce: 0.52,
-    turbidity: 8.0,
-    rayleigh: 2.8,
-    mieCoefficient: 0.008,
-    mieDirectionalG: 0.88,
-    cloudCoverage: 0.36,
-    cloudDensity: 0.38,
-    skyExposure: 0.148,
-    nightFactor: 0.0
-  },
-  midday: {
-    id: 'midday',
-    name: 'Sunny Midday · 13:30',
-    sunDir: new THREE.Vector3(-0.34, 0.82, -0.46).normalize(),
-    sunColor: 0xfff5e8,
-    sunIntensity: 6.6,
-    hemiSky: 0xaad2ff,
-    hemiGround: 0xb89678, // Warm sunlit masonry & pavement bounce
-    hemiIntensity: 1.58,
-    skyTop: 0x225ea8,
-    skyHorizon: 0xc8dff5,
-    fogColor: 0xc6dcf2,
-    fogDensity: 0.00018,
-    interiorGlow: 0.24,
-    roadWetness: 0.08,
-    envIntensity: 0.58,
-    canyonBounce: 0.58,
-    turbidity: 6.5,
-    rayleigh: 2.4,
-    mieCoefficient: 0.006,
-    mieDirectionalG: 0.86,
-    cloudCoverage: 0.32,
-    cloudDensity: 0.35,
-    skyExposure: 0.142,
-    nightFactor: 0.0
-  },
-  twilight: {
-    id: 'twilight',
-    name: 'Blue Hour · 19:15',
-    sunDir: new THREE.Vector3(-0.52, 0.36, -0.77).normalize(),
-    sunColor: 0xff9466,
-    sunIntensity: 3.1,
-    hemiSky: 0x4c6ca8,
-    hemiGround: 0x6e5048,
-    hemiIntensity: 0.85,
-    skyTop: 0x102248,
-    skyHorizon: 0xb86b6c,
-    fogColor: 0x353c58,
-    fogDensity: 0.00032,
-    interiorGlow: 1.25,
-    roadWetness: 0.55,
-    envIntensity: 0.36,
-    canyonBounce: 0.32,
-    turbidity: 9.5,
-    rayleigh: 3.4,
-    mieCoefficient: 0.010,
-    mieDirectionalG: 0.90,
-    cloudCoverage: 0.40,
-    cloudDensity: 0.42,
-    skyExposure: 0.115,
-    nightFactor: 0.28
-  },
-  midnight: {
-    id: 'midnight',
-    name: 'Manhattan Night · 23:00',
-    sunDir: new THREE.Vector3(0.42, 0.68, -0.60).normalize(),
-    sunColor: 0x8cb0e8,
-    sunIntensity: 1.45,
-    hemiSky: 0x263a62,
-    hemiGround: 0x382e36,
-    hemiIntensity: 0.72,
-    skyTop: 0x060c1a,
-    skyHorizon: 0x182640,
-    fogColor: 0x0c1424,
-    fogDensity: 0.00036,
-    interiorGlow: 1.55,
-    roadWetness: 0.62,
-    envIntensity: 0.30,
-    canyonBounce: 0.18,
-    turbidity: 4.0,
-    rayleigh: 1.5,
-    mieCoefficient: 0.004,
-    mieDirectionalG: 0.80,
-    cloudCoverage: 0.22,
-    cloudDensity: 0.25,
-    skyExposure: 0.022,
-    nightFactor: 0.86
-  }
-};
 
 // The shadow passes draw every caster with one shared override material, onto which the renderer copies each caster's
 // alphaTest. Material's alphaTest setter bumps the material version whenever the value crosses 0, so every
@@ -166,14 +59,14 @@ function stabiliseShadowPassMaterial(scene) {
 
 // A sunny winter day in the Alps: cold, dry air after a snowfall, the Tinzenhorn sharp 15 km away under a deep blue
 // sky. Summer's turbidity and haze (warm, moist air) made the snowy valley read milky, the white haze over white snow.
-// Mixed in by season.js's `winter`: `haze` scales the aerial perspective's density; the sky's Preetham parameters
-// go towards a low-turbidity, low-Mie atmosphere with fewer clouds. Dusk and night keep (most of) their mood.
-const WINTER_AIR = {
-  golden:   { haze: 0.40, turbidity: 2.6, rayleigh: 2.2, mieCoefficient: 0.0030, cloudCoverage: 0.24 },
-  midday:   { haze: 0.35, turbidity: 2.2, rayleigh: 1.9, mieCoefficient: 0.0025, cloudCoverage: 0.20 },
-  twilight: { haze: 0.75, turbidity: 6.5, rayleigh: 3.0, mieCoefficient: 0.0080, cloudCoverage: 0.36 },
-  midnight: { haze: 0.90, turbidity: 3.5, rayleigh: 1.5, mieCoefficient: 0.0040, cloudCoverage: 0.20 }
-};
+// Mixed in by season.js's `winter` (js/day-cycle.js has the values, w*): `wHaze` scales the aerial perspective's density;
+// the sky's Preetham parameters go towards a low-turbidity, low-Mie atmosphere with fewer clouds. Dusk and night keep
+// (most of) their mood.
+
+// The environment map (baked from the sky, bakeEnvironmentMap: six faces and their blur) only follows the sky when it has
+// visibly moved on, and not more often than this. The fog samples it too.
+const MIN_BAKE_MS = 8000;
+const BAKE_SUN_COS = Math.cos(4 * Math.PI / 180);
 
 class LightingSystem {
   constructor(scene, renderer = null) {
@@ -241,7 +134,7 @@ class LightingSystem {
     // Three.js r186 SunLight with automatic 2-Cascade Shadow Map (SunLightShadow + SunShadowNode)
     // Shines from its position vector toward the origin (no .target needed)
     this.sunLight = new SunLight(0xffca92, 5.8);
-    this.sunLight.position.copy(TIME_PRESETS.golden.sunDir);
+    this.sunLight.position.set(...TIME_PRESETS.golden.sunDir);
     this.sunLight.castShadow = QUALITY.shadows;
     // 3072x3072 per cascade = 6144x3072 2-cascade shadow atlas (an 8192x4096 one cost ~20% fps and caused hitches),
     // 2048 where the device allows less. The near cascade spans ~0.35-55 m of the view at street level (see update)
@@ -264,13 +157,16 @@ class LightingSystem {
     this.hemiLight.position.set(0, 300, 0);
     this.scene.add(this.hemiLight);
 
+    this.sample = createSample();
+    this.baked = { at: -Infinity, x: 0, y: 0, z: 0, night: -1, exposure: -1, turbidity: -1, w: -1 };
+    this.bakes = 0;
     this.applyPreset('golden');
 
     // Sky-matched aerial perspective (replaces the flat FogExp2 colour): distant surfaces fade into the baked sky
     // radiance just above the horizon in their view direction (sun glow included), through an exponential haze layer
     // so helicopter / observatory views stay clearer than the horizon.
     this.uFogDensity = uniform(TIME_PRESETS.golden.fogDensity * HAZE);
-    this.uWinterHaze = uniform(WINTER_AIR[this.activePresetId].haze);
+    this.uWinterHaze = uniform(TIME_PRESETS.golden.wHaze);
     this.uFogHeight = uniform(900.0);
     if (this.envRenderTarget) this.scene.fogNode = this.createAerialFogNode();
   }
@@ -307,68 +203,72 @@ class LightingSystem {
     this.scene.add(this.sky);
   }
 
-  applyPreset(presetId, force = false) {
-    const p = TIME_PRESETS[presetId] || TIME_PRESETS.golden;
-    if (!force && this.activePresetId === p.id && this.envRenderTarget !== null) {
-      return;
-    }
-    this.activePresetId = p.id;
-
-    this.sunLight.color.setHex(p.sunColor);
-    this.sunLight.intensity = p.sunIntensity;
-    this.sunLight.position.copy(p.sunDir);
-    this.sunLight.updateMatrixWorld();
-
-    this.hemiLight.color.setHex(p.hemiSky);
-    this.hemiLight.groundColor.setHex(p.hemiGround);
-    this.hemiLight.intensity = p.hemiIntensity;
-
-    this.scene.fog.color.setHex(p.fogColor);
-    this.scene.fog.density = p.fogDensity;
-    if (this.uFogDensity) this.uFogDensity.value = p.fogDensity * HAZE;
-    if (this.uWinterHaze) this.uWinterHaze.value = WINTER_AIR[p.id].haze;
-
-    // Update physical Preetham SkyMesh uniforms
-    this.applySkyAir(p, winter.value);
-    this.sky.mieDirectionalG.value = p.mieDirectionalG;
-    this.sky.cloudDensity.value = p.cloudDensity;
-    this.sky.sunPosition.value.copy(p.sunDir);
-    this.uSkyExposure.value = p.skyExposure;
-    this.uNightFactor.value = p.nightFactor;
-
-    cityUniforms.uSunColor.value.setHex(p.sunColor);
-    cityUniforms.uSkyTopColor.value.setHex(p.skyTop);
-    cityUniforms.uSkyHorizonColor.value.setHex(p.skyHorizon);
-    cityUniforms.uSkySunDir.value.copy(p.sunDir);
-    cityUniforms.uInteriorGlow.value = p.interiorGlow;
-    cityUniforms.uRoadWetness.value = p.roadWetness;
-    if (cityUniforms.uCanyonBounce) {
-      cityUniforms.uCanyonBounce.value = p.canyonBounce;
-    }
-
-    this.scene.environmentIntensity = p.envIntensity;
-    this.bakeEnvironmentMap();
+  /** The light of a named time of day, at once (the constructor; the game goes by applySample) */
+  applyPreset(presetId) {
+    const id = Object.hasOwn(TIME_MINUTES, presetId) ? presetId : 'golden';
+    this.applySample(sampleDay(TIME_MINUTES[id], this.sample), winter.value, true);
   }
 
-  // The sky's air between the preset's (summer) and its winter values, by the season's blend `w`
-  applySkyAir(p, w) {
-    const a = WINTER_AIR[p.id];
-    const lerp = (x, y) => x + (y - x) * w;
-    this.sky.turbidity.value = lerp(p.turbidity, a.turbidity);
-    this.sky.rayleigh.value = lerp(p.rayleigh, a.rayleigh);
-    this.sky.mieCoefficient.value = lerp(p.mieCoefficient, a.mieCoefficient);
-    this.sky.cloudCoverage.value = lerp(p.cloudCoverage, a.cloudCoverage);
-    this.bakedWinter = w;
+  /**
+   * The light of a moment of the day (js/day-cycle.js sampleDay), `w` the season's blend. js/main.js steps this every few
+   * seconds: only uniforms change, so nothing recompiles; `bake` forces the environment map, which otherwise follows when
+   * the sky has moved on far enough.
+   */
+  applySample(s, w, bake = false) {
+    this.activePresetId = s.presetId;
+
+    this.sunLight.color.setRGB(s.sunColorR, s.sunColorG, s.sunColorB, THREE.SRGBColorSpace);
+    this.sunLight.intensity = s.sunIntensity;
+    this.sunLight.position.set(s.sunDirX, s.sunDirY, s.sunDirZ);
+    this.sunLight.updateMatrixWorld();
+
+    this.hemiLight.color.setRGB(s.hemiSkyR, s.hemiSkyG, s.hemiSkyB, THREE.SRGBColorSpace);
+    this.hemiLight.groundColor.setRGB(s.hemiGroundR, s.hemiGroundG, s.hemiGroundB, THREE.SRGBColorSpace);
+    this.hemiLight.intensity = s.hemiIntensity;
+
+    this.scene.fog.color.setRGB(s.fogColorR, s.fogColorG, s.fogColorB, THREE.SRGBColorSpace);
+    this.scene.fog.density = s.fogDensity;
+    if (this.uFogDensity) this.uFogDensity.value = s.fogDensity * HAZE;
+    if (this.uWinterHaze) this.uWinterHaze.value = s.wHaze;
+
+    // The physical Preetham SkyMesh, its air between the summer's and the winter's by the season's blend
+    const sky = this.sky;
+    sky.turbidity.value = s.turbidity + (s.wTurbidity - s.turbidity) * w;
+    sky.rayleigh.value = s.rayleigh + (s.wRayleigh - s.rayleigh) * w;
+    sky.mieCoefficient.value = s.mieCoefficient + (s.wMieCoefficient - s.mieCoefficient) * w;
+    sky.cloudCoverage.value = s.cloudCoverage + (s.wCloudCoverage - s.cloudCoverage) * w;
+    sky.mieDirectionalG.value = s.mieDirectionalG;
+    sky.cloudDensity.value = s.cloudDensity;
+    sky.sunPosition.value.set(s.sunDirX, s.sunDirY, s.sunDirZ);
+    this.uSkyExposure.value = s.skyExposure;
+    this.uNightFactor.value = s.nightFactor;
+
+    cityUniforms.uSunColor.value.setRGB(s.sunColorR, s.sunColorG, s.sunColorB, THREE.SRGBColorSpace);
+    cityUniforms.uSkyTopColor.value.setRGB(s.skyTopR, s.skyTopG, s.skyTopB, THREE.SRGBColorSpace);
+    cityUniforms.uSkyHorizonColor.value.setRGB(s.skyHorizonR, s.skyHorizonG, s.skyHorizonB, THREE.SRGBColorSpace);
+    cityUniforms.uSkySunDir.value.set(s.sunDirX, s.sunDirY, s.sunDirZ);
+    cityUniforms.uInteriorGlow.value = s.interiorGlow;
+    cityUniforms.uRoadWetness.value = s.roadWetness;
+    if (cityUniforms.uCanyonBounce) cityUniforms.uCanyonBounce.value = s.canyonBounce;
+    this.scene.environmentIntensity = s.envIntensity;
+
+    const b = this.baked;
+    const now = performance.now();
+    const moved = now - b.at >= MIN_BAKE_MS && (
+      s.sunDirX * b.x + s.sunDirY * b.y + s.sunDirZ * b.z < BAKE_SUN_COS
+      || Math.abs(s.nightFactor - b.night) > 0.02
+      || Math.abs(s.skyExposure - b.exposure) > 0.005
+      || Math.abs(sky.turbidity.value - b.turbidity) > 0.4
+      || Math.abs(w - b.w) > 0.05);
+    if (bake || moved) {
+      this.bakeEnvironmentMap();
+      b.at = now; b.x = s.sunDirX; b.y = s.sunDirY; b.z = s.sunDirZ;
+      b.night = s.nightFactor; b.exposure = s.skyExposure; b.turbidity = sky.turbidity.value; b.w = w;
+      this.bakes++;
+    }
   }
 
   update(focusPos) {
-    // Follow the season's ~1.5 s ease with the sky (and the environment map baked from it) in a few steps
-    const w = winter.value;
-    if (this.bakedWinter !== undefined && w !== this.bakedWinter && (Math.abs(w - this.bakedWinter) >= 0.25 || w === 0 || w === 1)) {
-      this.applySkyAir(TIME_PRESETS[this.activePresetId], w);
-      this.bakeEnvironmentMap();
-    }
-
     // SunLightShadow automatically fits & texel-snaps its 2 cascades to the view camera frustum
     // every frame inside SunShadowNode.renderShadow(), splitting [near, far] halfway between a uniform and a
     // logarithmic split (the near cascade ends at ~far / 4). Shadows only where they read: 200 m at street level (the

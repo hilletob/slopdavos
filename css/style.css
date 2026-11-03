@@ -530,6 +530,16 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   padding: 0 5px;
 }
 
+.hud-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.1;
+  padding: 0 8px 0 6px;
+  white-space: nowrap;
+}
+.hud-clock-time { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud-clock-day { font-size: 10px; opacity: 0.72; }
 .toolbar-divider {
   flex: none;
   width: 1px;

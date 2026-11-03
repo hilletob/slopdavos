@@ -1,13 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { attribute, cameraPosition, cameraProjectionMatrix, cameraViewMatrix, float, length, max, mix, mod, positionGeometry, sin, smoothstep, time, uniform, uv, varying, vec3, vec4 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
-import { winter } from './season.js';
 
 // Falling snow in winter: a box of flakes around the camera, animated on the GPU. Every flake is a small camera-facing
 // quad whose position comes from its own random seed and the time alone (fall, a light wind drift and a wobble),
 // wrapped into a BOX-metre cube that moves with the camera, so the field never runs out and costs nothing on the CPU.
-// It fades with season.js's `winter` (hidden outright in summer) and with height: from the helicopter high above the
-// valley the flurry thins out and is gone above ~400 m over the ground.
+// How hard it snows comes from the game's clock (setAmount, js/game-clock.js snowfallAt: the evening before the snow
+// settles, all winter, until the thaw begins; hidden outright in between), and it fades with height: from the helicopter
+// high above the valley the flurry thins out and is gone above ~400 m over the ground.
 
 const FLAKES = 12000;
 const BOX = 70; // metres, the cube of snow around the camera
@@ -40,7 +40,8 @@ function flakeGeometry(count) {
 
 // `night`: the lighting's night factor uniform (0 day … 1 midnight), so that the flakes dim with the light
 export function buildSnowfall(scene, { night = null } = {}) {
-  const fade = uniform(0); // winter × height fade, set per frame
+  const fade = uniform(0); // how hard it snows × height fade, set per frame
+  let amount = 0;
   const seed = attribute('seed', 'vec4');
   const t = time;
 
@@ -78,13 +79,14 @@ export function buildSnowfall(scene, { night = null } = {}) {
 
   return {
     mesh,
-    // Per frame: the fade from the season and the camera's height above the ground; nothing drawn in summer
+    setAmount(a) { amount = a; },
+    // Per frame: the fade from the snowfall and the camera's height above the ground; nothing drawn while it doesn't snow
     update(camera) {
       const p = camera.position;
       const ground = groundHeight(p.x, p.z);
       const above = Number.isFinite(ground) ? p.y - ground : 0;
       const high = 1 - THREE.MathUtils.smoothstep(above, 250, 400);
-      fade.value = winter.value * high;
+      fade.value = amount * high;
       mesh.visible = fade.value > 0.01;
     }
   };

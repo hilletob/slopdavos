@@ -149,6 +149,13 @@ class GroomMap {
     loipeBase.value = snowClock.value - hours;
   }
 
+  // The same, continuously (js/day-cycle.js wearHoursAt, as the game's clock runs)
+  setWearHours(hours) {
+    this.presetId = 'clock';
+    pisteBase.value = snowClock.value - hours;
+    loipeBase.value = snowClock.value - hours;
+  }
+
   /** Time-lapse: `hours` skier hours pass for every groomed surface */
   age(hours) {
     snowClock.value += hours;

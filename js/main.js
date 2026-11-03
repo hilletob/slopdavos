@@ -1,4 +1,4 @@
-import './i18n.js';
+import { setLocalizedText } from './i18n.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -49,7 +49,9 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
-import { isWinter, onSeasonChange } from './season.js';
+import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
+import { gameClock } from './game-clock.js';
+import { TIME_MINUTES, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
 import { buildGta, isClassicMode, hasGtaState } from './gta.js';
@@ -441,6 +443,7 @@ async function initApp() {
   // pagehide also covers navigation away on mobile; preserve the context across back-forward cache restores.
   window.addEventListener('pagehide', (event) => {
     savePlayerState();
+    gameClock.save();
     if (!event.persisted) audioSystem.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
@@ -567,7 +570,7 @@ async function initApp() {
     reflections = ssrPass.mul(reflectionMask);
   }
   // (?qset=skip:postfx: no bloom, colour grade or tone mapping; the scene straight to the screen)
-  const colorGrade = skipped('postfx') ? { applyPreset: NOOP } : createPostProcessing(renderer, scenePassColor, reflections);
+  const colorGrade = skipped('postfx') ? { applyLook: NOOP } : createPostProcessing(renderer, scenePassColor, reflections);
   const renderPipeline = skipped('postfx')
     ? { render: () => renderer.render(scene, cameraSystem.camera) }
     : new THREE.RenderPipeline(renderer, colorGrade.outputNode);
@@ -681,12 +684,46 @@ async function initApp() {
     selectCamera(CAMERA_PRESETS[(idx + step + n) % n].id, true);
   }
 
+  // The game's clock (js/game-clock.js) drives the light and the season: a tick every frame costs nothing, what it says
+  // is applied every few seconds (the sun moves in steps of about half a degree; uniforms only, nothing recompiles) and
+  // at once when the time jumps. `force`: the environment map too.
+  const LIGHT_STEP = 3; // real seconds
+  const daySample = createSample();
+  let lightStepIn = 0;
+  function applyClock(force = false) {
+    lightStepIn = LIGHT_STEP;
+    const w = gameClock.winterBlend;
+    setSeason(gameClock.isWinter);
+    setWinterBlend(w);
+    snowfall.setAmount?.(gameClock.snowfall);
+    sampleDay(gameClock.minute, daySample);
+    lightingSystem.applySample(daySample, w, force);
+    colorGrade.applyLook(daySample);
+    if (!skipped('winter')) groomMap.setWearHours(wearHoursAt(gameClock.minute));
+  }
+  // (the debug switches: __slopdavos.time(id), ?time=: that time of day, held there; time('run') lets it go on)
   function selectTime(timeId) {
-    lightingSystem.applyPreset(timeId);
-    colorGrade.applyPreset(lightingSystem.activePresetId);
+    const minute = TIME_MINUTES[timeId];
+    if (!Number.isFinite(minute)) return;
+    gameClock.setMinute(minute);
+    gameClock.freeze(true);
+    applyClock(true);
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
     });
+  }
+  // The time and the day in the HUD (only touched when they change)
+  const elClockTime = document.getElementById('hud-clock-time');
+  const elClockDay = document.getElementById('hud-clock-day');
+  let clockText = '', clockDayKey = -1;
+  function renderClock() {
+    const text = gameClock.text;
+    if (text !== clockText && elClockTime) { clockText = text; elClockTime.textContent = text; }
+    const key = gameClock.day * 2 + (gameClock.isWinter ? 1 : 0);
+    if (key !== clockDayKey && elClockDay) {
+      clockDayKey = key;
+      setLocalizedText(elClockDay, `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'}`);
+    }
   }
 
   // Data & credits: a native modal <dialog> (Esc and the × close it; so does a click on the backdrop)
@@ -943,7 +980,8 @@ async function initApp() {
   // Initialize the UI and chase camera around the restored player, or the default VW T3 on a first visit.
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
-  selectTime('golden');
+  applyClock(true);
+  renderClock();
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
   const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, world, mapSystem });
   // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
@@ -1095,6 +1133,13 @@ async function initApp() {
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
     elapsed += dt;
 
+    // The game's clock on wall time, so that a day stays 24 minutes at any frame rate (a hidden tab's gap counts as 1 s)
+    const realDt = Math.min(Math.max(rawDt, 0), 1);
+    gameClock.tick(realDt);
+    lightStepIn -= realDt;
+    if (gameClock.takeJump()) applyClock(true);
+    else if (lightStepIn <= 0) applyClock();
+
     // Update 3rd-person controllers, camera, signals, traffic & vehicle collisions, building LODs, and dynamic shadow focus
     gamepadControls.update(dt);
     // The trains first: in the rhb mode the player rides in one, and the controllers follow its cab this frame
@@ -1139,7 +1184,7 @@ async function initApp() {
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
     if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
-    if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager, lightingSystem.activePresetId); // the snow's wear, the groomer's tracks
+    if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager); // the snow's wear, the groomer's tracks
     missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers; else the pins in the world
     gta?.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (the GTA mode)
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
@@ -1188,7 +1233,8 @@ async function initApp() {
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },
           camera(id) { selectCamera(id, true); },
-          time(id) { selectTime(id); },
+          time(id) { if (id === 'run') gameClock.freeze(false); else selectTime(id); },
+          clock: gameClock, applyClock, light: lightingSystem,
           setCamera(px, py, pz, tx, ty, tz) {
             cameraSystem.fixedPos = new THREE.Vector3(px, py, pz); cameraSystem.fixedLook = new THREE.Vector3(tx, ty, tz);
             selectCamera('fixed', true);
@@ -1224,6 +1270,7 @@ async function initApp() {
       const kmh = Math.round(Math.abs(activeEnt.speed) * 3.6);
       const altitudeM = Math.round(activeEnt.position.y + FRAME.H0); // metres above sea level (m ü. M.)
 
+      renderClock();
       if (elFps) {
         elFps.textContent = String(currentFps);
         elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';

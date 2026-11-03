@@ -81,6 +81,8 @@
   <link rel="modulepreload" href="./js/gwr-data.js" />
   <link rel="modulepreload" href="./js/swissimage.js" />
   <link rel="modulepreload" href="./js/season.js" />
+  <link rel="modulepreload" href="./js/game-clock.js" />
+  <link rel="modulepreload" href="./js/day-cycle.js" />
   <link rel="modulepreload" href="./js/surroundings.js" />
   <link rel="modulepreload" href="./js/trams.js" />
   <link rel="modulepreload" href="./js/rhb.js" />
@@ -244,6 +246,10 @@
   <!-- Top-Right Toolbar: Time of Day, Teleport, Map & Clean View -->
   <div class="hud hud-top-right">
     <div id="hud-toolbar" class="panel toolbar">
+      <div id="hud-clock" class="hud-clock" aria-label="Game time">
+        <span id="hud-clock-time" class="hud-clock-time">--:--</span>
+        <span id="hud-clock-day" class="hud-clock-day"></span>
+      </div>
       <div class="time-switch" role="group" aria-label="Atmosphere &amp; time of day">
         <button id="time-golden" class="time-btn active" data-time="golden" type="button" title="Golden Hour">
           <svg class="icon" aria-hidden="true"><use href="#i-golden"/></svg><span class="seg-label">Golden Hour</span>

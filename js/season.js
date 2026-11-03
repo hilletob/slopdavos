@@ -1,5 +1,7 @@
 import { uniform, float, vec3, mix, max, min, dot, normalize, smoothstep, step, mx_noise_float, positionWorld, normalWorld, normalWorldGeometry, cameraViewMatrix, cameraPosition } from 'three/tsl';
 import { QUALITY } from './quality.js';
+import { gameClock, applyClockSwitches } from './game-clock.js';
+import { TIME_MINUTES } from './day-cycle.js';
 
 // (the mobile profile, js/quality.js simpleMaterials: the snow below without its noise fields, altitude bands, rock and
 // slush, a few lines of WGSL instead of a few hundred in every snowed-on material; `SIMPLE` read when a material is built)
@@ -7,10 +9,10 @@ const SIMPLE = () => QUALITY.simpleMaterials;
 const SNOW = vec3(0.8, 0.83, 0.89);
 
 // The season: summer (0) or winter (1), one shared uniform that the ground, roof, surroundings and lake materials mix
-// towards snow and ice by. Toggled with the snowflake button in the top bar (or ?winter in the URL), remembered per
-// viewer, and eased over ~1.5 s so that the snow settles rather than pops.
+// towards snow and ice by. The game's clock has the say (js/game-clock.js, applied in js/main.js), and two things are kept
+// apart: the discrete season (isWinter, onSeasonChange: what only exists in winter is switched), which changes at midnight,
+// and the blend the eye sees (the uniform, setWinterBlend), which moves slowly through the snowfall night and the thaw.
 
-const KEY = 'slopdavos-season';
 export const winter = uniform(0);
 let target = 0, last = 0, easing = false;
 
@@ -29,13 +31,20 @@ export function isWinter() { return target === 1; }
 const listeners = new Set();
 export function onSeasonChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
+/** The discrete season: what listens is told (the winter-only scenery, the parked vehicles); the blend stays as it is */
+export function setSeason(on) {
+  const next = on ? 1 : 0;
+  if (target === next) return;
+  target = next;
+  for (const fn of [...listeners]) { try { fn(!!on); } catch (error) { console.warn('[season]', error); } }
+}
+
+/** The blend the eye sees, 0..1 (the clock's, every few seconds: a uniform, nothing recompiles) */
+export function setWinterBlend(v) { winter.value = v; }
+
+/** Both at once, eased over ~1.5 s (not used by the game, which goes by the clock; for scripts in the console) */
 export function setWinter(on, { animate = true } = {}) {
-  const changed = target !== (on ? 1 : 0);
-  target = on ? 1 : 0;
-  if (changed) for (const fn of [...listeners]) { try { fn(!!on); } catch (error) { console.warn('[season]', error); } }
-  try { localStorage.setItem(KEY, on ? 'winter' : 'summer'); } catch { /* storage unavailable */ }
-  const button = typeof document !== 'undefined' && document.getElementById('btn-winter');
-  if (button) { button.classList.toggle('active', !!on); button.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  setSeason(on);
   if (!animate || typeof requestAnimationFrame === 'undefined') { winter.value = target; return; }
   if (!easing) { easing = true; requestAnimationFrame(ease); }
 }
@@ -158,22 +167,8 @@ export function snowyStreet(material, { cover = 0.75, top = false, paint = false
   return material;
 }
 
-// Initial season: ?winter / ?summer in the URL, else the viewer's last choice; the button toggles it
-function initial() {
-  if (typeof location !== 'undefined') {
-    const q = new URLSearchParams(location.search);
-    if (q.has('winter')) return true;
-    if (q.has('summer')) return false;
-  }
-  try { return localStorage.getItem(KEY) === 'winter'; } catch { return false; }
-}
-
-if (typeof document !== 'undefined') {
-  const wire = () => {
-    const button = document.getElementById('btn-winter');
-    if (button) button.addEventListener('click', () => setWinter(!isWinter()));
-    setWinter(initial(), { animate: false });
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true });
-  else wire();
-}
+// The URL's debug switches (?winter, ?summer, ?time=...) move the clock before anything is built: the winter scenery goes
+// by isWinter() as the world is built (js/main.js)
+if (typeof location !== 'undefined') applyClockSwitches(gameClock, location.search, TIME_MINUTES);
+target = gameClock.isWinter ? 1 : 0;
+winter.value = gameClock.winterBlend;

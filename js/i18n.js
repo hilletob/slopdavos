@@ -16,6 +16,7 @@ const pairs = [
   ['Atmosphere & time of day', 'Atmosphäre und Tageszeit'],
   ['Golden Hour', 'Goldene Stunde'], ['Sunny Midday', 'Sonniger Mittag'], ['Midday', 'Mittag'],
   ['Blue Hour', 'Blaue Stunde'], ['Night 23:00', 'Nacht 23:00'], ['Night', 'Nacht'],
+  ['Game time', 'Spielzeit'], ['Summer', 'Sommer'],
   ['Teleport the active player', 'Aktive Spielfigur teleportieren'], ['Teleport to', 'Teleportieren nach'],
   ['Teleport', 'Teleportieren'], ['Full Davos street map [M]', 'Davos-Strassenkarte öffnen [M]'],
   ['Map', 'Karte'], ['Mute sound [N]', 'Ton ausschalten [N]'], ['Mute sound', 'Ton ausschalten'],
@@ -1091,6 +1092,7 @@ function translate(value) {
   dynamic = dynamic.replace(/ · this turn (\d+)$/, ' · in dieser Runde $1');
   dynamic = dynamic.replace(/ · streak (\d+)/g, ' · Serie $1');
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
+  dynamic = dynamic.replace(/^Day (\d+) · (Summer|Winter)$/, (_, n, season) => `Tag ${n} · ${season === 'Summer' ? 'Sommer' : 'Winter'}`);
   dynamic = dynamic.replace(/^Completed · no medal yet$/, 'Abgeschlossen · noch keine Medaille');
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) · best medal$/, (_, medal) => `${enToDe.get(medal) || medal} · beste Medaille`);
   dynamic = dynamic.replace(/^Best time (.+)$/, 'Bestzeit $1');

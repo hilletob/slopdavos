@@ -22,26 +22,14 @@ import { QUALITY } from './quality.js';
 
 // Scene-linear color grading and lens bloom, composed in the existing final render pass.
 
-// Exposure and white balance belong to the camera, independently of the physical lighting presets.
-// Keep exposure restrained for ACES; stronger bloom stays selective so midtones retain their contrast.
-const LOOKS = {
-  golden:   { exposure: 1.04, contrast: 1.12, saturation: 1.08, balance: [1.045, 1.00, 0.955], bloom: 0.24, threshold: 1.20 },
-  midday:   { exposure: 1.00, contrast: 1.10, saturation: 1.06, balance: [1.015, 1.00, 0.985], bloom: 0.18, threshold: 1.35 },
-  twilight: { exposure: 1.06, contrast: 1.10, saturation: 1.08, balance: [1.025, 0.995, 1.015], bloom: 0.28, threshold: 1.05 },
-  midnight: { exposure: 1.04, contrast: 1.08, saturation: 1.06, balance: [0.985, 1.00, 1.035], bloom: 0.30, threshold: 1.00 }
-};
-
+// Exposure and white balance belong to the camera, independently of the physical lighting: js/day-cycle.js has them per
+// time of day. Keep exposure restrained for ACES; stronger bloom stays selective so midtones retain their contrast.
+//
 // In winter the sunlit snow fields fill much of the frame at several times middle gray: at the summer exposure they ride
 // ACES' shoulder into a flat white and spill bloom over everything, a milky veil. On a sunny winter day the camera
 // stops down for the snow, keeps bloom to the true highlights (the bloom input is scaled by `bloomGate`, so lamps and
 // neon still glow) and holds a little more contrast. Mixed in by season.js's `winter`; dusk and night keep
 // their mood, so their factors stay at (nearly) neutral.
-const WINTER_LOOKS = {
-  golden:   { exposure: 0.84, contrast: 1.05, saturation: 1.00, bloomGate: 0.50 },
-  midday:   { exposure: 0.80, contrast: 1.06, saturation: 0.98, bloomGate: 0.45 },
-  twilight: { exposure: 0.96, contrast: 1.02, saturation: 1.00, bloomGate: 0.85 },
-  midnight: { exposure: 1.00, contrast: 1.00, saturation: 1.00, bloomGate: 1.00 }
-};
 
 function createPostProcessing(renderer, sceneColor, reflections) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -90,23 +78,21 @@ function createPostProcessing(renderer, sceneColor, reflections) {
     return vec4(color.mul(vignette), 1.0);
   })();
 
-  function applyPreset(id) {
-    const look = LOOKS[id] || LOOKS.golden;
-    exposure.value = look.exposure;
-    contrast.value = look.contrast;
-    saturation.value = look.saturation;
-    balance.value.set(...look.balance);
-    bloomPass.strength.value = look.bloom;
-    bloomPass.threshold.value = look.threshold;
-    const w = WINTER_LOOKS[id] || WINTER_LOOKS.golden;
-    winterExposure.value = w.exposure;
-    winterContrast.value = w.contrast;
-    winterSaturation.value = w.saturation;
-    winterBloomGate.value = w.bloomGate;
+  // A moment of the day (js/day-cycle.js sampleDay): uniforms only, js/main.js steps this every few seconds
+  function applyLook(s) {
+    exposure.value = s.exposure;
+    contrast.value = s.contrast;
+    saturation.value = s.saturation;
+    balance.value.set(s.balanceR, s.balanceG, s.balanceB);
+    bloomPass.strength.value = s.bloom;
+    bloomPass.threshold.value = s.threshold;
+    winterExposure.value = s.wExposure;
+    winterContrast.value = s.wContrast;
+    winterSaturation.value = s.wSaturation;
+    winterBloomGate.value = s.wBloomGate;
   }
 
-  applyPreset('golden');
-  return { outputNode, applyPreset };
+  return { outputNode, applyLook };
 }
 
 export { createPostProcessing };
