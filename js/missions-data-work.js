@@ -1,7 +1,7 @@
 import { DETAIL_HOUSES, frame as houseFrame } from './detail-houses-data.js';
 
 // js/missions-data-work.js
-// Six missions of everyday work in the Landschaft Davos (js/missions-data.js lists them; js/missions-work.js has their
+// Eight missions of everyday work in the Landschaft Davos (js/missions-data.js lists them; js/missions-work.js has their
 // runtime: the maps' meshes, the vehicles, the props): their definitions and the pure logic behind them, three.js-free
 // like the other packages (tests/missions-work.test.mjs drives them with synthetic frames and bots).
 //
@@ -29,6 +29,11 @@ import { DETAIL_HOUSES, frame as houseFrame } from './detail-houses-data.js';
 //                  their look-alikes (bitter bolete, false chanterelle) and fly agarics; the HUD describes the one in
 //                  front of the player, Space picks it. Ten in the basket (or five minutes), then to the mushroom
 //                  control: points for the edible ones, deductions for the rest. Medals by points.
+//   derby-crane    Summer. A tower crane on an (assumed) building site at the Hotel Derby, Davos Dorf: slew, trolley and
+//                  hoist, the load swings under the hook, three loads set on marked spots of a new wing. Scored by
+//                  precision, gentleness and time.
+//   snow-haul      Winter. The snow blower fills a tipper driving alongside on the Bündastrasse, then the truck goes to
+//                  the snow dump on the Davosersee and tips. Scored by load, spillage and time.
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
@@ -878,4 +883,485 @@ export const MUSHROOM_MISSION = {
   }
 };
 
-export const WORK_MISSIONS = [SNOW_SHOVEL_MISSION, SNOW_BLOWER_MISSION, LAWN_MISSION, GARBAGE_MISSION, ALPINE_ROSES_MISSION, MUSHROOM_MISSION];
+// =====================================================================================================================
+// 7. Kranführer beim Derby. ASSUMPTION: "kranführer beim derby" is read as a tower crane on a building site at the Hotel
+// Derby, Promenade 139, Davos Dorf (official address directory: LV95 2783023.5 / 1186795, x 523.5, z -1295). The building
+// site itself is invented: only a 2018 quarter plan for new building there is on record, no crane is known today. The
+// hotel stands in the game (swissBUILDINGS3D, though DAVOS_DATA.buildings has no footprint for it: see CRANE_HOTEL), so the
+// site lies on the free ground south-east of it, between the hotel and the Promenade.
+//
+// Three axes of the crane (slew, trolley, hoist) drive the suspension point; the hook hangs from it as a damped pendulum
+// (small angles): s'' = -(g/L) s - c s' - a, a being the suspension's own acceleration. So a load swings when the trolley
+// starts and stops, and a counter-move takes the swing out again.
+export const CRANE = {
+  tower: { x: 560, z: -1266 }, height: 38, // m: the jib over the mast's foot
+  mastHalf: 1, // m
+  slewMax: 0.2, slewAcc: 0.035, // rad/s, rad/s²
+  rMin: 6, rMax: 42, trolleyMax: 2.8, trolleyAcc: 0.7, // m along the jib, m/s, m/s²
+  ropeMin: 3, ropeMax: 46, hoistMax: 2.4, hoistAcc: 1.5, // m, m/s, m/s²
+  g: 9.81, damp: 0.1, // 1/s: the rope's own damping (small: the swing is the crane driver's to take out)
+  step: 1 / 120,
+  sling: 1.6, // m: the hook over the top of its load
+  pickReach: 2, // m: the hook this close over a load can take it
+  pickAbove: 1.2, pickBelow: 0.9, // m: how far over or under the sling's length
+  padR: 3, // m: the spot; off it the load cannot be released
+  hardLanding: 1, softLanding: 0.25, // m/s: the speed of a load set down
+  hitCooldown: 1.2, // s
+  ladder: { x: 562.6, z: -1264.6 }, ladderR: 2.6,
+  start: { x: 583.5, z: -1268 }, // (on the Promenade's kerb)
+  office: { x: 565, z: -1279.2 }, tools: { x: 569, z: -1242.8 },
+  limitMs: 900000,
+  // the score: precision and gentleness a load, hits and hard landings off it, the time on top
+  points: { precision: 300, gentle: 100, hit: 50, hard: 100, time: 300, fastS: 170, slowS: 460 }
+};
+/** The new wing: three terraces stepping up to the west, on the free ground south-east of the hotel */
+export const CRANE_WING = { x0: 530, x1: 552, z0: -1258, z1: -1244, steps: [552, 543, 536.5], floor: 3.2 };
+// What swissBUILDINGS3D has there and DAVOS_DATA.buildings has not (a scan of the drawn meshes, heights over the terrain):
+// the Hotel Derby's diagonal block and a low annexe
+export const CRANE_HOTEL = [
+  { x0: 510, x1: 545, z0: -1312, z1: -1293, h: 25 }, { x0: 510, x1: 533, z0: -1293, z1: -1283, h: 26 },
+  { x0: 498, x1: 522, z0: -1283, z1: -1272, h: 25 }, { x0: 484, x1: 510, z0: -1272, z1: -1262, h: 23 },
+  { x0: 545, x1: 572, z0: -1302, z1: -1284, h: 20 }, { x0: 539, x1: 545, z0: -1273, z1: -1262, h: 6 }
+];
+export const CRANE_LOADS = [
+  { id: 'bucket', name: 'concrete bucket', title: 'Concrete for the first deck', yard: { x: 574, z: -1254 }, pad: { x: 547.5, z: -1251 }, deck: 0, half: { x: 0.8, y: 0.75, z: 0.8 }, gust: 0, fragile: 1 },
+  { id: 'rebar', name: 'rebar bundle', title: 'Rebar for the second deck', yard: { x: 574, z: -1275 }, pad: { x: 539, z: -1251 }, deck: 1, half: { x: 0.45, y: 0.3, z: 3 }, gust: 0.1, fragile: 1 },
+  { id: 'jacuzzi', name: 'hotel jacuzzi', title: 'The jacuzzi for the roof terrace', yard: { x: 553, z: -1276 }, pad: { x: 533.2, z: -1251 }, deck: 2, half: { x: 1.1, y: 0.5, z: 1.1 }, gust: 0.2, fragile: 2 }
+];
+
+/**
+ * The site in world heights. ground(x, z): the terrain (flat in the tests); buildings: DAVOS_DATA.buildings, those near
+ * enough to be hit become obstacles. { baseY, jibY, decks: [y of each terrace], loads: [{ ...load, restY, padY }], obstacles }
+ */
+export function createCraneSite(ground = () => 0, buildings = []) {
+  const W = CRANE_WING, baseY = ground(CRANE.tower.x, CRANE.tower.z);
+  let top = -Infinity;
+  for (let x = W.x0; x <= W.x1; x += 5.5) for (let z = W.z0; z <= W.z1; z += 3.5) top = Math.max(top, ground(x, z));
+  const decks = W.steps.map((_, i) => top + W.floor * (i + 1));
+  const box = (minX, maxX, minY, maxY, minZ, maxZ) => ({ minX, maxX, minY, maxY, minZ, maxZ });
+  const yardY = ground(CRANE.office.x, CRANE.office.z), toolsY = ground(CRANE.tools.x, CRANE.tools.z);
+  const obstacles = [
+    box(CRANE.tower.x - CRANE.mastHalf, CRANE.tower.x + CRANE.mastHalf, baseY - 2, baseY + CRANE.height, CRANE.tower.z - CRANE.mastHalf, CRANE.tower.z + CRANE.mastHalf),
+    box(CRANE.office.x - 3, CRANE.office.x + 3, yardY - 1, yardY + 2.6, CRANE.office.z - 1.2, CRANE.office.z + 1.2), // the site office
+    box(CRANE.tools.x - 3, CRANE.tools.x + 3, toolsY - 1, toolsY + 2.6, CRANE.tools.z - 1.2, CRANE.tools.z + 1.2) // the tool container
+  ];
+  for (const h of CRANE_HOTEL) { const y = ground((h.x0 + h.x1) / 2, (h.z0 + h.z1) / 2); obstacles.push(box(h.x0, h.x1, y - 6, y + h.h, h.z0, h.z1)); }
+  W.steps.forEach((x1, i) => obstacles.push(box(W.x0, x1, i ? decks[i - 1] : top - 12, decks[i], W.z0, W.z1)));
+  for (const b of buildings) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < b.ring.length; i += 2) { x0 = Math.min(x0, b.ring[i]); x1 = Math.max(x1, b.ring[i]); z0 = Math.min(z0, b.ring[i + 1]); z1 = Math.max(z1, b.ring[i + 1]); }
+    if (x1 < CRANE.tower.x - 70 || x0 > CRANE.tower.x + 70 || z1 < CRANE.tower.z - 70 || z0 > CRANE.tower.z + 70) continue;
+    const g = ground((x0 + x1) / 2, (z0 + z1) / 2);
+    obstacles.push(box(x0, x1, g - 3, g + Math.max(b.h || 9, 16), z0, z1)); // (the data's heights are low: the drawn ones are 13-19 m)
+  }
+  const loads = CRANE_LOADS.map((l) => ({ ...l, restY: ground(l.yard.x, l.yard.z), padY: decks[l.deck] }));
+  return { baseY, jibY: baseY + CRANE.height, top, decks, loads, obstacles, ground };
+}
+
+/** What a load stands on at (x, z): the highest terrace under it, else the terrain */
+export function craneSurface(site, x, z) {
+  const W = CRANE_WING;
+  if (z >= W.z0 && z <= W.z1 && x >= W.x0) for (let i = W.steps.length - 1; i >= 0; i--) if (x <= W.steps[i]) return site.decks[i];
+  return site.ground(x, z);
+}
+
+/** One step of the damped pendulum: sw = { x, z, vx, vz } the hook off its plumb line, (ax, az) the suspension's acceleration, L the rope, (wx, wz) the wind's push */
+export function stepPendulum(sw, ax, az, L, dt, { g = CRANE.g, damp = CRANE.damp, wx = 0, wz = 0 } = {}) {
+  const k = g / Math.max(1, L);
+  sw.vx += (-k * sw.x - damp * sw.vx - ax + wx) * dt;
+  sw.vz += (-k * sw.z - damp * sw.vz - az + wz) * dt;
+  sw.x += sw.vx * dt;
+  sw.z += sw.vz * dt;
+  return sw;
+}
+export const swingOf = (sw) => Math.hypot(sw.x, sw.z);
+
+/** The gusts: a sum of slow waves (strength in m/s² on the load) */
+export function craneWind(t, strength, out = {}) {
+  const s = strength * (Math.sin(t * 0.37) * 0.7 + Math.sin(t * 0.83 + 1.2) * 0.5 + Math.sin(t * 0.13 + 0.4) * 0.5);
+  const dir = 0.9 + Math.sin(t * 0.07) * 0.8;
+  out.x = Math.sin(dir) * s; out.z = Math.cos(dir) * s;
+  return out;
+}
+
+export function createCrane(site) {
+  return { theta: 1, r: 22, rope: 18, slewV: 0, trolleyV: 0, hoistV: 0, swing: { x: 0, z: 0, vx: 0, vz: 0 }, jibY: site.jibY, px: 0, pz: 0, pvx: 0, pvz: 0, init: false };
+}
+const approach = (v, target, rate, dt) => (v < target ? Math.min(target, v + rate * dt) : Math.max(target, v - rate * dt));
+export function craneTrolley(c, out = {}) { out.x = CRANE.tower.x + Math.sin(c.theta) * c.r; out.z = CRANE.tower.z + Math.cos(c.theta) * c.r; return out; }
+/** The hook: the trolley's plumb line plus the swing, the rope's length down */
+export function craneHook(c, out = {}) {
+  craneTrolley(c, out);
+  out.x += c.swing.x; out.z += c.swing.z;
+  out.y = c.jibY - Math.sqrt(Math.max(1, c.rope * c.rope - c.swing.x * c.swing.x - c.swing.z * c.swing.z));
+  return out;
+}
+/**
+ * The crane over dt (fixed substeps): input { slew, trolley, hoist } in -1..1 (hoist + lifts), wind { x, z } (m/s²),
+ * `maxRope`: how far the hook may go down (the terrain, a seated load)
+ */
+export function stepCrane(c, input, dt, wind = null, maxRope = CRANE.ropeMax) {
+  const C = CRANE, p = {};
+  let n = Math.max(1, Math.round(dt / C.step));
+  const dh = dt / n;
+  while (n-- > 0) {
+    c.slewV = approach(c.slewV, clamp(input.slew || 0, -1, 1) * C.slewMax, C.slewAcc, dh);
+    c.trolleyV = approach(c.trolleyV, clamp(input.trolley || 0, -1, 1) * C.trolleyMax, C.trolleyAcc, dh);
+    c.hoistV = approach(c.hoistV, clamp(input.hoist || 0, -1, 1) * C.hoistMax, C.hoistAcc, dh);
+    c.theta += c.slewV * dh;
+    const r = c.r + c.trolleyV * dh;
+    c.r = clamp(r, C.rMin, C.rMax);
+    if (c.r !== r) c.trolleyV = 0;
+    const rope = c.rope - c.hoistV * dh;
+    c.rope = clamp(rope, C.ropeMin, Math.max(C.ropeMin, Math.min(C.ropeMax, maxRope)));
+    if (c.rope !== rope) c.hoistV = 0;
+    craneTrolley(c, p);
+    if (!c.init) { c.px = p.x; c.pz = p.z; c.pvx = c.pvz = 0; c.init = true; }
+    const vx = (p.x - c.px) / dh, vz = (p.z - c.pz) / dh;
+    stepPendulum(c.swing, (vx - c.pvx) / dh, (vz - c.pvz) / dh, c.rope, dh, { wx: wind?.x || 0, wz: wind?.z || 0 });
+    c.px = p.x; c.pz = p.z; c.pvx = vx; c.pvz = vz;
+  }
+  return c;
+}
+
+export const createCraneState = () => ({ cab: false, index: 0, carried: false, seated: false, seatV: 0, lifted: false, lx: 0, ly: 0, lz: 0, hits: 0, hard: 0, results: [], cool: 0, t: 0, view: null });
+
+/** Does the load's box at (x, y bottom, z) overlap an obstacle? (standing on top of one is a landing, not a hit) */
+export function craneLoadHits(site, half, x, y, z) {
+  for (const o of site.obstacles) {
+    if (x + half.x > o.minX && x - half.x < o.maxX && z + half.z > o.minZ && z - half.z < o.maxZ && y + half.y * 2 > o.minY && y < o.maxY - 0.05) return o;
+  }
+  return null;
+}
+
+/** The points of one load set down: err m off the spot's middle, v m/s as it touched */
+export function craneLanding(err, v, fragile = 1, P = CRANE.points) {
+  const precision = P.precision * clamp(1 - err / CRANE.padR, 0, 1);
+  const gentle = P.gentle * clamp(1 - (v - CRANE.softLanding) / (CRANE.hardLanding - CRANE.softLanding), 0, 1);
+  const hard = v > CRANE.hardLanding;
+  return { err, v, hard, precision, gentle, points: precision + gentle - (hard ? P.hard * fragile : 0) };
+}
+export const craneTimeBonus = (s, P = CRANE.points) => P.time * clamp((P.slowS - s) / (P.slowS - P.fastS), 0, 1);
+export function craneScore(st, P = CRANE.points) {
+  const sum = st.results.reduce((a, r) => a + r.points, 0);
+  return Math.max(0, Math.round(sum - st.hits * P.hit + (st.results.length >= CRANE_LOADS.length ? craneTimeBonus(st.t / 1000, P) : 0)));
+}
+
+/** The load in play: on the hook it follows it; returns 'hit', 'seated' or null. Call after stepCrane */
+export function stepCraneLoad(c, site, st, dt) {
+  st.cool = Math.max(0, st.cool - dt);
+  const load = site.loads[st.index];
+  if (!load || !st.carried) return null;
+  const hook = craneHook(c);
+  if (st.seated) {
+    // a seated load stays where it is until the rope is taut again; then it comes up on a slanted rope and swings
+    if (hook.y - (st.ly + load.half.y * 2) <= CRANE.sling + 0.15) { c.swing.vx *= Math.max(0, 1 - dt * 4); c.swing.vz *= Math.max(0, 1 - dt * 4); return null; }
+    st.seated = false; st.lifted = true;
+    const t = craneTrolley(c), reach = c.rope * 0.4;
+    c.swing.x = clamp(st.lx - t.x, -reach, reach); c.swing.z = clamp(st.lz - t.z, -reach, reach);
+    c.swing.vx = c.swing.vz = 0;
+    craneHook(c, hook);
+  }
+  const y = hook.y - CRANE.sling - load.half.y * 2;
+  const floor = craneSurface(site, hook.x, hook.z);
+  // (well under a terrace's top is the wall below it, driven into from the side: a hit, not a landing)
+  if (y <= floor && !(y < floor - 0.4 && craneLoadHits(site, load.half, hook.x, y, hook.z))) {
+    st.seated = true;
+    st.lx = hook.x; st.lz = hook.z; st.ly = floor;
+    // (how fast it came down: the hoist and a little of the swing; a hard knock stays on the record of this load)
+    const v = Math.max(0, -c.hoistV) + 0.25 * Math.hypot(c.swing.vx, c.swing.vz);
+    st.seatV = Math.max(st.seatV, v);
+    return 'seated';
+  }
+  st.lx = hook.x; st.ly = y; st.lz = hook.z;
+  if (st.cool <= 0 && craneLoadHits(site, load.half, hook.x, y, hook.z)) {
+    st.cool = CRANE.hitCooldown;
+    st.hits++;
+    // the knock: back the way it came, a good deal of the swing gone into it
+    c.swing.vx = -c.swing.vx * 0.6; c.swing.vz = -c.swing.vz * 0.6;
+    return 'hit';
+  }
+  return null;
+}
+
+/**
+ * The hook button: takes the load when the hook is over it, releases it when it stands on its spot. Returns 'hooked',
+ * 'released', 'off-spot', 'not-down' or 'far'
+ */
+export function craneHookAction(c, site, st) {
+  const load = site.loads[st.index];
+  if (!load) return 'far';
+  if (!st.carried) {
+    const hook = craneHook(c);
+    const over = hook.y - (load.restY + load.half.y * 2 + CRANE.sling);
+    if (Math.hypot(hook.x - load.yard.x, hook.z - load.yard.z) > CRANE.pickReach || over > CRANE.pickAbove || over < -CRANE.pickBelow) return 'far';
+    st.carried = true; st.seated = true; st.lifted = false; st.seatV = 0;
+    st.lx = load.yard.x; st.ly = load.restY; st.lz = load.yard.z;
+    return 'hooked';
+  }
+  if (!st.seated) return 'not-down';
+  const err = Math.hypot(st.lx - load.pad.x, st.lz - load.pad.z);
+  if (err > CRANE.padR || Math.abs(st.ly - load.padY) > 0.2) return 'off-spot';
+  const r = craneLanding(err, st.seatV, load.fragile);
+  st.results.push({ id: load.id, ...r, x: st.lx, y: st.ly, z: st.lz });
+  if (r.hard) st.hard++;
+  st.carried = false; st.seated = false; st.seatV = 0;
+  st.index++;
+  return 'released';
+}
+
+const num = (v) => v.toFixed(1);
+export const CRANE_MISSION = {
+  id: 'derby-crane',
+  title: 'Crane driver at the Hotel Derby',
+  intro: 'A new wing for the Hotel Derby in Davos Dorf, and the crane driver is off sick. Walk through the site gate and climb the tower crane. A and D slew, W and S run the trolley, E or Space lifts, Q lowers, F takes or lets go of a load, V changes the view. Loads swing under the hook: stop too hard and they keep going, so meet each swing with a small move the same way. Set the concrete, the rebar and the jacuzzi for the roof gently on their marked spots. Later on the wind comes up.',
+  mode: 'person',
+  season: 'summer',
+  time: 'midday',
+  features: ['towerCrane'],
+  props: [],
+  colour: '#f2b705',
+  icon: 'crane',
+  scoreMode: true,
+  scoreUnit: 'pts',
+  // (the bots in tests/missions-work.test.mjs: gold ~ half a metre off the marks, gently, inside about 5 minutes)
+  medals: { gold: 1100, silver: 850, bronze: 500 },
+  finish: 'The concrete is in, the rebar lies straight and the jacuzzi has its view of the Parsenn. The foreman buys you a coffee.',
+  start: { x: CRANE.start.x, z: CRANE.start.z, heading: Math.atan2(CRANE.ladder.x - CRANE.start.x, CRANE.ladder.z - CRANE.start.z) },
+  createState: createCraneState,
+  update(ctx, state) {
+    state.t = ctx.t;
+    if (!state.cab && ctx.mode === 'person' && Math.hypot(ctx.x - CRANE.ladder.x, ctx.z - CRANE.ladder.z) <= CRANE.ladderR) state.cab = true;
+  },
+  score: (state) => craneScore(state),
+  objectives: [
+    {
+      id: 'climb',
+      title: 'Climb the crane',
+      check(ctx, state) {
+        const d = Math.hypot(ctx.x - CRANE.ladder.x, ctx.z - CRANE.ladder.z);
+        return { done: state.cab, progress: null, text: `${fmtDist(d)} to the crane ladder`, target: { x: CRANE.ladder.x, z: CRANE.ladder.z, r: CRANE.ladderR }, hint: null };
+      }
+    },
+    ...CRANE_LOADS.map((load, i) => ({
+      id: load.id,
+      title: load.title,
+      check(ctx, state) {
+        if (ctx.t > CRANE.limitMs) return { done: false, fail: 'The site closes for the day: too slow.', text: '', progress: null, target: null, hint: null };
+        const v = state.view;
+        const hits = state.hits ? ` · ${state.hits} ${state.hits === 1 ? 'hit' : 'hits'}` : '';
+        let text = `Take the ${load.name}${hits}`, hint = null;
+        if (state.carried && state.seated && state.lifted) {
+          const err = Math.hypot(state.lx - load.pad.x, state.lz - load.pad.z);
+          text = `${num(err)} m off the mark${hits}`;
+          hint = err <= CRANE.padR ? 'Down: F lets it go' : 'Off the spot: lift it and try again';
+        } else if (v) {
+          text = `${state.carried ? `Set the ${load.name} down` : `Take the ${load.name}`}: ${num(v.dist)} m off · ${num(Math.max(0, v.above))} m above · swing ${num(v.swing)} m${hits}`;
+          if (!state.carried && v.ready) hint = 'Over the load: F takes it';
+          else if (v.swing > 1.2) hint = 'Swinging: meet the swing with a small move the same way';
+          else if (v.wind > 0.12) hint = 'Gusts: the load drifts';
+          else hint = 'A D slew · W S trolley · E lift · Q lower · F hook · V view';
+        }
+        return { done: state.index > i, progress: state.carried ? 0.5 : 0, text, target: null, hint };
+      }
+    }))
+  ],
+  summary(state) {
+    const parts = state.results.map((r) => `${r.err.toFixed(2)} m, ${r.v.toFixed(2)} m/s`);
+    return [`Set down: ${parts.join(' · ')}`, `${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.hard} hard ${state.hard === 1 ? 'landing' : 'landings'}`];
+  }
+};
+
+// =====================================================================================================================
+// 8. Schnee abführen. The snow blower of mission 2 on the same Bündastrasse, but its chute now throws into a tipper
+// driving alongside; then the player takes the truck to the snow dump at the Davosersee (a real one: the Gemeinde has
+// long tipped clean snow into the lake, over a narrow access road) and tips it from the marked spot on the shore.
+export const LOADER = {
+  length: 215, // m of the Bündastrasse: to just before the junction with the lane south
+  blowerD: -1.6, truckD: 1.9, // m: their lanes (+ to the left of the way out)
+  throwSide: 3.5, throwAhead: 0.4, // m: where the chute's snow lands, the deflector set low
+  blowerSpeed: 4.3, // m/s: the blower's top speed in this mission (the auger chokes at BLOWER.chokeSpeed)
+  packing: 0.09, // m³ on the bed per m³ blown (the fluff packs down; scaled so a bed is about 140 m of road)
+  capacity: 14, // m³
+  minLoad: 0.3, // of the capacity: less, and the truck is not worth sending
+  bed: { halfW: 1.15, halfL: 2.6, back: 1.2 }, // the load bed: its middle `back` m behind the truck's centre
+  truckBody: { halfW: 1.25, halfL: 4.35 },
+  swapReach: 11, // m: from the blower to the truck's door
+  shedLat: 3.6, shedRate: 0.3, // m/s²: past this sideways pull in a bend the load sheds, m³/s per m/s²
+  tip: { raiseS: 2.2, emptyS: 3.2, fallFrom: 0.45 }, // s to raise the bed, s to empty it, from which raise the load slides
+  limitMs: 900000,
+  points: { load: 600, clean: 200, time: 200, hit: 25, fastS: 240, slowS: 520 }
+};
+// The way from where the truck stops on the Bündastrasse to the shore (OSM, the road network's own vertices: on along the
+// Bündastrasse, a lane south to the Mühlestrasse, the
+// Bahnhofstrasse through Davos Dorf, the service road and the Seepromenade along the lake's car park)
+export const SNOW_ROUTE = [857.9, -1152.6, 867.9, -1155, 870.2, -1155.4, 875.2, -1156, 878.9, -1156, 963.9, -1147.9, 965.3, -1172.8, 970.8, -1246.9, 988.4, -1287.5, 997.8, -1307.4, 998.6, -1308.7, 1017.7, -1335.9, 999.2, -1346.5, 949.1, -1377.3, 937.6, -1385.2, 929.6, -1394.4, 923.3, -1403.3, 916.9, -1412.3, 911, -1420.6, 859.3, -1500.8, 835.9, -1534.5, 832.4, -1538.5, 860.8, -1574.6, 888.5, -1610.1, 901, -1625.1, 916.3, -1642.7, 952, -1681.9, 971.5, -1703.5, 1005.2, -1743.8, 1007.4, -1746.3, 1018.5, -1760.2, 1079.5, -1836.3, 1122.4, -1889.7, 1125, -1893.2, 1127.4, -1897, 1133.4, -1907.3, 1137.5, -1914.9, 1143.2, -1927.9, 1149.2, -1947.5, 1151.5, -1957.4, 1153.1, -1964.8, 1162.6, -2010.4, 1163.4, -2013.8, 1165.8, -2021.1, 1167.5, -2025.5, 1171.6, -2023.9, 1173.6, -2023.3, 1179.1, -2022.5, 1191.1, -2032.9, 1194.2, -2036.2, 1225.2, -2071.2, 1226, -2072.3, 1232.9, -2082.8, 1233.6, -2084.1, 1239.8, -2098.1, 1240.3, -2099.6, 1242.9, -2110.1, 1243.6, -2114.6, 1243.7, -2116.2, 1243.3, -2124.8, 1239, -2145.2, 1238.7, -2146.3, 1236.3, -2153.2];
+/** The tipping spot on the shore: the truck's tail here, its nose away from the water (heading: the way it faces) */
+export const TIP_SPOT = { x: 1244.3, z: -2156.8, heading: Math.atan2(-0.985, 0.174), r: 3, turn: 0.7, approachR: 34 };
+
+export const createLoaderRoute = (L = LOADER) => createBlowerRoute({ length: L.length });
+export const createLoaderGrid = (route) => createBlowerGrid(route, BLOWER, []);
+
+/** The truck's pace on the road: a working rhythm of its own, waiting for a blower that falls back */
+export function truckPace(truck, blowerS, L = LOADER) {
+  if (truck.full) return 0;
+  const rhythm = 2.75 + 0.45 * Math.sin(truck.s / 19) + 0.25 * Math.sin(truck.s / 7);
+  const gap = truck.s - L.bed.back - blowerS - L.throwAhead;
+  if (gap > 2) return rhythm * clamp(1 - (gap - 2) / 3, 0, 1);
+  if (gap < -2) return Math.min(BLOWER.chokeSpeed, rhythm + (-gap - 2) * 0.5);
+  return rhythm;
+}
+export function createLoaderTruck(startS, L = LOADER) { return { s: startS + L.bed.back + L.throwAhead, d: L.truckD, v: 0, full: false }; }
+/** The truck along the road over dt; `started`: it waits for the blower's first move */
+export function stepLoaderTruck(truck, blowerS, started, dt, L = LOADER) {
+  const target = started ? truckPace(truck, blowerS, L) : 0;
+  truck.v = truck.v < target ? Math.min(target, truck.v + 0.9 * dt) : Math.max(target, truck.v - 1.8 * dt);
+  truck.s = Math.min(L.length + 2, truck.s + truck.v * dt);
+  truck.d = L.truckD + 0.22 * Math.sin(truck.s / 31);
+  return truck;
+}
+/** Does the blower's box (centre s, d; facing a off the road) overlap the truck? (separating axes in the road's frame) */
+export function blowerHitsTruck(p, a, truck, L = LOADER, B = BLOWER) {
+  const ca = Math.cos(a), sa = Math.sin(a), ds = truck.s - p.s, dd = truck.d - p.d;
+  for (const [ax, ay] of [[1, 0], [0, 1], [ca, sa], [-sa, ca]]) {
+    const dist = Math.abs(ds * ax + dd * ay);
+    const rT = L.truckBody.halfL * Math.abs(ax) + L.truckBody.halfW * Math.abs(ay);
+    const rB = B.body.halfL * Math.abs(ca * ax + sa * ay) + B.body.halfW * Math.abs(-sa * ax + ca * ay);
+    if (dist > rT + rB) return false;
+  }
+  return true;
+}
+/** Is (x, z) inside the flat ring [x0, z0, x1, z1, ...]? */
+export function inRingXZ(r, x, z) {
+  let c = false;
+  for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; }
+  return c;
+}
+/** Is the chute's snow, landing at `land` (s, d), on the truck's bed? */
+export function onBed(land, truck, L = LOADER) {
+  return Math.abs(land.s - (truck.s - L.bed.back)) <= L.bed.halfL && Math.abs(land.d - truck.d) <= L.bed.halfW;
+}
+/** Volume blown (m³ of fresh snow) goes on the bed or beside it; returns the packed m³ wasted (for the heap on the road) */
+export function stepChute(st, vol, land, truck, L = LOADER) {
+  if (vol <= 0) return 0;
+  const v = vol * L.packing;
+  st.blown += v;
+  if (onBed(land, truck, L)) {
+    const room = L.capacity - st.load;
+    st.onBed = true;
+    if (v <= room) { st.load += v; return 0; }
+    st.load = L.capacity; st.spilled += v - room;
+    return v - room;
+  }
+  st.spilled += v; st.onBed = false;
+  return v;
+}
+/** A hard bend with a full bed: the sideways pull over shedLat throws snow over the side; returns the m³ lost */
+export function shedInBend(st, speed, yawRate, dt, L = LOADER) {
+  const over = Math.abs(speed * yawRate) - L.shedLat;
+  if (over <= 0 || st.load <= 0) return 0;
+  const lost = Math.min(st.load, over * L.shedRate * dt);
+  st.load -= lost; st.shed += lost;
+  return lost;
+}
+/** The truck against the tipping spot: its tail's distance from the mark, how far it is turned from the way it should face */
+export function tipPose(x, z, heading, speed, spot = TIP_SPOT, L = LOADER) {
+  const tailX = x - Math.sin(heading) * L.truckBody.halfL, tailZ = z - Math.cos(heading) * L.truckBody.halfL;
+  const dist = Math.hypot(tailX - spot.x, tailZ - spot.z);
+  let off = (heading - spot.heading) % (Math.PI * 2);
+  if (off > Math.PI) off -= Math.PI * 2; else if (off < -Math.PI) off += Math.PI * 2;
+  const placed = dist <= spot.r && Math.abs(off) <= spot.turn;
+  return { dist, off, placed, stopped: Math.abs(speed) < 0.4, ok: placed && Math.abs(speed) < 0.4 };
+}
+/** One step of tipping: the key held at the spot raises the bed and the load slides; let go, it comes down. Returns the m³ out */
+export function stepTip(st, ok, hold, dt, L = LOADER) {
+  const T = L.tip;
+  st.raise = ok && hold ? Math.min(1, st.raise + dt / T.raiseS) : Math.max(0, st.raise - dt / T.raiseS);
+  if (st.raise < T.fallFrom || st.load <= 0) return 0;
+  const out = Math.min(st.load, (L.capacity / T.emptyS) * dt);
+  st.load -= out; st.tipped += out;
+  return out;
+}
+export const snowTimeBonus = (s, P = LOADER.points) => P.time * clamp((P.slowS - s) / (P.slowS - P.fastS), 0, 1);
+export function snowScore(st, L = LOADER) {
+  const P = L.points;
+  const clean = st.blown > 0 ? clamp(1 - (st.spilled + st.shed) / Math.max(st.blown, L.capacity), 0, 1) : 0;
+  return Math.max(0, Math.round(P.load * clamp(st.tipped / L.capacity, 0, 1) + P.clean * clean + snowTimeBonus(st.t / 1000, P) - st.hits * P.hit));
+}
+export const createSnowState = () => ({ load: 0, blown: 0, spilled: 0, shed: 0, tipped: 0, raise: 0, onBed: false, hits: 0, chute: 1, inTruck: false, s: 0, truckDist: 0, truckAt: null, routeS: 0, t: 0, choke: false, shedding: false, inLake: false, pose: null });
+
+const TRUCK_ROUTE = makeRoute(SNOW_ROUTE);
+/** The next point to steer for on the way to the lake, `ahead` m past the truck, never going back along the road */
+export function nextOnRoute(st, x, z, ahead = 70, route = TRUCK_ROUTE) {
+  const p = projectRoute(route, x, z);
+  if (p.s > st.routeS && p.s < st.routeS + 120) st.routeS = p.s;
+  return routePoint(route, st.routeS + ahead);
+}
+const volText = (v) => v.toFixed(1);
+export const SNOW_HAUL_MISSION = {
+  id: 'snow-haul',
+  title: 'Carting the snow to the Davosersee',
+  intro: 'The drifts on the Bündastrasse have to go. Drive the snow blower beside the tipper with the chute set low, W and S to keep pace, and keep the stream on the load bed: what lands beside it is wasted, V turns the chute. When the truck is full, climb across with E, take it down through Davos Dorf to the snow dump on the Davosersee, reverse with your tail to the marked spot on the shore and hold E to tip. Fast bends throw snow off the load. Mind the lake.',
+  mode: 'car',
+  season: 'winter',
+  time: 'midday',
+  features: ['workVehicle', 'snowLoad'],
+  props: [],
+  vehicle: 'blower',
+  colour: '#5aa9e6',
+  icon: 'snowtruck',
+  scoreMode: true,
+  scoreUnit: 'pts',
+  medals: { gold: 850, silver: 700, bronze: 500 },
+  finish: 'The load slides off into the Davosersee. The road is black again and the Werkhof sends the next truck.',
+  get start() { const p = routePoint(createLoaderRoute(), 8, LOADER.blowerD); return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), heading: p.heading }; },
+  createState: createSnowState,
+  update(ctx, state) { state.t = ctx.t; },
+  score: (state) => snowScore(state),
+  objectives: [
+    {
+      id: 'load',
+      title: 'Fill the truck',
+      check(ctx, state) {
+        if (ctx.t > LOADER.limitMs) return { done: false, fail: 'The road is still white at nightfall: too slow.', text: '', progress: null, target: null, hint: null };
+        const atEnd = state.s >= LOADER.length - 6;
+        if (atEnd && state.load < LOADER.capacity * LOADER.minLoad) return { done: false, fail: 'The road is finished and the truck is nearly empty: the snow lies beside it.', text: '', progress: null, target: null, hint: null };
+        const share = state.blown > 0 ? Math.round((100 * (state.blown - state.spilled)) / state.blown) : 100;
+        const hint = ctx.mode !== 'car' ? 'Back into the blower' : state.blown > 0 && !state.onBed ? 'The stream misses the bed: close up beside the truck' : state.choke ? 'Too fast: the auger chokes and leaves snow' : null;
+        return { done: state.load >= LOADER.capacity - 0.01 || atEnd, progress: state.load / LOADER.capacity, text: `Truck ${volText(state.load)} of ${LOADER.capacity} m³ · ${share} % on the bed`, target: null, hint };
+      }
+    },
+    {
+      id: 'swap',
+      title: 'Climb into the truck',
+      check(ctx, state) {
+        return { done: state.inTruck, progress: null, text: `${volText(state.load)} m³ on board`, target: state.truckAt ? { x: state.truckAt.x, z: state.truckAt.z, r: 4 } : null, hint: state.truckDist > LOADER.swapReach ? 'Drive closer to the truck' : 'E: climb across' };
+      }
+    },
+    {
+      id: 'drive',
+      title: 'To the Davosersee',
+      check(ctx, state) {
+        if (ctx.t > LOADER.limitMs) return { done: false, fail: 'The dump has closed for the night: too slow.', text: '', progress: null, target: null, hint: null };
+        const d = Math.hypot(ctx.x - TIP_SPOT.x, ctx.z - TIP_SPOT.z);
+        const next = nextOnRoute(state, ctx.x, ctx.z);
+        return { done: d <= TIP_SPOT.approachR, progress: state.routeS / TRUCK_ROUTE.length, text: `${fmtDist(d)} to the snow dump · ${volText(state.load)} m³`, target: { x: next.x, z: next.z, r: 6 }, hint: state.shedding ? 'Too fast in the bend: snow over the side' : null };
+      }
+    },
+    {
+      id: 'tip',
+      title: 'Back up and tip',
+      check(ctx, state) {
+        if (state.inLake) return { done: false, fail: 'The truck is in the Davosersee. The Werkhof is not amused.', text: '', progress: null, target: null, hint: null };
+        const pose = state.pose;
+        const hint = state.tipped > 0 && state.load > 0 ? 'Hold on: it is sliding' : !pose ? null : !pose.placed ? `Tail to the mark, nose away from the water: ${pose.dist.toFixed(1)} m` : !pose.stopped ? 'Stop the truck' : 'Hold E to tip';
+        return { done: state.load <= 0.01, progress: state.tipped / Math.max(0.01, state.tipped + state.load), text: `${volText(state.load)} m³ left on the bed`, target: pose?.placed ? null : { x: TIP_SPOT.x, z: TIP_SPOT.z, r: TIP_SPOT.r, style: 'pad' }, hint }; // (in place, the marker's column would stand in the view)
+      }
+    }
+  ],
+  summary(state) {
+    return [`${volText(state.tipped)} of ${LOADER.capacity} m³ in the lake · ${volText(state.spilled)} m³ beside the truck · ${volText(state.shed)} m³ lost in bends`, `${state.hits} ${state.hits === 1 ? 'knock' : 'knocks'} against the truck`];
+  }
+};
+
+export const WORK_MISSIONS = [SNOW_SHOVEL_MISSION, SNOW_BLOWER_MISSION, LAWN_MISSION, GARBAGE_MISSION, ALPINE_ROSES_MISSION, MUSHROOM_MISSION, CRANE_MISSION, SNOW_HAUL_MISSION];

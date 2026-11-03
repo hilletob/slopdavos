@@ -134,6 +134,14 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.match(t('Last run done, boots still on: the après-ski party at the Bolgenschanze.'), /SPRINGEN/);
   assert.match(t('Metal night at the BOX Davos on the Bahnhofstrasse in Davos Dorf.'), /×5/);
   assert.equal(t('JUMP'), 'SPRINGEN');
+  assert.equal(t('Crane driver at the Hotel Derby'), 'Kranführer beim Hotel Derby');
+  assert.match(t('A new wing for the Hotel Derby in Davos Dorf, and the crane driver is off sick.'), /Turmkran/);
+  assert.equal(t('Set the hotel jacuzzi down: 3.2 m off · 1.0 m above · swing 0.4 m · 2 hits'), 'Hotel-Jacuzzi absetzen: 3.2 m daneben · 1.0 m darüber · Pendeln 0.4 m · 2 Treffer');
+  assert.equal(t('45 m to the crane ladder'), '45 m bis zur Kranleiter');
+  assert.equal(t('Carting the snow to the Davosersee'), 'Schnee abführen an den Davosersee');
+  assert.match(t('The drifts on the Bündastrasse have to go.'), /Davosersee/);
+  assert.equal(t('Truck 7.4 of 14 m³ · 96 % on the bed'), 'Lastwagen 7.4 von 14 m³ · 96 % auf der Brücke');
+  assert.equal(t('1.2 km to the snow dump · 14.0 m³'), '1.2 km bis zur Schneedeponie · 14.0 m³');
   assert.equal(t('Alight  +45'), 'Es brennt  +45');
   assert.equal(t('Margherita: flawless!  +160'), 'Margherita: makellos!  +160');
   assert.equal(t('120 m to the Eisstadion, Talstrasse 41 · 80 % hot'), '120 m bis zum Eisstadion, Talstrasse 41 · 80 % heiss');

@@ -130,6 +130,48 @@ const pairs = [
   ['Ore in the Silberberg mine', 'Erz im Silberbergwerk'],
   ['Snow shovelling at Dischmastrasse', 'Schneeschaufeln an der Dischmastrasse'],
   ['Snow blower on the Bündastrasse', 'Schneefräsen auf der Bündastrasse'],
+  ['Crane driver at the Hotel Derby', 'Kranführer beim Hotel Derby'],
+  ['Climb the crane', 'Auf den Kran steigen'],
+  ['Concrete for the first deck', 'Beton aufs erste Deck'],
+  ['Rebar for the second deck', 'Armierung aufs zweite Deck'],
+  ['The jacuzzi for the roof terrace', 'Der Jacuzzi für die Dachterrasse'],
+  ['The site closes for the day: too slow.', 'Feierabend auf der Baustelle: zu langsam.'],
+  ['Over the load: F takes it', 'Über der Last: F hängt sie an'],
+  ['Swinging: meet the swing with a small move the same way', 'Die Last pendelt: Fahr dem Pendeln mit einer kleinen Bewegung nach'],
+  ['Gusts: the load drifts', 'Böen: Die Last treibt ab'],
+  ['A D slew · W S trolley · E lift · Q lower · F hook · V view', 'A D schwenken · W S Laufkatze · E heben · Q senken · F Haken · V Ansicht'],
+  ['Down: F lets it go', 'Sie steht: F hängt sie aus'],
+  ['Off the spot: lift it and try again', 'Neben der Markierung: Heb sie an und versuch es nochmals'],
+  ['Hooked: lift it clear', 'Angehängt: Heb sie frei'],
+  ['Not on the marked spot', 'Nicht auf der Markierung'],
+  ['Lower it onto the spot first', 'Setz sie zuerst auf der Markierung ab'],
+  ['The hook is not over the load', 'Der Haken ist nicht über der Last'],
+  ['Too hard!', 'Zu hart!'],
+  ['Lift', 'Heben'],
+  ['Lower', 'Senken'],
+  ['Hook', 'Haken'],
+  ['View', 'Ansicht'],
+  ['The concrete is in, the rebar lies straight and the jacuzzi has its view of the Parsenn. The foreman buys you a coffee.', 'Der Beton ist drin, die Armierung liegt gerade, und der Jacuzzi hat seinen Blick auf die Parsenn. Der Polier spendiert dir einen Kaffee.'],
+  ['Carting the snow to the Davosersee', 'Schnee abführen an den Davosersee'],
+  ['Fill the truck', 'Lastwagen füllen'],
+  ['Climb into the truck', 'In den Lastwagen steigen'],
+  ['To the Davosersee', 'An den Davosersee'],
+  ['Back up and tip', 'Rückwärts ansetzen und kippen'],
+  ['Tipper', 'Kipper'],
+  ['The road is still white at nightfall: too slow.', 'Bei Einbruch der Nacht ist die Strasse noch weiss: zu langsam.'],
+  ['The road is finished and the truck is nearly empty: the snow lies beside it.', 'Die Strasse ist fertig und der Lastwagen fast leer: Der Schnee liegt daneben.'],
+  ['The dump has closed for the night: too slow.', 'Die Deponie ist für heute zu: zu langsam.'],
+  ['The truck is in the Davosersee. The Werkhof is not amused.', 'Der Lastwagen steht im Davosersee. Der Werkhof ist nicht begeistert.'],
+  ['Back into the blower', 'Zurück in die Schneefräse'],
+  ['The stream misses the bed: close up beside the truck', 'Der Strahl verfehlt die Brücke: Fahr näher neben den Lastwagen'],
+  ['Drive closer to the truck', 'Fahr näher an den Lastwagen'],
+  ['E: climb across', 'E: hinübersteigen'],
+  ['Too fast in the bend: snow over the side', 'Zu schnell in der Kurve: Schnee fällt über die Seite'],
+  ['Hold on: it is sliding', 'Halten: Er rutscht'],
+  ['Stop the truck', 'Lastwagen anhalten'],
+  ['Hold E to tip', 'E halten zum Kippen'],
+  ['Into the tipper: to the Davosersee', 'In den Kipper: an den Davosersee'],
+  ['The load slides off into the Davosersee. The road is black again and the Werkhof sends the next truck.', 'Die Ladung rutscht in den Davosersee. Die Strasse ist wieder schwarz, und der Werkhof schickt den nächsten Lastwagen.'],
   ['Mowing the Kurpark lawn', 'Rasenmähen im Kurpark'],
   ['Refuse round in Davos Platz', 'Kehrichtrunde in Davos Platz'],
   ['Alpine roses below the Strelaberg', 'Alpenrosen unter dem Strelaberg'],
@@ -824,6 +866,8 @@ const missionIntros = [
   ['Alert: motorbike crash', 'Motorradunfall an der Flüelapassstrasse. Mit der Rega hinfliegen, auf der markierten Wiese neben der Strasse landen, den Patienten versorgen und zum Spital bringen.'],
   ['Dispatch to patrol Davos', 'Als Polizeipatrouille zum Motorradunfall an der Flüelapassstrasse fahren. Mit K Blaulicht einschalten und vor der Unfallstelle quer parken. Dann zu Fuss (1) je 50 m vor und hinter dem Unfall Kegel aufstellen und die Rega einweisen.'],
   ['Thirty centimetres of fresh snow', 'Den Zugangsweg an der Dischmastrasse 19 freischaufeln. Space oder „Schaufeln“ halten und den Weg entlanggehen. Wenn der Schieber voll ist oder du loslässt, landet der Schnee auf einem Haufen im Garten. Mindestens 95 % des Weges räumen.'],
+  ['A new wing for the Hotel Derby', 'Das Hotel Derby in Davos Dorf bekommt einen neuen Flügel, und der Kranführer ist krank. Geh durchs Baustellentor und steig auf den Turmkran. A und D schwenken, W und S fahren die Laufkatze, E oder Leertaste heben, Q senkt, F hängt die Last an oder aus, V wechselt die Ansicht. Die Last pendelt unter dem Haken: Bremst du zu hart, schwingt sie weiter. Fahr dem Pendeln deshalb mit einer kleinen Bewegung nach. Setz Beton, Armierung und den Jacuzzi fürs Dach sanft auf die markierten Stellen. Später kommt Wind auf.'],
+  ['The drifts on the Bündastrasse', 'Die Schneewälle an der Bündastrasse müssen weg. Fahr die Schneefräse neben dem Kipper her, W und S halten das Tempo. Halte den Strahl auf der Ladebrücke: Was daneben landet, ist verloren. V dreht den Auswurf. Ist der Lastwagen voll, steig mit E hinüber, fahr durch Davos Dorf zur Schneedeponie am Davosersee, setz rückwärts mit dem Heck an die Markierung am Ufer und halte E zum Kippen. Schnelle Kurven werfen Schnee von der Ladung. Pass auf den See auf.'],
   ['Forty centimetres overnight', 'Die Bündastrasse mit der Schneefräse auf 300 m von Rand zu Rand räumen. Eine Seite hinauf, wenden, die andere zurück. Unter 13 km/h bleiben, damit die 2,8 m breite Fräse nicht verstopft. Geparkte Autos weder rammen noch zuschütten; V dreht den Auswurf.'],
   ['The Kurpark in Davos Platz', 'Den Rasen im Kurpark beim Carl-Dorno-Weg in Bahnen mähen, bis 93 % geschnitten sind. Die beiden Blumenbeete aussparen: Jeder beschädigte Bereich kostet zwei Sekunden.'],
   ['Tuesday is refuse day', 'Mit dem Kehrichtwagen im Hofquartier zehn Sammelstellen anfahren. Mit dem Heck anhalten, damit die Crew laden kann, und danach bei der KMA entladen. Jede ausgelassene Stelle kostet 45 Sekunden.'],
@@ -890,6 +934,27 @@ function translate(value) {
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
+  // the crane at the Hotel Derby, the snow haul (js/missions-data-work.js)
+  const craneLoadDe = { 'concrete bucket': 'Betonkübel', 'rebar bundle': 'Armierungsbund', 'hotel jacuzzi': 'Hotel-Jacuzzi' };
+  const craneHits = (rest) => (rest || '').replace(/ · (\d+) hits?$/, (_, n) => ` · ${n} Treffer`);
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the crane ladder$/, '$1 bis zur Kranleiter');
+  dynamic = dynamic.replace(/^Take the (concrete bucket|rebar bundle|hotel jacuzzi): ([\d.]+) m off · ([\d.]+) m above · swing ([\d.]+) m( · \d+ hits?)?$/, (_, l, d, h, s, rest) => `${craneLoadDe[l]} anhängen: ${d} m daneben · ${h} m darüber · Pendeln ${s} m${craneHits(rest)}`);
+  dynamic = dynamic.replace(/^Set the (concrete bucket|rebar bundle|hotel jacuzzi) down: ([\d.]+) m off · ([\d.]+) m above · swing ([\d.]+) m( · \d+ hits?)?$/, (_, l, d, h, s, rest) => `${craneLoadDe[l]} absetzen: ${d} m daneben · ${h} m darüber · Pendeln ${s} m${craneHits(rest)}`);
+  dynamic = dynamic.replace(/^Take the (concrete bucket|rebar bundle|hotel jacuzzi)( · \d+ hits?)?$/, (_, l, rest) => `${craneLoadDe[l]} anhängen${craneHits(rest)}`);
+  dynamic = dynamic.replace(/^([\d.]+) m off the mark( · \d+ hits?)?$/, (_, d, rest) => `${d} m neben der Markierung${craneHits(rest)}`);
+  dynamic = dynamic.replace(/^Set down: (.+)$/, 'Abgesetzt: $1');
+  dynamic = dynamic.replace(/^Set down  \+(\d+)$/, 'Abgesetzt  +$1');
+  dynamic = dynamic.replace(/^Hard landing  -(\d+)$/, 'Harte Landung  -$1');
+  dynamic = dynamic.replace(/^Hit!  -(\d+)$/, 'Getroffen!  -$1');
+  dynamic = dynamic.replace(/^(\d+) (?:hit|hits) · (\d+) hard (?:landing|landings)$/, (_, a, b) => `${a} Treffer · ${b} harte ${b === '1' ? 'Landung' : 'Landungen'}`);
+  dynamic = dynamic.replace(/^Truck ([\d.]+) of (\d+) m³ · (\d+) % on the bed$/, 'Lastwagen $1 von $2 m³ · $3 % auf der Brücke');
+  dynamic = dynamic.replace(/^([\d.]+) m³ on board$/, '$1 m³ geladen');
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the snow dump · ([\d.]+) m³$/, '$1 bis zur Schneedeponie · $2 m³');
+  dynamic = dynamic.replace(/^([\d.]+) m³ left on the bed$/, 'Noch $1 m³ auf der Brücke');
+  dynamic = dynamic.replace(/^Tail to the mark, nose away from the water: ([\d.]+) m$/, 'Heck zur Markierung, Front weg vom Wasser: $1 m');
+  dynamic = dynamic.replace(/^Knocked the truck  -(\d+)$/, 'Lastwagen gerammt  -$1');
+  dynamic = dynamic.replace(/^([\d.]+) of (\d+) m³ in the lake · ([\d.]+) m³ beside the truck · ([\d.]+) m³ lost in bends$/, '$1 von $2 m³ im See · $3 m³ neben dem Lastwagen · $4 m³ in Kurven verloren');
+  dynamic = dynamic.replace(/^(\d+) (?:knock|knocks) against the truck$/, (_, n) => `${n} Rempler am Lastwagen`);
   dynamic = dynamic.replace(/(\d+) % hot\b/g, '$1 % heiss');
   // (the Sommerrodelbahn: js/missions-data-sledge.js)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish(?: · (.+))?$/, (_, d, rest) => `${d} bis zum Ziel${rest ? ` · ${tobogganDe(rest)}` : ''}`);

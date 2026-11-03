@@ -8,21 +8,28 @@ import {
   MOWER, createLawnGrid, stepMower, lawnMown, mowerBotPath,
   GARBAGE, GARBAGE_MISSION, garbageStops, stepGarbage,
   ROSES, ROSES_START, ALPINE_ROSES_MISSION, createRoseBushes, nearestBush, stepPicking,
-  MUSHROOMS, MUSHROOM_KINDS, MUSHROOM_MISSION, createMushrooms, nearestMushroom, mushroomControl
+  MUSHROOMS, MUSHROOM_KINDS, MUSHROOM_MISSION, createMushrooms, nearestMushroom, mushroomControl,
+  CRANE, CRANE_WING, CRANE_HOTEL, CRANE_LOADS, CRANE_MISSION, createCraneSite, craneSurface, stepPendulum, swingOf, craneWind, createCrane, craneTrolley, stepCrane,
+  createCraneState, craneLoadHits, craneLanding, craneScore, stepCraneLoad, craneHookAction,
+  LOADER, SNOW_ROUTE, TIP_SPOT, SNOW_HAUL_MISSION, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, truckPace, onBed, stepChute, shedInBend,
+  tipPose, stepTip, snowScore, createSnowState, nextOnRoute, blowerHitsTruck, inRingXZ
 } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { PARKING_DATA } from '../js/parking-data.js';
 
 // (js/missions-data-work.js is three.js-free: the maps, the vehicles' work and the bots run on synthetic frames here)
 
 const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
 const DT = 1 / 30;
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const clamp1 = (v, a, b) => (v < a ? a : v > b ? b : v);
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
 const inBuilding = (x, z) => DAVOS_DATA.buildings.some((b) => Math.abs(b.ring[0] - x) < 200 && Math.abs(b.ring[1] - z) < 200 && inRing(b.ring, x, z));
 
-test('the six work missions are registered, complete, their medals in order', () => {
-  assert.deepEqual(WORK_MISSIONS.map((m) => m.id), ['snow-shovel', 'snow-blower', 'lawn-mowing', 'garbage-run', 'alpine-roses', 'mushroom-hunt']);
+test('the work missions are registered, complete, their medals in order', () => {
+  assert.deepEqual(WORK_MISSIONS.map((m) => m.id), ['snow-shovel', 'snow-blower', 'lawn-mowing', 'garbage-run', 'alpine-roses', 'mushroom-hunt', 'derby-crane', 'snow-haul']);
   for (const m of WORK_MISSIONS) {
     assert.equal(getMission(m.id), m);
     assert.ok(MISSIONS.includes(m));
@@ -285,4 +292,431 @@ test('mushrooms: in the forest of the Dischma, look-alikes and fly agarics, the 
   assert.ok(m.objectives[1].check(frame({ x: c.x, z: c.z }), st).done);
   assert.equal(m.score(st), 80);
   assert.ok(m.summary(st).join(' ').includes('Eierschwamm'));
+});
+
+// --- The crane at the Hotel Derby ---------------------------------------------------------------------------------------
+const onLot = (x, z) => PARKING_DATA.some((l) => inRingXZ(l.ring, x, z));
+/** A start with its first objective: outside every footprint and car park, the straight line clear, facing it */
+function assertClearWalk(from, to, label) {
+  const d = Math.hypot(to.x - from.x, to.z - from.z);
+  for (let k = 0; k <= Math.ceil(d); k++) {
+    const x = from.x + ((to.x - from.x) * k) / Math.ceil(d), z = from.z + ((to.z - from.z) * k) / Math.ceil(d);
+    assert.ok(!inBuilding(x, z), `${label}: (${x.toFixed(1)}, ${z.toFixed(1)}) lies in a building`);
+    assert.ok(!onLot(x, z), `${label}: (${x.toFixed(1)}, ${z.toFixed(1)}) lies on a car park`);
+  }
+}
+
+const inHotel = (x, z) => CRANE_HOTEL.some((h) => x >= h.x0 && x <= h.x1 && z >= h.z0 && z <= h.z1);
+
+test('the crane: the start, the ladder and the walk between them are clear, the start faces the ladder', () => {
+  const m = CRANE_MISSION, L = CRANE.ladder;
+  assertClearWalk(m.start, L, 'derby-crane');
+  const want = Math.atan2(L.x - m.start.x, L.z - m.start.z);
+  assert.ok(Math.abs(m.start.heading - want) < 1e-6);
+  assert.ok(Math.hypot(L.x - m.start.x, L.z - m.start.z) < 60, 'a short walk');
+  // (the hotel itself is drawn from swissBUILDINGS3D, not in DAVOS_DATA: the walk keeps off it too)
+  for (const p of [m.start, L, CRANE.tower]) assert.ok(!inHotel(p.x, p.z), 'off the hotel');
+  // the ladder at the mast, outside the mast's own box
+  assert.ok(Math.max(Math.abs(L.x - CRANE.tower.x), Math.abs(L.z - CRANE.tower.z)) > CRANE.mastHalf);
+  // the address of the Hotel Derby lies in the hotel's block, the site next to it
+  assert.ok(inHotel(523.5, -1295));
+  assert.ok(Math.hypot(523.5 - CRANE.tower.x, -1295 - CRANE.tower.z) < 60);
+});
+
+test('the crane: the site stands on free ground, every load and spot within the jib', () => {
+  const W = CRANE_WING;
+  for (let x = W.x0; x <= W.x1; x += 1) for (let z = W.z0; z <= W.z1; z += 1) assert.ok(!inBuilding(x, z) && !inHotel(x, z), `the wing at (${x}, ${z})`);
+  assert.ok(!inBuilding(CRANE.tower.x, CRANE.tower.z));
+  const site = createCraneSite();
+  site.decks.forEach((y, i) => assert.ok(Math.abs(y - 3.2 * (i + 1)) < 1e-9));
+  for (const l of site.loads) {
+    for (const p of [l.yard, l.pad]) {
+      const r = Math.hypot(p.x - CRANE.tower.x, p.z - CRANE.tower.z);
+      assert.ok(r > CRANE.rMin && r < CRANE.rMax, `${l.id}: ${r.toFixed(1)} m from the tower`);
+    }
+    assert.ok(!inBuilding(l.yard.x, l.yard.z) && !inHotel(l.yard.x, l.yard.z));
+    assert.equal(craneSurface(site, l.pad.x, l.pad.z), l.padY, `${l.id}: the spot lies on its deck`);
+    assert.equal(craneLoadHits(site, l.half, l.pad.x, l.padY, l.pad.z), null, `${l.id}: it fits on its spot`);
+    assert.equal(craneLoadHits(site, l.half, l.yard.x, l.restY, l.yard.z), null, `${l.id}: it stands free in the yard`);
+  }
+  // the terraces' walls are obstacles: a load driven into the step above a deck hits
+  assert.ok(craneLoadHits(site, site.loads[0].half, 539, 4, -1251));
+  assert.equal(craneLoadHits(site, site.loads[0].half, 547.5, 5, -1251), null);
+  assert.ok(craneLoadHits(site, site.loads[0].half, 520, 10, -1280), 'the hotel is in the way');
+  // a neighbour's house counts as an obstacle
+  const near = createCraneSite(() => 0, [{ ring: [580, -1280, 585, -1280, 585, -1275, 580, -1275], h: 9 }]);
+  assert.ok(craneLoadHits(near, site.loads[0].half, 582, 2, -1277));
+  assert.equal(createCraneSite(() => 0, [{ ring: [800, -1280, 805, -1280, 805, -1275, 800, -1275], h: 9 }]).obstacles.length, site.obstacles.length);
+});
+
+test('the pendulum: the right period, it dies away slowly, the suspension starts it', () => {
+  const L = 20, sw = { x: 1, z: 0, vx: 0, vz: 0 }, h = 1 / 240;
+  let t = 0, last = 1, crossings = [];
+  for (let k = 0; k < 240 * 40; k++) {
+    stepPendulum(sw, 0, 0, L, h);
+    t += h;
+    if (last > 0 && sw.x <= 0) crossings.push(t);
+    last = sw.x;
+  }
+  const period = (crossings[crossings.length - 1] - crossings[0]) / (crossings.length - 1);
+  const want = 2 * Math.PI * Math.sqrt(L / CRANE.g);
+  assert.ok(Math.abs(period - want) < 0.05, `T ${period.toFixed(2)} s, wanted ${want.toFixed(2)} s`);
+  // the damping: amplitude e^(-c t / 2) after 40 s, c = 0.05
+  const amp = Math.hypot(sw.x, sw.vx * Math.sqrt(L / CRANE.g));
+  assert.ok(Math.abs(amp - Math.exp((-CRANE.damp * 40) / 2)) < 0.03, `amplitude ${amp.toFixed(3)}`);
+  // an accelerating suspension leaves the load behind, the wind pushes it along
+  const a = stepPendulum({ x: 0, z: 0, vx: 0, vz: 0 }, 1, 0, L, 0.1);
+  assert.ok(a.vx < 0);
+  const b = stepPendulum({ x: 0, z: 0, vx: 0, vz: 0 }, 0, 0, L, 0.1, { wz: 1 });
+  assert.ok(b.vz > 0 && b.vx === 0);
+});
+
+test('the crane: a hard stop leaves a swing, a counter-move takes it out', () => {
+  const site = createCraneSite();
+  const run = (counter) => {
+    const c = createCrane(site);
+    c.rope = 20;
+    stepCrane(c, { trolley: 0 }, 0.05);
+    // the trolley out at full speed for 5 s and to a stop: a swing is left on the rope
+    for (let k = 0; k < 150; k++) stepCrane(c, { trolley: 1 }, 1 / 30);
+    for (let k = 0; k < 90; k++) stepCrane(c, {}, 1 / 30);
+    const amp = () => Math.hypot(swingOf(c.swing), Math.hypot(c.swing.vx, c.swing.vz) * Math.sqrt(c.rope / CRANE.g)); // (the swing whatever its phase)
+    const left = amp();
+    // ... and for the next 25 s the driver either watches, or moves with the swing: the trolley follows the hook
+    for (let k = 0; k < 750; k++) {
+      const out = Math.sin(c.theta) * c.swing.x + Math.cos(c.theta) * c.swing.z; // (the swing along the jib)
+      stepCrane(c, counter ? { trolley: clamp1(out * 0.5, -1, 1) } : {}, 1 / 30);
+    }
+    return { left, end: amp() };
+  };
+  const idle = run(false), countered = run(true);
+  assert.ok(idle.left > 0.5, `the stop leaves a swing (${idle.left.toFixed(2)} m)`);
+  assert.ok(idle.end > idle.left * 0.2, `left alone it hangs on (${idle.end.toFixed(2)} m of ${idle.left.toFixed(2)} m)`);
+  assert.ok(countered.end < idle.end * 0.3, `the counter-move takes it out: ${countered.end.toFixed(2)} against ${idle.end.toFixed(2)} m`);
+});
+
+test('the crane: the axes keep to their limits, the wind only blows in gusts', () => {
+  const site = createCraneSite(), c = createCrane(site);
+  for (let k = 0; k < 900; k++) stepCrane(c, { trolley: 1, hoist: 1, slew: 1 }, 1 / 30);
+  assert.equal(c.r, CRANE.rMax);
+  assert.equal(c.rope, CRANE.ropeMin);
+  assert.ok(Math.abs(c.slewV - CRANE.slewMax) < 1e-9);
+  // the way down is limited by maxRope
+  for (let k = 0; k < 900; k++) stepCrane(c, { hoist: -1 }, 1 / 30, null, 20);
+  assert.equal(c.rope, 20);
+  let peak = 0, zero = 0;
+  const w = {};
+  for (let t = 0; t < 200; t += 0.25) { const m = Math.hypot(...Object.values(craneWind(t, 0.3, w))); peak = Math.max(peak, m); if (m < 0.05) zero++; }
+  assert.ok(peak > 0.25 && peak <= 0.3 * 1.71, `gusts up to ${peak}`);
+  assert.ok(zero > 0, 'and lulls');
+});
+
+test('the crane: the score of a landing, taking a load, setting it down', () => {
+  assert.equal(craneLanding(0, 0.1).points, CRANE.points.precision + CRANE.points.gentle);
+  assert.ok(craneLanding(1.5, 0.1).precision === CRANE.points.precision / 2);
+  const hard = craneLanding(0, 2);
+  assert.ok(hard.hard && hard.gentle === 0 && hard.points === CRANE.points.precision - CRANE.points.hard);
+  assert.equal(craneLanding(0, 2, 2).points, CRANE.points.precision - 2 * CRANE.points.hard); // (the jacuzzi cracks)
+  const site = createCraneSite(), st = createCraneState(), c = createCrane(site), load = site.loads[0];
+  // too far from the load
+  c.theta = -1;
+  assert.equal(craneHookAction(c, site, st), 'far');
+  // over the load, at the sling's height: taken
+  c.r = Math.hypot(load.yard.x - CRANE.tower.x, load.yard.z - CRANE.tower.z);
+  c.theta = Math.atan2(load.yard.x - CRANE.tower.x, load.yard.z - CRANE.tower.z);
+  c.rope = site.jibY - (load.restY + load.half.y * 2 + CRANE.sling);
+  assert.equal(craneHookAction(c, site, st), 'hooked');
+  assert.ok(st.carried && st.seated);
+  // lifted, the load follows; in the air it cannot be let go
+  c.rope -= 2;
+  stepCraneLoad(c, site, st, 0.05);
+  assert.ok(!st.seated && st.lifted);
+  assert.ok(st.ly > load.restY + 1);
+  assert.equal(craneHookAction(c, site, st), 'not-down');
+  // set down in the yard: not on its spot
+  c.rope = site.jibY - (load.restY + load.half.y * 2 + CRANE.sling) + 0.5;
+  assert.equal(stepCraneLoad(c, site, st, 0.05), 'seated');
+  assert.equal(craneHookAction(c, site, st), 'off-spot');
+  assert.equal(craneScore(st), 0);
+  // a hit costs points once a cooldown, and the swing turns back
+  const s2 = createCraneState(), c2 = createCrane(site);
+  Object.assign(s2, { carried: true, seated: false });
+  c2.r = Math.hypot(539 - CRANE.tower.x, -1251 - CRANE.tower.z);
+  c2.theta = Math.atan2(539 - CRANE.tower.x, -1251 - CRANE.tower.z);
+  c2.rope = site.jibY - (4 + load.half.y * 2 + CRANE.sling);
+  c2.swing.vx = 1;
+  assert.equal(stepCraneLoad(c2, site, s2, 0.05), 'hit');
+  assert.ok(c2.swing.vx < 0);
+  assert.equal(stepCraneLoad(c2, site, s2, 0.05), null);
+  assert.equal(s2.hits, 1);
+});
+
+/**
+ * A crane driver on synthetic time. skill 1: steady and precise, the swing taken out by following the hook; less: it
+ * settles for a wider swing, lands off the mark and comes down faster, and it takes longer about it
+ */
+function craneBot(skill = 1, maxSec = 900) {
+  const site = createCraneSite(), st = createCraneState(), c = createCrane(site), dt = 1 / 30;
+  st.cab = true;
+  const swingOk = 0.2 / skill, off = (1 - skill) * 2.4, wind = {};
+  let t = 0;
+  const wrap = (a) => { a %= Math.PI * 2; return a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a; };
+  const trolleyAt = () => craneTrolley(c);
+  const drive = (target, wantRope = null) => {
+    const dx = target.x + off - CRANE.tower.x, dz = target.z - CRANE.tower.z;
+    const th = Math.atan2(dx, dz), r = Math.hypot(dx, dz);
+    const s = Math.sin(c.theta), co = Math.cos(c.theta), along = s * c.swing.x + co * c.swing.z, across = co * c.swing.x - s * c.swing.z;
+    return {
+      // (the error at the hook, not at the trolley: the gusts push the hook, and the bot follows the swing to damp it)
+      slew: clamp1((0.4 * (wrap(th - c.theta) * Math.max(c.r, 8) - across) + 0.8 * across) / (Math.max(c.r, 8) * CRANE.slewMax), -1, 1),
+      trolley: clamp1((0.4 * (r - c.r - along) + 0.8 * along) / CRANE.trolleyMax, -1, 1),
+      hoist: wantRope == null ? 0 : clamp1((c.rope - wantRope) * 0.8 / CRANE.hoistMax, -1, 1)
+    };
+  };
+  const tick = (input, maxRope = CRANE.ropeMax) => {
+    const load = site.loads[st.index];
+    const w = st.carried && load?.gust ? craneWind(t, load.gust, wind) : null;
+    stepCrane(c, input, dt, w, maxRope);
+    stepCraneLoad(c, site, st, dt);
+    t += dt;
+    st.t = t * 1000;
+  };
+  const distTo = (p) => { const q = trolleyAt(); return Math.hypot(q.x + c.swing.x - p.x - off, q.z + c.swing.z - p.z); };
+  const settled = () => swingOf(c.swing) <= swingOk && Math.hypot(c.slewV * c.r, c.trolleyV) < 0.3;
+  while (st.index < site.loads.length && t < maxSec) {
+    const load = site.loads[st.index];
+    const clearRope = site.jibY - (site.decks[2] + 3 + load.half.y * 2 + CRANE.sling); // (over the top terrace)
+    const hookRope = site.jibY - (load.restY + load.half.y * 2 + CRANE.sling);
+    // over the yard at a safe height, down to the load (the bot takes it dead over, whatever its skill)
+    const yard = { x: load.yard.x - off, z: load.yard.z };
+    while (t < maxSec && (distTo(yard) > 0.5 || !settled())) tick(drive(yard, clearRope));
+    while (t < maxSec && c.rope < hookRope - 0.2) tick(drive(yard, hookRope));
+    if (craneHookAction(c, site, st) !== 'hooked') { tick({}); continue; }
+    // up, across, down: fast to 2 m above the deck, then gently
+    while (t < maxSec && c.rope > clearRope + 0.3) tick({ hoist: 1 });
+    while (t < maxSec && (distTo(load.pad) > 0.25 / skill || !settled())) tick(drive(load.pad, clearRope));
+    while (t < maxSec && !st.seated && st.ly - load.padY > 1.5) tick({ ...drive(load.pad), hoist: st.ly - load.padY > 3 ? -1 : -0.5 });
+    const gentle = skill >= 1 ? -0.08 : -0.08 / (skill * skill);
+    // (the last half metre only with the load over the mark: it hangs on in a gust)
+    while (t < maxSec && !st.seated) {
+      const low = st.ly - load.padY < 0.5;
+      tick({ ...drive(load.pad), hoist: low && distTo(load.pad) > 0.4 / skill ? 0 : gentle });
+    }
+    tick({});
+    const r = craneHookAction(c, site, st);
+    if (r !== 'released') return { st, site, t, stuck: r, c };
+    for (let k = 0; k < 30; k++) tick({ hoist: 1 }); // (the hook clear of the load)
+  }
+  return { st, site, t };
+}
+
+test('the crane: a steady bot sets all three loads on their spots, its medal by skill', () => {
+  const m = CRANE_MISSION;
+  const good = craneBot(1), loose = craneBot(0.5);
+  assert.equal(good.st.results.length, 3, `all down (${good.stuck ?? ''}, ${good.t.toFixed(0)} s)`);
+  assert.equal(loose.st.results.length, 3, `the looser one too (${loose.stuck ?? ''}, ${loose.t.toFixed(0)} s)`);
+  assert.ok(good.st.results.every((r) => r.err < 0.6 && !r.hard));
+  const a = craneScore(good.st), b = craneScore(loose.st);
+  assert.equal(medalFor(a, m.medals, true), 'gold', `steady: ${a} in ${good.t.toFixed(0)} s`);
+  assert.ok(['silver', 'bronze', 'gold'].includes(medalFor(b, m.medals, true)), `looser: ${b} in ${loose.t.toFixed(0)} s`);
+  assert.ok(b < a);
+  assert.ok(good.t * 1000 < CRANE.limitMs);
+  // no medal for a slapdash run: three loads off the mark, with hard landings and hits, slowly
+  const bad = createCraneState();
+  bad.results.push(craneLanding(2.6, 1.3), craneLanding(2.6, 1.3), craneLanding(2.6, 1.3, 2));
+  bad.hits = 3; bad.t = 700000;
+  assert.equal(medalFor(craneScore(bad), m.medals, true), null, `${craneScore(bad)}`);
+});
+
+test('the crane mission: the walker reaches the ladder, the steps follow the loads', () => {
+  const m = CRANE_MISSION, st = m.createState();
+  m.update(frame({ mode: 'person', x: m.start.x, z: m.start.z }), st);
+  assert.ok(!st.cab);
+  let v = m.objectives[0].check(frame({ mode: 'person', x: m.start.x, z: m.start.z }), st);
+  assert.ok(!v.done && v.target && /to the crane ladder/.test(v.text));
+  m.update(frame({ mode: 'person', x: CRANE.ladder.x, z: CRANE.ladder.z }), st);
+  assert.ok(st.cab);
+  assert.ok(m.objectives[0].check(frame(), st).done);
+  st.view = { dist: 3.2, above: 1, swing: 2, wind: 0, ready: false };
+  v = m.objectives[1].check(frame(), st);
+  assert.ok(!v.done && /Take the concrete bucket: 3.2 m off/.test(v.text) && /meet the swing/.test(v.hint));
+  st.index = 1;
+  assert.ok(m.objectives[1].check(frame(), st).done);
+  assert.ok(m.objectives[1].check(frame({ t: CRANE.limitMs + 1 }), st).fail);
+  assert.equal(m.objectives.length, 1 + CRANE_LOADS.length);
+  assert.ok(m.summary(st).length === 2);
+});
+
+// --- Carting the snow ----------------------------------------------------------------------------------------------------
+test('snow haul: the start and the truck on the Bündastrasse are clear of buildings and car parks, facing along the road', () => {
+  const m = SNOW_HAUL_MISSION, route = createLoaderRoute();
+  assert.ok(Math.abs(route.length - LOADER.length) < 1);
+  for (let s = 0; s <= route.length; s += 2) for (const d of [LOADER.blowerD, LOADER.truckD]) {
+    const p = routePoint(route, s, d);
+    assert.ok(!inBuilding(p.x, p.z), `s ${s}, d ${d}: a building`);
+    assert.ok(!onLot(p.x, p.z), `s ${s}, d ${d}: a car park`);
+  }
+  const q = projectRoute(route, m.start.x, m.start.z);
+  assert.ok(Math.abs(q.s - 8) < 0.5 && Math.abs(q.d - LOADER.blowerD) < 0.1);
+  assert.ok(Math.abs(m.start.heading - Math.atan2(q.tx, q.tz)) < 1e-2);
+  // the two lanes fit on the road side by side
+  assert.ok(!blowerHitsTruck({ s: 10, d: LOADER.blowerD }, 0, { s: 10, d: LOADER.truckD + 0.22 }));
+  assert.ok(blowerHitsTruck({ s: 10, d: 0.5 }, 0, { s: 10, d: LOADER.truckD }));
+  assert.ok(!blowerHitsTruck({ s: 10, d: LOADER.blowerD }, 0.2, { s: 10, d: LOADER.truckD }), 'a little turned, still clear');
+  // the low throw lands on the bed from the blower's lane
+  const land = chuteLanding({ s: 50, d: LOADER.blowerD }, 0, 1, LOADER);
+  assert.ok(onBed(land, createLoaderTruck(50)), 'level with the truck, the stream lands on the bed');
+  assert.ok(!onBed(chuteLanding({ s: 50, d: LOADER.blowerD }, 0, -1, LOADER), createLoaderTruck(50)), 'the chute the other way: beside it');
+  assert.ok(!onBed(land, { s: 62, d: LOADER.truckD }), 'too far behind: on the road');
+});
+
+test('snow haul: the route to the lake runs over mapped drivable roads, the end by the shore', () => {
+  const pts = SNOW_ROUTE;
+  const edges = new Set();
+  for (const r of DAVOS_DATA.roads) {
+    if (r.tunnel || ['footway', 'path', 'steps', 'cycleway', 'pedestrian'].includes(r.kind)) continue;
+    for (let i = 0; i + 3 < r.pts.length; i += 2) { const a = `${r.pts[i]},${r.pts[i + 1]}`, b = `${r.pts[i + 2]},${r.pts[i + 3]}`; edges.add(`${a}|${b}`); edges.add(`${b}|${a}`); }
+  }
+  for (let i = 0; i + 3 < pts.length; i += 2) assert.ok(edges.has(`${pts[i]},${pts[i + 1]}|${pts[i + 2]},${pts[i + 3]}`), `the leg from (${pts[i]}, ${pts[i + 1]}) is a road`);
+  // it picks the truck up wherever it stopped: from the earliest a clean run can fill the bed to the end of the stretch
+  const road = createLoaderRoute(), way = makeRoute(pts);
+  const earliest = 8 + LOADER.capacity / (LOADER.packing * BLOWER.workHalf * 2 * BLOWER.depth);
+  for (const s of [earliest, 170, LOADER.length]) {
+    const p = routePoint(road, s), q = projectRoute(way, p.x, p.z);
+    assert.ok(Math.abs(q.d) < 0.5 && q.s > 0 && q.s < 120, `s ${s}: ${q.s.toFixed(0)} m along the way, ${q.d.toFixed(1)} m off it`);
+  }
+  // no building on the way (the corner of a street may cut no footprint)
+  const route = makeRoute(pts);
+  for (let s = 0; s <= route.length; s += 2) { const p = routePoint(route, s); assert.ok(!inBuilding(p.x, p.z), `s ${s}: a building`); }
+  assert.ok(route.length > 1100 && route.length < 1500, `${route.length.toFixed(0)} m`);
+  const lake = DAVOS_DATA.water.find((w) => w.name === 'Davosersee');
+  // the spot on the shore: dry, the water close behind the tail, the truck in position standing on dry ground outside the car park
+  const S = TIP_SPOT, fx = Math.sin(S.heading), fz = Math.cos(S.heading);
+  assert.ok(!inRingXZ(lake.ring, S.x, S.z), 'the tail on land');
+  assert.ok(inRingXZ(lake.ring, S.x - fx * 6, S.z - fz * 6), 'the water behind it');
+  const cx = S.x + fx * LOADER.truckBody.halfL, cz = S.z + fz * LOADER.truckBody.halfL;
+  assert.ok(!inRingXZ(lake.ring, cx, cz) && !inBuilding(cx, cz));
+  assert.ok(!onLot(S.x, S.z), 'the mark is off the car park');
+  assert.ok(Math.hypot(cx - pts[pts.length - 2], cz - pts[pts.length - 1]) < 10, 'beside the road');
+});
+
+test('snow haul: the chute fills the bed, what misses is waste, a full bed runs over', () => {
+  const st = createSnowState(), T = createLoaderTruck(30), onIt = { s: T.s - LOADER.bed.back, d: T.d }, off = { s: T.s + 20, d: T.d };
+  assert.equal(stepChute(st, 10, onIt, T), 0);
+  assert.ok(Math.abs(st.load - 10 * LOADER.packing) < 1e-9 && st.onBed);
+  const w = stepChute(st, 10, off, T);
+  assert.ok(Math.abs(w - 10 * LOADER.packing) < 1e-9 && !st.onBed);
+  assert.ok(Math.abs(st.spilled - w) < 1e-9);
+  st.load = LOADER.capacity - 0.01;
+  assert.ok(stepChute(st, 10, onIt, T) > 0);
+  assert.equal(st.load, LOADER.capacity);
+  // bends: a slow one keeps the load, a fast one sheds it
+  const b = createSnowState();
+  b.load = 10;
+  assert.equal(shedInBend(b, 5, 0.3, 0.1), 0);
+  assert.ok(shedInBend(b, 12, 0.5, 0.1) > 0 && b.load < 10 && b.shed > 0);
+});
+
+test('snow haul: the tipper waits for the blower and keeps its own rhythm', () => {
+  const T = createLoaderTruck(8), s0 = T.s;
+  for (let k = 0; k < 60; k++) stepLoaderTruck(T, 8, false, DT);
+  assert.equal(T.s, s0, 'it waits for the first move');
+  // the blower drives on: the truck keeps about its pace; the blower stops: it waits
+  let s = 8;
+  const seen = [];
+  for (let k = 0; k < 1500; k++) { s = Math.min(LOADER.length, s + 2.8 * DT); stepLoaderTruck(T, s, true, DT); seen.push(T.v); assert.ok(T.s - s < 8, `${T.s} ${s}`); }
+  assert.ok(Math.max(...seen.slice(300)) - Math.min(...seen.slice(300)) > 0.3, 'its pace changes');
+  const parked = T.s;
+  for (let k = 0; k < 600; k++) stepLoaderTruck(T, s, true, DT);
+  assert.ok(T.s - parked < 8, 'it does not drive off');
+  // a full truck stops
+  T.full = true;
+  for (let k = 0; k < 120; k++) stepLoaderTruck(T, s, true, DT);
+  assert.equal(T.v, 0);
+});
+
+test('snow haul: the tipping pose, the bed up and the load out only with the key at the spot', () => {
+  const S = TIP_SPOT, hl = LOADER.truckBody.halfL, fx = Math.sin(S.heading), fz = Math.cos(S.heading);
+  const x = S.x + fx * hl, z = S.z + fz * hl;
+  assert.ok(tipPose(x, z, S.heading, 0).ok);
+  assert.ok(!tipPose(x, z, S.heading, 2).ok && tipPose(x, z, S.heading, 2).placed, 'still rolling');
+  assert.ok(!tipPose(x, z, S.heading + Math.PI, 0).ok, 'nose first');
+  assert.ok(!tipPose(x + 8, z, S.heading, 0).ok, 'too far off');
+  const st = createSnowState();
+  st.load = 10;
+  for (let k = 0; k < 60; k++) stepTip(st, false, true, DT);
+  assert.equal(st.tipped, 0, 'not at the spot');
+  let t = 0;
+  while (st.load > 0 && t < 20) { stepTip(st, true, true, DT); t += DT; }
+  assert.ok(Math.abs(st.tipped - 10) < 1e-6 && t < 6, `${t.toFixed(1)} s`);
+  for (let k = 0; k < 120; k++) stepTip(st, true, false, DT);
+  assert.equal(st.raise, 0, 'let go: the bed comes down');
+});
+
+/** The mission's steps on synthetic frames: a bot on the road, its s and d steered by `aimD`, then the drive and the tip */
+function snowBot({ aimD = LOADER.blowerD, wobble = 0, pace = 1, driveV = 8.5, bends = 0 } = {}) {
+  const m = SNOW_HAUL_MISSION, st = m.createState(), route = createLoaderRoute(), grid = createLoaderGrid(route), T = createLoaderTruck(8);
+  let s = 8, t = 0, started = false, v = 0;
+  const f = (o = {}) => frame({ mode: 'car', t: t * 1000, ...o });
+  while (!m.objectives[0].check(f(), st).done && t < 800) {
+    t += DT;
+    // keeps level with the truck's bed
+    const gap = T.s - LOADER.bed.back - LOADER.throwAhead - s;
+    const target = clamp01(0.5 + gap * 0.5) * 3.6 * pace;
+    v += clamp1(target - v, -1.5 * DT, 1.7 * DT);
+    s += v * DT;
+    if (v > 0.2) started = true;
+    st.s = s;
+    stepLoaderTruck(T, s, started, DT);
+    const d = aimD + wobble * Math.sin(t * 0.9);
+    const vol = stepBlower(grid, { s, d }, { u: 1, v: 0 }, v);
+    if (vol > 0) { const land = chuteLanding({ s, d }, 0, st.chute, LOADER); stepChute(st, vol, land, T); }
+  }
+  const atLoad = st.load;
+  t += 4; // (climbing across)
+  st.inTruck = true;
+  // the road to the lake at its pace
+  const way = makeRoute(SNOW_ROUTE);
+  t += way.length / driveV;
+  st.shed += Math.min(st.load, bends);
+  st.load -= Math.min(st.load, bends);
+  t += 45; // (backing up to the mark)
+  while (st.load > 0) { stepTip(st, true, true, DT); t += DT; }
+  st.t = t * 1000;
+  return { st, t, atLoad, score: snowScore(st) };
+}
+
+test('snow haul: bots earn their medals by load, spillage and time', () => {
+  const m = SNOW_HAUL_MISSION;
+  const clean = snowBot();
+  assert.ok(clean.atLoad >= LOADER.capacity - 0.01, `a clean run fills the bed (${clean.atLoad.toFixed(1)} m³)`);
+  assert.equal(medalFor(clean.score, m.medals, true), 'gold', `clean: ${clean.score}, ${clean.t.toFixed(0)} s, ${clean.st.spilled.toFixed(2)} m³ spilled`);
+  // drifting a metre and a half to and fro misses the bed a good part of the time
+  const wobbly = snowBot({ wobble: 1.9 });
+  assert.ok(wobbly.st.spilled > 2, `${wobbly.st.spilled.toFixed(1)}`);
+  assert.ok(wobbly.score < clean.score, `wobbly: ${wobbly.score}`);
+  assert.ok(['silver', 'bronze'].includes(medalFor(wobbly.score, m.medals, true)), `wobbly: ${wobbly.score}, ${wobbly.atLoad.toFixed(1)} m³`);
+  const far = snowBot({ aimD: LOADER.blowerD - 1.3 });
+  assert.ok(far.atLoad < LOADER.capacity * LOADER.minLoad, `off the bed all along: ${far.atLoad.toFixed(1)} m³`);
+  const v = m.objectives[0].check(frame({ mode: 'car', t: 1000 }), { ...createSnowState(), s: LOADER.length, load: 1 });
+  assert.ok(v.fail, 'a nearly empty truck at the end of the road: failed');
+  // a slow, shedding run takes less
+  const slow = snowBot({ driveV: 3.5, bends: 4 });
+  assert.ok(slow.score < clean.score);
+  assert.ok(medalFor(slow.score, m.medals, true) !== 'gold', `slow: ${slow.score}`);
+  // the steps
+  const st = m.createState();
+  st.pose = tipPose(0, 0, 0, 0);
+  assert.ok(m.objectives[3].check(frame(), { ...st, load: 3 }).hint.startsWith('Tail to the mark'));
+  assert.ok(m.objectives[3].check(frame(), { ...st, inLake: true }).fail);
+  assert.ok(m.objectives[1].check(frame(), { ...st, truckDist: 30 }).hint.startsWith('Drive closer'));
+  assert.ok(!m.objectives[2].check(frame({ x: 964, z: -1150 }), st).done);
+  assert.ok(m.objectives[2].check(frame({ x: 1238, z: -2156 }), st).done);
+  // the guide runs along the road, not across the town, and never goes back
+  const g = createSnowState();
+  const a = nextOnRoute(g, 965, -1160);
+  assert.ok(a.z < -1180 && g.routeS > 5);
+  const keep = g.routeS;
+  nextOnRoute(g, 1240, -2150); // (a jump along the road is not taken on trust)
+  assert.equal(g.routeS, keep);
 });
