@@ -59,6 +59,32 @@ test('the bar missions translate names, intros and generated texts', () => {
   assert.equal(t('Bent the nail: turn lost'), 'Nagel verbogen: Zug verloren');
   assert.equal(t('Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.'), 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.');
   setLanguage('en');
+test('the expert missions translate names, intros, generated texts and every text of their canvases', async () => {
+  setLanguage('de');
+  assert.equal(t('Eye test at Meerkämper Optik'), 'Sehtest bei Meerkämper Optik');
+  assert.match(t('A busy morning at Meerkämper Optik on the Promenade, and you are the optician.'), /^Ein strenger Morgen/);
+  assert.equal(t('Snow profile for the SLF'), 'Schneeprofil fürs SLF');
+  assert.match(t('At the SLF in Davos Dorf the avalanche forecasters want a fresh profile.'), /^Beim SLF/);
+  assert.equal(t('12 m to the SLF'), '12 m bis zum SLF');
+  assert.equal(t('12 m to Meerkämper Optik'), '12 m bis zu Meerkämper Optik');
+  assert.equal(t('340 pts · 2 of 4 customers · 1:30'), '340 Pkt. · 2 von 4 Kunden · 1:30');
+  assert.equal(t('Compression test · 2:05'), 'Kompressionstest · 2:05');
+  assert.match(t('Hardness 200 · grain 100 · temperature 150 · break 100 · danger 80 · time 20'), /^Härte 200 · Korn 100/);
+  assert.equal(t('4 of 4 customers · 3 exact · 100 · 90'), '4 von 4 Kunden · 3 exakt · 100 · 90');
+  // every literal the canvas draws goes through t(), and every one of them has its German
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../js/missions-expert.js', import.meta.url), 'utf8');
+  const literals = [...source.matchAll(/\bt\('((?:[^'\\]|\\.)*)'\)/g)].map((m) => m[1]);
+  assert.ok(literals.length > 40, `${literals.length} canvas texts found`);
+  const data = await import('../js/missions-data-expert.js');
+  const texts = [
+    ...literals,
+    ...data.HARDNESS.map((v) => v.name), ...data.GRAINS.map((v) => v.name), ...data.DANGER.map((v) => v.name),
+    ...Object.values(data.EYE_LINES), ...data.EYE_REACTIONS, ...Object.values(data.SNOW_STAGE_TEXT),
+    ...data.createEyeTest(1).customers.flatMap((c) => [c.job, c.hello])
+  ];
+  const same = new Set(['Thermometer']);
+  for (const text of texts) if (!same.has(text)) assert.notEqual(t(text), text, `"${text}" has its German`);
 });
 
 test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {

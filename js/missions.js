@@ -25,6 +25,7 @@ import { RESORT_FEATURES } from './missions-resort.js';
 import { GASTRO_FEATURES } from './missions-gastro.js';
 import { OUTDOOR_FEATURES } from './missions-outdoor.js';
 import { BARS_FEATURES } from './missions-bars.js';
+import { EXPERT_FEATURES } from './missions-expert.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -943,3 +944,5 @@ Object.assign(FEATURES, GASTRO_FEATURES);
 // the rope park in the Färich, pond hockey on the Seehof Seeli (js/missions-outdoor.js)
 Object.assign(FEATURES, OUTDOOR_FEATURES);
 Object.assign(FEATURES, BARS_FEATURES);
+// (js/missions-expert.js: the eye test at Meerkämper Optik, the snow profile for the SLF)
+Object.assign(FEATURES, EXPERT_FEATURES);
