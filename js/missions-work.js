@@ -2,7 +2,8 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight, surfaceHeight } from './terrain.js';
 import { ParticleBatch } from './missions-fx.js';
-import { PersonCrowd, PersonRig } from './pedestrians.js';
+import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
+import { DAVOS_DATA } from './davos-geodata.js';
 import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-models.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import {
@@ -12,11 +13,13 @@ import {
   MOWER, createLawnGrid, stepMower, lawnMown,
   GARBAGE, stepGarbage,
   ROSES, createRoseBushes, nearestBush, stepPicking,
-  MUSHROOMS, createMushrooms, nearestMushroom
+  MUSHROOMS, createMushrooms, nearestMushroom,
+  CRANE, CRANE_WING, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneHook, craneTrolley, craneWind, swingOf,
+  LOADER, TIP_SPOT, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, stepChute, shedInBend, tipPose, stepTip, blowerHitsTruck, depositHeap, inRingXZ
 } from './missions-data-work.js';
 
 // js/missions-work.js
-// The runtime of the six work missions (js/missions-data-work.js has their definitions and the pure logic; js/missions.js
+// The runtime of the eight work missions (js/missions-data-work.js has their definitions and the pure logic; js/missions.js
 // takes WORK_FEATURES into its FEATURES):
 //   shovel        — the snow map over the path of Dischmastrasse 19 as a mesh (one vertex a 25 cm cell, the snow's depth
 //                   its height, cleared cells the gravel's colour; the heaps in the margin grow), the snow pusher in front
@@ -33,6 +36,11 @@ import {
 //   alpineRoses   — the rhododendron bushes (one instanced mesh), the flowers of those in bloom (another), the
 //                   reserve's posts, rope and signs.
 //   mushrooms     — the mushrooms in the forest (four instanced meshes, only those within ~32 m drawn).
+//   towerCrane    — the crane at the Hotel Derby (merged boxes under one material), its new wing and site, the rope, the
+//                   loads, the marks and the crew; the keys drive the crane once the walker has reached the ladder, the
+//                   camera behind the load or in the cab (V).
+//   snowLoad      — the Bündastrasse's snow map once more, the tipper alongside with its bed filling, the swap into it, the
+//                   load tipped at the Davosersee.
 // Everything is built for the run and goes with its group (js/missions.js disposes it); the maps are plain arrays.
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
@@ -896,4 +904,622 @@ const mushrooms = {
   }
 };
 
-export const WORK_FEATURES = { shovel, workVehicle, snowBlower, mower, garbageRound, alpineRoses, mushrooms };
+// =====================================================================================================================
+// 7. The tower crane at the Hotel Derby. Everything static is one merged mesh of boxes with vertex colours under one material;
+// the slewing part, the trolley, the hook and each load are one merged mesh more.
+function boxBatch() {
+  const parts = [], c = new THREE.Color(), m4 = new THREE.Matrix4(), from = new THREE.Vector3(), to = new THREE.Vector3();
+  const tint = (g, colour) => {
+    c.set(colour);
+    const n = g.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    g.deleteAttribute('uv');
+    parts.push(g);
+  };
+  return {
+    /** A box w × h × l round (x, y, z) */
+    add(w, h, l, colour, x = 0, y = 0, z = 0, yaw = 0) { const g = new THREE.BoxGeometry(w, h, l); if (yaw) g.rotateY(yaw); g.translate(x, y, z); tint(g, colour); return this; },
+    /** A square bar t thick from a to b ([x, y, z]) */
+    bar(a, b, t, colour) {
+      from.set(a[0], a[1], a[2]); to.set(b[0], b[1], b[2]);
+      const g = new THREE.BoxGeometry(t, t, from.distanceTo(to));
+      g.applyMatrix4(m4.lookAt(to, from, Math.abs(to.x - from.x) + Math.abs(to.z - from.z) < 1e-4 ? _s.set(1, 0, 0) : UP));
+      g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+      tint(g, colour);
+      return this;
+    },
+    geo(g, colour) { tint(g, colour); return this; },
+    mesh(material, name) {
+      const m = new THREE.Mesh(mergeGeometries(parts), material);
+      for (const p of parts) p.dispose();
+      parts.length = 0;
+      m.name = name;
+      m.castShadow = true; m.receiveShadow = true;
+      return m;
+    }
+  };
+}
+
+const YELLOW = 0xf2b705, CONCRETE = 0xa5a7a3, STEEL = 0x55595e, RUST = 0x8a4a2c, TIMBER = 0xb08a54;
+
+/** The mast in the world's frame: four corner posts, a diagonal a panel */
+function addMast(B, x, z, y0, y1, half) {
+  const c = [[-half, -half], [half, -half], [half, half], [-half, half]];
+  for (const [a, b] of c) B.bar([x + a, y0, z + b], [x + a, y1, z + b], 0.22, YELLOW);
+  const panel = 3;
+  for (let y = y0, i = 0; y < y1 - 0.1; y += panel, i++) {
+    const top = Math.min(y1, y + panel);
+    for (let k = 0; k < 4; k++) {
+      const [a, b] = c[k], [d, e] = c[(k + 1) % 4];
+      B.bar([x + a, top, z + b], [x + d, top, z + e], 0.1, YELLOW);
+      if (i % 2) B.bar([x + a, y, z + b], [x + d, top, z + e], 0.08, YELLOW); else B.bar([x + d, y, z + e], [x + a, top, z + b], 0.08, YELLOW);
+    }
+  }
+}
+
+/** The slewing part, its origin the mast's top, +z along the jib: the jib, the counter-jib with its ballast, the cab, the A-frame */
+function buildSlewing(material) {
+  const B = boxBatch(), L = CRANE.rMax + 2, back = 14;
+  // the jib: a triangle of chords, a brace every 3 m
+  const cz = (z) => [[-0.55, 0, z], [0.55, 0, z], [0, 1.1, z]];
+  for (let k = 0; k < 3; k++) B.bar(cz(0)[k], cz(L)[k], 0.14, YELLOW);
+  for (let z = 0; z < L - 0.1; z += 3) {
+    const a = cz(z), b = cz(Math.min(L, z + 3));
+    B.bar(a[0], b[1], 0.07, YELLOW).bar(a[1], b[2], 0.07, YELLOW).bar(a[2], b[0], 0.07, YELLOW).bar(a[0], a[1], 0.07, YELLOW);
+  }
+  // the counter-jib and its ballast
+  B.add(1.2, 0.3, back, YELLOW, 0, 0.1, -back / 2);
+  B.add(2, 2.2, 2.6, CONCRETE, 0, -1.1, -back + 1.4);
+  B.add(1.1, 1, 1.4, STEEL, 0, 0.75, -back * 0.45);
+  // the A-frame and its stays
+  B.bar([-0.8, 0, 0], [0, 6, 0], 0.18, YELLOW).bar([0.8, 0, 0], [0, 6, 0], 0.18, YELLOW);
+  B.bar([0, 6, 0], [0, 1.1, 26], 0.05, STEEL).bar([0, 6, 0], [0, 0.3, -back + 1], 0.05, STEEL);
+  // the slewing ring and the cab under the jib's root
+  B.add(2.6, 0.6, 2.6, STEEL, 0, -0.45, 0);
+  B.add(1.5, 2, 2, 0xf4f1e6, 1.5, -1.5, 1.1);
+  B.add(1.4, 1.1, 0.06, 0x24323f, 1.5, -1.2, 2.11);
+  B.add(0.06, 1, 1.5, 0x24323f, 2.26, -1.2, 1.2);
+  B.add(0.06, 1, 1.5, 0x24323f, 0.74, -1.2, 1.2);
+  return B.mesh(material, 'CraneSlewing');
+}
+
+/** The new wing with its terraces, the scaffold, the site round it; `site`: js/missions-data-work.js createCraneSite */
+function buildCraneSite(material, site) {
+  const B = boxBatch(), W = CRANE_WING, T = CRANE.tower, g = site.ground;
+  addMast(B, T.x, T.z, site.baseY - 0.3, site.jibY - 0.6, CRANE.mastHalf);
+  B.add(5, 0.9, 5, CONCRETE, T.x, site.baseY + 0.1, T.z); // the footing
+  // the ladder up the mast's near side
+  B.bar([CRANE.ladder.x - 1.45, site.baseY, CRANE.ladder.z - 0.1], [CRANE.ladder.x - 1.45, site.baseY + 8, CRANE.ladder.z - 0.1], 0.09, 0xd8392b);
+  // the terraces: columns, slabs, a parapet of scaffold on the open sides
+  W.steps.forEach((x1, i) => {
+    const y = site.decks[i], x0 = W.x0, below = i ? site.decks[i - 1] : site.top - 8;
+    B.add(x1 - x0, 0.35, W.z1 - W.z0, CONCRETE, (x0 + x1) / 2, y - 0.175, (W.z0 + W.z1) / 2);
+    const n = Math.max(2, Math.round((x1 - x0) / 5));
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + 0.3 + ((x1 - x0 - 0.6) * k) / n;
+      for (const z of [W.z0 + 0.3, (W.z0 + W.z1) / 2, W.z1 - 0.3]) B.add(0.42, y - below, 0.42, 0x8f918d, x, (y + below) / 2, z);
+    }
+    // the east wall of the storey above is left as a low rim; the scaffold's rail round the open deck
+    for (const z of [W.z0 - 0.5, W.z1 + 0.5]) { B.bar([x0, y + 1, z], [x1 + 0.5, y + 1, z], 0.05, 0xc9ccc9); B.bar([x0, y + 0.5, z], [x1 + 0.5, y + 0.5, z], 0.05, 0xc9ccc9); }
+    B.add(0.8, 0.05, W.z1 - W.z0 + 1, TIMBER, x1 + 0.45, y - 0.3, (W.z0 + W.z1) / 2);
+  });
+  // the scaffold's standards along the long sides (down to the terrain)
+  for (let x = W.x0; x <= W.x1 + 0.6; x += 3.5) for (const z of [W.z0 - 0.5, W.z1 + 0.5]) {
+    const y0 = g(x, z), top = site.decks[x < W.steps[2] ? 2 : x < W.steps[1] ? 1 : 0] + 1.1;
+    B.bar([x, y0, z], [x, top, z], 0.06, 0xb9bcbb);
+  }
+  // the site office and the tool container
+  const O = CRANE.office, Oy = g(O.x, O.z), K = CRANE.tools, Ky = g(K.x, K.z);
+  B.add(6, 2.6, 2.4, 0xd9dcd6, O.x, Oy + 1.3, O.z).add(6.1, 0.1, 2.5, 0x6d7276, O.x, Oy + 2.65, O.z).add(0.9, 1.9, 0.05, 0x3a5d87, O.x - 1.5, Oy + 0.95, O.z + 1.23);
+  B.add(6, 2.6, 2.4, 0x2f6d9c, K.x, Ky + 1.3, K.z);
+  B.add(5.9, 0.08, 2.3, 0x28587f, K.x, Ky + 2.62, K.z);
+  // the fence round the yard, open at the gate on the line from the start to the ladder; a post every 3 m on the slope
+  const F = { x0: 527, x1: 580, z0: -1281, z1: -1240 };
+  const fence = (ax, az, bx, bz) => {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 3));
+    for (let k = 0; k <= n; k++) {
+      const x = ax + ((bx - ax) * k) / n, z = az + ((bz - az) * k) / n, y = g(x, z);
+      B.add(0.07, 2, 0.07, 0x4b4f52, x, y + 1, z);
+      if (k < n) {
+        const x2 = ax + ((bx - ax) * (k + 1)) / n, z2 = az + ((bz - az) * (k + 1)) / n, y2 = g(x2, z2);
+        B.bar([x, y + 1.9, z], [x2, y2 + 1.9, z2], 0.05, 0x4b4f52).bar([x, y + 0.15, z], [x2, y2 + 0.15, z2], 0.05, 0x4b4f52).bar([x, y + 1, z], [x2, y2 + 1, z2], 0.03, 0xe46b1f);
+      }
+    }
+  };
+  const gate = CRANE.start.z + ((CRANE.ladder.z - CRANE.start.z) * (CRANE.start.x - F.x1)) / (CRANE.start.x - CRANE.ladder.x);
+  fence(F.x0, F.z1, F.x1, F.z1); fence(F.x1, F.z1, F.x1, gate + 2.6); fence(F.x1, gate - 2.6, F.x1, F.z0); fence(F.x1, F.z0, F.x0, F.z0);
+  // a heap of gravel, a stack of formwork, the pallets under the loads
+  B.geo(new THREE.ConeGeometry(3.6, 2.2, 10).translate(574, g(574, -1264) + 0.9, -1264), 0x7d7a72);
+  B.add(2.5, 0.8, 1.3, TIMBER, 556, g(556, -1246) + 0.4, -1243, 0.3);
+  B.add(2.5, 0.5, 1.3, 0xc8a56a, 556, g(556, -1246) + 1, -1243, 0.32);
+  return B.mesh(material, 'CraneSite');
+}
+
+/** A load: its origin in the middle of its underside. Plus its slings up to the hook */
+function buildCraneLoad(load, material) {
+  const B = boxBatch(), h = load.half;
+  if (load.id === 'bucket') {
+    B.geo(new THREE.CylinderGeometry(h.x, h.x * 0.5, h.y * 2 - 0.2, 12).translate(0, h.y + 0.1, 0), 0x6f7377);
+    B.geo(new THREE.CylinderGeometry(h.x * 0.92, h.x * 0.92, 0.06, 12).translate(0, h.y * 2 - 0.12, 0), 0xb4b4ac);
+    B.add(0.5, 0.2, 0.5, STEEL, 0, 0.1, 0);
+  } else if (load.id === 'rebar') {
+    for (let i = 0; i < 16; i++) { const a = (i % 4) * 0.27 - 0.4, b = Math.floor(i / 4) * 0.17 + 0.08; B.add(0.07, 0.07, h.z * 2, RUST, a * (h.x / 0.45), b, ((i * 7) % 5) * 0.03); }
+    for (const z of [-h.z * 0.6, h.z * 0.6]) B.add(h.x * 2 + 0.05, h.y * 2 - 0.05, 0.08, 0x222222, 0, h.y, z);
+  } else {
+    B.add(h.x * 2, 0.16, h.z * 2, TIMBER, 0, 0.08, 0);
+    B.geo(new THREE.CylinderGeometry(h.x * 0.98, h.x * 0.85, h.y * 2 - 0.22, 18).translate(0, h.y + 0.08, 0), 0xf3f6f7);
+    B.geo(new THREE.CylinderGeometry(h.x * 0.82, h.x * 0.82, 0.04, 18).translate(0, h.y * 2 - 0.1, 0), 0x38bcd1);
+  }
+  const mesh = B.mesh(material, `CraneLoad-${load.id}`);
+  const S = boxBatch();
+  const top = [0, h.y * 2 + CRANE.sling, 0];
+  for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) S.bar(top, [a * h.x * 0.8, h.y * 2 - 0.05, b * h.z * 0.8], 0.04, 0x202020);
+  const sling = S.mesh(material, 'CraneSling');
+  sling.visible = false;
+  mesh.add(sling);
+  return { mesh, sling };
+}
+
+const towerCrane = {
+  setup(run) {
+    const cm = run.hooks.controllerManager;
+    const ground = (x, z) => cm.getGroundHeight(x, z, 'person');
+    const site = createCraneSite(ground, DAVOS_DATA.buildings);
+    const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.8 });
+    run.group.add(buildCraneSite(material, site));
+    const slew = buildSlewing(material);
+    slew.position.set(CRANE.tower.x, site.jibY, CRANE.tower.z);
+    run.group.add(slew);
+    const tb = boxBatch();
+    tb.add(1.4, 0.3, 1.2, 0xe04a23, 0, -0.1, 0);
+    const trolley = tb.mesh(material, 'CraneTrolley');
+    slew.add(trolley);
+    const hb = boxBatch();
+    hb.add(0.5, 0.25, 0.35, 0xe0a019, 0, 0.3, 0).add(0.12, 0.45, 0.12, 0x2a2a2a, 0, -0.05, 0).add(0.3, 0.1, 0.1, 0x2a2a2a, 0, -0.3, 0);
+    const hook = hb.mesh(material, 'CraneHook');
+    const rope = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1, 0.07).translate(0, -0.5, 0), mat(0x1a1a1a, { roughness: 0.6 }));
+    rope.name = 'CraneRope';
+    rope.frustumCulled = false;
+    run.group.add(hook, rope);
+    const loads = site.loads.map((l) => { const x = buildCraneLoad(l, material); run.group.add(x.mesh); return x; });
+    // the marks: a bright ring and cross for the spot in play, a small one under the load
+    const markMat = new THREE.MeshBasicNodeMaterial({ color: 0xffd21f, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false });
+    const ring = new THREE.RingGeometry(CRANE.padR - 0.22, CRANE.padR, 32).rotateX(-Math.PI / 2);
+    const cross = mergeGeometries([ring.toNonIndexed(), new THREE.PlaneGeometry(CRANE.padR * 2, 0.18).rotateX(-Math.PI / 2).toNonIndexed(), new THREE.PlaneGeometry(0.18, CRANE.padR * 2).rotateX(-Math.PI / 2).toNonIndexed()]);
+    ring.dispose();
+    const pad = new THREE.Mesh(cross, markMat);
+    pad.name = 'CranePad';
+    pad.renderOrder = 5;
+    const plumb = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.62, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: 0x38e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.85, depthWrite: false }));
+    plumb.name = 'CranePlumb';
+    plumb.renderOrder = 6;
+    run.group.add(pad, plumb);
+    // the crew, all sorts of hair (js/pedestrians.js rollHairstyle)
+    const crowd = new PersonCrowd(6, { farDistance: 1e9 });
+    for (const m of crowd.meshes) run.group.add(m);
+    const spots = [[570, -1261, 1.4], [566, -1272, -0.8], [558, -1278, -2.2], [549, -1247, -1.2], [541, -1255, 1.6], [576, -1248, 0.5]];
+    const crew = spots.map(([x, z, yaw], i) => {
+      const female = i % 3 === 2;
+      const rig = new PersonRig({ seed: ((i + 5) * 0.6180339) % 1, female, girth: 1 + (i % 3) * 0.07, ...rollHairstyle(hash(i * 3 + 11), female) });
+      const onDeck = x < CRANE_WING.x1;
+      const y = onDeck ? craneSurface(site, x, z) : ground(x, z);
+      const gf = () => y;
+      rig.reset(x, z, yaw, gf);
+      return { rig, x, z, yaw, gf };
+    });
+    run.work = { site, slew, trolley, hook, rope, loads, pad, plumb, crowd, crew, toast: createToast(run), crane: createCrane(site), view: 'chase', cam: new THREE.Vector3(), camInit: false, t: 0, touch: { hoist: 0 }, held: false, wind: {} };
+    // touch: lift, lower, the hook, the view (the joystick slews and runs the trolley)
+    const button = (label, offsetX, offsetY, onDown, onUp) => {
+      const b = el('button', 'panel mission-fire', label);
+      b.type = 'button';
+      Object.assign(b.style, { width: '64px', height: '64px', fontSize: '12px', transform: `translate(${offsetX}px, ${offsetY}px)` });
+      run.listen(b, 'pointerdown', (e) => { e.preventDefault(); onDown(); });
+      if (onUp) for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(b, ev, (e) => { e.preventDefault(); onUp(); });
+      document.body.append(b);
+      run.cleanups.push(() => b.remove());
+      return b;
+    };
+    const w = run.work;
+    // (a block of four over the usual button's place: it also fits a phone held sideways)
+    button('Lift', 0, -68, () => { w.touch.hoist = 1; }, () => { w.touch.hoist = 0; });
+    button('Lower', 0, 0, () => { w.touch.hoist = -1; }, () => { w.touch.hoist = 0; });
+    button('Hook', -72, 0, () => towerCrane.hookAction(run));
+    button('View', -72, -68, () => { w.view = w.view === 'chase' ? 'cab' : 'chase'; });
+    run.cleanups.push(() => towerCrane.release(run));
+  },
+  /** The walker stays at the foot of the mast while the driver is up in the cab (the keys are the crane's) */
+  hold(run) {
+    const w = run.work, cm = run.hooks.controllerManager;
+    if (w.held) return;
+    w.held = { had: 'personDriver' in cm, prev: cm.personDriver };
+    cm.personDriver = (dt, m) => { m.entities.person.speed = 0; };
+  },
+  release(run) {
+    const w = run.work, cm = run.hooks.controllerManager;
+    if (!w?.held) return;
+    if (w.held.had) cm.personDriver = w.held.prev; else delete cm.personDriver;
+    w.held = false;
+  },
+  reset(run) {
+    const w = run.work;
+    towerCrane.release(run);
+    w.crane = createCrane(w.site);
+    w.view = 'chase';
+    w.camInit = false;
+    w.t = 0;
+    w.touch.hoist = 0;
+    w.toast.hide();
+    w.site.loads.forEach((l, i) => {
+      w.loads[i].mesh.position.set(l.yard.x, l.restY, l.yard.z);
+      w.loads[i].mesh.rotation.set(0, 0, 0);
+      w.loads[i].sling.visible = false;
+    });
+    towerCrane.pose(run);
+  },
+  key(run, e) {
+    if (run.phase === 'intro' || !run.state?.cab) return;
+    if (e.code === 'KeyF' && !e.repeat) { e.preventDefault(); e.stopImmediatePropagation(); towerCrane.hookAction(run); }
+    if (e.code === 'KeyV' && !e.repeat) { e.preventDefault(); e.stopImmediatePropagation(); run.work.view = run.work.view === 'chase' ? 'cab' : 'chase'; }
+  },
+  hookAction(run) {
+    const w = run.work, st = run.state;
+    if (!st?.cab || !(run.phase === 'running' || run.phase === 'ready')) return;
+    const r = craneHookAction(w.crane, w.site, st);
+    if (r === 'hooked') { w.toast.show('Hooked: lift it clear', '#ffe9a6', 1.4); run.audio?.thump?.(); }
+    else if (r === 'released') {
+      const last = st.results[st.results.length - 1];
+      const placed = w.site.loads[st.index - 1];
+      w.loads[st.index - 1].sling.visible = false;
+      w.loads[st.index - 1].mesh.position.set(last.x, last.y, last.z);
+      if (last.hard) w.toast.show(`Hard landing  -${Math.round(CRANE.points.hard * placed.fragile)}`, '#ff8f80', 2);
+      else w.toast.show(`Set down  +${Math.round(last.points)}`, '#a8ffb0', 1.6);
+    } else if (r === 'off-spot') w.toast.show('Not on the marked spot', '#ff8f80', 1.4);
+    else if (r === 'not-down') w.toast.show('Lower it onto the spot first', '#fff', 1.2);
+    else w.toast.show('The hook is not over the load', '#fff', 1.2);
+  },
+  update(run, ctx, dt, cm) {
+    const w = run.work, st = run.state, C = w.crane, S = w.site;
+    w.toast.update(dt);
+    if (st.cab) {
+      towerCrane.hold(run);
+      w.t += dt;
+      const k = cm.keys;
+      const input = {
+        slew: (+k.left || 0) - (+k.right || 0),
+        trolley: (+k.forward || 0) - (+k.backward || 0),
+        hoist: clamp((+k.up || 0) - (+k.down || 0) + w.touch.hoist, -1, 1)
+      };
+      const load = S.loads[st.index];
+      const gust = st.carried && load ? load.gust : 0;
+      const wind = gust ? craneWind(w.t, gust, w.wind) : null;
+      const hookNow = craneHook(C);
+      // how far the hook may go down: a seated load's top (a little slack), the ground under an empty hook
+      const floor = st.carried ? (st.seated ? st.ly + load.half.y * 2 + CRANE.sling - 0.3 : -Infinity) : craneSurface(S, hookNow.x, hookNow.z) + 0.5;
+      stepCrane(C, input, Math.min(dt, 0.05), wind, S.jibY - floor);
+      const ev = stepCraneLoad(C, S, st, dt);
+      if (ev === 'hit') { w.toast.show(`Hit!  -${CRANE.points.hit}`, '#ff8f80', 1.6); run.audio?.thump?.(); }
+      else if (ev === 'seated' && st.lifted) {
+        if (st.seatV > CRANE.hardLanding) { w.toast.show('Too hard!', '#ff8f80', 1.4); run.audio?.thump?.(); }
+      }
+      // what the HUD says
+      if (load) {
+        const hook = craneHook(C);
+        const target = st.carried ? load.pad : load.yard;
+        const px = st.carried ? st.lx : hook.x, pz = st.carried ? st.lz : hook.z;
+        const above = st.carried ? st.ly - load.padY : hook.y - (load.restY + load.half.y * 2 + CRANE.sling);
+        st.view = {
+          dist: Math.hypot(px - target.x, pz - target.z), above, swing: swingOf(C.swing), wind: wind ? Math.hypot(wind.x, wind.z) : 0,
+          ready: !st.carried && Math.hypot(hook.x - target.x, hook.z - target.z) <= CRANE.pickReach && above <= CRANE.pickAbove && above >= -CRANE.pickBelow
+        };
+      }
+    }
+    towerCrane.pose(run);
+    // the crew at rest
+    w.crowd.begin();
+    for (const p of w.crew) { p.rig.update(dt, p.x, p.z, p.yaw, p.gf); w.crowd.add(p.rig, 0); }
+    w.crowd.end();
+  },
+  /** The crane, the rope, the hook, the load on it and the marks where the sim has them */
+  pose(run) {
+    const w = run.work, st = run.state, C = w.crane, S = w.site;
+    w.slew.rotation.y = C.theta;
+    w.trolley.position.set(0, -0.15, C.r);
+    const t = craneTrolley(C), h = craneHook(C);
+    w.hook.position.set(h.x, h.y, h.z);
+    _p.set(h.x - t.x, h.y + 0.4 - S.jibY, h.z - t.z);
+    const len = _p.length();
+    w.rope.position.set(t.x, S.jibY - 0.3, t.z);
+    w.rope.quaternion.setFromUnitVectors(_s.set(0, -1, 0), _p.normalize());
+    w.rope.scale.set(1, Math.max(0.1, len), 1);
+    const load = st ? S.loads[st.index] : null;
+    if (st?.carried && load) {
+      const L = w.loads[st.index];
+      L.mesh.position.set(st.lx, st.ly, st.lz);
+      L.sling.visible = !st.seated || Math.abs(h.y - (st.ly + load.half.y * 2 + CRANE.sling)) < 0.5;
+    }
+    // the spot in play; the plumb ring under the hook (it shows where a load would stand)
+    const inPlay = st?.cab && load;
+    w.pad.visible = !!inPlay;
+    w.plumb.visible = !!inPlay;
+    if (inPlay) {
+      if (st.carried) { w.pad.position.set(load.pad.x, load.padY + 0.06, load.pad.z); w.pad.scale.setScalar(1); }
+      else { w.pad.position.set(load.yard.x, load.restY + 0.12, load.yard.z); w.pad.scale.setScalar(CRANE.pickReach / CRANE.padR); }
+      w.plumb.position.set(h.x, craneSurface(S, h.x, h.z) + 0.1, h.z);
+    }
+  },
+  after(run, ctx, dt) {
+    const w = run.work, st = run.state;
+    if (!st?.cab) return;
+    const cam = ctx.camera, S = w.site, h = craneHook(w.crane), load = S.loads[st.index];
+    const fy = st.carried && load ? st.ly + load.half.y : h.y;
+    if (w.view === 'cab') {
+      const s = Math.sin(w.crane.theta), c = Math.cos(w.crane.theta);
+      cam.position.set(CRANE.tower.x + c * 1.5 + s * 2.2, S.jibY - 1.2, CRANE.tower.z - s * 1.5 + c * 2.2);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(h.x, fy, h.z);
+    } else {
+      const t = craneTrolley(w.crane);
+      const dx = t.x - CRANE.tower.x, dz = t.z - CRANE.tower.z, L = Math.hypot(dx, dz) || 1;
+      // from behind and above the load, on the tower's side: the jib points away from the viewer
+      _p.set(h.x - (dx / L) * 20, Math.max(fy + 12, S.top + 18), h.z - (dz / L) * 20);
+      if (!w.camInit) { w.cam.copy(_p); w.camInit = true; } else w.cam.lerp(_p, Math.min(1, dt * 2.5));
+      cam.position.copy(w.cam);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(h.x, fy - 1, h.z);
+    }
+    cam.updateMatrixWorld();
+  }
+};
+
+// =====================================================================================================================
+// 8. Carting the snow: the blower of mission 2 fills the tipper driving alongside, the player takes the truck to the lake
+function buildTipperModel(material) {
+  const g = new THREE.Group();
+  g.name = 'SnowTipper';
+  const blue = 0x2c5f9e, dark = 0x26282b;
+  const B = boxBatch();
+  B.add(2.3, 0.4, 8.2, dark, 0, 0.95, 0); // the chassis
+  B.add(2.45, 2.15, 2, 0xf07d1a, 0, 2.05, 3.1); // the cab
+  B.add(2.2, 0.9, 0.05, 0x223040, 0, 2.55, 4.11);
+  for (const x of [1.23, -1.23]) B.add(0.05, 0.8, 1.3, 0x223040, x, 2.55, 3.3);
+  B.add(0.6, 0.12, 0.25, 0xffb300, 0, 3.2, 2.7);
+  g.add(B.mesh(material, 'TipperCab'));
+  // the bed tips round its hinge at the tail
+  const bed = new THREE.Group();
+  const hinge = { y: 1.25, z: -LOADER.bed.back - LOADER.bed.halfL - 0.2 };
+  bed.position.set(0, hinge.y, hinge.z);
+  const C = boxBatch();
+  const L = LOADER.bed.halfL * 2, Wd = LOADER.bed.halfW * 2 + 0.1, mid = 0.2 + L / 2;
+  C.add(Wd, 0.14, L, blue, 0, 0.07, mid);
+  for (const x of [Wd / 2, -Wd / 2]) C.add(0.08, 1.1, L, blue, x, 0.65, mid);
+  C.add(Wd, 1.3, 0.1, blue, 0, 0.75, mid + L / 2); // the front wall
+  C.add(Wd, 0.5, 0.08, 0x214b7d, 0, 0.32, mid - L / 2); // the tail board's lower half
+  bed.add(C.mesh(material, 'TipperBed'));
+  // the load: a dome that grows with the fill
+  const heapGeo = mergeGeometries([new THREE.BoxGeometry(Wd - 0.2, 0.9, L - 0.2).translate(0, 0.45, 0).toNonIndexed(), new THREE.SphereGeometry(1, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale((Wd - 0.2) / 2, 0.75, (L - 0.2) / 2).translate(0, 0.9, 0).toNonIndexed()].map((p) => { p.deleteAttribute('uv'); return p; }));
+  const heap = new THREE.Mesh(heapGeo, mat(0xeef2f8, { roughness: 0.95 }));
+  heap.name = 'TipperLoad';
+  heap.position.set(0, 0.14, mid);
+  heap.scale.set(1, 0.01, 1);
+  heap.castShadow = true;
+  bed.add(heap);
+  g.add(bed);
+  const wheels = [];
+  for (const [x, z] of [[1.08, 2.8], [-1.08, 2.8], [1.08, -1.6], [-1.08, -1.6], [1.08, -2.8], [-1.08, -2.8]]) { const w = wheel(0.52, 0.38); w.position.set(x, 0.52, z); g.add(w); wheels.push({ mesh: w, r: 0.52, front: z > 0 }); }
+  return {
+    group: g, wheels, bed, heap, heapMid: mid,
+    drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.4, grip: 6.5, cornering: 4.6 },
+    dims: { halfW: LOADER.truckBody.halfW, halfL: LOADER.truckBody.halfL, top: 3.3, mass: 18000 }, chase: [14, 4.6], label: 'Tipper'
+  };
+}
+
+const snowLoad = {
+  setup(run) {
+    const route = createLoaderRoute();
+    const grid = createLoaderGrid(route);
+    const cm = run.hooks.controllerManager, car = cm.entities.car;
+    const pt = {};
+    const mesh = new GridMesh(grid, {
+      toWorld: (u, v) => routePoint(route, u, v - BLOWER.half, pt), base: (x, z) => cm.getGroundHeight(x, z, 'car'), name: 'RoadSnow',
+      height: (h) => Math.max(0, h),
+      colour: (h, k, out) => (h < 0.08 ? out.copy(ASPHALT).lerp(SNOW, clamp(h / 0.08, 0, 1)) : out.copy(SNOW)).multiplyScalar(0.93 + 0.07 * hash(k))
+    });
+    run.group.add(mesh.mesh);
+    const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.65 });
+    const tipper = buildTipperModel(material);
+    run.group.add(tipper.group);
+    // the snow already on the shore, and what this load adds to it
+    const dump = new THREE.Mesh(new THREE.ConeGeometry(6, 3, 14).translate(0, 1.2, 0), mat(0xe6ebf2, { roughness: 0.95 }));
+    dump.name = 'SnowDump';
+    dump.castShadow = true;
+    dump.position.set(TIP_SPOT.x + 3.5, cm.getGroundHeight(TIP_SPOT.x + 3.5, TIP_SPOT.z - 0.5, 'person') - 0.5, TIP_SPOT.z - 0.5);
+    run.group.add(dump);
+    const blower = run.vehicle;
+    const blowerDrive = { ...blower.drive, speed: LOADER.blowerSpeed };
+    const lake = DAVOS_DATA.water.find((a) => a.name === 'Davosersee');
+    const body = { x: 0, z: 0, prevX: 0, prevZ: 0, y: 0, sin: 0, cos: 1, halfW: LOADER.truckBody.halfW, halfL: LOADER.truckBody.halfL, mass: 18000, vx: 0, vz: 0, angularVel: 0, parked: 'tipper' };
+    if (run.hooks.trafficBodies) { run.hooks.trafficBodies.push(body); run.trafficBodies.push(body); }
+    run.work = { route, grid, mesh, tipper, blower, blowerDrive, dump, lake, body, truck: createLoaderTruck(8), prev: new THREE.Vector3(), lastHeading: 0, lastHit: -1e9, toast: createToast(run), proj: {}, spawnAcc: 0, keyHold: false, touchHold: false, started: false };
+    car.drive = blowerDrive;
+    bindHold(run);
+    holdButton(run, 'E');
+    const chute = el('button', 'panel mission-fire', 'Chute');
+    chute.type = 'button';
+    Object.assign(chute.style, { width: '64px', height: '64px', fontSize: '12px', transform: 'translate(0, -76px)' });
+    run.listen(chute, 'pointerdown', (e) => { e.preventDefault(); snowLoad.turnChute(run); });
+    document.body.append(chute);
+    run.cleanups.push(() => chute.remove());
+  },
+  /** Into the blower or the tipper: the car wears it, its handling and its size */
+  wear(run, model, drive) {
+    const car = run.hooks.controllerManager.entities.car;
+    run.vehicle = model;
+    Object.assign(car, { drive, dims: model.dims, chaseDistance: model.chase[0], chaseHeight: model.chase[1], label: model.label });
+    const hudLabel = document.getElementById('hud-active-mode'); // (js/main.js writes it only when the mode changes)
+    if (hudLabel) hudLabel.textContent = model.label;
+  },
+  reset(run) {
+    const w = run.work, cm = run.hooks.controllerManager;
+    resetGrid(w.grid, createLoaderGrid(w.route));
+    w.mesh.refresh();
+    snowLoad.wear(run, w.blower, w.blowerDrive);
+    w.truck = createLoaderTruck(8);
+    const car = cm.entities.car;
+    car.speed = 0; car.vx = 0; car.vz = 0; car.angularVel = 0;
+    workVehicle.follow(run, 0, cm);
+    w.prev.copy(car.position);
+    w.lastHeading = car.heading;
+    w.lastHit = -1e9;
+    w.started = false;
+    w.keyHold = w.touchHold = false;
+    w.tipper.heap.scale.set(1, 0.01, 1);
+    w.tipper.heap.position.z = w.tipper.heapMid;
+    w.tipper.bed.rotation.x = 0;
+    w.dump.scale.setScalar(0.45);
+    w.toast.hide();
+    snowLoad.poseTruck(run, 0, cm);
+  },
+  key(run, e) {
+    if (run.phase === 'intro') return;
+    if (e.code === 'KeyV' && !e.repeat && run.index === 0) { e.preventDefault(); e.stopImmediatePropagation(); snowLoad.turnChute(run); }
+    if ((e.code === 'KeyE' || e.code === 'Space') && run.index >= 1) holdKey(run, e);
+  },
+  turnChute(run) { if (run.state) run.state.chute = -(run.state.chute || 1); },
+  /** The tipper driven by itself along the road, at the road's height */
+  poseTruck(run, dt, cm) {
+    const w = run.work, T = w.truck, g = w.tipper.group, b = w.body;
+    if (run.state?.inTruck) return;
+    const p = routePoint(w.route, T.s, T.d);
+    const y = cm.getGroundHeight(p.x, p.z, 'car');
+    // (the road is a polyline: the heading eases round its corners)
+    T.heading = T.heading == null || !dt ? p.heading : T.heading + wrapPi(p.heading - T.heading) * Math.min(1, dt * 1.5);
+    T.x = p.x; T.z = p.z;
+    g.position.set(p.x, y, p.z);
+    g.rotation.set(0, T.heading, 0, 'YXZ');
+    for (const wh of w.tipper.wheels) wh.mesh.rotation.x += (T.v * dt) / wh.r;
+    b.prevX = b.x; b.prevZ = b.z;
+    b.x = p.x; b.z = p.z; b.y = y;
+    b.sin = Math.sin(T.heading); b.cos = Math.cos(T.heading);
+    b.vx = b.sin * T.v; b.vz = b.cos * T.v;
+  },
+  /** E beside the full truck: the car jumps across, the blower is left parked where it stands */
+  swap(run, cm) {
+    const w = run.work, st = run.state, car = cm.entities.car, T = w.truck, b = w.body;
+    st.inTruck = true;
+    b.prevX = b.x = car.position.x; b.prevZ = b.z = car.position.z;
+    b.sin = Math.sin(car.heading); b.cos = Math.cos(car.heading);
+    b.halfW = w.blower.dims.halfW; b.halfL = w.blower.dims.halfL; b.mass = 4800; b.vx = b.vz = 0;
+    snowLoad.wear(run, w.tipper, w.tipper.drive);
+    cm.teleportActiveTo(T.x, T.z, T.heading);
+    car.speed = 0; car.vx = 0; car.vz = 0; car.angularVel = 0;
+    run.lastPos?.copy(car.position);
+    w.lastHeading = car.heading;
+    w.toast.show('Into the tipper: to the Davosersee', '#cfe6ff', 2);
+  },
+  update(run, ctx, dt, cm) {
+    const w = run.work, st = run.state, car = cm.entities.car, v = run.vehicle, T = w.truck;
+    const live = run.phase === 'ready' || run.phase === 'running';
+    st.choke = false; st.shedding = false;
+    if (live && ctx.mode === 'car' && !st.inTruck) {
+      const proj = projectRoute(w.route, car.position.x, car.position.z, w.proj);
+      const a = wrapPi(car.heading - Math.atan2(proj.tx, proj.tz));
+      const p = { s: proj.s, d: proj.d };
+      st.s = p.s;
+      if (Math.abs(car.speed) > 0.2) w.started = true;
+      T.full = run.index > 0;
+      stepLoaderTruck(T, p.s, w.started, dt);
+      if (run.index === 0) {
+        // (in the truck's own frame: the road's corners do not count)
+        const dx = car.position.x - (T.x ?? car.position.x + 99), dz = car.position.z - (T.z ?? car.position.z), th = T.heading ?? car.heading, sn = Math.sin(th), cs = Math.cos(th);
+        if (blowerHitsTruck({ s: dx * sn + dz * cs, d: dz * sn - dx * cs }, wrapPi(car.heading - th), { s: 0, d: 0 })) {
+          car.position.x = w.prev.x; car.position.z = w.prev.z;
+          car.speed = Math.min(0, car.speed) * 0.3; car.vx = car.vz = 0;
+          const now = performance.now();
+          if (now - w.lastHit > 2500 && run.phase === 'running') {
+            w.lastHit = now; st.hits++;
+            w.toast.show(`Knocked the truck  -${LOADER.points.hit}`, '#ff8f80', 2);
+            run.audio?.thump?.();
+          }
+        }
+        const speed = car.speed || 0;
+        const vol = stepBlower(w.grid, p, { u: Math.cos(a), v: Math.sin(a) }, speed);
+        if (vol > 0) {
+          st.choke = augerTake(speed) < 1;
+          const land = chuteLanding(p, a, st.chute, LOADER);
+          const waste = stepChute(st, vol, land, T);
+          if (waste > 0) depositHeap(w.grid, land.s, land.d + BLOWER.half, (waste / LOADER.packing) * 0.2, 1.1);
+          snowLoad.chuteFx(run, car, land, vol, dt);
+        }
+      }
+      st.truckAt = routePoint(w.route, T.s, T.d);
+      st.truckDist = Math.hypot(car.position.x - st.truckAt.x, car.position.z - st.truckAt.z);
+      if (run.index === 1 && holding(run) && st.truckDist <= LOADER.swapReach) { w.keyHold = w.touchHold = false; snowLoad.swap(run, cm); }
+    }
+    if (live && st.inTruck) {
+      const yaw = wrapPi(car.heading - w.lastHeading) / Math.max(dt, 1e-3);
+      if (shedInBend(st, car.speed || 0, yaw, dt) > 0) {
+        st.shedding = true;
+        snowLoad.spray(run, car, 1);
+      }
+      st.pose = tipPose(car.position.x, car.position.z, car.heading, car.speed || 0);
+      st.inLake = w.lake ? inRingXZ(w.lake.ring, car.position.x, car.position.z) : false;
+      if (run.index === 3) {
+        const out = stepTip(st, st.pose.ok, holding(run), dt);
+        if (out > 0) snowLoad.dumpFx(run, car, out, dt);
+      }
+    }
+    w.lastHeading = car.heading;
+    w.prev.copy(car.position);
+    // the load and the bed
+    const P = w.tipper;
+    P.heap.scale.y = Math.max(0.01, (st.load / LOADER.capacity));
+    P.bed.rotation.x = -st.raise * 0.9;
+    P.heap.position.z = P.heapMid - (st.raise > LOADER.tip.fallFrom ? (1 - st.load / Math.max(0.01, st.load + st.tipped)) * 1.6 : 0);
+    w.dump.scale.setScalar(0.45 + 0.35 * clamp(st.tipped / LOADER.capacity, 0, 1));
+    w.mesh.update(dt);
+    w.toast.update(dt);
+    run.workParticles?.update(dt, ctx.camera);
+    // the blower's auger and chute, while it is the one driven
+    if (!st.inTruck && v?.auger) {
+      v.auger.rotation.x += dt * (Math.abs(car.speed) > 0.2 ? 9 : 2.5);
+      const target = st.chute > 0 ? Math.PI : 0;
+      v.chute.rotation.y += (target - v.chute.rotation.y) * Math.min(1, dt * 5);
+    }
+    snowLoad.poseTruck(run, dt, cm);
+  },
+  chuteFx(run, car, land, vol, dt) {
+    const w = run.work, pb = particles(run);
+    w.spawnAcc += Math.min(1, vol / Math.max(dt, 1e-3) / 0.6) * 45 * dt;
+    if (w.spawnAcc < 1) return;
+    const h = car.heading, fx = Math.sin(h), fz = Math.cos(h);
+    const o = { x: car.position.x + fx * (BLOWER.ahead - 0.35), y: car.position.y + 2.7, z: car.position.z + fz * (BLOWER.ahead - 0.35) };
+    const tgt = routePoint(w.route, land.s, land.d);
+    const y0 = groundHeight(tgt.x, tgt.z) + (run.state.onBed ? 1.6 + run.state.load / LOADER.capacity : 0.3);
+    while (w.spawnAcc >= 1) {
+      w.spawnAcc--;
+      lump(pb, o, { x: tgt.x + (Math.random() - 0.5) * 1.5, y: y0, z: tgt.z + (Math.random() - 0.5) * 1.5 }, 0.5 + Math.random() * 0.15, { size: 0.26, grow: 0.5, alpha: 0.85 });
+    }
+  },
+  /** Lumps off the load in a bend */
+  spray(run, car, n) {
+    const pb = particles(run), h = car.heading;
+    for (let i = 0; i < n; i++) {
+      const a = { x: car.position.x - Math.sin(h) * 1.2, y: car.position.y + 2.6, z: car.position.z - Math.cos(h) * 1.2 };
+      lump(pb, a, { x: a.x + Math.cos(h) * (Math.random() < 0.5 ? 3 : -3), y: car.position.y, z: a.z - Math.sin(h) * 3 }, 0.6, { size: 0.3, grow: 0.3 });
+    }
+  },
+  /** The load sliding off the tail, into the water */
+  dumpFx(run, car, out, dt) {
+    const w = run.work, pb = particles(run), h = car.heading;
+    w.spawnAcc += (out / Math.max(dt, 1e-3)) * 7 * dt;
+    while (w.spawnAcc >= 1) {
+      w.spawnAcc--;
+      const a = { x: car.position.x - Math.sin(h) * 4.6, y: car.position.y + 1.8, z: car.position.z - Math.cos(h) * 4.6 };
+      const b = { x: a.x - Math.sin(h) * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 2, y: car.position.y - 0.3, z: a.z - Math.cos(h) * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 2 };
+      lump(pb, a, b, 0.55 + Math.random() * 0.2, { size: 0.5, grow: 0.6 });
+    }
+  }
+};
+
+export const WORK_FEATURES = { shovel, workVehicle, snowBlower, mower, garbageRound, alpineRoses, mushrooms, towerCrane, snowLoad };

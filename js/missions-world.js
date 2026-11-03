@@ -221,6 +221,21 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(g * 0.25, -g * 0.6); ctx.quadraticCurveTo(g * 0.7, -g * 1.15, g * 0.95, -g * 0.1); ctx.stroke(); ctx.setLineDash([]);
       break;
     }
+    case 'crane': { // a tower crane: the mast, the long jib, the hook on its rope (js/missions-data-work.js)
+      ctx.fillRect(-g * 0.45, -g * 0.65, g * 0.2, g * 1.6);
+      ctx.fillRect(-g * 0.95, -g * 0.7, g * 1.95, g * 0.16);
+      ctx.fillRect(-g * 0.95, -g * 0.7, g * 0.28, g * 0.4);
+      ctx.fillRect(g * 0.62, -g * 0.55, g * 0.07, g * 0.75);
+      ctx.fillRect(g * 0.46, g * 0.2, g * 0.38, g * 0.3);
+      break;
+    }
+    case 'snowtruck': { // a tipper: the cab, the raised bed, the snow sliding off
+      ctx.fillRect(g * 0.25, -g * 0.15, g * 0.6, g * 0.7);
+      ctx.fillRect(-g * 0.95, g * 0.4, g * 1.8, g * 0.15);
+      ctx.save(); ctx.translate(-g * 0.9, g * 0.35); ctx.rotate(-0.42); ctx.fillRect(0, -g * 0.55, g * 1.15, g * 0.55); ctx.restore();
+      for (const x of [-0.55, 0.5]) { ctx.beginPath(); ctx.arc(g * x, g * 0.68, g * 0.18, 0, Math.PI * 2); ctx.fill(); }
+      break;
+    }
     case 'mower': { // a ride-on mower from the side: the seat, the wheels, the deck
       ctx.fillRect(-g * 0.85, -g * 0.05, g * 1.7, g * 0.4);
       ctx.fillRect(-g * 0.55, -g * 0.55, g * 0.18, g * 0.5); ctx.fillRect(-g * 0.55, -g * 0.15, g * 0.5, g * 0.15);
