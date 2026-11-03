@@ -67,3 +67,19 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('12 skiers'), '12 Skifahrer');
   assert.equal(t('pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)'), 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
 });
+
+test('the WEF missions translate names, intros, generated texts and slogans', () => {
+  setLanguage('de');
+  assert.equal(t('Escort at the WEF'), 'Eskorte am WEF');
+  assert.equal(t('Lead the anti-WEF march'), 'Anti-WEF-Demo anführen');
+  assert.match(t('January, the World Economic Forum, and Davos is a fortress.'), /^Januar/);
+  assert.match(t('The Forum is in town, and so is the registered counter-march.'), /^Das Forum/);
+  assert.equal(t('120 m to the Promenade gate · under 30 km/h'), '120 m bis zur Schleuse Promenade · unter 30 km/h');
+  assert.equal(t('1.2 km to the Kongresszentrum'), '1.2 km bis zum Kongresszentrum');
+  assert.equal(t('34 marchers · 90 m to the rally point'), '34 Leute · 90 m bis zum Kundgebungsplatz');
+  assert.equal(t('34 marchers · 90 m on the Promenade'), '34 Leute · noch 90 m auf der Promenade');
+  assert.equal(t('Davos for the Davosers!'), 'Davos den Davosern!');
+  assert.equal(t('The delegation is boarding … 3 s'), 'Die Delegation steigt ein … 3 s');
+  assert.equal(t('Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed'), 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
+  assert.equal(t('DAVOS FOR THE DAVOSERS'), 'DAVOS DEN DAVOSERN');
+});

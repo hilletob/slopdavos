@@ -23,6 +23,7 @@ import { WORK_FEATURES } from './missions-work.js';
 import { SPORT_FEATURES } from './missions-sport.js';
 import { RESORT_FEATURES } from './missions-resort.js';
 import { GASTRO_FEATURES } from './missions-gastro.js';
+import { WEF_FEATURES } from './missions-wef.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -938,3 +939,5 @@ Object.assign(FEATURES, SPORT_FEATURES);
 Object.assign(FEATURES, RESORT_FEATURES);
 // (js/missions-gastro.js: Flämmli in the Rot Liechtli, Pizza Heaven)
 Object.assign(FEATURES, GASTRO_FEATURES);
+// (js/missions-wef.js: the motorcade and the march of the WEF week)
+Object.assign(FEATURES, WEF_FEATURES);

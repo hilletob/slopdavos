@@ -308,6 +308,90 @@ const pairs = [
   ['Ham', 'Schinken'],
   ['Mushrooms', 'Pilze'],
   ['Pineapple', 'Ananas'],
+  // the WEF week: the escort and the march (js/missions-data-wef.js)
+  ['Escort at the WEF', 'Eskorte am WEF'],
+  ['The delegation steps out at the Kongresszentrum and asks whether Davos always has this much snow. Well driven.', 'Die Delegation steigt am Kongresszentrum aus und fragt, ob Davos immer so viel Schnee hat. Gut gefahren.'],
+  ['Pick up the delegation at the Bahnhof Davos Dorf', 'Die Delegation am Bahnhof Davos Dorf abholen'],
+  ['Security gate on the Promenade', 'Sicherheitsschleuse an der Promenade'],
+  ['Security gate on the Scalettastrasse', 'Sicherheitsschleuse an der Scalettastrasse'],
+  ['Security gate on the Kurgartenstrasse', 'Sicherheitsschleuse an der Kurgartenstrasse'],
+  ['Security gate on the Talstrasse', 'Sicherheitsschleuse an der Talstrasse'],
+  ['Radio the detour', 'Umleitung per Funk melden'],
+  ['Set the delegation down at the Kongresszentrum', 'Die Delegation am Kongresszentrum absetzen'],
+  ['Blue light and siren: K (the traffic gives way)', 'Blaulicht und Sirene: K (der Verkehr macht Platz)'],
+  ['Blue light on (K) for the delegation', 'Blaulicht ein (K) für die Delegation'],
+  ['Stop here', 'Hier anhalten'],
+  ['Wait for the limousines', 'Warte auf die Limousinen'],
+  ['Stop at the door', 'Vor der Tür anhalten'],
+  ['Radio: J', 'Funk: J'],
+  ['Control: a snow blower has broken down at the Kongress. Radio the detour: J', 'Zentrale: Vor dem Kongress steht eine Schneefräse still. Melde die Umleitung per Funk: J'],
+  ['Control: detour via the Scalettastrasse, the gates are told', 'Zentrale: Umleitung über die Scalettastrasse, die Schleusen sind informiert'],
+  ['Crash! The delegation spills its coffee', 'Unfall! Die Delegation verschüttet ihren Kaffee'],
+  ['Into your own convoy!', 'In die eigene Kolonne!'],
+  ['Too fast at the gate: 30 km/h at the barrier', 'Zu schnell an der Schleuse: 30 km/h an der Schranke'],
+  ['Gate open, the soldiers salute', 'Schleuse offen, die Soldaten grüssen'],
+  ['Unannounced at the turn: the gates scramble', 'Unangemeldet abgebogen: Hektik an den Schleusen'],
+  ['The road is shut: the Scalettastrasse is the way round', 'Die Strasse ist gesperrt: Der Weg führt über die Scalettastrasse'],
+  ['The motorcade has lost you: the delegation arrives by bus.', 'Die Kolonne hat dich verloren: Die Delegation kommt mit dem Bus.'],
+  ['Composure gone: the delegation asks for another driver.', 'Die Fassung ist dahin: Die Delegation verlangt einen anderen Fahrer.'],
+  ['Gap', 'Abstand'],
+  ['Composure', 'Fassung'],
+  ['Schedule', 'Zeitplan'],
+  ['Blue light', 'Blaulicht'],
+  ['Radio', 'Funk'],
+  ['Lead the anti-WEF march', 'Anti-WEF-Demo anführen'],
+  ['The speeches are short, the tea is hot, and the liaison asks for a placard for the station wall. Nobody was hurt, nothing was broken, and the snow stayed white.', 'Die Reden sind kurz, der Tee ist heiss, und die Verbindungsperson bittet um ein Plakat für die Wand im Posten. Niemand wurde verletzt, nichts ging kaputt, und der Schnee blieb weiss.'],
+  ['March down the Promenade', 'Die Promenade hinunter marschieren'],
+  ['Talk to the police liaison', 'Mit der Polizei-Verbindungsperson reden'],
+  ['On to the rally point', 'Weiter zum Kundgebungsplatz'],
+  ['Hold the rally', 'Die Kundgebung halten'],
+  ['The police liaison', 'Die Polizei-Verbindungsperson'],
+  ['The police liaison wants a word', 'Die Polizei-Verbindungsperson möchte mit dir reden'],
+  ['Back to the agreed route', 'Zurück auf die vereinbarte Route'],
+  ['Stand on the rally point', 'Stell dich auf den Kundgebungsplatz'],
+  ['Wait for the crowd', 'Warte auf die Menge'],
+  ['Too fast: wait for the crowd', 'Zu schnell: Warte auf die Menge'],
+  ['Space on the beat: call, and the crowd answers', 'Space im Takt: Du rufst, die Menge antwortet'],
+  ['Get ready …', 'Bereit machen …'],
+  ['Perfect!', 'Perfekt!'],
+  ['Good', 'Gut'],
+  ['Off the beat', 'Aus dem Takt'],
+  ['Marchers', 'Leute'],
+  ['Morale', 'Stimmung'],
+  ['Chant', 'Sprechchor'],
+  ['Call', 'Rufen'],
+  ['Stop and talk', 'Anhalten und reden'],
+  ['Sit-in, in the snow', 'Sitzstreik im Schnee'],
+  ['Turn back to the agreed route', 'Zurück auf die vereinbarte Route'],
+  ['You have left the registered route, and the fence is that way. What now?', 'Du hast die bewilligte Route verlassen, und dort drüben ist der Zaun. Was nun?'],
+  ['The crowd behind you wants to go on to the fence. The permit ends at the rally point. How do you answer?', 'Die Menge hinter dir will weiter bis zum Zaun. Die Bewilligung endet am Kundgebungsplatz. Was antwortest du?'],
+  ['Liaison: off the registered route, please', 'Verbindungsperson: Bitte zurück auf die bewilligte Route'],
+  ['Liaison: a word, please, the crowd wants to go on to the fence', 'Verbindungsperson: Kurz auf ein Wort, die Menge will weiter bis zum Zaun'],
+  ['Liaison: thank you, carry on to the rally point', 'Verbindungsperson: Danke, weiter zum Kundgebungsplatz'],
+  ['Everybody stops. Liaison: much obliged', 'Alle halten an. Verbindungsperson: Besten Dank'],
+  ['A sit-in, in the snow. Somebody hands round tea', 'Ein Sitzstreik im Schnee. Jemand verteilt Tee'],
+  ['Back to the agreed route. Liaison: very civil of you', 'Zurück auf die vereinbarte Route. Verbindungsperson: Sehr anständig von dir'],
+  ['The sit-in made the evening news: more people come', 'Der Sitzstreik kam in die Abendnachrichten: Es kommen mehr Leute'],
+  ['A bystander joins the march', 'Jemand vom Strassenrand schliesst sich an'],
+  ['The chant falters: somebody goes for a hot chocolate', 'Der Sprechchor stockt: Jemand geht eine heisse Schokolade trinken'],
+  ['Too fast: the crowd cannot keep up, and somebody stays behind', 'Zu schnell: Die Menge kommt nicht nach, jemand bleibt zurück'],
+  ['Morale is low: people drift off', 'Die Stimmung ist schlecht: Leute gehen nach Hause'],
+  ['The liaison politely folds up your permit: the march ends here, and everybody goes for a coffee.', 'Die Verbindungsperson faltet höflich deine Bewilligung zusammen: Der Umzug endet hier, und alle gehen einen Kaffee trinken.'],
+  ['The march has melted away into the Konditorei. The cake is said to be excellent.', 'Der Umzug hat sich in die Konditorei verflüchtigt. Der Kuchen soll ausgezeichnet sein.'],
+  ['What do we want?', 'Was wollen wir?'],
+  ['Clean air!', 'Saubere Luft!'],
+  ['When do we want it?', 'Wann wollen wir sie?'],
+  ['Before the next ski season!', 'Vor der nächsten Skisaison!'],
+  ['Whose town is this?', 'Wem gehört die Stadt?'],
+  ['Davos for the Davosers!', 'Davos den Davosern!'],
+  ['Fair taxes!', 'Gerechte Steuern!'],
+  ['For everyone, even the fondue!', 'Für alle, sogar fürs Fondue!'],
+  ['Snow for all!', 'Schnee für alle!'],
+  ['Not just for helicopters!', 'Nicht nur für Helikopter!'],
+  ['DAVOS FOR THE DAVOSERS', 'DAVOS DEN DAVOSERN'],
+  ['FAIR TAXES', 'GERECHTE STEUERN'],
+  ['CLIMATE NOW', 'KLIMA JETZT'],
+  ['MORE FONDUE, FEWER HELICOPTERS', 'MEHR FONDUE, WENIGER HELIKOPTER'],
   ['The Pizza Heaven rush', 'Der Ansturm im Pizza Heaven'],
   ['The last box is at the door, and somebody tips in Rappen.', 'Die letzte Schachtel steht vor der Tür, und jemand gibt Trinkgeld in Rappen.'],
   ['Go into Pizza Heaven', 'Ins Pizza Heaven gehen'],
@@ -401,6 +485,8 @@ const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
 const missionIntros = [
+  ['January, the World Economic Forum', 'Januar, das World Economic Forum, und Davos ist eine Festung. Du fährst den Polizei-Führungswagen einer erfundenen Delegation. Hol am Bahnhof Davos Dorf die drei schwarzen Limousinen und den Begleitwagen ab und führe sie über die Promenade und die Talstrasse zum Kongresszentrum. Blaulicht und Sirene (K) halten den Verkehr zurück. Die Kolonne fährt deine Spur nach: Zu schnell, und sie reisst ab; zu langsam, und der Zeitplan rutscht; Anhalten oder ein Unfall kosten Fassung. An den Sicherheitsschleusen unter 30 km/h. Hör auf den Funk: Mit J meldest du eine Umleitung. Punkte für Zeit, Zusammenhalt und Fassung.'],
+  ['The Forum is in town, and so is the registered', 'Das Forum ist in der Stadt, der bewilligte Gegenumzug auch. Mit dem Megafon gehst du an seiner Spitze die Promenade hinunter: dreissig Leute, drei Plakate und eine Thermoskanne. Ruf im Takt (Space oder die Taste), die Menge antwortet: Gute Sprechchöre locken Leute vom Strassenrand an; wer den Takt verliert oder davonläuft (W gedrückt ist zu schnell), schickt sie zur heissen Schokolade. Bleib auf der bewilligten Route und rede ruhig mit der Polizei-Verbindungsperson. Der Kundgebungsplatz liegt vor dem Zaun. Punkte für die Menge, den Sprechchor, die Route und die Kundgebung.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -446,6 +532,7 @@ const missionIntros = [
 ];
 // Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
 const placeDe = new Map([
+  ['the Bahnhof Davos Dorf', ['zum Bahnhof Davos Dorf', '']], ['the Promenade gate', ['zur Schleuse Promenade', '']], ['the Scalettastrasse gate', ['zur Schleuse Scalettastrasse', '']], ['the Kurgartenstrasse gate', ['zur Schleuse Kurgartenstrasse', '']], ['the Talstrasse gate', ['zur Schleuse Talstrasse', '']], ['the Scalettastrasse', ['zur Scalettastrasse', '']], ['the Kongresszentrum', ['zum Kongresszentrum', '']], ['the rally point', ['zum Kundgebungsplatz', '']], ['the police liaison', ['zur Polizei-Verbindungsperson', '']],
   ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
   ['the Bolgenschanze', ['zur Bolgenschanze', 'in die Bolgenschanze']], ['the BOX', ['zur BOX', 'in die BOX']],
   ['the loading point', ['zur Einstiegsstelle', '']], ['your place', ['zu deinem Platz', '']],
@@ -475,6 +562,14 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  // the WEF week (js/missions-data-wef.js)
+  dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
+  dynamic = dynamic.replace(/^The delegation is boarding … (\d+) s$/, 'Die Delegation steigt ein … $1 s').replace(/^The door opens … (\d+) s$/, 'Die Tür geht auf … $1 s');
+  dynamic = dynamic.replace(/^Cohesion (\d+) % · composure (\d+) · (\d+) crashes · (\d+) gates rushed$/, 'Zusammenhalt $1 % · Fassung $2 · $3 Unfälle · $4 Schleusen zu schnell');
+  dynamic = dynamic.replace(/^(\d+) marchers · chant (\d+) % · on the route (\d+) % · goodwill (\d+)$/, '$1 Leute · Sprechchor $2 % · auf der Route $3 % · Wohlwollen $4');
+  dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) on the Promenade$/, '$1 Leute · noch $2 auf der Promenade');
+  dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) to (.+)$/, (whole, n, d, label) => (placeDe.has(label) ? `${n} Leute · ${d} bis ${placeDe.get(label)[0]}` : whole));
+  dynamic = dynamic.replace(/^Everybody stands still … (\d+) s$/, 'Alle stehen still … $1 s').replace(/^Sit-in … (\d+) s$/, 'Sitzstreik … $1 s').replace(/^The closing speech … (\d+) s$/, 'Die Schlussrede … $1 s');
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));

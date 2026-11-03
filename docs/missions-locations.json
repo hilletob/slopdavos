@@ -1992,6 +1992,144 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
    "nr": 47
+  },
+  {
+   "id": "wef-escort",
+   "status": "bestehend",
+   "name": "Eskorte am WEF",
+   "kurz": "Am WEF im Januar den Polizei-Führungswagen einer fiktiven Delegation fahren: drei schwarze Limousinen und ein Begleitwagen folgen der eigenen Spur vom Bahnhof Davos Dorf zum Kongresszentrum. Blaulicht (K) hält den Verkehr zurück, an den Sicherheitsschleusen unter 30 km/h, die Umleitung per Funk (J) melden. Punkte für Zeit, Zusammenhalt der Kolonne und Fassung.",
+   "saison": "winter",
+   "fahrzeug": "Polizeiwagen",
+   "anreise": "Start auf der Bahnhofstrasse, Davos Dorf, rund 150 m vor dem Bahnhof",
+   "ort": {
+    "name": "Bahnhof Davos Dorf, Bahnhofstrasse",
+    "x": 848.4,
+    "z": -1562.2,
+    "lv95": {
+     "E": 2783348,
+     "N": 1187062
+    }
+   },
+   "punkte": [
+    {
+     "name": "Schleuse Promenade",
+     "x": 565.5,
+     "z": -1141.5,
+     "lv95": {
+      "E": 2783066,
+      "N": 1186642
+     }
+    },
+    {
+     "name": "Einbiegen Scalettastrasse (Umleitung)",
+     "x": 432,
+     "z": -770,
+     "lv95": {
+      "E": 2782932,
+      "N": 1186270
+     }
+    },
+    {
+     "name": "Sperre Promenade vor dem Kongress (Schneefräse)",
+     "x": 385,
+     "z": -719.6,
+     "lv95": {
+      "E": 2782885,
+      "N": 1186220
+     }
+    },
+    {
+     "name": "Schleuse Scalettastrasse",
+     "x": 210,
+     "z": -767.4,
+     "lv95": {
+      "E": 2782710,
+      "N": 1186267
+     }
+    },
+    {
+     "name": "Schleuse Kurgartenstrasse",
+     "x": -180,
+     "z": -361.3,
+     "lv95": {
+      "E": 2782320,
+      "N": 1185861
+     }
+    },
+    {
+     "name": "Schleuse Talstrasse",
+     "x": 72,
+     "z": -374.6,
+     "lv95": {
+      "E": 2782572,
+      "N": 1185875
+     }
+    },
+    {
+     "name": "Kongresszentrum, Vorfahrt Talstrasse 49a",
+     "x": 181,
+     "z": -471.5,
+     "lv95": {
+      "E": 2782681,
+      "N": 1185972
+     }
+    }
+   ],
+   "quelle": "js/missions-data-wef.js (Strassenachsen aus js/davos-geodata.js, OSM; Einbahnrichtungen aus OSM: Promenade Richtung Platz, Talstrasse Richtung Dorf)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Strassen und Einbahnrichtungen aus OSM belegt; Lage der Schleusen, Zäune und der Sperre sind Spielannahmen, nicht die realen WEF-Sicherheitsdispositive. Delegation frei erfunden.",
+   "nr": 48
+  },
+  {
+   "id": "anti-wef-demo",
+   "status": "bestehend",
+   "name": "Anti-WEF-Demo anführen",
+   "kurz": "Friedlicher, komischer Umzug zu Fuss auf der Promenade: mit dem Megafon im Takt rufen, die Menge antwortet und wächst. Zu schnell oder aus dem Takt, und die Leute gehen eine heisse Schokolade trinken. Mit der Polizei-Verbindungsperson ruhig verhandeln (anhalten, Sitzstreik, zurück auf die Route) und am Kundgebungsplatz vor dem Zaun anhalten. Medaille nach Punkten.",
+   "saison": "winter",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Promenade, Einmündung Salzgäbastrasse, Davos Dorf",
+   "ort": {
+    "name": "Start Promenade / Salzgäbastrasse",
+    "x": 574,
+    "z": -1190,
+    "lv95": {
+     "E": 2783074,
+     "N": 1186690
+    }
+   },
+   "punkte": [
+    {
+     "name": "Polizei-Verbindungsperson, Promenade",
+     "x": 501.9,
+     "z": -871.9,
+     "lv95": {
+      "E": 2783002,
+      "N": 1186372
+     }
+    },
+    {
+     "name": "Kundgebungsplatz, Promenade bei der Scalettastrasse",
+     "x": 447.5,
+     "z": -772.6,
+     "lv95": {
+      "E": 2782948,
+      "N": 1186273
+     }
+    },
+    {
+     "name": "Sicherheitszaun (Spielannahme)",
+     "x": 414,
+     "z": -744.4,
+     "lv95": {
+      "E": 2782914,
+      "N": 1186244
+     }
+    }
+   ],
+   "quelle": "js/missions-data-wef.js (Strassenachse Promenade aus js/davos-geodata.js, OSM)",
+   "unsicherheit": "hoch",
+   "unsicherheitNotiz": "Strasse belegt, Route, Kundgebungsplatz und Zaun frei gewählt (keine reale bewilligte Route). Parolen und Personen erfunden.",
+   "nr": 49
   }
  ]
 }

@@ -945,7 +945,7 @@ async function initApp() {
   selectCamera('chase', true);
   selectTime('golden');
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, world, mapSystem });
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, world, mapSystem });
   // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
   // Bahnhof Davos Platz)
   if (GTA) {
