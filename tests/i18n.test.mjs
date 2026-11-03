@@ -45,6 +45,19 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(buttons[0].pressed, 'true');
 });
 
+test('the care missions translate names, intros and generated texts', () => {
+  setLanguage('de');
+  assert.equal(t('Snowshoeing on the Junkerboden'), 'Schneeschuhlaufen am Junkerboden');
+  assert.match(t('Fresh snow on the Junkerboden, the terrace above Frauenkirch.'), /^Neuschnee/);
+  assert.equal(t('A plaster cast at the Spital'), 'Bein gipsen im Spital');
+  assert.match(t('A busy day in the plaster room of the Spital Davos.'), /^Viel los im Gipszimmer/);
+  assert.equal(t('120 m to the flag'), '120 m bis zum Fähnli');
+  assert.equal(t('80 % on the packed line · 1 times in the Wildruhezone · 2 grouse startled · 3 stumbles'), '80 % auf der Spur · 1-mal in der Wildruhezone · 2 Birkhühner aufgeschreckt · 3 Stolperer');
+  assert.equal(t('Patient 2 of 3 · 120 pts · 1:30'), 'Patient 2 von 3 · 120 Pkt. · 1:30');
+  assert.equal(t('2 gaps · 1 lumps'), '2 Lücken · 1 Klumpen');
+  assert.equal(t('Too soggy'), 'Zu nass');
+});
+
 test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Flämmli in the Rot Liechtli'), 'Flämmli im Rot Liechtli');

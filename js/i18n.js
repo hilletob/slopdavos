@@ -395,12 +395,94 @@ const pairs = [
   ['Which wax for this snow?', 'Welches Wachs für diesen Schnee?'],
   ['Wax', 'Wachs'],
   ['Iron', 'Bügeln'],
+  // snowshoes on the Junkerboden, the plaster room of the Spital (js/missions-data-care.js)
+  ['Snowshoeing on the Junkerboden', 'Schneeschuhlaufen am Junkerboden'],
+  ['Back on the Junkerbodenstrasse: your track up the slope is the only one in the snow.', 'Zurück auf der Junkerbodenstrasse: Deine Spur am Hang ist die einzige im Schnee.'],
+  ['Over the Junkerboden', 'Über den Junkerboden'],
+  ['To the foot of the slope', 'Zum Fuss des Hangs'],
+  ['Up the slope', 'Den Hang hinauf'],
+  ['Round the Wildruhezone to the bench', 'Um die Wildruhezone zum Bänkli'],
+  ['To the Junkerbodenstrasse', 'Zur Junkerbodenstrasse'],
+  ['Catching your breath: Frauenkirch on the left, Davos Platz up the valley', 'Verschnaufen: links Frauenkirch, talaufwärts Davos Platz'],
+  ['You are in the Wildruhezone: get out!', 'Du bist in der Wildruhezone: Raus da!'],
+  ['Out of breath: stop for a moment', 'Ausser Atem: Bleib kurz stehen'],
+  ['Stamina', 'Kraft'],
+  ['Rhythm', 'Rhythmus'],
+  ['W walk · A/D steer · Space on the beat: stride', 'W gehen · A/D lenken · Space im Takt: langer Schritt'],
+  ['Step', 'Schritt'],
+  ['Off the beat: stumble', 'Aus dem Takt: Stolperer'],
+  ['Flag!', 'Fähnli!'],
+  ['Wildruhezone! The grouse need their peace', 'Wildruhezone! Die Birkhühner brauchen ihre Ruhe'],
+  ['A grouse flies up!', 'Ein Birkhuhn fliegt auf!'],
+  ['The view: Frauenkirch on the left, Davos Platz up the valley, the Strela above it', 'Die Aussicht: links Frauenkirch, talaufwärts Davos Platz, darüber die Strela'],
+  ['on the line', 'auf der Spur'],
+  ['out of breath', 'ausser Atem'],
+  ['Winter home of the grouse', 'Wintereinstand der Birkhühner'],
+  ['pts', 'Pkt.'],
+  ['A plaster cast at the Spital', 'Bein gipsen im Spital'],
+  ['Three skiers in neat white casts, three signatures, and the Rega is already on its way back with the next one.', 'Drei Skifahrer in sauberen weissen Gipsen, drei Unterschriften, und die Rega ist schon mit dem nächsten unterwegs.'],
+  ['Go into the Spital Davos', 'Geh ins Spital Davos'],
+  ['Plaster three legs', 'Drei Beine gipsen'],
+  ['Mixing the plaster …', 'Der Gips wird angerührt …'],
+  ['Patient', 'Patient'],
+  ['read the X-ray: which leg, how long a cast (1, 2 or tap)', 'Röntgenbild lesen: welches Bein, wie langer Gips (1, 2 oder antippen)'],
+  ['set the angle: A/D or drag, then Space', 'Winkel einstellen: A/D oder ziehen, dann Space'],
+  ['pad with cotton wool: drag, or hold D', 'mit Watte polstern: ziehen oder D halten'],
+  ['hold the bandage in the bucket: hold Space, let go in the green', 'Binde in den Kessel: Space halten, im Grünen loslassen'],
+  ['wrap in even turns: up with D, back with A, or drag', 'gleichmässig wickeln: hinauf mit D, zurück mit A, oder ziehen'],
+  ['smooth it before it sets: rub up and down, or hold D', 'glätten, bevor er abbindet: auf und ab streichen oder D halten'],
+  ['sign the cast: draw, or Space', 'Gips unterschreiben: zeichnen oder Space'],
+  ['X-ray', 'Röntgen'],
+  ['Angle', 'Winkel'],
+  ['Padding', 'Polstern'],
+  ['Bucket', 'Kessel'],
+  ['Wrap', 'Wickeln'],
+  ['Smooth', 'Glätten'],
+  ['Sign', 'Unterschreiben'],
+  ['That is the healthy leg!', 'Das ist das gesunde Bein!'],
+  ['Wrong length: look where the break is', 'Falsche Länge: Schau, wo der Bruch ist'],
+  ['Just right', 'Genau richtig'],
+  ['Too soggy', 'Zu nass'],
+  ['Still dry', 'Noch trocken'],
+  ['The plaster has set', 'Der Gips ist hart'],
+  ['Smooth as a groomed piste', 'Glatt wie eine frisch präparierte Piste'],
+  ['By the ankle: short cast. Up by the knee: long cast.', 'Beim Knöchel: kurzer Gips. Oben beim Knie: langer Gips.'],
+  ['Short cast', 'Kurzer Gips'],
+  ['Long cast', 'Langer Gips'],
+  ['Left leg', 'Linkes Bein'],
+  ['Right leg', 'Rechtes Bein'],
+  ['Knee', 'Knie'],
+  ['Ankle', 'Knöchel'],
+  ['green is right', 'Grün stimmt'],
+  ['Hold it here', 'So halten'],
+  ['dry', 'trocken'],
+  ['just right', 'genau richtig'],
+  ['soggy', 'zu nass'],
+  ['cotton wool', 'Watte'],
+  ['too slow: lumps', 'zu langsam: Klumpen'],
+  ['too fast: gaps', 'zu schnell: Lücken'],
+  ['Up the leg', 'Das Bein hinauf'],
+  ['Back down', 'Wieder hinunter'],
+  ['the plaster sets', 'der Gips bindet ab'],
+  ['Signed', 'Unterschrieben'],
+  ['gaps', 'Lücken'],
+  ['lumps', 'Klumpen'],
+  ['by Rega from', 'mit der Rega von'],
+  ['in the room', 'im Raum'],
+  ['the Parsenn, red run', 'der Parsenn, rote Piste'],
+  ['the Jakobshorn, a mogul', 'dem Jakobshorn, Buckelpiste'],
+  ['the Pischa, the beginners’ slope', 'der Pischa, Anfängerhang'],
+  ['The Rega pilot says hello. Lovely view from up there, by the way.', 'Der Rega-Pilot lässt grüssen. Schöne Aussicht von da oben, übrigens.'],
+  ['Will it match my ski suit? No? Then sign it nicely.', 'Passt das zu meinem Skianzug? Nein? Dann unterschreib wenigstens schön.'],
+  ['It was the snow’s fault. Write that on the cast.', 'Der Schnee war schuld. Schreib das auf den Gips.'],
 ];
 
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
 const missionIntros = [
+  ['Fresh snow on the Junkerboden', 'Neuschnee auf dem Junkerboden, der Terrasse über Frauenkirch, und noch niemand war unterwegs. Schnall die Schneeschuhe an und folge den Fähnli den Hang hinauf, dann hinunter zum Bänkli und weiter zur Junkerbodenstrasse. W zum Gehen, A/D zum Lenken. Tippe im Takt Space (Nadel im Grünen, Touch: Schritt) für einen langen Schritt. Neben der festgetretenen Spur sinkst du ein und wirst langsamer; steile Anstiege fressen deine Kraft. Setz dich aufs Bänkli: Der Atem kommt zurück und die Aussicht ist gratis. Die abgesteckte Wildruhezone am Hang ist das Winterzuhause der Birkhühner: Geh auf der Spur darum herum. Wer sie durchquert, verliert Punkte. Zeit, saubere Spur und ruhige Vögel geben die Punkte.'],
+  ['A busy day in the plaster room', 'Viel los im Gipszimmer des Spitals Davos: Die Rega fliegt laufend Skifahrer von den Pisten ein, und du bist der Gipser. Geh zur Tür auf der Hofseite. Dann, für drei Patienten, jeder schneller als der letzte: Röntgenbild lesen und Bein und Gipslänge wählen (Tasten 1 und 2 oder antippen). Winkel einstellen (A/D oder ziehen, Space zum Festhalten). Mit Watte polstern, dann die Binde die richtige Zeit in den Kessel halten (Space oder den Kessel halten). Das Bein hinauf und wieder hinunter gleichmässig wickeln (D halten oder ziehen, im grünen Tempo): Zu schnell gibt Lücken, zu langsam Klumpen. Glätten, bevor der Gips abbindet, dann unterschreiben. Ein gleichmässiger Gips und flotte Arbeit geben die Punkte.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -446,6 +528,7 @@ const missionIntros = [
 ];
 // Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
 const placeDe = new Map([
+  ['the flag', ['zum Fähnli', '']], ['the bench', ['zum Bänkli', '']], ['the Spital Davos', ['zum Spital Davos', '']],
   ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
   ['the Bolgenschanze', ['zur Bolgenschanze', 'in die Bolgenschanze']], ['the BOX', ['zur BOX', 'in die BOX']],
   ['the loading point', ['zur Einstiegsstelle', '']], ['your place', ['zu deinem Platz', '']],
@@ -503,6 +586,11 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) pts · (\d+) pairs · (\d+:\d{2})$/, '$1 Pkt. · $2 Paare · $3');
   dynamic = dynamic.replace(/^pts · (\d+) pairs · (\d+) s · (.+)$/, (_, n, s, stage) => `Pkt. · ${n} Paare · ${s} s · ${enToDe.get(stage) || stage}`);
   dynamic = dynamic.replace(/^(Close, but|Wrong:) (.+) was the wax$/, (_, kind, wax) => `${kind === 'Wrong:' ? 'Falsch:' : 'Knapp daneben:'} ${enToDe.get(wax) || wax} wäre das richtige Wachs gewesen`);
+  dynamic = dynamic.replace(/^(\d+) % on the packed line · (\d+) times in the Wildruhezone · (\d+) grouse startled · (\d+) stumbles$/, '$1 % auf der Spur · $2-mal in der Wildruhezone · $3 Birkhühner aufgeschreckt · $4 Stolperer');
+  dynamic = dynamic.replace(/^(\d+) casts · (.+) · (\d+) gaps · (\d+) lumps$/, (_, n, rest, g, l) => `${n} Gipse · ${rest === 'no cast finished' ? 'kein Gips fertig' : rest} · ${g} Lücken · ${l} Klumpen`);
+  dynamic = dynamic.replace(/^Patient (\d+) of (\d+) · (\d+) pts · (\d+:\d{2})$/, 'Patient $1 von $2 · $3 Pkt. · $4');
+  dynamic = dynamic.replace(/^(\d+) gaps · (\d+) lumps$/, '$1 Lücken · $2 Klumpen');
+  dynamic = dynamic.replace(/^(.+): (\d+) pts$/, '$1: $2 Pkt.');
   dynamic = dynamic.replace(/^(\d+) cars parked well · (\d+) crooked · (\d+) blockers · (\d+) close calls$/, '$1 Autos gut geparkt · $2 schräg · $3 blockiert · $4 Beinahe-Unfälle');
   dynamic = dynamic.replace(/^(\d+) pts · (\d+) parked · (\d+:\d{2})$/, '$1 Pkt. · $2 geparkt · $3');
   dynamic = dynamic.replace(/^pts · (\d+) good · (\d+) crooked · (\d+) blocking · (\d+) s · (.+)$/, (_, good, crooked, blocking, s, hand) => {

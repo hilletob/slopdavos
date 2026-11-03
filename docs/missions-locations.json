@@ -1992,6 +1992,115 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
    "nr": 47
+  },
+  {
+   "id": "snowshoe-junkerboden",
+   "status": "neu",
+   "name": "Schneeschuhlaufen am Junkerboden",
+   "kurz": "Zu Fuss mit Schneeschuhen auf dem echten Gelände: Fähnli-Route durch tiefen Schnee, sichtbare Spur (Ringpuffer), neben der festgetretenen Spur langsamer. Kraftbalken und Schrittrhythmus (Space im Takt), steile Anstiege ermüden, das Aussichtsbänkli gibt Kraft und Aussicht. Die Wildruhezone umgehen (Durchqueren kostet Punkte), aufgeschreckte Birkhühner fliegen auf. Medaille nach Punkten (Zeit, saubere Spur).",
+   "saison": "winter",
+   "fahrzeug": "zu Fuss (Schneeschuhe)",
+   "anreise": "Pin auf der Terrasse des Junkerbodens, an der Junkerboden-Runde",
+   "ort": {
+    "name": "Junkerboden, Terrasse über Frauenkirch (ca. 1545 m)",
+    "x": -1810,
+    "z": 3402,
+    "lv95": {
+     "E": 2780690,
+     "N": 1182098
+    }
+   },
+   "punkte": [
+    {
+     "name": "Fähnli 1",
+     "x": -1745,
+     "z": 3420,
+     "lv95": {
+      "E": 2780755,
+      "N": 1182080
+     }
+    },
+    {
+     "name": "Fähnli 2, Hangfuss",
+     "x": -1722,
+     "z": 3500,
+     "lv95": {
+      "E": 2780778,
+      "N": 1182000
+     }
+    },
+    {
+     "name": "Fähnli 3, am Hang",
+     "x": -1775,
+     "z": 3600,
+     "lv95": {
+      "E": 2780725,
+      "N": 1181900
+     }
+    },
+    {
+     "name": "Wildruhezone (Spiel), Mittelpunkt",
+     "x": -1860,
+     "z": 3610,
+     "lv95": {
+      "E": 2780640,
+      "N": 1181890
+     }
+    },
+    {
+     "name": "Aussichtsbänkli am Waldrand",
+     "x": -1950,
+     "z": 3635,
+     "lv95": {
+      "E": 2780550,
+      "N": 1181865
+     }
+    },
+    {
+     "name": "Ziel, Junkerbodenstrasse",
+     "x": -1905,
+     "z": 3555,
+     "lv95": {
+      "E": 2780595,
+      "N": 1181945
+     }
+    }
+   ],
+   "quelle": "OSM-Cache (Junkerbodenstrasse w106409595, Junkerboden-Runde w1233421897) · graubuenden.ch (Wildboden Trail: Schneeschuhroute Islen, Wildboden, Junkerboden, Frauenkirch) · api3.geo.admin.ch ch.bafu.wrz-wildruhezonen_portal",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Der Junkerboden selbst ist belegt, liegt aber über Frauenkirch, rund 3,5 km südwestlich von Davos Platz. Der Routenverlauf ist für das Spiel gezeichnet, nicht der signalisierte Trail. Bänkli und Wildruhezone sind erfunden: Im OSM-Cache gibt es keine Bank, und die nächste amtliche Zone (Eggenwald, Sertig, Nr. 198.0) beginnt rund 1,5 km östlich."
+  },
+  {
+   "id": "cast-spital",
+   "status": "neu",
+   "name": "Bein gipsen im Spital",
+   "kurz": "Du bist der Gipser im Spital Davos: drei Skifahrer, von der Rega eingeflogen, jeder schneller als der letzte. Röntgenbild lesen (Bein, Gipslänge), Winkel einstellen, polstern, Binde wässern, gleichmässig wickeln, glätten, bevor er abbindet, unterschreiben. Medaille nach Punkten (Gleichmässigkeit, Zeit).",
+   "saison": "winter",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Pin an der Promenade westlich des Spitals, zu Fuss zur Tür auf der Hofseite",
+   "ort": {
+    "name": "Spital Davos, Promenade 4, 7270 Davos Platz",
+    "x": -1172,
+    "z": 878,
+    "lv95": {
+     "E": 2781328,
+     "N": 1184622
+    }
+   },
+   "punkte": [
+    {
+     "name": "Tür auf der Hofseite",
+     "x": -1116.5,
+     "z": 907.5,
+     "lv95": {
+      "E": 2781384,
+      "N": 1184593
+     }
+    }
+   ],
+   "quelle": "OSM w93469657 (building=hospital, emergency=yes) · amtliches Gebäudeadressverzeichnis via api3.geo.admin.ch (Promenade 4: LV95 2781383.5 / 1184587.1)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Spital und Adresspunkt sind belegt, einen Eingang ist in OSM nicht erfasst: Die Tür ist vom Adresspunkt abgeleitet und könnte ein Nebeneingang sein. Das Gipszimmer im Innern ist erfunden."
   }
  ]
 }
