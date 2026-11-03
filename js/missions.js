@@ -28,6 +28,7 @@ import { BARS_FEATURES } from './missions-bars.js';
 import { EXPERT_FEATURES } from './missions-expert.js';
 import { WEF_FEATURES } from './missions-wef.js';
 import { RURAL_FEATURES } from './missions-rural.js';
+import { CARE_FEATURES } from './missions-care.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -952,3 +953,5 @@ Object.assign(FEATURES, EXPERT_FEATURES);
 Object.assign(FEATURES, WEF_FEATURES);
 // (js/missions-rural.js: the quad course from Heldstab, the green-waste round's extras on js/missions-work.js garbageRound)
 Object.assign(FEATURES, RURAL_FEATURES);
+// (js/missions-care.js: snowshoes on the Junkerboden, the plaster room of the Spital)
+Object.assign(FEATURES, CARE_FEATURES);

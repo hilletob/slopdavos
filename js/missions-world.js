@@ -327,6 +327,21 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.3); ctx.lineTo(g * 0.45, g * 0.3); ctx.lineTo(g * 0.32, g * 1.0); ctx.lineTo(-g * 0.32, g * 1.0); ctx.closePath(); ctx.fill();
       break;
     }
+    case 'snowshoe': { // a snowshoe: the oval and its lattice
+      ctx.lineWidth = g * 0.17;
+      ctx.beginPath(); ctx.ellipse(0, 0, g * 0.55, g * 1.0, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = g * 0.11;
+      for (const y of [-0.45, 0, 0.45]) { ctx.beginPath(); ctx.moveTo(-g * 0.45, g * y); ctx.lineTo(g * 0.45, g * y); ctx.stroke(); }
+      break;
+    }
+    case 'cast': { // a leg in plaster, the foot to the right
+      ctx.beginPath(); ctx.roundRect(-g * 0.42, -g * 1.0, g * 0.84, g * 1.55, g * 0.14); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(-g * 0.42, g * 0.32, g * 1.3, g * 0.62, g * 0.24); ctx.fill();
+      ctx.strokeStyle = def.colour || '#c8423b'; ctx.lineWidth = g * 0.1;
+      for (const y of [-0.62, -0.25, 0.12]) { ctx.beginPath(); ctx.moveTo(-g * 0.42, g * y); ctx.lineTo(g * 0.42, g * (y + 0.16)); ctx.stroke(); }
+      ctx.strokeStyle = '#fff';
+      break;
+    }
     case 'pizza': { // a slice: the crust, the point, the salami
       ctx.beginPath(); ctx.moveTo(0, g * 1.0); ctx.lineTo(-g * 0.85, -g * 0.55); ctx.quadraticCurveTo(0, -g * 1.05, g * 0.85, -g * 0.55); ctx.closePath(); ctx.fill();
       ctx.fillStyle = def.colour || '#e4572e';
