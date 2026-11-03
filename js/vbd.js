@@ -6,6 +6,7 @@ import { VBD_DATA } from './vbd-data.js';
 import { surfaceHeight, ROAD_TOP } from './terrain.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 import { clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bellowsRingCount, trailerYaw, solveTrailerAxle, wrapAngle, MAX_BEND } from './bus-joint.js';
+import { MAX_SPEED, BRAKE, DWELL, brakingSpeed, stepBus, enterRoute, gapToBody, bodyInTheWay } from './bus-stopping.js';
 
 // The buses of the Verkehrsbetrieb Davos (js/vbd-data.js, tools/fetch-vbd.mjs: OSM route relations): lines 301
 // (Glaris – Platz – Dorf – Wolfgang), 303/304 (Platz – Dorf – Stilli), 308 (Platz – Clavadel – Sertig), 312 (Dorf –
@@ -16,7 +17,12 @@ import { clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bell
 // destination. Every bus is a solid body: the player bounces off it, and the traffic (traffic.js) brakes behind it.
 
 const LENGTH = 12, WIDTH = 2.55, HALF_WIDTH = WIDTH / 2, MASS = 1.4e4, LANE = 1.7, BEND = 6;
-const MAX_SPEED = 12.5, ACCEL = 1.0, BRAKE = 1.6, DWELL = [12, 22], HEADWAY = 30;
+// (the stepping from stop to stop: js/bus-stopping.js) HEADWAY: the distance kept to a bus ahead on the same route;
+// BUS_GAP: to one of another line or route on the same street, BUS_LOOK metres ahead (at a stop they share it pulls up
+// once that one has left)
+const HEADWAY = 30, BUS_GAP = 5, BUS_LOOK = 60;
+// At the end of a route, with the place it starts from taken: looking again every ENTRY_RETRY s, for ENTRY_PATIENCE s
+const ENTRY_RETRY = 2, ENTRY_PATIENCE = 60;
 // The street traffic (js/traffic.js) in the bus's lane ahead: it stops CAR_GAP metres short of a car or bike, PED_GAP
 // short of people on a crosswalk, looking LOOK metres along its route in PROBE-metre pieces (so it follows the bends).
 // Held up for BLOCKED seconds by a vehicle standing across its way (one crossing or turning in at a junction, which may
@@ -434,56 +440,75 @@ export function buildVBD(scene) {
     return best;
   }
 
+  // This frame's world, for limits()
+  let frameDt = 0, framePlayer = null, frameBarriers = [], frameTraffic = null, sampled = null;
+  const sampleProbe = {}, sampleRoute = (s) => pointAt(sampled, s, sampleProbe);
+  // Whatever besides the stops holds the bus back, lowering `limit`: the bus ahead, the bends, the player, the closed
+  // level crossings, the traffic
+  function limits(b, limit) {
+    const r = b.route, here = bodies[buses.indexOf(b)];
+    sampled = r;
+    for (let i = 0; i < buses.length; i++) {
+      const o = buses[i];
+      if (o === b || o.held || o.parked) continue;
+      if (o.route === r) {
+        const gap = o.s - b.s - o.len;
+        if (gap > -o.len && gap < 120) limit = Math.min(limit, brakingSpeed(gap - HEADWAY));
+        continue;
+      }
+      // Another line or route on the same street (they share long stretches, and stops)
+      const body = bodies[i], reach = BUS_LOOK + 30;
+      if (Math.abs(body.x - here.x) > reach || Math.abs(body.z - here.z) > reach) continue;
+      const gap = gapToBody(sampleRoute, b.s + (b.art && b.rear ? 0 : NOSE), body, BUS_LOOK, b.y);
+      if (gap < Infinity) limit = Math.min(limit, brakingSpeed(gap - BUS_GAP));
+    }
+    const a = pointAt(r, b.s + 4, probe), c = pointAt(r, b.s + 24, probe2);
+    const turn = Math.acos(Math.max(-1, Math.min(1, a.dx * c.dx + a.dz * c.dz)));
+    limit = Math.min(limit, MAX_SPEED * (1 - Math.min(0.65, turn / 1.1)));
+    const blocked = playerAhead(b, framePlayer);
+    if (blocked < Infinity) limit = Math.min(limit, Math.sqrt(2 * BRAKE * 2 * Math.max(0, blocked - 4)));
+    // Stop at a closed level crossing, the bus's front a few metres before the barrier
+    const barrier = barrierAhead(b, frameBarriers);
+    if (barrier < Infinity) limit = Math.min(limit, brakingSpeed(barrier - 3));
+    // The traffic ahead: stop behind it, or follow it at its speed
+    let heldBy = null;
+    const gap = frameTraffic?.nearestAhead ? trafficAhead(b, frameTraffic.nearestAhead) : Infinity;
+    if (gap < Infinity) {
+      const keep = hit.kind === 'ped' ? PED_GAP : CAR_GAP;
+      const v = Math.sqrt(Math.max(0, hit.speed * hit.speed + 2 * BRAKE * (gap - keep)));
+      if (v < limit) { limit = v; heldBy = hit.kind === 'ped' ? null : hit.dot > 0.7 ? 'queue' : 'crossing'; }
+    }
+    // ...not for ever: held up by a vehicle standing across its way, the bus pushes on after a while (people on a
+    // crosswalk always go first; a queue is a queue)
+    if (heldBy === 'crossing' && b.speed < 0.5 && hit.own < 0.5) {
+      b.blocked = (b.blocked || 0) + frameDt;
+      if (b.blocked > BLOCKED) { b.push = PUSH; b.blocked = 0; }
+    } else if (heldBy !== 'crossing' || b.speed > 1) b.blocked = 0;
+    // pushing on: at a walking pace
+    if (b.push > 0) limit = Math.min(limit, PUSH_SPEED);
+    return limit;
+  }
+
+  // On with the line's route from here (the display changes with it), its tail where the route starts, once there is
+  // room: another bus may be standing there (ENTRY_PATIENCE: two buses could each be waiting for the other's place)
+  function nextLeg(b) {
+    const q = nextRoute(b.route), entry = b.art ? b.len : LENGTH * 0.8, c = pointAt(q, entry / 2, probe);
+    b.entryWait ||= 0;
+    if (b.entryWait < ENTRY_PATIENCE && buses.some((o, i) => o !== b && !o.held && !o.parked && bodyInTheWay(c.x, c.z, entry / 2, HALF_WIDTH, bodies[i]))) {
+      b.entryWait += ENTRY_RETRY; b.dwell = ENTRY_RETRY;
+      return;
+    }
+    b.entryWait = 0;
+    enterRoute(b, q, entry);
+    b.display.material = displays.get(q.id);
+  }
+
   function step(dt, player, barriers = [], traffic = null) {
+    frameDt = dt; framePlayer = player; frameBarriers = barriers; frameTraffic = traffic;
     for (const b of buses) {
       if (b.held || b.parked) continue; // (the player's, js/gta.js)
       if (b.push > 0) b.push -= dt;
-      if (b.dwell > 0) { b.dwell -= dt; continue; }
-      const r = b.route;
-      // Next stop ahead, the bus ahead on the same route, the bends, the player
-      const stop = r.stops.find((st) => st.s > b.s + 0.5 && st.s > b.served);
-      let limit = MAX_SPEED;
-      if (stop) limit = Math.min(limit, Math.sqrt(2 * BRAKE * Math.max(0, stop.s - b.s - 0.3)));
-      for (const o of buses) {
-        if (o === b || o.route !== r || o.held || o.parked) continue;
-        const gap = o.s - b.s - o.len;
-        if (gap > -o.len && gap < 120) limit = Math.min(limit, Math.sqrt(2 * BRAKE * Math.max(0, gap - HEADWAY)));
-      }
-      const a = pointAt(r, b.s + 4, probe), c = pointAt(r, b.s + 24, probe2);
-      const turn = Math.acos(Math.max(-1, Math.min(1, a.dx * c.dx + a.dz * c.dz)));
-      limit = Math.min(limit, MAX_SPEED * (1 - Math.min(0.65, turn / 1.1)));
-      const blocked = playerAhead(b, player);
-      if (blocked < Infinity) limit = Math.min(limit, Math.sqrt(2 * BRAKE * 2 * Math.max(0, blocked - 4)));
-      // Stop at a closed level crossing, the bus's front a few metres before the barrier
-      const barrier = barrierAhead(b, barriers);
-      if (barrier < Infinity) limit = Math.min(limit, Math.sqrt(2 * BRAKE * Math.max(0, barrier - 3)));
-      // The traffic ahead: stop behind it, or follow it at its speed
-      let heldBy = null;
-      const gap = traffic?.nearestAhead ? trafficAhead(b, traffic.nearestAhead) : Infinity;
-      if (gap < Infinity) {
-        const keep = hit.kind === 'ped' ? PED_GAP : CAR_GAP;
-        const v = Math.sqrt(Math.max(0, hit.speed * hit.speed + 2 * BRAKE * (gap - keep)));
-        if (v < limit) { limit = v; heldBy = hit.kind === 'ped' ? null : hit.dot > 0.7 ? 'queue' : 'crossing'; }
-      }
-      // ...not for ever: held up by a vehicle standing across its way, the bus pushes on after a while (people on a
-      // crosswalk always go first; a queue is a queue)
-      if (heldBy === 'crossing' && b.speed < 0.5 && hit.own < 0.5) {
-        b.blocked = (b.blocked || 0) + dt;
-        if (b.blocked > BLOCKED) { b.push = PUSH; b.blocked = 0; }
-      } else if (heldBy !== 'crossing' || b.speed > 1) b.blocked = 0;
-      // pushing on: at a walking pace
-      if (b.push > 0) limit = Math.min(limit, PUSH_SPEED);
-      b.speed = b.speed < limit ? Math.min(limit, b.speed + ACCEL * dt) : Math.max(limit, b.speed - BRAKE * 2 * dt);
-      b.s += b.speed * dt;
-      if (stop && b.s >= stop.s - 0.4 && b.speed < 0.3) {
-        b.served = stop.s; b.speed = 0;
-        b.dwell = DWELL[0] + rand() * (DWELL[1] - DWELL[0]);
-      }
-      if (b.s >= r.len) {
-        // On with the line's route from here (the display changes with it)
-        b.route = nextRoute(r); b.s = 0; b.served = -1; b.speed = 0; b.dwell = DWELL[1];
-        b.display.material = displays.get(b.route.id);
-      }
+      if (stepBus(b, b.route, dt, limits, rand) === 'end') nextLeg(b);
     }
   }
 
