@@ -352,6 +352,17 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.3); ctx.lineTo(g * 0.45, g * 0.3); ctx.lineTo(g * 0.32, g * 1.0); ctx.lineTo(-g * 0.32, g * 1.0); ctx.closePath(); ctx.fill();
       break;
     }
+    case 'summit': { // a peak with the sun coming up behind it
+      ctx.beginPath(); ctx.arc(g * 0.45, -g * 0.45, g * 0.32, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.95, g * 0.8); ctx.lineTo(-g * 0.15, -g * 0.55); ctx.lineTo(g * 0.2, g * 0.05); ctx.lineTo(g * 0.45, -g * 0.1); ctx.lineTo(g * 0.95, g * 0.8); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'lake': { // a lake under a ridge
+      ctx.lineWidth = g * 0.14;
+      ctx.beginPath(); ctx.moveTo(-g * 0.95, g * 0.05); ctx.lineTo(-g * 0.35, -g * 0.75); ctx.lineTo(g * 0.1, -g * 0.2); ctx.lineTo(g * 0.45, -g * 0.55); ctx.lineTo(g * 0.95, g * 0.05); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, g * 0.55, g * 0.85, g * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
     case 'snowshoe': { // a snowshoe: the oval and its lattice
       ctx.lineWidth = g * 0.17;
       ctx.beginPath(); ctx.ellipse(0, 0, g * 0.55, g * 1.0, 0, 0, Math.PI * 2); ctx.stroke();

@@ -10,8 +10,8 @@ export const FRAME = {
   N0: 1185500,
   H0: 1558,
   // LV95 extent [minE, minN, maxE, maxN]: Wiesen, Monstein and Silberberg in the south-west,
-  // Wolfgang in the north, and the Dischma up to Dürrboden in the south-east (17.4 × 16.2 km).
-  lv95: [2773000, 1173600, 2790400, 1189800],
+  // Wolfgang in the north, the Dischma up to Dürrboden, the Flüelapass, the Schwarzhorn and the Jöriseen in the east (21 × 16.2 km).
+  lv95: [2773000, 1173600, 2794000, 1189800],
   // Grid spacing of the terrain model (tools/build-davos-terrain.mjs).
   terrainCell: 8
 };

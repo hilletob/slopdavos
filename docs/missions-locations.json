@@ -2932,6 +2932,52 @@
    "unsicherheit": "niedrig",
    "unsicherheitNotiz": "Lage/Anordnung aus dem Orthofoto (±0.5 m). Im Bild sind 9 rote Bahnen klar erkennbar (nicht 12); die Hindernistypen der einzelnen Bahnen sind geschätzt (Eternit-Typen). Der OSM-Punkt liegt ~25 m östlich (Rezeption).",
    "nr": 63
+  },
+  {
+   "id": "schwarzhorn-sunrise",
+   "status": "neu",
+   "name": "Sonnenaufgang auf dem Flüela Schwarzhorn",
+   "kurz": "Im Dunkeln von der Flüelastrasse auf 3146 m, die Dämmerung schreitet mit dem Aufstieg voran.",
+   "saison": "sommer",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Über die Flüelastrasse",
+   "ort": {
+    "name": "Flüelastrasse unter dem Flüelapass",
+    "x": 10247,
+    "z": 5374,
+    "lv95": {
+     "E": 2792747,
+     "N": 1180126
+    }
+   },
+   "punkte": [],
+   "quelle": "js/missions-data-sport.js (MINIGOLF_HOLES, MINIGOLF_PATH) · Lage und Anordnung aus dem SWISSIMAGE-Orthofoto (data/hires/swissimage/384-512.webp, 0.25 m) und dem Luftbild des Users · OSM n12164199579 «Minigolf Hotel Waldhuus» (leisure=miniature_golf)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lage/Anordnung aus dem Orthofoto (±0.5 m). Im Bild sind 9 rote Bahnen klar erkennbar (nicht 12); die Hindernistypen der einzelnen Bahnen sind geschätzt (Eternit-Typen). Der OSM-Punkt liegt ~25 m östlich (Rezeption).",
+   "nr": 64
+  },
+  {
+   "id": "joeriseen",
+   "status": "neu",
+   "name": "Wanderung zu den Jöriseen",
+   "kurz": "Vom Wägerhus über die Jöriflüelafurgga zu den Jöriseen.",
+   "saison": "sommer",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Über die Flüelastrasse",
+   "ort": {
+    "name": "Wägerhus, Flüelastrasse",
+    "x": 8665,
+    "z": 3063,
+    "lv95": {
+     "E": 2791165,
+     "N": 1182437
+    }
+   },
+   "punkte": [],
+   "quelle": "js/missions-data-sport.js (MINIGOLF_HOLES, MINIGOLF_PATH) · Lage und Anordnung aus dem SWISSIMAGE-Orthofoto (data/hires/swissimage/384-512.webp, 0.25 m) und dem Luftbild des Users · OSM n12164199579 «Minigolf Hotel Waldhuus» (leisure=miniature_golf)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lage/Anordnung aus dem Orthofoto (±0.5 m). Im Bild sind 9 rote Bahnen klar erkennbar (nicht 12); die Hindernistypen der einzelnen Bahnen sind geschätzt (Eternit-Typen). Der OSM-Punkt liegt ~25 m östlich (Rezeption).",
+   "nr": 65
   }
  ]
 }

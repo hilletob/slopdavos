@@ -12,9 +12,9 @@ and Warsaw forks and [Slop Utrecht](https://github.com/bertt/slop-utrecht) by be
 
 ## The area
 
-The mapped area is LV95 E 2773000–2790400, N 1173600–1189800 (17.4 × 16.2 km), set in `js/davos-frame.js`: the
+The mapped area is LV95 E 2773000–2794000, N 1173600–1189800 (21 × 16.2 km), set in `js/davos-frame.js`: the
 Landwassertal from Wiesen through Monstein, the Silberberg and Frauenkirch to Davos Platz, Davos Dorf, the Davosersee and Wolfgang in
-the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the south-east.
+the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the south-east, and the Flüelapass, the Schwarzhorn and the Jöriseen in the east.
 
 ## What makes it Davos
 
@@ -23,7 +23,7 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
   affine map from the rigorous ECEF → LV95 transformation, and its heights are calibrated on the surveyed roof tops
   (`DACH_MAX`) rather than on a geoid model. The OSM footprints remain as colliders and as the fallback when the
   tiles can't be loaded.
-- **swisstopo swissALTI3D**: the terrain model (2 m, resampled to an 8 m grid over the 282 km²) under everything:
+- **swisstopo swissALTI3D**: the terrain model (2 m, resampled to an 8 m grid over the 340 km²) under everything:
   streets, meadows, the Landwasser, the lake shore and the slopes up to the Schatzalp and the Jakobshorn. Cars pitch
   and roll with the streets, pedestrians' feet find the ground, the helicopter's floor is the relief.
 - **Bridges at their real height**: the terrain model is bare earth, so deck heights are sampled from

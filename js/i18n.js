@@ -219,6 +219,12 @@ const pairs = [
   ['Police: motorbike crash on the Flüela road', 'Polizei: Motorradunfall an der Flüelastrasse'],
   ['Davos Nordic: 4.3 km race', 'Davos Nordic: 4,3-km-Rennen'],
   ['Minigolf at the Hotel Waldhuus', 'Minigolf beim Hotel Waldhuus'],
+  ['Sunrise on the Flüela Schwarzhorn', 'Sonnenaufgang auf dem Flüela Schwarzhorn'], ['The hike to the Jöriseen', 'Wanderung zu den Jöriseen'],
+  ['Up from the Flüelastrasse', 'Hinauf von der Flüelastrasse'], ['Into the scree', 'Ins Geröll'], ['On up the valley', 'Weiter talaufwärts'], ['Up towards the ridge', 'Hinauf zum Grat'], ['Along the ridge', 'Dem Grat entlang'], ['Over the last rocks', 'Über die letzten Felsen'], ['To the summit of the Schwarzhorn', 'Auf den Gipfel des Schwarzhorns'], ['Watch the sun come up', 'Den Sonnenaufgang geniessen'], ['Turn to the east', 'Schau nach Osten'],
+  ['Up from the Wägerhus', 'Hinauf vom Wägerhus'], ['Into the Winterlücke', 'In die Winterlücke'], ['On up the slope', 'Weiter den Hang hinauf'], ['Over the Jöriflüelafurgga', 'Über die Jöriflüelafurgga'], ['Down to the Jöriseen', 'Hinunter zu den Jöriseen'],
+  ['Off the path: back to the waymarks', 'Abseits vom Weg: zurück zu den Markierungen'],
+  ['The sun over the ridges, the valleys still in shadow, and a very cold thermos.', 'Die Sonne über den Graten, die Täler noch im Schatten und eine sehr kalte Thermosflasche.'],
+  ['Boots off at the Jöriseen: the water is as cold as it looks.', 'Schuhe aus an den Jöriseen: Das Wasser ist so kalt, wie es aussieht.'],
   ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
   ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
   ['A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview', 'A/D zielen · Space halten und zum Schiessen loslassen · oder Puck zurückziehen und loslassen · V Übersicht'],
@@ -902,6 +908,8 @@ const missionIntros = [
   ['July, and the Alpenrosen', 'Zwölf blühende Alpenrosenzweige unter dem Strelaberg pflücken. Zu einem blühenden Busch gehen und Space oder „Pflücken“ halten. Unblühende Büsche und das eingezäunte Schutzgebiet meiden; beides gibt Zeitstrafe. Danach zum Start zurückkehren.'],
   ['Late summer rain', 'Zehn Pilze im Dischmawald sammeln oder fünf Minuten lang suchen. Steinpilze und Eierschwämme sind gut; Gallenröhrling, falscher Pfifferling und Fliegenpilz meiden. Das HUD beschreibt den Pilz vor dir. Mit Space oder „Pflücken“ aufnehmen und den Korb zur Pilzkontrolle bringen.'],
   ['Davos Nordic, the World Cup', '4,3-km-Langlaufrennen auf den Flüela-Loipen. Mit 1 klassisch oder mit 2 Skating wählen. W halten, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit Q auf flachen Strecken Doppelstockschub, bergab W loslassen für die Hocke; A/D lenkt, S bremst. Gegen sieben Läufer antreten.'],
+  ['Four in the morning on the road', 'Vier Uhr morgens auf der Strasse unter dem Flüelapass, 2333 m, und 800 Höhenmeter bis zum Gipfel des Schwarzhorns auf 3146 m. Der Himmel wird immer heller, während du steigst, und er wartet nicht auf dich. Folge den weiss-rot-weissen Markierungen. Vor der Sonne oben: Gold.'],
+  ['A clear day at the Wägerhus', 'Ein klarer Tag beim Wägerhus an der Flüelastrasse, und hinter dem Grat wartet das ganze Jöri-Becken: rund zwanzig kleine Seen unter dem Jörigletscher. Folge den weiss-rot-weissen Markierungen hinauf und hinüber. Bleib auf dem Weg: Je schneller du bist, desto mehr Punkte gibt es.'],
   ['Eighteen lanes of ice on the Arkadenplatz', 'Achtzehn Eisbahnen auf dem Arkadenplatz zwischen Promenade und Kulturplatz, gespielt mit Hockeystock und Puck: Schneewall, Spielertunnel, Bully-Punkt, Bande und die Rampe zur Tribüne. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schiessen loslassen. Auf dem Handy den Puck wie bei einer Schleuder zurückziehen und loslassen. Der Puck gleitet viel weiter, als ein Ball rollt, ein leichter Schlag gewinnt also. Höchstens sieben Schläge pro Loch. Punkte: 7 pro Loch minus deine Schläge (126 minus das Total): 45 Schläge oder weniger sind Gold (Par 42).'],
   ['The nine red Eternit lanes', 'Neun Minigolfbahnen beim Hotel Waldhuus. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schlagen loslassen. Auf dem Handy den Ball wie bei einer Schleuder zurückziehen. Maximal sieben Schläge pro Bahn; ein Ball im Graben kostet einen Schlag. 20 Schläge oder weniger ergeben Gold.'],
   ['The Green Wildman, the Irish pub', 'Darts im Green Wildman: 301 Double Out mit möglichst wenigen Pfeilen. Mit Maus oder W/A/S/D zielen, Space oder Maustaste zum Ausholen halten und im grünen Bereich loslassen. Auf dem Handy auf die Scheibe tippen und nach oben wischen. Der letzte Wurf muss ein Doppel oder Bullseye sein. Höchstens 45 Pfeile.'],
@@ -953,6 +961,7 @@ function translate(value) {
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   // the WEF week (js/missions-data-wef.js)
+  dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
   dynamic = dynamic.replace(/^The delegation is boarding … (\d+) s$/, 'Die Delegation steigt ein … $1 s').replace(/^The door opens … (\d+) s$/, 'Die Tür geht auf … $1 s');
   dynamic = dynamic.replace(/^Cohesion (\d+) % · composure (\d+) · (\d+) crashes · (\d+) gates rushed$/, 'Zusammenhalt $1 % · Fassung $2 · $3 Unfälle · $4 Schleusen zu schnell');
@@ -1177,6 +1186,8 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) goals? · (\d+) s left$/, (_, n, t) => `${n} ${plural(n, 'Tor', 'Tore')} · noch ${t} s`);
   dynamic = dynamic.replace(/^Stone (\d+) of (\d+) · (\d+) points$/, 'Stein $1 von $2 · $3 Punkte');
   dynamic = dynamic.replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, 'Schlag $1 · $2 m zur Fahne · $3');
+  dynamic = dynamic.replace(/^(\d+:\d\d) to the summit · (\d+) s off the path · (before|after) the sun$/, (_, t, off, when) => `${t} bis zum Gipfel · ${off} s abseits vom Weg · ${when === 'before' ? 'vor' : 'nach'} der Sonne`);
+  dynamic = dynamic.replace(/^(\d+:\d\d) for (.+) · (\d+) s off the path$/, '$1 für $2 · $3 s abseits vom Weg');
   dynamic = dynamic.replace(/^Stroke (\d+) · sliding … · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · gleitet … · total $2 (Par $3)');
   dynamic = dynamic.replace(/^Stroke (\d+) · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · total $2 (Par $3)');
   dynamic = dynamic.replace(/^Collected (\d+\/\d+) · next ([\d,.]+ (?:m|km))$/, 'Eingesammelt $1 · nächste $2');

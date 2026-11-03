@@ -17,6 +17,7 @@ export const SUN_WINDOWS = {
   morning: (h, m, noon) => h >= CIVIL_HEIGHT && m < noon - 60, // from dawn until an hour before noon
   twilight: (h) => h >= -10 && h < 12, // dawn and dusk
   evening: (h, m, noon) => (m > noon && h < 5) || m < 120, // from just before sunset until 02:00
+  predawn: (h) => h < 0, // the summer's night, until just before the sun: you set out in the dark
   midnight: NIGHT,
   night: NIGHT
 };

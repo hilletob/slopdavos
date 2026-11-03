@@ -26,6 +26,7 @@ import { SPORT_FEATURES } from './missions-sport.js';
 import { RESORT_FEATURES } from './missions-resort.js';
 import { GASTRO_FEATURES } from './missions-gastro.js';
 import { OUTDOOR_FEATURES } from './missions-outdoor.js';
+import { HIKE_FEATURES } from './missions-hike.js';
 import { BARS_FEATURES } from './missions-bars.js';
 import { EXPERT_FEATURES } from './missions-expert.js';
 import { WEF_FEATURES } from './missions-wef.js';
@@ -987,6 +988,7 @@ Object.assign(FEATURES, RESORT_FEATURES);
 Object.assign(FEATURES, GASTRO_FEATURES);
 // the rope park in the Färich, pond hockey on the Seehof Seeli (js/missions-outdoor.js)
 Object.assign(FEATURES, OUTDOOR_FEATURES);
+Object.assign(FEATURES, HIKE_FEATURES); // the waymarks of the hikes, the Schwarzhorn's moving dawn (js/missions-hike.js)
 Object.assign(FEATURES, BARS_FEATURES);
 // (js/missions-expert.js: the eye test at Meerkämper Optik, the snow profile for the SLF)
 Object.assign(FEATURES, EXPERT_FEATURES);
