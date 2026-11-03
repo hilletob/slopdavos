@@ -2601,6 +2601,48 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Spital und Adresspunkt sind belegt, einen Eingang ist in OSM nicht erfasst: Die Tür ist vom Adresspunkt abgeleitet und könnte ein Nebeneingang sein. Das Gipszimmer im Innern ist erfunden.",
    "nr": 59
+  },
+  {
+   "id": "sommerrodelbahn-schatzalp",
+   "status": "bestehend",
+   "name": "Sommerrodelbahn auf der Schatzalp",
+   "kurz": "Mit dem kleinen Rollschlitten in der Chromstahlrinne die acht Kurven und den Tunnel hinunter. Der Schlitten läuft auf Schienen: nur der Bremshebel und das Lehnen in die Kurven. Zu schnell klettert er die Wand hoch, viel zu schnell bleibt er mit einem Rumms stehen. Vorne fährt eine Familie, die man nicht rammen darf. Medaille nach Zeit.",
+   "saison": "sommer",
+   "fahrzeug": "Rollschlitten",
+   "anreise": "Start oben an der Rinne, oberhalb der Bergstation der Schatzalpbahn; der Pin steht unten am Fuss des Schlepplifts",
+   "ort": {
+    "name": "Sommerrodelbahn Schatzalp",
+    "x": -1158,
+    "z": -780.8,
+    "lv95": {
+     "E": 2781342,
+     "N": 1186281
+    }
+   },
+   "punkte": [
+    {
+     "name": "Fuss des Schlepplifts (Ziel)",
+     "x": -1118.4,
+     "z": -638.9,
+     "lv95": {
+      "E": 2781382,
+      "N": 1186139
+     }
+    },
+    {
+     "name": "Kreuzung mit dem Schlepplift-Tunnel",
+     "x": -1127.3,
+     "z": -678,
+     "lv95": {
+      "E": 2781373,
+      "N": 1186178
+     }
+    }
+   ],
+   "quelle": "OSM w99952116 (attraction=summer_toboggan, aus Bing abgezeichnet), Schlepplift w99952101/w99952128/w99952134 · graubuenden.ch (acht Kurven, ein Tunnel, über 500 m) · swissALTI3D (rund 30 m Gefälle)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Linienführung aus OSM (der Way fehlte im Projekt-Cache, per Overpass nachgeladen und im Code eingebettet). OSM-Länge 456 m gegenüber «über 500 m» bei Graubünden; die Kurvenzahl stimmt. Der Tunnel ist in OSM nur beim Schlepplift eingetragen, die Galerie sitzt daher geschätzt an dessen Kreuzung. Material der Rinne, Überhöhung, Stützen und Tempo (rund 45 km/h, das reale Gefälle reicht dafür nicht) sind Annahmen; die Familie ist erfunden.",
+   "nr": 60
   }
  ]
 }

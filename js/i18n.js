@@ -135,6 +135,13 @@ const pairs = [
   ['Alpine roses below the Strelaberg', 'Alpenrosen unter dem Strelaberg'],
   ['Mushroom hunt in the Dischma forest', 'Pilzsuche im Dischmawald'],
   ['Horn sledge race at the Rinerhorn', 'Hornschlittenrennen am Rinerhorn'],
+  ['Sommerrodelbahn on the Schatzalp', 'Sommerrodelbahn auf der Schatzalp'],
+  ['The first hairpins', 'Die ersten Spitzkehren'], ['Through the tunnel', 'Durch den Tunnel'], ['Down to the foot of the lift', 'Hinunter zum Lift'],
+  ['Wall', 'Wand'], ['Up the wall!', 'Die Wand hoch!'], ['Boing! Over the wall', 'Boing! Über die Wand'], ['You rammed the family!', 'Du hast die Familie gerammt!'],
+  ['Too fast for this bend: brake (S) and lean!', 'Zu schnell für diese Kurve: bremse (S) und lehne dich hinein!'],
+  ['A family ahead: do not ram them, brake (S)!', 'Vor dir fährt eine Familie: nicht auffahren, bremse (S)!'],
+  ['Back on the sledge', 'Zurück auf den Schlitten'],
+  ['The trough levels out at the foot of the lift, the tow hook clicks on. Hands still shaking, time for an ice cream on the Schatzalp terrace.', 'Die Rinne läuft unten beim Lift aus, der Schlepphaken klickt ein. Die Hände zittern noch: Zeit für eine Glace auf der Schatzalp-Terrasse.'],
   ['Slalom on the Davos Vertical', 'Slalom auf der Davos Vertical'],
   ['Snowboard Big Air in the JatzPark', 'Snowboard-Big-Air im JatzPark'],
   ['Downhill race: Ischalp to Bolgen', 'Abfahrtsrennen: Ischalp bis Bolgen'],
@@ -776,6 +783,8 @@ const pairs = [
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
+const tobogganDe = (text) => text.replace(/(\d+) bumps?/, (_, n) => `${n} ${n === '1' ? 'Rumms' : 'Rummse'}`).replace(/(\d+) rams?/, (_, n) => `${n}-mal aufgefahren`);
+
 const missionIntros = [
   ['The Adventure Park Färich, in the trees', 'Der Adventure Park Färich, in den Bäumen am Eingang des Flüelatals. Die Leiter hinauf, dann von Plattform zu Plattform: Wackelbrücke, Balancierbalken, Pneu-Traverse, eine wildere Brücke und die Zipline. Auf jeder Plattform hängst du mit Space (Knopf „Einhängen“) BEIDE Karabiner ein, bevor du losgehst: Vergisst du es, pfeift dich der Guide zurück, +8 s. Auf einer Querung gehst du mit W und lehnst dich mit A/D gegen das Schwanken. Fällst du, baumelst du nur komisch und unverletzt im Gurt, +5 s. Auf der Zipline bremst du mit S vor der Matte. Ein sauberer Lauf holt Gold.'],
   ['Dusk on the Seehof Seeli', 'Abenddämmerung auf dem Seehof Seeli, dem kleinen Teich beim Hotel Seehof in Davos Dorf. Den Einheimischen fehlt ein Spieler: drei gegen drei, Schuhe und Jacken als Torpfosten, keine Torhüter, wer zuerst 5 hat oder 3 Minuten. Laufen mit W, A/D und S. Space mit dem Puck schiesst dorthin, wohin du schaust, oder passt, wenn du einen Mitspieler anschaust. Space ohne Puck stochert nach dem Puckführenden oder verlangt den Pass von einem Mitspieler. Du greifst das Osttor an. Je grösser der Vorsprung am Schluss, desto besser die Medaille.'],
@@ -787,6 +796,7 @@ const missionIntros = [
   ['Davos collects green waste now', 'Davos sammelt jetzt Bioabfall in runden Fässern, und der kommt in die Biogasanlage bei der Duchli Ranch. Fahr mit dem offenen Transporter durch Davos Dorf: Halte mit der Ladefläche neben jedem Fass, die Crew hebt es hinauf, solange du stehst, und stellt ein leeres an seinen Platz. Schau in die Fässer: In zweien steckt Plastik. Lass sie mit Leertaste oder E (oder der Taste «Stehen lassen») stehen, bevor sie oben sind, sonst ist die ganze Fuhre verdorben. Dann den Duchliweg hinunter zum Annahmebunker des Fermenters, wo die Fässer gekippt werden. Punkte gibt es für Fässer, eine saubere Ladung und die Zeit.'],
   ['Fresh snow on the Junkerboden', 'Neuschnee auf dem Junkerboden, der Terrasse über Frauenkirch, und noch niemand war unterwegs. Schnall die Schneeschuhe an und folge den Fähnli den Hang hinauf, dann hinunter zum Bänkli und weiter zur Junkerbodenstrasse. W zum Gehen, A/D zum Lenken. Tippe im Takt Space (Nadel im Grünen, Touch: Schritt) für einen langen Schritt. Neben der festgetretenen Spur sinkst du ein und wirst langsamer; steile Anstiege fressen deine Kraft. Setz dich aufs Bänkli: Der Atem kommt zurück und die Aussicht ist gratis. Die abgesteckte Wildruhezone am Hang ist das Winterzuhause der Birkhühner: Geh auf der Spur darum herum. Wer sie durchquert, verliert Punkte. Zeit, saubere Spur und ruhige Vögel geben die Punkte.'],
   ['A busy day in the plaster room', 'Viel los im Gipszimmer des Spitals Davos: Die Rega fliegt laufend Skifahrer von den Pisten ein, und du bist der Gipser. Geh zur Tür auf der Hofseite. Dann, für drei Patienten, jeder schneller als der letzte: Röntgenbild lesen und Bein und Gipslänge wählen (Tasten 1 und 2 oder antippen). Winkel einstellen (A/D oder ziehen, Space zum Festhalten). Mit Watte polstern, dann die Binde die richtige Zeit in den Kessel halten (Space oder den Kessel halten). Das Bein hinauf und wieder hinunter gleichmässig wickeln (D halten oder ziehen, im grünen Tempo): Zu schnell gibt Lücken, zu langsam Klumpen. Glätten, bevor der Gips abbindet, dann unterschreiben. Ein gleichmässiger Gips und flotte Arbeit geben die Punkte.'],
+  ['Up on the Schatzalp, above the old sanatorium', 'Oben auf der Schatzalp, über dem alten Sanatorium, windet sich eine Rinne aus Chromstahl den Hang hinunter: acht Spitzkehren und ein Tunnel auf gut 450 m. Du fährst wie auf Schienen: W stösst an und startet die Uhr. Du hast nur den Bremshebel: S halten bremst, loslassen fliegt. Mit A/D (oder durch Kippen des Handys) lehnst du dich in die Kurven. Zu schnell aus der Kurve, und der Schlitten klettert schüttelnd die Wand hoch; viel zu schnell, und er bleibt mit einem Rumms stehen, das kostet Zeit. Vor dir fährt eine Familie im Sonntagstempo. Überholen geht nicht, also fahr nicht auf.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -881,6 +891,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
   dynamic = dynamic.replace(/(\d+) % hot\b/g, '$1 % heiss');
+  // (the Sommerrodelbahn: js/missions-data-sledge.js)
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish(?: · (.+))?$/, (_, d, rest) => `${d} bis zum Ziel${rest ? ` · ${tobogganDe(rest)}` : ''}`);
+  dynamic = dynamic.replace(/^(\d+ (?:bump|bumps) · \d+ (?:ram|rams)) · top speed (\d+) km\/h$/, (_, c, v) => `${tobogganDe(c)} · Höchsttempo ${v} km/h`);
+  dynamic = dynamic.replace(/^Over the wall! \+(\d+) s$/, 'Über die Wand! +$1 s');
   const popped = /^(\S.*?)(  [+\-−]?\d+)$/.exec(dynamic);
   if (popped && enToDe.has(popped[1])) dynamic = enToDe.get(popped[1]) + popped[2];
   dynamic = dynamic.replace(new RegExp(`^Not yet: (.+) next${POP}$`), (_, top, tail) => `Noch nicht: zuerst ${enToDe.get(top) || top}${tail}`);
