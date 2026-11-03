@@ -264,8 +264,20 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
 // of the road, keep some tilt rather than a cliff cut into the hill); the ground under a building rises by MAX_BUILDING m
 // and falls by MAX_BUILDING_CUT m at most (js/swissbuildings3d.js sinks a house's floor to the ground under it, but not
 // by more than a few metres: further, the house would float; raised much, the ground would bury it).
+//
+// Those limits are what is left of the bumps: in the built-up centre the nodes under a carriageway are the nodes under
+// the houses on the kerb, so a street there cannot have the bed it wants, and the triangle it could not raise leaves a
+// notch in the road (the Obere Strasse over the Promenade, where the houses stand in the wall between the two levels).
+// Two things against that. A node under a carriageway may be cut to the full MAX_MOVE even under a house, because
+// cutting costs a house nothing: swissBUILDINGS3D sets it on the HIGHEST ground under its floor, so the ground giving
+// way on the street side only shows more of its plinth, while filling buries it — the fill stays tight (MAX_ROAD_FILL
+// under a carriageway, MAX_BUILDING elsewhere). And the bed is laid ROUNDS times: after the first round a street is
+// levelled against the ground it actually got rather than against the model, so where a node is held the profile gives
+// way with it and is cut into the slope instead, which the ground can follow. Never more than MAX_GIVE m off the
+// surveyed road (medianly the streets end up where they lie: half of them within 0.3 m, none more than 3 m off).
 {
   const STEP = 2, SIGMA = 6, BANK = 1.5, EASE = 4, MAX_MOVE = 8, MAX_CONFLICT = 2.5, CONFLICT = 1.5, MAX_BUILDING = 2.5, MAX_BUILDING_CUT = 3;
+  const ROUNDS = 6, MAX_GIVE = 3, MAX_ROAD_FILL = 4;
   const KINDS = /^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street|service)$/;
   const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5 };
   const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
@@ -276,87 +288,6 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
   const blend = new Float32Array(n), tsum = new Float64Array(n), asum = new Float64Array(n), csum = new Float64Array(n), ccount = new Float64Array(n), crank = new Int8Array(n);
   const clo = new Float32Array(n).fill(Infinity), chi = new Float32Array(n).fill(-Infinity);
   const rankOf = (base) => (base === 'service' ? 1 : 2);
-  let ways = 0;
-  for (const e of osm.elements) {
-    const t = e.tags || {};
-    if (e.type !== 'way' || !e.geometry || !KINDS.test(t.highway || '') || t.area === 'yes') continue;
-    if (isOn(t.bridge) || (isOn(t.tunnel) && t.tunnel !== 'building_passage') || t.covered === 'yes' || (parseFloat(t.layer) || 0) < 0) continue;
-    const base = t.highway.replace(/_link$/, '');
-    const width = parseFloat(t.width) || Math.max(WIDTH[base] ?? 3, (parseFloat(t.lanes) || LANES[base] || 1) * 3);
-    const half = width / 2, rank = rankOf(base);
-    const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
-    let s = 0;
-    for (let k = 1; k < pts.length; k++) {
-      const a = pts[k - 1], b = pts[k], L = Math.hypot(b.x - a.x, b.z - a.z), m1 = Math.max(1, Math.ceil(L / STEP));
-      if (L < 1e-3) continue;
-      for (let m = S.length ? 1 : 0; m <= m1; m++) S.push({ x: a.x + ((b.x - a.x) * m) / m1, z: a.z + ((b.z - a.z) * m) / m1, s: s + (L * m) / m1, ux: (b.x - a.x) / L, uz: (b.z - a.z) / L });
-      s += L;
-    }
-    if (S.length < 2 || S.every((p) => p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ)) continue;
-    // The road's height at each sample: the median of the 2 m model across the carriageway
-    for (const p of S) {
-      const q = half * 0.6, hs = [-q, -q / 2, 0, q / 2, q].map((o) => groundAt(p.x - p.uz * o, p.z + p.ux * o)).filter(Number.isFinite).sort((u, v) => u - v);
-      p.h = hs.length ? hs[hs.length >> 1] : NaN;
-    }
-    if (!S.every((p) => Number.isFinite(p.h))) continue;
-    // Gaussian-weighted local line through the samples
-    let first = 0;
-    const prof = S.map((p) => {
-      let w0 = 0, w1 = 0, w2 = 0, h0 = 0, h1 = 0;
-      while (S[first].s < p.s - 3 * SIGMA) first++;
-      for (let m = first; m < S.length; m++) {
-        const d = S[m].s - p.s;
-        if (d > 3 * SIGMA) break;
-        const w = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
-        w0 += w; w1 += w * d; w2 += w * d * d; h0 += w * S[m].h; h1 += w * d * S[m].h;
-      }
-      const det = w0 * w2 - w1 * w1;
-      return det > 1e-6 ? (h0 * w2 - h1 * w1) / det : h0 / w0;
-    });
-    // Nodes of the triangles under the carriageway (the strip's points every metre, triangulated as terrain-grid.js)
-    const core = new Set();
-    const mark = (x, z) => {
-      const u = (x - minX) / cell, v = (z - minZ) / cell, i = Math.floor(u), j = Math.floor(v);
-      if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) return;
-      const k = j * cols + i;
-      core.add(k); core.add(k + cols + 1); core.add(u - i >= v - j ? k + 1 : k + cols);
-    };
-    const reachCore = half + BANK;
-    for (let k = 1; k < S.length; k++) {
-      const a = S[k - 1], b = S[k], L = Math.hypot(b.x - a.x, b.z - a.z);
-      for (let f = 0; f < L; f += 1) {
-        const x = a.x + (b.x - a.x) * f / L, z = a.z + (b.z - a.z) * f / L;
-        for (let o = -reachCore; o <= reachCore + 1e-6; o += 1) mark(x - b.uz * o, z + b.ux * o);
-      }
-    }
-    // Each node near the way: its distance and the profile at its foot on the way
-    const reach = half + BANK + cell * 1.5 + EASE;
-    const near = new Map();
-    for (let k = 1; k < S.length; k++) {
-      const a = S[k - 1], b = S[k], dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-9;
-      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x) - reach - minX) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(a.x, b.x) + reach - minX) / cell));
-      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z) - reach - minZ) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(a.z, b.z) + reach - minZ) / cell));
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const x = minX + i * cell, z = minZ + j * cell, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
-        const d = Math.hypot(a.x + f * dx - x, a.z + f * dz - z), q = j * cols + i;
-        if (d < reach && !(near.get(q)?.d <= d)) near.set(q, { d, t: prof[k - 1] + (prof[k] - prof[k - 1]) * f });
-      }
-    }
-    for (const [q, { d, t: target }] of near) {
-      const u = Math.max(0, Math.min(1, (d - half - BANK) / (cell + EASE)));
-      const w = core.has(q) ? 1 : 1 - u * u * (3 - 2 * u);
-      if (w <= 0) continue;
-      const e2 = (1 + Math.max(0, d - half)) ** 2, a = w / (e2 * e2);
-      // (under a street and a drive, the street's level: the drive meets the street at its level)
-      if (w === 1 && core.has(q)) { clo[q] = Math.min(clo[q], target); chi[q] = Math.max(chi[q], target); }
-      if (w === 1 && core.has(q) && rank >= crank[q]) {
-        if (rank > crank[q]) { crank[q] = rank; csum[q] = 0; ccount[q] = 0; }
-        csum[q] += a * target; ccount[q] += a;
-      }
-      blend[q] = Math.max(blend[q], w); tsum[q] += a * target; asum[q] += a;
-    }
-    ways++;
-  }
   // Under the buildings (OSM footprints, sampled every 2 m): per node, its largest share in the ground height at a point
   // of a footprint (the barycentric weight in the triangle there), so that the ground there moves by little
   const underBuilding = new Float32Array(n);
@@ -380,19 +311,130 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
       }
     }
   }
-  let set = 0, cut = 0, fillUp = 0, big = 0;
-  for (let q = 0; q < n; q++) {
-    if (!(blend[q] > 0) || !(asum[q] > 0)) continue;
-    const i = q % cols, j = (q - i) / cols;
-    if (inWater(minX + i * cell, minZ + j * cell)) continue;
-    const cap = chi[q] - clo[q] > CONFLICT ? MAX_CONFLICT : MAX_MOVE;
-    const house = Math.max(underBuilding[q], 1e-3);
-    const dh = Math.max(-Math.min(cap, MAX_BUILDING_CUT / house), Math.min(Math.min(cap, MAX_BUILDING / house), ccount[q] > 0 ? csum[q] / ccount[q] - H[q] : (tsum[q] / asum[q] - H[q]) * blend[q]));
-    H[q] += dh; set++;
-    if (dh < 0) cut -= dh; else fillUp += dh;
-    if (Math.abs(dh) >= cap) big++;
+  // The ground before the streets: every round lays the bed from it anew, so the rounds cannot pile up
+  const H0 = Float64Array.from(H);
+  // (per way the surveyed road height at its samples — the 2 m model does not change between the rounds)
+  const surveyed = new Map();
+  let ways = 0, set = 0, cut = 0, fillUp = 0, big = 0;
+  for (let round = 0; round < ROUNDS; round++) {
+    ways = 0;
+    blend.fill(0); tsum.fill(0); asum.fill(0); csum.fill(0); ccount.fill(0); crank.fill(0); clo.fill(Infinity); chi.fill(-Infinity);
+    // The height of the ground laid so far at (x, z) — the same surface as js/terrain-grid.js gridHeight
+    const laid = (x, z) => {
+      const u = (x - minX) / cell, v = (z - minZ) / cell, i = Math.floor(u), j = Math.floor(v);
+      if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) return NaN;
+      const fu = u - i, fv = v - j, k = j * cols + i;
+      return fu >= fv ? H[k] + fu * (H[k + 1] - H[k]) + fv * (H[k + cols + 1] - H[k + 1])
+                      : H[k] + fv * (H[k + cols] - H[k]) + fu * (H[k + cols + 1] - H[k + cols]);
+    };
+    for (const e of osm.elements) {
+      const t = e.tags || {};
+      if (e.type !== 'way' || !e.geometry || !KINDS.test(t.highway || '') || t.area === 'yes') continue;
+      if (isOn(t.bridge) || (isOn(t.tunnel) && t.tunnel !== 'building_passage') || t.covered === 'yes' || (parseFloat(t.layer) || 0) < 0) continue;
+      const base = t.highway.replace(/_link$/, '');
+      const width = parseFloat(t.width) || Math.max(WIDTH[base] ?? 3, (parseFloat(t.lanes) || LANES[base] || 1) * 3);
+      const half = width / 2, rank = rankOf(base);
+      const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
+      let s = 0;
+      for (let k = 1; k < pts.length; k++) {
+        const a = pts[k - 1], b = pts[k], L = Math.hypot(b.x - a.x, b.z - a.z), m1 = Math.max(1, Math.ceil(L / STEP));
+        if (L < 1e-3) continue;
+        for (let m = S.length ? 1 : 0; m <= m1; m++) S.push({ x: a.x + ((b.x - a.x) * m) / m1, z: a.z + ((b.z - a.z) * m) / m1, s: s + (L * m) / m1, ux: (b.x - a.x) / L, uz: (b.z - a.z) / L });
+        s += L;
+      }
+      if (S.length < 2 || S.every((p) => p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ)) continue;
+      // The road's height at each sample: the median of the 2 m model across the carriageway
+      let model = surveyed.get(e.id);
+      if (!model) {
+        model = S.map((p) => {
+          const q = half * 0.6, hs = [-q, -q / 2, 0, q / 2, q].map((o) => groundAt(p.x - p.uz * o, p.z + p.ux * o)).filter(Number.isFinite).sort((u, v) => u - v);
+          return hs.length ? hs[hs.length >> 1] : NaN;
+        });
+        surveyed.set(e.id, model);
+      }
+      // After the first round, the ground the street actually got, so that the profile gives way where a node is held
+      for (let k = 0; k < S.length; k++) {
+        const got = round ? laid(S[k].x, S[k].z) : NaN;
+        S[k].h = Number.isFinite(got) ? Math.max(model[k] - MAX_GIVE, Math.min(model[k] + MAX_GIVE, got)) : model[k];
+      }
+      if (!S.every((p) => Number.isFinite(p.h))) continue;
+      // Gaussian-weighted local line through the samples
+      let first = 0;
+      const prof = S.map((p) => {
+        let w0 = 0, w1 = 0, w2 = 0, h0 = 0, h1 = 0;
+        while (S[first].s < p.s - 3 * SIGMA) first++;
+        for (let m = first; m < S.length; m++) {
+          const d = S[m].s - p.s;
+          if (d > 3 * SIGMA) break;
+          const w = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
+          w0 += w; w1 += w * d; w2 += w * d * d; h0 += w * S[m].h; h1 += w * d * S[m].h;
+        }
+        const det = w0 * w2 - w1 * w1;
+        return det > 1e-6 ? (h0 * w2 - h1 * w1) / det : h0 / w0;
+      });
+      // Nodes of the triangles under the carriageway (the strip's points every metre, triangulated as terrain-grid.js)
+      const core = new Set();
+      const mark = (x, z) => {
+        const u = (x - minX) / cell, v = (z - minZ) / cell, i = Math.floor(u), j = Math.floor(v);
+        if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) return;
+        const k = j * cols + i;
+        core.add(k); core.add(k + cols + 1); core.add(u - i >= v - j ? k + 1 : k + cols);
+      };
+      const reachCore = half + BANK;
+      for (let k = 1; k < S.length; k++) {
+        const a = S[k - 1], b = S[k], L = Math.hypot(b.x - a.x, b.z - a.z);
+        for (let f = 0; f < L; f += 1) {
+          const x = a.x + (b.x - a.x) * f / L, z = a.z + (b.z - a.z) * f / L;
+          for (let o = -reachCore; o <= reachCore + 1e-6; o += 1) mark(x - b.uz * o, z + b.ux * o);
+        }
+      }
+      // Each node near the way: its distance and the profile at its foot on the way
+      const reach = half + BANK + cell * 1.5 + EASE;
+      const near = new Map();
+      for (let k = 1; k < S.length; k++) {
+        const a = S[k - 1], b = S[k], dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-9;
+        const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x) - reach - minX) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(a.x, b.x) + reach - minX) / cell));
+        const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z) - reach - minZ) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(a.z, b.z) + reach - minZ) / cell));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const x = minX + i * cell, z = minZ + j * cell, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
+          const d = Math.hypot(a.x + f * dx - x, a.z + f * dz - z), q = j * cols + i;
+          if (d < reach && !(near.get(q)?.d <= d)) near.set(q, { d, t: prof[k - 1] + (prof[k] - prof[k - 1]) * f });
+        }
+      }
+      for (const [q, { d, t: target }] of near) {
+        const u = Math.max(0, Math.min(1, (d - half - BANK) / (cell + EASE)));
+        const w = core.has(q) ? 1 : 1 - u * u * (3 - 2 * u);
+        if (w <= 0) continue;
+        const e2 = (1 + Math.max(0, d - half)) ** 2, a = w / (e2 * e2);
+        // (under a street and a drive, the street's level: the drive meets the street at its level)
+        if (w === 1 && core.has(q)) { clo[q] = Math.min(clo[q], target); chi[q] = Math.max(chi[q], target); }
+        if (w === 1 && core.has(q) && rank >= crank[q]) {
+          if (rank > crank[q]) { crank[q] = rank; csum[q] = 0; ccount[q] = 0; }
+          csum[q] += a * target; ccount[q] += a;
+        }
+        blend[q] = Math.max(blend[q], w); tsum[q] += a * target; asum[q] += a;
+      }
+      ways++;
+    }
+    set = 0; cut = 0; fillUp = 0; big = 0;
+    for (let q = 0; q < n; q++) {
+      if (!(blend[q] > 0) || !(asum[q] > 0)) continue;
+      const i = q % cols, j = (q - i) / cols;
+      if (inWater(minX + i * cell, minZ + j * cell)) continue;
+      const cap = chi[q] - clo[q] > CONFLICT ? MAX_CONFLICT : MAX_MOVE;
+      const house = Math.max(underBuilding[q], 1e-3);
+      // Under a carriageway the street's bed wins over the house over it, downward without reserve and upward to
+      // MAX_ROAD_FILL (cutting shows a house's plinth, filling buries it); beside one, the house keeps its ground.
+      const down = ccount[q] > 0 ? Math.min(cap, MAX_MOVE) : Math.min(cap, MAX_BUILDING_CUT / house);
+      const up = ccount[q] > 0 ? Math.max(Math.min(cap, MAX_BUILDING / house), Math.min(MAX_ROAD_FILL, MAX_MOVE)) : Math.min(cap, MAX_BUILDING / house);
+      const want = ccount[q] > 0 ? csum[q] / ccount[q] : H0[q] + (tsum[q] / asum[q] - H0[q]) * blend[q];
+      const dh = Math.max(-down, Math.min(up, want - H0[q]));
+      H[q] = H0[q] + dh; set++;
+      if (dh < 0) cut -= dh; else fillUp += dh;
+      if (dh <= -down || dh >= up) big++;
+    }
   }
-  log(`street beds: ${ways} ways, ${set} grid nodes set (mean cut ${(cut / set).toFixed(2)} m, fill ${(fillUp / set).toFixed(2)} m, ${big} held at their limit)`);
+  log(`street beds: ${ways} ways in ${ROUNDS} rounds, ${set} grid nodes set (mean cut ${(cut / set).toFixed(2)} m, fill ${(fillUp / set).toFixed(2)} m, ${big} held at their limit)`);
 }
 
 // --- A smooth bed for the railway ----------------------------------------------------------------------------------------
