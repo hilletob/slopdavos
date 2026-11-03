@@ -135,6 +135,13 @@ const pairs = [
   ['Alpine roses below the Strelaberg', 'Alpenrosen unter dem Strelaberg'],
   ['Mushroom hunt in the Dischma forest', 'Pilzsuche im Dischmawald'],
   ['Horn sledge race at the Rinerhorn', 'Hornschlittenrennen am Rinerhorn'],
+  ['Sommerrodelbahn on the Schatzalp', 'Sommerrodelbahn auf der Schatzalp'],
+  ['The first hairpins', 'Die ersten Spitzkehren'], ['Through the tunnel', 'Durch den Tunnel'], ['Down to the foot of the lift', 'Hinunter zum Lift'],
+  ['Wall', 'Wand'], ['Up the wall!', 'Die Wand hoch!'], ['Boing! Over the wall', 'Boing! Über die Wand'], ['You rammed the family!', 'Du hast die Familie gerammt!'],
+  ['Too fast for this bend: brake (S) and lean!', 'Zu schnell für diese Kurve: bremse (S) und lehne dich hinein!'],
+  ['A family ahead: do not ram them, brake (S)!', 'Vor dir fährt eine Familie: nicht auffahren, bremse (S)!'],
+  ['Back on the sledge', 'Zurück auf den Schlitten'],
+  ['The trough levels out at the foot of the lift, the tow hook clicks on. Hands still shaking, time for an ice cream on the Schatzalp terrace.', 'Die Rinne läuft unten beim Lift aus, der Schlepphaken klickt ein. Die Hände zittern noch: Zeit für eine Glace auf der Schatzalp-Terrasse.'],
   ['Slalom on the Davos Vertical', 'Slalom auf der Davos Vertical'],
   ['Snowboard Big Air in the JatzPark', 'Snowboard-Big-Air im JatzPark'],
   ['Downhill race: Ischalp to Bolgen', 'Abfahrtsrennen: Ischalp bis Bolgen'],
@@ -400,7 +407,10 @@ const pairs = [
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
+const tobogganDe = (text) => text.replace(/(\d+) bumps?/, (_, n) => `${n} ${n === '1' ? 'Rumms' : 'Rummse'}`).replace(/(\d+) rams?/, (_, n) => `${n}-mal aufgefahren`);
+
 const missionIntros = [
+  ['Up on the Schatzalp, above the old sanatorium', 'Oben auf der Schatzalp, über dem alten Sanatorium, windet sich eine Rinne aus Chromstahl den Hang hinunter: acht Spitzkehren und ein Tunnel auf gut 450 m. Du fährst wie auf Schienen: W stösst an und startet die Uhr. Du hast nur den Bremshebel: S halten bremst, loslassen fliegt. Mit A/D (oder durch Kippen des Handys) lehnst du dich in die Kurven. Zu schnell aus der Kurve, und der Schlitten klettert schüttelnd die Wand hoch; viel zu schnell, und er bleibt mit einem Rumms stehen, das kostet Zeit. Vor dir fährt eine Familie im Sonntagstempo. Überholen geht nicht, also fahr nicht auf.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
@@ -479,6 +489,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
   dynamic = dynamic.replace(/(\d+) % hot\b/g, '$1 % heiss');
+  // (the Sommerrodelbahn: js/missions-data-sledge.js)
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish(?: · (.+))?$/, (_, d, rest) => `${d} bis zum Ziel${rest ? ` · ${tobogganDe(rest)}` : ''}`);
+  dynamic = dynamic.replace(/^(\d+ (?:bump|bumps) · \d+ (?:ram|rams)) · top speed (\d+) km\/h$/, (_, c, v) => `${tobogganDe(c)} · Höchsttempo ${v} km/h`);
+  dynamic = dynamic.replace(/^Over the wall! \+(\d+) s$/, 'Über die Wand! +$1 s');
   const popped = /^(\S.*?)(  [+\-−]?\d+)$/.exec(dynamic);
   if (popped && enToDe.has(popped[1])) dynamic = enToDe.get(popped[1]) + popped[2];
   dynamic = dynamic.replace(new RegExp(`^Not yet: (.+) next${POP}$`), (_, top, tail) => `Noch nicht: zuerst ${enToDe.get(top) || top}${tail}`);

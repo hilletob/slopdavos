@@ -2,7 +2,11 @@ import * as THREE from 'three/webgpu';
 import { groundHeight } from './terrain.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { pointAt, riderSpeed, travelHeading } from './missions-data-snow.js';
-import { createCourse, createSledge, resetSledge, stepSledge, SLEDGE_TRACK, SLEDGE_CRASH_MS, runHeading } from './missions-data-sledge.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import {
+  createCourse, createSledge, resetSledge, stepSledge, SLEDGE_TRACK, SLEDGE_CRASH_MS, runHeading,
+  createTrough, troughY, troughCurve, troughBank, createToboggan, stepToboggan, createFamily, stepFamily, tiltLean, TOBOGGAN, TROUGH_LIFT
+} from './missions-data-sledge.js';
 
 // js/missions-sledge.js
 // The horn sledge race's runtime (js/missions-data-sledge.js has its definition and the pure logic; js/missions.js takes
@@ -17,6 +21,7 @@ import { createCourse, createSledge, resetSledge, stepSledge, SLEDGE_TRACK, SLED
 
 const SUBSTEP = 1 / 120;
 const UP = new THREE.Vector3(0, 1, 0);
+const _bars = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _X = new THREE.Vector3(), _Y = new THREE.Vector3(), _Z = new THREE.Vector3(), _c = new THREE.Color();
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapNear = (a, ref) => a - Math.round((a - ref) / (Math.PI * 2)) * Math.PI * 2;
@@ -103,10 +108,9 @@ function bannerTexture(text, bg = '#b5652b') {
 }
 
 /** An arch across the run at arc length s (two posts, a banner) */
-function buildArch(course, s, text, colour) {
+function buildArch(course, s, text, colour, { half = SLEDGE_TRACK.half + 1.2 } = {}) {
   const p = pointAt(course.pts, s);
   const h = runHeading(course, s);
-  const half = SLEDGE_TRACK.half + 1.2;
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardNodeMaterial({ color: colour, roughness: 0.6 });
   const post = new THREE.CylinderGeometry(0.12, 0.12, 4.2, 8).translate(0, 2.1, 0);
@@ -184,7 +188,7 @@ function buildRun(run, course) {
 }
 
 // --- The HUD: speed, the tip meter ---------------------------------------------------------------------------------------
-function buildHud(run) {
+function buildHud(run, meterLabel = 'Tilt') {
   const box = document.createElement('div');
   box.className = 'panel mission-sledge-hud';
   Object.assign(box.style, {
@@ -201,7 +205,7 @@ function buildHud(run) {
   Object.assign(fill.style, { position: 'absolute', left: 0, top: 0, bottom: 0, width: '0%', background: '#3fd66b', borderRadius: '5px' });
   meter.append(fill);
   const label = document.createElement('span');
-  label.textContent = 'Tilt';
+  label.textContent = meterLabel;
   label.style.opacity = '0.75';
   box.append(speed, label, meter);
   document.body.append(box);
@@ -382,5 +386,302 @@ const hornSledge = {
   }
 };
 
-export const SLEDGE_FEATURES = { hornSledge };
+// === The Sommerrodelbahn on the Schatzalp (js/missions-data-sledge.js has the course and the rails) =========================
+// tobogganRun — the player on a little wheeled sledge in a stainless trough: the same personDriver / personPoser hooks,
+// the same PersonRig.ride, chase camera, arches and HUD as the horn sledge. Built on entry into two merged meshes (the
+// trough; the posts, the gallery and the tow line), one material each; everything goes with the run's group.
+
+/** Grows one merged mesh: strips of a cross-section along a line, and boxes */
+function meshBuilder() {
+  const pos = [], idx = [];
+  return {
+    pos, idx,
+    /** `rows`: stations, each the same number of [x, y, z] points; quads between neighbouring stations */
+    strip(rows) {
+      const base = pos.length / 3, w = rows[0].length;
+      for (const row of rows) for (const p of row) pos.push(p[0], p[1], p[2]);
+      for (let r = 0; r + 1 < rows.length; r++) {
+        for (let c = 0; c + 1 < w; c++) {
+          const a = base + r * w + c, b = a + 1, d = a + w, e = d + 1;
+          idx.push(a, d, b, b, d, e);
+        }
+      }
+    },
+    /** A box from y0 up to y1, `w` across along (lx, lz), `d` along the other way */
+    box(x, z, y0, y1, w, d, lx = 1, lz = 0) {
+      const base = pos.length / 3;
+      const ax = lx * w / 2, az = lz * w / 2, bx = -lz * d / 2, bz = lx * d / 2;
+      for (const y of [y0, y1]) for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) pos.push(x + ax * u + bx * v, y, z + az * u + bz * v);
+      for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; idx.push(base + i, base + j, base + 4 + j, base + i, base + 4 + j, base + 4 + i); }
+      idx.push(base + 4, base + 5, base + 6, base + 4, base + 6, base + 7);
+    },
+    mesh(material, name) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, material);
+      m.name = name;
+      m.frustumCulled = false;
+      return m;
+    }
+  };
+}
+
+/** The steel trough along the course (a half-round with a rim and a skirt, banked in the bends), its posts, the gallery, the tow line */
+function buildTroughRun(run, tr) {
+  const T = tr.T, course = tr.course;
+  const trough = meshBuilder(), frame = meshBuilder();
+  // (the cross-section: across (+ left), up over the floor)
+  const section = [[T.half + 0.05, -0.12], [T.half + 0.05, T.wallH]];
+  for (let i = 0; i <= 8; i++) { const a = Math.PI / 2 - (i / 8) * Math.PI; section.push([T.half * Math.sin(a), T.wallH * (1 - Math.cos(a))]); }
+  section.push([-T.half - 0.05, T.wallH], [-T.half - 0.05, -0.12]);
+  const rows = [];
+  for (let s = 0; s <= tr.length + 1e-6;) {
+    const p = pointAt(course.pts, s), h = runHeading(course, s, 1), y = troughY(tr, s), b = troughBank(tr, s);
+    const lx = Math.cos(h), lz = -Math.sin(h), cb = Math.cos(b), sb = Math.sin(b);
+    rows.push(section.map(([u, v]) => [p.x + lx * u * cb, y + v - u * sb, p.z + lz * u * cb]));
+    if (Math.round(s) % 3 === 0) {
+      // a post down to the ground, a cross beam under the trough
+      const g = groundHeight(p.x, p.z);
+      frame.box(p.x, p.z, g - 0.3, y - 0.1, 0.1, 0.1);
+      frame.box(p.x, p.z, y - 0.2, y - 0.1, (T.half + 0.1) * 2, 0.08, lx, lz);
+    }
+    if (s >= tr.length) break;
+    s = Math.min(tr.length, s + (Math.abs(troughCurve(tr, s)) > 0.015 ? 1 : 2));
+  }
+  trough.strip(rows);
+  // the gallery round the crossing with the tow line: ribs and a roof you can sit a chase camera under
+  const arch = [[-2, -0.3], [-2, 2.3], [-1.35, 3.3], [0, 3.7], [1.35, 3.3], [2, 2.3], [2, -0.3]];
+  const roof = [];
+  for (let s = T.tunnel.s0; s <= T.tunnel.s1 + 1e-6; s += 1.5) {
+    const p = pointAt(course.pts, s), h = runHeading(course, s, 2), y = troughY(tr, s);
+    const lx = Math.cos(h), lz = -Math.sin(h);
+    roof.push(arch.map(([u, v]) => [p.x + lx * u, y + v, p.z + lz * u]));
+  }
+  frame.strip(roof);
+  // the tow line back up (hidden in its tunnel between the second and third point)
+  const L = TROUGH_LIFT;
+  for (const i of [0, 4]) {
+    const ax = L[i], az = L[i + 1], bx = L[i + 2], bz = L[i + 3], len = Math.hypot(bx - ax, bz - az), lx = (bz - az) / len, lz = -(bx - ax) / len;
+    const line = [];
+    for (let d = 0; d <= len + 1e-6; d += 3) {
+      const t = Math.min(1, d / len), x = ax + (bx - ax) * t, z = az + (bz - az) * t, y = groundHeight(x, z) + 0.25;
+      line.push([[x + lx * 0.32, y, z + lz * 0.32], [x + lx * 0.32, y + 0.12, z + lz * 0.32], [x - lx * 0.32, y + 0.12, z - lz * 0.32], [x - lx * 0.32, y, z - lz * 0.32]]);
+      if (Math.round(d) % 6 === 0) frame.box(x, z, y - 0.5, y, 0.1, 0.1);
+    }
+    frame.strip(line);
+  }
+  // (stainless: light and not fully metallic, there is no environment for a true metal to mirror)
+  const steel = new THREE.MeshStandardNodeMaterial({ color: 0xccd2d8, metalness: 0.45, roughness: 0.28, side: THREE.DoubleSide });
+  const greyFrame = new THREE.MeshStandardNodeMaterial({ color: 0x5b5f63, metalness: 0.2, roughness: 0.7, side: THREE.DoubleSide });
+  const t = trough.mesh(steel, 'TobogganTrough'); t.castShadow = true; t.receiveShadow = true;
+  const f = frame.mesh(greyFrame, 'TobogganFrame'); f.castShadow = true;
+  run.group.add(t, f);
+  run.group.add(buildArch(course, TOBOGGAN.startS + 12, 'START · SOMMERRODELBAHN SCHATZALP', 0xc43b2e, { half: T.half + 1.6 }), buildArch(course, tr.length - TOBOGGAN.finishAt, 'ZIEL · FINISH', 0xd42a20, { half: T.half + 1.6 }));
+}
+
+// (a low wheeled sledge: +z forward, the wheels in the trough's floor at y = 0, the seat 0.24 m up, the lever in front)
+export const TOBOGGAN_POSE = { seat: new THREE.Vector3(0, 0.24, -0.16), bars: new THREE.Vector3(0, 0.58, 0.34), gripHalf: 0.16, bracket: new THREE.Vector3(0, 0.16, 0.62), crankLength: 0, pedalHalf: 0.16, lean: -0.12 };
+
+function buildTobogganParts() {
+  const body = mergeGeometries([
+    new THREE.BoxGeometry(0.52, 0.09, 1.25).translate(0, 0.14, 0),
+    new THREE.BoxGeometry(0.44, 0.16, 0.5).translate(0, 0.23, -0.34),
+    new THREE.BoxGeometry(0.46, 0.07, 0.34).rotateX(-0.5).translate(0, 0.2, 0.68)
+  ]);
+  const dark = mergeGeometries([
+    ...[[-0.2, -0.46], [0.2, -0.46], [-0.2, 0.46], [0.2, 0.46]].map(([x, z]) => new THREE.CylinderGeometry(0.07, 0.07, 0.05, 10).rotateZ(Math.PI / 2).translate(x, 0.07, z)),
+    new THREE.BoxGeometry(0.03, 0.36, 0.03).rotateX(-0.25).translate(0, 0.38, 0.3),
+    new THREE.BoxGeometry(0.34, 0.03, 0.03).translate(0, 0.57, 0.35)
+  ]);
+  return { body, dark };
+}
+
+function placeToboggan(mesh, tr, s, roll, lateral, lift) {
+  const p = pointAt(tr.course.pts, s), h = runHeading(tr.course, s, 1.5);
+  const fx = Math.sin(h), fz = Math.cos(h), lx = Math.cos(h), lz = -Math.sin(h);
+  const drop = troughY(tr, s + 0.8) - troughY(tr, s - 0.8);
+  _Z.set(fx * 1.6, drop, fz * 1.6).normalize();
+  _X.set(lx, 0, lz);
+  _Y.crossVectors(_Z, _X).normalize();
+  _Y.applyAxisAngle(_Z, roll); _X.crossVectors(_Y, _Z).normalize();
+  _m.makeBasis(_X, _Y, _Z).setPosition(p.x + lx * lateral, troughY(tr, s) + lift, p.z + lz * lateral);
+  mesh.matrixAutoUpdate = false;
+  mesh.matrix.copy(_m);
+  mesh.matrixWorldNeedsUpdate = true;
+  mesh.updateMatrixWorld(true);
+}
+
+const tobogganRun = {
+  setup(run) {
+    const cm = run.hooks.controllerManager;
+    const tr = createTrough(groundHeight);
+    const person = cm.entities.person;
+    buildTroughRun(run, tr);
+    const parts = buildTobogganParts();
+    const darkMat = new THREE.MeshStandardNodeMaterial({ color: 0x1f2124, roughness: 0.6 });
+    const sledgeOf = (colour) => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(parts.body, new THREE.MeshStandardNodeMaterial({ color: colour, roughness: 0.45 }));
+      body.castShadow = true;
+      g.add(body, new THREE.Mesh(parts.dark, darkMat));
+      run.group.add(g);
+      return g;
+    };
+    const mine = sledgeOf(0xd8342a);
+    // the family's three sledges: a parent, the child, the other parent (one more PersonCrowd, like the horn sledge's partner)
+    const F = TOBOGGAN.family;
+    const crowd = new PersonCrowd(F.sledges, { farDistance: 1e9 });
+    for (const m of crowd.meshes) run.group.add(m);
+    const family = [
+      { rig: new PersonRig({ seed: 0.2718, female: true, hair: 0.7, girth: 1, scale: 1 }), sledge: sledgeOf(0x2f7fd1) },
+      { rig: new PersonRig({ seed: 0.5772, female: false, hair: 0.5, girth: 0.9, scale: 0.68 }), sledge: sledgeOf(0xf0b429) },
+      { rig: new PersonRig({ seed: 0.1618, female: false, hair: 0.3, girth: 1.05, scale: 1.02 }), sledge: sledgeOf(0x2f9e5b) }
+    ];
+    const S = run.to = {
+      tr, person, mine, family, crowd, sl: null, fam: null, hud: buildHud(run, 'Wall'), tilt: 0, shakeT: 0, warned: false,
+      saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
+    };
+    cm.personDriver = (dt) => tobogganRun.drive(run, dt, cm);
+    cm.personPoser = (dt, p) => tobogganRun.pose(run, dt, p);
+    // the phone's tilt leans too (iOS asks once, on the first touch; a desktop has none and nothing changes)
+    const onTilt = (e) => { S.tilt = tiltLean(e.gamma, e.beta, screen.orientation?.angle ?? window.orientation ?? 0); };
+    const ask = () => { try { globalThis.DeviceOrientationEvent?.requestPermission?.()?.catch?.(() => {}); } catch { /* (no prompt: the stick still leans) */ } };
+    const coarse = globalThis.matchMedia?.('(any-pointer: coarse)').matches;
+    if (coarse) { window.addEventListener('deviceorientation', onTilt); document.addEventListener('touchend', ask, { once: true }); }
+    run.cleanups.push(() => {
+      window.removeEventListener('deviceorientation', onTilt);
+      document.removeEventListener('touchend', ask);
+      if (cm.personDriver) cm.personDriver = null;
+      cm.personPoser = null;
+      const p = cm.entities.person;
+      p.rig.placed = false; // (the walk starts afresh where the sledge stopped)
+      p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
+      p.speed = 0;
+      p.slopePitch = 0;
+      Object.assign(p, S.saved);
+      // (the group's disposal takes the materials and the meshes' geometry; the two shared parts once)
+      parts.body.dispose(); parts.dark.dispose();
+    });
+  },
+  reset(run) {
+    const cm = run.hooks.controllerManager;
+    const S = run.to;
+    S.sl = createToboggan(TOBOGGAN.startS);
+    S.fam = createFamily();
+    S.warned = false;
+    const p = S.person, q = pointAt(S.tr.course.pts, TOBOGGAN.startS);
+    p.position.set(q.x, troughY(S.tr, TOBOGGAN.startS) + 0.02, q.z);
+    p.heading = runHeading(S.tr.course, TOBOGGAN.startS + 4, 4);
+    p.speed = 0;
+    p.verticalVel = 0;
+    p.chaseDistance = 5;
+    p.chaseHeight = 2.3;
+    run.lastPos?.copy(p.position);
+    cm.personDriver = (dt) => tobogganRun.drive(run, dt, cm);
+    cm.personPoser = (dt, pp) => tobogganRun.pose(run, dt, pp);
+    cm.setEntityHidden?.('person', false);
+    S.hud.toastT = 0;
+    S.hud.toast.style.opacity = '0';
+  },
+  teardown(run) {
+    const cm = run.hooks.controllerManager;
+    cm.personDriver = null;
+    cm.personPoser = null;
+  },
+  drive(run, dt, cm) {
+    const S = run.to, sl = S.sl, p = S.person;
+    if (!sl) return;
+    const tr = S.tr;
+    if (run.phase === 'running' || run.phase === 'done') {
+      const k = cm.keys, num = (v) => (v === true ? 1 : Number(v) || 0);
+      const input = run.phase === 'done' ? { brake: 1, lean: 0 } : { brake: num(k.backward), lean: (num(k.left) - num(k.right)) || S.tilt };
+      let left = Math.min(dt, 0.1);
+      while (left > 1e-6) {
+        const h = Math.min(SUBSTEP, left);
+        stepFamily(S.fam, h, tr);
+        const ev = stepToboggan(sl, input, h, tr, S.fam);
+        if (ev) tobogganRun.event(run, ev);
+        left -= h;
+      }
+    }
+    const q = pointAt(tr.course.pts, sl.s), head = runHeading(tr.course, sl.s, 2.5);
+    p.position.set(q.x, troughY(tr, sl.s) + 0.02, q.z);
+    p.heading = wrapNear(head, p.heading);
+    p.speed = sl.v;
+    p.verticalVel = 0;
+    const pitch = Math.atan2(troughY(tr, sl.s - 2) - troughY(tr, sl.s + 2), 4);
+    p.slopePitch = (p.slopePitch ?? pitch) + (pitch - (p.slopePitch ?? pitch)) * Math.min(1, dt * 4);
+    const st = run.state;
+    if (st) {
+      st.s = sl.s; st.wall = sl.wall; st.stopT = sl.stopT; st.bumps = sl.bumps; st.rams = sl.rams;
+      st.familyGap = S.fam.gone ? Infinity : S.fam.s - sl.s;
+      if (run.phase === 'running') st.topSpeed = Math.max(st.topSpeed, sl.v);
+    }
+    // (the warning, once a climb)
+    if (sl.wall > 0.18 && !S.warned && sl.stopT <= 0) { S.warned = true; showToast(S.hud, 'Up the wall!', '#ffd27a', 1); }
+    else if (sl.wall < 0.05) S.warned = false;
+  },
+  event(run, ev) {
+    const S = run.to, st = run.state, T = TOBOGGAN;
+    if (ev === 'bump') {
+      if (st) st.penaltyMs += T.bumpMs;
+      showToast(S.hud, 'Boing! Over the wall', '#ff8f80', 2);
+      S.hud.toast.append(Object.assign(document.createElement('div'), { textContent: `+${T.bumpMs / 1000} s`, style: 'font:650 15px system-ui,sans-serif;opacity:.9' }));
+      run.audio?.thump?.();
+    } else if (ev === 'ram') {
+      if (st) st.penaltyMs += T.ramMs;
+      showToast(S.hud, 'You rammed the family!', '#ff8f80', 2);
+      S.hud.toast.append(Object.assign(document.createElement('div'), { textContent: `+${T.ramMs / 1000} s`, style: 'font:650 15px system-ui,sans-serif;opacity:.9' }));
+      run.audio?.thump?.();
+    }
+  },
+  /** The sledges in the trough and the riders on them (the controllers' personPoser) */
+  pose(run, dt, p) {
+    const S = run.to, sl = S.sl;
+    if (!sl) return;
+    const tr = S.tr, T = TOBOGGAN;
+    S.shakeT += dt;
+    // up the wall: the sledge shifts to the outside and rolls with the wall, shaking; stopped, it hops back in
+    const out = sl.wall * sl.wallSide; // (+ left)
+    const shake = sl.wall > 0.04 ? Math.sin(S.shakeT * 58) * 0.035 * Math.min(1, sl.wall * 2.5) : 0;
+    const hop = sl.stopT > 0 ? Math.abs(Math.sin((T.stopS - sl.stopT) * 7)) * 0.42 * (sl.stopT / T.stopS) : 0;
+    const wobble = sl.stopT > 0 ? Math.sin((T.stopS - sl.stopT) * 13) * 0.3 * (sl.stopT / T.stopS) : 0;
+    // (a bank + raises the right: the sledge rolls to its left; a climb up the left wall rolls it to the right)
+    const roll = troughBank(tr, sl.s) - out * 0.95 + shake * 3 + wobble - sl.lean * 0.1;
+    placeToboggan(S.mine, tr, sl.s, roll, out * T.half * 0.62, 0.02 + sl.wall * T.wallH * 0.6 + Math.abs(shake) + hop);
+    const P = TOBOGGAN_POSE;
+    p.rig.ride(S.mine, 0, { ...P, bars: _bars.set(P.bars.x, P.bars.y, P.bars.z - sl.brake * 0.12), lean: P.lean - sl.brake * 0.14 });
+    p.rig.placed = true;
+    p.rig.x = S.person.position.x; p.rig.z = S.person.position.z; p.rig.yaw = S.person.heading;
+    // the family, front to back (a ram jolts the last of them)
+    const F = T.family, fam = S.fam;
+    S.crowd.begin();
+    for (let i = 0; i < S.family.length; i++) {
+      const m = S.family[i];
+      const s = Math.min(tr.length, fam.s + F.spacing * (S.family.length - 1 - i));
+      m.sledge.visible = !fam.gone && s < tr.length - 0.5;
+      if (!m.sledge.visible) continue;
+      const jolt = i === S.family.length - 1 ? fam.jolt : 0;
+      placeToboggan(m.sledge, tr, s, troughBank(tr, s) + Math.sin(S.shakeT * 22) * jolt * 0.18, 0, 0.02 + jolt * 0.12);
+      m.rig.ride(m.sledge, 0, P);
+      S.crowd.add(m.rig, 0);
+    }
+    S.crowd.end();
+  },
+  update(run, ctx, dt) {
+    const S = run.to, sl = S.sl, hud = S.hud;
+    if (!sl) return;
+    if (hud.toastT > 0 && (hud.toastT -= dt) <= 0) hud.toast.style.opacity = '0';
+    const kmh = `${Math.round(sl.v * 3.6)} km/h`;
+    if (hud.speed.textContent !== kmh) hud.speed.textContent = kmh;
+    const level = sl.wall > 0.02 ? 0.75 + 0.25 * sl.wall : clamp(sl.latG / TOBOGGAN.warnG, 0, 1) * 0.75;
+    hud.fill.style.width = `${Math.round(level * 100)}%`;
+    hud.fill.style.background = sl.wall > 0.02 ? '#ff4b3e' : level > 0.55 ? '#ffc21a' : '#3fd66b';
+    hud.box.hidden = run.phase === 'intro' || run.phase === 'done';
+  }
+};
+
+export const SLEDGE_FEATURES = { hornSledge, tobogganRun };
 export { resetSledge };
