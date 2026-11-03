@@ -104,8 +104,9 @@ test('the times to fast-forward to', () => {
   assert.equal(nextSeasonDay(at(1, 12), 'winter'), at(4, 0));
   assert.equal(nextSeasonDay(at(5, 12), 'winter'), at(6, 0), '(the next day that is winter)');
   assert.equal(nextSeasonDay(at(5, 12), 'summer'), at(8, 0));
-  assert.equal(nextSeasonMorning(at(1, 12)), at(4, 7));
-  assert.equal(nextSeasonMorning(at(5, 12)), at(8, 7));
+  assert.equal(dayOfYear(nextSeasonMorning(at(1, 12))), 4);
+  assert.equal(dayOfYear(nextSeasonMorning(at(5, 12))), 0);
+  assert.ok(sunHeight(minuteOfDay(nextSeasonMorning(at(1, 12))), 1) > 7, 'a winter morning in the light, not at 07:00 in the dark');
   assert.equal(winterBlendAt(nextSeasonMorning(at(1, 12))), 1, 'the morning after the snowfall: it lies');
   assert.equal(winterBlendAt(nextSeasonMorning(at(5, 12))), 0);
 });
@@ -209,7 +210,7 @@ test('the presets remain the colour anchors, on the sun\'s height', () => {
   // Night holds the night preset's glow, and the midday preset's at the top of a summer day
   near(sampleDay(23 * 60, 0).interiorGlow, TIME_PRESETS.midnight.interiorGlow, 1e-9);
   near(sampleDay(solarNoon(0), 0).interiorGlow, TIME_PRESETS.midday.interiorGlow, 1e-9);
-  near(sampleDay(atHeight(8), 0).sunIntensity, TIME_PRESETS.golden.sunIntensity, 1e-9);
+  near(sampleDay(solarNoon(0), 0).sunIntensity, TIME_PRESETS.midday.sunIntensity, 1e-9);
 });
 
 test('the light flows: no jumps through the day, the light always a unit vector above the horizon', () => {

@@ -1588,11 +1588,6 @@ body.touch-enabled .pop-item { min-height: 44px; }
 .mission-prompt-wait[hidden] { display: none; }
 .mission-prompt.is-closed .mission-prompt-text { color: var(--text-2); }
 .mission-prompt.is-closed kbd { background: rgba(255, 255, 255, 0.85); }
-@media (max-width: 560px) {
-  .mission-list li { flex-wrap: wrap; }
-  .mission-wait { min-width: 0; flex-direction: row; gap: 8px; margin-left: auto; align-items: baseline; }
-}
-
 /* Phones: the street names move out of the view, below the touch controls and just above the mode bar, as small
    translucent tags (no sign blue); the touch controls rise to make room */
 @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
@@ -2244,3 +2239,10 @@ body.gta-mode #mode-switch { display: none; }
 .touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
 .touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
 .touch-tap-label { font-size: 11px; white-space: nowrap; }
+
+/* Phones: a closed mission's row keeps its title on a line of its own, the wait button under it, big enough to tap */
+@media (max-width: 560px) {
+  .mission-list li.is-closed { flex-wrap: wrap; }
+  .mission-list li.is-closed .mission-link { flex: 1 1 60%; }
+  .mission-list li.is-closed .mission-wait { flex: 1 1 100%; min-width: 0; min-height: 40px; flex-direction: row; justify-content: space-between; align-items: center; }
+}

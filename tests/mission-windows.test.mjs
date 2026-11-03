@@ -147,11 +147,21 @@ test('what a start from the pin, then the wait button, then a link do to the clo
   assert.ok(winterBlendAt(clock.total) === 1, 'the first winter day at midday: the snow lies');
 });
 
-test('the fast-forward\'s targets', () => {
-  assert.equal(fastForwardTarget('morning', at(1, 6)), at(1, 7));
-  assert.equal(fastForwardTarget('morning', at(1, 9)), at(2, 7));
-  assert.equal(fastForwardTarget('evening', at(1, 9)), at(1, 18));
-  assert.equal(fastForwardTarget('evening', at(1, 19)), at(2, 18));
-  assert.equal(fastForwardTarget('season', at(1, 9)), at(4, 7));
-  assert.equal(fastForwardTarget('season', at(5, 9)), at(8, 7));
+test('the fast-forward\'s targets go by the sun of their day', () => {
+  const inMinutes = (t) => minuteOfDay(t);
+  const summerMorning = fastForwardTarget('morning', at(1, 3));
+  assert.equal(Math.floor(summerMorning / DAY), 1);
+  assert.ok(inMinutes(summerMorning) > 6 * 60 && inMinutes(summerMorning) < 7 * 60, 'a summer morning is early');
+  assert.equal(Math.floor(fastForwardTarget('morning', at(1, 9)) / DAY), 2);
+  const winterMorning = fastForwardTarget('morning', at(5, 3));
+  assert.ok(inMinutes(winterMorning) > 9 * 60, 'a winter morning is late');
+  const summerEvening = fastForwardTarget('evening', at(1, 9));
+  assert.ok(inMinutes(summerEvening) > 20 * 60 && Math.floor(summerEvening / DAY) === 1);
+  const winterEvening = fastForwardTarget('evening', at(5, 9));
+  assert.ok(inMinutes(winterEvening) < 16.5 * 60 && Math.floor(winterEvening / DAY) === 5);
+  assert.equal(Math.floor(fastForwardTarget('evening', at(5, 18)) / DAY), 6);
+  assert.equal(Math.floor(fastForwardTarget('season', at(1, 9)) / DAY), 4);
+  assert.equal(Math.floor(fastForwardTarget('season', at(5, 9)) / DAY), 8);
+  assert.equal(winterBlendAt(fastForwardTarget('season', at(1, 9))), 1);
+  assert.equal(winterBlendAt(fastForwardTarget('season', at(5, 9))), 0);
 });

@@ -103,9 +103,10 @@ const table = (rows, h) => {
 // dusk and dawn, whichever hour that is in the season: -6 deg is halfway through the change
 const GLOW = [[-12, 1.55], [-7.4, 1.25], [-5.4, 0.55], [8, 0.48], [30, 0.24]];
 // The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens
-const SUN_LIGHT = [[0, 0], [2, 3.1], [8, 5.8], [30, 6.6]];
-const MOON_LIGHT = [[-12, 1.45], [-6, 0.9], [-1, 0]];
-const MIN_LIGHT_SIN = Math.sin((3 * Math.PI) / 180), MIN_MOON_SIN = Math.sin((15 * Math.PI) / 180), MIN_SKY_SIN = Math.sin((1.5 * Math.PI) / 180);
+// (a low sun meets the walls head on, which the presets' high sun never did: it only reaches their full strength high up)
+const SUN_LIGHT = [[0, 0], [2, 2.6], [8, 4.6], [25, 4.8], [45, 5.6], [60, 6.6]];
+const MOON_LIGHT = [[-12, 1.15], [-6, 0.8], [-1, 0]];
+const MIN_LIGHT_SIN = Math.sin((3 * Math.PI) / 180), MIN_MOON_SIN = Math.sin((15 * Math.PI) / 180), MIN_SKY_SIN = Math.sin((14 * Math.PI) / 180);
 
 // Raises a unit vector to at least the height whose sine is `minSin`, keeping its compass direction
 function lift(v, minSin) {
@@ -117,7 +118,7 @@ const _sun = { x: 0, y: 1, z: 0 };
 
 /** A sample's object, to be reused (nothing is allocated per call) */
 export function createSample() {
-  const s = { minute: 0, height: 0, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0, skyDirX: 0, skyDirY: 1, skyDirZ: 0 };
+  const s = { minute: 0, height: 0, showSunDisc: true, presetId: 'golden', sunDirX: 0, sunDirY: 1, sunDirZ: 0, skyDirX: 0, skyDirY: 1, skyDirZ: 0 };
   for (const k of NUMBERS) s[k] = 0;
   for (const names of COLOUR_NAMES) for (const n of names) s[n] = 0;
   return s;
@@ -147,7 +148,8 @@ export function sampleDay(minute, w = 0, out = createSample()) {
   }
   out.interiorGlow = table(GLOW, h);
 
-  // The sky always has the sun where it is, just over the horizon when it has gone (the night factor darkens it)
+  // The sky model goes black as its sun nears the horizon, long before a real sky does: it keeps the sun at 14 deg or more,
+  // on its true bearing, and the anchors' sky exposure and night factor do the darkening
   sunVector(minute, w, _sun);
   const sx = _sun.x, sy = _sun.y, sz = _sun.z;
   lift(_sun, MIN_SKY_SIN);
@@ -164,6 +166,7 @@ export function sampleDay(minute, w = 0, out = createSample()) {
   }
   out.sunDirX = _sun.x; out.sunDirY = _sun.y; out.sunDirZ = _sun.z;
 
+  out.showSunDisc = h > 2;
   out.minute = minute;
   out.height = h;
   out.presetId = presetAt(h);

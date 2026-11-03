@@ -119,16 +119,24 @@ export function nextSeasonDay(total, season) {
   return d * MINUTES_PER_DAY;
 }
 
-/** The fast-forward's "next season": the morning (07:00) after the other season has begun */
+// The sun at 8 deg on a given day: a real morning or evening in either season (07:00 is dark in winter, 18:00 broad day in summer)
+const lightAt = (day, rising) => {
+  const start = day * MINUTES_PER_DAY;
+  const w = winterBlendAt(start + 12 * 60);
+  return start + minuteAtHeight(8, winterBlendAt(start + minuteAtHeight(8, w, rising)), rising);
+};
+
+/** The fast-forward's "next season": the first morning after the other season has begun, when the snow lies or has gone */
 export function nextSeasonMorning(total) {
-  return nextSeasonDay(total, seasonAt(total) === 'winter' ? 'summer' : 'winter') + 7 * 60;
+  return lightAt(dayOf(nextSeasonDay(total, seasonAt(total) === 'winter' ? 'summer' : 'winter')), true);
 }
 
-/** The fast-forward's menu: the next morning (07:00), the next evening (18:00), the next season's first morning */
+/** The fast-forward's menu: the next morning and evening by the sun of their day, the next season's first morning */
 export function fastForwardTarget(kind, total) {
-  if (kind === 'morning') return nextTimeOfDay(total, 7 * 60);
-  if (kind === 'evening') return nextTimeOfDay(total, 18 * 60);
-  return nextSeasonMorning(total);
+  if (kind === 'season') return nextSeasonMorning(total);
+  const rising = kind === 'morning';
+  const today = lightAt(dayOf(total), rising);
+  return today > total ? today : lightAt(dayOf(total) + 1, rising);
 }
 
 const STORAGE_KEY = 'slopdavos-clock';

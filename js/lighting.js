@@ -199,7 +199,7 @@ class LightingSystem {
       renderTarget: this.envRenderTarget
     });
     this.scene.environment = this.envRenderTarget.texture;
-    this.sky.showSunDisc.value = 1;
+    this.sky.showSunDisc.value = this.sunDiscOn === false ? 0 : 1;
     this.scene.add(this.sky);
   }
 
@@ -240,6 +240,8 @@ class LightingSystem {
     sky.mieDirectionalG.value = s.mieDirectionalG;
     sky.cloudDensity.value = s.cloudDensity;
     sky.sunPosition.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
+    this.sunDiscOn = s.showSunDisc; // (once the sun is down its disc doesn't stay in the sky model's lifted place)
+    sky.showSunDisc.value = s.showSunDisc ? 1 : 0;
     this.uSkyExposure.value = s.skyExposure;
     this.uNightFactor.value = s.nightFactor;
 

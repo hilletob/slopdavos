@@ -58,6 +58,10 @@ export function buildFastForward({ clock, apply, button, popover, closePopovers 
   const seasonSub = popover?.querySelector('[data-ff-season-sub]');
   popover?.addEventListener('beforetoggle', (e) => {
     if (e.newState !== 'open') return;
+    for (const kind of ['morning', 'evening']) {
+      const sub = popover.querySelector(`[data-ff="${kind}"] .pop-sub`);
+      if (sub) sub.textContent = formatClock(fastForwardTarget(kind, clock.total));
+    }
     const target = fastForwardTarget('season', clock.total);
     if (seasonName) setLocalizedText(seasonName, seasonAt(target) === 'winter' ? 'To the winter' : 'To the summer');
     const days = Math.round((target - clock.total) / MINUTES_PER_DAY);
