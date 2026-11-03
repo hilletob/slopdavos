@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { register } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 // js/gpu-memory.js only needs three.js' plain geometry containers: a small stand-in lets Node load it
 const three = encodeURIComponent(`
@@ -18,7 +19,7 @@ export class BufferGeometry {
 }`);
 register(`data:text/javascript,${encodeURIComponent(`export async function resolve(s, c, next) { return s === 'three/webgpu' ? { url: 'data:text/javascript,${three}', shortCircuit: true } : next(s, c); }`)}`);
 const THREE = await import('three/webgpu');
-const { indexGeometry, compactStaticGeometry } = await import('../js/gpu-memory.js');
+const { indexGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects } = await import('../js/gpu-memory.js');
 
 // A draped strip as drapeOverlay leaves it: non-indexed triangles, every inner corner repeated (n quads, 6 corners each)
 function strip(n) {
@@ -76,4 +77,36 @@ test('compactStaticGeometry indexes the static meshes and keeps their normals in
   assert.ok(before.disposed);
   assert.equal(instanced.geometry.index, null, 'instanced meshes are left alone');
   assert.equal(kept.geometry.index, null, 'userData.keepCpu');
+});
+
+test('an object going away lets go of its render state, its pipeline staying compiled', () => {
+  // (three.js' Pipelines as far as it matters here: delete() counts down, and at 0 the pipeline and its programs go)
+  const pipeline = { usedTimes: 1, vertexProgram: { usedTimes: 1 }, fragmentProgram: { usedTimes: 1 } };
+  const renderObject = {};
+  const pipelines = {
+    get: () => ({ pipeline }),
+    delete() { pipeline.usedTimes--; pipeline.vertexProgram.usedTimes--; pipeline.fragmentProgram.usedTimes--; return 'deleted'; }
+  };
+  keepPipelinesOfReleasedObjects({ _pipelines: pipelines });
+  const events = [];
+  const mesh = { dispatchEvent: (e) => { events.push(e.type); pipelines.delete(renderObject); } };
+  releaseRenderState(mesh);
+  assert.deepEqual(events, ['dispose'], 'a plain mesh: the event its render objects listen for');
+  assert.equal(pipeline.usedTimes, 1, 'the pipeline is still in use');
+  assert.equal(pipeline.vertexProgram.usedTimes, 1);
+  assert.equal(pipeline.fragmentProgram.usedTimes, 1);
+  let disposed = 0;
+  releaseRenderState({ isInstancedMesh: true, dispose() { disposed++; }, dispatchEvent() { assert.fail('its own dispose()'); } });
+  assert.equal(disposed, 1);
+  // Anything else (a material disposed for good) releases as ever
+  assert.equal(pipelines.delete(renderObject), 'deleted');
+  assert.equal(pipeline.usedTimes, 0);
+});
+
+test('what is torn down while playing releases its render state, what is built late is compacted', () => {
+  const source = (f) => readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8');
+  assert.match(source('world-stream.js'), /releaseRenderState\(m\)/);
+  assert.match(source('missions.js'), /releaseRenderState\(o\)/);
+  assert.match(source('main.js'), /keepPipelinesOfReleasedObjects\(renderer\)/);
+  assert.match(source('main.js'), /buildWinterScenery\(\);\s+finishLateScenery\(/, 'the winter scenery on the mobile profile');
 });

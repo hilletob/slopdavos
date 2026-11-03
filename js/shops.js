@@ -7,6 +7,7 @@ import { groundHeight } from './terrain.js';
 import { cityUniforms } from './tsl-materials.js';
 import { logoIndex, logoFor, logoImage, drawLogo } from './logos.js';
 import { QUALITY } from './quality.js';
+import { releaseRenderState } from './gpu-memory.js';
 
 // The shop signs of Davos (js/shops-data.js, tools/fetch-shops.mjs): each business's name in its brand colours, drawn
 // into canvas atlases (lettering, colours and a simple symbol; the brands' real logos, assets/logos, replace the
@@ -218,7 +219,7 @@ export function buildShops(scene) {
     }
   }).catch(() => {});
   function build() {
-    for (const child of [...group.children]) { child.geometry.dispose(); group.remove(child); }
+    for (const child of [...group.children]) { child.geometry.dispose(); releaseRenderState(child); group.remove(child); }
     const boards = pages.map(() => []), backs = [];
     for (const p of placed) {
       const { nx, nz } = p.frame, ux = -nz, uz = nx; // along the wall

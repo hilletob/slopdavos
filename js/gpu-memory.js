@@ -65,6 +65,42 @@ export function releaseUploadedGeometry(renderer, roots, { skip = () => false } 
   return bytes;
 }
 
+// (see releaseRenderState: the pipelines stay compiled)
+let keepingPipelines = false;
+/** To be called once the renderer is initialised (three.js' Pipelines: usedTimes counts the render objects on a pipeline) */
+export function keepPipelinesOfReleasedObjects(renderer) {
+  const pipelines = renderer._pipelines;
+  if (!pipelines) return;
+  const remove = pipelines.delete;
+  pipelines.delete = function (renderObject) {
+    const pipeline = keepingPipelines ? this.get(renderObject).pipeline : null;
+    if (pipeline && !pipeline.isComputePipeline) {
+      pipeline.usedTimes++;
+      pipeline.vertexProgram.usedTimes++;
+      pipeline.fragmentProgram.usedTimes++;
+    }
+    return remove.call(this, renderObject);
+  };
+}
+
+/**
+ * For an object going away for good while its material stays (the streamed cells', the missions' shared ones): three.js
+ * keeps a drawn object's render state (its bindings and uniform buffers on the GPU, node state in JavaScript) until
+ * the object or its material is disposed. Disposing the geometry doesn't do that and a plain Mesh has no dispose(),
+ * so all of it stayed for good, a few GPU buffers an object.
+ * The compiled pipeline stays (keepPipelinesOfReleasedObjects): the next cell with that material would otherwise compile
+ * the same shaders again, and on a phone compiling is the dangerous and slow part. There are only so many of them.
+ */
+export function releaseRenderState(object) {
+  keepingPipelines = true;
+  try {
+    if (object.isInstancedMesh) object.dispose();
+    else object.dispatchEvent({ type: 'dispose' });
+  } finally {
+    keepingPipelines = false;
+  }
+}
+
 /** What has been released so far: { geometries, attributes, bytes } */
 export const releasedGeometryStats = () => ({ ...stats });
 

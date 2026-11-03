@@ -48,7 +48,7 @@ import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
-import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
+import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
 import { gameClock } from './game-clock.js';
 import { missionClockTime } from './mission-windows.js';
@@ -139,6 +139,10 @@ async function initApp() {
     (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
   }
 
+  // (?memhud=1: the read-out for a real phone, js/mem-hud.js; loaded and hooked in only with the switch)
+  const memHud = /[?&]memhud=(1|true)\b/.test(location.search) ? await import('./mem-hud.js') : null;
+  memHud?.countGpuAllocations();
+
   // 1. Initialize Three.js WebGPURenderer with 32-bit float reversedDepthBuffer
   // (the device profile, js/quality.js: no MSAA on the mobile one, whose four samples of each render target cost more
   // than its screen gains from them)
@@ -167,6 +171,7 @@ async function initApp() {
   };
 
   await renderer.init();
+  keepPipelinesOfReleasedObjects(renderer);
   markInit('renderer');
   // (the mobile profile: every shader module numbered in the breadcrumbs, with its object, length and hash, and the
   // compiler's complaints; ?qset=shaderLog:true elsewhere)
@@ -247,8 +252,19 @@ async function initApp() {
     refreshTerrainChunks({ all: true }); // (the terrain sinks a little under the streets just built)
     console.info('[world] cells of the start:', JSON.stringify(world.info()));
   }
-  // The winter-only scenery: on the mobile profile (js/quality.js) only built once winter is switched on (~90 MB of
-  // trails and runs a summer visit never shows); they lie on the terrain already ('absolute')
+  // What is built once the town stands gets what the start-up build gives the static scenery: compacted, on WebGPU its
+  // instances in storage buffers, its matrices set (the scene's are frozen)
+  const finishLateScenery = (roots) => {
+    compact(roots);
+    for (const root of roots) {
+      if (renderer.backend.isWebGPUBackend) root.traverse((o) => { if (o.isInstancedMesh) o.instanceMatrix = new THREE.StorageInstancedBufferAttribute(o.instanceMatrix.array, 16); });
+      root.updateMatrixWorld(true);
+    }
+  };
+  // The winter-only scenery: on the mobile profile (js/quality.js) only built once winter comes (trails and runs a
+  // summer visit never shows; they lie on the terrain already, 'absolute'). It stays built through the summers: compacted
+  // it is ~4 MB of vertex data, and building it again would allocate ~50 MB of arrays and about as much again of objects
+  // each time, on a phone whose trouble is such peaks
   let winterSceneryBuilt = false;
   const buildWinterScenery = () => {
     if (winterSceneryBuilt) return;
@@ -265,7 +281,7 @@ async function initApp() {
       stop();
       const before = new Set(scene.children);
       buildWinterScenery();
-      for (const o of scene.children) if (!before.has(o)) o.updateMatrixWorld(true); // (the scene's matrices are frozen)
+      finishLateScenery(scene.children.filter((o) => !before.has(o)));
     });
   }
   const crossCountry = skipped('winter') ? { update: NOOP } : buildCrossCountry(scene); // cross-country skiers on them (js/cross-country.js)
@@ -469,8 +485,7 @@ async function initApp() {
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
   if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries compacted: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;
-  // The deferred scenery (see buildLater), once the town is on screen: built, compacted, its matrices set (the scene's
-  // are frozen) and, on WebGPU, its instances in storage buffers like the rest (below)
+  // The deferred scenery (see buildLater), once the town is on screen
   const buildDeferred = async () => {
     const build = deferred.shift();
     if (!build) return;
@@ -480,12 +495,7 @@ async function initApp() {
     } catch (error) {
       console.warn('[deferred]', error);
     }
-    const added = scene.children.filter((o) => !before.has(o));
-    compact(added);
-    for (const root of added) {
-      if (renderer.backend.isWebGPUBackend) root.traverse((o) => { if (o.isInstancedMesh) o.instanceMatrix = new THREE.StorageInstancedBufferAttribute(o.instanceMatrix.array, 16); });
-      root.updateMatrixWorld(true);
-    }
+    finishLateScenery(scene.children.filter((o) => !before.has(o)));
     setTimeout(buildDeferred, 1500);
   };
   const releaseStatic = () => {
@@ -1264,6 +1274,7 @@ async function initApp() {
         setInterval(releaseStatic, 5000);
         setTimeout(buildDeferred, 2000);
         setLoadingProgress(1);
+        memHud?.startMemHud({ renderer, scene, state: () => ({ season: gameClock.season, winterScenery: winterSceneryPending() ? 'not built' : 'built' }) });
       });
     }
 

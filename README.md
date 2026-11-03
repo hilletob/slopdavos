@@ -43,7 +43,7 @@ the north, and the Dischma from its mouth at Davos Dorf up to Dürrboden in the 
   high-resolution data or sharp roof crops, fewer trees, cars, pedestrians and skiers, and the winter-only runs and
   trails built only once winter is switched on. `?quality=mobile` or `?quality=desktop` in the
   URL overrides the detection. On both, static vertex data and decoded images leave JavaScript once they are on the
-  GPU (`js/gpu-memory.js`).
+  GPU (`js/gpu-memory.js`). `?memhud=1` shows a small read-out of fps, memory and draw counts for a real phone (`js/mem-hud.js`).
 - **The horizon**: the relief around the valley from **swissALTIRegio**, stitched to the local terrain and lowered by
   the Earth's curvature: the Parsenn, the Weissfluh, the Rinerhorn, the Flüela and Albula Alps.
 - **LV95 world frame**: 1 unit = 1 m, `x = E − 2782500`, `z = 1185500 − N`, `y = height − 1558 m` (Davosersee level).

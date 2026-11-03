@@ -7,6 +7,7 @@ import { groomMap } from './groom-map.js';
 import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter } from './quality.js';
+import { releaseRenderState } from './gpu-memory.js';
 import { MissionManager, worldCellsReady } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
 import { buildMissionWorld } from './missions-world.js';
@@ -66,7 +67,12 @@ export function buildMissions(scene, hooks) {
     showList: (note) => { listOverlay = showList(manager, progress, note, hooks.fastForward); },
     hideList: () => { listOverlay?.remove(); listOverlay = null; },
     setSearch: (search) => {
-      try { history.replaceState(history.state, '', `${location.pathname}${search}${location.hash}`); } catch { /* (sandboxed) */ }
+      // (the URL's other switches stay: a reload keeps ?quality=, ?memhud=, ...)
+      const params = new URLSearchParams(location.search);
+      params.delete('mission'); params.delete('night');
+      for (const [key, value] of new URLSearchParams(search)) params.set(key, value);
+      const merged = params.toString();
+      try { history.replaceState(history.state, '', `${location.pathname}${merged ? `?${merged}` : ''}${location.hash}`); } catch { /* (sandboxed) */ }
     },
     onError: (error, id) => console.warn('[missions] could not', id === 'dispose' ? 'tear down the run' : `start ${id}`, error),
     onFrame: (active, dt, cm) => world?.update(active, dt, cm)
@@ -181,7 +187,9 @@ function disposeTree(root) {
   root.traverse((o) => {
     if (o.geometry) geometries.add(o.geometry);
     for (const m of [].concat(o.material || [])) if (!m.userData?.shared) materials.add(m);
-    if (o.isInstancedMesh) o.dispose();
+    // (on a shared material only the object can let go of what three.js keeps for it: js/gpu-memory.js)
+    if (o.geometry && [].concat(o.material || []).some((m) => m.userData?.shared)) releaseRenderState(o);
+    else if (o.isInstancedMesh) o.dispose();
   });
   for (const g of geometries) g.dispose();
   for (const m of materials) {
