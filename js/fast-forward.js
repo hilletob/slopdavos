@@ -1,4 +1,4 @@
-import { MINUTES_PER_DAY, fastForwardTarget, seasonAt, dayOf, formatClock } from './game-clock.js';
+import { fastForwardTarget, seasonAt, dayOf, formatClock } from './game-clock.js';
 import { setLocalizedText } from './i18n.js';
 
 // js/fast-forward.js
@@ -64,7 +64,7 @@ export function buildFastForward({ clock, apply, button, popover, closePopovers 
     }
     const target = fastForwardTarget('season', clock.total);
     if (seasonName) setLocalizedText(seasonName, seasonAt(target) === 'winter' ? 'To the winter' : 'To the summer');
-    const days = Math.round((target - clock.total) / MINUTES_PER_DAY);
+    const days = dayOf(target) - dayOf(clock.total);
     if (seasonSub) setLocalizedText(seasonSub, `${days <= 1 ? 'Tomorrow' : `In ${days} days`} · ${formatClock(target)}`);
   });
   popover?.querySelectorAll('[data-ff]').forEach((item) => item.addEventListener('click', () => {
