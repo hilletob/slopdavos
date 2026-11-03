@@ -19,7 +19,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 
 /** The "walk to the door" step */
-function walkInto(spot, title, label, allowModes = ['person']) {
+export function walkInto(spot, title, label, allowModes = ['person']) {
   return {
     id: 'enter',
     title,

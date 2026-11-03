@@ -11,6 +11,7 @@ import { WORK_MISSIONS } from './missions-data-work.js'; // snow shovel, snow bl
 import { RESORT_MISSIONS } from './missions-data-resort.js'; // the Hauptertäli T-bar, waxing at Hofmänner, the Jakobshorn car park
 import { GASTRO_MISSIONS } from './missions-data-gastro.js'; // Flämmli in the Rot Liechtli, Pizza Heaven
 import { OUTDOOR_MISSIONS } from './missions-data-outdoor.js'; // the rope park in the Färich, hockey on the Seehofseeli
+import { BARS_MISSIONS } from './missions-data-bars.js'; // Nageln in the Tijuana Bar, Barista at the Kafi Klatsch
 import { SPORT_MISSIONS } from './missions-data-sport.js'; // Davos Nordic, minigolf at the Waldhuus, darts at The Green Wildman, the Schüssla
 
 // js/missions-data.js
@@ -553,5 +554,5 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...BARS_MISSIONS];
 export const getMission = (id) => MISSIONS.find((m) => m.id === id) || null;

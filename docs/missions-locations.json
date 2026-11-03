@@ -2130,6 +2130,52 @@
    "unsicherheit": "niedrig",
    "unsicherheitNotiz": "Der Umriss des Seelis ist aus OSM. Dass dort tatsächlich Hockey gespielt wird oder das Eis trägt, ist nicht belegt; Spielfeldlage, Tore, Schneewälle und Zuschauer sind erfunden.",
    "nr": 49
+  },
+  {
+   "id": "nageln-tijuana",
+   "status": "bestehend",
+   "name": "Nageln in der Tijuana Bar",
+   "kurz": "Beizenspiel am Baumstamm: drei Partien gegen 3, 3 und 4 Leute aus der Bar mit unterschiedlichem Können. Reihum ein Schlag pro Zug: erst zielen, dann Kraft; ein Fehlschlag oder ein verbogener Nagel kostet den Zug, wer den Nagel zuerst versenkt, gewinnt. Medaille nach Punkten (Siege, wenige Schläge, perfekte Schläge).",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Pin an der Talstrasse 15 (Davos Platz), Start gegenüber auf der Strassenseite, Blick zur Tür",
+   "ort": {
+    "name": "Tijuana Bar, Talstrasse 15, 7270 Davos Platz",
+    "x": -530.2,
+    "z": 325.2,
+    "lv95": {
+     "E": 2781970,
+     "N": 1185175
+    }
+   },
+   "punkte": [],
+   "quelle": "davos.ch und graubuenden.ch (Tijuana Bar, Talstrasse 15; Rock'n'Roll, Bier, Shots, Nachos) · swisstopo Gebäudeadressen (api3.geo.admin.ch)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Tür ist aus Adresspunkt und Gebäudeumriss geschätzt (Seite zur Talstrasse). Der Innenraum ist frei erfunden, und ob in der Bar wirklich genagelt wird, ist nicht belegt: Der Baumstamm ist unsere Erfindung. Eine Seite von Davos Klosters nennt eine Schliessung vom 27.11.2026 bis 04.04.2027; nicht weiter geprüft.",
+   "nr": 50
+  },
+  {
+   "id": "barista-kafi-klatsch",
+   "status": "bestehend",
+   "name": "Barista im Kafi Klatsch",
+   "kurz": "Morgenansturm hinter der Theke: 12 Gäste bestellen Café crème, Schale, Espresso, Latte Macchiato oder Cappuccino. Pro Station eine Taste (mahlen, tampen, beziehen, schäumen, giessen, servieren) im grünen Bereich stoppen, bevor der Gast geht. Stammgäste nennen ihre Bestellung einmal, beim zweiten Besuch heisst es nur noch «wie immer» (Bonus fürs Merken). Medaille nach Punkten.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Pin an der Promenade 38 (Davos Platz), Start auf der anderen Strassenseite, Blick zur Tür",
+   "ort": {
+    "name": "KaffeeKlatsch am Platz, Promenade 38, 7270 Davos Platz",
+    "x": -693.6,
+    "z": 319.5,
+    "lv95": {
+     "E": 2781806,
+     "N": 1185181
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM n1126920425 (Kaffeeklatsch, Promenade 38; auch das Schild in js/shops-data.js) · davos.ch (KaffeeKlatsch am Platz) · swisstopo Gebäudeadressen (api3.geo.admin.ch)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Es gibt zwei Betriebe: KaffeeKlatsch am Platz (Promenade 38, hier gewählt, weil OSM und das Schild im Spiel dort sind) und das ursprüngliche KaffeeKlatsch an der Promenade 72. «Kafi Klatsch» ist der Name aus dem Auftrag; das Lokal heisst offiziell Kaffeeklatsch, gemeint sein könnte auch die Nummer 72. Die Tür ist aus Adresspunkt und Gebäudeumriss geschätzt, der Innenraum, die Stammgäste und ihr Klatsch sind erfunden.",
+   "nr": 51
   }
  ]
 }

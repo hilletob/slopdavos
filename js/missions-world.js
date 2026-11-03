@@ -295,6 +295,21 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(-g * 0.4, g * 0.85); ctx.lineTo(-g * 0.4, -g * 0.8); ctx.lineTo(g * 0.1, -g * 0.8); ctx.arc(g * 0.1, -g * 0.3, g * 0.5, -Math.PI / 2, Math.PI / 2); ctx.lineTo(-g * 0.4, g * 0.2); ctx.stroke();
       break;
     }
+    case 'hammer': { // Nageln: the hammer over its nail (js/missions-data-bars.js)
+      ctx.save(); ctx.rotate(-0.6);
+      ctx.fillRect(-g * 0.12, -g * 0.55, g * 0.24, g * 1.45);
+      ctx.beginPath(); ctx.moveTo(-g * 0.85, -g * 0.95); ctx.lineTo(g * 0.25, -g * 0.95); ctx.lineTo(g * 0.95, -g * 0.7); ctx.lineTo(g * 0.25, -g * 0.45); ctx.lineTo(-g * 0.85, -g * 0.45); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'coffee': { // a cup on its saucer, the steam over it (js/missions-data-bars.js)
+      ctx.beginPath(); ctx.moveTo(-g * 0.7, -g * 0.15); ctx.lineTo(g * 0.55, -g * 0.15); ctx.quadraticCurveTo(g * 0.55, g * 0.65, 0, g * 0.65); ctx.quadraticCurveTo(-g * 0.7, g * 0.65, -g * 0.7, -g * 0.15); ctx.fill();
+      ctx.fillRect(-g * 0.9, g * 0.75, g * 1.7, g * 0.17);
+      ctx.lineWidth = g * 0.16; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(g * 0.6, g * 0.15, g * 0.24, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      for (const x of [-0.35, 0.1]) { ctx.beginPath(); ctx.moveTo(g * x, -g * 0.4); ctx.quadraticCurveTo(g * (x + 0.22), -g * 0.65, g * x, -g * 0.95); ctx.stroke(); }
+      break;
+    }
     case 'flame': { // a Flämmli: the flame over its glass (js/missions-data-gastro.js)
       ctx.beginPath(); ctx.moveTo(0, -g * 1.05); ctx.bezierCurveTo(g * 0.75, -g * 0.35, g * 0.4, g * 0.15, 0, g * 0.15); ctx.bezierCurveTo(-g * 0.4, g * 0.15, -g * 0.75, -g * 0.35, 0, -g * 1.05); ctx.fill();
       ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.3); ctx.lineTo(g * 0.45, g * 0.3); ctx.lineTo(g * 0.32, g * 1.0); ctx.lineTo(-g * 0.32, g * 1.0); ctx.closePath(); ctx.fill();
