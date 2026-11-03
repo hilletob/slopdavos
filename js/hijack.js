@@ -130,6 +130,24 @@ export function findTakeableBus(player, buses, bodies, { radius = TAKE_RADIUS.bu
   return best ? { ...best, distance: bestD } : null;
 }
 
+/**
+ * Where a vehicle taken at (x, z) facing `yaw` stands clear (`isClear(x, z)`): there, or the nearest spot beside it, left
+ * first (the lane runs right of the road's middle, so that is towards the road), within `reach` metres. A bus in service
+ * passes through the corner of a house on a narrow bend (the Sertig's terminus); the player's bus is solid and would be
+ * wedged. Returns { x, z } or null when nothing nearby is clear.
+ */
+export function clearSpotBeside(x, z, yaw, isClear, { step = 0.5, reach = 4 } = {}) {
+  if (isClear(x, z)) return { x, z };
+  const lx = Math.cos(yaw), lz = -Math.sin(yaw);
+  for (let off = step; off <= reach + 1e-9; off += step) {
+    for (const side of [1, -1]) {
+      const px = x + lx * off * side, pz = z + lz * off * side;
+      if (isClear(px, pz)) return { x: px, z: pz };
+    }
+  }
+  return null;
+}
+
 // --- The cars of the car parks (js/parking.js) ------------------------------------------------------------------------
 /** A bay's identity: the same whichever cell build lays it out (bays are deterministic) */
 export const bayKey = (x, z) => `${Math.round(x * 10)},${Math.round(z * 10)}`;
