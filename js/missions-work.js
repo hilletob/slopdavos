@@ -283,44 +283,181 @@ const box = (w, h, l, colour, x = 0, y = 0, z = 0, o) => { const m = new THREE.M
 const glassMat = () => mat(0x223040, { roughness: 0.15, metalness: 0.3 });
 const glass = (w, h, l, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), glassMat()); m.position.set(x, y, z); return m; };
 
-/** The rotary snow blower: a short four-wheeled carrier, the cab, the auger housing in front, the chute on top */
+// --- The rotary snow blower --------------------------------------------------------------------------------------------
+// Modelled after a compact municipal Schneeschleuder (a Zaugg SF head on a Rolba / Boschung-like carrier): a short
+// four-wheeled carrier with its visibility cab over the front axle and the engine behind, and the milling head bolted
+// to the nose — side plates with skids, the cutting edge on the ground, the two counter-wound auger ribbons feeding the
+// impeller in the middle and the chute turning on top of the housing.
+// Built from boxes and cylinders, merged per paint into ~8 meshes (the wheels, the auger, the impeller and the chute
+// stay apart because they turn).
+const BLOWER_PAINT = {
+  orange: { c: 0xf07d1a, o: { roughness: 0.5, metalness: 0.15 } },
+  shade: { c: 0xc4620e, o: { roughness: 0.55, metalness: 0.15 } }, // the head and the frame, a shade darker
+  dark: { c: 0x2a2b2e, o: { roughness: 0.7 } },
+  steel: { c: 0x9aa0a6, o: { roughness: 0.35, metalness: 0.7 } },
+  white: { c: 0xe9e9e4, o: { roughness: 0.6 } },
+  red: { c: 0xb3121b, o: { roughness: 0.6 } },
+  lamp: { c: 0xfff3d0, o: { emissive: 0xffe7a8, emissiveIntensity: 0.8, roughness: 0.3 } },
+  amber: { c: 0xffb300, o: { emissive: 0xff8f00, emissiveIntensity: 0.7, roughness: 0.3 } },
+  tail: { c: 0x8e1b16, o: { emissive: 0x6a0f0c, emissiveIntensity: 0.5, roughness: 0.4 } }
+};
+/** Collects geometries per paint and merges each bin into one mesh */
+function paintBins() {
+  const bins = new Map();
+  return {
+    add(key, ...geos) { const b = bins.get(key) || bins.set(key, []).get(key); b.push(...geos); return this; },
+    meshes() {
+      const out = [];
+      for (const [key, geos] of bins) {
+        const spec = BLOWER_PAINT[key];
+        const m = new THREE.Mesh(mergeGeometries(geos), key === 'glass'
+          ? mat(0x35485c, { roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.62 }) // (the driver shows through)
+          : mat(spec.c, spec.o));
+        m.castShadow = true; m.receiveShadow = true;
+        for (const g of geos) g.dispose();
+        out.push(m);
+      }
+      return out;
+    }
+  };
+}
+const gbox = (w, h, l, x = 0, y = 0, z = 0) => new THREE.BoxGeometry(w, h, l).translate(x, y, z);
+/** A cylinder along `axis` ('x' | 'y' | 'z'), its middle at (x, y, z) */
+const gcyl = (r, len, axis, x, y, z, seg = 12, open = false, t0 = 0, t1 = Math.PI * 2) => {
+  const g = new THREE.CylinderGeometry(r, r, len, seg, 1, open, t0, t1);
+  if (axis === 'x') g.rotateZ(Math.PI / 2); else if (axis === 'z') g.rotateX(Math.PI / 2);
+  return g.translate(x, y, z);
+};
+/** One ribbon of the auger: a band along a helix about the x axis, x0 → x1, `hand` its winding */
+function augerRibbon(x0, x1, radius, turns, hand) {
+  const pts = Array.from({ length: 33 }, (_, i) => {
+    const t = i / 32, a = hand * turns * Math.PI * 2 * t;
+    return new THREE.Vector3(x0 + (x1 - x0) * t, Math.sin(a) * radius, Math.cos(a) * radius);
+  });
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 56, 0.05, 4, false);
+}
+
 function buildBlowerModel() {
   const g = new THREE.Group();
   g.name = 'SnowBlower';
-  const orange = 0xf07d1a, dark = 0x2a2b2e;
-  g.add(box(2.1, 0.9, 3.2, orange, 0, 1.0, -0.3));
-  const cab = box(1.6, 1.25, 1.5, orange, 0, 2.05, -0.75);
-  g.add(cab);
-  for (const [w, h, l, x, y, z] of [[1.5, 0.75, 0.04, 0, 2.2, 0.01], [0.04, 0.7, 1.2, 0.81, 2.2, -0.75], [0.04, 0.7, 1.2, -0.81, 2.2, -0.75]]) g.add(glass(w, h, l, x, y, z));
-  g.add(box(0.5, 0.12, 0.3, 0xffb300, 0, 2.75, -0.75, { emissive: 0xff8f00, emissiveIntensity: 0.6 })); // the beacon
-  // the auger housing: a half drum across the front
-  const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, BLOWER.workHalf * 2, 20, 1, true, Math.PI, Math.PI).rotateZ(Math.PI / 2), mat(orange, { side: THREE.DoubleSide }));
-  housing.position.set(0, 0.62, BLOWER.ahead);
-  g.add(housing);
-  g.add(box(BLOWER.workHalf * 2, 0.08, 0.5, dark, 0, 0.04, BLOWER.ahead + 0.15));
-  const auger = new THREE.Group();
-  auger.position.set(0, 0.55, BLOWER.ahead + 0.05);
-  for (let i = 0; i < 6; i++) {
-    const flight = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 4, 12, Math.PI).rotateY(Math.PI / 2), mat(0x9aa0a6, { metalness: 0.6, roughness: 0.4 }));
-    flight.position.x = -BLOWER.workHalf + 0.25 + i * ((BLOWER.workHalf * 2 - 0.5) / 5);
-    flight.rotation.x = i * 0.9;
-    auger.add(flight);
+  const P = paintBins();
+  const AH = BLOWER.ahead, HW = BLOWER.workHalf; // the head's centre ahead of the carrier, its half width
+
+  // --- the carrier: the chassis, the cab over the front axle, the engine behind ---
+  P.add('dark', gbox(2.1, 0.34, 3.7, 0, 0.62, -0.35)); // the chassis frame
+  P.add('orange', gbox(2.15, 0.5, 1.7, 0, 1.0, 0.3)); // the sill under the cab
+  P.add('orange', gbox(2.05, 1.2, 1.75, 0, 1.4, -1.3)); // the engine hood behind the cab
+  P.add('shade', gbox(2.1, 0.12, 1.8, 0, 2.05, -1.3)); // its lid
+  for (const x of [1.04, -1.04]) for (const dz of [-0.45, -0.95, -1.45]) P.add('dark', gbox(0.04, 0.6, 0.12, x, 1.4, dz + 0.15)); // the louvres
+  P.add('dark', gbox(2.12, 0.14, 1.6, 0, 0.88, -1.3)); // the skirt under the engine
+  P.add('dark', gbox(1.5, 0.5, 0.06, 0, 1.5, -2.19)); // the radiator grille behind
+  for (let i = 0; i < 5; i++) P.add('steel', gbox(1.4, 0.04, 0.03, 0, 1.3 + i * 0.1, -2.23));
+  P.add('dark', gbox(0.22, 0.16, 0.1, 0, 2.0, -2.19)); P.add('lamp', gcyl(0.06, 0.04, 'z', 0, 2.0, -2.26, 10)); // the lamp over it
+  P.add('steel', gcyl(0.075, 1.5, 'y', 0.88, 2.55, -0.35, 8)); // the exhaust stack
+  P.add('dark', gcyl(0.1, 0.18, 'y', 0.88, 3.35, -0.35, 8));
+  // the cab: a frame of posts with the glass between, the roof over it
+  P.add('orange', gbox(1.8, 0.45, 1.75, 0, 1.52, 0.3)); // the cab's lower panel
+  for (const x of [0.87, -0.87]) for (const z of [1.09, -0.53]) P.add('shade', gbox(0.1, 1.05, 0.1, x, 2.27, z));
+  P.add('shade', gbox(1.9, 0.14, 1.95, 0, 2.86, 0.28)); // the roof
+  P.add('dark', gbox(1.84, 0.06, 1.88, 0, 2.77, 0.28));
+  for (const [w, h, l, x, y, z] of [[1.66, 1.0, 0.05, 0, 2.27, 1.1], [1.66, 1.0, 0.05, 0, 2.27, -0.54], [0.05, 1.0, 1.5, 0.87, 2.27, 0.28], [0.05, 1.0, 1.5, -0.87, 2.27, 0.28]]) P.add('glass', gbox(w, h, l, x, y, z));
+  P.add('dark', gbox(0.5, 0.1, 0.45, 0, 1.79, 0.05), gbox(0.5, 0.5, 0.1, 0, 2.03, -0.17)); // the driver's seat
+  P.add('dark', gcyl(0.03, 0.3, 'y', 0, 2.0, 0.6, 6)); // the steering column
+  P.add('dark', new THREE.TorusGeometry(0.17, 0.025, 5, 14).rotateX(Math.PI / 2 - 0.35).translate(0, 2.16, 0.68));
+  for (const x of [0.91, -0.91]) { // the door: its seam, the handle and the grab rail beside it
+    P.add('dark', gbox(0.04, 1.4, 0.05, x, 2.1, -0.38), gbox(0.04, 0.05, 1.3, x, 1.42, 0.22), gbox(0.05, 0.1, 0.22, x, 2.0, -0.2));
+    P.add('steel', gcyl(0.03, 1.2, 'y', x, 1.75, -0.48, 6));
   }
-  auger.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, BLOWER.workHalf * 2 - 0.1, 8).rotateZ(Math.PI / 2), mat(0x6b7075, { metalness: 0.5 })));
+  for (const x of [0.92, -0.92]) { // the mirrors on their arms, the step under the door
+    P.add('dark', gcyl(0.025, 0.42, 'x', x + Math.sign(x) * 0.21, 2.62, 1.0, 6), gbox(0.06, 0.34, 0.2, x + Math.sign(x) * 0.42, 2.44, 1.0));
+    P.add('steel', gbox(0.4, 0.05, 0.42, x + Math.sign(x) * 0.14, 0.9, 0.35));
+  }
+  // the lamps: the headlamps in the cab's panel, the beacons and the work lamps on the roof, the tail lamps behind
+  for (const x of [0.6, -0.6]) { P.add('dark', gbox(0.26, 0.2, 0.14, x, 1.52, 1.14)); P.add('lamp', gcyl(0.075, 0.05, 'z', x, 1.52, 1.21, 10)); }
+  for (const x of [0.62, -0.62]) { P.add('dark', gcyl(0.12, 0.05, 'y', x, 2.95, 1.0, 10)); P.add('amber', gcyl(0.1, 0.16, 'y', x, 3.05, 1.0, 10)); }
+  for (const x of [0.62, -0.62]) { P.add('dark', gbox(0.3, 0.16, 0.12, x, 2.98, 1.3)); P.add('lamp', gbox(0.24, 0.1, 0.04, x, 2.98, 1.37)); }
+  for (const x of [0.85, -0.85]) P.add('tail', gbox(0.18, 0.3, 0.06, x, 1.35, -2.21));
+  // the rear: the warning chevrons and the tow hitch
+  for (let i = 0; i < 7; i++) P.add(i % 2 ? 'white' : 'red', gbox(0.27, 0.42, 0.06, -0.81 + i * 0.27, 0.95, -2.21));
+  P.add('dark', gbox(0.22, 0.22, 0.3, 0, 0.6, -2.3), gbox(1.9, 0.18, 0.12, 0, 0.42, -2.25));
+
+  // --- the head: the lift frame, the housing, the cutting edge, the skids ---
+  for (const x of [0.62, -0.62]) P.add('dark', gbox(0.14, 0.2, 1.0, x, 0.62, AH - 1.0));
+  for (const x of [0.5, -0.5]) P.add('steel', gcyl(0.06, 0.8, 'z', x, 1.1, AH - 0.95, 8)); // the lift rams
+  P.add('shade', gbox(HW * 2, 1.3, 0.1, 0, 0.75, AH - 0.45)); // the back plate
+  P.add('shade', gbox(HW * 2, 0.12, 0.95, 0, 1.34, AH - 0.02)); // the top deck
+  P.add('shade', gbox(HW * 2, 0.1, 0.16, 0, 1.3, AH + 0.42)); // the front rail
+  for (const x of [HW - 0.05, -(HW - 0.05)]) {
+    P.add('shade', gbox(0.1, 1.3, 0.95, x, 0.75, AH - 0.02));
+    P.add('dark', gbox(0.16, 0.22, 0.6, x, 0.18, AH - 0.15)); // the skid
+    for (let i = 0; i < 4; i++) P.add(i % 2 ? 'white' : 'red', gbox(0.11, 0.24, 0.22, x + Math.sign(x) * 0.06, 1.0 - i * 0.24, AH - 0.02)); // the chevrons on the plate
+  }
+  P.add('dark', gbox(HW * 2 - 0.2, 1.15, 0.06, 0, 0.73, AH - 0.37)); // the mouth's dark inside behind the auger
+  P.add('shade', gbox(HW * 2, 0.1, 0.3, 0, 1.26, AH + 0.33)); // the deck's lip over the mouth
+  P.add('dark', gbox(HW * 2, 0.14, 0.5, 0, 0.07, AH + 0.12)); // the cutting edge on the ground
+  P.add('steel', gcyl(0.62, 0.5, 'z', 0, 0.78, AH - 0.68, 16)); // the impeller's scroll housing behind the middle
+  for (const x of [1.12, -1.12]) { // the work lamps on the deck, on their brackets
+    P.add('shade', gbox(0.1, 0.2, 0.1, x, 1.46, AH - 0.05));
+    P.add('dark', gbox(0.2, 0.18, 0.12, x, 1.58, AH + 0.02));
+    P.add('lamp', gcyl(0.06, 0.04, 'z', x, 1.58, AH + 0.09, 10));
+  }
+
+  for (const m of P.meshes()) g.add(m);
+
+  // the auger: two ribbons wound against each other on one shaft, feeding the middle
+  const auger = new THREE.Group();
+  auger.position.set(0, 0.74, AH + 0.02);
+  const augerMat = mat(0x8d949b, { metalness: 0.65, roughness: 0.35 });
+  const ribbons = [augerRibbon(-(HW - 0.1), -0.2, 0.46, 1.35, 1), augerRibbon(HW - 0.1, 0.2, 0.46, 1.35, 1)];
+  const spokes = [];
+  for (let i = 0; i < 8; i++) { // the flighting's supports from the shaft out to the ribbon
+    const side = i < 4 ? -1 : 1, t = (i % 4) / 3, a = 1.35 * Math.PI * 2 * t;
+    spokes.push(gbox(0.08, 0.46, 0.05, side * (HW - 0.1 - t * (HW - 0.3)), 0.23, 0).rotateX(-a + Math.PI / 2).translate(0, 0, 0));
+  }
+  const augerMesh = new THREE.Mesh(mergeGeometries([...ribbons, ...spokes, gcyl(0.1, HW * 2 - 0.2, 'x', 0, 0, 0, 10)]), augerMat);
+  augerMesh.castShadow = true;
+  auger.add(augerMesh);
   g.add(auger);
-  // the chute: a tube up from the housing, its deflector turned to the throwing side
+  // the impeller inside the housing: four paddles on the fan's disc, turning about z
+  const impeller = new THREE.Group();
+  impeller.position.set(0, 0.78, AH - 0.62);
+  const blades = [gcyl(0.14, 0.26, 'z', 0, 0, 0, 10)];
+  for (let i = 0; i < 4; i++) blades.push(gbox(0.09, 0.62, 0.24, 0, 0.33, 0).rotateZ((i * Math.PI) / 2));
+  const impMesh = new THREE.Mesh(mergeGeometries(blades), mat(0x74797f, { metalness: 0.6, roughness: 0.4 }));
+  impeller.add(impMesh);
+  g.add(impeller);
+  // the chute on the housing: the turn ring, the tube, the deflector hood over its mouth
   const chute = new THREE.Group();
-  chute.position.set(0, 1.1, BLOWER.ahead - 0.35);
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 1.4, 12).translate(0, 0.7, 0), mat(orange));
-  const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.7, 12, 1, true, 0, Math.PI).rotateZ(Math.PI / 2).translate(0.3, 1.45, 0), mat(dark, { side: THREE.DoubleSide }));
-  chute.add(tube, hood);
+  chute.position.set(0, 1.4, AH - 0.62);
+  const TOP = 1.15, BEND = 0.5, TUBE = 0.24; // the tube up to TOP, then a quarter bend of BEND out to the side
+  const chuteParts = new THREE.Mesh(mergeGeometries([
+    gcyl(0.36, 0.12, 'y', 0, 0.02, 0, 14), // the turn ring on the housing
+    new THREE.CylinderGeometry(TUBE, TUBE + 0.06, TOP - 0.08, 14).translate(0, (TOP + 0.08) / 2, 0),
+    new THREE.TorusGeometry(BEND, TUBE, 8, 12, Math.PI / 2).rotateZ(Math.PI / 2).translate(BEND, TOP, 0)
+  ]), mat(BLOWER_PAINT.shade.c, BLOWER_PAINT.shade.o));
+  chuteParts.castShadow = true;
+  // the deflector at the mouth: the flared ring and the plate leaning over it, both to the throwing side
+  const hood = new THREE.Mesh(
+    mergeGeometries([
+      gcyl(TUBE + 0.04, 0.3, 'x', BEND + 0.16, TOP + BEND, 0, 12, true),
+      new THREE.BoxGeometry(0.4, 0.05, 0.56).rotateZ(-0.45).translate(BEND + 0.26, TOP + BEND + 0.24, 0)
+    ]), mat(BLOWER_PAINT.dark.c, { ...BLOWER_PAINT.dark.o, side: THREE.DoubleSide })
+  );
+  chute.add(chuteParts, hood);
   g.add(chute);
+
   const wheels = [];
-  for (const [x, z] of [[1.05, 0.75], [-1.05, 0.75], [1.05, -1.35], [-1.05, -1.35]]) { const w = wheel(0.52, 0.42); w.position.set(x, 0.52, z); g.add(w); wheels.push({ mesh: w, r: 0.52, front: z > 0 }); }
+  for (const [x, z] of [[1.04, 0.75], [-1.04, 0.75], [1.04, -1.35], [-1.04, -1.35]]) {
+    const w = wheel(0.56, 0.44);
+    w.position.set(x, 0.56, z);
+    g.add(w);
+    wheels.push({ mesh: w, r: 0.56, front: z > 0 });
+  }
   return {
-    group: g, wheels, auger, chute,
+    group: g, wheels, auger, impeller, chute,
     drive: { speed: 6.5, reverseSpeed: 2.6, acceleration: 1.7, powerSpeed: 0, rolling: 0.45, drag: 0, coast: 1.4, brake: 5, wheelbase: 1.9, grip: 6.5, cornering: 5.5 },
-    dims: { halfW: 1.25, halfL: 2.65, top: 2.9, mass: 4800 }, chase: [9.5, 3.6], label: 'Snow blower'
+    dims: { halfW: 1.25, halfL: 2.65, top: 3.15, mass: 4800 }, chase: [9.5, 3.6], label: 'Snow blower',
+    seat: { seat: new THREE.Vector3(0, 1.86, 0.03), bars: new THREE.Vector3(0, 2.16, 0.66), gripHalf: 0.17, bracket: new THREE.Vector3(0, 1.62, 0.78), crankLength: 0, pedalHalf: 0.14, lean: 0.08 }
   };
 }
 
@@ -524,7 +661,10 @@ const snowBlower = {
     run.workParticles?.update(dt, ctx.camera);
     // the auger turns while it eats snow (and idles otherwise); the chute faces its side
     if (v) {
-      v.auger.rotation.x += dt * (Math.abs(car.speed) > 0.2 ? 9 : 2.5);
+      // (the auger's top turns back into the housing, the impeller behind it ~3x as fast)
+      const rpm = Math.abs(car.speed) > 0.2 ? 9 : 2.5;
+      v.auger.rotation.x -= dt * rpm;
+      if (v.impeller) v.impeller.rotation.z -= dt * rpm * 3;
       const target = (st.chute || -1) > 0 ? Math.PI : 0;
       v.chute.rotation.y += (target - v.chute.rotation.y) * Math.min(1, dt * 5);
     }
@@ -534,7 +674,8 @@ const snowBlower = {
     w.spawnAcc += Math.min(1, vol / Math.max(dt, 1e-3) / 0.6) * 55 * dt;
     if (w.spawnAcc < 1) return;
     const h = car.heading, fx = Math.sin(h), fz = Math.cos(h);
-    const o = { x: car.position.x + fx * (BLOWER.ahead - 0.35), y: car.position.y + 2.7, z: car.position.z + fz * (BLOWER.ahead - 0.35) };
+    // (out of the chute's mouth on the head, ~3 m up)
+    const o = { x: car.position.x + fx * (BLOWER.ahead - 0.62), y: car.position.y + 2.95, z: car.position.z + fz * (BLOWER.ahead - 0.62) };
     const tgt = routePoint(w.route, land.s, land.d);
     while (w.spawnAcc >= 1) {
       w.spawnAcc--;
