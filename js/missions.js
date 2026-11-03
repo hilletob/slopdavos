@@ -26,6 +26,7 @@ import { GASTRO_FEATURES } from './missions-gastro.js';
 import { OUTDOOR_FEATURES } from './missions-outdoor.js';
 import { BARS_FEATURES } from './missions-bars.js';
 import { EXPERT_FEATURES } from './missions-expert.js';
+import { WEF_FEATURES } from './missions-wef.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -946,3 +947,5 @@ Object.assign(FEATURES, OUTDOOR_FEATURES);
 Object.assign(FEATURES, BARS_FEATURES);
 // (js/missions-expert.js: the eye test at Meerkämper Optik, the snow profile for the SLF)
 Object.assign(FEATURES, EXPERT_FEATURES);
+// (js/missions-wef.js: the motorcade and the march of the WEF week)
+Object.assign(FEATURES, WEF_FEATURES);
