@@ -49,6 +49,7 @@ const STYLE = `
 .wf-btn kbd{font:inherit;opacity:.7;margin-left:6px;font-size:12px}
 body.touch-enabled .wf-pad{display:flex}
 @media (pointer:coarse){.wf-pad{display:flex}}
+.wf-pad.wf-pad-all{display:flex}
 body.touch-enabled .wf-btn kbd{display:none}
 body.touch-enabled .wf-hud{bottom:auto;top:calc(max(12px,env(safe-area-inset-top)) + 188px)}
 .wf-lane{position:relative;height:26px;border-radius:13px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:6px}
@@ -601,8 +602,11 @@ const wefMarch = {
     run.listen(button, 'pointerdown', (e) => { e.preventDefault(); wefMarch.call(run); });
     ui.button = button;
     card.append(row, ui.lane);
-    hud.append(ui.say, ui.call, card, button);
+    hud.append(ui.say, ui.call, card);
     document.body.append(hud);
+    const pad = ui.pad = el('div', 'wf-pad wf-pad-all');
+    pad.append(button);
+    document.body.append(pad);
     const dialog = el('div', 'wf-dialog');
     dialog.hidden = true;
     ui.dialog = dialog;
@@ -617,7 +621,7 @@ const wefMarch = {
       dialog.append(b);
     }
     document.body.append(dialog);
-    run.cleanups.push(() => { hud.remove(); dialog.remove(); });
+    run.cleanups.push(() => { hud.remove(); pad.remove(); dialog.remove(); });
   },
   call(run) {
     if (run.phase !== 'running' && run.phase !== 'ready') return;
@@ -728,7 +732,7 @@ const wefMarch = {
   after(run, ctx, dt, cm) {
     const st = run.state.march, wf = run.wf, ui = wf.ui;
     wefMarch.pose(run, dt, cm);
-    followCamera(run, ctx, dt, 21, 12, 8);
+    followCamera(run, ctx, dt, 26, 13, 2);
     ui.count.textContent = `${st.count}`;
     ui.morale.textContent = `${Math.round(st.morale)}`;
     ui.chant.textContent = `${Math.round(chantQuality(st) * 100)} %`;
@@ -758,7 +762,7 @@ const wefMarch = {
       ui.dialog.hidden = !show;
       if (show) setText(ui.dialogText, st.dialog.reason === 'stray' ? 'You have left the registered route, and the fence is that way. What now?' : 'The crowd behind you wants to go on to the fence. The permit ends at the rally point. How do you answer?');
     }
-    ui.hud.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
+    ui.hud.hidden = ui.pad.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
     if (ui.hud.hidden) ui.dialog.hidden = true;
   }
 };

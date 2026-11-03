@@ -254,7 +254,7 @@ export function roadblockPush(x, z, b = ROADBLOCK) {
 export function escortBlocked(st, ctx) {
   if (st.hitCooldown) return;
   st.blockHits++;
-  st.hitCooldown = 2;
+  st.hitCooldown = 6; // (one contact, one penalty)
   lose(st, ESCORT.blocked, 'The road is shut: the Scalettastrasse is the way round', ctx);
 }
 
