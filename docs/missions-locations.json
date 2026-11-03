@@ -1992,6 +1992,62 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Adresse belegt, nicht im OSM-Cache; die Türen sind aus Adresspunkt und Gebäudeumriss geschätzt, Innenraum und Kundschaft erfunden.",
    "nr": 47
+  },
+  {
+   "id": "sehtest-meerkaemper",
+   "status": "bestehend",
+   "name": "Sehtest bei Meerkämper Optik",
+   "kurz": "Als Optikerin am Phoropter die versteckte Sphäre und den Zylinder von vier Kunden finden: Gläser umklappen, «besser mit eins oder zwei?», die Tafel verschwimmt mit dem Fehler. Einer kneift die Augen zusammen. 3 min, Punkte für Genauigkeit, wenige Fragen, Tempo.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Promenade, Davos Platz",
+   "ort": {
+    "name": "Meerkämper Optik, Promenade 63",
+    "x": -595.4,
+    "z": -85.1,
+    "lv95": {
+     "E": 2781905,
+     "N": 1185585
+    }
+   },
+   "punkte": [],
+   "quelle": "OSM n12109173090 (shop=optician, name=Meerkämper); Adresse Promenade 63: Handelsregister-Auszug Meerkämper AG (onlineinfo.ch); js/missions-data-expert.js MEERKAEMPER",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Annahme: «seetest im merkämper optik» ist ein Sehtest; der Laden heisst real Meerkämper. Laden und Adresse belegt, meerkaemper.ch war beim Prüfen nicht erreichbar: Ob dort wirklich Sehtests angeboten werden, ist unbestätigt. Tür aus dem OSM-Punkt an der Ostwand geschätzt; Innenraum, Kundschaft und vereinfachte Optik erfunden.",
+   "nr": 48
+  },
+  {
+   "id": "schneeprofil-slf",
+   "status": "bestehend",
+   "name": "Schneeprofil fürs SLF",
+   "kurz": "Beim SLF in Davos Dorf die Ausrüstung holen, mit der Parsennbahn aufs Weissfluhjoch, auf dem Versuchsfeld eine Grube bis zum Boden graben, Schicht für Schicht Handhärte und Korn bestimmen, alle 10 cm die Temperatur messen, Kompressionstest klopfen, Gefahrenstufe wählen. Das Blatt wird mit der Wahrheit verglichen. Etwa 3 min.",
+   "saison": "winter",
+   "fahrzeug": "Zu Fuss (Parsennbahn als Schnitt)",
+   "anreise": "Flüelastrasse, Davos Dorf",
+   "ort": {
+    "name": "WSL-Institut für Schnee- und Lawinenforschung SLF, Flüelastrasse 11a",
+    "x": 1273,
+    "z": -1874,
+    "lv95": {
+     "E": 2783773,
+     "N": 1187374
+    }
+   },
+   "punkte": [
+    {
+     "name": "SLF-Versuchsfeld Weissfluhjoch (5WJ0), 2536 m",
+     "x": -1655,
+     "z": -3730,
+     "lv95": {
+      "E": 2780845,
+      "N": 1189230
+     }
+    }
+   ],
+   "quelle": "OSM w1178596285 (office=research, Flüelastrasse 11a); SLF-Stationsdokumentation 5WJ0 (stationdocu.slf.ch): LV95 2780845 / 1189230, 2536 m; slf.ch Versuchsfeld Weissfluhjoch; js/missions-data-expert.js SLF",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Institut und Versuchsfeld belegt, die Geländehöhe im Spiel trifft die 2536 m. Tür an der Südwand geschätzt (West- und Ostseite sind Parkplätze). Die Fahrt ist ein Schnitt, die letzten rund 38 m zu Fuss; Zaun, Mast und Pegel des Felds sind nachempfunden. Schneedecke erfunden, Gefahrenstufe aus einer vereinfachten Faustregel: Das echte Bulletin wägt viele Profile, Wetter und Beobachter ab.",
+   "nr": 49
   }
  ]
 }

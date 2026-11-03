@@ -300,6 +300,17 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.fillStyle = '#fff';
       break;
     }
+    case 'eyechart': { // a Landolt ring and a smaller one under it (js/missions-data-expert.js)
+      ctx.lineWidth = g * 0.26;
+      ctx.beginPath(); ctx.arc(0, -g * 0.28, g * 0.56, 0.42, Math.PI * 2 - 0.42); ctx.stroke();
+      ctx.lineWidth = g * 0.13;
+      ctx.beginPath(); ctx.arc(0, g * 0.72, g * 0.26, -Math.PI / 2 + 0.5, -Math.PI / 2 + Math.PI * 2 - 0.5); ctx.stroke();
+      break;
+    }
+    case 'snowprofile': { // a profile's hardness bars, growing from the right
+      for (const [y, w] of [[-0.8, 0.5], [-0.4, 1.1], [0, 0.4], [0.4, 1.8], [0.8, 0.9]]) ctx.fillRect(g * (0.9 - w), g * (y - 0.16), g * w, g * 0.32);
+      break;
+    }
     case 'skateboard': { // the bowl's curve and a board over its lip
       ctx.lineWidth = g * 0.16;
       ctx.beginPath(); ctx.moveTo(-g * 0.95, -g * 0.1); ctx.quadraticCurveTo(-g * 0.9, g * 0.85, 0, g * 0.85); ctx.quadraticCurveTo(g * 0.9, g * 0.85, g * 0.95, -g * 0.1); ctx.stroke();
