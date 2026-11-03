@@ -395,6 +395,7 @@ export const MINIGOLF = {
   minShot: 0.25, maxShot: 4.6, // m/s
   maxStrokes: 7, // per hole: then it is picked up with 7
   stop: 0.035, // m/s: at rest
+  slope: 5 / 7, // a rolling ball takes 5/7 g along the slope (a sliding puck takes all of it)
   loopMin: 1.75, // m/s into the loop to make it round
   loopTime: 0.9 // s the ball takes round the loop
 };
@@ -405,18 +406,21 @@ const TR = 0.7; // the target circle's radius
 const arc = (cx, cy, r, a0, a1, n = 14) => Array.from({ length: n + 1 }, (_, k) => { const a = a0 + ((a1 - a0) * k) / n; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
 const ring = (pts) => pts.map((p, i) => { const q = pts[(i + 1) % pts.length]; return [p[0], p[1], q[0], q[1]]; });
 /** A straight Eternit lane: the back board at y = 0, the cup at (0, cup) in the middle of the target circle */
-function keyhole(cup) {
-  const j = Math.sqrt(TR * TR - LW * LW), ja = Math.asin(LW / TR);
-  // round the circle from the lane's right side (x = +LW) the long way to its left side
-  const outline = [[-LW, 0], [LW, 0], [LW, cup - j], ...arc(0, cup, TR, -Math.PI / 2 + ja, Math.PI * 1.5 - ja, 24).slice(1, -1), [-LW, cup - j]];
-  return { outline, walls: ring(outline), length: cup + TR, width: 2 * TR, cup: [0, cup], tee: [0, 0.45] };
+function keyhole(cup, lw = LW, tr = TR) {
+  const j = Math.sqrt(tr * tr - lw * lw), ja = Math.asin(lw / tr);
+  // round the circle from the lane's right side (x = +lw) the long way to its left side
+  const outline = [[-lw, 0], [lw, 0], [lw, cup - j], ...arc(0, cup, tr, -Math.PI / 2 + ja, Math.PI * 1.5 - ja, 24).slice(1, -1), [-lw, cup - j]];
+  return { outline, walls: ring(outline), length: cup + tr, width: 2 * tr, cup: [0, cup], tee: [0, 0.45] };
 }
-/** The angle: along y to the corner, then right (+x) into the target circle at (cx, cup) */
-function angleLane(leg1, leg2) {
-  const cy = leg1, cx = leg2;
-  const j = Math.sqrt(TR * TR - LW * LW), ja = Math.asin(LW / TR);
-  const outline = [[-LW, 0], [LW, 0], [LW, cy - LW], [cx - j, cy - LW], ...arc(cx, cy, TR, -Math.PI + ja, Math.PI - ja, 24).slice(1, -1), [cx - j, cy + LW], [-LW + 0.25, cy + LW], [-LW, cy + LW - 0.25]];
-  return { outline, walls: ring(outline), length: cy + LW, width: cx + TR + LW, cup: [cx, cy], tee: [0, 0.45] };
+/** The angle: along y to the corner, then aside (`leg2` right, negative left) into the target circle at (cx, cup) */
+function angleLane(leg1, leg2, lw = LW, tr = TR) {
+  const cy = leg1, cx = leg2, s = Math.sign(leg2) || 1;
+  const j = Math.sqrt(tr * tr - lw * lw) * s, ja = Math.asin(lw / tr);
+  // the corner's outer wall is chamfered so that nothing can wedge in it
+  // round the target circle the long way, on the side away from the lane
+  const a0 = s > 0 ? -Math.PI + ja : -ja, a1 = s > 0 ? Math.PI - ja : ja - 2 * Math.PI;
+  const outline = [[-s * lw, 0], [s * lw, 0], [s * lw, cy - lw], [cx - j, cy - lw], ...arc(cx, cy, tr, a0, a1, 24).slice(1, -1), [cx - j, cy + lw], [-s * (lw - 0.25), cy + lw], [-s * lw, cy + lw - 0.25]];
+  return { outline, walls: ring(outline), length: cy + lw, width: Math.abs(cx) + tr + lw, cup: [cx, cy], tee: [0, 0.45] };
 }
 const lane = (base, extra) => ({ ...base, ...extra, walls: [...base.walls, ...(extra.walls || [])] });
 /** The lanes in the order played, with where they lie: `place` the back board's middle (world) and the heading */
@@ -471,8 +475,8 @@ export function createBall(hole) {
 }
 
 /** Putts the ball: `aim` (rad, 0 straight down the lane +y, positive to the left: −x), `power` 0..1 */
-export function puttBall(ball, aim, power) {
-  const v = MINIGOLF.minShot + (MINIGOLF.maxShot - MINIGOLF.minShot) * clamp(power, 0, 1);
+export function puttBall(ball, aim, power, M = MINIGOLF) {
+  const v = M.minShot + (M.maxShot - M.minShot) * clamp(power, 0, 1);
   ball.lastX = ball.x; ball.lastY = ball.y;
   ball.vx = -Math.sin(aim) * v;
   ball.vy = Math.cos(aim) * v;
@@ -508,8 +512,8 @@ function collideCircle(ball, c, R, e) {
  * One step of the ball on the hole at time `t` (s, the windmill's clock). Returns the events of the step:
  * ['wall' | 'post' | 'blade' | 'loop' | 'water' | 'cup' | 'lip' | 'stop'].
  */
-export function stepBall(ball, hole, dt, t = 0) {
-  const M = MINIGOLF, ev = [];
+export function stepBall(ball, hole, dt, t = 0, M = MINIGOLF) {
+  const ev = [];
   if (!ball.moving || ball.holed) return ev;
   if (ball.inLoop) {
     ball.loopT += dt;
@@ -517,10 +521,10 @@ export function stepBall(ball, hole, dt, t = 0) {
     return ev;
   }
   const px = ball.x, py = ball.y;
-  // the slope (a rolling ball: 5/7 g), the felt's friction
+  // the slope (a rolling ball: 5/7 g, a sliding puck: all of it), the surface's friction
   const { h, dy } = holeHeight(hole, ball.x, ball.y);
   ball.h = h;
-  ball.vy -= (5 / 7) * G * (dy / Math.sqrt(1 + dy * dy)) * dt;
+  ball.vy -= (M.slope ?? 5 / 7) * G * (dy / Math.sqrt(1 + dy * dy)) * dt;
   const v = Math.hypot(ball.vx, ball.vy);
   const dec = (M.roll + M.rollV * v) * dt;
   if (v <= dec || v < 1e-6) { ball.vx = ball.vy = 0; }
@@ -565,34 +569,35 @@ export function stepBall(ball, hole, dt, t = 0) {
 }
 
 /** Steps the ball until it stops (or `maxT` s): the tests' and the aim preview's simulation */
-export function simulatePutt(hole, from, aim, power, { dt = 1 / 240, maxT = 20, t0 = 0 } = {}) {
+export function simulatePutt(hole, from, aim, power, { dt = 1 / 240, maxT = 20, t0 = 0, phys = MINIGOLF } = {}) {
   const ball = createBall(hole);
   ball.x = from[0]; ball.y = from[1];
-  puttBall(ball, aim, power);
+  puttBall(ball, aim, power, phys);
   let t = 0;
   const events = [];
-  while ((ball.moving || ball.inLoop) && t < maxT) { for (const e of stepBall(ball, hole, dt, t0 + t)) events.push(e); t += dt; if (ball.y > 0 && Math.abs(ball.vy) < 0.05 && Math.abs(ball.vx) < 0.05 && holeHeight(hole, ball.x, ball.y).dy > 0.02 && t > 15) break; }
+  while ((ball.moving || ball.inLoop) && t < maxT) { for (const e of stepBall(ball, hole, dt, t0 + t, phys)) events.push(e); t += dt; if (ball.y > 0 && Math.abs(ball.vy) < 0.05 && Math.abs(ball.vx) < 0.05 && holeHeight(hole, ball.x, ball.y).dy > 0.02 && t > 15) break; }
   return { ball, t, events };
 }
 
-export function createMinigolfGame() {
-  return { hole: 0, strokes: MINIGOLF_HOLES.map(() => 0), done: false, ball: createBall(MINIGOLF_HOLES[0]), clock: 0, holedAt: null, history: [] };
+export function createMinigolfGame(course = WALDHUUS_COURSE) {
+  return { course, hole: 0, strokes: course.holes.map(() => 0), done: false, ball: createBall(course.holes[0]), clock: 0, holedAt: null, history: [] };
 }
 /** A putt on the current hole (counts a stroke) */
 export function minigolfPutt(g, aim, power) {
   if (g.done || g.ball.moving || g.ball.holed) return false;
   g.strokes[g.hole]++;
-  puttBall(g.ball, aim, power);
+  puttBall(g.ball, aim, power, g.course.phys);
   return true;
 }
 /** One step of the game: the ball, a water penalty, the cup, the stroke limit. Returns the step's events */
 export function minigolfStep(g, dt) {
   g.clock += dt;
-  const hole = MINIGOLF_HOLES[g.hole];
-  const ev = stepBall(g.ball, hole, dt, g.clock);
+  const { holes, phys } = g.course;
+  const hole = holes[g.hole];
+  const ev = stepBall(g.ball, hole, dt, g.clock, phys);
   if (ev.includes('water')) g.strokes[g.hole]++; // (the penalty stroke)
-  if (!g.ball.holed && !g.ball.moving && !g.ball.inLoop && g.strokes[g.hole] >= MINIGOLF.maxStrokes) {
-    g.strokes[g.hole] = MINIGOLF.maxStrokes; // (picked up)
+  if (!g.ball.holed && !g.ball.moving && !g.ball.inLoop && g.strokes[g.hole] >= phys.maxStrokes) {
+    g.strokes[g.hole] = phys.maxStrokes; // (picked up)
     g.ball.holed = true;
     ev.push('pickup');
   }
@@ -602,23 +607,27 @@ export function minigolfStep(g, dt) {
 /** On to the next hole (after the holed ball's pause): false after the last */
 export function minigolfNext(g) {
   g.history.push({ hole: g.hole, strokes: g.strokes[g.hole] });
-  if (g.hole >= MINIGOLF_HOLES.length - 1) { g.done = true; return false; }
+  if (g.hole >= g.course.holes.length - 1) { g.done = true; return false; }
   g.hole++;
-  g.ball = createBall(MINIGOLF_HOLES[g.hole]);
+  g.ball = createBall(g.course.holes[g.hole]);
   g.holedAt = null;
   return true;
 }
 export const minigolfTotal = (g) => g.strokes.reduce((a, b) => a + b, 0);
 /** The points: 7 a hole minus its strokes (a hole in one 6), over the holes played */
-export const minigolfScore = (g) => g.history.reduce((a, h) => a + (MINIGOLF.maxStrokes - h.strokes), 0);
+export const minigolfScore = (g) => g.history.reduce((a, h) => a + (g.course.phys.maxStrokes - h.strokes), 0);
 export const strokeName = (strokes, par) => (strokes === 1 ? 'Hole in one!' : ['Albatross', 'Eagle', 'Birdie', 'Par', 'Bogey', 'Double bogey'][strokes - par + 3] || `${strokes} strokes`);
 
 // The course's middle (the pin) and each lane's frame in the world
 export const MINIGOLF_SITE = { x: 406.0, z: -170.6 };
+// A course is all a minigolf game needs: its physics, its lanes and the ground they stand on. The runtime
+// (js/missions-sport.js minigolfFeature) builds and plays whichever course the mission hands it — the felt at the
+// Waldhuus or the ice on the Arkadenplatz.
+export const WALDHUUS_COURSE = { id: 'waldhuus', phys: MINIGOLF, holes: MINIGOLF_HOLES, path: MINIGOLF_PATH, site: MINIGOLF_SITE, par: MINIGOLF_PAR };
 /** A hole's frame in the world: its back board's middle (origin) and the lane's direction (heading: the world angle of
  *  +y); +x to the right of a player at the tee looking down the lane */
-export function holeFrame(i) {
-  const pl = MINIGOLF_HOLES[i].place, h = pl.heading;
+export function holeFrame(i, course = WALDHUUS_COURSE) {
+  const pl = course.holes[i].place, h = pl.heading;
   const rx = -Math.cos(h), rz = Math.sin(h); // (right of a player facing along h: (−cos h, sin h); its left is (cos h, −sin h))
   const fx = Math.sin(h), fz = Math.cos(h);
   return { x: pl.x, z: pl.z, heading: h, rx, rz, fx, fz };
@@ -653,7 +662,7 @@ export const MINIGOLF_MISSION = {
   get start() { const f = holeFrame(0), p = holeToWorld(f, -0.75, -0.8); return { x: p.x, z: p.z, heading: f.heading }; },
   pin: { x: MINIGOLF_SITE.x, z: MINIGOLF_SITE.z },
   props: [],
-  createState() { return { game: createMinigolfGame() }; },
+  createState() { return { game: createMinigolfGame(WALDHUUS_COURSE) }; },
   score: (state) => minigolfScore(state.game),
   summary(state) {
     const g = state.game;
@@ -669,6 +678,128 @@ export const MINIGOLF_MISSION = {
       const done = g.history.length > i;
       const n = g.strokes[i];
       const text = `Stroke ${n}${g.ball.moving ? ' · rolling …' : ''} · total ${minigolfTotal(g)} (par ${MINIGOLF_PAR})`;
+      return { done, progress: null, text, target: null, hint: g.ball.holed && !done ? strokeName(n, hole.par) : null };
+    }
+  }))
+};
+
+// =====================================================================================================================
+// 2b. Eis-Minigolf on the Arkadenplatz
+// =====================================================================================================================
+// Davos plays minigolf on ice in winter (davos.ch/aktivitaeten/eissport/eis-minigolf, eisminigolf.ch): 18 lanes on the
+// Arkadenplatz, open daily 10:00-18:00, played with a hockey stick and a puck instead of a putter and a ball, the puck
+// "ins Loch" at the end of the lane, seven strokes at most a hole — "eiskalte Millimeterarbeit".
+// The square (OSM w110590701 "Arkadenplatz", loc_name "Roter Arkadenplatz", highway=pedestrian, place=square,
+// surface=concrete, 1894 m²) is a parallelogram between the Promenade and the Kulturplatz; its corners in the world
+// frame: north (−572.9, −112.2), east (−538.1, −96.9), south (−549.9, −55.5), west (−586.7, −63.3). The lanes are laid
+// out in the square's own frame: `a` along it (from the north corner down towards the south, parallel to the
+// Promenade) and `b` across it (towards the Kulturplatz). Six rows of three lanes played as a serpentine — row 1
+// eastwards, row 2 back westwards — on the southern two thirds, which leaves the fountain at (a 9.5, b 20.4) and the
+// north corner free for the hut.
+// The puck slides instead of rolling: a tenth of the felt's friction, the whole of g on the slopes, and a wider hole
+// (23 cm) that only swallows it below 1 m/s. No loop and no ditch on the ice.
+export const ICE_MINIGOLF = {
+  ballR: 0.038, // the puck: 76 mm across, 25 mm thick
+  cupR: 0.115, sink: 1.0, // m/s: faster over the hole it skims across
+  roll: 0.34, // m/s² on outdoor rink ice (µ ≈ 0.035: a puck slides far)
+  rollV: 0.02, // 1/s: a little more the faster it goes
+  bounce: 0.74, // restitution off the wooden boards
+  minShot: 0.2, maxShot: 3.6, // m/s
+  maxStrokes: 7, // per hole: then it is picked up with 7 (the house rule on eisminigolf.ch)
+  stop: 0.03, // m/s: at rest
+  slope: 1, // a sliding puck takes the whole of g along the slope
+  loopMin: Infinity, loopTime: 0.9 // (no loop on the ice)
+};
+
+const ILW = 0.6; // half an ice lane's width (wider than the felt lanes: a puck and a stick need room)
+const ITR = 0.85; // the target circle round the hole
+const iceKeyhole = (cup) => keyhole(cup, ILW, ITR);
+// The square's frame: the origin at its north corner, `a` along it (towards the south corner), `b` across it
+const ICE_ORIGIN = { x: -572.89, z: -112.17 };
+const ICE_U = { x: -0.27185, z: 0.96234 }; // along: the north corner to the south corner (50.8 m)
+const ICE_V = { x: 0.96234, z: 0.27185 }; // across: towards the Kulturplatz (37.6 m)
+export const ICE_HEADING = Math.atan2(ICE_U.x, ICE_U.z); // the world heading of +a
+/** A point of the square's frame (a along, b across) in the world */
+export const iceToWorld = (a, b) => ({ x: ICE_ORIGIN.x + ICE_U.x * a + ICE_V.x * b, z: ICE_ORIGIN.z + ICE_U.z * a + ICE_V.z * b });
+const ICE_ROW_A = 14.0, ICE_ROW_PITCH = 5.8; // the six rows along the square
+const ICE_SLOT_B = [4.5, 14.5, 24.5]; // the three lanes across it: where each lane's ice begins
+
+// The lanes in the order played. The obstacles are the Eternit kinds in winter clothing: a snow bank, the boards, a
+// face-off dot to go round, the players' tunnel, a ramp up to the hole.
+const ICE_LANE_DEFS = [
+  lane(iceKeyhole(4.4), { name: 'Face-off', par: 2 }),
+  lane(iceKeyhole(4.8), { name: 'The blue line', par: 2, walls: ring([[-0.22, 1.9], [0.22, 1.9], [0.22, 3.0], [-0.22, 3.0]]) }),
+  lane(iceKeyhole(5.0), { name: 'The snow bank', par: 2, ramps: [{ y0: 1.9, y1: 2.6, h0: 0, h1: 0.08 }, { y0: 2.6, y1: 3.3, h0: 0.08, h1: 0 }] }),
+  lane(iceKeyhole(5.0), { name: 'The penalty box', par: 2, posts: [{ x: -0.26, y: 2.2, r: 0.15 }, { x: 0.28, y: 3.4, r: 0.15 }] }),
+  lane(iceKeyhole(5.2), { name: 'The players\u2019 tunnel', par: 2, walls: [[-ILW, 2.1, -0.16, 2.5], [ILW, 2.1, 0.16, 2.5], [-0.16, 2.5, -0.16, 3.4], [0.16, 2.5, 0.16, 3.4]], tube: { y0: 2.5, y1: 3.4, r: 0.16 } }),
+  lane(angleLane(3.2, 1.9, ILW, ITR), { name: 'The boards', par: 3 }),
+  lane(iceKeyhole(5.4), { name: 'The goal crease', par: 2, posts: [{ x: 0, y: 3.0, r: 0.34 }] }),
+  lane(iceKeyhole(5.6), { name: 'The grandstand', par: 2, ramps: [{ y0: 2.4, y1: 3.5, h0: 0, h1: 0.18 }, { y0: 3.5, y1: 6.45, h0: 0.18, h1: 0.18 }] }),
+  lane(iceKeyhole(6.2), { name: 'The icing line', par: 2, walls: [[-ILW, 4.5, -0.24, 4.9], [ILW, 4.5, 0.24, 4.9]] }),
+  lane(iceKeyhole(5.6), { name: 'The hat-trick', par: 3, posts: [{ x: -0.28, y: 2.2, r: 0.14 }, { x: 0.28, y: 3.2, r: 0.14 }, { x: -0.28, y: 4.2, r: 0.14 }] }),
+  lane(iceKeyhole(5.2), { name: 'The Zamboni', par: 2, ramps: [{ y0: 1.8, y1: 2.5, h0: 0, h1: 0.11 }, { y0: 2.5, y1: 3.2, h0: 0.11, h1: 0 }] }),
+  lane(angleLane(3.0, -1.9, ILW, ITR), { name: 'The short side', par: 3 }),
+  lane(iceKeyhole(6.2), { name: 'The slapshot', par: 2, ramps: [{ y0: 1.6, y1: 2.4, h0: 0, h1: 0.12 }, { y0: 2.4, y1: 3.2, h0: 0.12, h1: 0 }] }),
+  lane(iceKeyhole(5.4), { name: 'The power play', par: 3, walls: ring([[-0.2, 2.3], [0.2, 2.3], [0.2, 3.4], [-0.2, 3.4]]), posts: [{ x: -0.36, y: 4.3, r: 0.11 }, { x: 0.36, y: 4.3, r: 0.11 }] }),
+  lane(iceKeyhole(5.4), { name: 'The one-timer', par: 2, walls: [[-ILW, 1.8, -0.16, 2.2], [ILW, 1.8, 0.16, 2.2], [-0.16, 2.2, -0.16, 2.9], [0.16, 2.2, 0.16, 2.9]], tube: { y0: 2.2, y1: 2.9, r: 0.16 }, ramps: [{ y0: 3.1, y1: 3.9, h0: 0, h1: 0.14 }, { y0: 3.9, y1: 6.25, h0: 0.14, h1: 0.14 }] }),
+  lane(iceKeyhole(5.0), { name: 'The spin-o-rama', par: 2, posts: [{ x: 0.3, y: 2.1, r: 0.17 }, { x: -0.3, y: 3.5, r: 0.17 }] }),
+  lane(iceKeyhole(5.6), { name: 'Overtime', par: 3, ramps: [{ y0: 2.0, y1: 2.7, h0: 0, h1: 0.09 }, { y0: 2.7, y1: 3.4, h0: 0.09, h1: 0 }], posts: [{ x: -0.3, y: 4.3, r: 0.13 }, { x: 0.3, y: 4.3, r: 0.13 }] }),
+  lane(iceKeyhole(6.2), { name: 'The Spengler Cup', par: 3, walls: ring([[-0.22, 2.2], [0.22, 2.2], [0.22, 3.3], [-0.22, 3.3]]), ramps: [{ y0: 4.0, y1: 4.9, h0: 0, h1: 0.16 }, { y0: 4.9, y1: 7.05, h0: 0.16, h1: 0.16 }] })
+];
+
+/**
+ * The 18 lanes with their place on the square: six rows of three, the serpentine turning at the end of every row, so
+ * that the hole of one lane is next to the tee of the next. An even row runs towards the Kulturplatz (+b), an odd row
+ * back towards the Promenade (−b); within a row the lanes keep their slots across the square.
+ */
+export const ICE_HOLES = ICE_LANE_DEFS.map((def, i) => {
+  const row = Math.floor(i / 3), east = row % 2 === 0;
+  const slot = ICE_SLOT_B[east ? i % 3 : 2 - (i % 3)];
+  const a = ICE_ROW_A + row * ICE_ROW_PITCH;
+  // an eastward lane's ice starts at its slot, a westward one's back board sits at the far end of the same strip
+  const b = east ? slot : slot + def.length;
+  const p = iceToWorld(a, b);
+  return { ...def, posts: def.posts || [], local: { a, b }, place: { x: +p.x.toFixed(2), z: +p.z.toFixed(2), heading: ICE_HEADING + (east ? Math.PI / 2 : -Math.PI / 2) } };
+});
+export const ICE_PAR = ICE_HOLES.reduce((a, h) => a + h.par, 0);
+// The sheet of ice the lanes stand on (one quad, the square's frame inset from its edges)
+export const ICE_RINK = [[[10.5, 3], [10.5, 33.5], [46, 33.5], [46, 3]].map(([a, b]) => { const p = iceToWorld(a, b); return [+p.x.toFixed(2), +p.z.toFixed(2)]; })];
+export const ICE_SITE = (() => { const p = iceToWorld(28.5, 18); return { x: +p.x.toFixed(1), z: +p.z.toFixed(1) }; })();
+export const ARKADENPLATZ_COURSE = { id: 'arkadenplatz', phys: ICE_MINIGOLF, holes: ICE_HOLES, path: ICE_RINK, site: ICE_SITE, par: ICE_PAR };
+
+export const ICE_MINIGOLF_MISSION = {
+  id: 'ice-minigolf',
+  title: 'Ice minigolf on the Arkadenplatz',
+  intro: 'Eighteen lanes of ice on the Arkadenplatz, between the Promenade and the Kulturplatz, played with a hockey stick and a puck: the snow bank, the players’ tunnel, the face-off dot, the boards, the ramp up to the grandstand. Aim with A/D or the mouse, hold Space to fill the power bar and let go to shoot; on a phone drag back from the puck like a slingshot and let go. The puck slides much further than a ball rolls, so a light touch wins. Seven strokes at most a hole. Score: 7 a hole minus your strokes (126 minus the total): 45 strokes or fewer is gold (par 42).',
+  mode: 'person',
+  season: 'winter',
+  time: 'midday',
+  features: ['iceMinigolf'],
+  scoreMode: true,
+  scoreUnit: 'pts',
+  medals: { gold: 126 - 45, silver: 126 - 54, bronze: 126 - 64 },
+  colour: '#49a7e0',
+  icon: 'ice-minigolf',
+  finish: 'Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.',
+  get start() { const f = holeFrame(0, ARKADENPLATZ_COURSE), p = holeToWorld(f, -0.95, -0.9); return { x: p.x, z: p.z, heading: f.heading }; },
+  pin: { x: ICE_SITE.x, z: ICE_SITE.z },
+  props: [],
+  createState() { return { game: createMinigolfGame(ARKADENPLATZ_COURSE) }; },
+  score: (state) => minigolfScore(state.game),
+  summary(state) {
+    const g = state.game;
+    const total = minigolfTotal(g);
+    return [ICE_HOLES.map((h, i) => `${i + 1}: ${g.strokes[i]}`).join(' · ') + ` — ${total} strokes (par ${ICE_PAR}, ${total - ICE_PAR >= 0 ? '+' : ''}${total - ICE_PAR})`];
+  },
+  objectives: ICE_HOLES.map((hole, i) => ({
+    id: `hole${i + 1}`,
+    title: `Hole ${i + 1}: ${hole.name} (par ${hole.par})`,
+    allowModes: ['person'],
+    check(ctx, state) {
+      const g = state.game;
+      const done = g.history.length > i;
+      const n = g.strokes[i];
+      const text = `Stroke ${n}${g.ball.moving ? ' · sliding …' : ''} · total ${minigolfTotal(g)} (par ${ICE_PAR})`;
       return { done, progress: null, text, target: null, hint: g.ball.holed && !done ? strokeName(n, hole.par) : null };
     }
   }))
