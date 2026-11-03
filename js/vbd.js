@@ -592,6 +592,11 @@ export function buildVBD(scene) {
   function hold(b) {
     b.held = true; b.parked = false; b.speed = 0; b.dwell = 0; b.push = 0;
     b.rearYaw ??= b.yaw;
+    // Its body away at once, not with the first pose(): that comes after this frame's collidePlayer, which would find
+    // the player's car standing inside the bus it has just taken and shove it a bus's width sideways (onto the kerb)
+    const i = buses.indexOf(b);
+    if (i >= 0) setBody(bodies[i], 0, 0, 0, 0, 0, false);
+    if (b.rearBody) b.rearBody.own = true;
   }
   // { x, y (the ground under the front car, road top included), z, yaw, pitch, roll, speed, dt, solid (left standing:
   // both cars solid; driven: the rear car only, `own`: the player does not run into it) }

@@ -6,7 +6,7 @@ import { createHelper } from './missions-props.js';
 import { MissionAudio } from './missions-fx.js';
 import {
   findTakeableCar, findTakeableBike, findTakeableBus, trafficLabel, driveFor, holdVehicle, parkVehicle, releaseVehicle,
-  shouldRelease, MAX_LEFT, pickPoolCar, borrowVehicle, endBorrow, bayIsClear
+  shouldRelease, MAX_LEFT, pickPoolCar, borrowVehicle, endBorrow, bayIsClear, clearSpotBeside
 } from './hijack.js';
 import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 
@@ -264,6 +264,8 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       dropLeft(b);
       vbd.hold(b);
       place('car', b.cx, b.cz, b.yaw, () => setPlayerCarBody({ kind: 'bus', bus: b }));
+      const spot = clearSpotBeside(b.cx, b.cz, b.yaw, (x, z) => cm.isSpotClear('car', x, z, b.yaw));
+      if (spot && (spot.x !== b.cx || spot.z !== b.cz)) cm.placeEntity('car', spot.x, spot.z, b.yaw);
       if (!wasParked) flee(b.cx, b.cz, b.yaw, BUS.halfW + 0.6, true, (car.dims.halfL - 1.4));
     }
     vacant = false;
