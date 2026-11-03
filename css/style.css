@@ -548,11 +548,6 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   background: var(--divider);
 }
 
-.time-switch {
-  display: flex;
-  gap: 2px;
-}
-
 .language-switch { display: inline-flex; gap: 2px; margin-left: 3px; }
 .language-btn {
   min-width: 30px;
@@ -566,46 +561,6 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
 }
 .language-btn:hover { color: var(--text); background: var(--hover); }
 .language-btn[aria-pressed="true"] { color: #121314; background: var(--text); }
-
-.time-btn {
-  height: 36px;
-  padding: 0 9px;
-  border-radius: var(--r-ctl);
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  color: var(--text-2);
-  transition: background-color 0.2s ease, color 0.2s ease, gap 0.35s var(--ease-out), padding 0.35s var(--ease-out);
-}
-
-.time-btn:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-/* The active time of day spells out its name */
-.time-btn .seg-label {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  transition: max-width 0.4s var(--ease-out), opacity 0.25s ease;
-}
-
-.time-btn.active,
-.time-btn.active:hover {
-  gap: 7px;
-  padding: 0 12px 0 10px;
-  background: var(--text);
-  color: #121314;
-}
-
-.time-btn.active .seg-label {
-  max-width: 120px;
-  opacity: 1;
-}
 
 .tool-btn {
   height: 36px;
@@ -655,7 +610,6 @@ body.hud-minimized .icon-show {
 }
 
 .tool-btn:active,
-.time-btn:active,
 .icon-btn:active,
 .mode-btn:active,
 .camera-current:active,
@@ -1450,8 +1404,6 @@ body[data-mode='helicopter'] .gauge-alt {
   .hud-top-right .toolbar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .hud-top-right .toolbar::-webkit-scrollbar { display: none; }
   .hud-top-right .toolbar > * { flex-shrink: 0; }
-  .time-btn.active .seg-label { display: none; }
-  .time-btn.active { padding: 0 9px; gap: 0; }
   .radar { display: none; }
   .hud-bottom-right { bottom: calc(var(--edge) + 64px); }
   .gauge { display: none; }
@@ -1572,8 +1524,6 @@ body.touch-enabled .seg-label { display: none; }
 
 body.touch-enabled .hud-top-right { top: max(var(--edge), env(safe-area-inset-top)); right: max(var(--edge), env(safe-area-inset-right)); }
 body.touch-enabled .toolbar { gap: 2px; padding: 4px; }
-body.touch-enabled .time-btn,
-body.touch-enabled .time-btn.active { height: 44px; min-width: 44px; padding: 0 8px; gap: 0; }
 body.touch-enabled .language-btn { height: 44px; min-width: 30px; }
 body.touch-enabled .tool-btn { min-width: 44px; min-height: 44px; }
 body.touch-enabled .tool-label { display: none; }
@@ -1612,12 +1562,35 @@ body.touch-enabled .pop-item { min-height: 44px; }
   }
 }
 
-/* The season toggle (js/season.js): an icy chip when winter is on */
-.season-btn { margin-left: 4px; }
-.season-btn.active,
-.season-btn.active:hover {
-  background: #dcecff;
-  color: #0f2a44;
+/* Vorspulen (js/fast-forward.js): the veil the clock jumps behind */
+.clock-veil {
+  position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+  background: #05070c; opacity: 0; transition: opacity 0.24s ease; pointer-events: none;
+}
+.clock-veil[hidden] { display: none; }
+.clock-veil.is-on { opacity: 1; pointer-events: auto; }
+.clock-veil-line { color: #d8dde6; font-size: 15px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.tool-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* The missions' windows (js/mission-windows.js): closed in the list and at the pin */
+.mission-list-time { margin: 0 0 6px; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.mission-list li.is-closed .mission-link { color: var(--text-3); background: rgba(255, 255, 255, 0.04); }
+.mission-list li.is-closed .mission-medal { opacity: 0.5; }
+.mission-list li.is-just-opened .mission-link { outline: 2px solid var(--taxi); outline-offset: -2px; }
+.mission-wait {
+  flex: none; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 4px 9px; min-width: 112px;
+  border-radius: var(--r-ctl); background: rgba(255, 255, 255, 0.08); line-height: 1.15; text-align: right; cursor: pointer;
+}
+.mission-wait:hover { background: var(--hover); }
+.mission-wait-when { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+.mission-wait-go { font-size: 12px; font-weight: 650; color: var(--text); white-space: nowrap; }
+.mission-prompt-wait { flex: none; margin-left: 10px; font-size: 12px; font-weight: 650; color: var(--text-2); white-space: nowrap; }
+.mission-prompt-wait[hidden] { display: none; }
+.mission-prompt.is-closed .mission-prompt-text { color: var(--text-2); }
+.mission-prompt.is-closed kbd { background: rgba(255, 255, 255, 0.85); }
+@media (max-width: 560px) {
+  .mission-list li { flex-wrap: wrap; }
+  .mission-wait { min-width: 0; flex-direction: row; gap: 8px; margin-left: auto; align-items: baseline; }
 }
 
 /* Phones: the street names move out of the view, below the touch controls and just above the mode bar, as small

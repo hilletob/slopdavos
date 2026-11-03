@@ -3,7 +3,6 @@ import { MISSIONS, getMission, SPITAL_PAD, LAUNCHER, formatTime, formatDistance,
 import { createTargetMarker, createZoneRing, createAimMarker, createLauncher, createShell, createScriptedRega, createPoliceCar, PROP_BUILDERS, slopeQuaternion } from './missions-props.js';
 import { ParticleBatch, MissionAudio } from './missions-fx.js';
 import { surfaceHeight, groundHeight, groundNormal } from './terrain.js';
-import { setWinter } from './season.js';
 import { groomMap } from './groom-map.js';
 import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
@@ -11,6 +10,8 @@ import { setWorldCenter } from './quality.js';
 import { MissionManager, worldCellsReady } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
 import { buildMissionWorld } from './missions-world.js';
+import { gameClock, formatClock } from './game-clock.js';
+import { missionOpen, closedText, nextOpening } from './mission-windows.js';
 import { t as translateUI, setLocalizedText } from './i18n.js';
 import { SNOW_FEATURES } from './missions-snow.js';
 import { ICE_FEATURES } from './missions-ice.js';
@@ -62,7 +63,7 @@ export function buildMissions(scene, hooks) {
       globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
       return run;
     },
-    showList: (note) => { listOverlay = showList(manager, progress, note); },
+    showList: (note) => { listOverlay = showList(manager, progress, note, hooks.fastForward); },
     hideList: () => { listOverlay?.remove(); listOverlay = null; },
     setSearch: (search) => {
       try { history.replaceState(history.state, '', `${location.pathname}${search}${location.hash}`); } catch { /* (sandboxed) */ }
@@ -71,7 +72,7 @@ export function buildMissions(scene, hooks) {
     onFrame: (active, dt, cm) => world?.update(active, dt, cm)
   });
   try {
-    world = buildMissionWorld(scene, { manager, progress, mapSystem: hooks.mapSystem, controllerManager: hooks.controllerManager });
+    world = buildMissionWorld(scene, { manager, progress, mapSystem: hooks.mapSystem, controllerManager: hooks.controllerManager, fastForward: hooks.fastForward });
   } catch (error) { console.warn('[missions] the pins in the world could not be built', error); }
   globalThis.__slopdavosMissions = manager; // (test hooks)
   globalThis.__slopdavosProgress = progress;
@@ -81,7 +82,7 @@ export function buildMissions(scene, hooks) {
 }
 
 /** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever) */
-function showList(manager, progress, note = null) {
+function showList(manager, progress, note = null, fastForward = null) {
   const overlay = el('div', 'mission-overlay');
   overlay.id = 'mission-overlay'; overlay.dataset.list = '1';
   const go = (a, id, night) => a.addEventListener('click', (e) => {
@@ -94,14 +95,38 @@ function showList(manager, progress, note = null) {
   const total = el('p', 'mission-list-total');
   total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
   panel.append(total);
+  // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
+  // with the mission open (a link in a new tab, or ?mission=<id>, always starts it directly, moving the clock)
+  const now = gameClock.total;
+  panel.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
+  const waitFor = (m) => {
+    const scroll = panel.scrollTop;
+    const reopened = fastForward?.go(nextOpening(m, gameClock.total), () => {
+      manager.showList(note);
+      const fresh = document.querySelector(`#mission-overlay .mission-list li[data-mission="${m.id}"]`);
+      fresh?.classList.add('is-just-opened');
+      const dialog = document.querySelector('#mission-overlay .mission-dialog');
+      if (dialog) dialog.scrollTop = scroll;
+    });
+    return reopened;
+  };
   if (note) panel.append(el('p', 'mission-dialog-note', note));
   const list = el('ul', 'mission-list');
   const best = readBestTimes(globalThis.localStorage);
   for (const m of MISSIONS) {
     const li = el('li');
+    li.dataset.mission = m.id;
     const a = el('a', 'mission-link', m.title);
     a.href = `?mission=${m.id}`;
-    go(a, m.id, false);
+    const closed = !missionOpen(m, now) && !!fastForward;
+    if (closed) {
+      li.classList.add('is-closed');
+      a.addEventListener('click', (e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        waitFor(m);
+      });
+    } else go(a, m.id, false);
     const entry = progress.entry(m.id);
     li.append(medalBadge(entry?.medal, !!entry), a);
     const b = best[bestTimeKey(m.id)];
@@ -109,6 +134,13 @@ function showList(manager, progress, note = null) {
     if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) score.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
     else if (Number.isFinite(b)) score.append(el('span', 'mission-list-best', formatTime(b)));
     li.append(score);
+    if (closed) {
+      const wait = el('button', 'mission-wait');
+      wait.type = 'button';
+      wait.append(el('span', 'mission-wait-when', closedText(m, now)), el('span', 'mission-wait-go', 'Wait until then'));
+      wait.addEventListener('click', () => waitFor(m));
+      li.append(wait);
+    }
     if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
   }
@@ -217,9 +249,9 @@ class MissionRun {
     if (hooks.world) setWorldCenter(start.x, start.z);
     if (def.mode === 'helicopter' && hooks.world) buildHelipad(this.scene, { force: true }); // (the pad, wherever the game began)
     hooks.selectMode(def.mode);
-    if (def.season === 'winter') setWinter(true, { animate: false });
-    else if (def.season === 'summer') setWinter(false, { animate: false });
-    hooks.selectTime(this.night ? def.nightTime : def.time || 'golden');
+    // (the clock stands still at the mission's time, in its season, until dispose() lets it go on from there; a restart
+    // finds it there already)
+    hooks.holdClock?.(def, this.night);
     hooks.teleportXZ(start.x, start.z, start.heading);
     const ent = cm.getActiveEntity();
     if (def.mode === 'helicopter') {
@@ -503,6 +535,7 @@ class MissionRun {
     this.props.length = 0;
     for (const node of [this.ui.hud, this.ui.overlay, this.ui.crosshair, this.ui.fire]) node?.remove();
     if (globalThis.__slopdavosMission === this) globalThis.__slopdavosMission = null;
+    this.hooks.releaseClock?.();
   }
 
   restart() { this.start(); }

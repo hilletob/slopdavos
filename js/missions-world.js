@@ -8,6 +8,8 @@ import { surfaceHeight } from './terrain.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { QUALITY } from './quality.js';
 import { t, setLocalizedText } from './i18n.js';
+import { gameClock } from './game-clock.js';
+import { missionOpen, nightVariantOpen, closedText, nextOpening } from './mission-windows.js';
 
 // js/missions-world.js
 // The missions in the open world (js/missions.js builds it with the manager): a pin at every mission's start — a
@@ -16,7 +18,8 @@ import { t, setLocalizedText } from './i18n.js';
 // "Enter: Start …" (a button too, for touch screens) while the player stands in a start circle, on foot or in the
 // mission's vehicle; the pins on the radar and the full map (js/nyc-map.js overlays; a click on one sets the map's
 // waypoint, an arrow in the HUD points the way); the points in the HUD with a "+250" as they come in. Nothing of the
-// world's pins shows while a mission runs.
+// world's pins shows while a mission runs. Outside its window (js/mission-windows.js) a pin is grey and says when it
+// opens: Enter doesn't start it, U (or a tap on the prompt) fast-forwards until it does.
 
 const PIN_RADIUS = QUALITY.mobile ? 500 : 800; // m: the markers drawn round the player
 const BEAM_HEIGHT = QUALITY.mobile ? 18 : 26;
@@ -426,8 +429,8 @@ function createBeams(count) {
   return mesh;
 }
 
-export function buildMissionWorld(scene, { manager, progress, mapSystem, controllerManager }) {
-  const pins = MISSIONS.map((def) => ({ def, ...missionPin(def, TELEPORT_LOCATIONS), y: null }));
+export function buildMissionWorld(scene, { manager, progress, mapSystem, controllerManager, fastForward = null }) {
+  const pins = MISSIONS.map((def) => ({ def, ...missionPin(def, TELEPORT_LOCATIONS), y: null, closed: false, closedLabel: '' }));
   const group = new THREE.Group();
   group.name = 'MissionWorld';
   scene.add(group);
@@ -450,15 +453,39 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
     group.add(sprite);
     Object.assign(pin, { canvas, tex, sprite });
   }
-  const drawIcons = () => {
-    for (const pin of pins) {
-      const ctx = pin.canvas.getContext('2d');
-      ctx.clearRect(0, 0, ICON_PX, ICON_PX);
-      drawMissionIcon(ctx, pin.def, progress.medal(pin.def.id), ICON_PX / 2, ICON_PX / 2, ICON_PX / 2 - 4);
-      pin.tex.needsUpdate = true;
-    }
+  // (a closed pin's icon goes grey and fades, as does its beam: `ctx.filter` where the browser has it, the fade anyway)
+  const drawPinIcon = (ctx, pin, x, y, r) => {
+    if (pin.closed) { ctx.save(); ctx.filter = 'grayscale(1)'; ctx.globalAlpha = 0.6; }
+    drawMissionIcon(ctx, pin.def, progress.medal(pin.def.id), x, y, r);
+    if (pin.closed) ctx.restore();
   };
+  const drawIcon = (pin) => {
+    const ctx = pin.canvas.getContext('2d');
+    ctx.clearRect(0, 0, ICON_PX, ICON_PX);
+    drawPinIcon(ctx, pin, ICON_PX / 2, ICON_PX / 2, ICON_PX / 2 - 4);
+    pin.tex.needsUpdate = true;
+  };
+  const drawIcons = () => { for (const pin of pins) drawIcon(pin); };
   drawIcons();
+  // Who is open now: redrawn only for the pins that changed; their labels when one changes or a new day begins
+  let labelsDay = -1;
+  function refreshWindows() {
+    const total = gameClock.total, day = gameClock.day;
+    let recoloured = false;
+    pins.forEach((pin, i) => {
+      const closed = !missionOpen(pin.def, total);
+      if (closed !== pin.closed) {
+        pin.closed = closed;
+        drawIcon(pin);
+        beams.setColorAt(i, closed ? _c.set(0x4a4f57) : _c.set(pin.def.colour || '#3fd6ff'));
+        recoloured = true;
+        pin.closedLabel = closed ? closedText(pin.def, total) : '';
+      } else if (closed && day !== labelsDay) pin.closedLabel = closedText(pin.def, total);
+    });
+    labelsDay = day;
+    if (recoloured) beams.instanceColor.needsUpdate = true;
+  }
+  refreshWindows();
 
   // --- HUD: the prompt, the waypoint's arrow, the points --------------------------------------------------------------
   const prompt = el('button', 'panel mission-prompt');
@@ -469,8 +496,10 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
   const promptSub = el('span', 'mission-prompt-sub');
   const promptBody = el('span', 'mission-prompt-body');
   promptBody.append(promptText, promptSub);
-  prompt.append(promptKey, promptBody);
-  prompt.addEventListener('click', () => startInReach());
+  const promptWait = el('span', 'mission-prompt-wait', 'Wait until then');
+  promptWait.hidden = true;
+  prompt.append(promptKey, promptBody, promptWait);
+  prompt.addEventListener('click', () => { if (inReach?.pin.closed) waitForReach(); else startInReach(); });
   document.body.append(prompt);
 
   const way = el('div', 'hud hud-top-center mission-waypoint');
@@ -525,15 +554,22 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
   // --- Starting from a pin --------------------------------------------------------------------------------------------
   let inReach = null;
   function startInReach() {
-    if (!inReach || manager.active) return false;
+    if (!inReach || manager.active || inReach.pin.closed) return false;
     const id = inReach.def.id;
     if (mapSystem?.waypoint?.mission === id) mapSystem.waypoint = null;
-    manager.start(id);
+    // (by night the night variant, where a mission has one)
+    manager.start(id, { night: nightVariantOpen(inReach.def, gameClock.total) });
+    return true;
+  }
+  function waitForReach() {
+    if (!inReach?.pin.closed || manager.active || !fastForward) return false;
+    fastForward.go(nextOpening(inReach.def, gameClock.total), () => { refreshWindows(); promptKeyState = null; });
     return true;
   }
   window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyU' && inReach?.pin.closed && !manager.active && !manager.listOpen && !mapSystem?.isFullMapOpen && !isTypingInField(e) && !e.repeat) { e.preventDefault(); waitForReach(); return; }
     if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
-    if (!inReach || manager.active || manager.listOpen || mapSystem?.isFullMapOpen) return;
+    if (!inReach || inReach.pin.closed || manager.active || manager.listOpen || mapSystem?.isFullMapOpen) return;
     if (isTypingInField(e) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     e.preventDefault();
     e.stopImmediatePropagation(); // (a mission start in reach goes first: js/missions-manager.js)
@@ -549,12 +585,16 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       for (const pin of pins) {
         const x = v.toX(pin.x), y = v.toY(pin.z);
         if (Math.abs(x) > v.w * 0.5 - r || Math.abs(y) > v.h * 0.5 - r) continue;
-        drawMissionIcon(ctx, pin.def, progress.medal(pin.def.id), x, y, r);
+        drawPinIcon(ctx, pin, x, y, r);
         if (!isMinimap && v.s >= 0.5) {
           ctx.font = '600 11px Inter, system-ui, sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'top';
           ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8, 12, 20, 0.85)'; ctx.fillStyle = '#fff';
           ctx.strokeText(t(pin.def.title), x, y + r + 3); ctx.fillText(t(pin.def.title), x, y + r + 3);
+          if (pin.closed) {
+            ctx.font = '500 10px Inter, system-ui, sans-serif'; ctx.fillStyle = '#c3c8d0';
+            ctx.strokeText(t(pin.closedLabel), x, y + r + 16); ctx.fillText(t(pin.closedLabel), x, y + r + 16);
+          }
         }
       }
     },
@@ -571,7 +611,8 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       const pin = overlay.pick(mx, my, v);
       if (!pin) return null;
       const medal = progress.medal(pin.def.id);
-      return t(`Mission: ${t(pin.def.title)}${medal ? ` · ${t(MEDAL_LABELS[medal])}` : ''} · Click to set the waypoint`);
+      const when = pin.closed ? ` · ${t(pin.closedLabel)}` : '';
+      return t(`Mission: ${t(pin.def.title)}${medal ? ` · ${t(MEDAL_LABELS[medal])}` : ''}${when} · Click to set the waypoint`);
     },
     click(mx, my, v) {
       const pin = overlay.pick(mx, my, v);
@@ -584,10 +625,12 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
 
   // --- Every frame (js/missions-manager.js onFrame) -------------------------------------------------------------------
   let frameN = 0;
+  let promptKeyState = null;
   function update(active, dt, cm) {
     const ent = cm.getActiveEntity();
     const p = ent.position;
     group.visible = !active;
+    if (!active && frameN % 30 === 0) refreshWindows();
     // the markers within reach (re-placed when the set changes: a few times a second is enough)
     if (!active && (frameN++ % 10 === 0)) {
       pins.forEach((pin, i) => {
@@ -608,14 +651,23 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
     }
     // the start circle the player stands in
     const reach = active ? null : missionInReach(pins, { x: p.x, z: p.z, y: p.y, mode: cm.activeMode });
-    if ((reach?.def.id ?? null) !== (inReach?.def.id ?? null)) {
-      inReach = reach;
-      setMissionStartInReach(reach?.def.id);
+    inReach = reach;
+    // (only when the pin, its window or what it says has changed: no DOM per frame)
+    const keyState = reach ? `${reach.def.id}|${reach.pin.closedLabel}` : null;
+    if (keyState !== promptKeyState) {
+      promptKeyState = keyState;
+      const closed = !!reach?.pin.closed;
+      // (a closed start isn't a start: the shared keys and touch buttons go on as if there were none, js/gta.js)
+      setMissionStartInReach(closed ? null : reach?.def.id);
       if (reach) {
         const medal = progress.medal(reach.def.id);
-        setLocalizedText(promptText, `Start ${reach.def.title}`);
-        promptSub.textContent = medal ? `${MEDAL_LABELS[medal]} · best medal` : progress.entry(reach.def.id) ? 'Completed · no medal yet' : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
-        prompt.style.setProperty('--mission-colour', reach.def.colour || '#3fd6ff');
+        setLocalizedText(promptText, closed ? reach.def.title : `Start ${reach.def.title}`);
+        if (closed) setLocalizedText(promptSub, reach.pin.closedLabel);
+        else promptSub.textContent = medal ? `${MEDAL_LABELS[medal]} · best medal` : progress.entry(reach.def.id) ? 'Completed · no medal yet' : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
+        promptKey.textContent = closed ? 'U' : 'Enter';
+        promptWait.hidden = !closed;
+        prompt.classList.toggle('is-closed', closed);
+        prompt.style.setProperty('--mission-colour', closed ? '#8b93a1' : reach.def.colour || '#3fd6ff');
       }
     }
     prompt.hidden = !inReach || !!mapSystem?.isFullMapOpen;

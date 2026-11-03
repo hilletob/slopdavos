@@ -111,6 +111,13 @@ export function nextSeasonMorning(total) {
   return nextSeasonDay(total, seasonAt(total) === 'winter' ? 'summer' : 'winter') + 7 * 60;
 }
 
+/** The fast-forward's menu: the next morning (07:00), the next evening (18:00), the next season's first morning */
+export function fastForwardTarget(kind, total) {
+  if (kind === 'morning') return nextTimeOfDay(total, 7 * 60);
+  if (kind === 'evening') return nextTimeOfDay(total, 18 * 60);
+  return nextSeasonMorning(total);
+}
+
 const STORAGE_KEY = 'slopdavos-clock';
 const STORAGE_VERSION = 1;
 const SAVE_EVERY = 10; // real seconds

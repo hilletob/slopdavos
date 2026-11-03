@@ -51,6 +51,8 @@ import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
 import { gameClock } from './game-clock.js';
+import { missionClockTime } from './mission-windows.js';
+import { buildFastForward } from './fast-forward.js';
 import { TIME_MINUTES, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
@@ -255,6 +257,7 @@ async function initApp() {
     buildSkiPistes(scene); // the groomed downhill runs with their edge poles, shown in winter
     buildWinterHikes(scene); // the signposted winter hiking trails with their pink markers, shown in winter
   };
+  const winterSceneryPending = () => !skipped('winter') && !winterSceneryBuilt;
   if (skipped('winter')) { /* (no pistes, trails or winter hikes) */ } else if (!QUALITY.lazyWinter || isWinter()) buildWinterScenery();
   else {
     const stop = onSeasonChange((on) => {
@@ -578,7 +581,6 @@ async function initApp() {
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
-  const timeButtons = document.querySelectorAll('[data-time]');
   const teleportButtons = document.querySelectorAll('[data-teleport]');
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const modeSwitch = document.getElementById('mode-switch');
@@ -693,7 +695,10 @@ async function initApp() {
   function applyClock(force = false) {
     lightStepIn = LIGHT_STEP;
     const w = gameClock.winterBlend;
-    setSeason(gameClock.isWinter);
+    // The scenery only winter has (the mobile profile builds it the first time, js/quality.js lazyWinter): that takes a
+    // moment, which a midnight the clock simply reached spends behind the fast-forward's veil; a jump is behind it anyway
+    if (gameClock.isWinter && !isWinter() && !force && winterSceneryPending()) fastForward.behindVeil(() => setSeason(true), 'Snow is falling …');
+    else setSeason(gameClock.isWinter);
     setWinterBlend(w);
     snowfall.setAmount?.(gameClock.snowfall);
     sampleDay(gameClock.minute, daySample);
@@ -708,9 +713,6 @@ async function initApp() {
     gameClock.setMinute(minute);
     gameClock.freeze(true);
     applyClock(true);
-    timeButtons.forEach((btn) => {
-      btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
-    });
   }
   // The time and the day in the HUD (only touched when they change)
   const elClockTime = document.getElementById('hud-clock-time');
@@ -791,12 +793,6 @@ async function initApp() {
   const camNextBtn = document.getElementById('cam-next');
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
-
-  timeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectTime(btn.getAttribute('data-time'));
-    });
-  });
 
   // A mouse click mustn't leave the focus on a HUD button, or Space (jump / ascend) and Enter would press it again
   document.addEventListener('click', (e) => {
@@ -982,8 +978,23 @@ async function initApp() {
   selectCamera('chase', true);
   applyClock(true);
   renderClock();
+  const fastForward = buildFastForward({
+    clock: gameClock, apply: applyClock, closePopovers,
+    button: document.getElementById('btn-fastforward'), popover: document.getElementById('ff-popover')
+  });
+  // A mission: the clock stands still at its time, in its season's look; afterwards it goes on from there
+  const holdClock = (def, night) => {
+    gameClock.hold(missionClockTime(def, night, gameClock.total), def.season || null);
+    gameClock.takeJump();
+    applyClock(true);
+  };
+  const releaseClock = () => {
+    gameClock.release();
+    gameClock.takeJump();
+    applyClock(true);
+  };
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, selectTime, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, world, mapSystem });
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, world, mapSystem });
   // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
   // Bahnhof Davos Platz)
   if (GTA) {
@@ -1234,7 +1245,7 @@ async function initApp() {
           mode(m) { selectMode(m); },
           camera(id) { selectCamera(id, true); },
           time(id) { if (id === 'run') gameClock.freeze(false); else selectTime(id); },
-          clock: gameClock, applyClock, light: lightingSystem,
+          clock: gameClock, applyClock, light: lightingSystem, fastForward,
           setCamera(px, py, pz, tx, ty, tz) {
             cameraSystem.fixedPos = new THREE.Vector3(px, py, pz); cameraSystem.fixedLook = new THREE.Vector3(tx, ty, tz);
             selectCamera('fixed', true);
@@ -1271,6 +1282,7 @@ async function initApp() {
       const altitudeM = Math.round(activeEnt.position.y + FRAME.H0); // metres above sea level (m ü. M.)
 
       renderClock();
+      fastForward.update();
       if (elFps) {
         elFps.textContent = String(currentFps);
         elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';

@@ -17,6 +17,11 @@ const pairs = [
   ['Golden Hour', 'Goldene Stunde'], ['Sunny Midday', 'Sonniger Mittag'], ['Midday', 'Mittag'],
   ['Blue Hour', 'Blaue Stunde'], ['Night 23:00', 'Nacht 23:00'], ['Night', 'Nacht'],
   ['Game time', 'Spielzeit'], ['Summer', 'Sommer'],
+  ['Fast-forward the time', 'Zeit vorspulen'], ['Fast-forward', 'Vorspulen'],
+  ['To the next morning', 'Zum nächsten Morgen'], ['To the next evening', 'Zum nächsten Abend'],
+  ['To the next season', 'Zur nächsten Jahreszeit'], ['To the winter', 'Zum Winter'], ['To the summer', 'Zum Sommer'],
+  ['Tomorrow', 'Morgen'], ['Wait until then', 'Bis dann warten'], ['Snow is falling …', 'Es schneit …'],
+  ['Ready: the clock starts with your first input', 'Bereit: Die Stoppuhr läuft ab deiner ersten Eingabe'],
   ['Teleport the active player', 'Aktive Spielfigur teleportieren'], ['Teleport to', 'Teleportieren nach'],
   ['Teleport', 'Teleportieren'], ['Full Davos street map [M]', 'Davos-Strassenkarte öffnen [M]'],
   ['Map', 'Karte'], ['Mute sound [N]', 'Ton ausschalten [N]'], ['Mute sound', 'Ton ausschalten'],
@@ -1092,7 +1097,13 @@ function translate(value) {
   dynamic = dynamic.replace(/ · this turn (\d+)$/, ' · in dieser Runde $1');
   dynamic = dynamic.replace(/ · streak (\d+)/g, ' · Serie $1');
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
-  dynamic = dynamic.replace(/^Day (\d+) · (Summer|Winter)$/, (_, n, season) => `Tag ${n} · ${season === 'Summer' ? 'Sommer' : 'Winter'}`);
+  const seasonDe = (season) => (season === 'Summer' ? 'Sommer' : 'Winter');
+  dynamic = dynamic.replace(/^Day (\d+) · (Summer|Winter)( · \d\d:\d\d)?$/, (_, n, season, time) => `Tag ${n} · ${seasonDe(season)}${time || ''}`);
+  dynamic = dynamic.replace(/^Opens at (\d\d:\d\d)$/, 'Öffnet um $1');
+  dynamic = dynamic.replace(/^In (summer|winter): in 1 day$/, (_, season) => `Im ${season === 'summer' ? 'Sommer' : 'Winter'}: in 1 Tag`);
+  dynamic = dynamic.replace(/^In (summer|winter): in (\d+) days$/, (_, season, n) => `Im ${season === 'summer' ? 'Sommer' : 'Winter'}: in ${n} Tagen`);
+  dynamic = dynamic.replace(/^Tomorrow · (\d\d:\d\d)$/, 'Morgen · $1').replace(/^In (\d+) days · (\d\d:\d\d)$/, 'In $1 Tagen · $2');
+  dynamic = dynamic.replace(/^(Gold|Silver|Bronze) ([\d:.]+|[\d,.]+ .+)$/, (_, medal, limit) => `${enToDe.get(medal) || medal} ${limit}`);
   dynamic = dynamic.replace(/^Completed · no medal yet$/, 'Abgeschlossen · noch keine Medaille');
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) · best medal$/, (_, medal) => `${enToDe.get(medal) || medal} · beste Medaille`);
   dynamic = dynamic.replace(/^Best time (.+)$/, 'Bestzeit $1');
