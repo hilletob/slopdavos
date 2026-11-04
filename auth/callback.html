@@ -11,7 +11,8 @@
     html, body { height: 100%; margin: 0; background: #121314; color: #e8eaed; font: 16px/1.5 system-ui, -apple-system, sans-serif; }
     body { display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; }
     a { color: inherit; }
-    a[hidden] { display: none; }
+    a[hidden], div[hidden] { display: none; }
+    button { font: inherit; color: inherit; background: #2a2d31; border: 1px solid #4a4f55; border-radius: 9px; padding: 10px 16px; cursor: pointer; }
     p { margin: 0 0 12px; }
   </style>
 </head>
@@ -20,6 +21,10 @@
        that the city is built only once; sw.js never caches anything under auth/. -->
   <main>
     <p id="message"></p>
+    <div id="choice" hidden>
+      <p><button id="take-over" type="button"></button></p>
+      <p><button id="keep" type="button"></button></p>
+    </div>
     <a id="back" href="../" hidden></a>
   </main>
   <script type="module">
@@ -38,8 +43,20 @@
     if (!code) fail();
     else {
       try {
-        const { finishSignIn } = await import('../js/account.js');
-        location.replace(await finishSignIn(code));
+        const { finishSignIn, ownerConflict, takeOverDevice, signOut } = await import('../js/account.js');
+        const target = await finishSignIn(code);
+        if (!await ownerConflict()) location.replace(target);
+        else {
+          // (the save on this device is another account's: the two are not mixed, and nothing goes without asking)
+          message.textContent = de ? 'Auf diesem Gerät liegt der Spielstand eines anderen Kontos.' : 'This device holds the save of another account.';
+          const takeOver = document.getElementById('take-over');
+          const keep = document.getElementById('keep');
+          takeOver.textContent = de ? 'Mit diesem Konto weiterspielen (der andere Spielstand verlässt das Gerät)' : 'Continue with this account (the other save leaves this device)';
+          keep.textContent = de ? 'Abbrechen und abmelden' : 'Cancel and sign out';
+          takeOver.onclick = async () => { await takeOverDevice(); location.replace(target); };
+          keep.onclick = async () => { await signOut(); location.replace(target); };
+          document.getElementById('choice').hidden = false;
+        }
       } catch { fail(); }
     }
   </script>

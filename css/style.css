@@ -728,6 +728,7 @@ body.hud-minimized .icon-show {
 #btn-account[aria-pressed="true"] { color: var(--text); }
 .account-who,
 .account-status { max-width: 264px; padding: 4px 10px 8px; overflow-wrap: anywhere; }
+.account-link { display: block; padding: 6px 10px 6px; color: var(--text-3); text-decoration: underline; }
 
 /* ------------------------------------------------------------------------------------------------------------------
    Bottom left: NYC street-name signs over the GPS radar

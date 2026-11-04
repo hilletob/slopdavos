@@ -37,20 +37,20 @@ test('the callback lies beside the game, also under a sub-path', () => {
 test('the SDK is pinned and stays out of a guest\'s start', () => {
   assert.match(SUPABASE_SDK, /@supabase\/supabase-js@\d+\.\d+\.\d+\/\+esm$/);
   assert.doesNotMatch(html, /supabase/i);
-  for (const module of ['account', 'account-ui', 'account-config']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
+  for (const module of ['account', 'account-ui', 'account-config', 'account-sync', 'account-merge']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
   assert.doesNotMatch(read('js/main.js'), /^import .*account/m, 'js/main.js loads the account on demand only');
   assert.doesNotMatch(read('js/account.js'), /from ['"]https?:/, 'the SDK is not a static import');
 });
 
 test('the login page is deployed, and its code never reaches the cache', () => {
-  assert.match(read('.github/workflows/pages.yml'), /cp -R .*\bauth\b.* _site\//);
+  assert.match(read('.github/workflows/pages.yml'), /cp -R .*\bprivacy\.html\b.*\bauth\b.* _site\//);
   const sw = read('sw.js');
   assert.ok(sw.indexOf("'auth/'") > 0 && sw.indexOf("'auth/'") < sw.indexOf('event.respondWith(fetch(request)'), 'auth/ goes by before the caching');
 });
 
 test('every provider has a label to show, and the texts are in both languages', () => {
   const i18n = read('js/i18n.js');
-  const texts = [...LOGIN_PROVIDERS.map((p) => p.label), 'Account', 'Sign out', 'Finish the mission first.', 'Opening the sign-in…',
+  const texts = [...LOGIN_PROVIDERS.map((p) => p.label), 'Account', 'Sign out', 'Finish the mission first.', 'Opening the sign-in…', 'Saved to your account.', 'Delete account', 'Privacy',
     'The sign-in is not reachable right now. You can keep playing.', 'Signing out failed. Please try again.'];
   for (const text of texts) assert.ok(i18n.includes(`['${text}',`), text);
   assert.match(i18n, /\.language-switch, \.player-name/, 'player names are not translated');

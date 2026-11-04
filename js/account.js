@@ -1,4 +1,5 @@
 import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK } from './account-config.js';
+import { OWNER_KEY, ownedByOther, clearLocalSave } from './account-merge.js';
 
 // js/account.js
 // The session of the optional player account (Supabase Auth, signed in by a full page redirect with PKCE: a popup is not
@@ -24,7 +25,7 @@ export function safeReturnPath(value, fallback = '/') {
 export const callbackUrl = (base = document.baseURI) => new URL('auth/callback.html', base).href;
 
 let client = null;
-function getClient() {
+export function getClient() {
   client ||= import(SUPABASE_SDK).then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: {
       flowType: 'pkce',
@@ -65,6 +66,29 @@ export async function currentUser() {
   const { data } = await supabase.auth.getSession();
   const user = data.session?.user;
   return user ? { id: user.id, email: user.email ?? null } : null;
+}
+
+/** auth/callback.html: this device holds the save of another account */
+export async function ownerConflict() {
+  const user = await currentUser();
+  return !!user && ownedByOther(localStorage, user.id);
+}
+
+/** auth/callback.html: the other account's save leaves this device (it stays in that account), this account's comes at the start */
+export async function takeOverDevice() {
+  const user = await currentUser();
+  if (!user) return;
+  clearLocalSave(localStorage);
+  localStorage.setItem(OWNER_KEY, user.id);
+}
+
+/** Deletes the account and its cloud save. This device keeps its game, as a guest's */
+export async function deleteAccount() {
+  const supabase = await getClient();
+  const { error } = await supabase.rpc('delete_account');
+  if (error) throw error;
+  await supabase.auth.signOut({ scope: 'local' });
+  try { localStorage.removeItem(OWNER_KEY); } catch { /* */ }
 }
 
 /** Ends the session on this device. Works with the backend down too: only the local tokens go */

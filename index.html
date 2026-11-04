@@ -181,7 +181,8 @@
   <link rel="modulepreload" href="./js/snowfall.js" />
   <link rel="modulepreload" href="./js/gpu-diagnostics.js" />
   <link rel="modulepreload" href="./js/main.js" />
-  <script type="module" src="./js/main.js"></script>
+  <link rel="modulepreload" href="./js/start.js" />
+  <script type="module" src="./js/start.js"></script>
   <!-- The player's VW T3 body (js/vw-t3.js fetches it as soon as it loads) -->
   <link rel="preload" href="./assets/models/vw-t3-body.glb" as="fetch" crossorigin />
   <!-- Inter (UI) & Overpass (street-name signs: modelled on Highway Gothic, the US road sign typeface) -->
@@ -288,6 +289,7 @@
     <div class="pop-title">Account</div>
     <div id="account-items"></div>
     <div id="account-status" class="pop-sub account-status" role="status" hidden></div>
+    <a class="pop-sub account-link" href="./privacy.html" target="_blank" rel="noopener">Privacy</a>
   </div>
 
   <!-- Fast-forward (js/fast-forward.js): a short fade, and the clock jumps -->
