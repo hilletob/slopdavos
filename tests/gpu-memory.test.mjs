@@ -19,7 +19,7 @@ export class BufferGeometry {
 }`);
 register(`data:text/javascript,${encodeURIComponent(`export async function resolve(s, c, next) { return s === 'three/webgpu' ? { url: 'data:text/javascript,${three}', shortCircuit: true } : next(s, c); }`)}`);
 const THREE = await import('three/webgpu');
-const { indexGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects } = await import('../js/gpu-memory.js');
+const { indexGeometry, flatGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects } = await import('../js/gpu-memory.js');
 
 // A draped strip as drapeOverlay leaves it: non-indexed triangles, every inner corner repeated (n quads, 6 corners each)
 function strip(n) {
@@ -116,5 +116,29 @@ test('indexGeometry leaves a geometry alone that is to stay flat (the terrain ch
   flat.setAttribute('position', new THREE.BufferAttribute(new Float32Array(36), 3));
   assert.ok(indexGeometry(flat, { force: true }), 'without the mark it is indexed');
   flat.userData.keepFlat = true;
+  assert.equal(indexGeometry(flat, { force: true }), null);
+});
+
+test('flatGeometry draws the same triangles without an index, and stays flat', () => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]), 3));
+  g.setIndex([0, 1, 2, 0, 2, 3]);
+  // (the test's three.js stub has no toNonIndexed: the corners written out in index order by hand)
+  g.toNonIndexed = () => {
+    const flat = new THREE.BufferGeometry(), src = g.attributes.position.array, out = [];
+    for (const i of [0, 1, 2, 0, 2, 3]) out.push(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]);
+    flat.setAttribute('position', new THREE.BufferAttribute(new Float32Array(out), 3));
+    return flat;
+  };
+  g.setDrawRange(3, 3);
+  g.userData.lodLevels = [{ start: 0, count: 6 }];
+  g.boundingBox = { min: [0, 0, 0], max: [1, 1, 0] };
+  const flat = flatGeometry(g);
+  assert.equal(flat.index, null);
+  assert.deepEqual(Array.from(flat.attributes.position.array), [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0]);
+  assert.deepEqual({ start: flat.drawRange.start, count: flat.drawRange.count }, { start: 3, count: 3 });
+  assert.deepEqual(flat.userData.lodLevels, [{ start: 0, count: 6 }]);
+  assert.equal(flat.userData.keepFlat, true);
+  assert.equal(flat.boundingBox, g.boundingBox);
   assert.equal(indexGeometry(flat, { force: true }), null);
 });

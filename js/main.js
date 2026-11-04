@@ -69,6 +69,9 @@ const GTA = !isClassicMode();
 // A first visit starts on foot by the Bahnhof Davos Platz (classic: by bike by the Seehof Seeli); a first visit of the
 // GTA mode ignores a save from before it (it starts afresh, see js/gta.js)
 const FIRST_START = GTA ? GTA_START : PLAYER_STARTS.cyclist;
+// A teleport's reload (userTeleport) leaves this mark for the page it loads: it waits MOVE_BREATH ms before building
+const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500;
+const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return !!m; } catch { return false; } };
 const FRESH_GTA = GTA && !hasGtaState();
 
 // js/main.js
@@ -222,6 +225,13 @@ async function initApp() {
     if (!FRESH_GTA) try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
     setWorldCenter(start.x, start.z);
     if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
+  }
+  // A teleport beyond the town reloads the page (userTeleport below): on a phone the old town is still being let go
+  // of while the new one is built, and the two together were more than the web process was allowed (1.75 GB when
+  // iOS killed it); a breath first lets Safari give the old one back before the heavy builders start
+  if (QUALITY.mobile && movedHere()) {
+    if (loadingStatus) loadingStatus.textContent = 'Moving the town…';
+    await new Promise((resolve) => setTimeout(resolve, MOVE_BREATH));
   }
   const cityGrid = await buildCityGrid(scene); // (async: the mobile profile pauses within, js/city-grid.js)
   // (the mobile profile: the ground layers' vertices shared and their normals in bytes at once, js/gpu-memory.js:
@@ -888,6 +898,7 @@ async function initApp() {
       // the two together were too much)
       renderer.setAnimationLoop(null);
       try { renderer.backend.device?.destroy?.(); } catch { /* the reload frees it anyway */ }
+      try { sessionStorage.setItem(MOVING_KEY, '1'); } catch { /* (storage may be off: the new page just builds at once) */ }
       setTimeout(() => window.location.reload(), 50);
     }
     return destination;

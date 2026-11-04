@@ -204,6 +204,21 @@ export function indexGeometry(geometry, { force = false } = {}) {
   return out;
 }
 
+/**
+ * A non-indexed copy of `geometry` drawing the same triangles (bounds, draw range, LOD levels and the rest of the
+ * user data kept; `geometry` is disposed), marked keepFlat so that indexGeometry leaves it so. The flat-draws
+ * profile (js/quality.js flatDraws): what an index buffer saves in vertex data, Safari's GPU process more than spends.
+ */
+export function flatGeometry(geometry) {
+  const flat = geometry.toNonIndexed();
+  flat.boundingBox = geometry.boundingBox; flat.boundingSphere = geometry.boundingSphere;
+  flat.userData = { ...geometry.userData, keepFlat: true };
+  flat.setDrawRange(geometry.drawRange.start, geometry.drawRange.count);
+  flat.name = geometry.name;
+  geometry.dispose();
+  return flat;
+}
+
 /** `attribute` (float, 3 a vertex) as normalized signed bytes; the same object for an attribute already quantized */
 function quantizedNormal(attribute) {
   const src = attribute.array, dst = new Int8Array(src.length);

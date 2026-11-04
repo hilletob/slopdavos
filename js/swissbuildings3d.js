@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mx_noise_float, positionWorld, normalWorld, cameraPosition, float, smoothstep, fract, step, vertexColor, attribute, vec2, vec3, mix, texture, uv, fwidth, hash as gpuHash, time, sin } from 'three/tsl';
 import { cityUniforms } from './tsl-materials.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -640,6 +641,31 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
     const base = new URL(index.base, INDEX_URL);
     const tiles = index.tiles.map((t, i) => ({ ...t, seed: i * 977, d: Math.hypot(t.x - center.x, t.z - center.z) })).sort((a, b) => a.d - b.d);
     const near = tiles.filter((t) => t.d <= nearRadius).length || Math.min(tiles.length, 12);
+    // The mobile profile (js/quality.js buildingCell): the tiles merged into cells of that size, one mesh a cell, made
+    // as its last tile arrives (a tile that fails still counts, so that a cell never waits for it)
+    const cellSize = QUALITY.buildingCell || 0;
+    const cellOf = (t) => `${Math.floor(t.x / cellSize)}/${Math.floor(t.z / cellSize)}`;
+    const cells = new Map();
+    if (cellSize) for (const t of tiles) {
+      const key = cellOf(t);
+      if (!cells.has(key)) cells.set(key, { left: 0, geometries: [], buildings: 0 });
+      cells.get(key).left++;
+    }
+    const settleCell = (key) => {
+      const cell = cells.get(key);
+      if (!cell || --cell.left > 0) return;
+      cells.delete(key);
+      if (!cell.geometries.length) return;
+      const merged = cell.geometries.length === 1 ? cell.geometries[0] : mergeGeometries(cell.geometries, false);
+      if (merged !== cell.geometries[0]) for (const g of cell.geometries) g.dispose();
+      if (!merged) return;
+      merged.userData = { buildings: cell.buildings };
+      const mesh = new THREE.Mesh(merged, material);
+      mesh.name = `cell ${key}`;
+      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.userData.baseMaterial = material;
+      group.add(mesh);
+    };
     let next = 0, loaded = 0, settled = 0;
     const settle = () => {
       settled++;
@@ -653,7 +679,12 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
           const tile = parseB3dm(await fetchBuffer(new URL(t.u, base)));
           const gltf = await loaderFor().parseAsync(tile.glb, '');
           const geometry = bakeTile(gltf, { ...tile, seed: t.seed }, stats);
-          if (geometry) {
+          if (geometry && cellSize) {
+            const cell = cells.get(cellOf(t));
+            cell.geometries.push(geometry);
+            cell.buildings += geometry.userData.buildings;
+            stats.buildings += geometry.userData.buildings;
+          } else if (geometry) {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = t.u;
             mesh.castShadow = mesh.receiveShadow = true;
@@ -668,6 +699,7 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
           stats.failed++;
           if (stats.failed <= 3) console.warn('[swissbuildings3d]', t.u, error);
         }
+        if (cellSize) settleCell(cellOf(t));
         settle();
       }
     };

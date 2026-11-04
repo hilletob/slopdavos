@@ -61,9 +61,32 @@ async function fetchBlob(url) {
   }
 }
 const pixels = (tile) => [Math.round((tile.x1 - tile.x0) / tile.res), Math.round((tile.z1 - tile.z0) / tile.res)];
-async function loadTexture(url, size = null) {
+async function loadBitmap(url, size = null) {
   const blob = await fetchBlob(url);
-  const bitmap = await createImageBitmap(blob, size ? { resizeWidth: size[0], resizeHeight: size[1], resizeQuality: 'medium' } : undefined);
+  return createImageBitmap(blob, size ? { resizeWidth: size[0], resizeHeight: size[1], resizeQuality: 'medium' } : undefined);
+}
+async function loadTexture(url, size = null) {
+  return bitmapTexture(await loadBitmap(url, size));
+}
+// One image of several tiles (a chunk of more than one tile's size, js/quality.js terrainChunk): each tile drawn at its
+// place over `rect` ({ x0, z0, x1, z1 }), `scale` of its full pixel size, the tiles' margins overdrawn by their
+// neighbours (the same photo); the canvas gives its pixels up as the bitmap
+async function loadComposed(tiles, rect, base, scale) {
+  const res = Math.min(...tiles.map((t) => t.res)) / scale;
+  const W = Math.max(16, Math.round((rect.x1 - rect.x0) / res)), H = Math.max(16, Math.round((rect.z1 - rect.z0) / res));
+  const bitmaps = await Promise.all(tiles.map((t) => {
+    const [w, h] = pixels(t);
+    return loadBitmap(new URL(t.f, base).href, scale < 1 ? [Math.max(16, Math.round(w * scale)), Math.max(16, Math.round(h * scale))] : null);
+  }));
+  const canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext('2d');
+  tiles.forEach((t, i) => {
+    const x = (t.x0 - rect.x0) / res, y = (t.z0 - rect.z0) / res, w = (t.x1 - t.x0) / res, h = (t.z1 - t.z0) / res;
+    ctx.drawImage(bitmaps[i], x, y, w, h);
+    bitmaps[i].close();
+  });
+  return bitmapTexture(canvas.transferToImageBitmap());
+}
+function bitmapTexture(bitmap) {
   const texture = new THREE.Texture(bitmap);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -150,7 +173,9 @@ function load(c, level) {
   const [w, h] = pixels(tile);
   c.loading = level; loads++;
   const scale = level === 0 ? QUALITY.orthoSmall : level === 1 ? QUALITY.orthoFullScale : 1;
-  return loadTexture(new URL(tile.f, base).href, scale < 1 ? [Math.max(16, Math.round(w * scale)), Math.max(16, Math.round(h * scale))] : null)
+  const loading = c.tiles.length > 1 && level < 2 ? loadComposed(c.tiles, c.rect, base, scale)
+    : loadTexture(new URL(tile.f, base).href, scale < 1 ? [Math.max(16, Math.round(w * scale)), Math.max(16, Math.round(h * scale))] : null);
+  return loading
     .then((map) => {
       c.mesh.userData.orthoMap = map;
       if (!c.material) { c.material = groundMaterial(); c.mesh.material = c.material; }
@@ -217,11 +242,23 @@ export async function drapeTerrainOrthophotos(meshes, { center = { x: 0, z: 0 } 
   if (!index) return 0;
   const added = [];
   for (const mesh of meshes) {
-    const key = mesh.userData.chunk && `${mesh.userData.chunk.i0}/${mesh.userData.chunk.j0}`, tile = key && index.byChunk.get(key);
-    if (!tile) continue;
-    mesh.userData.orthoRect = new THREE.Vector4(tile.x0, tile.z0, 1 / (tile.x1 - tile.x0), 1 / (tile.z1 - tile.z0));
+    const at = mesh.userData.chunk;
+    if (!at) continue;
+    // The chunk's tiles: one of its size (the index's chunk, 64 nodes), or those of a bigger chunk (terrainChunk)
+    const tiles = [];
+    for (let dj = 0; dj < (at.n || index.chunk); dj += index.chunk) for (let di = 0; di < (at.n || index.chunk); di += index.chunk) {
+      const t = index.byChunk.get(`${at.i0 + di}/${at.j0 + dj}`);
+      if (t) tiles.push(t);
+    }
+    if (!tiles.length) continue;
+    const tile = tiles[0], key = `${at.i0}/${at.j0}`;
+    const rect = tiles.length === 1 ? tile : { x0: Math.min(...tiles.map((t) => t.x0)), z0: Math.min(...tiles.map((t) => t.z0)),
+      x1: Math.max(...tiles.map((t) => t.x1)), z1: Math.max(...tiles.map((t) => t.z1)) };
+    mesh.userData.orthoRect = new THREE.Vector4(rect.x0, rect.z0, 1 / (rect.x1 - rect.x0), 1 / (rect.z1 - rect.z0));
     const s = mesh.geometry.boundingSphere;
-    const chunk = { mesh, tile, key, x: s.center.x, z: s.center.z, level: -1, loading: -1, texture: null, material: null, hires: undefined, seenAt: -Infinity };
+    // (a composed chunk never takes the high-resolution image: those are per tile)
+    const chunk = { mesh, tile, tiles, rect, key, x: s.center.x, z: s.center.z, level: -1, loading: -1, texture: null, material: null,
+      hires: tiles.length > 1 ? null : undefined, seenAt: -Infinity };
     if (QUALITY.orthoWhenSeen) { // (on top of the terrain's own hook, its levels of detail)
       const before = mesh.onBeforeRender;
       mesh.onBeforeRender = function (...args) { chunk.seenAt = performance.now(); return before?.apply(this, args); };

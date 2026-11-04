@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel, cutTriangles } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { QUALITY } from './quality.js';
+import { flatGeometry } from './gpu-memory.js';
 import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
@@ -410,7 +411,7 @@ export function carveDepths(strips, depth = 0.3) {
 const ROAD_CARVE_MM = 300;
 let roadCarve = null; // Uint8Array(cols * rows), made on first use
 const dirtyChunks = new Set(); // "i0/j0" keys of the chunks whose nodes' carving changed since they were last built
-const CHUNK = 64; // nodes a chunk side (buildTerrainMeshes)
+const CHUNK = QUALITY.terrainChunk || 64; // nodes a chunk side (buildTerrainMeshes; js/quality.js: 128 on a phone)
 /**
  * Sinks the drawn terrain under the given road strips ([{ a: {x, z}, b: {x, z}, half }]; `sign` 1), or lets it come up
  * again where they are removed (`sign` -1, the very same strips). The terrain chunks touched are rebuilt as
@@ -551,17 +552,8 @@ function chunkGeometry(i0, j0, nc, nr, steps = null) {
   g.setDrawRange(levels[0].start, levels[0].count);
   g.boundingBox = box; g.boundingSphere = sphere; // (the full chunk's, for either)
   g.userData.lodLevels = levels;
-  return QUALITY.terrainFlat ? flatChunk(g) : g;
-}
-// The chunk's corners written out in index order: a level's range [start, start + count) draws the same triangles
-function flatChunk(g) {
-  const flat = g.toNonIndexed();
-  flat.boundingBox = g.boundingBox; flat.boundingSphere = g.boundingSphere;
-  flat.userData.lodLevels = g.userData.lodLevels;
-  flat.userData.keepFlat = true; // (gpu-memory.js indexGeometry leaves it so)
-  flat.setDrawRange(g.drawRange.start, g.drawRange.count);
-  g.dispose();
-  return flat;
+  // (the flat-draws profile: the corners written out in index order, a level's range draws the same triangles)
+  return QUALITY.flatDraws ? flatGeometry(g) : g;
 }
 export function buildTerrainMeshes(material, { chunk = CHUNK, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ } = TERRAIN;
@@ -579,7 +571,7 @@ export function buildTerrainMeshes(material, { chunk = CHUNK, carve = null, dept
     mesh.onBeforeRender = drawLevel;
     mesh.receiveShadow = true;
     mesh.name = `terrain ${i0}/${j0}`;
-    mesh.userData.chunk = { i0, j0 }; // its orthophoto (swissimage.js)
+    mesh.userData.chunk = { i0, j0, n: chunk }; // its orthophoto(s) (swissimage.js: tiles of 64 nodes)
     const c = coarse.boundingSphere.center;
     const record = { mesh, coarse, full: null, x: c.x, z: c.z, build: () => chunkGeometry(i0, j0, nc, nr), rebuildCoarse: () => chunkGeometry(i0, j0, nc, nr, STEPS_FAR) };
     terrainChunks.push(record);

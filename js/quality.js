@@ -40,10 +40,12 @@ const PROFILES = {
     drapeScale: 1, // overlays draped on the terrain (golf, rails, trails) split down to edges this much longer (at most 8 m)
     lazyWinter: false, // build the winter-only scenery (pistes, trails) at once, so switching season never stalls
     buildingLoads: 8, buildingNear: 450, // swissBUILDINGS3D tiles parsed at once, and the radius loaded before the start
+    buildingCell: 0, // swissBUILDINGS3D tiles merged into cells of this size (m), one mesh each (0: a mesh a tile)
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
-    terrainFlat: false, // the terrain's chunks without an index buffer (see the mobile profile)
+    flatDraws: false, // the terrain's chunks drawn without index buffers (see the mobile profile)
+    terrainChunk: 64, // nodes a terrain chunk side (8 m a node: 512 m); the orthophotos come in tiles of 64
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
     clusterLights: [256, 32, 28, 48], // ClusteredLighting: lights at most, tile px, depth slices, lights per cluster
@@ -81,13 +83,21 @@ const PROFILES = {
     drapeScale: 2,
     lazyWinter: true,
     buildingLoads: 2, buildingNear: 250, // (each tile peaks at tens of MB while parsed: fewer at once on a phone)
+    // (Safari's web and GPU processes hold ~16 KB a GPU object whatever its size, and iOS kills them by size: the 1666
+    // tile meshes were ~1400 buffers and 256 draws a frame; the tiles lie ~460 m apart, cells of 1 km make ~200 meshes. Needs no roof images,
+    // which are per tile: roofOrthophotos and sharpRoofs are off here)
+    buildingCell: 1000,
     precompile: false, // (on an iPhone the precompile killed the GPU process: the pipelines compile when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     compactGeometry: true,
-    // (the terrain's chunks drawn without index buffers: in Safari their indexed draws held ~200 MB in the GPU process, far
-    // more than their buffers ask for, and that process is what iOS kills first; ?qset=terrainFlat:false to compare)
-    terrainFlat: true,
+    // (the terrain's chunks drawn without index buffers: in Safari their indexed draws held ~200 MB in the GPU process,
+    // far more than their buffers ask for, and that process is the one iOS kills first, at 300 MB; the surroundings'
+    // tiles and the trees drawn flat saved nothing; ?qset=flatDraws:false to compare)
+    flatDraws: true,
+    // (chunks of 1024 m, 336 instead of 1344 meshes: Safari's web and GPU processes hold ~16 KB a GPU object whatever
+    // its size; each chunk's orthophoto is composed of its 2 x 2 tiles, js/swissimage.js)
+    terrainChunk: 128,
     precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
     clusterLights: [64, 64, 16, 16],
     // (an iPhone 13's GPU process died on a shader module at the start: no clustered light loop in every lit shader,
