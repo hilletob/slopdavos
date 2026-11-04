@@ -29,10 +29,10 @@ export function createFrameGuard({ storage = null, notify = () => {}, gone = () 
         if (text !== last) {
           last = text;
           console.error('[frame]', err);
-          try { storage?.setItem(FRAME_ERROR_KEY, `${new Date().toISOString().slice(0, 19)} ${text} ${context()}`.trim()); } catch { /* storage may be off */ }
+          try { storage?.setItem(FRAME_ERROR_KEY, `${new Date().toISOString().slice(0, 19)} ${context()} ${text}`.replace(/\s+/g, ' ')); } catch { /* storage may be off */ }
         }
         if (meansDeviceGone(text)) {
-          if (!wentAway) { wentAway = true; gone(`GPU process gone: ${text} ${context()}`.trim()); }
+          if (!wentAway) { wentAway = true; gone(`GPU process gone ${context()}: ${text}`.replace(/\s+/g, ' ')); }
           return; // (nothing can be drawn with it)
         }
         if (inRow >= SHOW_AFTER && !told) { told = true; notify(text); }

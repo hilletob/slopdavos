@@ -90,7 +90,7 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
   const box = document.createElement('pre');
   box.id = 'mem-hud';
   box.style.cssText = 'position:fixed;left:max(4px,env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + 150px);z-index:2147483647;margin:0;padding:4px 6px;'
-    + 'font:10px/1.25 ui-monospace,Menlo,monospace;color:#d8ffd8;background:rgba(0,0,0,.72);border-radius:4px;pointer-events:none;white-space:pre;';
+    + 'font:10px/1.25 ui-monospace,Menlo,monospace;color:#d8ffd8;background:rgba(0,0,0,.72);border-radius:4px;pointer-events:none;white-space:pre-wrap;overflow-wrap:anywhere;max-width:calc(100vw - 8px);box-sizing:border-box;';
   let last = null;
   try { last = localStorage.getItem(LAST_KEY); } catch { /* (storage off) */ }
   document.body.append(box);
