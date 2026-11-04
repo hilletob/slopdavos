@@ -1683,6 +1683,10 @@ class PersonRig {
     qY(_qa, yaw + look).multiply(qX(_q, 0.05 - 0.1 * run));
     _v.copy(j[BONE.HEAD]).sub(j[BONE.CHEST]).multiplyScalar(s).applyQuaternion(_qChest).add(_chest);
     this.writeBone(BONE.HEAD, _qa, _v);
+    if (this.trackHead) { // (a mission's headlamp, js/missions-hike.js)
+      this.headPosition = (this.headPosition || new THREE.Vector3()).copy(_v);
+      this.headQuaternion = (this.headQuaternion || new THREE.Quaternion()).copy(_qa);
+    }
 
     // Arms swing against the legs (elbows bend more on the forward swing, ~90 degrees running)
     const swingAmp = 0.42 * this.armSwing * g * (1 + run * 0.6);

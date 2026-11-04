@@ -639,7 +639,7 @@ function drawRaclette(c, rc, g) {
 // =====================================================================================================================
 // 4. The ibex hunt
 // =====================================================================================================================
-function ibexGeometry(a) {
+export function ibexGeometry(a) {
   const male = a.sex === 'm';
   const fur = male ? (a.age === 'old' ? '#5f4b38' : '#6e5a44') : '#8a7458', dark = '#3c3026', horn = '#4a3d30', belly = '#c9b79c';
   const parts = [
