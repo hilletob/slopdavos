@@ -13,8 +13,8 @@ export const RELOAD_GAP = 120000; // ms: no second automatic reload within this
 const describe = (err) => [err?.message || String(err), ...String(err?.stack || '').split('\n').slice(0, 4).map((l) => l.trim().replace(/https?:\/\/[^/]+\//, ''))]
   .filter((l, i, all) => l && all.indexOf(l) === i).join(' < ').slice(0, 600);
 
-export function createFrameGuard({ storage = null, notify = () => {} } = {}) {
-  let inRow = 0, told = false, last = null;
+export function createFrameGuard({ storage = null, notify = () => {}, gone = () => {}, context = () => '' } = {}) {
+  let inRow = 0, told = false, wentAway = false, last = null;
   return {
     get lastError() { return last; },
     get failing() { return inRow; },
@@ -29,7 +29,11 @@ export function createFrameGuard({ storage = null, notify = () => {} } = {}) {
         if (text !== last) {
           last = text;
           console.error('[frame]', err);
-          try { storage?.setItem(FRAME_ERROR_KEY, `${new Date().toISOString().slice(0, 19)} ${text}`); } catch { /* storage may be off */ }
+          try { storage?.setItem(FRAME_ERROR_KEY, `${new Date().toISOString().slice(0, 19)} ${text} ${context()}`.trim()); } catch { /* storage may be off */ }
+        }
+        if (meansDeviceGone(text)) {
+          if (!wentAway) { wentAway = true; gone(`GPU process gone: ${text} ${context()}`.trim()); }
+          return; // (nothing can be drawn with it)
         }
         if (inRow >= SHOW_AFTER && !told) { told = true; notify(text); }
         try { draw(); } catch { /* the same fault in the drawing: the error above says it */ }
@@ -38,20 +42,30 @@ export function createFrameGuard({ storage = null, notify = () => {} } = {}) {
   };
 }
 
-/** A lost device: `save` and `reload`, or `notify` when the last reload for this reason was just now. Destroying it ourselves isn't a loss */
-export function watchDeviceLost(device, { storage = null, save = () => {}, reload = () => {}, notify = () => {}, now = () => Date.now() } = {}) {
+/**
+ * A device that is gone, however we learnt of it: `save` and `reload`, or `notify` when the last reload for this reason was just
+ * now (a page that dies again at once shouldn't reload for ever).
+ */
+export function deviceGone(text, { storage = null, save = () => {}, reload = () => {}, notify = () => {}, now = () => Date.now() } = {}) {
+  let before = 0;
+  try { before = +storage?.getItem(LOST_KEY) || 0; storage?.setItem(FRAME_ERROR_KEY, `${new Date(now()).toISOString().slice(0, 19)} ${text}`); } catch { /* */ }
+  if (now() - before < RELOAD_GAP) { notify(text); return 'notified'; }
+  try { storage?.setItem(LOST_KEY, String(now())); } catch { /* */ }
+  save();
+  reload();
+  return 'reloaded';
+}
+
+/** The browser saying the device is lost. Destroying it ourselves isn't a loss */
+export function watchDeviceLost(device, options = {}) {
   return device?.lost?.then?.((info) => {
     if (info?.reason === 'destroyed') return 'destroyed';
-    const text = `GPU device lost: ${info?.reason || ''} ${info?.message || ''}`.trim();
-    let before = 0;
-    try { before = +storage?.getItem(LOST_KEY) || 0; storage?.setItem(FRAME_ERROR_KEY, `${new Date(now()).toISOString().slice(0, 19)} ${text}`); } catch { /* */ }
-    if (now() - before < RELOAD_GAP) { notify(text); return 'notified'; }
-    try { storage?.setItem(LOST_KEY, String(now())); } catch { /* */ }
-    save();
-    reload();
-    return 'reloaded';
+    return deviceGone(`GPU device lost: ${info?.reason || ''} ${info?.message || ''}`.trim(), options);
   });
 }
+
+/** Safari, when its GPU process has died: every call on the device throws this, and `device.lost` needn't resolve (seen on an iPhone 13) */
+export const meansDeviceGone = (text) => /Unable to make command encoder/i.test(String(text));
 
 /** The message on screen, with the text to pass on and a reload button */
 export function showFault(text, label = 'Neu laden') {

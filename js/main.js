@@ -47,7 +47,7 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
-import { createFrameGuard, watchDeviceLost, showFault } from './frame-guard.js';
+import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './frame-guard.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -1159,7 +1159,21 @@ async function initApp() {
 
   if (elFps) elFps.textContent = '60';
 
-  const frameGuard = createFrameGuard({ storage: localStorage, notify: (text) => showFault(`Spielfehler: ${text}`) });
+  const frameGuard = createFrameGuard({
+    storage: localStorage,
+    notify: (text) => showFault(`Spielfehler: ${text}`),
+    gone: (text) => deviceGone(text, {
+      storage: localStorage,
+      save: () => { try { savePlayerState(); gameClock.save(); } catch { /* */ } },
+      reload: () => window.location.reload(),
+      notify: (message) => showFault(`Grafikfehler: ${message}`)
+    }),
+    // what was going on: how long the page had run, and the last shader it asked for (js/gpu-diagnostics.js)
+    context: () => {
+      const log = globalThis.__slopdavosShaders, shader = log?.last?.at(-1), t = performance.now();
+      return `[up ${Math.round(t / 1000)} s, ${log?.modules ?? '?'} shaders${shader ? `, last ${Math.round((t - shader.t) / 1000)} s ago: ${shader.label} ${shader.length} B` : ''}]`;
+    }
+  });
   const gameFrame = (now) => {
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
