@@ -32,6 +32,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  // (the end of the login, its URL carries a one-time code: never kept)
+  if (url.pathname.startsWith(new URL('auth/', self.registration.scope).pathname)) return;
   event.respondWith(fetch(request).then((r) => keep(request, r)).catch(async () => {
     const hit = await caches.match(request, { ignoreSearch: request.mode === 'navigate' });
     return hit || Response.error();

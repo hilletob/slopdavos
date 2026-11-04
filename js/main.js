@@ -1271,6 +1271,11 @@ async function initApp() {
         markInit('gpu');
         boot.done();
         console.log(`[init] ${initTimings.join(', ')}`);
+        // The optional account (js/account-ui.js), once the city stands: no part of a guest's start
+        import('./account-ui.js').then(({ startAccount }) => startAccount({
+          save: () => { savePlayerState(); gameClock.save(); },
+          missionActive: () => missions.active
+        })).catch(() => { /* the game goes on without it */ });
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),

@@ -17,6 +17,10 @@ const pairs = [
   ['Golden Hour', 'Goldene Stunde'], ['Sunny Midday', 'Sonniger Mittag'], ['Midday', 'Mittag'],
   ['Blue Hour', 'Blaue Stunde'], ['Night 23:00', 'Nacht 23:00'], ['Night', 'Nacht'],
   ['Game time', 'Spielzeit'], ['Summer', 'Sommer'],
+  ['Account', 'Konto'], ['Sign in with Google', 'Mit Google anmelden'], ['Sign out', 'Abmelden'],
+  ['Finish the mission first.', 'Beende zuerst die Mission.'], ['Opening the sign-in…', 'Die Anmeldung wird geöffnet …'],
+  ['The sign-in is not reachable right now. You can keep playing.', 'Die Anmeldung ist gerade nicht erreichbar. Du kannst weiterspielen.'],
+  ['Signing out failed. Please try again.', 'Abmelden hat nicht geklappt. Bitte versuche es erneut.'],
   ['Fast-forward the time', 'Zeit vorspulen'], ['Fast-forward', 'Vorspulen'],
   ['To the next morning', 'Zum nächsten Morgen'], ['To the next evening', 'Zum nächsten Abend'],
   ['To the next season', 'Zur nächsten Jahreszeit'], ['To the winter', 'Zum Winter'], ['To the summer', 'Zum Sommer'],
@@ -1218,7 +1222,7 @@ function translate(value) {
 }
 
 function updateText(node) {
-  if (!node.parentElement || node.parentElement.closest('script, style, svg, .language-switch')) return;
+  if (!node.parentElement || node.parentElement.closest('script, style, svg, .language-switch, .player-name')) return;
   const current = node.nodeValue;
   let original = sourceText.get(node);
   if (original === undefined || current !== translatedText.get(node)) {
@@ -1231,7 +1235,7 @@ function updateText(node) {
 }
 
 function updateAttributes(element) {
-  if (element.closest('.language-switch')) return;
+  if (element.closest('.language-switch, .player-name')) return;
   let originals = sourceAttributes.get(element);
   let rendered = translatedAttributes.get(element);
   if (!originals) { originals = new Map(); sourceAttributes.set(element, originals); }
@@ -1249,7 +1253,7 @@ function updateAttributes(element) {
 function updateTree(root) {
   if (root.nodeType === Node.TEXT_NODE) { updateText(root); return; }
   if (root.nodeType !== Node.ELEMENT_NODE) return;
-  if (root.matches('script, style, svg, .language-switch')) return;
+  if (root.matches('script, style, svg, .language-switch, .player-name')) return;
   updateAttributes(root);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {

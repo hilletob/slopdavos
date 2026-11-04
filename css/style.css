@@ -723,6 +723,12 @@ body.hud-minimized .icon-show {
   color: var(--text-3);
 }
 
+#btn-account[hidden],
+.account-status[hidden] { display: none; }
+#btn-account[aria-pressed="true"] { color: var(--text); }
+.account-who,
+.account-status { max-width: 264px; padding: 4px 10px 8px; overflow-wrap: anywhere; }
+
 /* ------------------------------------------------------------------------------------------------------------------
    Bottom left: NYC street-name signs over the GPS radar
    ------------------------------------------------------------------------------------------------------------------ */

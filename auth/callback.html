@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex" />
+  <meta name="color-scheme" content="dark" />
+  <title>Slop Davos</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #121314; color: #e8eaed; font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; }
+    a { color: inherit; }
+    a[hidden] { display: none; }
+    p { margin: 0 0 12px; }
+  </style>
+</head>
+<body>
+  <!-- The end of the login (js/account.js): the code becomes the session, then back to the game. A page of its own, so
+       that the city is built only once; sw.js never caches anything under auth/. -->
+  <main>
+    <p id="message"></p>
+    <a id="back" href="../" hidden></a>
+  </main>
+  <script type="module">
+    const de = (() => { try { return (localStorage.getItem('slopdavos-language') || navigator.language).startsWith('de'); } catch { return true; } })();
+    const message = document.getElementById('message');
+    const back = document.getElementById('back');
+    const fail = () => {
+      message.textContent = de ? 'Die Anmeldung hat nicht geklappt. Du kannst auch ohne Konto weiterspielen.' : 'Signing in did not work. You can keep playing without an account.';
+      back.textContent = de ? 'Zurück zum Spiel' : 'Back to the game';
+      back.hidden = false;
+    };
+    message.textContent = de ? 'Anmeldung läuft …' : 'Signing in…';
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    history.replaceState(null, '', location.pathname); // (the code stays out of the history)
+    if (!code) fail();
+    else {
+      try {
+        const { finishSignIn } = await import('../js/account.js');
+        location.replace(await finishSignIn(code));
+      } catch { fail(); }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK } from './account-config.js';
+
+// js/account.js
+// The session of the optional player account (Supabase Auth, signed in by a full page redirect with PKCE: a popup is not
+// dependable in the installed fullscreen app). The SDK is loaded on demand, so a guest's start stays as it was.
+// auth/callback.html finishes the redirect, on a page of its own so that the city is built only once.
+
+export const SESSION_KEY = 'slopdavos-session';
+export const RETURN_KEY = 'slopdavos-login-return';
+
+export const isConfigured = (url = SUPABASE_URL, key = SUPABASE_KEY) => !!url && !!key;
+
+/** Whether a session is stored: answered without the SDK (a sign-in under way keeps only its `-code-verifier` key) */
+export function hasStoredSession(storage = globalThis.localStorage) {
+  try { return !!storage?.getItem(SESSION_KEY); } catch { return false; }
+}
+
+/** Where the login comes back to. Only a path on this site: the value is read back from storage after a redirect */
+export function safeReturnPath(value, fallback = '/') {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return fallback;
+  return value;
+}
+
+export const callbackUrl = (base = document.baseURI) => new URL('auth/callback.html', base).href;
+
+let client = null;
+function getClient() {
+  client ||= import(SUPABASE_SDK).then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      flowType: 'pkce',
+      storageKey: SESSION_KEY,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false // (auth/callback.html does it, the game's URL never carries a code)
+    }
+  })).catch((error) => { client = null; throw error; }); // (a failed download may work the next time)
+  return client;
+}
+
+/** Off to the provider: the page is left. Rejects when that could not be started (offline, backend down) */
+export async function signIn(provider) {
+  const supabase = await getClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider, options: { redirectTo: callbackUrl(), skipBrowserRedirect: true }
+  });
+  if (error) throw error;
+  try { localStorage.setItem(RETURN_KEY, location.pathname + location.search); } catch { /* (back to the start page then) */ }
+  location.assign(data.url);
+}
+
+/** auth/callback.html: the code from the URL becomes the session. Answers the path to return to */
+export async function finishSignIn(code) {
+  const supabase = await getClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  let back = null;
+  try { back = localStorage.getItem(RETURN_KEY); localStorage.removeItem(RETURN_KEY); } catch { /* */ }
+  return safeReturnPath(back);
+}
+
+/** The signed-in user { id, email }, or null (no SDK is loaded when no session is stored) */
+export async function currentUser() {
+  if (!hasStoredSession()) return null;
+  const supabase = await getClient();
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  return user ? { id: user.id, email: user.email ?? null } : null;
+}
+
+/** Ends the session on this device. Works with the backend down too: only the local tokens go */
+export async function signOut() {
+  const supabase = await getClient();
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  if (error) throw error;
+}

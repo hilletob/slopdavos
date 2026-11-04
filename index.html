@@ -217,6 +217,7 @@
       <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><path d="M12 2.5v3.1M12 18.4v3.1M2.5 12h3.1M18.4 12h3.1"/></symbol>
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.7"/><path d="M4.8 20c.9-3.8 3.7-5.6 7.2-5.6s6.3 1.8 7.2 5.6"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
     </defs>
   </svg>
@@ -262,6 +263,9 @@
         <button id="lang-de" class="language-btn" type="button" lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
         <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
       </div>
+      <button id="btn-account" class="tool-btn icon-only" type="button" popovertarget="account-popover" title="Account" aria-label="Account" aria-pressed="false" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+      </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="Teleport the active player">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">Teleport</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
@@ -277,6 +281,13 @@
         <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
       </button>
     </div>
+  </div>
+
+  <!-- The optional account (js/account-ui.js): the button shows once js/account-config.js names a backend -->
+  <div id="account-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-align="hud-toolbar" aria-label="Account">
+    <div class="pop-title">Account</div>
+    <div id="account-items"></div>
+    <div id="account-status" class="pop-sub account-status" role="status" hidden></div>
   </div>
 
   <!-- Fast-forward (js/fast-forward.js): a short fade, and the clock jumps -->
