@@ -30,6 +30,7 @@ const PROFILES = {
     shadowFarMax: 720, // the sun's shadow range (m) at the most (from the air); 200 m at street level
     hires: true, // the optional high-resolution orthophotos and roof crops (npm run data:hires), when present
     orthoFullNear: 1200, orthoFullFar: 1600, orthoFullScale: 1, orthoSmall: 1 / 8, orthoLoads: 3,
+    orthoWhenSeen: false,
     roofOrthophotos: true, // the buildings' roofs drape the orthophoto of their terrain chunk
     sharpRoofs: true, sharpRoofNear: 420, sharpRoofFar: 700, // the sharp roof crops (data/roofs) near the camera
     treeShare: 1, // share of the forest's trees planted (the town's are always)
@@ -67,6 +68,9 @@ const PROFILES = {
     shadowFarMax: 240,
     hires: false,
     orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 1,
+    // (a terrain chunk's image only once the chunk is drawn: an ImageBitmap is closed after its upload, and one for each of
+    // the ~1300 chunks kept ~1.3 MB of graphics memory each in Safari's web process, far more than its pixels)
+    orthoWhenSeen: true,
     roofOrthophotos: false,
     sharpRoofs: false, sharpRoofNear: 0, sharpRoofFar: 0,
     treeShare: 0.25,

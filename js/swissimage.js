@@ -161,6 +161,13 @@ function load(c, level) {
     .finally(() => { c.loading = -1; loads--; });
 }
 
+const SEEN_FOR = 2000; // ms since a chunk was last drawn, for it to count as in sight (js/quality.js orthoWhenSeen)
+function unload(c) {
+  drop(c.texture);
+  c.texture = null; c.level = -1;
+  c.mesh.userData.orthoMap = null; // (the node's placeholder until it is seen again)
+}
+
 /** Streams the terrain chunks' images by distance from `camera` (nearest first, a few at a time); call every frame. */
 export function updateTerrainDetail(camera) {
   const now = performance.now();
@@ -171,6 +178,11 @@ export function updateTerrainDetail(camera) {
   for (const c of chunks) {
     if (c.loading >= 0) continue;
     const want = wanted(c, camera);
+    if (QUALITY.orthoWhenSeen && now - c.seenAt > SEEN_FOR) {
+      // out of sight: nothing new is decoded for it, and a sharp image it no longer needs goes without a small one in its place
+      if (c.level > want) unload(c);
+      continue;
+    }
     if (want !== c.level) todo.push({ c, want, d: Math.hypot(c.x - camera.x, c.z - camera.z) });
   }
   // Upgrades nearest first; downgrades (freeing memory) whenever a slot is free
@@ -209,9 +221,15 @@ export async function drapeTerrainOrthophotos(meshes, { center = { x: 0, z: 0 } 
     if (!tile) continue;
     mesh.userData.orthoRect = new THREE.Vector4(tile.x0, tile.z0, 1 / (tile.x1 - tile.x0), 1 / (tile.z1 - tile.z0));
     const s = mesh.geometry.boundingSphere;
-    added.push({ mesh, tile, key, x: s.center.x, z: s.center.z, level: -1, loading: -1, texture: null, material: null, hires: undefined });
+    const chunk = { mesh, tile, key, x: s.center.x, z: s.center.z, level: -1, loading: -1, texture: null, material: null, hires: undefined, seenAt: -Infinity };
+    if (QUALITY.orthoWhenSeen) { // (on top of the terrain's own hook, its levels of detail)
+      const before = mesh.onBeforeRender;
+      mesh.onBeforeRender = function (...args) { chunk.seenAt = performance.now(); return before?.apply(this, args); };
+    }
+    added.push(chunk);
   }
   chunks.push(...added);
+  if (QUALITY.orthoWhenSeen) return added.length; // (updateTerrainDetail loads them as they come into sight)
   added.sort((p, q) => Math.hypot(p.x - center.x, p.z - center.z) - Math.hypot(q.x - center.x, q.z - center.z));
   // First pass: every chunk gets its light image (or the small one) — six at a time; hi-res comes with the streaming
   let next = 0;
