@@ -147,11 +147,11 @@ function wordsOf(array) {
 /**
  * An indexed copy of the non-indexed `geometry` whose vertices equal in every attribute are shared, or null when it
  * would not save at least a fifth (or the geometry can't be: indexed already, morph targets, interleaved attributes).
- * `force`: an indexed copy whatever it saves (for merging with indexed geometries).
+ * `force`: an indexed copy whatever it saves (for merging with indexed geometries). userData.keepFlat: never (js/terrain.js).
  * Groups and the draw range keep their meaning (an index range [start, start + count) draws the same corners).
  */
 export function indexGeometry(geometry, { force = false } = {}) {
-  if (geometry.index || Object.keys(geometry.morphAttributes).length) return null;
+  if (geometry.index || geometry.userData.keepFlat || Object.keys(geometry.morphAttributes).length) return null;
   const attrs = Object.entries(geometry.attributes);
   if (!attrs.length || attrs.some(([, a]) => !a.isBufferAttribute || a.isInterleavedBufferAttribute || a.isInstancedBufferAttribute)) return null;
   const n = geometry.attributes.position?.count || 0;

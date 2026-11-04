@@ -43,6 +43,7 @@ const PROFILES = {
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
+    terrainFlat: false, // the terrain's chunks without an index buffer (see the mobile profile)
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
     clusterLights: [256, 32, 28, 48], // ClusteredLighting: lights at most, tile px, depth slices, lights per cluster
@@ -84,6 +85,9 @@ const PROFILES = {
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     compactGeometry: true,
+    // (the terrain's chunks drawn without index buffers: in Safari their indexed draws held ~200 MB in the GPU process, far
+    // more than their buffers ask for, and that process is what iOS kills first; ?qset=terrainFlat:false to compare)
+    terrainFlat: true,
     precompileAll: false, // (frustum culling off uploaded every vertex of the valley at once: only the start view's)
     clusterLights: [64, 64, 16, 16],
     // (an iPhone 13's GPU process died on a shader module at the start: no clustered light loop in every lit shader,

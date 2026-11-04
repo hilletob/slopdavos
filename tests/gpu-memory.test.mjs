@@ -110,3 +110,11 @@ test('what is torn down while playing releases its render state, what is built l
   assert.match(source('main.js'), /keepPipelinesOfReleasedObjects\(renderer\)/);
   assert.match(source('main.js'), /buildWinterScenery\(\);\s+finishLateScenery\(/, 'the winter scenery on the mobile profile');
 });
+
+test('indexGeometry leaves a geometry alone that is to stay flat (the terrain chunks on a phone)', () => {
+  const flat = new THREE.BufferGeometry();
+  flat.setAttribute('position', new THREE.BufferAttribute(new Float32Array(36), 3));
+  assert.ok(indexGeometry(flat, { force: true }), 'without the mark it is indexed');
+  flat.userData.keepFlat = true;
+  assert.equal(indexGeometry(flat, { force: true }), null);
+});

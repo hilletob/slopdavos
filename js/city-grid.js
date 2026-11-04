@@ -71,7 +71,7 @@ import { freezeWater, snowyStreet } from './season.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
-import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree } from './trees.js';
+import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree, plantedAt } from './trees.js';
 import { QUALITY, REGION_ALL } from './quality.js';
 import { indexGeometry } from './gpu-memory.js';
 import { FRAME } from './davos-frame.js';
@@ -787,6 +787,45 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
     clippedPedestrianPieces, clippedSidewalkPieces, curbRuns, sidewalkSlabs, busMarkings, crosswalkBars, roundedCorners } };
 }
 
+// The boxes along the given closed rings, pieces of <= 4 m, tops on the bank and feet under the water line
+function quayWalls(rings) {
+  const box = new THREE.BoxGeometry(1, 1, 0.38), bp = box.attributes.position.array, buv = box.attributes.uv.array, bi = box.index.array;
+  const verts = bp.length / 3;
+  let total = 0;
+  for (const edge of rings) for (let i = 0; i < edge.length; i++) {
+    const a = edge[i], b = edge[(i + 1) % edge.length], len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len >= 0.4) total += Math.ceil(len / 4);
+  }
+  if (!total) return null;
+  const position = new Float32Array(total * bp.length), uv = new Float32Array(total * buv.length);
+  const index = new Uint32Array(total * bi.length);
+  let n = 0;
+  for (const edge of rings) for (let i = 0; i < edge.length; i++) {
+    const a = edge[i], b = edge[(i + 1) % edge.length], len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len < 0.4) continue;
+    const pieces = Math.ceil(len / 4), width = len / pieces + 0.05;
+    const c = (b.x - a.x) / len, s = (b.z - a.z) / len;
+    for (let k = 0; k < pieces; k++, n++) {
+      const cx = a.x + (b.x - a.x) * (k + 0.5) / pieces, cz = a.z + (b.z - a.z) * (k + 0.5) / pieces;
+      for (let v = 0; v < verts; v++) {
+        const lx = bp[v * 3] * width, lz = bp[v * 3 + 2], o = (n * verts + v) * 3;
+        const x = cx + lx * c - lz * s, z = cz + lx * s + lz * c;
+        position[o] = x; position[o + 2] = z;
+        position[o + 1] = bp[v * 3 + 1] > 0 ? groundHeight(x, z) + 0.19 : waterSurfaceHeight(x, z) - 0.6;
+        uv[(n * verts + v) * 2] = buv[v * 2]; uv[(n * verts + v) * 2 + 1] = buv[v * 2 + 1];
+      }
+      for (let t = 0; t < bi.length; t++) index[n * bi.length + t] = n * verts + bi[t];
+    }
+  }
+  box.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(new THREE.BufferAttribute(index, 1));
+  g.computeVertexNormals(); // (each face has its own corners: the box's flat faces as before)
+  return g;
+}
+
 async function buildBerlinCityGrid(scene) {
   const group = new THREE.Group();
   group.name = 'BerlinMitteCityGrid';
@@ -810,26 +849,8 @@ async function buildBerlinCityGrid(scene) {
       collect(hi - lo < 0.4 ? berlinPolygonGeometry(ring, holes, lo + 0.04)
         : drapeOverlay(berlinPolygonGeometry(ring, holes, 0), { surface: 'water', maxEdge: 12, lift: 0.04 }), waterMat, { world: true });
       // Quay walls: from below the water line up to the bank, every <= 4 m so that both ends follow the terrain
-      for (const edge of [ring, ...holes]) for (let i = 0; i < edge.length; i++) {
-        const a = edge[i], b = edge[(i + 1) % edge.length];
-        const len = Math.hypot(b.x - a.x, b.z - a.z);
-        if (len < 0.4) continue;
-        const pieces = Math.ceil(len / 4);
-        for (let k = 0; k < pieces; k++) {
-          const t0 = k / pieces, t1 = (k + 1) / pieces;
-          const ax = a.x + (b.x - a.x) * t0, az = a.z + (b.z - a.z) * t0, bx = a.x + (b.x - a.x) * t1, bz = a.z + (b.z - a.z) * t1;
-          const wall = new THREE.BoxGeometry(len / pieces + 0.05, 1, 0.38);
-          wall.rotateY(-Math.atan2(bz - az, bx - ax));
-          wall.translate((ax + bx) / 2, 0.5, (az + bz) / 2);
-          const p = wall.attributes.position;
-          for (let v = 0; v < p.count; v++) {
-            const x = p.getX(v), z = p.getZ(v);
-            p.setY(v, p.getY(v) > 0.5 ? groundHeight(x, z) + 0.19 : waterSurfaceHeight(x, z) - 0.6);
-          }
-          wall.computeVertexNormals();
-          collect(wall, curbMat, { world: true });
-        }
-      }
+      // (one geometry per shore, not one per piece: thousands of BoxGeometries would be garbage a moment later)
+      collect(quayWalls([ring, ...holes]), curbMat, { world: true });
     }
   }
   group.add(...await mergeCollections(waterCollector));
@@ -918,7 +939,7 @@ async function buildBerlinCityGrid(scene) {
   };
   let tlmSingle = 0, tlmShrubs = 0;
   for (const [x, z, height, evergreen] of TLM_TREES?.trees || []) {
-    if (!clearSite(x, z, 0.8)) continue;
+    if (!plantedAt(x, z) || !clearSite(x, z, 0.8)) continue;
     const species = pickTreeSpecies(x, z, evergreen), r = tlmHash(x, z, 13);
     const scale = height > 0 ? Math.max(0.2, Math.min(1.7, height / TREE_HEIGHT[species])) : 0.6 + r * 0.5;
     parkTreeSites.push({ x, z, y: 0.09, scale, species, yaw: r * Math.PI * 2 });
@@ -982,7 +1003,7 @@ async function buildBerlinCityGrid(scene) {
       xs.sort((p, q) => p - q);
       for (let k = 0; k + 1 < xs.length; k += 2) for (let gx = Math.ceil(xs[k] / spec.step); gx * spec.step <= xs[k + 1]; gx++) {
         const x = gx * spec.step + (hash(gx, gz, 1) - 0.5) * spec.step * 0.7, z = zc + (hash(gx, gz, 2) - 0.5) * spec.step * 0.7;
-        if (nearbyTree(x, z, spec.step * 0.45) || !clearSite(x, z, 2)) continue;
+        if (!plantedAt(x, z) || nearbyTree(x, z, spec.step * 0.45) || !clearSite(x, z, 2)) continue;
         // spruce ~70 % and larch ~30 % below the stone-pine belt; scrub half shrubs (green alder), half young conifers
         const h = hash(gx, gz, 3), sp = conifer(x, z, hash(gx, gz, 6), 0.28), shrub = area.kind === 'scrub' && h < 0.5;
         const scale = shrub ? 0.6 + h * 0.8 : spec.scale[0] + h * (spec.scale[1] - spec.scale[0]);

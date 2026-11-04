@@ -1181,7 +1181,11 @@ function mergeVariants(a, b) {
 /** Whether the tree at site `t` is planted on this device profile (js/quality.js: a share of the park and forest trees,
  *  tier 0, on the mobile one; every street tree). city-grid.js drops the others' sites at once. */
 export function plantedTree(t) {
-  return QUALITY.treeShare >= 1 || (t.tier || 0) !== 0 || hashPos(t.x, 8.8, t.z) < QUALITY.treeShare;
+  return plantedAt(t.x, t.z, t.tier || 0);
+}
+/** The same asked before a site exists: the woods' sites a phone would drop are then never checked or made */
+export function plantedAt(x, z, tier = 0) {
+  return QUALITY.treeShare >= 1 || tier !== 0 || hashPos(x, 8.8, z) < QUALITY.treeShare;
 }
 
 function hashPos(x, y, z) {

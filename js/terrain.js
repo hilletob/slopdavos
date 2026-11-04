@@ -551,7 +551,17 @@ function chunkGeometry(i0, j0, nc, nr, steps = null) {
   g.setDrawRange(levels[0].start, levels[0].count);
   g.boundingBox = box; g.boundingSphere = sphere; // (the full chunk's, for either)
   g.userData.lodLevels = levels;
-  return g;
+  return QUALITY.terrainFlat ? flatChunk(g) : g;
+}
+// The chunk's corners written out in index order: a level's range [start, start + count) draws the same triangles
+function flatChunk(g) {
+  const flat = g.toNonIndexed();
+  flat.boundingBox = g.boundingBox; flat.boundingSphere = g.boundingSphere;
+  flat.userData.lodLevels = g.userData.lodLevels;
+  flat.userData.keepFlat = true; // (gpu-memory.js indexGeometry leaves it so)
+  flat.setDrawRange(g.drawRange.start, g.drawRange.count);
+  g.dispose();
+  return flat;
 }
 export function buildTerrainMeshes(material, { chunk = CHUNK, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ } = TERRAIN;
