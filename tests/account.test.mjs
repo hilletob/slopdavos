@@ -62,7 +62,12 @@ test('the login replaces the page and gives the GPU back first, and the page aft
   assert.doesNotMatch(account, /location\.assign/);
   assert.match(ui, /signIn\(id, \{ beforeLeave: leaving \}\)/);
   assert.match(main, /leaving: leavePage/);
-  assert.match(main, /const leavePage = \(\) => \{[^]*?device\?\.destroy[^]*?MOVING_KEY/);
+  assert.match(main, /const leavePage = \(breath = MOVE_BREATH\) => \{\s*renderer\.setAnimationLoop\(null\);[^]*?device\?\.destroy[^]*?MOVING_KEY, String\(breath\)/);
+  assert.match(main, /if \(QUALITY\.oneFrameInFlight && queue\?\.onSubmittedWorkDone\) \{[^]*?if \(busy\) return;[^]*?queue\.onSubmittedWorkDone\(\)\.then/, 'one frame in flight on the mobile profile: a tick while the GPU is busy is skipped');
+  assert.match(read('js/quality.js'), /oneFrameInFlight: true/);
+  assert.match(main, /const reloadAfterGone = \(\) => \{ leavePage\(GONE_BREATH\);/, 'a reload after the GPU is gone leaves the same way, with a longer breath');
+  assert.equal((main.match(/reload: reloadAfterGone/g) || []).length, 2, 'both device-lost paths');
+  assert.doesNotMatch(main, /reload: \(\) => window\.location\.reload\(\)/, 'no reload after a lost device without leaving first');
 });
 
 test('a first visit is asked only from js/start.js, under the key the choice is kept in, and loads nothing for anyone else', () => {

@@ -7,7 +7,7 @@ import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, createLoftedCarMat
 import { createRoadSurfaceMaterial, createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { berlinPolygonGeometry } from './berlin-geometry.js';
-import { worldRegion } from './quality.js';
+import { QUALITY, worldRegion } from './quality.js';
 import { bayKey, createLotRegistry } from './hijack.js';
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
@@ -32,7 +32,7 @@ import { bayKey, createLotRegistry } from './hijack.js';
 const BAY_W = 2.5, BAY_D = 5, AISLE = 6, PARALLEL_L = 6, PARALLEL_W = 2.3, LINE = 0.12;
 const SURFACE_LIFT = 0.06, LINE_LIFT = 0.085; // m over the terrain (the streets lie at 0.11)
 const LINE_COLOURS = { white: [0.9, 0.89, 0.86], yellow: [0.91, 0.68, 0.13], blue: [0.16, 0.38, 0.78] };
-const OCCUPANCY = 0.7, CELL = 200, NEAR = 100, FAR = 1600;
+const OCCUPANCY = 0.7, CELL = 200, NEAR = 100, FAR = QUALITY.parkedFar;
 const KINDS = ['sedan', 'suv'];
 // Swiss car colours (linear-ish sRGB hex, as the traffic palettes): greys, black, white, silver, dark blue, red, green
 const PALETTE = [0x16191e, 0xf0f3f7, 0xbec6cf, 0x52575e, 0x2b3038, 0x1d3b6c, 0x6e1f24, 0x28382e, 0x8a8f96, 0xdadfe4, 0x3a434d, 0x5c1418];

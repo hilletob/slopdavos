@@ -67,8 +67,8 @@ export function watchDeviceLost(device, options = {}) {
 /** Safari, when its GPU process has died: every call on the device throws this, and `device.lost` needn't resolve (seen on an iPhone 13) */
 export const meansDeviceGone = (text) => /Unable to make command encoder/i.test(String(text));
 
-/** The message on screen, with the text to pass on and a reload button */
-export function showFault(text, label = 'Neu laden') {
+/** The message on screen, with the text to pass on and a reload button (`reload`: what it does; js/main.js leaves the page first) */
+export function showFault(text, reload = () => window.location.reload(), label = 'Neu laden') {
   if (document.getElementById('frame-fault')) return;
   const box = document.createElement('div');
   box.id = 'frame-fault';
@@ -79,7 +79,7 @@ export function showFault(text, label = 'Neu laden') {
   button.type = 'button';
   button.textContent = label;
   button.style.cssText = 'margin-top:8px;padding:8px 14px;border:0;border-radius:8px;background:#fff;color:#111;font:600 14px system-ui,sans-serif;';
-  button.addEventListener('click', () => window.location.reload());
+  button.addEventListener('click', () => reload());
   box.append(message, button);
   document.body.append(box);
 }

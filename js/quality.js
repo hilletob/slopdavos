@@ -35,6 +35,9 @@ const PROFILES = {
     sharpRoofs: true, sharpRoofNear: 420, sharpRoofFar: 700, // the sharp roof crops (data/roofs) near the camera
     treeShare: 1, // share of the forest's trees planted (the town's are always)
     treeDistance: 1, // scale of the trees' drawing distances
+    treeDetail: 1, // scale of the distances within which a tree stands in full detail and with its branches (trees.js LOD_NEAR, LOD_MID)
+    parkedFar: 1600, // m: the parked cars' proxies are shown within this of the camera (parking.js)
+    lampSegments: [8, 5], // the Davos streetlights' swan neck: tube segments along and around (street-details.js)
     cars: 100, bikes: 225, pedestrians: 260, skiers: 72, crossCountrySkiers: 48,
     atlasScale: 1, // the canvas atlases (shop signs, road signs)
     drapeScale: 1, // overlays draped on the terrain (golf, rails, trails) split down to edges this much longer (at most 8 m)
@@ -46,6 +49,7 @@ const PROFILES = {
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     flatDraws: false, // nothing drawn with an index buffer (see the mobile profile; js/gpu-memory.js flattenDraws)
     dropShaderModules: false, // a shader module only while its pipeline is made (see the mobile profile; js/gpu-memory.js)
+    oneFrameInFlight: false, // the next frame only once the GPU is through with the last (see the mobile profile)
     terrainChunk: 64, // nodes a terrain chunk side (8 m a node: 512 m); the orthophotos come in tiles of 64
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
@@ -79,6 +83,11 @@ const PROFILES = {
     sharpRoofs: false, sharpRoofNear: 0, sharpRoofFar: 0,
     treeShare: 0.25,
     treeDistance: 0.6,
+    // (what a frame draws is what Safari's GPU process holds: 409 shrubs of 732 triangles, 511 parked cars of 480 and
+    // 1866 lamp masts of 128 were 700k of 1.6 M triangles a frame)
+    treeDetail: 0.75,
+    parkedFar: 700,
+    lampSegments: [4, 3],
     cars: 40, bikes: 60, pedestrians: 90, skiers: 24, crossCountrySkiers: 16,
     atlasScale: 0.25,
     drapeScale: 2,
@@ -100,6 +109,8 @@ const PROFILES = {
     // (Safari's GPU process holds ~1.7 MB a shader module for as long as the page does, and three.js holds all of
     // them: ~90 MB here for modules the pipelines no longer need; js/gpu-memory.js dropShaderModules)
     dropShaderModules: true,
+    // (Safari's GPU process holds every frame in flight with all it draws: one at a time is ~30 MB less; js/main.js)
+    oneFrameInFlight: true,
     // (chunks of 1024 m, 336 instead of 1344 meshes: Safari's web and GPU processes hold ~16 KB a GPU object whatever
     // its size; each chunk's orthophoto is composed of its 2 x 2 tiles, js/swissimage.js)
     terrainChunk: 128,

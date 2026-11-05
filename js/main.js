@@ -71,8 +71,9 @@ const GTA = !isClassicMode();
 const FIRST_START = GTA ? GTA_START : PLAYER_STARTS.cyclist;
 // A page leaving for good (leavePage: a teleport's reload, the login) leaves this mark for the page it loads: it waits
 // MOVE_BREATH ms before building
-const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500;
-const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return !!m; } catch { return false; } };
+const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500, GONE_BREATH = 6000;
+/** The breath (ms) the page that left asked for, 0 when none did */
+const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return Number(m) || 0; } catch { return 0; } };
 const FRESH_GTA = GTA && !hasGtaState();
 
 // js/main.js
@@ -188,11 +189,21 @@ async function initApp() {
   } else {
     renderer.backend.device?.lost?.then((info) => boot.error(`GPU device lost: ${info.reason || ''} ${info.message || ''}`));
   }
+  // The game is over on this page (a teleport's reload, the login's redirect, a reload after the GPU is gone): its GPU
+  // memory goes back now, and the page loading next takes a breath before it builds (MOVE_BREATH; GONE_BREATH after a
+  // GPU process died, Safari gives a dead page's GPU memory back late). The next page is built while this one is still
+  // in memory otherwise: on an iPhone the two together were more than the GPU process is allowed
+  const leavePage = (breath = MOVE_BREATH) => {
+    renderer.setAnimationLoop(null);
+    try { renderer.backend.device?.destroy?.(); } catch { /* the navigation frees it anyway */ }
+    try { sessionStorage.setItem(MOVING_KEY, String(breath)); } catch { /* (storage may be off: the new page just builds at once) */ }
+  };
+  const reloadAfterGone = () => { leavePage(GONE_BREATH); setTimeout(() => window.location.reload(), 50); };
   watchDeviceLost(renderer.backend.device, {
     storage: localStorage,
     save: () => { try { savePlayerState(); gameClock.save(); } catch { /* (lost during the start: nothing to save yet) */ } },
-    reload: () => window.location.reload(),
-    notify: (text) => showFault(`Grafikfehler: ${text}`)
+    reload: reloadAfterGone,
+    notify: (text) => showFault(`Grafikfehler: ${text}`, reloadAfterGone)
   });
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
@@ -233,9 +244,10 @@ async function initApp() {
   // A teleport beyond the town reloads the page (userTeleport below): on a phone the old town is still being let go
   // of while the new one is built, and the two together were more than the web process was allowed (1.75 GB when
   // iOS killed it); a breath first lets Safari give the old one back before the heavy builders start
-  if (QUALITY.mobile && movedHere()) {
+  const breath = QUALITY.mobile ? movedHere() : 0;
+  if (breath) {
     if (loadingStatus) loadingStatus.textContent = 'Moving the town…';
-    await new Promise((resolve) => setTimeout(resolve, MOVE_BREATH));
+    await new Promise((resolve) => setTimeout(resolve, breath));
   }
   const cityGrid = await buildCityGrid(scene); // (async: the mobile profile pauses within, js/city-grid.js)
   // (the mobile profile: the ground layers' vertices shared and their normals in bytes at once, js/gpu-memory.js:
@@ -889,14 +901,6 @@ async function initApp() {
     };
     return destination;
   }
-  // The game is over on this page (a teleport's reload, the login's redirect): its GPU memory goes back now, and the page
-  // loading next takes a breath before it builds (MOVE_BREATH). The next page is built while this one is still in
-  // memory otherwise: on an iPhone the two together were more than the GPU process is allowed
-  const leavePage = () => {
-    renderer.setAnimationLoop(null);
-    try { renderer.backend.device?.destroy?.(); } catch { /* the navigation frees it anyway */ }
-    try { sessionStorage.setItem(MOVING_KEY, '1'); } catch { /* (storage may be off: the new page just builds at once) */ }
-  };
   // A teleport (map, menu) beyond the town built in detail (the mobile profile, QUALITY.worldRadius): the player is
   // saved at the destination and the page reloads, building the town around it instead
   function userTeleport(x, z, heading) {
@@ -1034,7 +1038,7 @@ async function initApp() {
     applyClock(true);
   };
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, world, mapSystem });
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem });
   // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
   // Bahnhof Davos Platz)
   if (GTA) {
@@ -1180,12 +1184,12 @@ async function initApp() {
 
   const frameGuard = createFrameGuard({
     storage: localStorage,
-    notify: (text) => showFault(`Spielfehler: ${text}`),
+    notify: (text) => showFault(`Spielfehler: ${text}`, reloadAfterGone),
     gone: (text) => deviceGone(text, {
       storage: localStorage,
       save: () => { try { savePlayerState(); gameClock.save(); } catch { /* */ } },
-      reload: () => window.location.reload(),
-      notify: (message) => showFault(`Grafikfehler: ${message}`)
+      reload: reloadAfterGone,
+      notify: (message) => showFault(`Grafikfehler: ${message}`, reloadAfterGone)
     }),
     // what was going on: how long the page had run, and the last shader it asked for (js/gpu-diagnostics.js)
     context: () => {
@@ -1361,7 +1365,24 @@ async function initApp() {
       renderLocation(getLocationLabel(where.x, where.z));
     }
   };
-  renderer.setAnimationLoop((now) => frameGuard.run(gameFrame, () => renderPipeline.render(), now));
+  const frame = (now) => frameGuard.run(gameFrame, () => renderPipeline.render(), now);
+  const queue = renderer.backend.device?.queue;
+  if (QUALITY.oneFrameInFlight && queue?.onSubmittedWorkDone) {
+    // One frame on the GPU at a time: a tick while the last frame is still being drawn is skipped. Safari's GPU process
+    // holds every frame in flight with all it draws (its driver memory grows with the triangles of a pass), and iOS
+    // kills it at 300 MB: ~30 MB less for a few frames a second (js/quality.js; ?qset=oneFrameInFlight:false compares)
+    let busy = false;
+    renderer.info.autoReset = false; // (three.js resets its counts every tick, a skipped one would show nothing drawn)
+    renderer.setAnimationLoop((now) => {
+      if (busy) return;
+      busy = true;
+      renderer.info.reset();
+      frame(now);
+      queue.onSubmittedWorkDone().then(() => { busy = false; }, () => { busy = false; }); // (a gone device: the guard has said so)
+    });
+  } else {
+    renderer.setAnimationLoop(frame);
+  }
 }
 
 initApp().catch((error) => {

@@ -213,7 +213,7 @@ function buildStreetDetails(scene) {
     new THREE.CylinderGeometry(0.13, 0.15, 0.5, 6).translate(0, 0.25, 0), // foot
     new THREE.CylinderGeometry(0.055, 0.085, 7.6, 6, 1, true).translate(0, 4.1, 0),
     new THREE.TubeGeometry(new THREE.CubicBezierCurve3(new THREE.Vector3(0, 7.85, 0), new THREE.Vector3(0, 8.95, 0),
-      new THREE.Vector3(0.45, 9.12, 0), new THREE.Vector3(1.7, 9.02, 0)), 8, 0.05, 5),
+      new THREE.Vector3(0.45, 9.12, 0), new THREE.Vector3(1.7, 9.02, 0)), QUALITY.lampSegments[0], 0.05, QUALITY.lampSegments[1]),
     new THREE.BoxGeometry(0.78, 0.09, 0.3).rotateZ(-0.06).translate(DAVOS_LAMP.reach, 8.99, 0) // the flat LED head
   ].map((g) => g.toNonIndexed())) : null;
   const davosLensGeo = new THREE.PlaneGeometry(0.62, 0.22).rotateX(Math.PI / 2).rotateZ(-0.06).translate(DAVOS_LAMP.reach + 0.02, DAVOS_LAMP.y, 0);
