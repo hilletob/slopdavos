@@ -326,6 +326,8 @@ function buildHut() {
 }
 
 const TBAR_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the loading point; the walk there keeps them)
+  ownControls: (run) => !!run.tb?.open,
   setup(run) {
     addStyle(run);
     const strip = el('div', 'rs-strip');
@@ -539,6 +541,8 @@ const canvasPoint = (canvas, e) => { const r = canvas.getBoundingClientRect(); r
 const swatchRect = (i) => ({ x: 34 + i * 118, y: SWATCH_Y, w: 102, h: 56 });
 
 const WAX_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the wax bench; the walk to the shop keeps them)
+  ownControls: (run) => !!run.wx?.open,
   setup(run) {
     addStyle(run);
     const game = el('div', 'rs-game');
@@ -746,6 +750,8 @@ function carMesh(kind, run) {
 }
 
 const MARSHAL_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: directing the cars (the arrows are the signals); the walk there keeps them)
+  ownControls: (run) => !!run.pm?.open,
   setup(run) {
     addStyle(run);
     const pad = el('div', 'rs-pad');

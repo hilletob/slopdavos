@@ -303,6 +303,8 @@ function drawEye(ey, g) {
 }
 
 const EYE_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the phoropter; the walk to the shop keeps them)
+  ownControls: (run) => !!run.ey?.b.open,
   setup(run) {
     addStyle(run);
     const b = createBoard(run, (id) => EYE_FEATURE.act(run, id));
@@ -706,6 +708,8 @@ function drawSnow(sp, g) {
 }
 
 const SNOW_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the profile board and on the ride up; the walks keep them)
+  ownControls: (run) => !!run._exHeld,
   setup(run) {
     addStyle(run);
     const b = createBoard(run, (id) => SNOW_FEATURE.act(run, id));

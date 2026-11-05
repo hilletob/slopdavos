@@ -8,7 +8,7 @@ import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter } from './quality.js';
 import { releaseRenderState } from './gpu-memory.js';
-import { MissionManager, worldCellsReady } from './missions-manager.js';
+import { MissionManager, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
 import { buildMissionWorld } from './missions-world.js';
 import { gameClock, formatClock } from './game-clock.js';
@@ -437,7 +437,18 @@ class MissionRun {
     return [node];
   }
 
+  /** The best time and the splits so far show for a few seconds (css/style.css: .mission.is-fresh), then step aside */
+  freshen(ms = 6000) {
+    const panel = this.ui.panel;
+    if (!panel) return;
+    panel.classList.add('is-fresh');
+    clearTimeout(this.freshTimer);
+    this.freshTimer = setTimeout(() => panel.classList.remove('is-fresh'), ms);
+  }
+
   renderSplits() {
+    if (this.splits.length > (this.shownSplits || 0)) this.freshen();
+    this.shownSplits = this.splits.length;
     this.ui.splits.replaceChildren(...this.splits.map((s) => {
       const li = el('li', 'mission-split');
       // (a scoreMode mission: the score after the step, not its time)
@@ -555,6 +566,7 @@ class MissionRun {
     }
     this.phase = 'ready';
     this.ui.panel.dataset.phase = 'ready';
+    this.freshen();
   }
 
   worldReady() {
@@ -568,6 +580,8 @@ class MissionRun {
     this.disposed = true;
     this.active = false;
     this.phase = 'disposed';
+    this.syncOwnControls(false);
+    clearTimeout(this.freshTimer);
     for (const f of Object.values(this.features)) {
       try { f.teardown?.(this); } catch (error) { console.warn('[missions] teardown', error); }
     }
@@ -649,6 +663,7 @@ class MissionRun {
     }
     this.render(ctx, view);
     for (const f of Object.values(this.features)) f.after?.(this, ctx, dt, cm, cs);
+    this.syncOwnControls();
     this.animateProps(dt);
     this.group.updateMatrixWorld(true);
   }
@@ -674,9 +689,18 @@ class MissionRun {
     this.lastPos.copy(ent.position);
   }
 
+  // A feature's own controls (a bar, a dartboard, a cockpit: ownControls(run), js/missions-manager.js): the game's key
+  // hints and the touch joystick go away meanwhile (css/style.css, body.mission-own-controls); set on a change only
+  syncOwnControls(on = !this.disposed && ownsControls(this.phase, this.features, this)) {
+    if (on === !!this.ownControls) return;
+    this.ownControls = on;
+    globalThis.document?.body?.classList.toggle(OWN_CONTROLS_CLASS, on);
+  }
+
   abort(reason) {
     this.phase = 'aborted';
     this.ui.panel.dataset.phase = 'aborted';
+    this.syncOwnControls(false);
     this.showStopped('Mission aborted', reason);
   }
 
@@ -782,6 +806,8 @@ const FEATURES = {
   // The avalanche launcher (lawinen-sprengen): aim with the camera, fire with Space / Enter / F, a click or the touch
   // button; the shell flies ballistically with a smoke trail and comes down on the slope
   shooter: {
+  // (js/missions.js hides the game's own controls while this is true: the whole run: the launcher is aimed by dragging and fired with Space, nobody walks)
+  ownControls: (run) => true,
     setup(run) {
       run.shooter = { shots: 0, hits: 0, misses: 0, ammo: run.def.ammo, shell: null, lastShot: -1e9, firedOnce: false, zoneIndex: 0 };
       run.launcher = createLauncher();

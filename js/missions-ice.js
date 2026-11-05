@@ -685,6 +685,8 @@ function buildStone(granite, handle) {
 }
 
 const curling = {
+  // (js/missions.js hides the game's own controls while this is true: at the hack and on the ice; only off a touch screen, where W S set the curl through the joystick)
+  ownControls: (run) => !!run.curl && run.curl.mode !== 'done' && !document.body.classList.contains('touch-enabled'),
   setup(run) {
     const cm = run.hooks.controllerManager;
     const y = sheetIceY();

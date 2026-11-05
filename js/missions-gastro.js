@@ -3,16 +3,19 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';
 import {
-  FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliAction, flaemmliGauge, flaemmliSway, flaemmliScore,
+  SHOTS, createShots, shotsStep, shotsAction, shotsGauge, shotsSway, shotsScore,
+  FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliPress, flaemmliRelease, flaemmliGauge, flaemmliSway, flaemmliScore,
   PIZZA_ORDERS, PIZZA_STOPS, TOPPINGS, createPizzaShop, pizzaShopStep, pizzaPick, pizzaHeatStep, pizzaCarryStep, pizzaScore
 } from './missions-data-gastro.js';
 
 // js/missions-gastro.js
-// The runtime of the two gastro missions (js/missions-data-gastro.js has their definitions and the games' pure logic):
-// js/missions.js merges GASTRO_FEATURES into its features.
-//  - flaemmli: the Rot Liechtli's bar room, built when entered high above the door (like js/missions-sport.js's pub):
-//    unlit materials with the shading baked into vertex colours, the glass and its flame at the middle of the view, one
-//    gauge and one button in the HUD; the camera rolls and strays with each drink.
+// The runtime of the three gastro missions (js/missions-data-gastro.js has their definitions and the games' pure
+// logic): js/missions.js merges GASTRO_FEATURES into its features.
+//  - shots: the Ex Bar's bar room, built when entered high above the door (like js/missions-sport.js's pub): unlit
+//    materials with the shading baked into vertex colours, the glass and its flame at the middle of the view, one gauge
+//    and one button in the HUD; the camera rolls and strays with each drink.
+//  - flaemmli: the Rot Liechtli's bar room, the same way, with the espresso cup, the sugar, the Williams, the shot glass
+//    and a hand on the counter; the button is held for the sugar, the sip and the pour, tapped for the rest.
 //  - pizzaRun: Pizza Heaven's kitchen, the same way, with the pizza on a small canvas and the toppings as buttons; then
 //    the van with a roof sign, the box in the player's arms and a heat bar (the carrying: js/missions-data-local.js).
 // Everything is built on demand and disposed with the run. The games run on the mission's frame time (dt).
@@ -38,6 +41,10 @@ const STYLE = `
 .gs-act{pointer-events:auto;touch-action:manipulation;border:0;border-radius:999px;min-height:56px;min-width:210px;padding:12px 26px;font:800 18px Inter,system-ui,sans-serif;color:#fff;background:linear-gradient(180deg,#ef4657,#b3142a);box-shadow:0 6px 18px rgba(179,20,42,.45)}
 .gs-act:active{transform:scale(.97);filter:brightness(1.2)}
 .gs-act[disabled]{opacity:.35}
+.gs-caramel{height:10px;margin-top:6px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden}
+.gs-caramel[hidden]{display:none}
+.gs-caramel span{display:block;height:100%;transform-origin:left;background:linear-gradient(90deg,#f4ecd8,#e0a64a 60%,#a8611c)}
+.gs-act.held{filter:brightness(1.35);transform:scale(.97)}
 .gs-veil{position:fixed;inset:0;z-index:37;pointer-events:none;background:radial-gradient(circle at 50% 45%,rgba(120,10,20,0) 42%,rgba(90,6,16,.8) 100%)}
 .gs-pizza{width:min(560px,calc(100vw - 12px))}
 .gs-ticket{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:5px}
@@ -208,18 +215,23 @@ function flashPop(node, last) {
 }
 
 // =====================================================================================================================
-// 1. Flämmli
+// The bar rooms: the Ex Bar (shots) and the Rot Liechtli (Flämmli)
 // =====================================================================================================================
 const COUNTER_Y = 1.08, GLASS_H = 0.075;
-const WOOD = 0x3c2214, DARK = 0x3a2416, RED = 0x7a1a1f;
-function buildBar(group, parts) {
-  const W = 7, D = 6, H = 2.9, hw = W / 2, hd = D / 2;
+const WOOD = 0x3c2214, DARK = 0x3a2416;
+const LOOKS = {
+  exbar: { wall: 0x1d2a4a, beam: 0x10141f, name: 'EX BAR', fg: '#59c8ff', bg: '#070b16', lamp: 0x3aa8ff, halo: 0x2a7cff },
+  rot: { wall: 0x7a1a1f, beam: DARK, name: 'ROT LIECHTLI', fg: '#ff4a55', bg: '#190a08', lamp: 0xff2c36, halo: 0xff2030 }
+};
+/** The room, the counter, the back bar with its bottles, the name and the lamp: `look` from LOOKS */
+function buildBar(group, parts, look) {
+  const W = 7, D = 6, H = 2.9, hw = W / 2, hd = D / 2, WALL = look.wall;
   const room = [
     box(W, 0.1, D, 0, -0.05, 0, 0x2a1810),
-    box(W, H, 0.2, 0, H / 2, -hd - 0.1, RED), box(W, H, 0.2, 0, H / 2, hd + 0.1, RED),
-    box(0.2, H, D, -hw - 0.1, H / 2, 0, RED), box(0.2, H, D, hw + 0.1, H / 2, 0, RED),
+    box(W, H, 0.2, 0, H / 2, -hd - 0.1, WALL), box(W, H, 0.2, 0, H / 2, hd + 0.1, WALL),
+    box(0.2, H, D, -hw - 0.1, H / 2, 0, WALL), box(0.2, H, D, hw + 0.1, H / 2, 0, WALL),
     box(W, 0.2, D, 0, H + 0.1, 0, 0x180c08),
-    ...[-2, 0, 2].map((z) => box(W, 0.2, 0.18, 0, H - 0.1, z, DARK)),
+    ...[-2, 0, 2].map((z) => box(W, 0.2, 0.18, 0, H - 0.1, z, look.beam)),
     // the counter across the room, its top and the back bar behind the landlord
     box(5.2, COUNTER_Y - 0.05, 0.7, -0.3, (COUNTER_Y - 0.05) / 2, -0.25, WOOD), box(5.3, 0.05, 0.8, -0.3, COUNTER_Y - 0.025, -0.25, 0x5a3320),
     box(5.2, 2.3, 0.3, -0.3, 1.15, -hd + 0.2, DARK), box(5, 0.03, 0.26, -0.3, 1.25, -hd + 0.38, 0x7a5230), box(5, 0.03, 0.26, -0.3, 1.7, -hd + 0.38, 0x7a5230)
@@ -229,106 +241,349 @@ function buildBar(group, parts) {
   const bottles = [];
   for (let i = 0; i < 28; i++) { const shelf = i % 2, x = -2.4 + (i >> 1) * 0.34; bottles.push(cyl(0.035, 0.045, 0.27, x, 1.4 + shelf * 0.45, -hd + 0.38, bottleCols[i % 6], 6)); }
   group.add(solid(bottles));
-  // the name over the back bar and the red lamp the pub is named after
-  const sign = textPlane('ROT LIECHTLI', 2.4, 0.36, { bg: '#190a08', fg: '#ff4a55' });
+  // the name over the back bar and the lamp
+  const sign = textPlane(look.name, 2.4, 0.36, { bg: look.bg, fg: look.fg });
   sign.position.set(-0.3, 2.42, -hd + 0.36);
   group.add(sign);
-  group.add(solid([cyl(0.1, 0.14, 0.14, 1.15, 2.33, -0.9, 0xff2c36, 12), box(0.015, 0.45, 0.015, 1.15, 2.65, -0.9, 0x111111)]));
-  const halo = glow(1.1, 1.1, 0xff2030, 0.3);
+  group.add(solid([cyl(0.1, 0.14, 0.14, 1.15, 2.33, -0.9, look.lamp, 12), box(0.015, 0.45, 0.015, 1.15, 2.65, -0.9, 0x111111)]));
+  const halo = glow(1.1, 1.1, look.halo, 0.3);
   halo.position.set(1.15, 2.33, -0.88);
   group.add(halo);
   parts.halo = halo;
-  // the shot: glass, spirit, flame (a group, so that it can be lifted), the empties beside it
-  const glass = new THREE.Group();
-  const glassMesh = meshOf(new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 14, 1, true), new THREE.MeshBasicNodeMaterial({ color: 0xbfe0f0, transparent: true, opacity: 0.32, depthWrite: false }));
-  glassMesh.position.y = GLASS_H / 2;
-  const spirit = meshOf(new THREE.CylinderGeometry(0.0215, 0.019, GLASS_H * 0.72, 12), new THREE.MeshBasicNodeMaterial({ color: 0xd9a12b, transparent: true, opacity: 0.85 }));
-  spirit.position.y = GLASS_H * 0.36;
-  const flameMat = new THREE.MeshBasicNodeMaterial({ color: 0x4f9dff, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+}
+/** A flame on a lathe with its bright core and a glow (a group; its .flame, .core, .glow, .mat) */
+const FLAME_GEO = () => new THREE.LatheGeometry([[0.012, 0], [0.021, 0.018], [0.018, 0.042], [0.009, 0.072], [0, 0.1]].map(([x, y]) => new THREE.Vector2(x, y)), 10);
+function makeFlame(colour = 0x4f9dff) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicNodeMaterial({ color: colour, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const coreMat = new THREE.MeshBasicNodeMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-  const flameGeo = new THREE.LatheGeometry([[0.012, 0], [0.021, 0.018], [0.018, 0.042], [0.009, 0.072], [0, 0.1]].map(([x, y]) => new THREE.Vector2(x, y)), 10);
-  const flame = meshOf(flameGeo, flameMat);
-  const core = meshOf(flameGeo, coreMat);
-  flame.position.y = core.position.y = GLASS_H * 0.74;
-  const flameGlow = glow(0.28, 0.28, 0x4f9dff, 0.25);
-  flameGlow.position.y = GLASS_H + 0.05;
-  glass.add(glassMesh, spirit, flame, core, flameGlow);
-  glass.position.set(0, COUNTER_Y, 0.02);
-  group.add(glass);
-  Object.assign(parts, { glass, spirit, flame, core, flameGlow, flameMat });
-  // the empties: one geometry, shown as the evening goes on
-  const emptyMat = new THREE.MeshBasicNodeMaterial({ color: 0xc8e4f2, transparent: true, opacity: 0.4, depthWrite: false });
-  const emptyGeo = new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 10, 1, true);
-  parts.empties = [];
-  for (let i = 0; i < FLAEMMLI.rounds; i++) {
-    const m = meshOf(emptyGeo, emptyMat);
-    m.position.set(0.14 + (i % 3) * 0.075, COUNTER_Y + GLASS_H / 2, -0.04 - Math.floor(i / 3) * 0.08);
-    m.visible = false;
-    group.add(m);
-    parts.empties.push(m);
-  }
-  // the lighter
+  const geo = FLAME_GEO();
+  const flame = meshOf(geo, mat), core = meshOf(geo, coreMat);
+  const halo = glow(0.28, 0.28, colour, 0.25);
+  halo.position.y = 0.05;
+  g.add(flame, core, halo);
+  Object.assign(g, { flame, core, halo, mat });
+  return g;
+}
+/** The lighter, its small flame on top */
+function makeLighter() {
   const lighter = new THREE.Group();
   lighter.add(solid([box(0.022, 0.06, 0.012, 0, 0, 0, 0xc23a2c), box(0.022, 0.012, 0.012, 0, 0.036, 0, 0xcfd3d8)]));
   const small = meshOf(new THREE.ConeGeometry(0.007, 0.032, 8), new THREE.MeshBasicNodeMaterial({ color: 0xffb648, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
   small.position.y = 0.06;
   lighter.add(small);
   lighter.visible = false;
-  group.add(lighter);
-  parts.lighter = lighter;
+  return lighter;
+}
+/** The empties: one geometry, shown as the evening goes on */
+function makeEmpties(group, n, x0) {
+  const emptyMat = new THREE.MeshBasicNodeMaterial({ color: 0xc8e4f2, transparent: true, opacity: 0.4, depthWrite: false });
+  const emptyGeo = new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 10, 1, true);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const m = meshOf(emptyGeo, emptyMat);
+    m.position.set(x0 + (i % 3) * 0.075, COUNTER_Y + GLASS_H / 2, -0.04 - Math.floor(i / 3) * 0.08);
+    m.visible = false;
+    group.add(m);
+    out.push(m);
+  }
+  return out;
+}
+/** The shot glass, open, see-through: a group with its .spirit */
+function makeShotGlass(spiritColour = 0xd9a12b) {
+  const glass = new THREE.Group();
+  const glassMesh = meshOf(new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 14, 1, true), new THREE.MeshBasicNodeMaterial({ color: 0xbfe0f0, transparent: true, opacity: 0.32, depthWrite: false }));
+  glassMesh.position.y = GLASS_H / 2;
+  const spirit = meshOf(new THREE.CylinderGeometry(0.0215, 0.019, GLASS_H * 0.72, 12), new THREE.MeshBasicNodeMaterial({ color: spiritColour, transparent: true, opacity: 0.85 }));
+  spirit.position.y = GLASS_H * 0.36;
+  glass.add(glassMesh, spirit);
+  glass.spirit = spirit;
+  return glass;
 }
 
 const FLAME_BLUE = new THREE.Color(0x4f9dff), FLAME_YELLOW = new THREE.Color(0xffc14a), FLAME_RED = new THREE.Color(0xff4a20);
 const _flameCol = new THREE.Color();
+/** The flame's colour and size: `level` 0-1 of its life (shots) */
+function poseShotFlame(fg, level, t, camera) {
+  const L = level;
+  const flick = 1 + 0.12 * Math.sin(t * 31) + 0.08 * Math.sin(t * 47 + 1);
+  const h = (0.35 + 1.5 * Math.min(1, L / 0.62) + Math.max(0, L - 0.72) * 2.4) * flick;
+  fg.flame.scale.set(0.8 + L * 0.5, h, 0.8 + L * 0.5);
+  fg.core.scale.set(0.45, h * 0.55, 0.45);
+  // yellow as it catches, blue in its prime, orange-red when the glass is getting too hot
+  if (L < 0.45) _flameCol.copy(FLAME_YELLOW).lerp(FLAME_BLUE, L / 0.45);
+  else if (L < 0.72) _flameCol.copy(FLAME_BLUE);
+  else _flameCol.copy(FLAME_BLUE).lerp(FLAME_RED, clamp((L - 0.72) / 0.2, 0, 1));
+  fg.mat.color.copy(_flameCol);
+  fg.halo.material.color.copy(_flameCol);
+  fg.halo.quaternion.copy(camera.quaternion);
+}
+/** A flame by its strength (Flämmli): small and yellow when weak, a tall blue one when strong, orange tips when wild */
+function poseStrength(fg, f, t, camera, scale = 1) {
+  const flick = 1 + 0.14 * Math.sin(t * 29) + 0.09 * Math.sin(t * 43 + 1) + (f < 0.3 ? 0.18 * Math.sin(t * 17) : 0);
+  const h = (0.15 + 1.9 * clamp(f, 0, 1.1)) * flick * scale;
+  fg.flame.scale.set((0.9 + f * 0.7) * scale, h, (0.9 + f * 0.7) * scale);
+  fg.core.scale.set(0.5 * scale, h * 0.5, 0.5 * scale);
+  if (f < 0.35) _flameCol.copy(FLAME_YELLOW).lerp(FLAME_BLUE, f / 0.35);
+  else if (f < 0.82) _flameCol.copy(FLAME_BLUE);
+  else _flameCol.copy(FLAME_BLUE).lerp(FLAME_RED, clamp((f - 0.82) / 0.18, 0, 1));
+  fg.mat.color.copy(_flameCol);
+  fg.halo.material.color.copy(_flameCol);
+  fg.halo.material.opacity = 0.12 + 0.25 * clamp(f, 0, 1);
+  fg.halo.quaternion.copy(camera.quaternion);
+}
+/** The HUD of a bar game: the pop, a card with a line, a label, a gauge (and a caramel bar), one big button */
+function barHud(run, firstButton) {
+  addStyle(run);
+  const hud = el('div', 'gs-hud');
+  hud.hidden = true;
+  const pop = el('div', 'gs-pop');
+  const card = el('div', 'gs-card');
+  const line = el('div');
+  const label = el('div');
+  const gauge = el('div', 'gs-gauge'), zone = el('span', 'gs-zone'), needle = el('span', 'gs-needle');
+  gauge.append(zone, needle);
+  const caramel = el('div', 'gs-caramel'), caramelFill = el('span');
+  caramel.append(caramelFill);
+  caramel.hidden = true;
+  card.append(line, label, gauge, caramel);
+  const act = el('button', 'gs-act', firstButton);
+  act.type = 'button';
+  hud.append(pop, card, act);
+  const veil = el('div', 'gs-veil');
+  veil.hidden = true;
+  document.body.append(veil, hud);
+  run.cleanups.push(() => { hud.remove(); veil.remove(); });
+  return { hud, pop, line, label, gauge, zone, needle, caramel, caramelFill, act, veil };
+}
+function showGauge(ui, gauge) {
+  setText(ui.label, gauge.label);
+  ui.gauge.toggleAttribute('data-off', gauge.value === null);
+  if (gauge.value !== null) {
+    ui.zone.style.left = `${gauge.lo * 100}%`; ui.zone.style.width = `${(gauge.hi - gauge.lo) * 100}%`;
+    ui.needle.style.left = `${gauge.value * 100}%`;
+  }
+  ui.act.disabled = !gauge.button;
+  setText(ui.act, gauge.button || '…');
+}
+
+// --- 1. Flaming shots in the Ex Bar -----------------------------------------------------------------------------------
+const shots = {
+  setup(run) {
+    run.sh = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a shot'), seq: 0, lift: 0, swayT: 0, shown: 0 };
+    run.listen(run.sh.ui.act, 'pointerdown', (e) => { e.preventDefault(); shots.press(run); });
+  },
+  reset(run) {
+    const sh = run.sh;
+    sh.room?.dispose(); sh.room = null;
+    sh.ui.hud.hidden = true; sh.ui.veil.hidden = true;
+    sh.seq = 0; sh.lift = 0; sh.swayT = 0; sh.shown = 0;
+    if (run.state) { run.state.game = null; run.state.inside = false; }
+  },
+  teardown(run) { run.sh.room?.dispose(); run.sh.room = null; },
+  ownControls: (run) => !!run.sh.room, // (at the bar: js/missions.js hides the game's controls)
+  key(run, e) {
+    if (!run.sh.room || !gameKey(e.code)) return;
+    swallow(e);
+    if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) shots.press(run);
+  },
+  press(run) {
+    const g = run.state?.game;
+    if (!g || !live(run)) return;
+    const what = shotsAction(g);
+    if (!what) return;
+    blip(run, what === 'light' || what === 'blow' ? 'fwoosh' : what === 'miss' ? 'bad' : 'pock');
+    if (what === 'drink') run.sh.lift = 0.55;
+  },
+  enter(run) {
+    const sh = run.sh;
+    const parts = sh.parts = {};
+    sh.room = new Room(run, run.def.interior.door, (group) => {
+      buildBar(group, parts, LOOKS.exbar);
+      const glass = makeShotGlass(0x7a2a10), fg = makeFlame();
+      fg.position.y = GLASS_H * 0.74;
+      glass.add(fg);
+      glass.position.set(0, COUNTER_Y, 0.02);
+      group.add(glass);
+      parts.lighter = makeLighter();
+      group.add(parts.lighter);
+      parts.empties = makeEmpties(group, SHOTS.rounds, 0.14);
+      Object.assign(parts, { glass, fg });
+      sh.crowd = makeCrowd([{ x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35 }, { x: 1.35, z: 0.42, yaw: -1.9, female: true }, { x: -1.55, z: 0.5, yaw: 1.9 }], group);
+    });
+    run.state.game = createShots(11);
+    run.state.inside = true;
+    sh.ui.hud.hidden = false;
+  },
+  update(run, ctx, dt) {
+    const sh = run.sh;
+    if (!sh.room && run.def.objectives[run.index]?.id === 'shots' && live(run)) shots.enter(run);
+    const g = run.state?.game;
+    if (!sh.room || !g) return;
+    const before = g.step;
+    shotsStep(g, dt);
+    sh.swayT += dt;
+    if (sh.lift > 0) sh.lift = Math.max(0, sh.lift - dt);
+    if (before === 'burn' && g.step === 'pause') blip(run, 'bad');
+    if (g.last && g.last.seq !== sh.seq) { sh.seq = g.last.seq; flashPop(sh.ui.pop, g.last); if (g.last.good) blip(run, 'good'); }
+  },
+  after(run, ctx, dt) {
+    const sh = run.sh;
+    if (!live(run)) sh.ui.hud.hidden = true;
+    sh.ui.veil.hidden = !sh.room || run.phase === 'aborted' || !run.state?.game?.drinks;
+    if (!sh.room || run.phase === 'aborted') return;
+    const g = run.state.game, p = sh.parts;
+    if (!g) return;
+    // the camera: at the bar, looking down at the glass with the barkeeper behind it; it strays with each drink
+    const portrait = window.innerHeight > window.innerWidth;
+    const s = shotsSway(sh.swayT, g.drinks);
+    sh.room.camera(ctx.camera, { x: s.x, y: 1.46 + s.y, z: portrait ? 1.5 : 1.02 }, { x: s.lookX, y: COUNTER_Y + (portrait ? 0.3 : 0.2) + s.lookY, z: -0.3 }, s.roll);
+    poseCrowd(sh.crowd, dt);
+    // the glass: none while ordering; lifted to the lips when downed; the flame by the step
+    const drinking = sh.lift > 0;
+    p.glass.visible = drinking || (g.step !== 'order' && g.step !== 'pause');
+    p.glass.spirit.visible = !drinking;
+    if (drinking) {
+      const k = 1 - sh.lift / 0.55;
+      p.glass.position.set(0, COUNTER_Y + Math.sin(Math.min(1, k * 1.4) * Math.PI / 2) * 0.24, 0.02 + k * 0.32);
+      p.glass.rotation.x = -k * 1.9;
+    } else { p.glass.position.set(0, COUNTER_Y, 0.02); p.glass.rotation.x = 0; }
+    p.fg.visible = g.step === 'burn';
+    if (p.fg.visible) poseShotFlame(p.fg, g.level, g.t, ctx.camera);
+    // the lighter swings over the bar
+    const gauge = shotsGauge(g);
+    p.lighter.visible = g.step === 'light';
+    if (p.lighter.visible) p.lighter.position.set((gauge.value - 0.5) * 0.46, COUNTER_Y + GLASS_H + 0.05, 0.02);
+    p.halo.quaternion.copy(ctx.camera.quaternion);
+    p.halo.material.opacity = 0.26 + 0.05 * Math.sin(sh.swayT * 1.7);
+    if (sh.shown !== g.drinks) { sh.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
+    // the HUD: one line, one gauge, one button
+    const ui = sh.ui;
+    setText(ui.line, `Round ${g.round} of ${SHOTS.rounds} · ${shotsScore(g)} pts · ${g.strikes}/${SHOTS.strikes} mishaps`);
+    showGauge(ui, gauge);
+    ui.veil.style.opacity = `${clamp(g.drinks / SHOTS.rounds, 0, 1) * 0.85}`;
+  }
+};
+
+// --- 2. Flämmli in the Rot Liechtli -----------------------------------------------------------------------------------
+// The set on the counter (x across, z towards the player): the espresso cup on its saucer in the middle, the sugar
+// dispenser to its left, the Williams bottle to its right at the back, the shot glass to its right at the front.
+const CUP = { x: -0.03, z: 0.03, r: 0.032, h: 0.055 }, SHOT = { x: 0.11, z: 0.09 };
+const SUGAR_AT = { x: -0.17, z: -0.02 }, BOTTLE_AT = { x: 0.2, z: -0.07 };
+const COFFEE = new THREE.Color(0x3a1e0e), SUGAR_WHITE = new THREE.Color(0xf6f1e4), CARAMEL = new THREE.Color(0x9a5414), WILLIAMS = new THREE.Color(0xf2ead0);
+const _c = new THREE.Color();
+function buildFlaemmliSet(group, parts) {
+  // the saucer and the cup (white porcelain, open at the top: a lathe, its inside dark)
+  const saucer = solid([cyl(0.058, 0.05, 0.008, 0, 0.004, 0, 0xf4f1ea, 20)]);
+  const cupOut = [[0.022, 0], [CUP.r - 0.004, 0.006], [CUP.r, CUP.h * 0.6], [CUP.r + 0.002, CUP.h], [CUP.r - 0.003, CUP.h], [CUP.r - 0.005, 0.01], [0, 0.008]];
+  const cupGeo = new THREE.LatheGeometry(cupOut.map(([x, y]) => new THREE.Vector2(x, y)), 22);
+  const cupMesh = meshOf(paint(cupGeo, 0xf7f4ee), new THREE.MeshBasicNodeMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  const handle = solid([(() => { const t = new THREE.TorusGeometry(0.014, 0.004, 6, 12, Math.PI * 1.2); t.rotateZ(-Math.PI * 0.6); t.translate(CUP.r + 0.006, CUP.h * 0.55, 0); return paint(t, 0xf7f4ee); })()]);
+  // what is in the cup: one disc (coffee, then Williams), the sugar heap (a cone), the flame
+  const fill = meshOf(new THREE.CircleGeometry(CUP.r - 0.006, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: COFFEE }));
+  const heap = meshOf(new THREE.ConeGeometry(CUP.r - 0.008, 0.02, 16), new THREE.MeshBasicNodeMaterial({ color: SUGAR_WHITE }));
+  const cupFlame = makeFlame();
+  const cup = new THREE.Group();
+  cup.add(saucer);
+  const bowl = new THREE.Group(); // (what tilts and swirls: the cup with its handle and contents)
+  bowl.add(cupMesh, handle, fill, heap, cupFlame);
+  cup.add(bowl);
+  cup.position.set(CUP.x, COUNTER_Y, CUP.z);
+  group.add(cup);
+  // the sugar dispenser: a glass body with sugar in it and a steel spout; its stream
+  const sugar = new THREE.Group();
+  sugar.add(meshOf(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 14, 1, true).translate(0, 0.05, 0), new THREE.MeshBasicNodeMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, depthWrite: false })));
+  sugar.add(solid([cyl(0.027, 0.027, 0.055, 0, 0.0285, 0, 0xf2eee4, 14), cyl(0.031, 0.031, 0.012, 0, 0.106, 0, 0xb8bec6, 14), cyl(0.006, 0.01, 0.03, 0.018, 0.125, 0, 0xb8bec6, 8)]));
+  const sugarStream = meshOf(new THREE.CylinderGeometry(0.0025, 0.0025, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xffffff }));
+  sugarStream.visible = false;
+  group.add(sugarStream);
+  sugar.position.set(SUGAR_AT.x, COUNTER_Y, SUGAR_AT.z);
+  group.add(sugar);
+  // the Williams: a tall clear bottle, the pear-yellow label, a dark cap; its stream
+  const bottle = new THREE.Group();
+  bottle.add(meshOf(new THREE.CylinderGeometry(0.035, 0.037, 0.2, 16).translate(0, 0.1, 0), new THREE.MeshBasicNodeMaterial({ color: 0xe8f0e0, transparent: true, opacity: 0.55, depthWrite: false })));
+  bottle.add(solid([cyl(0.0372, 0.0372, 0.07, 0, 0.09, 0, 0xd8c23a, 16), cyl(0.012, 0.03, 0.05, 0, 0.225, 0, 0xe0e8dc, 12), cyl(0.0125, 0.0125, 0.03, 0, 0.26, 0, 0x2a2a2a, 10)]));
+  const label = textPlane('WILLIAMS', 0.065, 0.026, { bg: '#d8c23a', fg: '#3a2a08', font: '900 120px Inter, Arial, sans-serif' });
+  label.position.set(0, 0.09, 0.0375);
+  bottle.add(label);
+  const pourStream = meshOf(new THREE.CylinderGeometry(0.003, 0.003, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xf6eed6, transparent: true, opacity: 0.8 }));
+  pourStream.visible = false;
+  group.add(pourStream);
+  bottle.position.set(BOTTLE_AT.x, COUNTER_Y, BOTTLE_AT.z);
+  group.add(bottle);
+  // the shot glass, its flame
+  const shot = makeShotGlass(0xd99a3a);
+  const shotFlame = makeFlame();
+  shotFlame.position.y = GLASS_H * 0.74;
+  shot.add(shotFlame);
+  shot.position.set(SHOT.x, COUNTER_Y, SHOT.z);
+  group.add(shot);
+  // the hand: a palm with four fingers and a thumb, skin-coloured, held flat over the glass
+  const SKIN = 0xe0ac8a;
+  const hand = solid([
+    box(0.072, 0.016, 0.075, 0, 0, 0, SKIN),
+    ...[-0.026, -0.0087, 0.0087, 0.026].map((x, i) => { const long = i === 1 || i === 2 ? 0.012 : 0; return box(0.0155, 0.014, 0.05 + long, x, -0.001, -0.062 - long / 2, SKIN); }),
+    box(0.017, 0.014, 0.04, 0.045, -0.002, -0.01, SKIN), box(0.05, 0.02, 0.035, 0, 0.002, 0.052, 0xd49c7c)
+  ]);
+  hand.visible = false;
+  group.add(hand);
+  const lighter = makeLighter();
+  group.add(lighter);
+  Object.assign(parts, { cup, bowl, fill, heap, cupFlame, sugar, sugarStream, bottle, pourStream, shot, shotFlame, hand, lighter });
+  parts.empties = makeEmpties(group, FLAEMMLI.rounds, 0.24).map((m) => { m.position.z += 0.1; return m; });
+}
 
 const flaemmli = {
   setup(run) {
-    addStyle(run);
-    const hud = el('div', 'gs-hud');
-    hud.hidden = true;
-    const pop = el('div', 'gs-pop');
-    const card = el('div', 'gs-card');
-    const line = el('div');
-    const label = el('div');
-    const gauge = el('div', 'gs-gauge'), zone = el('span', 'gs-zone'), needle = el('span', 'gs-needle');
-    gauge.append(zone, needle);
-    card.append(line, label, gauge);
-    const act = el('button', 'gs-act', 'Order a Flämmli');
-    act.type = 'button';
-    hud.append(pop, card, act);
-    const veil = el('div', 'gs-veil');
-    veil.hidden = true;
-    document.body.append(veil, hud);
-    run.cleanups.push(() => { hud.remove(); veil.remove(); });
-    run.fl = { room: null, parts: null, crowd: null, ui: { hud, pop, line, label, gauge, zone, needle, act, veil }, seq: 0, lift: 0, swayT: 0, shown: 0 };
-    run.listen(act, 'pointerdown', (e) => { e.preventDefault(); flaemmli.press(run); });
+    const fl = run.fl = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a Flämmli'), seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false };
+    const up = (e) => { if (fl.down) { e?.preventDefault?.(); flaemmli.release(run); } };
+    run.listen(fl.ui.act, 'pointerdown', (e) => { e.preventDefault(); try { fl.ui.act.setPointerCapture(e.pointerId); } catch { /* (a synthetic event) */ } flaemmli.press(run); });
+    run.listen(fl.ui.act, 'pointerup', up);
+    run.listen(fl.ui.act, 'pointercancel', up);
+    run.listen(fl.ui.act, 'lostpointercapture', up);
+    run.listen(fl.ui.act, 'contextmenu', (e) => e.preventDefault());
+    // (js/missions.js hands the features only keydown: the held steps need the key coming up too)
+    run.listen(window, 'keyup', (e) => { if (fl.room && (e.code === 'Space' || e.code === 'Enter')) { swallow(e); flaemmli.release(run); } }, { capture: true });
+    run.listen(window, 'blur', () => flaemmli.release(run));
   },
   reset(run) {
     const fl = run.fl;
     fl.room?.dispose(); fl.room = null;
     fl.ui.hud.hidden = true; fl.ui.veil.hidden = true;
-    fl.seq = 0; fl.lift = 0; fl.swayT = 0; fl.shown = 0;
+    Object.assign(fl, { seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false });
     if (run.state) { run.state.game = null; run.state.inside = false; }
   },
   teardown(run) { run.fl.room?.dispose(); run.fl.room = null; },
+  ownControls: (run) => !!run.fl.room, // (at the bar: js/missions.js hides the game's controls)
   key(run, e) {
     if (!run.fl.room || !gameKey(e.code)) return;
     swallow(e);
     if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) flaemmli.press(run);
   },
   press(run) {
-    const g = run.state?.game;
+    const fl = run.fl, g = run.state?.game;
     if (!g || !live(run)) return;
-    const what = flaemmliAction(g);
+    fl.down = true;
+    const what = flaemmliPress(g);
     if (!what) return;
-    blip(run, what === 'light' || what === 'blow' ? 'fwoosh' : what === 'miss' ? 'bad' : 'pock');
-    if (what === 'drink') run.fl.lift = 0.55;
+    blip(run, what === 'light' || what === 'pour' || what === 'wild' ? 'fwoosh' : what === 'miss' ? 'bad' : 'pock');
+    if (what === 'swirl' || what === 'wild') fl.swirlT = 0.45;
+    if (what === 'pour') fl.pourT = 0.6;
+    if (what === 'smother') fl.handT = 0.3;
+    if (what === 'drink') fl.lift = 0.6;
+  },
+  release(run) {
+    const fl = run.fl, g = run.state?.game;
+    fl.down = false;
+    if (!g || !live(run)) return;
+    if (flaemmliRelease(g)) blip(run, 'pock');
   },
   enter(run) {
     const fl = run.fl;
     const parts = fl.parts = {};
     fl.room = new Room(run, run.def.interior.door, (group) => {
-      buildBar(group, parts);
+      buildBar(group, parts, LOOKS.rot);
+      buildFlaemmliSet(group, parts);
       fl.crowd = makeCrowd([{ x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35 }, { x: 1.35, z: 0.42, yaw: -1.9, female: true }, { x: -1.55, z: 0.5, yaw: 1.9 }], group);
     });
     run.state.game = createFlaemmli(11);
@@ -343,8 +598,8 @@ const flaemmli = {
     const before = g.step;
     flaemmliStep(g, dt);
     fl.swayT += dt;
-    if (fl.lift > 0) fl.lift = Math.max(0, fl.lift - dt);
-    if (before === 'burn' && g.step === 'pause') blip(run, 'bad');
+    for (const k of ['swirlT', 'pourT', 'handT', 'lift']) if (fl[k] > 0) fl[k] = Math.max(0, fl[k] - dt);
+    if ((before === 'flambe' || before === 'ready' || before === 'smother') && (g.step === 'pause' || g.step === 'light')) blip(run, 'bad');
     if (g.last && g.last.seq !== fl.seq) { fl.seq = g.last.seq; flashPop(fl.ui.pop, g.last); if (g.last.good) blip(run, 'good'); }
   },
   after(run, ctx, dt) {
@@ -354,60 +609,105 @@ const flaemmli = {
     if (!fl.room || run.phase === 'aborted') return;
     const g = run.state.game, p = fl.parts;
     if (!g) return;
-    // the camera: at the bar, looking down at the glass with the landlord behind it; it strays with each drink
+    const F = FLAEMMLI, step = g.step, cam = ctx.camera;
+    // the camera: closer than at the Ex Bar, the cup and the shot glass in the middle of the view
     const portrait = window.innerHeight > window.innerWidth;
     const s = flaemmliSway(fl.swayT, g.drinks);
-    fl.room.camera(ctx.camera, { x: s.x, y: 1.46 + s.y, z: portrait ? 1.5 : 1.02 }, { x: s.lookX, y: COUNTER_Y + (portrait ? 0.3 : 0.2) + s.lookY, z: -0.3 }, s.roll);
+    fl.room.camera(cam, { x: 0.03 + s.x, y: 1.4 + s.y, z: portrait ? 1.05 : 0.72 }, { x: 0.03 + s.lookX, y: COUNTER_Y + (portrait ? 0.16 : 0.1) + s.lookY, z: -0.1 }, s.roll);
     poseCrowd(fl.crowd, dt);
-    // the glass: none while ordering; lifted to the lips when downed; the flame by the step
-    const drinking = fl.lift > 0;
-    p.glass.visible = drinking || (g.step !== 'order' && g.step !== 'pause');
-    p.spirit.visible = !drinking;
-    if (drinking) {
-      const k = 1 - fl.lift / 0.55;
-      p.glass.position.set(0, COUNTER_Y + Math.sin(Math.min(1, k * 1.4) * Math.PI / 2) * 0.24, 0.02 + k * 0.32);
-      p.glass.rotation.x = -k * 1.9;
-    } else { p.glass.position.set(0, COUNTER_Y, 0.02); p.glass.rotation.x = 0; }
-    const burning = g.step === 'burn';
-    p.flame.visible = p.core.visible = p.flameGlow.visible = burning;
-    if (burning) {
-      const L = g.level;
-      const flick = 1 + 0.12 * Math.sin(g.t * 31) + 0.08 * Math.sin(g.t * 47 + 1);
-      const h = (0.35 + 1.5 * Math.min(1, L / 0.62) + Math.max(0, L - 0.72) * 2.4) * flick;
-      p.flame.scale.set(0.8 + L * 0.5, h, 0.8 + L * 0.5);
-      p.core.scale.set(0.45, h * 0.55, 0.45);
-      // yellow as it catches, blue in its prime, orange-red when the glass is getting too hot
-      if (L < 0.45) _flameCol.copy(FLAME_YELLOW).lerp(FLAME_BLUE, L / 0.45);
-      else if (L < 0.72) _flameCol.copy(FLAME_BLUE);
-      else _flameCol.copy(FLAME_BLUE).lerp(FLAME_RED, clamp((L - 0.72) / 0.2, 0, 1));
-      p.flameMat.color.copy(_flameCol);
-      p.flameGlow.material.color.copy(_flameCol);
-      p.flameGlow.quaternion.copy(ctx.camera.quaternion);
-    }
-    // the lighter swings over the bar
-    const gauge = flaemmliGauge(g);
-    p.lighter.visible = g.step === 'light';
-    if (p.lighter.visible) p.lighter.position.set((gauge.value - 0.5) * 0.46, COUNTER_Y + GLASS_H + 0.05, 0.02);
-    p.halo.quaternion.copy(ctx.camera.quaternion);
+    p.halo.quaternion.copy(cam.quaternion);
     p.halo.material.opacity = 0.26 + 0.05 * Math.sin(fl.swayT * 1.7);
-    if (fl.shown !== g.drinks) { fl.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
-    // the HUD: one line, one gauge, one button
-    const ui = fl.ui;
-    setText(ui.line, `Round ${g.round} of ${FLAEMMLI.rounds} · ${flaemmliScore(g)} pts · ${g.strikes}/${FLAEMMLI.strikes} mishaps`);
-    setText(ui.label, gauge.label);
-    ui.gauge.toggleAttribute('data-off', gauge.value === null);
-    if (gauge.value !== null) {
-      ui.zone.style.left = `${gauge.lo * 100}%`; ui.zone.style.width = `${(gauge.hi - gauge.lo) * 100}%`;
-      ui.needle.style.left = `${gauge.value * 100}%`;
+    const served = step !== 'order' && step !== 'pause';
+    const before = (a) => ['serve', 'sugar', 'sip', 'williams', 'light', 'flambe', 'ready', 'smother', 'drink'].indexOf(step) <= ['serve', 'sugar', 'sip', 'williams', 'light', 'flambe', 'ready', 'smother', 'drink'].indexOf(a);
+    const gauge = flaemmliGauge(g);
+    // the set comes with the order and goes with the pause (the landlord clears it)
+    p.cup.visible = served || fl.lift > 0;
+    p.sugar.visible = served && before('sip');
+    p.bottle.visible = served && before('light');
+    p.shot.visible = served || fl.lift > 0;
+    // the cup: the coffee drunk down, the Williams poured in, the sugar heap growing and turning to caramel
+    const sugarAmt = step === 'sugar' ? gauge.value : g.sugar;
+    p.heap.visible = served && sugarAmt > 0.03 && !before('serve');
+    const heapK = clamp(sugarAmt / 0.6, 0.15, 1.5);
+    p.heap.scale.set(Math.min(1, 0.5 + heapK * 0.5), heapK, Math.min(1, 0.5 + heapK * 0.5));
+    p.heap.position.y = 0.008 + 0.01 * heapK;
+    const car = (step === 'flambe' || step === 'ready' || step === 'smother') ? clamp(g.caramel, 0, 1) : 0;
+    p.heap.material.color.copy(_c.copy(SUGAR_WHITE).lerp(CARAMEL, car));
+    let level = 0, col = COFFEE;
+    if (step === 'serve' || step === 'sugar') level = 0.8;
+    else if (step === 'sip') level = 0.8 * (1 - clamp(gauge.value / F.hold.sip.zone[1], 0, 1)) + 0.05;
+    else if (step === 'williams') { const left = clamp((F.hold.sip.zone[0] - g.sip) / F.hold.sip.zone[0], 0, 1) * 0.8; level = left + gauge.value * 0.45; col = left > 0.05 && gauge.value < 0.2 ? COFFEE : WILLIAMS; }
+    else if (step === 'light' || step === 'flambe' || step === 'ready') { level = 0.08 + g.williams * 0.4 * clamp(g.fuel, 0, 1); col = WILLIAMS; }
+    p.fill.visible = served && level > 0.04 && step !== 'smother' && step !== 'drink';
+    p.fill.position.y = 0.008 + (CUP.h - 0.012) * clamp(level, 0, 1);
+    p.fill.material.color.copy(col === WILLIAMS ? _c.copy(WILLIAMS).lerp(CARAMEL, car) : col);
+    // the sip: the cup lifted to the lips while held
+    const sipping = step === 'sip' && g.holding;
+    const pouring = fl.pourT > 0;
+    p.bowl.position.set(0, sipping ? 0.17 : 0, sipping ? 0.26 : 0);
+    p.bowl.rotation.set(sipping ? -0.9 : 0, 0, 0);
+    if (pouring) { // the cup over the shot glass, tipped
+      const k = 1 - fl.pourT / 0.6;
+      p.bowl.position.set((SHOT.x - CUP.x) * Math.min(1, k * 2.5), 0.09 * Math.sin(Math.min(1, k * 2.5) * Math.PI / 2), (SHOT.z - CUP.z) * Math.min(1, k * 2.5));
+      p.bowl.rotation.set(0, 0, -1.6 * Math.sin(Math.min(1, k * 1.6) * Math.PI / 2));
+    } else if (fl.swirlT > 0) { // a swirl: a small circle
+      const k = fl.swirlT / 0.45;
+      p.bowl.position.x += 0.006 * k * Math.sin(k * 14); p.bowl.position.z += 0.006 * k * Math.cos(k * 14);
+      p.bowl.rotation.z = 0.12 * k * Math.sin(k * 14); p.bowl.rotation.x = 0.12 * k * Math.cos(k * 14);
     }
-    ui.act.disabled = !gauge.button;
-    setText(ui.act, gauge.button || '…');
-    ui.veil.style.opacity = `${clamp(g.drinks / FLAEMMLI.rounds, 0, 1) * 0.85}`;
+    // the sugar dispenser: tipped over the cup while held
+    const sugaring = step === 'sugar' && g.holding;
+    // (tipped about its foot: the spout's tip, 0.14 m up, comes to lie 0.127 m to the side and 0.058 m lower)
+    p.sugar.position.set(sugaring ? CUP.x - 0.127 : SUGAR_AT.x, COUNTER_Y + (sugaring ? 0.145 : 0), sugaring ? CUP.z : SUGAR_AT.z);
+    p.sugar.rotation.z = sugaring ? -2.0 : 0;
+    p.sugarStream.visible = sugaring;
+    if (sugaring) { p.sugarStream.position.set(CUP.x, COUNTER_Y + 0.087, CUP.z); p.sugarStream.scale.y = 0.06; }
+    // the Williams: tipped over the cup while held
+    const wPour = step === 'williams' && g.holding;
+    // (tipped about its foot: the neck's end, 0.275 m up, comes to lie 0.26 m to the side and 0.09 m lower)
+    p.bottle.position.set(wPour ? CUP.x + 0.26 : BOTTLE_AT.x, COUNTER_Y + (wPour ? 0.18 : 0), wPour ? CUP.z : BOTTLE_AT.z);
+    p.bottle.rotation.z = wPour ? 1.9 : 0;
+    p.pourStream.visible = wPour;
+    if (wPour) { p.pourStream.position.set(CUP.x, COUNTER_Y + 0.09, CUP.z); p.pourStream.scale.y = 0.06; }
+    // the cup's flame
+    const burning = step === 'flambe' || step === 'ready';
+    p.cupFlame.visible = burning || (pouring && g.step === 'smother');
+    if (p.cupFlame.visible) { p.cupFlame.position.y = CUP.h * 0.5; p.cupFlame.rotation.z = -p.bowl.rotation.z; poseStrength(p.cupFlame, burning ? g.flame : 0.5, g.t, cam, 1.25); }
+    // the lighter swings over the cup
+    p.lighter.visible = step === 'light';
+    if (p.lighter.visible) p.lighter.position.set(CUP.x + (gauge.value - 0.5) * 0.4, COUNTER_Y + CUP.h + 0.05, CUP.z);
+    // the shot glass: empty, then burning; the hand over it; downed
+    p.shot.spirit.visible = (step === 'smother' && !pouring) || step === 'drink';
+    p.shotFlame.visible = step === 'smother' && !pouring;
+    if (p.shotFlame.visible) poseStrength(p.shotFlame, 0.45 + 0.25 * g.heat, g.t, cam, 0.7);
+    const handOn = step === 'drink' || fl.handT > 0;
+    p.hand.visible = (step === 'smother' && !pouring) || handOn;
+    if (p.hand.visible) {
+      const hover = step === 'smother' ? 0.1 - 0.03 * g.heat : 0;
+      const k = fl.handT > 0 ? fl.handT / 0.3 : 0;
+      p.hand.position.set(SHOT.x, COUNTER_Y + GLASS_H + 0.009 + (handOn ? 0.15 * k : hover), SHOT.z + 0.025);
+    }
+    if (fl.lift > 0) { // the glass with the hand on it to the lips
+      const k = 1 - fl.lift / 0.6;
+      p.shot.position.set(SHOT.x, COUNTER_Y + Math.sin(Math.min(1, k * 1.4) * Math.PI / 2) * 0.2, SHOT.z + k * 0.3);
+      p.shot.rotation.x = -k * 1.7;
+      p.shot.spirit.visible = k < 0.6;
+      p.hand.visible = false;
+    } else { p.shot.position.set(SHOT.x, COUNTER_Y, SHOT.z); p.shot.rotation.x = 0; }
+    if (fl.shown !== g.drinks) { fl.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
+    // the HUD
+    const ui = fl.ui;
+    setText(ui.line, `Round ${g.round} of ${F.rounds} · ${flaemmliScore(g)} pts · ${g.strikes}/${F.strikes} mishaps`);
+    showGauge(ui, gauge);
+    ui.act.classList.toggle('held', !!g.holding);
+    ui.caramel.hidden = gauge.caramel === null;
+    if (gauge.caramel !== null) ui.caramelFill.style.transform = `scaleX(${gauge.caramel})`;
+    ui.veil.style.opacity = `${clamp(g.drinks / F.rounds, 0, 1) * 0.85}`;
   }
 };
 
 // =====================================================================================================================
-// 2. Pizza Heaven
+// 3. Pizza Heaven
 // =====================================================================================================================
 const PZ = 260;
 function buildKitchen(group) {
@@ -539,6 +839,7 @@ const pizzaRun = {
     if (run.state) { run.state.shop = null; run.state.inside = false; }
   },
   teardown(run) { run.pz.room?.dispose(); run.pz.room = null; },
+  ownControls: (run) => !!run.pz.room, // (only in the kitchen; the drive needs the car's controls)
   key(run, e) {
     if (!run.pz.room || !gameKey(e.code)) return;
     swallow(e);
@@ -617,6 +918,6 @@ const pizzaRun = {
   }
 };
 
-export const GASTRO_FEATURES = { flaemmli, pizzaRun };
+export const GASTRO_FEATURES = { shots, flaemmli, pizzaRun };
 // (the indoor framework, for js/missions-bars.js)
 export { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, Room, blip, flashPop };

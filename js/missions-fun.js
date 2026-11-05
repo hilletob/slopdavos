@@ -65,7 +65,7 @@ const STYLE = `
 .fun-pad{min-width:52px;min-height:44px;font-size:20px;touch-action:manipulation}
 .fun-send{padding:10px 20px;font-size:15px;background:linear-gradient(180deg,#2fb3ff,#0a6fd1);box-shadow:0 6px 18px rgba(10,111,209,.45)}
 .fun-flash{color:#ffe14f;font-weight:800;min-height:18px}
-.fun-rhb{position:fixed;left:16px;top:86px;z-index:40;font-family:Inter,system-ui,sans-serif;color:#fff;display:flex;gap:10px;align-items:stretch;pointer-events:none}
+.fun-rhb{position:fixed;right:16px;top:132px;z-index:40;font-family:Inter,system-ui,sans-serif;color:#fff;display:flex;gap:10px;align-items:stretch;pointer-events:none}
 .fun-rhb[hidden]{display:none}
 .fun-limit{width:58px;height:58px;border-radius:50%;background:#fff;border:7px solid #d4001a;color:#111;display:flex;align-items:center;justify-content:center;font:900 20px Inter,system-ui,sans-serif;box-sizing:border-box}
 .fun-speed{font:800 30px Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
@@ -77,7 +77,7 @@ const STYLE = `
 body.fun-indoor #touch-controls,body.fun-indoor .gta-prompt,body.fun-indoor .touch-use,body.fun-indoor .mission-prompt{display:none!important}
 body.fun-indoor .hud-bottom-center{visibility:hidden}
 @media (max-width:640px){body.fun-indoor .hud-bottom-right,body.fun-indoor .hud-bottom-left{visibility:hidden}}
-@media (max-width:640px){.fun-hud{bottom:10px}.fun-big{font-size:21px}.fun-btn{padding:16px 34px}.fun-rhb{left:8px;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 150px);transform:scale(.88);transform-origin:top left}}
+@media (max-width:640px){.fun-hud{bottom:10px}.fun-big{font-size:21px}.fun-btn{padding:16px 34px}.fun-rhb{left:8px;right:auto;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 150px);transform:scale(.88);transform-origin:top left}}
 `;
 
 function addStyle(run) {
@@ -786,6 +786,8 @@ function buildVenue(group, fx, venue) {
 }
 
 const HEADBANG_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: inside on the dance floor; the walk to the door keeps them)
+  ownControls: (run) => !!run.hb?.interior,
   setup(run) {
     addStyle(run);
     const venue = VENUES[run.def.venue];
@@ -1049,6 +1051,8 @@ function buildBar(group, fb) {
 }
 
 const FOOSBALL_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the table, W S move the rod; the walk to the door keeps them)
+  ownControls: (run) => !!run.fb?.interior,
   setup(run) {
     addStyle(run);
     const hud = el('div', 'fun-hud');
@@ -1306,6 +1310,8 @@ function gearBoxes(kind, cells) {
 }
 
 const GONDOLA_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the stacking pad, the arrows move the cabins; the walk to the station keeps them)
+  ownControls: (run) => !!run.gp?.interior,
   setup(run) {
     addStyle(run);
     const hud = el('div', 'fun-hud');

@@ -221,7 +221,7 @@
   },
   {
    "id": "gondola-tetris",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Gondel maximal beladen (Tetris)",
    "kurz": "Die grosse Kabine der Jakobshornbahn wie Tetris beladen: Fahrgäste mit Gepäck (Paar, Skifahrer mit Ski, Snowboarder, Familie mit Kinderwagen, Gruppe, Hund …) als Teile auf dem Kabinenboden-Raster verschieben, drehen und platzieren; volle Reihen geben Bonus, Lücken kosten.",
    "saison": "ganzjaehrig",
@@ -246,8 +246,31 @@
    "nr": 6
   },
   {
+   "id": "rhb-driver",
+   "status": "bestehend",
+   "name": "RhB-Lokführer Wolfgang–Platz",
+   "kurz": "Mit dem Capricorn von Davos Wolfgang hinunter nach Davos Platz, mit Halt in Davos Dorf und Kongress/Eisstadion: Fahrplan einhalten und mit der Front an der Tafel halten. Medaille nach Punkten.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "RhB Capricorn",
+   "anreise": "Start im Bahnhof Davos Wolfgang",
+   "ort": {
+    "name": "Bahnhof Davos Wolfgang",
+    "x": 1818.3,
+    "z": -4077.8,
+    "lv95": {
+     "E": 2784318,
+     "N": 1189578
+    }
+   },
+   "punkte": [],
+   "quelle": "js/missions-data-fun.js WOLFGANG, RHB_MISSION",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Bahnhöfe aus den RhB-Daten des Projekts.",
+   "nr": 67
+  },
+  {
    "id": "headbang-box",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Headbang-Contest in der Box",
    "kurz": "Headbang-Wettbewerb im Live-Musik-Lokal «BOX Davos» (Bar/Pub mit Konzerten).",
    "saison": "ganzjaehrig",
@@ -270,7 +293,7 @@
   },
   {
    "id": "foosball-la-onda",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Tischfussball im La Onda",
    "kurz": "Tischfussball-Turnier in der Bar «La Onda» (Rock/Latin/Funk/Hip-Hop-Bar im Zentrum von Davos Platz).",
    "saison": "ganzjaehrig",
@@ -293,7 +316,7 @@
   },
   {
    "id": "curling",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Curling",
    "kurz": "Curling-Partie auf den Rinks beim Sportzentrum/Eistraum an der Natureisbahn (3 Rinks, Reservation).",
    "saison": "winter",
@@ -314,8 +337,8 @@
    "nr": 9
   },
   {
-   "id": "eishockey-penalty",
-   "status": "idee",
+   "id": "hockey-penalty",
+   "status": "bestehend",
    "name": "Eishockey-Penalty im Stadion",
    "kurz": "Penaltyschiessen gegen den Goalie im Eisstadion Davos (Zondacrypto/Vaillant Arena, Heimstadion HCD).",
    "saison": "ganzjaehrig",
@@ -336,8 +359,8 @@
    "nr": 10
   },
   {
-   "id": "eisschnelllauf",
-   "status": "idee",
+   "id": "speed-skating",
+   "status": "bestehend",
    "name": "Eisschnelllauf 400 m",
    "kurz": "Zeitrennen über 400 m (oder 1500 m) auf der historischen Natureisbahn Davos.",
    "saison": "winter",
@@ -362,7 +385,7 @@
   },
   {
    "id": "golf",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Golf",
    "kurz": "Kurz-Parcours über 3 Löcher im Golf Club Davos (18 Loch Par 69): Loch 14 (Par 3, Bunker), 15 (Par 4, Dogleg, Out rechts), 18 (Par 4, Teich vor dem Green), zusammen Par 11. Mission `golf` (js/missions-data-golf.js).",
    "saison": "sommer",
@@ -386,8 +409,8 @@
    "nr": 12
   },
   {
-   "id": "mtb-rennen",
-   "status": "idee",
+   "id": "mtb-race",
+   "status": "bestehend",
    "name": "Mountainbike-Rennen",
    "kurz": "Downhill-Rennen (~790 Hm) vom Jakobshorn-Gebiet über den Ischalptrail und den Bolgen-Trail («Chüggelibahn») bis Bolgen Plaza.",
    "saison": "sommer",
@@ -444,7 +467,7 @@
   },
   {
    "id": "big-air",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Snowboard Big Air",
    "kurz": "Big-Air-Sprung (18-m-Kicker) im Snowpark «JatzPark» am Jakobshorn – Austragungsort der Davos Open.",
    "saison": "winter",
@@ -470,7 +493,7 @@
   },
   {
    "id": "ski-slalom",
-   "status": "idee",
+   "status": "bestehend",
    "name": "Ski-Slalom Davos Vertical",
    "kurz": "Slalom auf der Piste «Davos Vertical» am Jakobshorn (987 m, 423 m Gefälle).",
    "saison": "winter",
@@ -1911,10 +1934,33 @@
    "nr": 45
   },
   {
+   "id": "shots-ex-bar",
+   "status": "bestehend",
+   "name": "Flaming Shots in der Ex Bar",
+   "kurz": "Zu Fuss in die Bar, 6 Runden Flaming Shots mit einem Knopf: bestellen, anzünden, im richtigen Moment ausblasen, ex trinken. Mit jedem Glas schwankt die Sicht mehr und die Zeitfenster werden enger. Drei Missgeschicke und der Barkeeper macht Schluss. Medaille nach Punkten. (Die frühere Flämmli-Mechanik aus dem Rot Liechtli.)",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "Zu Fuss",
+   "anreise": "Start auf der Strasse östlich der Tür (Davos Platz)",
+   "ort": {
+    "name": "Ex Bar, Davos Platz",
+    "x": -582.0,
+    "z": -139.6,
+    "lv95": {
+     "E": 2781918,
+     "N": 1185640
+    }
+   },
+   "punkte": [],
+   "quelle": "js/missions-data-local.js BEER_STOPS (Tür, Strasse)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Lage wie Bierlieferung; Innenraum frei erfunden.",
+   "nr": 66
+  },
+  {
    "id": "flaemmli-rot-liechtli",
    "status": "bestehend",
    "name": "Flämmli im Rot Liechtli",
-   "kurz": "Zu Fuss in den Pub, an der Bar 6 Runden Flämmli mit einem Knopf: bestellen, anzünden, im richtigen Moment ausblasen, trinken. Mit jedem Glas schwankt die Sicht mehr und die Zeitfenster werden enger. Drei Missgeschicke und der Wirt macht Schluss. Medaille nach Punkten.",
+   "kurz": "Zu Fuss in den Pub, an der Bar 3 Runden echtes Flämmli: Zucker in den Espresso (halten), Espresso trinken und den Zucker drin lassen (halten), Williams drauf (halten), anzünden, durch Schwenken am Brennen halten, bis der Zucker caramelisiert (Luftzug von der Tür, zu wild schwappt es über), brennend ins Shotglas leeren, mit der Hand ersticken, trinken. Drei Pannen und der Wirt macht Schluss. Medaille nach Punkten.",
    "saison": "ganzjaehrig",
    "fahrzeug": "Zu Fuss",
    "anreise": "Start an der Berglistutz, wenige Meter vor der Tür (Davos Platz)",
@@ -2453,10 +2499,10 @@
    "id": "bio-round",
    "status": "bestehend",
    "name": "Bioabfall zur Biogasanlage",
-   "kurz": "Offener Transporter durch Davos Dorf: 10 runde Fässer an den Sammelpunkten, die Crew hebt sie von der Seite auf die Ladefläche, solange du stehst (Halte-Logik der Kehrichtrunde), und stellt ein leeres hin; die Fässer stapeln sich sichtbar. In 2 Fässern steckt Plastik: erkennen und mit Leertaste/E stehen lassen, sonst ist die Fuhre verdorben. Ladeanzeige, Fliegen und Gestank. Bei der Anlage werden die Fässer in den Annahmebunker gekippt. Medaille nach Punkten (Fässer, saubere Ladung, Zeit).",
+   "kurz": "Offener Transporter (Pritschenwagen) die Hotels in Davos Dorf ab: 10 runde Fässer mit Küchenabfällen, je eins an der Strasse vor einem Hotel; die Crew hebt sie von der Seite auf die Ladefläche, solange du stehst (Halte-Logik der Kehrichtrunde), und stellt ein leeres hin; die Fässer stapeln sich sichtbar. In 2 Fässern steckt Plastik: erkennen und mit Leertaste/E stehen lassen, sonst ist die Fuhre verdorben. Ladeanzeige, Fliegen und Gestank. Danach über die (im Winter geräumte) Dischmastrasse und durch den Hof der Duchli Ranch zum Annahmebunker, wo die Fässer gekippt werden; der Zielpfeil folgt dem Weg, Karte und Radar zeigen die Route. Medaille nach Punkten (Fässer, saubere Ladung, Zeit).",
    "saison": "ganzjaehrig",
-   "fahrzeug": "Offener Transporter mit Ladefläche (neues Fahrzeug)",
-   "anreise": "Start auf der Bahnhofstrasse bei der Flüelakreuzung (Davos Dorf), Blick nach Nordosten",
+   "fahrzeug": "Offener Transporter: 6,5-t-Pritschenwagen (Iveco-Daily-/Canter-Klasse), gelofteter Körper der Verkehrsautos (actor-models.js) mit eigener Spezifikation, Alu-Bordwände, Stirnwand mit Leitergitter, Zwillingsreifen, Rundumleuchte",
+   "anreise": "Start auf der Bahnhofstrasse bei der Flüelakreuzung (Davos Dorf), Blick nach Südwesten Richtung Bahnhof",
    "ort": {
     "name": "Biogasanlage Duchli Ranch (Davos Biogas GmbH), Annahmebunker am Duchliweg",
     "x": 1506.44,
@@ -2468,27 +2514,142 @@
    },
    "punkte": [
     {
-     "name": "Start Bahnhofstrasse bei der Flüelakreuzung",
+     "name": "Start Bahnhofstrasse bei der Flüelakreuzung, Richtung Bahnhof",
      "x": 1004.1,
-     "z": -1743,
+     "z": -1742.5,
      "lv95": {
-      "E": 2783504,
-      "N": 1187243
+      "E": 2783504.1,
+      "N": 1187242.5
      }
     },
     {
-     "name": "Zufahrt Duchliweg (OSM w1443014922), 7 m neben dem Bunker",
-     "x": 1502.7,
-     "z": -407.8,
+     "name": "Fass beim Turmhotel Victoria (OSM n623883946, Hotelpunkt x 960.2, z -1746.8; 32 m)",
+     "x": 984.8,
+     "z": -1725.7,
      "lv95": {
-      "E": 2784003,
-      "N": 1185908
+      "E": 2783484.8,
+      "N": 1187225.7
+     }
+    },
+    {
+     "name": "Fass beim Hotel Flüela (OSM w117012166, Hotelpunkt x 844.5, z -1617.8; 35 m)",
+     "x": 872.7,
+     "z": -1596.4,
+     "lv95": {
+      "E": 2783372.7,
+      "N": 1187096.4
+     }
+    },
+    {
+     "name": "Fass beim Hotel Montana (OSM n2282077534, Hotelpunkt x 834.3, z -1507.4; 16 m)",
+     "x": 821.3,
+     "z": -1517.4,
+     "lv95": {
+      "E": 2783321.3,
+      "N": 1187017.4
+     }
+    },
+    {
+     "name": "Fass beim Hotel Seehof (OSM w117012182, Hotelpunkt x 696.3, z -1511.2; 26 m)",
+     "x": 708.9,
+     "z": -1488.5,
+     "lv95": {
+      "E": 2783208.9,
+      "N": 1186988.5
+     }
+    },
+    {
+     "name": "Fass beim Sport Hotel Parsenn (OSM w116881152, Hotelpunkt x 669.7, z -1389.3; 18 m)",
+     "x": 654.8,
+     "z": -1400.2,
+     "lv95": {
+      "E": 2783154.8,
+      "N": 1186900.2
+     }
+    },
+    {
+     "name": "Fass beim Hotel Meierhof (OSM w118240455, Hotelpunkt x 546.9, z -1161.6; 18 m)",
+     "x": 564.7,
+     "z": -1159,
+     "lv95": {
+      "E": 2783064.7,
+      "N": 1186659
+     }
+    },
+    {
+     "name": "Fass beim Hotel Concordia (OSM w126895457, Hotelpunkt x 552.6, z -963.6; 20 m)",
+     "x": 533.5,
+     "z": -968.3,
+     "lv95": {
+      "E": 2783033.5,
+      "N": 1186468.3
+     }
+    },
+    {
+     "name": "Fass beim Alpine Inn (OSM n2749938965, Hotelpunkt x 512.6, z -842; 14 m)",
+     "x": 499,
+     "z": -846.1,
+     "lv95": {
+      "E": 2782999,
+      "N": 1186346.1
+     }
+    },
+    {
+     "name": "Fass beim Hotel Cresta (OSM n982616241, Hotelpunkt x 552.6, z -741; 21 m)",
+     "x": 549.1,
+     "z": -761.8,
+     "lv95": {
+      "E": 2783049.1,
+      "N": 1186261.8
+     }
+    },
+    {
+     "name": "Fass beim Solaria (OSM n2615277888, Hotelpunkt x 950.1, z -779; 30 m)",
+     "x": 924.8,
+     "z": -763.5,
+     "lv95": {
+      "E": 2783424.8,
+      "N": 1186263.5
+     }
+    },
+    {
+     "name": "Abzweig Duchliweg (OSM w314831258) von der Dischmastrasse",
+     "x": 1416,
+     "z": -213.2,
+     "lv95": {
+      "E": 2783916,
+      "N": 1185713.2
+     }
+    },
+    {
+     "name": "Ende des Wegs auf dem Duchliweg-Feldweg (OSM w1443014922), 7 m neben dem Bunker",
+     "x": 1502.7,
+     "z": -407.7,
+     "lv95": {
+      "E": 2784002.7,
+      "N": 1185907.7
      }
     }
    ],
-   "quelle": "Koordinaten der Anlage und Fässer/Transporter vom Benutzer (LV95 E 2784006.44, N 1185913.81) · nau.ch «Davos startet Bioabfall-Pilotprojekt» (Biogasanlage Duchli Ranch, Pilot ab 29.6.2026, Sammelstellen Flüelakreuzung, Symonds-Parkplatz, Bubenbrunnenplatz, Metz-Parkplatz) · Kompass-Eintrag Davos Biogas GmbH, Duchliweg 13 (nur Suchtreffer, Seite nicht abrufbar)",
+   "route": {
+    "beschreibung": "Bahnhofstrasse – Promenade (Einbahn Richtung Platz) – Schiaweg – Talstrasse (Einbahn Richtung Dorf) – Dischmakreuzung – Dischmastrasse – Duchliweg (Hofzufahrt, im Hof einige Meter nördlich der OSM-Linie zwischen den Scheunen) – Duchliweg-Feldweg zurück nach Westen zum Bunker",
+    "laengeM": 3353,
+    "hotels": [
+     "Turmhotel Victoria",
+     "Hotel Flüela",
+     "Hotel Montana",
+     "Hotel Seehof",
+     "Sport Hotel Parsenn",
+     "Hotel Meierhof",
+     "Hotel Concordia",
+     "Alpine Inn",
+     "Hotel Cresta",
+     "Solaria"
+    ]
+   },
+   "quelle": "Koordinaten der Anlage und Fässer/Transporter vom Benutzer (LV95 E 2784006.44, N 1185913.81) · nau.ch «Davos startet Bioabfall-Pilotprojekt» (Biogasanlage Duchli Ranch, Pilot ab 29.6.2026, Sammelstellen Flüelakreuzung, Symonds-Parkplatz, Bubenbrunnenplatz, Metz-Parkplatz) · Kompass-Eintrag Davos Biogas GmbH, Duchliweg 13 (nur Suchtreffer, Seite nicht abrufbar) · Hotels: OSM tourism=hotel aus js/shops-data.js (Turmhotel Victoria, Flüela, Montana, Seehof, Sport Hotel Parsenn, Meierhof, Concordia, Alpine Inn, Cresta, Solaria) · Route: OSM-Strassengraph js/davos-geodata.js roadGraph (Dijkstra zwischen Wegpunkten, Einbahnrichtungen beachtet)",
    "unsicherheit": "niedrig",
-   "unsicherheitNotiz": "Standort der Anlage vom Benutzer, passt zum Duchliweg 13 (rund 85 m entfernt). Runde Fässer auf offenem Transporter laut Benutzer. Anlage im Spiel frei modelliert (Bunker, zwei Fermenter); die zehn Sammelpunkte und die Tourenführung sind erfunden, im Pilotprojekt von 2026 bringen die Haushalte den Bioabfall zu vier Sammelstellen. Der Duchliweg ist für Motorfahrzeuge beschränkt (private/destination).",
+   "unsicherheitNotiz": "Standort der Anlage vom Benutzer, passt zum Duchliweg 13 (rund 85 m entfernt). Runde Fässer auf offenem Transporter laut Benutzer. Anlage im Spiel frei modelliert (Bunker, zwei Fermenter). Die Abholung bei den Hotels und die Route über die Dischmastrasse (statt über die Bünda, im Winter schlecht) auf Wunsch des Benutzers; welche Hotels wirklich Bioabfall abgeben, ist nicht belegt, die Hotelpunkte sind die OSM-Punkte, die Fässer stehen an der Strasse vor dem Hotel (14–35 m vom OSM-Punkt). Im Pilotprojekt von 2026 bringen die Haushalte den Bioabfall zu vier Sammelstellen. Der Duchliweg ist für Motorfahrzeuge beschränkt (private/destination); die Hofdurchfahrt ist eng (rund 4 m zwischen den Gebäuden).",
    "nr": 57
   },
   {

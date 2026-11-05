@@ -24,7 +24,10 @@ export const SPIN_DECAY_S = 6; // s: the spin's time constant in the air
 export const GREEN_SLOPE_BOOST = 1.25; // the greens' break, a little exaggerated (the terrain's grid is coarse) …
 export const GREEN_MAX_SLOPE = 0.06; // … but never steeper than this: a ball always comes to rest on a green
 export const POWER_EXP = 0.62; // the ball speed goes with power^this: the distance about in proportion to the power
-export const PUTT_MAX = 20; // m: a full putt on a flat green
+export const PUTT_MAX = 30; // m: a full putt on a flat green (the long greens: a putt from anywhere on them) …
+export const PUTT_EXP = 2; // … the roll going with power^this: fine on the short putts, the full length still there
+/** How far a putt at `power` rolls on a flat green */
+export const puttReach = (power) => PUTT_MAX * Math.pow(clamp(power, 0, 1), PUTT_EXP);
 export const CAPTURE_SPEED = 1.6; // m/s: the fastest a ball over the cup's centre drops (slower the further off centre)
 export const TAP_IN = 0.3; // m: a ball resting this close is tapped in (one stroke)
 export const PICK_UP_OVER_PAR = 5; // strokes over par: the hole is picked up with that score
@@ -106,6 +109,7 @@ export const clubById = (id) => CLUBS.find((c) => c.id === id) || CLUBS[0];
 /** The club for a distance (m) from a lie: the putter on the green, else the shortest club that reaches */
 export function autoClub(distance, lie = 'fairway') {
   if (lie === 'green') return 'putter';
+  if (distance <= 10 && (lie === 'fairway' || lie === 'tee')) return 'putter'; // (from the fringe: a putt)
   if (distance <= 95) return 'wedge';
   if (distance <= 145 || lie === 'bunker') return 'iron7';
   if (distance <= 185 || lie !== 'tee') return 'wood';
@@ -159,7 +163,7 @@ export function strike(ball, { club, power, accuracy = 0, heading }) {
   if (c.putt) {
     // the putter: rolls, the speed for the distance on a flat green; a mistimed stroke pushes or pulls it
     const h = heading + acc * 0.03;
-    const v = Math.sqrt(2 * SURFACES.green.decel * PUTT_MAX * p) * (ball.lie === 'green' || ball.lie === 'fairway' || ball.lie === 'tee' ? 1 : 0.8);
+    const v = Math.sqrt(2 * SURFACES.green.decel * puttReach(p)) * (ball.lie === 'green' || ball.lie === 'fairway' || ball.lie === 'tee' ? 1 : 0.8);
     Object.assign(ball, { vx: Math.sin(h) * v, vy: 0, vz: Math.cos(h) * v, lift: 0, side: 0, lift0: 0, state: 'roll' });
     return ball;
   }
@@ -325,7 +329,7 @@ export function previewFlight(from, { club, power = 1, heading, lie = 'fairway' 
   const points = [{ x: b.x, y: b.y, z: b.z }];
   if (b.state !== 'air') {
     // the putter: the line it starts on, as far as it would roll on the flat
-    const d = PUTT_MAX * power;
+    const d = puttReach(power);
     return { points: [points[0], { x: b.x + Math.sin(heading) * d, y: b.y, z: b.z + Math.cos(heading) * d }], landing: null };
   }
   const heightAt = env.heightAt || FLAT;
@@ -336,6 +340,164 @@ export function previewFlight(from, { club, power = 1, heading, lie = 'fairway' 
   }
   const end = points[points.length - 1];
   return { points, landing: { x: end.x, z: end.z, surface: (env.surfaceAt || (() => 'fairway'))(end.x, end.z) } };
+}
+
+// --- What the player is shown: the reach, the power for the pin, the wind in words, the report after a shot ----------
+// (all from the same flight model the ball flies by: what the HUD says is what the ball does)
+const fwdOf = (h) => ({ x: Math.sin(h), z: Math.cos(h) }); // along the aim
+const rightOf = (h) => ({ x: -Math.cos(h), z: Math.sin(h) }); // to the right of the aim (heading 0 along +z: +x is on the left)
+/** A vector (dx, dz) in the aim's frame: { long (> 0 further along the aim), side (> 0 right of it) } */
+export function alongAim(dx, dz, heading) {
+  const f = fwdOf(heading), r = rightOf(heading);
+  return { long: dx * f.x + dz * f.z, side: dx * r.x + dz * r.z };
+}
+
+/** The putter's roll at `power` from `lie` (the fringe, the rough: slower off the face): on a flat green, or (env's
+ *  heightAt, surfaceAt) along the line over what lies there, the slope up or down it in (the energy marched in 0.2 m
+ *  steps: the surface's resistance and the climb take it; its sideways break is left out) */
+export function puttDistance(power, lie = 'green', from = null, heading = 0, env = null) {
+  const k = lie === 'green' || lie === 'fairway' || lie === 'tee' ? 1 : 0.8;
+  if (!from || !env) return puttReach(power) * k * k;
+  const heightAt = env.heightAt || FLAT, surf = env.surfaceAt || (() => 'green');
+  const f = fwdOf(heading), ds = 0.2;
+  let v2 = 2 * SURFACES.green.decel * puttReach(power) * k * k, d = 0, x = from.x, z = from.z, y = heightAt(x, z);
+  while (v2 > 0 && d < PUTT_MAX * 3) {
+    const s = surf(x, z);
+    if (s === 'water' || s === 'out') break;
+    const nx = x + f.x * ds, nz = z + f.z * ds, ny = heightAt(nx, nz);
+    let slope = (ny - y) / ds;
+    if (s === 'green') slope = clamp(slope * (env.greenBoost ?? GREEN_SLOPE_BOOST), -GREEN_MAX_SLOPE, GREEN_MAX_SLOPE);
+    const climb = slope * ds;
+    const need = 2 * (SURFACES[s]?.decel ?? 2.6) * ds + 2 * (5 / 7) * G * climb;
+    if (need >= v2) { d += need > 0 ? ds * (v2 / need) : ds; break; }
+    v2 -= need; d += ds; x = nx; z = nz; y = ny;
+  }
+  return d;
+}
+
+/** Where a shot lands (its carry; the putter: where it would stop on the flat): { x, z, d, points, surface } */
+export function landingFor(from, { club, power = 1, heading, lie = 'fairway' }, env) {
+  const c = typeof club === 'string' ? clubById(club) : club;
+  if (c.putt) {
+    const d = puttDistance(power, lie, from, heading, env), f = fwdOf(heading);
+    return { x: from.x + f.x * d, z: from.z + f.z * d, d, points: null, surface: null };
+  }
+  const p = previewFlight(from, { club: c, power, heading, lie }, env);
+  const l = p.landing || { x: from.x, z: from.z, surface: null };
+  return { x: l.x, z: l.z, d: Math.hypot(l.x - from.x, l.z - from.z), points: p.points, surface: l.surface };
+}
+
+/** The carry at powers 1/n … 1 (with the lie and env's wind), for the power the pin needs: [{ power, d }] */
+export function shotTable(from, { club, heading, lie = 'fairway' }, env, n = 10) {
+  const out = [{ power: 0, d: 0 }];
+  for (let i = 1; i <= n; i++) out.push({ power: i / n, d: landingFor(from, { club, power: i / n, heading, lie }, env).d });
+  return out;
+}
+
+/** The power that carries the ball `distance` m (from shotTable): { power, reach } (reach false: not even at full power) */
+export function powerFor(table, distance) {
+  const top = table[table.length - 1];
+  if (distance >= top.d) return { power: 1, reach: distance <= top.d + 0.5 };
+  for (let i = 1; i < table.length; i++) {
+    const a = table[i - 1], b = table[i];
+    if (distance <= b.d) return { power: lerp(a.power, b.power, b.d > a.d ? (distance - a.d) / (b.d - a.d) : 1), reach: true };
+  }
+  return { power: 1, reach: false };
+}
+
+/** The carry (m) at `power` (from shotTable) */
+export function carryAt(table, power) {
+  const p = clamp(power, 0, 1);
+  for (let i = 1; i < table.length; i++) {
+    const a = table[i - 1], b = table[i];
+    if (p <= b.power) return lerp(a.d, b.d, (p - a.power) / (b.power - a.power || 1));
+  }
+  return table[table.length - 1].d;
+}
+
+/** The wind against the aim: { along (m/s, > 0 behind the ball), across (m/s, > 0 blowing to the right), words } —
+ *  'calm', 'headwind', 'tailwind', 'from the left', 'from the right' or two of them ('headwind from the left') */
+export function windAgainstAim(wind, heading) {
+  const w = alongAim(wind.x, wind.z, heading);
+  const speed = Math.hypot(wind.x, wind.z);
+  let words;
+  if (speed < 0.8) words = 'calm';
+  else {
+    const head = Math.abs(w.long) >= 0.35 * speed ? (w.long > 0 ? 'tailwind' : 'headwind') : '';
+    const cross = Math.abs(w.side) >= 0.35 * speed ? (w.side > 0 ? 'from the left' : 'from the right') : '';
+    words = [head, cross].filter(Boolean).join(' ') || 'headwind';
+  }
+  return { along: w.long, across: w.side, speed, words };
+}
+
+/** The lie's toll on a full swing (the share of the carry it costs, 0…1), and a few words on why */
+export function lieToll(lie, club) {
+  const c = typeof club === 'string' ? clubById(club) : club;
+  if (c.putt) return { loss: lie === 'green' || lie === 'fairway' || lie === 'tee' ? 0 : 0.36, words: lie === 'green' ? 'putt' : 'putt off the green: slower' };
+  const S = SURFACES[lie] || SURFACES.fairway;
+  let f = S.power;
+  if (lie === 'bunker' && c.id === 'wedge') f = 0.88;
+  if (lie !== 'tee' && c.id === 'driver') f *= 0.88;
+  // (the speed goes with √f, the carry about with the speed^1.6)
+  const loss = 1 - Math.pow(f, 0.8);
+  const words = lie === 'rough' ? 'less spin: it rolls on' : lie === 'bunker' ? (c.id === 'wedge' ? 'the wedge gets out best' : 'take the wedge') : lie !== 'tee' && c.id === 'driver' ? 'the driver wants a tee' : 'clean lie';
+  return { loss: Math.max(0, loss), words };
+}
+
+/**
+ * What a shot did and why, against the model's own forecast: the carry and the roll; the wind's push (the shot at the
+ * same power in calm air against the one in the wind); the strike's curve (the hook or the slice: where it landed
+ * against where a clean strike in the same wind lands); where it lies from the pin; one tip.
+ * shot: { from {x,z}, heading, club, power, accuracy, lie, wind, carry {x,z} (where it first touched down), end {x,z},
+ * state, pin {x,z}, need (the power the pin needed, null when out of reach) }. Returns { carry, roll, wind, curve, pin, lines, tip }
+ */
+export function shotReport(shot, env = {}) {
+  const c = typeof shot.club === 'string' ? clubById(shot.club) : shot.club;
+  const from = shot.from, h = shot.heading, end = shot.end;
+  const r = (v) => Math.round(Math.abs(v));
+  const lines = [];
+  const toPin = alongAim(end.x - shot.pin.x, end.z - shot.pin.z, h);
+  const pinDist = Math.hypot(end.x - shot.pin.x, end.z - shot.pin.z);
+  let wind = { long: 0, side: 0 }, curve = { long: 0, side: 0 }, carry = 0, roll = 0;
+  if (c.putt) {
+    roll = Math.hypot(end.x - from.x, end.z - from.z);
+    lines.push(`Putt ${r(roll)} m`);
+    if (shot.accuracy) lines.push(shot.accuracy > 0 ? 'Early: pulled left' : 'Late: pushed right');
+  } else {
+    const land = shot.carry || end;
+    carry = Math.hypot(land.x - from.x, land.z - from.z);
+    roll = Math.hypot(end.x - land.x, end.z - land.z);
+    const calm = landingFor(from, { club: c, power: shot.power, heading: h, lie: shot.lie }, { ...env, wind: null });
+    const windy = landingFor(from, { club: c, power: shot.power, heading: h, lie: shot.lie }, { ...env, wind: shot.wind });
+    wind = alongAim(windy.x - calm.x, windy.z - calm.z, h);
+    curve = alongAim(land.x - windy.x, land.z - windy.z, h);
+    lines.push(shot.state === 'water' || shot.state === 'out' ? `Carry ${r(carry)} m` : `Carry ${r(carry)} m, rolled ${r(roll)} m`);
+    if (!shot.accuracy) lines.push('Clean strike: straight');
+    else if (Math.abs(curve.side) < 1) lines.push(shot.accuracy > 0 ? 'A touch early: nearly straight' : 'A touch late: nearly straight');
+    else lines.push(shot.accuracy > 0 ? `Early: hook, ${r(curve.side)} m left` : `Late: slice, ${r(curve.side)} m right`);
+    if (Math.abs(wind.long) < 1.5 && Math.abs(wind.side) < 1.5) lines.push('Wind: hardly any effect');
+    else {
+      const parts = [];
+      if (Math.abs(wind.long) >= 1.5) parts.push(wind.long > 0 ? `${r(wind.long)} m further` : `${r(wind.long)} m shorter`);
+      if (Math.abs(wind.side) >= 1.5) parts.push(wind.side > 0 ? `${r(wind.side)} m right` : `${r(wind.side)} m left`);
+      lines.push(`Wind: ${parts.join(', ')}`);
+    }
+  }
+  if (shot.state !== 'holed' && shot.state !== 'water' && shot.state !== 'out' && pinDist >= 0.5) {
+    const parts = [];
+    if (Math.abs(toPin.long) >= 1) parts.push(toPin.long > 0 ? `${r(toPin.long)} m long` : `${r(toPin.long)} m short`);
+    if (Math.abs(toPin.side) >= 1) parts.push(toPin.side > 0 ? `${r(toPin.side)} m right` : `${r(toPin.side)} m left`);
+    if (parts.length) lines.push(`Pin: ${parts.join(', ')}`);
+  }
+  // the tip: the biggest of the faults (the side's curve, the power against the pin's)
+  let tip = '';
+  const sideOff = Math.abs(toPin.side);
+  if (shot.state === 'holed') tip = '';
+  else if (shot.accuracy && (c.putt ? sideOff > 0.3 : Math.abs(curve.side) > 4)) tip = shot.accuracy > 0 ? 'Tip: wait until the needle is on the green line' : 'Tip: press a little sooner, on the green line';
+  else if (shot.need != null && Math.abs(shot.power - shot.need) > (c.putt ? 0.025 : 0.05)) {
+    tip = `Tip: ${Math.round(shot.power * 100)} % power, the pin needed ${Math.round(shot.need * 100)} % (the red mark)`;
+  } else if (shot.need == null && !c.putt && toPin.long < -10) tip = 'Out of reach with this club: a longer one, or lay up';
+  return { carry, roll, wind, curve, pin: { long: toPin.long, side: toPin.side, d: pinDist }, lines, tip };
 }
 
 /** Where the ball is dropped after the water: back along its line from where it went in, the first spot clear of the
@@ -561,7 +723,7 @@ const CLUBHOUSE = { x: GOLF.clubhouse[0], z: GOLF.clubhouse[1] + 10 };
 export const GOLF_MISSION = {
   id: 'golf',
   title: 'Golf at the Golf Club Davos',
-  intro: `Three holes on the course between Davos Dorf and the Landwasser: the 14th (par 3 over a bunker), the 15th (par 4, a dogleg left along the out of bounds) and the 18th (par 4, the pond in front of the last green): par ${COURSE_PAR}. Pick a club with W/S or 1-5, aim with A/D (or drag), then Space (Swing): the first press starts the swing, the second sets the power, the third on the line strikes the ball (early: hook, late: slice). On touch: hold Swing for the power, let go, tap on the line. Mind the wind. After each shot, walk to your ball (or press C for the cart). On the green the arrows show the slope.`,
+  intro: `Three holes on the course between Davos Dorf and the Landwasser: the 14th (par 3 over a bunker), the 15th (par 4, a dogleg left along the out of bounds) and the 18th (par 4, the pond in front of the last green): par ${COURSE_PAR}. The red flag with its beam and its red label marks the hole. Pick a club with W/S or 1-5 (each shows how far it carries at full power) and aim with A/D or by dragging. The swing takes three presses of Space (on touch: the Swing button): start it; stop the rising needle for the power (the red mark is what the pin needs; letting go stops it too); strike as the needle falls through the green line (early: hook to the left, late: slice to the right). The yellow arc and ring show where the ball comes down, the wind and the lie counted in: aim so that the ring sits on the flag. Headwind carries shorter, tailwind further, a crosswind drifts the ball; the rough and the bunker cost distance. After each shot the report says what the power, the strike and the wind did. Walk to your ball, or press C for the cart. On the green the arrows show the slope.`,
   mode: 'person',
   season: 'summer',
   time: 'midday',

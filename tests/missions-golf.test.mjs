@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   GOLF_MISSIONS, GOLF_MISSION, GOLF_HOLES, COURSE_PAR, CLUBS, clubById, clubSpeed, autoClub, SURFACES, surfaceAt, createSurfaceLookup,
-  createBall, strike, stepBall, simulateBall, previewFlight, waterDrop, captureSpeed, HOLE_R, BALL_R, PUTT_MAX, TAP_IN,
+  createBall, strike, stepBall, simulateBall, previewFlight, waterDrop, captureSpeed, HOLE_R, BALL_R, PUTT_MAX, puttReach, TAP_IN,
   createRound, beginShot, endShot, nextHole, distanceToPin, toPar, roundScore, holeBonus, scoreName, GOLF_MEDALS, medalForToPar,
-  createMeter, meterStart, meterPower, meterAccuracy, meterStep, METER, windFor, teeAim, formatToPar, PICK_UP_OVER_PAR
+  createMeter, meterStart, meterPower, meterAccuracy, meterStep, METER, windFor, teeAim, formatToPar, PICK_UP_OVER_PAR,
+  alongAim, puttDistance, landingFor, shotTable, powerFor, carryAt, windAgainstAim, lieToll, shotReport
 } from '../js/missions-data-golf.js';
 import { GOLF } from '../js/golf-data.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -93,6 +94,8 @@ test('the clubs carry their distance on the flat; less power, less carry; the dr
   assert.equal(autoClub(130, 'rough'), 'iron7');
   assert.equal(autoClub(300, 'tee'), 'driver');
   assert.equal(autoClub(300, 'fairway'), 'wood');
+  assert.equal(autoClub(8, 'fairway'), 'putter', 'from the fringe: a putt');
+  assert.equal(autoClub(8, 'rough'), 'wedge');
 });
 
 test('the flight: a hook curves left, a slice right; the wind carries the ball; the rough and the bunker cost distance', () => {
@@ -133,8 +136,8 @@ test('landing and rolling depend on the surface; the slope rolls the ball downhi
   simulateBall(g, { heightAt: (x) => -0.15 * x, surfaceAt: () => 'green' }, { maxT: 30 });
   assert.equal(g.state, 'rest', 'a green holds the ball (its slope is capped)');
   // the same putt runs further downhill than uphill
-  const along = (fall) => { const p = createBall(0, 0, 0, 'green'); strike(p, { club: 'putter', power: 0.3, heading: 0 }); return simulateBall(p, { heightAt: (x, z) => -fall * z, surfaceAt: () => 'green', greenBoost: 1 }).z; };
-  assert.ok(along(0.03) > PUTT_MAX * 0.3 + 1 && along(-0.03) < PUTT_MAX * 0.3 - 1, 'downhill longer, uphill shorter');
+  const along = (fall) => { const p = createBall(0, 0, 0, 'green'); strike(p, { club: 'putter', power: 0.5, heading: 0 }); return simulateBall(p, { heightAt: (x, z) => -fall * z, surfaceAt: () => 'green', greenBoost: 1 }).z; };
+  assert.ok(along(0.03) > puttReach(0.5) + 1 && along(-0.03) < puttReach(0.5) - 1, 'downhill longer, uphill shorter');
   // a putt across the slope breaks downhill; with the green's boost more
   const putt = (boost) => { const p = createBall(0, 0, 0, 'green'); strike(p, { club: 'putter', power: 0.4, heading: 0 }); return simulateBall(p, { heightAt: (x) => -0.015 * x, surfaceAt: () => 'green', greenBoost: boost }); };
   assert.ok(putt(1).x > 0.1, 'the putt breaks downhill');
@@ -147,18 +150,18 @@ test('putting: the distance follows the power on a flat green; the cup takes a s
     const b = createBall(0, 0, 0, 'green');
     strike(b, { club: 'putter', power: p, heading: 0 });
     simulateBall(b, green);
-    near(b.z, PUTT_MAX * p, 0.25, `putt at ${p}`);
+    near(b.z, puttReach(p), 0.25, `putt at ${p}`);
   }
   // 3 m to the cup: the right speed drops it
   const pin = { x: 0, z: 3 };
   const roll = (power, aimX = 0) => { const b = createBall(aimX, 0, 0, 'green'); strike(b, { club: 'putter', power, heading: 0 }); return simulateBall(b, { ...green, pin }); };
-  const good = roll(3.4 / PUTT_MAX);
+  const good = roll(Math.sqrt(3.4 / PUTT_MAX));
   assert.equal(good.state, 'holed');
   near(good.x, 0, 1e-9); near(good.z, 3, 1e-9);
   const hard = roll(1);
   assert.notEqual(hard.state, 'holed', 'a putt racing over the cup does not drop');
   assert.ok(hard.lipOuts >= 1);
-  const wide = roll(3.4 / PUTT_MAX, 0.2);
+  const wide = roll(Math.sqrt(3.4 / PUTT_MAX), 0.2);
   assert.equal(wide.state, 'rest', 'a putt 20 cm wide misses');
   // the capture speed: highest over the centre, nothing at the edge
   assert.ok(captureSpeed(0) > 1.2 && captureSpeed(HOLE_R) === 0 && captureSpeed(HOLE_R / 2) < captureSpeed(0));
@@ -277,4 +280,87 @@ test('the wind: a breeze of 0.5-4.5 m/s, the same for the same seed', () => {
   simulateBall(a, flat);
   for (let t = 0; t < 30 && (b.state === 'air' || b.state === 'roll'); t += 1 / 60) stepBall(b, 1 / 60, flat);
   near(a.x, b.x, 0.3); near(a.z, b.z, 0.3);
+});
+
+test('what the HUD shows: the aim frame, the wind in words, the carry table and the power the pin needs', () => {
+  // heading 0 along +z: +x is on the left (a hook goes there)
+  assert.deepEqual(alongAim(0, 10, 0), { long: 10, side: 0 });
+  near(alongAim(-3, 0, 0).side, 3, 1e-9, 'right of the aim');
+  near(alongAim(0, 0, 0).long, 0, 1e-9);
+  const hook = shot('iron7', 1, { accuracy: 0.8 });
+  assert.ok(alongAim(hook.x, hook.z, 0).side < -5, 'a hook lies left: side < 0');
+  // the wind against the aim
+  assert.equal(windAgainstAim({ x: 0, z: 3 }, 0).words, 'tailwind');
+  assert.equal(windAgainstAim({ x: 0, z: -3 }, 0).words, 'headwind');
+  assert.equal(windAgainstAim({ x: -3, z: 0 }, 0).words, 'from the left', 'blowing to the right: it comes from the left');
+  assert.equal(windAgainstAim({ x: 3, z: 0 }, 0).words, 'from the right');
+  assert.equal(windAgainstAim({ x: -2, z: -2 }, 0).words, 'headwind from the left');
+  assert.equal(windAgainstAim({ x: 0.3, z: 0.3 }, 0).words, 'calm');
+  // the carry table: it grows with the power, its top is the full swing, and the power it gives for a distance carries it
+  const from = { x: 0, z: 0 };
+  for (const club of ['driver', 'iron7', 'wedge']) {
+    const table = shotTable(from, { club, heading: 0, lie: 'tee' }, flat);
+    for (let i = 1; i < table.length; i++) assert.ok(table[i].d > table[i - 1].d, `${club}: more power, more carry`);
+    near(table[table.length - 1].d, clubById(club).carry, 4, `${club} full`);
+    const want = clubById(club).carry * 0.7;
+    const need = powerFor(table, want);
+    assert.ok(need.reach);
+    near(landingFor(from, { club, power: need.power, heading: 0, lie: 'tee' }, flat).d, want, 2.5, `${club} at ${need.power}`);
+    near(carryAt(table, need.power), want, 0.01);
+    assert.equal(powerFor(table, clubById(club).carry + 30).reach, false, 'out of reach');
+  }
+  // the wind is in the table: into it the pin needs more power
+  const into = powerFor(shotTable(from, { club: 'iron7', heading: 0 }, { ...flat, wind: { x: 0, z: -4 } }), 110);
+  const down = powerFor(shotTable(from, { club: 'iron7', heading: 0 }, { ...flat, wind: { x: 0, z: 4 } }), 110);
+  assert.ok(into.power > down.power + 0.01, `into the wind ${into.power} > downwind ${down.power}`);
+  // the lie's toll
+  assert.equal(lieToll('fairway', 'iron7').loss, 0);
+  assert.ok(lieToll('rough', 'iron7').loss > 0.05 && lieToll('bunker', 'iron7').loss > lieToll('rough', 'iron7').loss);
+  assert.ok(lieToll('bunker', 'wedge').loss < lieToll('bunker', 'iron7').loss);
+});
+
+test('the putt forecast: the flat green as the stroke rolls, the fringe and an upslope shorter, and what the real ball does', () => {
+  near(puttDistance(0.5), puttReach(0.5), 1e-9);
+  near(puttReach(1), PUTT_MAX, 1e-9); near(puttReach(0.5), PUTT_MAX / 4, 1e-9);
+  const green = { heightAt: () => 0, surfaceAt: () => 'green' };
+  near(puttDistance(0.5, 'green', { x: 0, z: 0 }, 0, green), puttReach(0.5), 0.25);
+  const fringe = { heightAt: () => 0, surfaceAt: (x, z) => (z < 3 ? 'fairway' : 'green') };
+  assert.ok(puttDistance(0.7, 'fairway', { x: 0, z: 0 }, 0, fringe) < puttReach(0.7) - 3, 'the fringe slows it');
+  const up = { heightAt: (x, z) => 0.03 * z, surfaceAt: () => 'green', greenBoost: 1 };
+  const forecast = puttDistance(0.4, 'green', { x: 0, z: 0 }, 0, up);
+  const upPower = 0.55;
+  assert.ok(puttDistance(upPower, 'green', { x: 0, z: 0 }, 0, up) < puttReach(upPower) - 1, 'uphill shorter');
+  const b = createBall(0, 0, 0, 'green');
+  strike(b, { club: 'putter', power: 0.4, heading: 0 });
+  near(simulateBall(b, up).z, forecast, 0.6, 'the forecast is where the ball stops');
+});
+
+test('the report after a shot: carry and roll, the strike, the wind, the pin, one tip', () => {
+  const pin = { x: 0, z: 120 };
+  const play = (o) => {
+    const env = { ...flat, wind: o.wind || null };
+    const b = createBall(0, 0, 0, 'tee');
+    strike(b, { club: 'iron7', power: o.power, heading: 0, accuracy: o.accuracy || 0 });
+    simulateBall(b, env);
+    const need = powerFor(shotTable({ x: 0, z: 0 }, { club: 'iron7', heading: 0, lie: 'tee' }, env), 120).power;
+    return shotReport({ from: { x: 0, z: 0 }, heading: 0, club: 'iron7', power: o.power, accuracy: o.accuracy || 0, lie: 'tee', wind: o.wind || null, carry: b.carry, end: { x: b.x, z: b.z }, state: b.state, pin, need }, env);
+  };
+  const clean = play({ power: 0.85 });
+  assert.match(clean.lines[0], /^Carry \d+ m, rolled \d+ m$/);
+  assert.equal(clean.lines[1], 'Clean strike: straight');
+  assert.equal(clean.lines[2], 'Wind: hardly any effect');
+  near(clean.curve.side, 0, 0.5);
+  const hook = play({ power: 0.85, accuracy: 0.8 });
+  assert.match(hook.lines[1], /^Early: hook, \d+ m left$/);
+  assert.ok(hook.curve.side < -5);
+  assert.equal(hook.tip, 'Tip: wait until the needle is on the green line');
+  assert.match(play({ power: 0.85, accuracy: -0.8 }).lines[1], /^Late: slice, \d+ m right$/);
+  const head = play({ power: 0.85, wind: { x: 0, z: -6 } });
+  assert.match(head.lines[2], /^Wind: \d+ m shorter$/);
+  assert.ok(head.wind.long < -2);
+  const cross = play({ power: 0.85, wind: { x: -4, z: 0 } });
+  assert.match(cross.lines[2], /\d+ m right/, 'a wind from the left drifts it right');
+  const strong = play({ power: 1 });
+  assert.match(strong.tip, /^Tip: 100 % power, the pin needed \d+ % \(the red mark\)$/);
+  assert.match(strong.lines.at(-1), /^Pin: \d+ m long/);
 });

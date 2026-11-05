@@ -3,11 +3,12 @@ import test from 'node:test';
 import {
   RURAL_MISSIONS, QUAD, QUAD_MISSION, QUAD_START, QUAD_ROUTE, QUAD_GATES, QUAD_BUMPS, QUAD_PATCHES, HELDSTAB, quadOffroad, quadRouteLength,
   bumpAt, surfaceAt, stepQuad, createQuadJump,
-  BIO, BIO_MISSION, BIO_START, BIO_ROUTE, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, bioStops, stopAtBed, rejectBarrel, bioLoad, bioScore, stepBioStops
+  BIO, BIO_MISSION, BIO_START, BIO_ROUTE, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_HOTELS, bioStops, bioGuide, bioRouteLength, stopAtBed, rejectBarrel, bioLoad, bioScore, stepBioStops
 } from '../js/missions-data-rural.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { SHOPS_DATA } from '../js/shops-data.js';
 
 const DT = 1 / 30;
 const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
@@ -216,7 +217,7 @@ test('the plant: at the given coordinates, outside the footprints, reached by a 
   assert.ok(roadDist(BIO_PLANT.x, BIO_PLANT.z, ['track', 'service']) < BIO.plantR + 1, 'the hopper is reached from the Duchliweg');
   // (the round's way ends on the Duchliweg, its tail in reach of the hopper)
   const ex = BIO_ROUTE.at(-2), ez = BIO_ROUTE.at(-1);
-  assert.ok(Math.hypot(ex - BIO_PLANT.x, ez - BIO_PLANT.z) < BIO.plantR + BIO.rear);
+  assert.ok(Math.hypot(ex - BIO_PLANT.x, ez - BIO_PLANT.z) < BIO.plantR - 1.5, 'stopped at the way\'s end, the load bed is beside the hopper');
   for (let i = 2; i < BIO_ROUTE.length; i += 2) {
     const n = Math.ceil(Math.hypot(BIO_ROUTE[i] - BIO_ROUTE[i - 2], BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]) / 3);
     for (let k = 0; k <= n; k++) {
@@ -301,7 +302,7 @@ test('the score: barrels, a clean load and time; a spoiled batch is far from gol
   assert.ok(finished({ tMs: BIO.slowMs }) < finished({}));
   assert.equal(finished({ tMs: BIO.slowMs }), 170);
   assert.equal(medalFor(finished({ tMs: BIO.slowMs }), BIO_MISSION.medals, true), 'bronze');
-  assert.equal(medalFor(finished({ tMs: 500000 }), BIO_MISSION.medals, true), 'silver');
+  assert.equal(medalFor(finished({ tMs: (BIO.fastMs + BIO.slowMs) / 2 }), BIO_MISSION.medals, true), 'silver');
   const spoiled = finished({ collected: 9, rejected: 1, spoiled: true, spoiledBarrels: 1 });
   assert.equal(spoiled, 8 * 10 + 15 - 40 + 80);
   assert.equal(medalFor(spoiled, BIO_MISSION.medals, true), 'bronze', 'a spoiled batch stays at bronze');
@@ -327,4 +328,140 @@ test('the unload: at the hopper with the truck standing; the round ends there wi
   assert.equal(v.done, true);
   assert.equal(st.unloaded, 1);
   assert.equal(bioLoad(st), 0, 'the gauge is empty');
+});
+
+test('the barrels stand at real hotels: on the street in front of each, the next one in the panel by name', () => {
+  assert.equal(BIO_HOTELS.length, 10);
+  const stops = bioStops(3);
+  BIO_HOTELS.forEach((h, i) => {
+    // (the hotel as OSM has it, js/shops-data.js)
+    const osm = SHOPS_DATA.find((s) => s.osm === h.osm);
+    assert.ok(osm && osm.kind === 'hotel', `${h.name} is a hotel in the OSM data`);
+    assert.ok(Math.hypot(osm.x - h.x, osm.z - h.z) < 0.5, `${h.name}: its point`);
+    const s = stops[i];
+    assert.equal(s.name, h.name);
+    const d = Math.hypot(s.x - h.x, s.z - h.z);
+    assert.ok(d < 40, `${h.name}: the barrel ${d.toFixed(1)} m from the hotel`);
+    // (its own hotel's barrel, not the neighbour's)
+    for (const o of BIO_HOTELS) if (o !== h) assert.ok(Math.hypot(s.x - o.x, s.z - o.z) > d, `${h.name}: nearer its own hotel than ${o.name}`);
+    if (i) assert.ok(h.s > BIO_HOTELS[i - 1].s, 'in the order of the way');
+  });
+  const st = BIO_MISSION.createState(), v = BIO_MISSION.objectives[0].check(frame({ x: BIO_START.x, z: BIO_START.z }), st);
+  assert.match(v.text, /· next Turmhotel Victoria \d+ m$/);
+  assert.ok(BIO_MISSION.intro.includes('hotels'));
+});
+
+test('the way to the plant: round the hotels in the one-way streets\' direction, then out the Dischmastrasse, not over the Bünda', () => {
+  const named = (names) => DAVOS_DATA.roads.filter((r) => names.includes(r.name));
+  const distTo = (roads, x, z) => {
+    let best = Infinity;
+    for (const r of roads) for (let i = 2; i < r.pts.length; i += 2) {
+      const p = r.pts, dx = p[i] - p[i - 2], dz = p[i + 1] - p[i - 1], L = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - p[i - 2]) * dx + (z - p[i - 1]) * dz) / L));
+      best = Math.min(best, Math.hypot(p[i - 2] + dx * t - x, p[i - 1] + dz * t - z));
+    }
+    return best;
+  };
+  const along = (from, to, step = 10) => {
+    const out = [];
+    let s = 0;
+    for (let i = 2; i < BIO_ROUTE.length; i += 2) {
+      const L = Math.hypot(BIO_ROUTE[i] - BIO_ROUTE[i - 2], BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]);
+      for (let u = 0; u < L; u += step) if (s + u >= from && s + u <= to) out.push([BIO_ROUTE[i - 2] + ((BIO_ROUTE[i] - BIO_ROUTE[i - 2]) * u) / L, BIO_ROUTE[i - 1] + ((BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]) * u) / L, (BIO_ROUTE[i] - BIO_ROUTE[i - 2]) / L, (BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]) / L]);
+      s += L;
+    }
+    return out;
+  };
+  const L = bioRouteLength();
+  assert.ok(L > 3000 && L < 3700, `the way is ${L.toFixed(0)} m`);
+  // (from the last hotel to the ranch's farm road: on the Dischmastrasse all the way)
+  const dischma = named(['Dischmastrasse']), last = BIO_HOTELS.at(-1).s;
+  const out = along(last, L - 300);
+  assert.ok(out.length > 80);
+  for (const [x, z] of out.slice(0, -14)) assert.ok(distTo(dischma, x, z) < 4, `on the Dischmastrasse at ${x.toFixed(0)}, ${z.toFixed(0)}`);
+  // (never on the lanes above the Bünda the old round took, nor on the Duchliweg's track down from the Mattawald)
+  // (the Mühlestrasse from where it leaves the Bahnhofstrasse's crossing up)
+  const bunda = [...named(['Bedraweg', 'Mattawaldstrasse', 'Seehornstrasse', 'Museumstrasse']), ...DAVOS_DATA.roads.filter((r) => ['w1270620584', 'w36977734', 'w26127867', 'w36977731', 'w606814550', 'w36977733', 'w80349750'].includes(r.id))];
+  for (const [x, z] of along(0, L, 5)) assert.ok(distTo(bunda, x, z) > 12, `the way at ${x.toFixed(0)}, ${z.toFixed(0)} keeps off the Bünda lanes`);
+  // (the one-way Promenade, Talstrasse and Bahnhofstrasse in their direction)
+  const oneway = DAVOS_DATA.roads.filter((r) => r.oneway && ['primary', 'secondary', 'tertiary', 'residential'].includes(r.kind));
+  let checked = 0;
+  for (const [x, z, tx, tz] of along(0, L, 4)) {
+    for (const r of oneway) for (let i = 2; i < r.pts.length; i += 2) {
+      const p = r.pts, dx = p[i] - p[i - 2], dz = p[i + 1] - p[i - 1], LL = Math.hypot(dx, dz) || 1;
+      const t = ((x - p[i - 2]) * dx + (z - p[i - 1]) * dz) / (LL * LL);
+      if (t < 0.05 || t > 0.95 || Math.hypot(p[i - 2] + dx * t - x, p[i - 1] + dz * t - z) > 1.5) continue;
+      if (Math.abs((tx * dx + tz * dz) / LL) < 0.7) continue; // (a crossing)
+      checked++;
+      assert.ok(((tx * dx + tz * dz) / LL) * (r.reverse ? -1 : 1) > 0, `${r.name} at ${x.toFixed(0)}, ${z.toFixed(0)}: with the one-way`);
+    }
+  }
+  assert.ok(checked > 100, `${checked} points on one-way streets`);
+});
+
+test('the arrow to the plant leads along the way: out the Dischmastrasse, through the yard, the hopper last', () => {
+  const m = BIO_MISSION, st = bioState(), o = m.objectives[1];
+  const L = bioRouteLength(), last = BIO_HOTELS.at(-1).s;
+  // (driven along the way from the last hotel: the target always ahead on it, near the truck, the hopper at the end)
+  const pts = [];
+  let s = 0;
+  for (let i = 2; i < BIO_ROUTE.length; i += 2) {
+    const l = Math.hypot(BIO_ROUTE[i] - BIO_ROUTE[i - 2], BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]);
+    for (let u = 0; u < l; u += 5) if (s + u > last) pts.push([BIO_ROUTE[i - 2] + ((BIO_ROUTE[i] - BIO_ROUTE[i - 2]) * u) / l, BIO_ROUTE[i - 1] + ((BIO_ROUTE[i + 1] - BIO_ROUTE[i - 1]) * u) / l, s + u]);
+    s += l;
+  }
+  let pad = 0;
+  for (const [x, z, sx] of pts) {
+    const v = o.check(frame({ x, z, speed: 10 }), st);
+    assert.ok(Math.abs(st.guideS - sx) < 3, `on the way at ${sx.toFixed(0)}: placed at ${st.guideS.toFixed(0)}`);
+    const d = Math.hypot(v.target.x - x, v.target.z - z);
+    if (v.target.style === 'pad') { pad++; assert.ok(L - sx < 95); continue; }
+    assert.ok(d > 30 && d < BIO.guideAhead + 1, `the arrow ${d.toFixed(0)} m ahead at ${sx.toFixed(0)}`);
+    assert.match(v.text, /^To the hopper · /);
+  }
+  assert.ok(pad > 5, 'the hopper itself at the end');
+  // (in the yard, where the way turns back to the hopper, the arrow does not cut across: it stays on the way)
+  const yard = bioGuide(1560, -296, L - 200);
+  assert.ok(yard.s > L - 200 && yard.z < -296, 'from the barns on towards the track');
+  // (off the way: back to it)
+  const g = bioGuide(1250, -700, 2300);
+  assert.equal(g.off, true);
+  assert.ok(Math.hypot(g.x - 1250, g.z + 700) < Math.hypot(BIO_PLANT.x - 1250, BIO_PLANT.z + 700));
+});
+
+// An ideal round on the way, from the truck's handling (js/missions-rural.js buildBioTruck drive): full power to the top
+// speed with the power limit of js/controllers.js driveSpeed, the bends at 3.2 m/s² across, 4.5 m/s² of braking, a stop
+// at every hotel for the loading and at the hopper for the unloading (the old round's 1.9 km came out at 4:23 this way)
+function idealRound(pts, stopsS, drive, ds = 1) {
+  const n = pts.length / 2, cum = [0];
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.hypot(pts[2 * i] - pts[2 * i - 2], pts[2 * i + 1] - pts[2 * i - 1]));
+  const L = cum[n - 1], N = Math.ceil(L / ds) + 1, v = new Float64Array(N).fill(drive.speed);
+  for (let i = 1; i < n - 1; i++) {
+    const ax = pts[2 * i] - pts[2 * i - 2], az = pts[2 * i + 1] - pts[2 * i - 1], bx = pts[2 * i + 2] - pts[2 * i], bz = pts[2 * i + 3] - pts[2 * i + 1];
+    let a = Math.atan2(bx, bz) - Math.atan2(ax, az);
+    a = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+    if (a < 0.05) continue;
+    const span = Math.min(Math.hypot(ax, az), Math.hypot(bx, bz), 20), vb = Math.sqrt((3.2 * span) / a);
+    for (let k = Math.floor((cum[i] - span / 2) / ds); k <= Math.ceil((cum[i] + span / 2) / ds); k++) if (k >= 0 && k < N) v[k] = Math.min(v[k], vb);
+  }
+  for (const s of [0, ...stopsS, L]) v[Math.min(N - 1, Math.round(s / ds))] = 0;
+  for (let k = N - 2; k >= 0; k--) v[k] = Math.min(v[k], Math.sqrt(v[k + 1] ** 2 + 2 * 4.5 * ds));
+  for (let k = 1; k < N; k++) {
+    const a = (drive.acceleration * drive.powerSpeed) / Math.max(drive.powerSpeed, v[k - 1]) - drive.rolling - drive.drag * v[k - 1] ** 2;
+    v[k] = Math.min(v[k], Math.sqrt(v[k - 1] ** 2 + 2 * Math.max(0.05, a) * ds));
+  }
+  let t = 0;
+  for (let k = 1; k < N; k++) t += ds / Math.max(0.3, (v[k] + v[k - 1]) / 2);
+  return t + stopsS.length * BIO.loadS + BIO.unloadS;
+}
+
+test('the medals fit the way: the ideal round under the full time bonus, gold for a good one, time enough for all', () => {
+  const drive = { speed: 13.5, acceleration: 2.1, powerSpeed: 7, rolling: 0.25, drag: 0.0009 };
+  const ideal = idealRound(BIO_ROUTE, BIO_HOTELS.map((h) => h.s), drive) * 1000;
+  assert.ok(ideal > 330000 && ideal < 420000, `the ideal round: ${(ideal / 1000).toFixed(0)} s`);
+  assert.ok(BIO.fastMs > ideal * 1.05 && BIO.fastMs < ideal * 1.35, 'the full bonus only near the ideal');
+  // (gold, all right: 170 + the time bonus over 55: by ~1.5 times the ideal)
+  const k = (BIO_MISSION.medals.gold - 170) / BIO.points.time, goldMs = BIO.slowMs - k * (BIO.slowMs - BIO.fastMs);
+  assert.ok(goldMs > ideal * 1.35 && goldMs < ideal * 1.75, `gold by ${(goldMs / 1000).toFixed(0)} s`);
+  assert.ok(BIO_MISSION.timeLimitMs > BIO.slowMs * 1.3);
 });

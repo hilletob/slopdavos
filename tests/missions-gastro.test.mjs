@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  GASTRO_MISSIONS, FLAEMMLI_MISSION, FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliAction, flaemmliGauge, flaemmliZone, flaemmliSway, flaemmliWobble, flaemmliScore, ROT_LIECHTLI,
+  GASTRO_MISSIONS, SHOTS_MISSION, SHOTS, createShots, shotsStep, shotsAction, shotsGauge, shotsZone, shotsSway, shotsWobble, shotsScore, EX_BAR,
+  FLAEMMLI_MISSION, FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliPress, flaemmliRelease, flaemmliGauge, flaemmliSugar, flaemmliScore, ROT_LIECHTLI,
   PIZZA_MISSION, PIZZA, PIZZA_HEAVEN, PIZZA_STOPS, PIZZA_ORDERS, TOPPINGS, createPizzaShop, pizzaShopStep, pizzaPick, pizzaPoints, createPizzaRun, pizzaHeatStep, pizzaCarryStep, pizzaDeliveryPoints, pizzaScore
 } from '../js/missions-data-gastro.js';
 import { BEER, BEER_STOPS, seededRandom } from '../js/missions-data-local.js';
@@ -14,24 +15,24 @@ const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, sp
 const DT = 1 / 30;
 
 /** A player of the bar: aims for the middle of each window with a reaction error of `sigma` (on the gauge, gaussian) */
-function playFlaemmli(sigma, seed) {
-  const g = createFlaemmli(11), rand = seededRandom(seed);
+function playShots(sigma, seed) {
+  const g = createShots(11), rand = seededRandom(seed);
   const noise = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand()) * sigma;
   let aim = null, guard = 0, prevStep = null;
   while (!g.done && guard++ < 60000) {
-    flaemmliStep(g, DT);
+    shotsStep(g, DT);
     if (g.step !== prevStep) { aim = null; prevStep = g.step; }
-    if (g.step === 'order') { flaemmliAction(g); continue; }
-    const v = flaemmliGauge(g);
+    if (g.step === 'order') { shotsAction(g); continue; }
+    const v = shotsGauge(g);
     if (v.value === null) continue;
     if (aim === null) aim = clamp01((v.lo + v.hi) / 2 + noise());
-    if (v.value >= aim) { flaemmliAction(g); aim = null; }
+    if (v.value >= aim) { shotsAction(g); aim = null; }
   }
   assert.ok(g.done, 'the evening ends');
   return g;
 }
 const clamp01 = (v) => Math.max(0.02, Math.min(0.97, v));
-const meanScore = (sigma) => { let sum = 0; for (let s = 1; s <= 40; s++) sum += flaemmliScore(playFlaemmli(sigma, s * 101)); return sum / 40; };
+const meanShots = (sigma) => { let sum = 0; for (let s = 1; s <= 40; s++) sum += shotsScore(playShots(sigma, s * 101)); return sum / 40; };
 
 function inRing(x, z, ring) {
   let c = false;
@@ -44,7 +45,7 @@ function inRing(x, z, ring) {
 const inBuilding = (x, z) => DAVOS_DATA.buildings.some((b) => inRing(x, z, b.ring));
 
 test('the gastro missions are registered, by points, with their pins apart from every other mission', () => {
-  assert.deepEqual(GASTRO_MISSIONS.map((m) => m.id), ['flaemmli-rot-liechtli', 'pizza-heaven']);
+  assert.deepEqual(GASTRO_MISSIONS.map((m) => m.id), ['shots-ex-bar', 'flaemmli-rot-liechtli', 'pizza-heaven']);
   for (const m of GASTRO_MISSIONS) {
     assert.equal(getMission(m.id), m);
     assert.ok(MISSIONS.includes(m));
@@ -59,7 +60,182 @@ test('the gastro missions are registered, by points, with their pins apart from 
   }
 });
 
-// --- 1. Flämmli -----------------------------------------------------------------------------------------------------
+// --- 1. Flaming shots in the Ex Bar -----------------------------------------------------------------------------------------------------
+test('shots: the Ex Bar is the beer run\'s door, the start clear of the houses', () => {
+  const stop = BEER_STOPS.find((s) => s.id === 'exbar');
+  assert.equal(EX_BAR.door.x, stop.door.x);
+  assert.equal(EX_BAR.door.z, stop.door.z);
+  assert.ok(!inBuilding(EX_BAR.start.x, EX_BAR.start.z));
+  const obj = SHOTS_MISSION.objectives[0];
+  assert.equal(obj.check(frame({ ...EX_BAR.start }), {}).done, false);
+  assert.equal(obj.check(frame({ x: EX_BAR.door.x, z: EX_BAR.door.z }), {}).done, true);
+  assert.equal(obj.check(frame({ mode: 'car', x: EX_BAR.door.x, z: EX_BAR.door.z }), {}).done, false, 'not by car');
+});
+
+test('shots: a round goes order, pour, light, burn, cool and down; the button does nothing while pouring', () => {
+  const g = createShots(11);
+  assert.equal(g.step, 'order');
+  assert.equal(shotsAction(g), 'order');
+  assert.equal(g.step, 'pour');
+  assert.equal(shotsAction(g), null, 'the landlord is pouring');
+  shotsStep(g, SHOTS.pour + 0.01);
+  assert.equal(g.step, 'light');
+  // the lighter swings to the glass: half a sweep away
+  shotsStep(g, SHOTS.sweep * 0.5);
+  assert.equal(shotsAction(g), 'light');
+  assert.equal(g.step, 'burn');
+  while (shotsGauge(g).value < 0.63) shotsStep(g, DT);
+  assert.equal(shotsAction(g), 'blow');
+  assert.ok(g.last.good && g.last.points > 75, `a flame in the middle pays: ${g.last.points}`);
+  assert.equal(g.step, 'cool');
+  while (shotsGauge(g).value < 0.57) shotsStep(g, DT);
+  assert.equal(shotsAction(g), 'drink');
+  assert.equal(g.drinks, 1);
+  assert.equal(g.step, 'pause');
+  assert.equal(g.log.length, 1);
+  shotsStep(g, SHOTS.pause + 0.01);
+  assert.equal(g.round, 2);
+  assert.equal(g.step, 'order');
+});
+
+test('shots: a flame left burning cracks the glass (a mishap, no drink), three mishaps and the landlord calls time', () => {
+  const g = createShots(11);
+  for (let k = 0; k < SHOTS.strikes; k++) {
+    shotsAction(g);
+    shotsStep(g, SHOTS.pour + 0.01);
+    shotsStep(g, SHOTS.sweep * 0.5);
+    assert.equal(shotsAction(g), 'light');
+    while (g.step === 'burn') shotsStep(g, 0.1);
+    assert.equal(g.step, 'pause');
+    assert.equal(g.strikes, k + 1);
+    shotsStep(g, SHOTS.pause + 0.01);
+  }
+  assert.ok(g.done && g.cutOff);
+  assert.equal(g.drinks, 0);
+  assert.equal(g.round, SHOTS.strikes);
+  assert.equal(shotsAction(g), null);
+});
+
+test('shots: three misses with the lighter singe the fingers; too early and too late pay less than the window', () => {
+  const g = createShots(11);
+  shotsAction(g);
+  shotsStep(g, SHOTS.pour + 0.01);
+  assert.equal(shotsAction(g), 'miss');
+  assert.equal(g.step, 'light');
+  assert.equal(shotsAction(g), 'miss');
+  assert.equal(shotsAction(g), 'miss');
+  assert.equal(g.step, 'pause');
+  assert.equal(g.strikes, 1);
+
+  const burnAt = (level) => {
+    const h = createShots(11);
+    shotsAction(h);
+    shotsStep(h, SHOTS.pour + 0.01);
+    shotsStep(h, SHOTS.sweep * 0.5);
+    shotsAction(h);
+    h.level = level;
+    shotsAction(h);
+    return h.last.points;
+  };
+  assert.ok(burnAt(0.635) > 90);
+  assert.equal(burnAt(0.1), 0, 'blown out at once: nothing');
+  assert.equal(burnAt(0.45), SHOTS.points.flame * SHOTS.points.near);
+  assert.equal(burnAt(0.9), SHOTS.points.flame * SHOTS.points.near);
+  // a glass left too long goes down cold
+  const c = createShots(11);
+  shotsAction(c); shotsStep(c, SHOTS.pour + 0.01); shotsStep(c, SHOTS.sweep * 0.5); shotsAction(c);
+  c.level = 0.6; shotsAction(c);
+  for (let i = 0; i < 60 && c.step === 'cool'; i++) shotsStep(c, 0.1);
+  assert.equal(c.step, 'pause');
+  assert.equal(c.drinks, 1);
+});
+
+test('shots: every drink sways the view more, strays the needle and narrows the window', () => {
+  const peak = (d) => { let m = 0; for (let t = 0; t < 30; t += 0.05) m = Math.max(m, Math.abs(shotsSway(t, d).roll)); return m; };
+  assert.equal(peak(0), 0);
+  assert.ok(peak(1) > 0.02 && peak(3) > peak(1) * 2.5 && peak(6) > peak(3) * 1.5);
+  assert.ok(peak(SHOTS.rounds) < 0.3, 'tipsy, not upside down');
+  assert.equal(shotsWobble(3, 0), 0);
+  const w = (d) => shotsZone(SHOTS.zones.burn, d);
+  assert.ok(w(5).hi - w(5).lo < w(0).hi - w(0).lo);
+  assert.ok(Math.abs((w(5).lo + w(5).hi) - (w(0).lo + w(0).hi)) < 1e-9, 'round the same middle');
+  assert.ok(w(40).hi - w(40).lo >= (w(0).hi - w(0).lo) * SHOTS.narrowMin - 1e-9);
+});
+
+test('shots: all six down earn the bonus; the medals sort the bots', () => {
+  const steady = playShots(0.005, 7);
+  assert.equal(steady.drinks, SHOTS.rounds);
+  assert.equal(steady.strikes, 0);
+  assert.ok(steady.log.length === SHOTS.rounds);
+  const def = SHOTS_MISSION, medals = missionMedals(def);
+  assert.equal(def.score({ game: steady }), shotsScore(steady));
+  assert.ok(def.summary({ game: steady })[0].includes('6 of 6'));
+  const scores = { steady: meanShots(0.02), fair: meanShots(0.07), shaky: meanShots(0.13) };
+  assert.equal(medalFor(scores.steady, medals, true), 'gold', `steady ${scores.steady}`);
+  assert.equal(medalFor(scores.fair, medals, true), 'silver', `fair ${scores.fair}`);
+  assert.equal(medalFor(scores.shaky, medals, true), 'bronze', `shaky ${scores.shaky}`);
+});
+
+test('shots: the mission\'s step waits for the bar, then ends with the game', () => {
+  const obj = SHOTS_MISSION.objectives[1];
+  const state = SHOTS_MISSION.createState();
+  assert.equal(obj.check(frame(), state).done, false);
+  state.game = createShots(11);
+  assert.equal(obj.check(frame(), state).done, false);
+  state.game.done = true;
+  assert.equal(obj.check(frame(), state).done, true);
+});
+
+// --- 2. Flämmli in the Rot Liechtli ------------------------------------------------------------------------------
+/** A Flämmli drinker: holds and lets go, lights and smothers aiming for the middle of each window with an error of
+ *  `sigma`; swirls when the flame sinks under the green's lower edge plus a margin (missed by `sigma`); pours late by
+ *  a reaction time */
+function playFlaemmli(sigma, seed) {
+  const g = createFlaemmli(11), rand = seededRandom(seed);
+  const noise = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand()) * sigma;
+  let aim = null, prev = null, guard = 0, wait = 0;
+  while (!g.done && guard++ < 100000) {
+    flaemmliStep(g, DT);
+    if (g.step !== prev) { aim = null; prev = g.step; wait = 0.25 + Math.abs(noise()) * 3; }
+    const v = flaemmliGauge(g);
+    if (g.step === 'order' || g.step === 'drink') { flaemmliPress(g); continue; }
+    if (v.hold) {
+      if (!g.holding) { flaemmliPress(g); continue; }
+      if (aim === null) aim = (v.lo + v.hi) / 2 + noise();
+      if (v.value >= aim) flaemmliRelease(g);
+      continue;
+    }
+    if (g.step === 'flambe') {
+      if (aim === null) aim = v.lo + 0.08 + noise();
+      if (v.value < aim) { flaemmliPress(g); aim = null; }
+      continue;
+    }
+    if (g.step === 'ready') { wait -= DT; if (wait <= 0) flaemmliPress(g); continue; }
+    if (v.value === null) continue;
+    if (aim === null) aim = clamp01((v.lo + v.hi) / 2 + noise());
+    if (v.value >= aim) { flaemmliPress(g); aim = null; }
+  }
+  assert.ok(g.done, 'the evening ends');
+  return g;
+}
+const meanFlaemmli = (sigma) => { let sum = 0; for (let s = 1; s <= 40; s++) sum += flaemmliScore(playFlaemmli(sigma, s * 101)); return sum / 40; };
+/** Through a round's held steps to the flambé, each let go in the middle of its window */
+function toFlambe(g) {
+  assert.equal(flaemmliPress(g), 'order');
+  flaemmliStep(g, FLAEMMLI.serve + 0.01);
+  for (const step of ['sugar', 'sip', 'williams']) {
+    assert.equal(g.step, step);
+    assert.equal(flaemmliPress(g), 'hold');
+    const v = flaemmliGauge(g), mid = (v.lo + v.hi) / 2;
+    while (flaemmliGauge(g).value < mid) flaemmliStep(g, DT);
+    assert.equal(flaemmliRelease(g), step);
+  }
+  assert.equal(g.step, 'light');
+  flaemmliStep(g, FLAEMMLI.sweep * 0.5);
+  assert.equal(flaemmliPress(g), 'light');
+  assert.equal(g.step, 'flambe');
+}
+
 test('flämmli: the Rot Liechtli is the beer run\'s door, the start clear of the houses', () => {
   const stop = BEER_STOPS.find((s) => s.id === 'rotliechtli');
   assert.equal(ROT_LIECHTLI.door.x, stop.door.x);
@@ -68,124 +244,100 @@ test('flämmli: the Rot Liechtli is the beer run\'s door, the start clear of the
   const obj = FLAEMMLI_MISSION.objectives[0];
   assert.equal(obj.check(frame({ ...ROT_LIECHTLI.start }), {}).done, false);
   assert.equal(obj.check(frame({ x: ROT_LIECHTLI.door.x, z: ROT_LIECHTLI.door.z }), {}).done, true);
-  assert.equal(obj.check(frame({ mode: 'car', x: ROT_LIECHTLI.door.x, z: ROT_LIECHTLI.door.z }), {}).done, false, 'not by car');
 });
 
-test('flämmli: a round goes order, pour, light, burn, cool and down; the button does nothing while pouring', () => {
+test('flämmli: sugar, sip and Williams are held and judged when let go; the button does nothing while serving', () => {
   const g = createFlaemmli(11);
-  assert.equal(g.step, 'order');
-  assert.equal(flaemmliAction(g), 'order');
-  assert.equal(g.step, 'pour');
-  assert.equal(flaemmliAction(g), null, 'the landlord is pouring');
-  flaemmliStep(g, FLAEMMLI.pour + 0.01);
+  assert.equal(flaemmliPress(g), 'order');
+  assert.equal(g.step, 'serve');
+  assert.equal(flaemmliPress(g), null, 'the landlord is serving');
+  flaemmliStep(g, FLAEMMLI.serve + 0.01);
+  assert.equal(g.step, 'sugar');
+  assert.equal(flaemmliRelease(g), null, 'nothing held yet');
+  flaemmliPress(g);
+  flaemmliStep(g, 0.1);
+  assert.equal(flaemmliRelease(g), 'sugar');
+  assert.ok(!g.last.good, 'a pinch is too little');
+  assert.equal(g.step, 'sip');
+  // held too long: the gauge runs over and is judged by itself
+  flaemmliPress(g);
+  for (let i = 0; i < 200 && g.step === 'sip'; i++) flaemmliStep(g, 0.05);
+  assert.equal(g.step, 'williams');
+  assert.equal(g.sip, 1);
+  assert.match(g.last.text, /spills/);
+});
+
+test('flämmli: the flame sinks by itself and with the draughts; swirling keeps it, too much sloshes over; out once, lit again', () => {
+  const g = createFlaemmli(11);
+  toFlambe(g);
+  const f0 = g.flame;
+  flaemmliStep(g, 1);
+  assert.ok(g.flame < f0, 'it sinks');
+  assert.equal(flaemmliPress(g), 'swirl');
+  // swirl it over the top
+  let what;
+  for (let i = 0; i < 10 && what !== 'wild'; i++) what = flaemmliPress(g);
+  assert.equal(what, 'wild');
+  assert.equal(g.flame, FLAEMMLI.flame.calm);
+  // left alone it goes out: lit again once ...
+  for (let i = 0; i < 400 && g.step === 'flambe'; i++) flaemmliStep(g, DT);
   assert.equal(g.step, 'light');
-  // the lighter swings to the glass: half a sweep away
-  flaemmliStep(g, FLAEMMLI.sweep * 0.5);
-  assert.equal(flaemmliAction(g), 'light');
-  assert.equal(g.step, 'burn');
-  while (flaemmliGauge(g).value < 0.63) flaemmliStep(g, DT);
-  assert.equal(flaemmliAction(g), 'blow');
-  assert.ok(g.last.good && g.last.points > 75, `a flame in the middle pays: ${g.last.points}`);
-  assert.equal(g.step, 'cool');
-  while (flaemmliGauge(g).value < 0.57) flaemmliStep(g, DT);
-  assert.equal(flaemmliAction(g), 'drink');
-  assert.equal(g.drinks, 1);
-  assert.equal(g.step, 'pause');
-  assert.equal(g.log.length, 1);
-  flaemmliStep(g, FLAEMMLI.pause + 0.01);
-  assert.equal(g.round, 2);
-  assert.equal(g.step, 'order');
-});
-
-test('flämmli: a flame left burning cracks the glass (a mishap, no drink), three mishaps and the landlord calls time', () => {
-  const g = createFlaemmli(11);
-  for (let k = 0; k < FLAEMMLI.strikes; k++) {
-    flaemmliAction(g);
-    flaemmliStep(g, FLAEMMLI.pour + 0.01);
-    flaemmliStep(g, FLAEMMLI.sweep * 0.5);
-    assert.equal(flaemmliAction(g), 'light');
-    while (g.step === 'burn') flaemmliStep(g, 0.1);
-    assert.equal(g.step, 'pause');
-    assert.equal(g.strikes, k + 1);
-    flaemmliStep(g, FLAEMMLI.pause + 0.01);
-  }
-  assert.ok(g.done && g.cutOff);
-  assert.equal(g.drinks, 0);
-  assert.equal(g.round, FLAEMMLI.strikes);
-  assert.equal(flaemmliAction(g), null);
-});
-
-test('flämmli: three misses with the lighter singe the fingers; too early and too late pay less than the window', () => {
-  const g = createFlaemmli(11);
-  flaemmliAction(g);
-  flaemmliStep(g, FLAEMMLI.pour + 0.01);
-  assert.equal(flaemmliAction(g), 'miss');
-  assert.equal(g.step, 'light');
-  assert.equal(flaemmliAction(g), 'miss');
-  assert.equal(flaemmliAction(g), 'miss');
+  assert.equal(g.relit, 1);
+  flaemmliStep(g, FLAEMMLI.sweep * 0.5 - (g.sweepT % (2 * FLAEMMLI.sweep)));
+  assert.equal(flaemmliPress(g), 'light');
+  assert.equal(g.step, 'flambe');
+  // ... and the second time it is a mishap
+  for (let i = 0; i < 400 && g.step === 'flambe'; i++) flaemmliStep(g, DT);
   assert.equal(g.step, 'pause');
   assert.equal(g.strikes, 1);
-
-  const burnAt = (level) => {
-    const h = createFlaemmli(11);
-    flaemmliAction(h);
-    flaemmliStep(h, FLAEMMLI.pour + 0.01);
-    flaemmliStep(h, FLAEMMLI.sweep * 0.5);
-    flaemmliAction(h);
-    h.level = level;
-    flaemmliAction(h);
-    return h.last.points;
-  };
-  assert.ok(burnAt(0.635) > 90);
-  assert.equal(burnAt(0.1), 0, 'blown out at once: nothing');
-  assert.equal(burnAt(0.45), FLAEMMLI.points.flame * FLAEMMLI.points.near);
-  assert.equal(burnAt(0.9), FLAEMMLI.points.flame * FLAEMMLI.points.near);
-  // a glass left too long goes down cold
-  const c = createFlaemmli(11);
-  flaemmliAction(c); flaemmliStep(c, FLAEMMLI.pour + 0.01); flaemmliStep(c, FLAEMMLI.sweep * 0.5); flaemmliAction(c);
-  c.level = 0.6; flaemmliAction(c);
-  for (let i = 0; i < 60 && c.step === 'cool'; i++) flaemmliStep(c, 0.1);
-  assert.equal(c.step, 'pause');
-  assert.equal(c.drinks, 1);
+  assert.equal(g.drinks, 0);
 });
 
-test('flämmli: every drink sways the view more, strays the needle and narrows the window', () => {
-  const peak = (d) => { let m = 0; for (let t = 0; t < 30; t += 0.05) m = Math.max(m, Math.abs(flaemmliSway(t, d).roll)); return m; };
-  assert.equal(peak(0), 0);
-  assert.ok(peak(1) > 0.02 && peak(3) > peak(1) * 2.5 && peak(6) > peak(3) * 1.5);
-  assert.ok(peak(FLAEMMLI.rounds) < 0.3, 'tipsy, not upside down');
-  assert.equal(flaemmliWobble(3, 0), 0);
-  const w = (d) => flaemmliZone(FLAEMMLI.zones.burn, d);
-  assert.ok(w(5).hi - w(5).lo < w(0).hi - w(0).lo);
-  assert.ok(Math.abs((w(5).lo + w(5).hi) - (w(0).lo + w(0).hi)) < 1e-9, 'round the same middle');
-  assert.ok(w(40).hi - w(40).lo >= (w(0).hi - w(0).lo) * FLAEMMLI.narrowMin - 1e-9);
+test('flämmli: the caramel comes in the green; poured burning, smothered, downed', () => {
+  const g = createFlaemmli(11);
+  toFlambe(g);
+  for (let i = 0; i < 2000 && g.step === 'flambe'; i++) { flaemmliStep(g, DT); if (g.flame < 0.55) flaemmliPress(g); }
+  assert.equal(g.step, 'ready');
+  assert.ok(g.burnT > 6 && g.burnT < 14, `the caramel takes ${g.burnT.toFixed(1)} s`);
+  assert.equal(flaemmliPress(g), 'pour');
+  assert.ok(g.last.good);
+  assert.equal(g.step, 'smother');
+  const mid = (flaemmliGauge(g).lo + flaemmliGauge(g).hi) / 2;
+  while (flaemmliGauge(g).value < mid) flaemmliStep(g, DT);
+  assert.equal(flaemmliPress(g), 'smother');
+  assert.match(g.last.text, /sticks/);
+  assert.equal(flaemmliPress(g), 'drink');
+  assert.equal(g.drinks, 1);
+  assert.equal(g.step, 'pause');
+  // a shot glass left burning cracks
+  const h = createFlaemmli(11);
+  toFlambe(h);
+  for (let i = 0; i < 2000 && h.step === 'flambe'; i++) { flaemmliStep(h, DT); if (h.flame < 0.55) flaemmliPress(h); }
+  flaemmliPress(h);
+  for (let i = 0; i < 200 && h.step === 'smother'; i++) flaemmliStep(h, 0.05);
+  assert.equal(h.strikes, 1);
 });
 
-test('flämmli: all six down earn the bonus; the medals sort the bots', () => {
+test('flämmli: a sip too long swallows the sugar and slows the caramel', () => {
+  const g = { sugar: 0.6, sip: 0.8 }, h = { sugar: 0.6, sip: 1 };
+  assert.equal(flaemmliSugar(g), 0.6);
+  assert.ok(flaemmliSugar(h) < 0.6 * 0.6);
+});
+
+test('flämmli: all three down earn the bonus; the medals sort the bots', () => {
   const steady = playFlaemmli(0.005, 7);
   assert.equal(steady.drinks, FLAEMMLI.rounds);
   assert.equal(steady.strikes, 0);
-  assert.ok(steady.log.length === FLAEMMLI.rounds);
   const def = FLAEMMLI_MISSION, medals = missionMedals(def);
   assert.equal(def.score({ game: steady }), flaemmliScore(steady));
-  assert.ok(def.summary({ game: steady })[0].includes('6 of 6'));
-  const scores = { steady: meanScore(0.02), fair: meanScore(0.07), shaky: meanScore(0.13) };
+  assert.ok(def.summary({ game: steady })[0].includes('3 of 3'));
+  const scores = { steady: meanFlaemmli(0.02), fair: meanFlaemmli(0.07), shaky: meanFlaemmli(0.13) };
   assert.equal(medalFor(scores.steady, medals, true), 'gold', `steady ${scores.steady}`);
   assert.equal(medalFor(scores.fair, medals, true), 'silver', `fair ${scores.fair}`);
   assert.equal(medalFor(scores.shaky, medals, true), 'bronze', `shaky ${scores.shaky}`);
 });
 
-test('flämmli: the mission\'s step waits for the bar, then ends with the game', () => {
-  const obj = FLAEMMLI_MISSION.objectives[1];
-  const state = FLAEMMLI_MISSION.createState();
-  assert.equal(obj.check(frame(), state).done, false);
-  state.game = createFlaemmli(11);
-  assert.equal(obj.check(frame(), state).done, false);
-  state.game.done = true;
-  assert.equal(obj.check(frame(), state).done, true);
-});
-
-// --- 2. Pizza Heaven ------------------------------------------------------------------------------------------------
+// --- 3. Pizza Heaven ------------------------------------------------------------------------------------------------
 test('pizza: every order is for a stop, in delivery order, of known toppings; the places are clear of the houses', () => {
   assert.deepEqual(PIZZA_ORDERS.map((o) => o.stop), PIZZA_STOPS.map((s) => s.id));
   assert.ok(PIZZA_STOPS.length >= 3 && PIZZA_STOPS.length <= 4);

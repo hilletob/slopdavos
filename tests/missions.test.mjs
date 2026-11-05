@@ -270,7 +270,7 @@ test('the geodata lookups find the Loipe and a point on a run', () => {
 });
 
 // --- The manager (js/missions-manager.js): switching missions without a reload --------------------------------------
-import { MissionManager, parseMissionSearch, missionSearch, worldCellsReady } from '../js/missions-manager.js';
+import { MissionManager, parseMissionSearch, missionSearch, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from '../js/missions-manager.js';
 import { cellKey, cellsAround } from '../js/world-cells.js';
 
 const fakeManager = () => {
@@ -385,4 +385,17 @@ test('the streamed town round a mission start: ready once its cells are built', 
   assert.equal(worldCellsReady(world, x, z, 600), true);
   world.cells.delete(cellKey(around[0].i, around[0].j));
   assert.equal(worldCellsReady(world, x, z, 600), false, 'the start cell itself missing');
+});
+
+test('ownsControls: a feature with its own controls hides the game\'s, only while the mission is live', () => {
+  const run = { room: null };
+  const features = { walk: { update() {} }, bar: { ownControls: (r) => !!r.room } };
+  assert.equal(OWN_CONTROLS_CLASS, 'mission-own-controls');
+  assert.equal(ownsControls('running', features, run), false, 'still walking to the door');
+  run.room = {};
+  assert.equal(ownsControls('running', features, run), true, 'at the bar');
+  assert.equal(ownsControls('ready', features, run), true);
+  for (const phase of ['intro', 'loading', 'done', 'failed', 'aborted', 'disposed']) assert.equal(ownsControls(phase, features, run), false, phase);
+  assert.equal(ownsControls('running', {}, run), false, 'no features');
+  assert.equal(ownsControls('running', null, run), false);
 });

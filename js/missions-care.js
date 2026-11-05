@@ -502,6 +502,8 @@ function holdPlayer(run, on) {
 }
 
 const CAST_ROOM = {
+  // (js/missions.js hides the game's own controls while this is true: at the plaster table; the walk to the Spital keeps them)
+  ownControls: (run) => !!run.cx?.open,
   setup(run) {
     addStyle(run);
     const game = el('div', 'cr-game');

@@ -189,6 +189,8 @@ const RIVAL_IDS = Object.keys(NAGELN_RIVALS);
 const BENCH = [{ x: -2.0, z: -1.6 }, { x: -1.0, z: -1.6 }, { x: 0.4, z: -1.6 }, { x: 1.4, z: -1.6 }];
 
 const nageln = {
+  // (js/missions.js hides the game's own controls while this is true: inside the bar; the walk to the door keeps them)
+  ownControls: (run) => !!run.ng?.room,
   setup(run) {
     addBarsStyle(run);
     const hud = el('div', 'gs-hud');
@@ -416,6 +418,8 @@ function buildKafi(group, parts) {
 }
 
 const barista = {
+  // (js/missions.js hides the game's own controls while this is true: behind the counter; the walk to the door keeps them)
+  ownControls: (run) => !!run.br?.room,
   setup(run) {
     addBarsStyle(run);
     const hud = el('div', 'gs-hud gs-pizza');

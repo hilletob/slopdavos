@@ -288,6 +288,8 @@ function createSkiGear() {
 
 const _fwd = new THREE.Vector3(), _left = new THREE.Vector3(), _tip = new THREE.Vector3(), _down = new THREE.Vector3(0, -1, 0), _qPole = new THREE.Quaternion();
 const xcSkis = {
+  // (js/missions.js hides the game's own controls while this is true: choosing the technique; the race itself is skiing)
+  ownControls: (run) => !!run.state?.race && !run.state.race.style,
   setup(run) {
     const cm = run.hooks.controllerManager;
     const xc = run.xc = { skier: createXcSkier(0), P: XC_PARAMS.skate, phase: 0, gear: createSkiGear(), frozen: true, assist: true };
@@ -764,6 +766,8 @@ const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _plane = new THR
 /** The game on one course (its physics, lanes and ground in the data; `look` what it is made of and how it is played) */
 function minigolfFeature(course, look) {
 const minigolf = {
+  // (js/missions.js hides the game's own controls while this is true: the whole course: the player stands at the ball, A D aim and Space putts, the putt button stays)
+  ownControls: (run) => !!run.state?.game && !run.state.game.done,
   setup(run) {
     const mg = run.mg = { bases: course.holes.map((h, i) => holeBaseY(i, course)), holes: [], aim: 0, power: 0, charging: false, chargeT: 0, drag: null, wait: 0, cam: null, overview: false, blips: new Blips(run.hooks.audio) };
     const g = mg.group = new THREE.Group();
@@ -1151,6 +1155,8 @@ function buildPub(group, parts) {
 
 const _proj = new THREE.Vector3();
 const darts = {
+  // (js/missions.js hides the game's own controls while this is true: at the oche; the walk to the door keeps them)
+  ownControls: (run) => !!run.dd?.interior,
   setup(run) {
     addStyle(run);
     const dd = run.dd = { interior: null, aim: { x: 0, y: fieldCentreY(20, 3) }, charge: 0, charging: false, chargeT: 0, steadyT: 0, t: 0, flights: [], stuck: [], wait: 0, keys: { up: 0, down: 0, left: 0, right: 0 }, blips: new Blips(run.hooks.audio), rand: Math.random };

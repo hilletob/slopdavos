@@ -347,9 +347,16 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.lineWidth = g * 0.16; ctx.beginPath(); ctx.arc(g * 0.45, -g * 0.1, g * 0.55, -0.6, 0.6); ctx.stroke();
       break;
     }
-    case 'flame': { // a Flämmli: the flame over its glass (js/missions-data-gastro.js)
+    case 'flame': { // a flaming shot: the flame over its glass (js/missions-data-gastro.js)
       ctx.beginPath(); ctx.moveTo(0, -g * 1.05); ctx.bezierCurveTo(g * 0.75, -g * 0.35, g * 0.4, g * 0.15, 0, g * 0.15); ctx.bezierCurveTo(-g * 0.4, g * 0.15, -g * 0.75, -g * 0.35, 0, -g * 1.05); ctx.fill();
       ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.3); ctx.lineTo(g * 0.45, g * 0.3); ctx.lineTo(g * 0.32, g * 1.0); ctx.lineTo(-g * 0.32, g * 1.0); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'flaemmli': { // a Flämmli: the espresso cup on its saucer, a flame out of it (js/missions-data-gastro.js)
+      ctx.beginPath(); ctx.moveTo(-g * 0.1, -g * 1.05); ctx.bezierCurveTo(g * 0.55, -g * 0.55, g * 0.35, -g * 0.15, 0, -g * 0.12); ctx.bezierCurveTo(-g * 0.35, -g * 0.15, -g * 0.6, -g * 0.5, -g * 0.1, -g * 1.05); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.7, 0); ctx.lineTo(g * 0.55, 0); ctx.quadraticCurveTo(g * 0.55, g * 0.7, 0, g * 0.7); ctx.quadraticCurveTo(-g * 0.7, g * 0.7, -g * 0.7, 0); ctx.fill();
+      ctx.fillRect(-g * 0.9, g * 0.8, g * 1.7, g * 0.16);
+      ctx.lineWidth = g * 0.15; ctx.beginPath(); ctx.arc(g * 0.6, g * 0.28, g * 0.22, -Math.PI / 2, Math.PI / 2); ctx.stroke();
       break;
     }
     case 'summit': { // a peak with the sun coming up behind it

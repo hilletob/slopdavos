@@ -227,6 +227,7 @@ function holdTraffic(run, pts, radius, dt, closure = null) {
   }
 }
 function releaseTraffic(run) {
+  run.hooks.vbd?.setClosure?.(null);
   const tr = run.hooks.traffic;
   if (!tr) return;
   for (const list of [tr.cars, tr.buses, tr.bikes]) for (const v of list || []) if (v._wefSide) v._wefSide = 0;
@@ -535,6 +536,8 @@ function drumOf(audio) {
 }
 
 const wefMarch = {
+  // (js/missions.js hides the game's own controls while this is true: talking to the police liaison (answers 1 2 3); the march keeps them)
+  ownControls: (run) => !!run.state?.march?.dialog,
   setup(run) {
     ensureStyle(run);
     const cm = run.hooks.controllerManager;
@@ -659,6 +662,9 @@ const wefMarch = {
     const max = st.dialog || st.action?.kind === 'sit' ? 0 : MARCH.playerMax;
     ent.speed = clamp(ent.speed, -Math.min(2.5, max || 0), max);
     holdTraffic(run, [ctx, st.crowd, st.tail], 32, dt, closureAhead(MARCH_ROUTE, st.routeS, 30, 105));
+    // the VBD's buses (js/vbd.js, not the traffic's): the march's street is closed to them from behind the crowd to
+    // well ahead, so that none comes towards it; they wait short of it or are diverted
+    run.hooks.vbd?.setClosure?.({ pts: [ctx, st.crowd, st.tail, ...closureAhead(MARCH_ROUTE, Math.max(0, st.routeS - 60), 0, 420)], r: 16 });
     wf.frameAt = performance.now();
     placeBody(wf.body, st.tail, cm.getGroundHeight(st.tail.x, st.tail.z, 'car'));
     wefMarch.chantBeats(run);
@@ -731,6 +737,7 @@ const wefMarch = {
   },
   after(run, ctx, dt, cm) {
     const st = run.state.march, wf = run.wf, ui = wf.ui;
+    if (run.phase === 'done' || run.phase === 'failed' || run.phase === 'aborted') run.hooks.vbd?.setClosure?.(null); // (the street opens again)
     wefMarch.pose(run, dt, cm);
     followCamera(run, ctx, dt, 26, 13, 2);
     ui.count.textContent = `${st.count}`;

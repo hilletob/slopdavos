@@ -3,7 +3,8 @@ import { surfaceHeight } from './terrain.js';
 import {
   CLUBS, clubById, BALL_R, HOLE_R, SURFACES, surfaceAt, createBall, strike, stepBall, previewFlight, slopeAt,
   currentHole, distanceToPin, beginShot, endShot, nextHole, createMeter, meterStart, meterPower, meterAccuracy, meterStep,
-  accuracyLabel, METER, toPar, formatToPar, GREEN_SLOPE_BOOST, PUTT_MAX
+  accuracyLabel, METER, toPar, formatToPar, GREEN_SLOPE_BOOST, PUTT_MAX,
+  landingFor, shotTable, powerFor, carryAt, windAgainstAim, lieToll, shotReport, alongAim
 } from './missions-data-golf.js';
 
 // js/missions-golf.js
@@ -30,7 +31,7 @@ const TRAIL_MAX = 1200;
 // --- The HUD's own pieces (injected once: no shared stylesheet edit) ---------------------------------------------------
 const STYLE = `
 .golf-hud { position: fixed; left: 50%; bottom: max(46px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 12;
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 12px; min-width: 300px; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 12px; min-width: 300px; max-width: 780px; pointer-events: none;
   font-size: 13px; font-weight: 600; text-align: center; }
 .golf-row { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .golf-card { font-size: 14px; letter-spacing: 0.01em; }
@@ -57,10 +58,39 @@ const STYLE = `
 .golf-cart { pointer-events: auto; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(58,166,85,0.85);
   color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
 .golf-cart[hidden] { display: none; }
+.golf-plan { font-size: 12px; font-weight: 600; gap: 8px; }
+.golf-plan span:not(:empty) + span:not(:empty)::before { content: '·'; margin-right: 8px; opacity: 0.6; }
+.golf-plan .golf-need { color: #ff8a80; } .golf-plan .golf-need.is-out { color: #ffc83d; }
+.golf-wind-words { font-weight: 500; opacity: 0.85; }
+.golf-meter-target { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; background: #ff3b30; box-shadow: 0 0 0 1px #fff; }
+.golf-meter-target[hidden] { display: none; }
+.golf-readout { font-size: 13px; font-weight: 800; min-width: 92px; text-align: left; color: #ffe08a; }
+.golf-steps[hidden] { display: none; }
+.golf-steps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; font-size: 11px; font-weight: 600; }
+.golf-step { padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,0.08); opacity: 0.55; }
+.golf-step.is-on { background: rgba(255,200,61,0.25); box-shadow: inset 0 0 0 1px #ffc83d; opacity: 1; }
+.golf-step b { color: #ffc83d; margin-right: 3px; }
+.golf-report { display: flex; flex-direction: column; gap: 1px; font-size: 12px; font-weight: 600; max-width: 520px; }
+.golf-report[hidden] { display: none; }
+.golf-report-lines span:not(:empty) + span:not(:empty)::before { content: ' · '; opacity: 0.6; }
+.golf-report-tip { color: #ffe08a; }
+.golf-mark { position: fixed; left: 0; top: 0; z-index: 11; pointer-events: none; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center;
+  font-size: 13px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap; will-change: transform; }
+.golf-mark[hidden] { display: none; }
+.golf-mark-pin .golf-mark-label { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 6px; border-radius: 12px; background: rgba(200,20,20,0.88); box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.45); }
+.golf-mark-pin svg { width: 14px; height: 14px; }
+.golf-mark-pin .golf-mark-stem { width: 2px; height: 14px; background: #fff; box-shadow: 0 0 2px #000; }
+.golf-mark-pin.is-edge .golf-mark-stem { display: none; }
+.golf-mark-arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 11px solid #fff; margin-bottom: 2px; display: none; }
+.golf-mark.is-edge .golf-mark-arrow { display: block; }
+.golf-mark-land .golf-mark-label { padding: 1px 6px; border-radius: 9px; background: rgba(40,30,0,0.65); color: #ffd23d; font-size: 12px; box-shadow: 0 0 0 1px #ffd23d; }
 body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 200px); }
-@media (max-width: 820px) { body.touch-enabled .golf-hud { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 188px); } }
+@media (max-width: 820px) { body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 280px); } }
 body.touch-enabled .golf-keys { display: none; }
-@media (max-width: 820px) { .golf-hud { min-width: 0; padding: 6px 10px; font-size: 12px; } .golf-meter { width: 200px; } .golf-big { font-size: 38px; } .golf-club { min-width: 34px; } }
+@media (max-width: 820px) { .golf-hud { min-width: 0; width: min(380px, calc(100vw - 16px)); box-sizing: border-box; padding: 5px 8px; font-size: 12px; gap: 3px; } .golf-meter { width: 200px; } .golf-big { font-size: 38px; } .golf-club { min-width: 34px; }
+  .golf-step:not(.is-on) { display: none; } .golf-plan { font-size: 11px; gap: 6px; } .golf-report { font-size: 11px; } .golf-readout { min-width: 0; font-size: 12px; }
+  .golf-card { font-size: 12px; } .golf-club { min-width: 30px; padding: 2px 4px; font-size: 11px; } .golf-club small { font-size: 9px; }
+  .golf-wind-label, .golf-pin-dist { display: none; } .golf-row { gap: 6px; } .golf-flash { min-width: 0; font-size: 12px; } }
 `;
 
 function ensureStyle() {
@@ -263,6 +293,42 @@ function setLine(line, pts) {
   else if (line === line.parent?.userData?.trail) line.visible = true;
 }
 
+/** The mission's own flag on the hole being played: a white pole, a bright red flag (unlit, no fog: it reads from the
+ *  tee), and a red beam of light above it that fades in with the distance; js/golf.js's small pins stay on the others */
+function createFlag() {
+  const g = new THREE.Group();
+  g.name = 'GolfMissionFlag';
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.4, 8).translate(0, 1.2, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.55).translate(0.4 + 0.03, 2.4 - 0.275, 0), new THREE.MeshBasicMaterial({ color: 0xff2a1f, side: THREE.DoubleSide, fog: false }));
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16, 1, true).translate(0, 0.5, 0),
+    new THREE.MeshBasicMaterial({ color: 0xff4a3a, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  beam.renderOrder = 2;
+  const flagPivot = new THREE.Group();
+  flagPivot.add(flag);
+  g.add(pole, flagPivot, beam);
+  g.userData = { pole, flag: flagPivot, beam };
+  return g;
+}
+
+/** Where a world point lies on the screen: { x, y } in CSS px, `edge` when it is off the screen or behind the camera
+ *  (then it is pulled onto the screen's edge, `angle` pointing towards it) */
+const _pv = new THREE.Vector3();
+function screenPoint(cam, x, y, z, margin = 28, top = 70) {
+  const W = window.innerWidth, H = window.innerHeight;
+  _pv.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
+  const behind = _pv.z > -0.1;
+  _pv.set(x, y, z).project(cam);
+  let sx = (_pv.x * 0.5 + 0.5) * W, sy = (-_pv.y * 0.5 + 0.5) * H;
+  if (behind) { sx = W - sx; sy = H + 1e4; } // (behind: below the screen, mirrored)
+  const on = !behind && sx >= margin && sx <= W - margin && sy >= top && sy <= H - margin;
+  if (on) return { x: sx, y: sy, edge: false, angle: 0 };
+  const cx = W / 2, cy = H / 2, dx = sx - cx, dy = sy - cy;
+  const kx = (dx > 0 ? W - margin - cx : cx - margin) / Math.max(1e-6, Math.abs(dx));
+  const ky = (dy > 0 ? H - margin - cy : cy - top) / Math.max(1e-6, Math.abs(dy));
+  const k = Math.min(1, kx, ky);
+  return { x: cx + dx * k, y: cy + dy * k, edge: true, angle: Math.atan2(dx, -dy) };
+}
+
 /** The slope's arrows round the putt (one mesh: flat chevrons pointing downhill, the steeper the warmer) */
 function slopeArrows(from, pin, heightAt) {
   const pos = [], col = [];
@@ -310,7 +376,8 @@ const golf = {
     G.arrows = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.65, depthWrite: false, side: THREE.DoubleSide }));
     G.arrows.renderOrder = 3;
     G.arrows.frustumCulled = false;
-    run.group.add(G.club, G.ballMesh, G.trail, G.arc, G.putLine, G.landing, G.cupRing, G.arrows);
+    G.flag = createFlag();
+    run.group.add(G.club, G.ballMesh, G.trail, G.arc, G.putLine, G.landing, G.cupRing, G.arrows, G.flag);
     run.group.userData.trail = G.trail;
     G.arrows.visible = false;
     golf.buildHud(run);
@@ -338,9 +405,17 @@ const golf = {
     setLine(G.trail, []);
     G.ui.flash.textContent = '';
     G.ui.big.classList.remove('is-on');
+    golf.showReport(run, null);
     golf.address(run, true);
   },
   teardown(run) { const cs = run.hooks.cameraSystem; cs.orbitYawOffset = 0; },
+  /** The game's key bar and the joystick away while the golfer plays (the golf HUD says what the keys do); walking
+   *  to the ball keeps them, and on touch so does the address before the swing (the joystick aims and picks the club) */
+  ownControls(run) {
+    const G = run.golf;
+    if (!G || G.mode === 'walk' || G.mode === 'done') return false;
+    return !(document.body.classList.contains('touch-enabled') && G.mode === 'address' && G.meter.phase === 'idle');
+  },
   key(run, e) {
     if (run.phase === 'intro' || !run.state?.round) return;
     const m = /^Digit([1-5])$/.exec(e.code);
@@ -353,6 +428,7 @@ const golf = {
     if (!golf.canAim(run)) return;
     run.state.round.club = id;
     run.golf.dirty = true;
+    run.golf.picked = true; // (the player's own pick: kept)
   },
   newBall(run) {
     const r = run.state.round;
@@ -370,6 +446,7 @@ const golf = {
     G.mode = 'address';
     G.meter = createMeter();
     G.phi = 0;
+    if (G.at !== `${G.ball.x},${G.ball.z}`) { G.at = `${G.ball.x},${G.ball.z}`; G.picked = false; } // (a new lie: the round picks again)
     G.dirty = true;
     G.fwdWas = G.backWas = G.upWas = true; // (a key still held from the walk changes nothing: it must be let go first)
     run.state.walkTo = null;
@@ -476,11 +553,11 @@ const golf = {
       }
       G.fwdWas = fwd; G.backWas = back;
       if (G.dirty) golf.placeGolfer(run);
-      if (upEdge) { meterStart(m); G.downAt = now; run.state.hint = 'Press again (or let go) to set the power'; }
+      if (upEdge) { meterStart(m); G.downAt = now; run.state.hint = 'Stop the power at the red mark: press again (or let go)'; golf.showReport(run, null); G.ui.flash.textContent = ''; }
     } else if (m.phase === 'power') {
       if (upEdge) meterPower(m);
       else if (upFall && now - G.downAt > 250) meterPower(m);
-      if (m.phase === 'accuracy') run.state.hint = 'Press on the green line to strike';
+      if (m.phase === 'accuracy') { run.state.hint = 'Strike on the green line: early hooks left, late slices right'; G.dirty = true; }
     } else if (m.phase === 'accuracy') {
       if (upEdge) meterAccuracy(m);
     }
@@ -511,6 +588,7 @@ const golf = {
     const G = run.golf, r = run.state.round, club = golf.club(run);
     beginShot(r);
     run.state.inFlight = true;
+    G.shot = { from: { x: G.ball.x, z: G.ball.z }, heading: r.aim, club, power: G.strike.power, accuracy: G.strike.accuracy, lie: G.ball.lie, wind: r.wind, pin: currentHole(r).pin, need: G.need?.reach ? G.need.power : null };
     strike(G.ball, { club, power: G.strike.power, accuracy: G.strike.accuracy, heading: r.aim });
     G.mode = 'flight';
     G.t = 0;
@@ -536,6 +614,7 @@ const golf = {
       else if (b.state === 'out') golf.say(run, 'Out of bounds', false);
       else if (b.state === 'holed') golf.big(run, 'In the hole!');
       else if (b.carry) golf.say(run, `${Math.round(Math.hypot(b.x - b.from.x, b.z - b.from.z))} m · ${SURFACES[b.lie]?.label || ''}`, b.lie === 'green' || b.lie === 'fairway');
+      if (G.shot) golf.showReport(run, shotReport({ ...G.shot, carry: b.carry, end: b.state === 'holed' ? G.shot.pin : { x: b.x, z: b.z }, state: b.state }, golf.env(run)));
     }
   },
   updateSettled(run, dt) {
@@ -567,6 +646,7 @@ const golf = {
     if (!nextHole(r)) { G.mode = 'done'; golf.release(run); return; }
     G.ball = golf.newBall(run);
     setLine(G.trail, []);
+    golf.showReport(run, null); // (a new hole: the last one's report goes)
     G.mode = 'settled'; // (the cart takes the golfer on to the next tee)
     golf.cart(run);
     golf.say(run, `${currentHole(r).name} · Par ${currentHole(r).par} · ${Math.round(currentHole(r).length)} m`, true);
@@ -588,36 +668,59 @@ const golf = {
     G.arc.visible = G.landing.visible = G.putLine.visible = G.arrows.visible = false;
   },
   updateAids(run) {
-    const G = run.golf, r = run.state.round, club = golf.club(run), b = G.ball;
-    const show = G.mode === 'address' || G.mode === 'cart';
+    const G = run.golf, r = run.state.round, club = golf.club(run), b = G.ball, m = G.meter;
+    const show = G.mode === 'address' || G.mode === 'cart' || G.mode === 'down';
     if (!show) { golf.hideAids(run); return; }
+    const env = golf.env(run);
     if (G.dirty) {
       G.dirty = false;
-      const env = golf.env(run);
+      const h = currentHole(r);
+      // the plan, from the flight model itself: the carry at each power (the wind and the lie in), the power the pin
+      // needs, and what the wind and the lie do to a full swing
+      G.table = shotTable(b, { club, heading: r.aim, lie: b.lie }, env);
+      G.need = powerFor(G.table, Math.hypot(h.pin.x - b.x, h.pin.z - b.z) + (club.putt ? 0.3 : 0)); // (a putt a little past: it drops)
+      // (the round's own pick, the putter on a green, cannot get there, say over the rough from the next hole's green: the wedge)
+      if (club.putt && !G.need.reach && !G.picked) { r.club = 'wedge'; G.dirty = true; return; }
+      G.full = G.table[G.table.length - 1].d;
+      if (club.putt) { G.windFull = null; G.lieLoss = 0; } // (the putt's forecast runs along the ground: the fringe and the slope in)
+      else {
+        const windy = landingFor(b, { club, power: 1, heading: r.aim, lie: b.lie }, env);
+        const calm = landingFor(b, { club, power: 1, heading: r.aim, lie: b.lie }, { ...env, wind: null });
+        const clean = landingFor(b, { club, power: 1, heading: r.aim, lie: b.lie === 'tee' ? 'tee' : 'fairway' }, { ...env, wind: null });
+        G.windFull = alongAim(windy.x - calm.x, windy.z - calm.z, r.aim);
+        G.lieLoss = clean.d > 1 ? Math.max(0, 1 - calm.d / clean.d) : 0;
+      }
       if (club.putt) {
-        const h = currentHole(r);
         const L = Math.min(Math.hypot(h.pin.x - b.x, h.pin.z - b.z) + 1.5, PUTT_MAX);
         const pts = [];
         for (let i = 0; i <= 40; i++) { const s = (L * i) / 40, x = b.x + Math.sin(r.aim) * s, z = b.z + Math.cos(r.aim) * s; pts.push({ x, y: turfY(x, z) + 0.02, z }); }
         setLine(G.putLine, pts);
         G.preview = null;
-      } else {
-        G.preview = previewFlight(b, { club, power: 1, heading: r.aim, lie: b.lie }, env);
-        setLine(G.arc, G.preview.points);
-        const l = G.preview.landing;
-        if (l) {
-          const d = Math.hypot(l.x - b.x, l.z - b.z);
-          G.landing.position.set(l.x, turfY(l.x, l.z) + 0.15, l.z);
-          const sc = Math.max(1.5, d * 0.03);
-          G.landing.scale.set(sc, 1, sc);
-        }
       }
+      G.previewPower = -1;
       if (G.ball.lie === 'green' || club.putt) golf.buildGreenAids(run);
       else G.arrows.visible = false;
     }
+    // the arc and its ring: at the address the shot at the red mark (the pin's power; a full swing when it is out of
+    // reach), so that the ring shows the wind's drift to aim off by; in the swing they follow the needle (then stay)
+    const pw = Math.max(0.02, m.phase === 'idle' ? (G.need?.reach ? G.need.power : 1) : m.phase === 'power' ? m.value : m.power);
+    if (Math.abs(pw - G.previewPower) > 0.003) {
+      G.previewPower = pw;
+      // (the putter: no arc, the ring where the putt would stop, along the ground)
+      G.preview = club.putt ? { points: null, landing: landingFor(b, { club, power: pw, heading: r.aim, lie: b.lie }, env) } : previewFlight(b, { club, power: pw, heading: r.aim, lie: b.lie }, env);
+      if (G.preview.points) setLine(G.arc, G.preview.points);
+      const l = G.preview.landing;
+      G.carryNow = l ? Math.hypot(l.x - b.x, l.z - b.z) : carryAt(G.table, pw);
+      if (l) {
+        const d = G.carryNow;
+        G.landing.position.set(l.x, turfY(l.x, l.z) + (club.putt ? 0.03 : 0.15), l.z);
+        const sc = club.putt ? 0.3 : Math.max(1.5, d * 0.03);
+        G.landing.scale.set(sc, 1, sc);
+      }
+    }
     G.putLine.visible = !!club.putt;
-    G.arc.visible = !club.putt && !!G.preview;
-    G.landing.visible = !club.putt && !!G.preview?.landing;
+    G.arc.visible = !club.putt && !!G.preview?.points;
+    G.landing.visible = !!G.preview?.landing;
   },
 
   // --- Rendering: the ball, the cup, the HUD, the camera --------------------------------------------------------------
@@ -636,8 +739,58 @@ const golf = {
       G.cupRing.scale.setScalar(clamp(dc / 30, 1, 4));
     }
     if (G.mode === 'walk' || G.mode === 'done') G.club.visible = false;
+    golf.renderFlag(run, cam, dt);
     golf.updateAids(run);
     golf.renderHud(run);
+  },
+  /** The hole's flag: real size near it, growing with the distance (so that it stays a few dozen pixels tall from the
+   *  tee), flying with the wind; the beam above it fades in from 30 m off */
+  renderFlag(run, cam, dt) {
+    const G = run.golf, r = run.state.round, h = currentHole(r), F = G.flag;
+    F.visible = !!h && G.mode !== 'done';
+    if (!F.visible) return;
+    const y = turfY(h.pin.x, h.pin.z);
+    F.position.set(h.pin.x, y, h.pin.z);
+    const dc = cam ? Math.hypot(cam.position.x - h.pin.x, cam.position.y - y, cam.position.z - h.pin.z) : 30;
+    const s = clamp(dc / 28, 1, 14);
+    const { pole, flag, beam } = F.userData;
+    pole.scale.set(s, s, s);
+    flag.scale.set(s, s, s);
+    G.flagT = (G.flagT || 0) + dt;
+    const w = r.wind;
+    flag.rotation.y = Math.atan2(-w.z, w.x) + Math.sin(G.flagT * 3.1) * 0.12; // (local +x: the flag flies down the wind)
+    const fade = smooth((dc - 30) / 50);
+    beam.visible = fade > 0.01;
+    beam.material.opacity = 0.32 * fade;
+    beam.scale.set(0.16 * s, 70 * Math.max(1, s * 0.6), 0.16 * s);
+    beam.position.y = 2.4 * s;
+    G.flagTop = y + 2.4 * s;
+  },
+  /** The screen's markers: the pin with its distance from the ball (on the screen's edge when it is out of the view),
+   *  and the carry at the yellow ring */
+  renderMarks(run, cam) {
+    const G = run.golf, u = G.ui, r = run.state.round, h = currentHole(r), b = G.ball;
+    const showPin = !!(cam && h && live(run) && G.mode !== 'holed' && G.mode !== 'done');
+    u.pinMark.hidden = !showPin;
+    if (showPin) {
+      const p = screenPoint(cam, h.pin.x, G.flagTop ?? turfY(h.pin.x, h.pin.z) + 2.4, h.pin.z, 34, 90);
+      const d = Math.round(Math.hypot(h.pin.x - b.x, h.pin.z - b.z));
+      const text = `${d} m`;
+      if (u.pinText.textContent !== text) u.pinText.textContent = text;
+      u.pinMark.classList.toggle('is-edge', p.edge);
+      u.pinMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, ${p.edge ? '-50%' : '-100%'})`;
+      u.pinArrow.style.transform = p.edge ? `rotate(${p.angle.toFixed(3)}rad)` : '';
+    }
+    const showLand = !!(cam && G.landing.visible && G.preview?.landing);
+    u.landMark.hidden = !showLand;
+    if (showLand) {
+      const l = G.landing.position;
+      const p = screenPoint(cam, l.x, l.y + 0.5, l.z, 20, 60);
+      u.landMark.hidden = p.edge;
+      const text = `${Math.round(G.carryNow ?? 0)} m`;
+      if (u.landText.textContent !== text) u.landText.textContent = text;
+      u.landMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+    }
   },
 
   buildHud(run) {
@@ -662,33 +815,63 @@ const golf = {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', 'M12 2.5 19 20l-7-4-7 4z');
     arrow.append(path);
-    const windText = el('span');
-    wind.append(el('span', null, 'Wind'), arrow, windText);
-    const pin = el('span'), lie = el('span');
+    const windText = el('span'), windWords = el('span', 'golf-wind-words');
+    wind.append(el('span', 'golf-wind-label', 'Wind'), arrow, windText, windWords);
+    const pin = el('span', 'golf-pin-dist'), lie = el('span');
     info.append(wind, pin, lie);
     const meter = el('div', 'golf-meter');
     const zone = el('span', 'golf-meter-zone'), fill = el('span', 'golf-meter-fill'), line = el('span', 'golf-meter-line'), power = el('span', 'golf-meter-power'), needle = el('span', 'golf-meter-needle');
-    meter.append(fill, zone, line, power, needle);
+    const target = el('span', 'golf-meter-target');
+    target.title = 'The power the pin needs';
+    meter.append(fill, zone, line, target, power, needle);
     const span = 1 - METER.below;
     const at = (v) => `${((v - METER.below) / span) * 100}%`;
     line.style.left = at(0);
     zone.style.left = at(-METER.perfect); zone.style.width = `${((2 * METER.perfect) / span) * 100}%`;
     fill.style.left = at(0);
     const flash = el('div', 'golf-flash');
+    const readout = el('div', 'golf-readout');
+    // the plan: the club's full swing from here (the wind and the lie in), what the pin needs, the wind's and the lie's share
+    const plan = el('div', 'golf-row golf-plan');
+    const planClub = el('span'), planNeed = el('span', 'golf-need'), planWind = el('span'), planLie = el('span');
+    plan.append(planClub, planNeed, planWind, planLie);
+    // the swing's three presses, the one due lit
+    const steps = el('div', 'golf-steps');
+    const stepTexts = ['Start the swing', 'Stop the power at the red mark', 'Strike on the green line (early: hook left · late: slice right)'];
+    const stepKeys = [];
+    const stepEls = stepTexts.map((t, i) => { const s = el('span', 'golf-step'); const k = el('b', null, 'Space'); stepKeys.push(k); s.append(el('b', null, `${i + 1}`), k, el('span', null, t)); steps.append(s); return s; });
+    // the report after a shot: what it did and why
+    const report = el('div', 'golf-report');
+    report.hidden = true;
+    const reportLines = el('div', 'golf-report-lines'), reportTip = el('div', 'golf-report-tip');
+    report.append(reportLines, reportTip);
+    // the screen's markers
+    const pinMark = el('div', 'golf-mark golf-mark-pin');
+    const pinArrow = el('span', 'golf-mark-arrow'), pinLabel = el('span', 'golf-mark-label'), pinText = el('span');
+    const flagIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    flagIcon.setAttribute('viewBox', '0 0 16 16');
+    flagIcon.innerHTML = '<path d="M3 1h1.6v14H3z" fill="#fff"/><path d="M4.6 1.5 13 4.6 4.6 7.8z" fill="#fff"/>';
+    pinLabel.append(flagIcon, el('span', null, 'Pin'), pinText);
+    pinMark.append(pinArrow, pinLabel, el('span', 'golf-mark-stem'));
+    const landMark = el('div', 'golf-mark golf-mark-land');
+    const landText = el('span', 'golf-mark-label');
+    landMark.append(landText);
+    pinMark.hidden = landMark.hidden = true;
     const foot = el('div', 'golf-row');
     const cart = el('button', 'golf-cart', 'Cart to the ball (C)');
     cart.type = 'button';
     run.listen(cart, 'pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); golf.cart(run); });
-    foot.append(el('span', 'golf-keys', 'W/S or 1-5 club · A/D or drag aim · Space: swing, power, strike · C cart'), cart);
+    foot.append(el('span', 'golf-keys', 'W/S or 1-5 club · A/D or drag aim · C cart'), cart);
     const mid = el('div', 'golf-row');
     mid.append(clubs, info);
     const low = el('div', 'golf-row');
-    low.append(meter, flash);
-    hud.append(card, mid, low, foot);
+    low.append(meter, readout, flash);
+    hud.append(card, mid, plan, low, steps, report, foot);
     const big = el('div', 'golf-big');
-    document.body.append(hud, big);
-    run.cleanups.push(() => { hud.remove(); big.remove(); });
-    G.ui = { hud, card, chips, arrow, windText, pin, lie, meter, fill, power, needle, flash, cart, big, at };
+    document.body.append(hud, big, pinMark, landMark);
+    run.cleanups.push(() => { hud.remove(); big.remove(); pinMark.remove(); landMark.remove(); });
+    G.ui = { steps, hud, card, chips, arrow, windText, windWords, pin, lie, meter, fill, power, needle, target, flash, readout, cart, big, at,
+      planClub, planNeed, planWind, planLie, stepEls, stepKeys, report, reportLines, reportTip, pinMark, pinArrow, pinText, landMark, landText };
   },
   renderHud(run) {
     const G = run.golf, u = G.ui, r = run.state.round, h = currentHole(r);
@@ -710,9 +893,38 @@ const golf = {
     u.fill.style.width = `${(Math.max(0, pw) / (1 - METER.below)) * 100}%`;
     u.power.hidden = !(m.phase === 'accuracy' || m.phase === 'done');
     if (!u.power.hidden) u.power.style.left = u.at(m.power);
+    // the wind in words against the aim, the plan, the pin's mark on the meter, the needle's carry, the step due
+    set(u.windWords, windAgainstAim(r.wind, r.aim).words);
+    const club = golf.club(run);
+    const aiming = G.mode === 'address' || G.mode === 'down';
+    if (aiming && G.table) {
+      set(u.planClub, `${club.label}: full ${club.putt ? 'stroke' : 'swing'} ${Math.round(G.full)} m`);
+      set(u.planNeed, G.need.reach ? `the pin needs ${Math.round(G.need.power * 100)} %` : 'the pin is out of reach');
+      u.planNeed.classList.toggle('is-out', !G.need.reach);
+      const wl = G.windFull ? Math.round(G.windFull.long) : 0;
+      set(u.planWind, wl ? `wind ${wl > 0 ? '+' : '−'}${Math.abs(wl)} m` : '');
+      const loss = Math.round((G.lieLoss || 0) * 100);
+      set(u.planLie, loss >= 2 ? `${SURFACES[G.ball.lie]?.label || ''} −${loss} %` : '');
+    } else { set(u.planClub, ''); set(u.planNeed, ''); set(u.planWind, ''); set(u.planLie, ''); }
+    u.target.hidden = !(aiming && G.need?.reach);
+    if (!u.target.hidden) u.target.style.left = u.at(G.need.power);
+    const swinging = m.phase === 'power' || m.phase === 'accuracy';
+    set(u.readout, swinging ? `${Math.round(Math.max(0, pw) * 100)} % → ${Math.round(G.carryNow ?? 0)} m` : '');
+    const due = !aiming ? -1 : m.phase === 'idle' ? 0 : m.phase === 'power' ? 1 : m.phase === 'accuracy' ? 2 : -1;
+    const key = document.body.classList.contains('touch-enabled') ? 'Swing' : 'Space';
+    u.stepEls.forEach((s, i) => s.classList.toggle('is-on', i === due));
+    u.steps.hidden = due < 0;
+    for (const k of u.stepKeys) set(k, key);
     u.cart.hidden = !(G.mode === 'walk');
     if (G.flashAt && performance.now() - G.flashAt > 2600) { u.flash.textContent = ''; G.flashAt = 0; }
     if (G.bigAt && performance.now() - G.bigAt > 2200) { u.big.classList.remove('is-on'); G.bigAt = 0; }
+  },
+  /** The report after a shot (null: away, at the next swing) */
+  showReport(run, rep) {
+    const u = run.golf.ui;
+    u.report.hidden = !rep;
+    u.reportLines.replaceChildren(...(rep ? rep.lines.map((t) => el('span', null, t)) : []));
+    u.reportTip.textContent = rep?.tip || '';
   },
   say(run, text, good) {
     const f = run.golf.ui.flash;
@@ -731,15 +943,21 @@ const golf = {
    *  the cup when it drops; the cart's swing between. Walking: the game's own camera */
   after(run, ctx, dt) {
     const G = run.golf;
-    if (run.phase === 'intro' || !G?.ball || G.mode === 'walk' || G.mode === 'done' || ctx.mode !== 'person') return;
+    if (run.phase === 'intro' || !G?.ball || G.mode === 'done' || ctx.mode !== 'person') { if (G?.ui) golf.renderMarks(run, null); return; }
+    // (the screen's markers here, once the camera stands where it is drawn from this frame)
+    if (G.mode === 'walk') { golf.renderMarks(run, ctx.camera); return; }
     const r = run.state.round, b = G.ball, h = currentHole(r);
     const club = golf.club(run);
     let ex, ey, ez, lx, ly, lz, rate = 3;
+    const cam0 = ctx.camera;
     if (G.mode === 'address' || G.mode === 'cart' || G.mode === 'down') {
       const fx = Math.sin(r.aim), fz = Math.cos(r.aim);
-      const back = club.putt ? 2.6 : 4.8, up = club.putt ? 1.2 : 1.6, ahead = club.putt ? Math.min(6, distanceToPin(r)) + 1 : 22;
+      // (high enough over the ball that the arc bends away into the distance instead of standing up like a pole)
+      const back = club.putt ? 2.6 : 5.6, up = club.putt ? 1.2 : 2.5, ahead = club.putt ? Math.min(6, distanceToPin(r)) + 1 : 30;
       ex = b.x - fx * back; ez = b.z - fz * back; ey = Math.max(turfY(ex, ez), b.y) + up;
       lx = b.x + fx * ahead; lz = b.z + fz * ahead; ly = club.putt ? turfY(lx, lz) : Math.max(b.y, turfY(lx, lz)) + 0.6;
+      // (a phone upright: the view tipped down a little, the horizon, the flag and the ring higher, clear of the HUD)
+      if (!club.putt && cam0 && cam0.aspect < 0.8) ly -= 3.2;
       rate = G.mode === 'cart' ? 2.2 : 5;
     } else if (G.mode === 'holed' && h) {
       const fx = Math.sin(G.shotHeading ?? r.aim), fz = Math.cos(G.shotHeading ?? r.aim);
@@ -763,6 +981,7 @@ const golf = {
     cam.position.set(s.x, s.y, s.z);
     cam.lookAt(s.lx, s.ly, s.lz);
     cam.updateMatrixWorld();
+    golf.renderMarks(run, cam);
   }
 };
 

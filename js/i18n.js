@@ -344,6 +344,24 @@ const pairs = [
   ['Download PNG', 'PNG herunterladen'], ['Your earlier pictures', 'Deine früheren Bilder'],
   ['Cart to the ball (C)', 'Golfwagen zum Ball (C)'],
   ['W/S or 1-5 club · A/D or drag aim · Space: swing, power, strike · C cart', 'W/S oder 1–5: Schläger · A/D oder Ziehen: zielen · Space: Schwung, Kraft, Schlag · C: Golfwagen'],
+  // the golf mission's HUD (js/missions-golf.js; the generated texts: golfDe below)
+  ['W/S or 1-5 club · A/D or drag aim · C cart', 'W/S oder 1–5: Schläger · A/D oder Ziehen: zielen · C: Golfwagen'],
+  ['Space / Swing: putt (A/D aim)', 'Space / Schwung: putten (A/D zielen)'],
+  ['Stop the power at the red mark: press again (or let go)', 'Kraft bei der roten Marke stoppen: nochmals drücken (oder loslassen)'],
+  ['Strike on the green line: early hooks left, late slices right', 'Auf der grünen Linie schlagen: zu früh gibt einen Hook nach links, zu spät einen Slice nach rechts'],
+  ['Start the swing', 'Schwung beginnen'], ['Stop the power at the red mark', 'Kraft bei der roten Marke stoppen'],
+  ['Strike on the green line (early: hook left · late: slice right)', 'Auf der grünen Linie schlagen (zu früh: Hook links · zu spät: Slice rechts)'],
+  ['Swing', 'Schwung'], ['Pin', 'Fahne'], ['The power the pin needs', 'Die Kraft, die es bis zur Fahne braucht'], ['the pin is out of reach', 'die Fahne ist ausser Reichweite'],
+  ['calm', 'windstill'], ['headwind', 'Gegenwind'], ['tailwind', 'Rückenwind'], ['from the left', 'von links'], ['from the right', 'von rechts'],
+  ['headwind from the left', 'Gegenwind von links'], ['headwind from the right', 'Gegenwind von rechts'], ['tailwind from the left', 'Rückenwind von links'], ['tailwind from the right', 'Rückenwind von rechts'],
+  ['Tee', 'Abschlag'], ['Fairway', 'Fairway'], ['Rough', 'Rough'], ['Bunker', 'Bunker'], ['Water', 'Wasser'], ['Out of bounds', 'Aus'],
+  ['Clean strike: straight', 'Sauber getroffen: gerade'], ['A touch early: nearly straight', 'Etwas zu früh: fast gerade'], ['A touch late: nearly straight', 'Etwas zu spät: fast gerade'],
+  ['Early: pulled left', 'Zu früh: nach links gezogen'], ['Late: pushed right', 'Zu spät: nach rechts geschoben'], ['Wind: hardly any effect', 'Wind: kaum Wirkung'],
+  ['Tip: wait until the needle is on the green line', 'Tipp: Warte, bis die Nadel auf der grünen Linie ist'], ['Tip: press a little sooner, on the green line', 'Tipp: Drück etwas früher, auf der grünen Linie'],
+  ['Out of reach with this club: a longer one, or lay up', 'Mit diesem Schläger ausser Reichweite: einen längeren nehmen oder vorlegen'],
+  ['Splash! In the water', 'Platsch! Im Wasser'], ['In the hole!', 'Im Loch!'], ['Cart to the ball', 'Mit dem Golfwagen zum Ball'],
+  ['In the water: a penalty stroke, drop', 'Im Wasser: ein Strafschlag, Ball droppen'], ['Out of bounds: stroke and distance', 'Aus: Schlag und Distanz'],
+  ['Hole in one!', 'Hole-in-one!'], ['Double bogey', 'Doppel-Bogey'], ['Triple bogey', 'Triple-Bogey'],
   ['W hold: stroke · Space in the green: power stroke · A/D lean · S brake', 'W halten: laufen · Space im grünen Bereich: kräftiger Abstoss · A/D lehnen · S bremsen'],
   ['Power stroke!', 'Kräftiger Abstoss!'], ['Too early: stumble', 'Zu früh: gestolpert'],
   ['W skate · A/D steer · S stop · Space shoot · drag to aim', 'W laufen · A/D lenken · S stoppen · Space schiessen · Ziehen zum Zielen'],
@@ -431,6 +449,33 @@ const pairs = [
   ['Down it goes', 'Runter damit'],
   ['Hot! The lip remembers that', 'Heiss! Die Lippe merkt sich das'],
   ['Lukewarm by now', 'Schon lauwarm'],
+  // flaming shots in the Ex Bar, the Flämmli in the Rot Liechtli (js/missions-data-gastro.js)
+  ['Order a shot', 'Shot bestellen'], ['Flaming shots in the Ex Bar', 'Flaming Shots in der Ex Bar'], ['Go into the Ex Bar', 'In die Ex Bar gehen'],
+  ['The barkeeper called time', 'Der Barkeeper hat Feierabend gerufen'],
+  ['Last orders at the Ex Bar. Take the Rufbus home: nobody is driving tonight.', 'Letzte Runde in der Ex Bar. Nimm den Rufbus nach Hause: Heute Abend fährt niemand.'],
+  ['The red lamp turns gently and the caramel is still on your lips. Take the Rufbus home: nobody is driving tonight.', 'Die rote Lampe dreht sich sanft, und das Caramel klebt noch an den Lippen. Nimm den Rufbus nach Hause: Heute Abend fährt niemand.'],
+  ['Espresso, sugar and Williams are coming …', 'Espresso, Zucker und Williams kommen …'],
+  ['Sugar into the espresso: hold, let go in the green', 'Zucker in den Espresso: halten, im grünen Bereich loslassen'], ['Hold: sugar', 'Halten: Zucker'],
+  ['Drink the espresso, leave the sugar: hold, let go in the green', 'Espresso trinken, den Zucker drin lassen: halten, im grünen Bereich loslassen'], ['Hold: sip', 'Halten: trinken'],
+  ['Williams onto the sugar: hold, let go in the green', 'Williams auf den Zucker: halten, im grünen Bereich loslassen'], ['Hold: pour', 'Halten: einschenken'],
+  ['Light it: bring the lighter over the cup', 'Anzünden: das Feuerzeug über das Tassli bringen'],
+  ['Keep it burning: swirl when the flame sinks, not too wild', 'Am Brennen halten: schwenken, wenn die Flamme sinkt, aber nicht zu wild'], ['Swirl', 'Schwenken'],
+  ['Golden caramel: pour it into the shot glass, still burning!', 'Goldenes Caramel: brennend ins Shotglas leeren!'], ['Pour it over', 'Ins Shotglas leeren'],
+  ['Smother it with your palm: when the glass is warm, not hot', 'Mit der Hand ersticken: wenn das Glas warm ist, nicht heiss'], ['Hand on the glass', 'Hand aufs Glas'],
+  ['Hopp: down it!', 'Hopp: ex!'],
+  ['A proper heap', 'Ein rechter Haufen'], ['Perfect heap of sugar!', 'Perfekter Zuckerberg!'], ['A bit stingy with the sugar', 'Etwas geizig mit dem Zucker'], ['A sugar mountain', 'Ein Zuckergebirge'], ['A sugar mountain: it spills!', 'Ein Zuckergebirge: es läuft über!'],
+  ['Espresso down, sugar stays', 'Espresso weg, Zucker bleibt'], ['Just the sugar left!', 'Nur noch der Zucker drin!'], ['Coffee left in the cup: the flame will struggle', 'Kaffee im Tassli: die Flamme wird kämpfen'], ['Swallowed half the sugar', 'Den halben Zucker mitgetrunken'], ['Swallowed half the sugar: it spills!', 'Den Zucker mitgetrunken: alles weg!'],
+  ['A good splash', 'Ein guter Schluck'], ['Exactly two centilitres!', 'Genau zwei Zentiliter!'], ['Not much Williams: it burns off fast', 'Wenig Williams: der brennt schnell ab'], ['Generous: it will burn wild', 'Grosszügig: das brennt wild'], ['Generous: it will burn wild: it spills!', 'Zu grosszügig: es läuft über!'],
+  ['Missed the cup', 'Tassli verfehlt'], ['Burning again', 'Es brennt wieder'],
+  ['A draught from the door!', 'Es zieht von der Tür!'], ['Too wild: it sloshes over your fingers!', 'Zu wild: es schwappt über die Finger!'],
+  ['Golden caramel: pour it over!', 'Goldenes Caramel: ins Shotglas!'],
+  ['Out: light it again!', 'Aus! Nochmals anzünden!'], ['The Williams has burnt off: light it again!', 'Der Williams ist abgebrannt: nochmals anzünden!'],
+  ['Out: it won\'t burn again', 'Aus: der brennt nicht mehr'], ['The Williams has burnt off: it won\'t burn again', 'Der Williams ist abgebrannt: der brennt nicht mehr'],
+  ['Out: a cold Flämmli', 'Aus: ein kaltes Flämmli'], ['The Williams has burnt off: a cold Flämmli', 'Der Williams ist abgebrannt: ein kaltes Flämmli'],
+  ['It dies in the pour: a cold Flämmli', 'Beim Umleeren erloschen: ein kaltes Flämmli'],
+  ['Lovely caramel, still burning!', 'Wunderbares Caramel, brennt noch!'], ['Into the shot glass, still burning', 'Brennend ins Shotglas'],
+  ['Plop! The glass sticks to your palm', 'Plopp! Das Glas klebt an der Hand'], ['Out, and the glass sticks', 'Aus, und das Glas klebt'], ['Too soon: the glass won\'t stick', 'Zu früh: das Glas saugt sich nicht an'], ['Ouch, hot glass!', 'Autsch, heisses Glas!'],
+  ['Too long: the shot glass cracks!', 'Zu lange: das Shotglas springt!'], ['Hopp! Down it goes', 'Hopp! Ex!'], ['All 3 down!', 'Alle 3 getrunken!'],
   ['Flämmli in the Rot Liechtli', 'Flämmli im Rot Liechtli'],
   ['The red lamp turns gently. Take the Rufbus home: nobody is driving tonight.', 'Die rote Lampe dreht sich sanft. Nimm den Rufbus nach Hause: Heute Abend fährt niemand.'],
   ['The landlord called time', 'Der Wirt hat Feierabend gerufen'],
@@ -765,12 +810,17 @@ const pairs = [
   ['Back to the Heldstab yard', 'Zurück auf den Heldstab-Platz'],
   ['Too slow: Heldstab wants the quad back before closing time.', 'Zu langsam: Heldstab will das Quad vor Feierabend zurück.'],
   ['Back onto the quad', 'Zurück aufs Quad'],
+  ['Finish', 'Ziel'],
   ['In the air!', 'In der Luft!'],
   ['Mud: ease off, the quad slides', 'Schlamm: Gas weg, das Quad rutscht'],
   ['Old snow: hardly any grip', 'Altschnee: kaum Grip'],
   ['Back in the Heldstab yard, mud up to the ears. They hose the quad down without a word and ask if you would like to see the invoice for a new one.', 'Zurück auf dem Heldstab-Platz, Dreck bis über die Ohren. Sie spritzen das Quad wortlos ab und fragen, ob du die Rechnung für ein neues sehen möchtest.'],
   ['Green waste to the biogas plant', 'Bioabfall zur Biogasanlage'],
-  ['Collect the barrels', 'Fässer einsammeln'],
+  ['Collect the barrels at the hotels', 'Fässer bei den Hotels einsammeln'],
+  ['Green waste round', 'Bioabfall-Sammlung'],
+  ['Back to the way: the Dischmastrasse to the Duchli Ranch', 'Zurück auf den Weg: über die Dischmastrasse zur Duchli Ranch'],
+  ['Out along the Dischmastrasse: it is cleared in winter', 'Hinaus über die Dischmastrasse: Sie wird im Winter geräumt'],
+  ["Through the ranch's yard and back along the track to the hopper", 'Durch den Hof der Ranch und auf dem Feldweg zurück zum Annahmebunker'],
   ['Unload at the biogas plant', 'Bei der Biogasanlage abladen'],
   ['Open transporter', 'Offener Transporter'],
   ['Biogas plant', 'Biogasanlage'],
@@ -790,9 +840,9 @@ const pairs = [
   ['Even the cows look the other way', 'Sogar die Kühe schauen weg'],
   ['The barrels are overflowing and the wasps have taken over the village: too slow.', 'Die Fässer quellen über und die Wespen haben das Dorf übernommen: zu langsam.'],
   ['The load has started to ferment on its own: too slow.', 'Die Ladung gärt schon von selbst: zu langsam.'],
-  ['The hopper swallows the load, the digester burps contentedly. Electricity and district heat by Thursday, and the flies stay at the plant.', 'Der Bunker schluckt die Ladung, der Fermenter rülpst zufrieden. Bis Donnerstag gibt das Strom und Fernwärme, und die Fliegen bleiben bei der Anlage.'],
+  ["The hopper swallows the hotels' kitchen waste, the digester burps contentedly. Electricity and district heat by Thursday, and the flies stay at the plant.", 'Der Bunker schluckt die Küchenabfälle der Hotels, der Fermenter rülpst zufrieden. Bis Donnerstag gibt das Strom und Fernwärme, und die Fliegen bleiben bei der Anlage.'],
   ["Batch spoiled: the plastic went into the digester's hopper", 'Fuhre verdorben: Das Plastik ist im Annahmebunker gelandet'],
-  ['A clean load: the plant manager nods', 'Eine saubere Ladung: Der Anlagenleiter nickt'],
+  ["A clean load from the hotels' kitchens: the plant manager nods", 'Eine saubere Ladung aus den Hotelküchen: Der Anlagenleiter nickt'],
   // snowshoes on the Junkerboden, the plaster room of the Spital (js/missions-data-care.js)
   ['Snowshoeing on the Junkerboden', 'Schneeschuhlaufen am Junkerboden'],
   ['Back on the Junkerbodenstrasse: your track up the slope is the only one in the snow.', 'Zurück auf der Junkerbodenstrasse: Deine Spur am Hang ist die einzige im Schnee.'],
@@ -888,14 +938,14 @@ const missionIntros = [
   ['January, the World Economic Forum', 'Januar, das World Economic Forum, und Davos ist eine Festung. Du fährst den Polizei-Führungswagen einer erfundenen Delegation. Hol am Bahnhof Davos Dorf die drei schwarzen Limousinen und den Begleitwagen ab und führe sie über die Promenade und die Talstrasse zum Kongresszentrum. Blaulicht und Sirene (K) halten den Verkehr zurück. Die Kolonne fährt deine Spur nach: Zu schnell, und sie reisst ab; zu langsam, und der Zeitplan rutscht; Anhalten oder ein Unfall kosten Fassung. An den Sicherheitsschleusen unter 30 km/h. Hör auf den Funk: Mit J meldest du eine Umleitung. Punkte für Zeit, Zusammenhalt und Fassung.'],
   ['The Forum is in town, and so is the registered', 'Das Forum ist in der Stadt, der bewilligte Gegenumzug auch. Mit dem Megafon gehst du an seiner Spitze die Promenade hinunter: dreissig Leute, drei Plakate und eine Thermoskanne. Ruf im Takt (Space oder die Taste), die Menge antwortet: Gute Sprechchöre locken Leute vom Strassenrand an; wer den Takt verliert oder davonläuft (W gedrückt ist zu schnell), schickt sie zur heissen Schokolade. Bleib auf der bewilligten Route und rede ruhig mit der Polizei-Verbindungsperson. Der Kundgebungsplatz liegt vor dem Zaun. Punkte für die Menge, den Sprechchor, die Route und die Kundgebung.'],
   ['Heldstab AG on the Bahnhofstrasse', 'Die Heldstab AG an der Bahnhofstrasse in Davos Dorf verkauft Landmaschinen und auch Quads. Heute gehört dir eines für eine Probefahrt: durchs Dorf zum Bedraweg, rund um die Wege und Wiesen oberhalb von Dorf und über die Mühlestrasse zurück. Das Quad ist leicht und nervös. Nimm die Buckel schnell: Ein sauberer Sprung schenkt dir 1,5 s. Schlamm und der letzte Altschnee nehmen dir den Grip, und in der Luft lenkt nichts mehr.'],
-  ['Davos collects green waste now', 'Davos sammelt jetzt Bioabfall in runden Fässern, und der kommt in die Biogasanlage bei der Duchli Ranch. Fahr mit dem offenen Transporter durch Davos Dorf: Halte mit der Ladefläche neben jedem Fass, die Crew hebt es hinauf, solange du stehst, und stellt ein leeres an seinen Platz. Schau in die Fässer: In zweien steckt Plastik. Lass sie mit Leertaste oder E (oder der Taste «Stehen lassen») stehen, bevor sie oben sind, sonst ist die ganze Fuhre verdorben. Dann den Duchliweg hinunter zum Annahmebunker des Fermenters, wo die Fässer gekippt werden. Punkte gibt es für Fässer, eine saubere Ladung und die Zeit.'],
+  ["The hotels' kitchens fill a barrel of green waste a day", 'Die Hotelküchen füllen jeden Tag ein Fass mit Bioabfall, und der kommt in die Biogasanlage bei der Duchli Ranch. Fahr mit dem offenen Transporter die Hotels ab: die Bahnhofstrasse hinunter, der Promenade entlang, die Talstrasse wieder hinauf. Halte mit der Ladefläche neben dem Fass jedes Hotels, die Crew hebt es hinauf, solange du stehst, und stellt ein leeres an seinen Platz. Schau in die Fässer: In zweien steckt Plastik. Lass sie mit Leertaste oder E (oder der Taste «Stehen lassen») stehen, bevor sie oben sind, sonst ist die ganze Fuhre verdorben. Dann hinaus über die Dischmastrasse, die im Winter geräumt wird, und durch den Hof der Ranch zum Annahmebunker des Fermenters, wo die Fässer gekippt werden. Punkte gibt es für Fässer, eine saubere Ladung und die Zeit.'],
   ['Fresh snow on the Junkerboden', 'Neuschnee auf dem Junkerboden, der Terrasse über Frauenkirch, und noch niemand war unterwegs. Schnall die Schneeschuhe an und folge den Fähnli den Hang hinauf, dann hinunter zum Bänkli und weiter zur Junkerbodenstrasse. W zum Gehen, A/D zum Lenken. Tippe im Takt Space (Nadel im Grünen, Touch: Schritt) für einen langen Schritt. Neben der festgetretenen Spur sinkst du ein und wirst langsamer; steile Anstiege fressen deine Kraft. Setz dich aufs Bänkli: Der Atem kommt zurück und die Aussicht ist gratis. Die abgesteckte Wildruhezone am Hang ist das Winterzuhause der Birkhühner: Geh auf der Spur darum herum. Wer sie durchquert, verliert Punkte. Zeit, saubere Spur und ruhige Vögel geben die Punkte.'],
   ['A busy day in the plaster room', 'Viel los im Gipszimmer des Spitals Davos: Die Rega fliegt laufend Skifahrer von den Pisten ein, und du bist der Gipser. Geh zur Tür auf der Hofseite. Dann, für drei Patienten, jeder schneller als der letzte: Röntgenbild lesen und Bein und Gipslänge wählen (Tasten 1 und 2 oder antippen). Winkel einstellen (A/D oder ziehen, Space zum Festhalten). Mit Watte polstern, dann die Binde die richtige Zeit in den Kessel halten (Space oder den Kessel halten). Das Bein hinauf und wieder hinunter gleichmässig wickeln (D halten oder ziehen, im grünen Tempo): Zu schnell gibt Lücken, zu langsam Klumpen. Glätten, bevor der Gips abbindet, dann unterschreiben. Ein gleichmässiger Gips und flotte Arbeit geben die Punkte.'],
   ['Up on the Schatzalp, above the old sanatorium', 'Oben auf der Schatzalp, über dem alten Sanatorium, windet sich eine Rinne aus Chromstahl den Hang hinunter: acht Spitzkehren und ein Tunnel auf gut 450 m. Du fährst wie auf Schienen: W stösst an und startet die Uhr. Du hast nur den Bremshebel: S halten bremst, loslassen fliegt. Mit A/D (oder durch Kippen des Handys) lehnst du dich in die Kurven. Zu schnell aus der Kurve, und der Schlitten klettert schüttelnd die Wand hoch; viel zu schnell, und er bleibt mit einem Rumms stehen, das kostet Zeit. Vor dir fährt eine Familie im Sonntagstempo. Überholen geht nicht, also fahr nicht auf.'],
   ['The Natureisbahn Davos, Europe', 'Zwei Runden à 400 m auf der Natureisbahn, gegen den Uhrzeigersinn. W gedrückt halten zum Laufen, Space im Rhythmus für einen kräftigen Abstoss drücken. Mit A/D in die Kurven lehnen, mit S bremsen. Wer die Innenkegel schneidet, wird disqualifiziert.'],
   ["The HCD's home ice", 'Fünf Penaltys gegen den Torhüter im Eisstadion. Mit W auf das Tor zufahren, mit A/D lenken und mit S bremsen. Die rote Markierung zeigt die Schussrichtung; mit Space schiessen. Komm nahe heran, aber halte mindestens zwei Meter Abstand zum Torhüter.'],
   ['A sheet on the hard court', 'Acht Curlingsteine ins Haus spielen. Mit A/D zielen, mit W/S den Drall wählen und mit gedrückter Leertaste die Wurfkraft bestimmen. Während der Stein gleitet, mit Space wischen: Er läuft weiter und gerader. Je näher am Zentrum, desto mehr Punkte.'],
-  ['Three holes on the course', 'Drei Löcher im Golf Club Davos spielen. Schläger mit W/S oder 1–5 wählen, mit A/D zielen. Space dreimal drücken: Schwung starten, Kraft festlegen, Ball auf der Linie treffen. Auf Touch: Swing halten, loslassen und auf der Linie tippen. Wind und Grüngefälle beachten. Nach jedem Schlag zum Ball gehen oder mit C den Golfwagen rufen.'],
+  ['Three holes on the course', 'Drei Löcher im Golf Club Davos zwischen Davos Dorf und dem Landwasser: das 14. (Par 3 über einen Bunker), das 15. (Par 4, ein Dogleg links entlang dem Aus) und das 18. (Par 4, der Teich vor dem letzten Grün): Par 11. Die rote Fahne mit ihrem Lichtstrahl und dem roten Schild zeigt das Loch. Schläger mit W/S oder 1–5 wählen (jeder zeigt, wie weit er bei voller Kraft fliegt), mit A/D oder durch Ziehen zielen. Der Schwung braucht dreimal Space (auf Touch: die Schwung-Taste): Schwung beginnen; die steigende Nadel für die Kraft stoppen (die rote Marke zeigt, was es bis zur Fahne braucht; Loslassen stoppt sie auch); schlagen, wenn die fallende Nadel durch die grüne Linie geht (zu früh: Hook nach links, zu spät: Slice nach rechts). Der gelbe Bogen und der Ring zeigen, wo der Ball landet, Wind und Lage schon eingerechnet: So zielen, dass der Ring auf der Fahne liegt. Gegenwind trägt kürzer, Rückenwind weiter, Seitenwind versetzt den Ball; Rough und Bunker kosten Weite. Nach jedem Schlag sagt der Bericht, was Kraft, Treffer und Wind bewirkt haben. Zum Ball gehen oder mit C den Golfwagen nehmen. Auf dem Grün zeigen die Pfeile das Gefälle.'],
   ['The Davoser Craft Beer on', 'Bier für fünf Davoser Bars ausliefern. Mit F aus dem VW T3 steigen, zwei Stapel Kisten in den Wagen tragen und zu Rot Liechtli, Ex Bar, La Onda, Dorfkeller und BOX fahren. Jeweils nahe parken, aussteigen und eine Kiste zur Tür tragen.'],
   ['Early shift at the Bäckerei', 'Frühschicht in der Bäckerei Weber: fünf Gipfeli gleichmässig rollen, indem du über den Teig nach unten ziehst oder S / ↓ im Takt drückst. Dann per Velo die Gipfeli vor sieben Uhr zu Seehof, Montana und Turmhotel Victoria bringen und bei jedem Hotel anhalten.'],
   ['Rush hour at Gourmet Käch', '90 Sekunden lang Raclette servieren. Käse im richtigen Moment mit einer Wischbewegung oder Space abschaben: goldgelb für normale Bestellungen, leicht braun für „extra knusprig“. Zu früh ist er roh, zu spät verbrannt.'],
@@ -937,7 +987,8 @@ const missionIntros = [
   ['Morning rush at the Kafi Klatsch', 'Morgenansturm im Kafi Klatsch an der Promenade (auf dem Schild steht Kaffeeklatsch). Geh hinein und stell dich hinter die Theke: Café crème, Schale, Espresso, Latte Macchiato, Cappuccino, Gast um Gast. Für jede Station eine Taste, und nur die aktuelle zählt (Knöpfe, Tasten 1–6 oder einfach die Leertaste): mahlen, tampen, Kaffee beziehen, Milch auf die richtige Temperatur schäumen, giessen, servieren, jedes Mal im grünen Bereich anhalten. Serviere, bevor der Gast aufgibt. Und hör zu: Die Stammgäste sagen dir ihre Bestellung einmal. Beim nächsten Mal heisst es nur noch «wie immer», und wer es sich gemerkt hat, verdient mehr.'],
   ['The stump goes back in the corner', 'Der Baumstamm kommt zurück in die Ecke, der Hammer hinter die Bar. Dein Nagel bleibt im Holz.'],
   ['The rush is over', 'Der Ansturm ist vorbei, das Milchkännchen im Spülbecken. Bis Mittag weiss ganz Davos, wie es lief.'],
-  ['Evening in the Rot Liechtli', 'Abend im Rot Liechtli, dem kleinen Pub in Davos Platz. Ein Flämmli ist ein Schweizer Shot: ein Glas Schnaps, angezündet, ausgeblasen und getrunken. Geh hinein und setz dich an die Bar. Dann folgen sechs Runden mit einer einzigen Taste (Space, Enter oder Tippen): bestellen, anzünden, wenn das Feuerzeug über dem Glas ist, ausblasen, solange die Flamme im grünen Bereich ist, und kippen, wenn der Rand abgekühlt ist. Jeder Drink macht die Fenster enger und bringt den Raum zum Schwanken. Nach drei Pannen ruft der Wirt Feierabend. Du gehst heute Abend übrigens zu Fuss nach Hause.'],
+  ['Evening in the Rot Liechtli', 'Abend im Rot Liechtli, dem kleinen Pub in Davos Platz, und Zeit für ein richtiges Flämmli. Geh hinein und setz dich an die Bar. Dann folgen drei Runden, alles mit einer Taste (Space, Enter oder Tippen; halten, wo «halten» steht): einen Haufen Zucker in den Espresso, den Espresso trinken, aber den Zucker im Tassli lassen, einen Williams auf den Zucker leeren und anzünden. Jetzt das Tassli schwenken, damit es weiterbrennt, während der Zucker caramelisiert: Die Flamme sinkt von selbst, und jeder Luftzug von der Tür drückt sie herunter; schwenkst du zu wild, schwappt es über die Finger. Ist das Caramel golden, leerst du es brennend ins Shotglas, erstickst die Flamme mit der Hand, bevor das Glas heiss wird, und kippst es. Jedes Flämmli macht die Fenster enger und bringt den Raum zum Schwanken. Nach drei Pannen ruft der Wirt Feierabend.'],
+  ['Late night in the Ex Bar', 'Spätnacht in der Ex Bar in Davos Platz, und die Bar hält, was ihr Name verspricht: ex. Ein Flaming Shot wird angezündet, ausgeblasen und in einem Zug getrunken. Geh hinein und setz dich an die Bar. Dann folgen sechs Runden mit einer einzigen Taste (Space, Enter oder Tippen): bestellen, anzünden, wenn das Feuerzeug über dem Glas ist, ausblasen, solange die Flamme im grünen Bereich ist, und kippen, wenn der Rand abgekühlt ist. Jeder Shot macht die Fenster enger und bringt den Raum zum Schwanken. Nach drei Pannen ruft der Barkeeper Feierabend. Du gehst heute Abend übrigens zu Fuss nach Hause.'],
   ['Friday night at Pizza Heaven', 'Freitagabend im Pizza Heaven, dem Pizzakurier an der Promenade, und der Kurier hat sich krankgemeldet. Steig aus dem Lieferwagen (F) und geh in den Laden: Belege vier Pizzas mit den Zutaten auf dem Bon, in der angegebenen Reihenfolge (Tasten 1–8 oder Antippen), schnell und ohne falsche Zutat. Dann bring sie zu vier Adressen vom Eisstadion bis Davos Dorf: parken, die Schachtel hinten aus dem Lieferwagen nehmen und zur Tür tragen. Der Wärmebalken sinkt ab dem Moment, in dem die Pizzas den Laden verlassen, und heisse Pizzas zahlen sich aus.'],
   ['A sunny day on the Parsenn', 'Ein sonniger Tag auf dem Parsenn, und im Radio der Liftbude läuft ein Ländler. Du bist der Liftwart am Hauptertäli-Bügellift: Die Skifahrer kommen paarweise die Spur herauf, und du reichst ihnen den Bügel genau dann, wenn er ankommt. Drücke Space (oder tippe), wenn der Bügel die grüne Markierung erreicht. Zu früh oder zu spät wirft er einen Skifahrer um (sie lachen es weg); tust du nichts, schwingt er leer nach oben. Der Andrang wächst: Der Chef dreht den Lift hoch. Zwei Minuten: Wie viele Skifahrer bringst du hinauf?'],
   ['Saturday morning at Sport Hofmänner', 'Samstagmorgen bei Sport Hofmänner an der Mattastrasse: Die Langläufer wollen ihre Langlaufski gewachst haben. Lies die Schneetemperatur auf der Tafel ab und wähle das Wachs nach seiner Farbe (Tasten 1–5 oder Antippen). Bügle es in einem gleichmässigen Zug pro Ski auf, von der Spitze bis zum Ende: Zieh das Bügeleisen oder halte → / D und halte das Tempo im grünen Band. Zu langsam oder ein heisses Bügeleisen, das stillsteht, verbrennt den Belag. Dann abziehen und bürsten, von der Spitze bis zum Ende (ziehen oder → halten). Zweieinhalb Minuten: Es zählt die Qualität, aber auch die Anzahl Paare.'],
@@ -949,7 +1000,7 @@ const placeDe = new Map([
   ['the Tijuana Bar', ['zur Tijuana Bar', 'in die Tijuana Bar']], ['the Kafi Klatsch', ['zum Kafi Klatsch', 'ins Kafi Klatsch']],
   ['the Bahnhof Davos Dorf', ['zum Bahnhof Davos Dorf', '']], ['the Promenade gate', ['zur Schleuse Promenade', '']], ['the Scalettastrasse gate', ['zur Schleuse Scalettastrasse', '']], ['the Kurgartenstrasse gate', ['zur Schleuse Kurgartenstrasse', '']], ['the Talstrasse gate', ['zur Schleuse Talstrasse', '']], ['the Scalettastrasse', ['zur Scalettastrasse', '']], ['the Kongresszentrum', ['zum Kongresszentrum', '']], ['the rally point', ['zum Kundgebungsplatz', '']], ['the police liaison', ['zur Polizei-Verbindungsperson', '']],
   ['the flag', ['zum Fähnli', '']], ['the bench', ['zum Bänkli', '']], ['the Spital Davos', ['zum Spital Davos', '']],
-  ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
+  ['the Rot Liechtli', ['zum Rot Liechtli', 'ins Rot Liechtli']], ['the Ex Bar', ['zur Ex Bar', 'in die Ex Bar']], ['Pizza Heaven', ['zu Pizza Heaven', 'ins Pizza Heaven']],
   ['the Bolgenschanze', ['zur Bolgenschanze', 'in die Bolgenschanze']], ['the BOX', ['zur BOX', 'in die BOX']],
   ['the loading point', ['zur Einstiegsstelle', '']], ['your place', ['zu deinem Platz', '']],
   ['Meerkämper Optik', ['zu Meerkämper Optik', '']], ['the SLF', ['zum SLF', '']], ['the measuring field', ['zum Versuchsfeld', '']],
@@ -959,6 +1010,37 @@ const placeDe = new Map([
   ['Museumstrasse 2, Davos Dorf', ['zur Museumstrasse 2, Davos Dorf', '']]
 ]);
 const POP = '((?:  [+\\-−]?\\d+)?)'; // a feedback popup's points, after two spaces
+
+/** The golf mission's generated texts (js/missions-golf.js, js/missions-data-golf.js): the card, the plan, the report */
+const GOLF_CLUB_DE = { Driver: 'Driver', '3 Wood': 'Holz 3', '7 Iron': 'Eisen 7', Wedge: 'Wedge', Putter: 'Putter' };
+const GOLF_LIE_DE = { Tee: 'Abschlag', Fairway: 'Fairway', Green: 'Grün', Rough: 'Rough', Bunker: 'Bunker', Water: 'Wasser', 'Out of bounds': 'Aus' };
+const GOLF_STRIKE_DE = { 'Perfect strike': 'Perfekt getroffen', 'Slight draw': 'Leichter Draw', 'Slight fade': 'Leichter Fade', Hook: 'Hook', Slice: 'Slice' };
+const GOLF_SCORE_DE = { 'Hole in one!': 'Hole-in-one!', 'Double bogey': 'Doppel-Bogey', 'Triple bogey': 'Triple-Bogey' };
+const golfPartDe = (p) => p.replace(/^(\d+) m (further|shorter|long|short|right|left)$/, (_, n, w) => `${n} m ${{ further: 'weiter', shorter: 'kürzer', long: 'zu lang', short: 'zu kurz', right: 'rechts', left: 'links' }[w]}`);
+const GOLF_CLUBS = '(Driver|3 Wood|7 Iron|Wedge|Putter)', GOLF_LIES = '(Tee|Fairway|Green|Rough|Bunker|Water|Out of bounds)';
+function golfDe(t) {
+  if (!/(?:Hole|Stroke|Pin|full (?:swing|stroke)|the pin needs|wind|Carry|Putt|Early|Late|Wind|Tip|Tapped|Picked|on a par| m · | m to the pin|%| −\d+ %)/.test(t)) return t;
+  return t
+    .replace(/^Hole (\d+) · Par (\d) · (\d+) m · Stroke (\d+) · Total (.+)$/, 'Loch $1 · Par $2 · $3 m · Schlag $4 · Total $5')
+    .replace(/^Hole (\d+) · Par (\d)( · \d+ m)?$/, 'Loch $1 · Par $2$3')
+    .replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, (_, n, d, lie) => `Schlag ${n} · ${d} m zur Fahne · ${GOLF_LIE_DE[lie] || lie}`)
+    .replace(/^Pin (\d+) m$/, 'Fahne $1 m')
+    .replace(new RegExp(`^${GOLF_CLUBS}: full (swing|stroke) (\\d+) m$`), (_, c, k, d) => `${GOLF_CLUB_DE[c]}: ${k === 'swing' ? 'voller Schwung' : 'voller Putt'} ${d} m`)
+    .replace(new RegExp(`^${GOLF_CLUBS} \\((\\d)\\)$`), (_, c, n) => `${GOLF_CLUB_DE[c]} (${n})`)
+    .replace(/^the pin needs (\d+) %$/, 'zur Fahne braucht es $1 %')
+    .replace(/^wind ([+−]\d+ m)$/, 'Wind $1')
+    .replace(new RegExp(`^${GOLF_LIES} −(\\d+) %$`), (_, l, n) => `${GOLF_LIE_DE[l]} −${n} %`)
+    .replace(/^Carry (\d+) m, rolled (\d+) m$/, 'Flug $1 m, gerollt $2 m').replace(/^Carry (\d+) m$/, 'Flug $1 m')
+    .replace(/^Early: hook, (\d+) m left$/, 'Zu früh: Hook, $1 m nach links').replace(/^Late: slice, (\d+) m right$/, 'Zu spät: Slice, $1 m nach rechts')
+    .replace(/^(Wind|Pin): (.+)$/, (whole, k, parts) => (/^\d+ m \w+(, \d+ m \w+)?$/.test(parts) ? `${k === 'Pin' ? 'Fahne' : 'Wind'}: ${parts.split(', ').map(golfPartDe).join(', ')}` : whole))
+    .replace(/^Tip: (\d+) % power, the pin needed (\d+) % \(the red mark\)$/, 'Tipp: $1 % Kraft, zur Fahne hätte es $2 % gebraucht (die rote Marke)')
+    .replace(new RegExp(`^${GOLF_CLUBS} (\\d+)% · (Perfect strike|Slight draw|Slight fade|Hook|Slice)$`), (_, c, p, a) => `${GOLF_CLUB_DE[c]} ${p} % · ${GOLF_STRIKE_DE[a]}`)
+    .replace(/^(\d+)% · (Perfect strike|Slight draw|Slight fade|Hook|Slice)$/, (_, p, a) => `${p} % · ${GOLF_STRIKE_DE[a]}`)
+    .replace(new RegExp(`^(\\d+) m · ${GOLF_LIES}$`), (_, d, l) => `${d} m · ${GOLF_LIE_DE[l]}`)
+    .replace(new RegExp(`^${GOLF_LIES} · (\\d+) m to the pin$`), (_, l, d) => `${GOLF_LIE_DE[l]} · ${d} m zur Fahne`)
+    .replace(/^(Tapped in|Picked up): (.+)$/, (_, k, n) => `${k === 'Tapped in' ? 'Eingelocht' : 'Aufgehoben'}: ${GOLF_SCORE_DE[n] || n}`)
+    .replace(/^(.+): (\d+) on a par (\d)( · bonus \+(\d+))?$/, (_, n, s, p, b, bonus) => `${GOLF_SCORE_DE[n] || n}: ${s} auf Par ${p}${b ? ` · Bonus +${bonus}` : ''}`);
+}
 const sourceText = new WeakMap();
 const sourceAttributes = new WeakMap();
 const translatedText = new WeakMap();
@@ -978,7 +1060,7 @@ function translate(value) {
   if (translated) return match[1] + translated + match[3];
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
-  let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
@@ -1024,6 +1106,8 @@ function translate(value) {
   dynamic = dynamic.replace(new RegExp(`^(.+): flawless!${POP}$`), '$1: makellos!$2');
   dynamic = dynamic.replace(/^(\d+) of (\d+) Flämmli down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Flämmli getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
   dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
+  dynamic = dynamic.replace(/^(\d+) of (\d+) shots down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Shots getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
+  dynamic = dynamic.replace(/^(\d+) rounds of flaming shots$/, '$1 Runden Flaming Shots');
   // Nageln, Barista (js/missions-data-bars.js)
   dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
   dynamic = dynamic.replace(/^Game (\d+) of (\d+) · round (\d+) · (\d+) won · (\d+) pts$/, 'Partie $1 von $2 · Runde $3 · $4 gewonnen · $5 Pkt.');
@@ -1234,6 +1318,8 @@ function translate(value) {
   dynamic = dynamic.replace(/^first completion \+(\d+)$/, 'erster Abschluss +$1');
   dynamic = dynamic.replace(/^you hold (Gold|Silver|Bronze): no new points$/, (_, medal) => `${enToDe.get(medal) || medal} bleibt dein Bestwert: keine neuen Punkte`);
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) medal$/, (_, medal) => `${enToDe.get(medal) || medal}medaille`);
+  // a feedback popup: a known line and its points after two spaces
+  dynamic = dynamic.replace(new RegExp(`^(.+?)${POP}$`), (whole, head, tail) => (tail && enToDe.has(head) ? enToDe.get(head) + tail : whole));
   return match[1] + dynamic + match[3];
 }
 

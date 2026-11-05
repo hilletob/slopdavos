@@ -633,6 +633,9 @@ const snowBlower = {
       // the parked cars: hit, the blower is stopped and set back
       for (const c of BLOWER_CARS) {
         if (!blowerHitsCar(p, a, c)) continue;
+        // backing off from it is free (otherwise a blower touching a car could not reverse out again)
+        const pp = projectRoute(w.route, w.prev.x, w.prev.z, w.projPrev ||= {});
+        if (Math.hypot(p.s - c.s, p.d - c.d) > Math.hypot(pp.s - c.s, pp.d - c.d) + 1e-4) continue;
         car.position.x = w.prev.x; car.position.z = w.prev.z;
         car.speed = Math.min(0, car.speed) * 0.3; car.vx = car.vz = 0;
         const now = performance.now();
@@ -665,7 +668,7 @@ const snowBlower = {
       const rpm = Math.abs(car.speed) > 0.2 ? 9 : 2.5;
       v.auger.rotation.x -= dt * rpm;
       if (v.impeller) v.impeller.rotation.z -= dt * rpm * 3;
-      const target = (st.chute || -1) > 0 ? Math.PI : 0;
+      const target = (st.chute || -1) > 0 ? 0 : Math.PI; // (the tube bends out to the model's +x: its left)
       v.chute.rotation.y += (target - v.chute.rotation.y) * Math.min(1, dt * 5);
     }
   },
@@ -1625,7 +1628,7 @@ const snowLoad = {
     // the blower's auger and chute, while it is the one driven
     if (!st.inTruck && v?.auger) {
       v.auger.rotation.x += dt * (Math.abs(car.speed) > 0.2 ? 9 : 2.5);
-      const target = st.chute > 0 ? Math.PI : 0;
+      const target = st.chute > 0 ? 0 : Math.PI; // (as the snow blower's: the tube to the side the snow lands on)
       v.chute.rotation.y += (target - v.chute.rotation.y) * Math.min(1, dt * 5);
     }
     snowLoad.poseTruck(run, dt, cm);

@@ -3,9 +3,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { t } from './i18n.js';
 import { painted, createHelper } from './missions-props.js';
 import { VEHICLES, createToast, holdButton, particles, lump } from './missions-work.js';
+import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import {
-  QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_GATES, bumpAt, stepQuad,
-  BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, bioLoad, rejectBarrel, stopAtBed, stepBioStops
+  QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_GATES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
+  BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_ROUTE, bioLoad, rejectBarrel, stopAtBed, stepBioStops
 } from './missions-data-rural.js';
 
 // js/missions-rural.js
@@ -15,7 +16,7 @@ import {
 //   quadCourse  the quad: merged boxes and fat wheels (two draw calls and its rider), its body hopping and rocking in the
 //               vehicle's pose() hook; the bumps, the mud and snow patches and the gates' flags as one merged mesh draped
 //               on the terrain; the handling swapped through car.drive on the surfaces and in the air.
-//   bioRound    the open transporter, the round barrels (full, empty, the plastic in the two bad ones: three instanced
+//   bioRound    the open transporter (a lofted dropside lorry, buildBioTruck), the round barrels (full, empty, the plastic in the two bad ones: three instanced
 //               meshes) standing at the stops, going up from the side, stacked on the bed and tipped at the plant; the
 //               reject key, the load gauge in the mission panel, the flies and the stink cloud (the run's particle
 //               batch), the biogas plant with its hopper. The stops' logic is the refuse round's (stepGarbage).
@@ -112,22 +113,127 @@ function buildCourse(run) {
     }
     parts.push(gridGeometry(pos, col, idx));
   });
-  // the gates: a pole with a pennant either side of the way
-  const gates = [...QUAD_GATES.town, ...QUAD_GATES.course, ...QUAD_GATES.back];
-  gates.forEach(([x, z], i) => {
-    const [nx, nz] = gates[i + 1] || [QUAD.finish.x, QUAD.finish.z];
-    const L = Math.hypot(nx - x, nz - z) || 1, ax = (nz - z) / L, az = -(nx - x) / L, yaw = Math.atan2(ax, az);
+  // the gates: either side of the way a tall pole striped red and white, a traffic cone at its foot, a pennant on top
+  // (the number boards: buildGateBoards)
+  for (const g of QUAD_GATE_LIST) {
+    if (g.finish) continue;
+    const ax = Math.cos(g.heading), az = -Math.sin(g.heading);
     for (const side of [-1, 1]) {
-      const px = x + ax * side * 5.5, pz = z + az * side * 5.5, y = carGround(run, px, pz);
-      parts.push(cylAt(0.05, 0.05, 2.6, 6, 0xf2f2f0, px, y + 1.3, pz));
-      parts.push(boxAt(0.03, 0.42, 0.75, side > 0 ? 0xe2471a : 0xf0c419, px, y + 2.35, pz, 0, yaw));
+      const px = g.x + ax * side * QUAD.gateHalf, pz = g.z + az * side * QUAD.gateHalf, y = carGround(run, px, pz);
+      for (let k = 0; k < 8; k++) parts.push(cylAt(0.07, 0.07, 0.5, 8, k % 2 ? 0xf4f4f0 : 0xe0301e, px, y + 0.25 + k * 0.5, pz));
+      parts.push(cylAt(0.04, 0.3, 0.75, 12, 0xff6a13, px, y + 0.38, pz), boxAt(0.62, 0.05, 0.62, 0x1b1c1e, px, y + 0.025, pz, 0, g.heading));
+      for (const h of [0.22, 0.5]) parts.push(cylAt(0.04 + 0.26 * (1 - h / 0.75) + 0.012, 0.04 + 0.26 * (1 - (h + 0.08) / 0.75) + 0.012, 0.08, 12, 0xf4f4f0, px, y + h + 0.04, pz));
+      parts.push(boxAt(0.03, 0.55, 0.95, side > 0 ? 0xe2471a : 0xf0c419, px + ax * side * 0.5, y + 3.7, pz + az * side * 0.5, 0, g.heading + Math.PI / 2));
     }
-  });
+  }
   const mesh = new THREE.Mesh(mergeGeometries(parts), vertexMat({ roughness: 0.88, side: THREE.DoubleSide }));
   mesh.name = 'QuadCourse';
   mesh.receiveShadow = true;
   mesh.frustumCulled = false;
   run.group.add(mesh);
+}
+
+/** The gates' numbers: a board on each pole, both faces, facing the way in (one canvas of the numbers, one draw call) */
+function numberAtlas(n) {
+  const cols = 8, rows = Math.ceil(n / cols), c = document.createElement('canvas');
+  c.width = cols * 128; c.height = rows * 128;
+  const x = c.getContext('2d');
+  for (let i = 0; i < n; i++) {
+    const cx = (i % cols) * 128, cy = Math.floor(i / cols) * 128;
+    x.fillStyle = '#ffffff'; x.fillRect(cx + 4, cy + 4, 120, 120);
+    x.lineWidth = 10; x.strokeStyle = '#e0301e'; x.strokeRect(cx + 9, cy + 9, 110, 110);
+    x.fillStyle = '#16181b'; x.font = '900 76px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(String(i + 1), cx + 64, cy + 68);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return { tex, cols, rows };
+}
+
+function buildGateBoards(run) {
+  const gates = QUAD_GATE_LIST.filter((g) => !g.finish), { tex, cols, rows } = numberAtlas(gates.length), parts = [];
+  for (const g of gates) {
+    const i = g.n - 1, u0 = (i % cols) / cols, v1 = 1 - Math.floor(i / cols) / rows, u1 = u0 + 1 / cols, v0 = v1 - 1 / rows;
+    const ax = Math.cos(g.heading), az = -Math.sin(g.heading);
+    for (const side of [-1, 1]) {
+      const px = g.x + ax * side * QUAD.gateHalf, pz = g.z + az * side * QUAD.gateHalf, y = carGround(run, px, pz);
+      // (two planes back to back, so the number reads the right way round from both sides)
+      for (const back of [0, 1]) {
+        const q = new THREE.PlaneGeometry(0.95, 0.95);
+        const uv = q.attributes.uv;
+        for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) ? u1 : u0, uv.getY(k) ? v1 : v0);
+        q.rotateY(g.heading + Math.PI + (back ? Math.PI : 0)).translate(px - Math.sin(g.heading) * (back ? -0.09 : 0.09), y + 2.75, pz - Math.cos(g.heading) * (back ? -0.09 : 0.09));
+        parts.push(q);
+      }
+    }
+  }
+  const mesh = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.5, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.25 }));
+  mesh.name = 'QuadGateNumbers';
+  mesh.frustumCulled = false;
+  run.group.add(mesh);
+}
+
+/** Chevrons on the ground all along the course, pointing on to the next gate: yellow and a little lit, on the mounds too */
+function buildChevrons(run) {
+  const pts = QUAD_ROUTE, pos = [], b = {};
+  const put = (x, z, lift) => { bumpAt(x, z, b); pos.push(x, carGround(run, x, z) + b.h + lift, z); };
+  let s = 0, next = 4;
+  for (let i = 2; i < pts.length; i += 2) {
+    const dx = pts[i] - pts[i - 2], dz = pts[i + 1] - pts[i - 1], L = Math.hypot(dx, dz);
+    if (!L) continue;
+    const fx = dx / L, fz = dz / L, lx = fz, lz = -fx;
+    while (next <= s + L) {
+      const u = next - s, cx = pts[i - 2] + fx * u, cz = pts[i - 1] + fz * u;
+      next += QUAD.chevronStep;
+      if (QUAD_GATE_LIST.some((g) => Math.hypot(g.x - cx, g.z - cz) < 5)) continue;
+      // a V of two arms, the tip forward: each arm a quad 0.28 m wide
+      for (const side of [-1, 1]) {
+        const tip = [cx + fx * 0.6, cz + fz * 0.6], end = [cx - fx * 0.45 + lx * side * 1.1, cz - fz * 0.45 + lz * side * 1.1];
+        const w = 0.2, ox = fx * w, oz = fz * w;
+        const quad = [[tip[0] + ox, tip[1] + oz], [tip[0] - ox, tip[1] - oz], [end[0] - ox, end[1] - oz], [end[0] + ox, end[1] + oz]];
+        for (const k of [0, 1, 2, 0, 2, 3]) put(quad[k][0], quad[k][1], 0.14);
+      }
+    }
+    s += L;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  const mat = new THREE.MeshStandardNodeMaterial({ color: 0xffa81a, emissive: 0xff7400, emissiveIntensity: 0.4, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.name = 'QuadChevrons';
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1;
+  run.group.add(mesh);
+}
+
+/** Two columns of light: the next gate's bright, the one after it faint (where the way goes on) */
+function buildBeams(run) {
+  const geo = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true).translate(0, 0.5, 0);
+  const beam = (hex, opacity) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicNodeMaterial({ color: hex, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    m.frustumCulled = false;
+    m.renderOrder = 2;
+    run.group.add(m);
+    return m;
+  };
+  const ys = QUAD_GATE_LIST.map((g) => carGround(run, g.x, g.z));
+  return { next: beam(0x3fd6ff, 0.32), after: beam(0xffb347, 0.16), ys, at: -1 };
+}
+
+function placeBeams(run) {
+  const q = run.quad, B = q.beams, st = run.state;
+  const k = st && (run.phase === 'ready' || run.phase === 'running' || run.phase === 'intro') ? quadNextGate(st, run.index) : -1;
+  if (k === B.at) return;
+  B.at = k;
+  for (const [m, i, r, h] of [[B.next, k, 1.1, 34], [B.after, k + 1, 0.7, 22]]) {
+    const g = i >= 0 ? QUAD_GATE_LIST[i] : null;
+    m.visible = !!g;
+    if (!g) continue;
+    m.position.set(g.x, B.ys[i] - 0.5, g.z);
+    m.scale.set(r, h, r);
+  }
 }
 
 /** Positions, colours, indices as a geometry that merges with painted() ones */
@@ -145,7 +251,14 @@ function gridGeometry(pos, col, idx) {
 const quadCourse = {
   setup(run) {
     buildCourse(run);
-    const v = run.vehicle, q = run.quad = { s: 0, spray: 0, toast: createToast(run), b: {}, tilt: 0 };
+    buildGateBoards(run);
+    buildChevrons(run);
+    const v = run.vehicle, q = run.quad = { s: 0, spray: 0, toast: createToast(run), b: {}, tilt: 0, beams: buildBeams(run) };
+    // (on the radar and the full map: the course, the gates by number, the next one ringed)
+    addRouteOverlay(run, QUAD_ROUTE, () => {
+      const k = run.state ? quadNextGate(run.state, run.index) : 0;
+      return QUAD_GATE_LIST.map((g, i) => ({ x: g.x, z: g.z, label: g.finish ? t('Finish') : String(g.n), done: i < k, next: i === k, square: g.finish }));
+    }, '#ffc23a');
     // (the body over the car's physics: js/missions-work.js workVehicle.follow calls this before posing the rider)
     v.pose = (g, car, dt) => {
       const st = run.state;
@@ -173,7 +286,7 @@ const quadCourse = {
   },
   reset(run) {
     const q = run.quad;
-    q.s = 0; q.tilt = 0; q.toast.hide();
+    q.s = 0; q.tilt = 0; q.toast.hide(); q.beams.at = -2;
     run.hooks.controllerManager.entities.car.drive = run.vehicle.drive;
   },
   update(run, ctx, dt, cm) {
@@ -192,6 +305,7 @@ const quadCourse = {
       }
       if (st.surface && Math.abs(car.speed) > 2) quadCourse.spray(run, car, st.surface, dt);
     }
+    placeBeams(run);
     q.toast.update(dt);
     run.workParticles?.update(dt, ctx.camera);
   },
@@ -214,43 +328,179 @@ const clampTilt = (v) => (v < -0.4 ? -0.4 : v > 0.4 ? 0.4 : v);
 
 // =====================================================================================================================
 // 2. The green-waste round
-/** The open transporter: the cab, the chassis, the load bed with its low boards */
+// The open transporter: a 6.5-tonne dropside lorry of the kind the Davos Werkhof drives (Iveco Daily / Fuso Canter
+// class). The cab and the platform are one lofted body of js/actor-models.js (the traffic's: its glass, seals, lamps,
+// grille, Swiss plates, door seams and brake, reverse and turn lights painted by the one shader of the fleet, from the
+// player car's own light state), on a spec of its own below: the short cab-over cab in front, the platform low behind
+// it. On it, one merged mesh of fittings: the floor, the aluminium dropsides with their stakes and hinges, the headboard with the
+// ladder guard before the rear window, the frame rails, the fuel tank, the side guards, the mudflaps, the truck mirrors;
+// the door decals (Davos, green waste), the amber beacon on the roof; twin tyres at the back.
+const TRUCK_DZ = 0.2; // the spec's axles are symmetric about its origin: the body sits this far forward on the truck's centre
+const TRUCK_SPEC = {
+  ...BODY_SPECS.truck,
+  name: 'bio-flatbed',
+  zFront: 2.55,
+  zRear: -2.95,
+  wheelRadius: 0.4,
+  wheelZ: 1.55,
+  wheelX: 0.84,
+  archGap: 0.08,
+  archFlare: 0.015,
+  tuck: 0.05,
+  lowerRound: 2.6,
+  upperRound: 6,
+  halfWidth: [[2.55, 0.98], [2.0, 1.0], [0.96, 1.0], [0.9, 1.0], [-2.95, 1.0]],
+  sill: [[2.55, 0.5], [0.98, 0.5], [0.92, 0.62], [-2.95, 0.62]], // the cab's floor, the platform's frame behind it
+  shoulder: [[2.55, 1.02], [0.98, 1.05], [0.92, 0.8], [-2.95, 0.8]],
+  edge: [[2.5, 1.5], [2.1, 1.56], [0.98, 1.57], [0.92, BIO_BED.y - 0.004], [-2.95, BIO_BED.y - 0.004]], // the belt, the bed
+  crown: [[2.5, 0.025], [0.98, 0.012], [0.92, 0.003], [-2.95, 0.003]],
+  tumble: [[2.55, 0.06], [0.98, 0.05], [0.92, 0.0], [-2.95, 0.0]],
+  nose: { halfWidth: [0.2, 0.86, 2.4], edge: [0.12, 1.42, 2.6], crown: [0.12, 0.01, 2], sill: [0.1, 0.52, 2], shoulder: [0.15, 0.95, 2.2] },
+  tail: { halfWidth: [0.05, 0.97, 2.6], edge: [0.03, BIO_BED.y - 0.03, 4], crown: [0.03, 0, 2], sill: [0.05, 0.64, 2], shoulder: [0.05, 0.8, 2.4] },
+  cabin: {
+    ...BODY_SPECS.truck.cabin,
+    cowl: 2.42, roofFront: 2.12, roofRear: 1.1, deck: 0.99,
+    roofY: [[2.12, 2.42], [1.1, 2.41]],
+    rail: [0.93, 0.93],
+    inset: 0.025,
+    bulge: 0.004,
+    roofRound: 5,
+    pillars: []
+  },
+  doors: [2.3, 1.06],
+  handles: [1.24],
+  headlight: [0.7, 0.86, 0.19, 0.075],
+  taillight: [0.8, 0.8, 0.13, 0.065],
+  grille: [1.12, 0.5, 0.15],
+  intake: [0.73, 0.34, 0.028],
+  plates: [0.85, 0.77],
+  bumperLine: [0.97, 0.69],
+  bumpers: [[0.6, 0.085], [0.55, 0.05]], // the front bumper, the underride bar at the back
+  chrome: false,
+  cladding: 0.66,
+  rails: false,
+  sign: false,
+  rearWiper: false
+};
+
+function doorDecalTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 192;
+  const x = c.getContext('2d');
+  x.fillStyle = '#3f8a3a'; x.fillRect(0, 150, 512, 30); // the band low on the door
+  // a leaf in a circle, the round's sign
+  x.fillStyle = '#3f8a3a'; x.beginPath(); x.arc(78, 72, 58, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#f4f6ef'; x.beginPath(); x.ellipse(78, 72, 20, 40, 0.7, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = '#3f8a3a'; x.lineWidth = 5; x.beginPath(); x.moveTo(56, 98); x.lineTo(100, 46); x.stroke();
+  x.fillStyle = '#1f3b22'; x.textBaseline = 'middle';
+  x.font = '800 64px system-ui, sans-serif'; x.fillText('DAVOS', 156, 52);
+  x.fillStyle = '#3f8a3a'; x.font = '700 31px system-ui, sans-serif'; x.fillText(t('Green waste round'), 158, 112);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/** The fittings: one merged mesh of painted boxes and cylinders, in the truck's frame (z forward, y up from the ground) */
+function truckFittings() {
+  const B = BIO_BED, L = B.z1 - B.z0, zc = (B.z1 + B.z0) / 2;
+  const alu = 0xc9ced3, aluDark = 0x8f969d, frame = 0x24272b, black = 0x141517, steel = 0x7b8187, guard = 0xa2a8ae;
+  const boardH = 0.42, top = B.y + boardH, xs = B.halfW + 0.02, zt = B.z0 - 0.03;
+  const parts = [];
+  // the dropsides and the tailboard: aluminium planks with their ribs and a rail along the top
+  for (const sx of [-1, 1]) {
+    parts.push(boxAt(0.035, boardH, L, alu, sx * xs, B.y + boardH / 2, zc));
+    for (const y of [B.y + 0.14, B.y + 0.28]) parts.push(boxAt(0.012, 0.018, L - 0.04, aluDark, sx * (xs + 0.02), y, zc));
+    parts.push(boxAt(0.05, 0.035, L + 0.02, aluDark, sx * xs, top, zc));
+    // the stakes and the hinges at the foot
+    for (const z of [B.z0 + 0.03, zc, B.z1 - 0.03]) parts.push(boxAt(0.05, boardH + 0.05, 0.07, aluDark, sx * (xs + 0.012), B.y + (boardH + 0.05) / 2 - 0.02, z));
+    for (const z of [B.z0 + 0.6, zc - 0.6, zc + 0.6, B.z1 - 0.6]) parts.push(cylAt(0.022, 0.022, 0.16, 8, steel, sx * (xs + 0.025), B.y + 0.02, z, Math.PI / 2));
+    // the drop locks on the tailboard's ends
+    parts.push(boxAt(0.04, 0.09, 0.06, steel, sx * (xs - 0.05), B.y + 0.26, zt - 0.03));
+  }
+  parts.push(boxAt(xs * 2 + 0.035, boardH, 0.035, alu, 0, B.y + boardH / 2, zt));
+  // the floor: brown phenolic boards, their joints
+  parts.push(boxAt(xs * 2 - 0.02, 0.016, L - 0.02, 0x5e4a36, 0, B.y - 0.006, zc));
+  for (let i = 1; i < 6; i++) parts.push(boxAt(xs * 2 - 0.04, 0.003, 0.012, 0x3e3024, 0, B.y + 0.003, B.z0 + (L * i) / 6));
+  for (const y of [B.y + 0.14, B.y + 0.28]) parts.push(boxAt(xs * 2 - 0.1, 0.018, 0.012, aluDark, 0, y, zt - 0.02));
+  parts.push(boxAt(xs * 2 + 0.05, 0.035, 0.05, aluDark, 0, top, zt));
+  // the headboard, and the ladder guard before the cab's rear window
+  const zh = B.z1 + 0.035;
+  parts.push(boxAt(xs * 2 + 0.03, 0.62, 0.04, aluDark, 0, B.y + 0.31, zh));
+  for (const sx of [-1, 1]) parts.push(boxAt(0.06, 1.42, 0.06, frame, sx * (xs - 0.02), B.y + 0.71, zh));
+  for (const y of [B.y + 0.62, 1.84, 2.1, B.y + 1.4]) parts.push(boxAt(xs * 2 - 0.04, 0.035, 0.035, frame, 0, y, zh));
+  for (let i = -3; i <= 3; i++) parts.push(boxAt(0.025, 0.78, 0.025, frame, i * 0.27, B.y + 1.0, zh));
+  // under the bed: the frame rails and their cross members, the fuel tank, the battery box, the side guards
+  for (const sx of [-1, 1]) parts.push(boxAt(0.08, 0.2, 5.15, frame, sx * 0.42, 0.5, -0.3));
+  for (const z of [-2.6, -0.4, 0.75]) parts.push(boxAt(0.84, 0.1, 0.1, frame, 0, 0.5, z));
+  parts.push(boxAt(0.3, 0.32, 0.95, 0x2c3035, 0.72, 0.42, -0.25), cylAt(0.045, 0.045, 0.05, 10, steel, 0.88, 0.6, -0.55));
+  parts.push(boxAt(0.3, 0.26, 0.5, black, -0.72, 0.44, 0.1));
+  for (const sx of [-1, 1]) for (const y of [0.42, 0.56]) parts.push(boxAt(0.035, 0.06, 1.62, guard, sx * 0.975, y, -0.02));
+  for (const sx of [-1, 1]) for (const z of [-0.8, 0.75]) parts.push(boxAt(0.12, 0.22, 0.04, frame, sx * 0.92, 0.5, z));
+  // the mudflaps behind the twin tyres, the rear lamp brackets
+  for (const sx of [-1, 1]) parts.push(boxAt(0.5, 0.36, 0.015, black, sx * 0.74, 0.3, -1.88), boxAt(0.5, 0.05, 0.06, frame, sx * 0.74, 0.5, -1.88));
+  // the truck mirrors: an arm off the A pillar, a tall glass and a wide-angle one below it
+  for (const sx of [-1, 1]) {
+    parts.push(boxAt(0.22, 0.03, 0.03, black, sx * 1.07, 1.98, 2.36), boxAt(0.03, 0.4, 0.03, black, sx * 1.17, 1.8, 2.36));
+    parts.push(boxAt(0.05, 0.3, 0.2, black, sx * 1.2, 1.9, 2.34, 0, sx * 0.12), boxAt(0.05, 0.13, 0.16, black, sx * 1.2, 1.64, 2.34, 0, sx * 0.2));
+    parts.push(boxAt(0.005, 0.26, 0.17, 0x8fa0ab, sx * 1.2, 1.9, 2.233, 0, sx * 0.12));
+  }
+  // the step under each door, the beacon's foot, the wipers on the windscreen's foot, the sun visor
+  for (const sx of [-1, 1]) parts.push(boxAt(0.12, 0.04, 0.42, frame, sx * 0.93, 0.42, 1.2));
+  parts.push(boxAt(0.36, 0.06, 0.24, black, 0, 2.43, 1.95));
+  for (const sx of [-1, 1]) parts.push(boxAt(0.6, 0.02, 0.02, black, sx * 0.36, 1.58, 2.62, -0.5, 0, sx * 0.08));
+  parts.push(boxAt(1.84, 0.04, 0.18, 0xe6e8e4, 0, 2.38, 2.42, 0.25));
+  return mergeGeometries(parts);
+}
+
 function buildBioTruck() {
   const g = new THREE.Group();
   g.name = 'GreenWasteTransporter';
-  const white = 0xf2f2ee, green = 0x3f8a3a, dark = 0x24262a, wood = 0x8a6a42, glass = 0x223040;
-  const B = BIO_BED, L = B.z1 - B.z0, zc = (B.z1 + B.z0) / 2;
-  const body = mergeGeometries([
-    boxAt(1.7, 0.28, 5.1, dark, 0, 0.66, -0.15), // the chassis
-    boxAt(B.halfW * 2, 0.1, L, wood, 0, B.y - 0.05, zc), // the bed
-    boxAt(0.05, 0.3, L, green, B.halfW, B.y + 0.15, zc), boxAt(0.05, 0.3, L, green, -B.halfW, B.y + 0.15, zc), // the boards
-    boxAt(B.halfW * 2, 0.3, 0.05, green, 0, B.y + 0.15, B.z0),
-    boxAt(B.halfW * 2, 0.75, 0.06, dark, 0, B.y + 0.37, B.z1), // the headboard
-    boxAt(1.9, 1.4, 1.35, white, 0, 1.45, 1.9), // the cab
-    boxAt(1.92, 0.14, 1.37, green, 0, 1.0, 1.9),
-    boxAt(1.7, 0.62, 0.04, glass, 0, 1.75, 2.58),
-    boxAt(0.04, 0.55, 0.95, glass, 0.96, 1.75, 1.95), boxAt(0.04, 0.55, 0.95, glass, -0.96, 1.75, 1.95),
-    boxAt(0.5, 0.1, 0.22, 0xffb300, 0, 2.2, 1.7), // the beacon
-    boxAt(1.85, 0.2, 0.08, dark, 0, 0.72, 2.6) // the bumper
-  ]);
-  const mesh = new THREE.Mesh(body, vertexMat({ roughness: 0.6 }));
-  mesh.castShadow = true;
-  g.add(mesh);
-  const R = 0.4, W = 0.28;
-  const wheelGeo = mergeGeometries([cylAt(R, R, W, 14, 0x17181a, 0, 0, 0, 0, Math.PI / 2), cylAt(R * 0.5, R * 0.5, W + 0.02, 10, 0xb0b0a8, 0, 0, 0, 0, Math.PI / 2), boxAt(W + 0.03, R * 1.6, 0.06, 0x303134, 0, 0, 0)]);
-  const wheelMat = vertexMat({ roughness: 0.9 });
-  const wheels = [];
-  for (const [x, z] of [[0.88, 1.75], [-0.88, 1.75], [0.88, -1.3], [-0.88, -1.3]]) {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.position.set(x, R, z);
-    w.castShadow = true;
-    g.add(w);
-    wheels.push({ mesh: w, r: R, front: z > 0 });
+  const spec = TRUCK_SPEC;
+  // the body: the traffic's lofted cab and platform, white, with the player's brake and indicator lights
+  const bodyMat = createLoftedCarMaterial(spec, 0xf1f2ee);
+  bodyMat.userData.shared = true; // (cached by js/actor-models.js: not the run's to dispose)
+  const body = new THREE.Mesh(buildCarGeometry(spec, false).translate(0, 0, TRUCK_DZ), bodyMat);
+  body.castShadow = true;
+  g.add(body);
+  const fittings = new THREE.Mesh(truckFittings(), vertexMat({ roughness: 0.5, metalness: 0.25 }));
+  fittings.castShadow = true;
+  g.add(fittings);
+  // the door decals hug the cab's sides
+  const decalMat = new THREE.MeshStandardNodeMaterial({ map: doorDecalTexture(), transparent: true, alphaTest: 0.02, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2 });
+  for (const side of [-1, 1]) g.add(new THREE.Mesh(buildCarSidePatch(spec, side, 1.08, 2.18, 0.92, 1.44, 0.006, 12, 4).translate(0, 0, TRUCK_DZ), decalMat));
+  // the amber beacon, its light going round (vehicle.pose)
+  const beaconMat = new THREE.MeshStandardNodeMaterial({ color: 0xffa214, emissive: 0xff8a00, emissiveIntensity: 0.4, roughness: 0.3, transparent: true, opacity: 0.92 });
+  const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.1, 0.16, 12).translate(0, 2.54, 1.95), beaconMat);
+  g.add(beacon);
+  // the wheels: the traffic's, scaled to the truck; twins at the back. (YXZ: the spin about the axle, then the steer)
+  const wheelMat = createLoftedCarMaterial(BODY_SPECS.sedan, 0x30343a);
+  wheelMat.userData.shared = true;
+  const R = spec.wheelRadius, scale = R / BODY_SPECS.sedan.wheelRadius, wheels = [];
+  for (const side of [-1, 1]) {
+    const geo = buildSteerableWheelGeo(BODY_SPECS.sedan, side);
+    for (const [z, x] of [[spec.wheelZ, spec.wheelX], [-spec.wheelZ, spec.wheelX], [-spec.wheelZ, spec.wheelX - 0.27]]) {
+      const w = new THREE.Mesh(geo, wheelMat);
+      w.scale.setScalar(scale);
+      w.rotation.order = 'YXZ';
+      w.position.set(side * x, R, z + TRUCK_DZ);
+      w.castShadow = true;
+      g.add(w);
+      wheels.push({ mesh: w, r: R, front: z > 0 });
+    }
   }
+  let spin = 0;
   return {
     group: g, wheels,
-    drive: { speed: 13.5, reverseSpeed: 3.5, acceleration: 2.1, powerSpeed: 7, rolling: 0.25, drag: 0.0009, coast: 0.6, brake: 6.5, wheelbase: 3.05, grip: 7, cornering: 5.4 },
-    dims: { halfW: 1.0, halfL: 2.75, top: 2.3, mass: 6500 }, chase: [9.5, 4.3], label: 'Open transporter'
+    drive: { speed: 13.5, reverseSpeed: 3.5, acceleration: 2.1, powerSpeed: 7, rolling: 0.25, drag: 0.0009, coast: 0.6, brake: 6.5, wheelbase: 2 * spec.wheelZ, grip: 7, cornering: 5.4 },
+    dims: { halfW: 1.05, halfL: 2.75, top: 2.6, mass: 6500 }, chase: [9.5, 4.3], label: 'Open transporter',
+    // (the player car's brake, indicator and reverse lights on the body; the beacon's flash)
+    pose(group, car, dt) {
+      const s = car.carState?.value, lit = bodyMat.userData.carState?.value;
+      if (s && lit) lit.copy(s);
+      spin += dt * 7;
+      beaconMat.emissiveIntensity = 0.35 + 2.4 * Math.max(0, Math.sin(spin)) ** 6;
+    }
   };
 }
 VEHICLES.bioTruck = buildBioTruck;
@@ -340,6 +590,44 @@ function buildGauge(run) {
   return { load: load.fill, smell: smell.fill, shown: -1 };
 }
 
+/** A mission's way on the radar and the full map (js/nyc-map.js overlays): the line, and its places from `points()`
+ *  ({ x, z, label, done, next, square }: those done left out, the next ringed, square: a depot or a finish) */
+function addRouteOverlay(run, route, points, hex) {
+  const map = run.hooks.mapSystem;
+  if (!map) return;
+  const overlay = {
+    draw(ctx, v, mini) {
+      if (!run.state) return;
+      ctx.save();
+      ctx.lineJoin = ctx.lineCap = 'round';
+      const path = () => {
+        ctx.beginPath();
+        for (let i = 0; i < route.length; i += 2) ctx[i ? 'lineTo' : 'moveTo'](v.toX(route[i]), v.toY(route[i + 1]));
+      };
+      path(); ctx.strokeStyle = 'rgba(10, 14, 8, 0.75)'; ctx.lineWidth = mini ? 5 : 6.5; ctx.stroke();
+      path(); ctx.strokeStyle = hex; ctx.lineWidth = mini ? 2.6 : 3.4; ctx.stroke();
+      const r = mini ? 3.4 : 5, label = !mini && v.s >= 0.4;
+      ctx.font = '600 11px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (const p of points()) {
+        if (p.done) continue;
+        const x = v.toX(p.x), y = v.toY(p.z);
+        if (Math.abs(x) > v.w * 0.5 + 20 || Math.abs(y) > v.h * 0.5 + 20) continue;
+        ctx.fillStyle = p.square ? '#ffffff' : hex; ctx.strokeStyle = 'rgba(10, 14, 8, 0.9)'; ctx.lineWidth = 1.6;
+        if (p.square) { ctx.fillRect(x - r * 1.2, y - r * 1.2, r * 2.4, r * 2.4); ctx.strokeRect(x - r * 1.2, y - r * 1.2, r * 2.4, r * 2.4); }
+        else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        if (p.next) { ctx.beginPath(); ctx.arc(x, y, r + 4, 0, Math.PI * 2); ctx.strokeStyle = '#3fd6ff'; ctx.lineWidth = 2.5; ctx.stroke(); }
+        if (label || (p.next && !mini)) {
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8, 12, 20, 0.85)'; ctx.fillStyle = '#fff';
+          ctx.strokeText(p.label, x, y + r + 3); ctx.fillText(p.label, x, y + r + 3);
+        }
+      }
+      ctx.restore();
+    }
+  };
+  (map.overlays ||= []).push(overlay);
+  run.cleanups.push(() => { const i = map.overlays.indexOf(overlay); if (i >= 0) map.overlays.splice(i, 1); });
+}
+
 const SMELLS = [[0.3, 'The flies have found you'], [0.6, 'Cyclists overtake you holding their noses'], [0.9, 'Even the cows look the other way']];
 const TAIL = 3; // m from the truck's centre to behind its bed: where the stink trails
 const _a = new THREE.Vector3(), _e = new THREE.Euler();
@@ -347,6 +635,11 @@ const _a = new THREE.Vector3(), _e = new THREE.Euler();
 const bioRound = {
   setup(run) {
     buildPlant(run);
+    // (the way, the hotels' barrels still to fetch, the plant)
+    addRouteOverlay(run, BIO_ROUTE, () => [
+      ...run.state.stops.map((s) => ({ x: s.x, z: s.z, label: s.name, done: s.done, next: false })),
+      { x: BIO_PLANT.x, z: BIO_PLANT.z, label: t('Biogas plant'), square: true }
+    ], '#8fd14f');
     const stops = run.def.createState().stops, n = stops.length, H = BIO_BARREL.h;
     const shared = vertexMat({ roughness: 0.55 });
     // the barrels: the full ones (standing, on their way up and on the bed), the empties (set down at the stops, back on

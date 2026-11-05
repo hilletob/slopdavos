@@ -45,6 +45,21 @@ export function worldCellsReady(world, x, z, radius = 600) {
   return true;
 }
 
+/** The body class while a mission's own controls are in charge (css/style.css hides the game's own controls then) */
+export const OWN_CONTROLS_CLASS = 'mission-own-controls';
+
+/**
+ * Whether a mission's own controls are in charge: a feature that has buttons, keys or a game of its own (a bar, a
+ * dartboard, a cockpit) says so by `ownControls(run)` while the player needs no walking or driving; only while the
+ * stopwatch is armed or running (not over the intro or the end dialog). The run (js/missions.js) shows it as
+ * OWN_CONTROLS_CLASS on the body: the key hints at the bottom and, on a touch screen, the joystick go away.
+ */
+export function ownsControls(phase, features, run) {
+  if (phase !== 'ready' && phase !== 'running') return false;
+  for (const f of Object.values(features || {})) if (f?.ownControls?.(run)) return true;
+  return false;
+}
+
 let _inReach = null;
 /** The mission whose start circle the player stands in (its id), or null; js/missions-world.js keeps it current */
 export const missionStartInReach = () => _inReach;

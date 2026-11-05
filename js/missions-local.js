@@ -377,6 +377,8 @@ const BEER_FEATURE = {
 // =====================================================================================================================
 const GW = 600, GH = 400;
 const GIPFELI_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: rolling the dough; the walk in and the ride out keep them)
+  ownControls: (run) => !!run.gw?.open,
   setup(run) {
     addStyle(run);
     const game = el('div', 'lm-game');
@@ -500,6 +502,8 @@ const meltColour = (m) => {
   return `rgb(${a[1].map((v, k) => Math.round(v + (b[1][k] - v) * t)).join(',')})`;
 };
 const RACLETTE_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: scraping the cheese; the walk to the stove keeps them)
+  ownControls: (run) => !!run.rc?.open,
   setup(run) {
     addStyle(run);
     const game = el('div', 'lm-game');
@@ -1230,6 +1234,8 @@ const readGallery = () => { try { return JSON.parse(localStorage.getItem(GALLERY
 const BG = [244, 239, 228];
 
 const KIRCHNER_FEATURE = {
+  // (js/missions.js hides the game's own controls while this is true: at the easel; the walk there keeps them)
+  ownControls: (run) => !!run.kp?.open,
   setup(run) {
     addStyle(run);
     const game = el('div', 'lm-game');

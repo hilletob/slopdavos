@@ -1654,22 +1654,42 @@ body.touch-enabled .pop-item { min-height: 44px; }
 }
 
 .mission {
-  width: 300px;
+  width: 290px;
   max-width: calc(100vw - 2 * var(--edge));
-  padding: 10px 14px 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
+  padding: 8px 11px 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 9px;
+  row-gap: 5px;
+  font-size: 12px;
   color: var(--text);
+}
+/* (one compact block, out of the way: the title and the menu in one row, the clock with the arrow and the distance
+   in the next, then the step, its text, progress and hint; whatever a mission adds goes full width) */
+.mission > * { grid-column: 1 / -1; }
+.mission > .mission-head { grid-column: 1 / 3; grid-row: 1; }
+.mission > .mission-menu { grid-column: 3; grid-row: 1; }
+.mission > .mission-clock { grid-column: 1 / 3; grid-row: 2; }
+.mission > .mission-nav { grid-column: 3; grid-row: 2; justify-self: end; }
+.mission > .mission-step { grid-row: 3; }
+/* (the best time and the splits so far: at the start, for a few seconds after each step and at the end, not all
+   the way; js/missions.js sets is-fresh) */
+.mission:is([data-phase="ready"], [data-phase="running"]):not(.is-fresh) .mission-best,
+.mission:is([data-phase="ready"], [data-phase="running"]):not(.is-fresh) .mission-splits { display: none; }
+/* Desktop: at the top left, under the brand, away from the road ahead and from the toolbar */
+@media (min-width: 821px) {
+  .mission-hud.hud-top-center {
+    top: calc(max(var(--edge), env(safe-area-inset-top)) + 60px);
+    left: max(var(--edge), env(safe-area-inset-left));
+    transform: none;
+  }
 }
 
 /* the "Missionen" button: the list, without leaving the page (js/missions-manager.js) */
 .mission { position: relative; }
 .mission-menu {
-  position: absolute;
-  top: 8px;
-  right: 10px;
+  align-self: center;
   padding: 3px 8px;
   border: 0;
   border-radius: 7px;
@@ -1684,11 +1704,12 @@ body.touch-enabled .pop-item { min-height: 44px; }
 .mission-menu:hover { color: var(--text); background: var(--hover); }
 .mission-head {
   display: flex;
-  padding-right: 74px;
   align-items: baseline;
+  min-width: 0;
   gap: 8px;
-  flex-wrap: wrap;
 }
+.mission-head .mission-best { flex: none; }
+.mission-head .mission-kicker { display: none; }
 
 .mission-kicker {
   font-size: 10px;
@@ -1700,9 +1721,10 @@ body.touch-enabled .pop-item { min-height: 44px; }
 
 .mission-title {
   margin: 0;
-  flex: 1 1 auto;
-  font-size: 13px;
+  min-width: 0;
+  font-size: 11.5px;
   font-weight: 650;
+  color: var(--text-2);
   letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -1717,7 +1739,7 @@ body.touch-enabled .pop-item { min-height: 44px; }
 }
 
 .mission-clock {
-  font-size: 34px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -1750,7 +1772,7 @@ body.touch-enabled .pop-item { min-height: 44px; }
 
 .mission-text {
   color: var(--text-2);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .mission-bar {
@@ -1778,15 +1800,16 @@ body.touch-enabled .pop-item { min-height: 44px; }
 }
 
 .mission-arrow {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   flex: none;
   fill: var(--taxi);
   transition: transform 0.15s linear;
 }
 
 .mission-hint {
-  padding: 4px 8px;
+  padding: 3px 7px;
+  line-height: 1.3;
   border-radius: 7px;
   font-weight: 650;
   color: var(--taxi-ink);
@@ -1795,8 +1818,8 @@ body.touch-enabled .pop-item { min-height: 44px; }
 }
 
 .mission-splits {
-  margin: 2px 0 0;
-  padding: 6px 0 0;
+  margin: 0;
+  padding: 5px 0 0;
   list-style: none;
   border-top: 1px solid var(--divider);
   display: flex;
@@ -2081,25 +2104,33 @@ body.touch-enabled .pop-item { min-height: 44px; }
   .hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); }
   .mission {
     width: auto; max-width: calc(100vw - 24px);
-    display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; row-gap: 3px;
+    grid-template-columns: auto 1fr auto auto; column-gap: 8px; row-gap: 3px;
     padding: 5px 10px; font-size: 11px; border-radius: 12px;
   }
-  .mission-head, .mission-text, .mission-splits, .mission-hint { display: none; }
-  .mission-clock { font-size: 18px; line-height: 1; grid-column: 1; }
-  .mission-step { grid-column: 2; min-width: 0; }
+  .mission .mission-head, .mission .mission-text, .mission .mission-splits { display: none; }
+  .mission > .mission-clock { font-size: 18px; line-height: 1; grid-column: 1; grid-row: 1; }
+  .mission > .mission-step { grid-column: 2; grid-row: 1; min-width: 72px; }
   .mission-step-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
   .mission-step-n { display: none; }
-  .mission-nav { grid-column: 3; gap: 3px; }
+  .mission > .mission-nav { grid-column: 3; grid-row: 1; gap: 3px; white-space: nowrap; }
   .mission-arrow { width: 14px; height: 14px; }
-  .mission-bar { grid-column: 1 / -1; height: 3px; }
-  .mission { grid-template-columns: auto 1fr auto auto; }
-  .mission-menu { position: static; grid-column: 4; grid-row: 1; padding: 4px 7px; font-size: 10px; }
-  .mission-nav { white-space: nowrap; }
-  .mission-step { min-width: 72px; }
+  .mission-bar { height: 3px; }
+  .mission > .mission-menu { grid-column: 4; grid-row: 1; padding: 4px 7px; font-size: 10px; }
+  /* (the hint stays, on one line: what to do now) */
+  .mission-hint { padding: 2px 7px; font-size: 10.5px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mission-bar:empty, .mission-bar[hidden] { display: none; }
 }
 /* (during a mission the touch hint gives way to the mission strip) */
 body:has(#mission-hud) .touch-look-hint { display: none; }
+/* A mission's own controls in charge (a bar, a dartboard, a cockpit: ownControls(run), js/missions.js): no walking
+   or driving meanwhile, so the game's key hints, the mode switch and the get-in prompt step aside, on a touch screen
+   the joystick and the get-in button as well (the action buttons stay: a mission may have made them its Putt, Throw
+   or Swing) */
+body.mission-own-controls .hud-bottom-center,
+body.mission-own-controls .gta-prompt,
+body.mission-own-controls .mission-prompt,
+body.mission-own-controls.touch-enabled #touch-controls .touch-movement,
+body.mission-own-controls.touch-enabled .touch-use { display: none !important; }
 
 body.hud-minimized .mission-hud { opacity: 1; }
 

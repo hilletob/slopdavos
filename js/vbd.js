@@ -470,6 +470,9 @@ export function buildVBD(scene) {
     // Stop at a closed level crossing, the bus's front a few metres before the barrier
     const barrier = barrierAhead(b, frameBarriers);
     if (barrier < Infinity) limit = Math.min(limit, brakingSpeed(barrier - 3));
+    // ... and short of a closed street
+    const closedAt = closureAhead(b);
+    if (closedAt < Infinity) limit = Math.min(limit, brakingSpeed(closedAt - 3));
     // The traffic ahead: stop behind it, or follow it at its speed
     let heldBy = null;
     const gap = frameTraffic?.nearestAhead ? trafficAhead(b, frameTraffic.nearestAhead) : Infinity;
@@ -503,10 +506,41 @@ export function buildVBD(scene) {
     b.display.material = displays.get(q.id);
   }
 
+  // A closed street (setClosure: js/missions-wef.js, the march): { pts: [{ x, z }], r } — a bus on it is diverted (off
+  // the street, out of sight, until it opens again); a bus coming towards it stops short of it like at a barrier
+  let closure = null;
+  const inClosure = (x, z) => {
+    if (!closure || x == null) return false;
+    const r2 = closure.r * closure.r;
+    for (const p of closure.pts) { const dx = x - p.x, dz = z - p.z; if (dx * dx + dz * dz < r2) return true; }
+    return false;
+  };
+  function divert(b, on) {
+    b.diverted = on;
+    for (const o of [b.mesh, b.rear, b.joint]) if (o) o.visible = !on;
+    if (!on) return;
+    b.speed = 0; b.push = 0;
+    setBody(bodies[buses.indexOf(b)], 0, 0, 0, 0, 0, false);
+    if (b.rearBody) setBody(b.rearBody, 0, 0, 0, 0, 0, false);
+  }
+  function setClosure(c) {
+    closure = c && c.pts?.length ? c : null;
+    if (!closure) for (const b of buses) if (b.diverted) divert(b, false);
+  }
+  function closureAhead(b) {
+    if (!closure) return Infinity;
+    const nose = b.art && b.rear ? 0 : NOSE;
+    for (let d = 0; d <= LOOK; d += PROBE / 2) { const p = pointAt(b.route, b.s + nose + d, probe); if (inClosure(p.x, p.z)) return d; }
+    return Infinity;
+  }
+
   function step(dt, player, barriers = [], traffic = null) {
     frameDt = dt; framePlayer = player; frameBarriers = barriers; frameTraffic = traffic;
     for (const b of buses) {
       if (b.held || b.parked) continue; // (the player's, js/gta.js)
+      const closed = inClosure(b.cx, b.cz);
+      if (closed !== !!b.diverted) divert(b, closed);
+      if (b.diverted) continue;
       if (b.push > 0) b.push -= dt;
       if (stepBus(b, b.route, dt, limits, rand) === 'end') nextLeg(b);
     }
@@ -545,7 +579,7 @@ export function buildVBD(scene) {
   const hingeProbe = {}, axleProbe = {};
   function place() {
     buses.forEach((b, i) => {
-      if (b.held || b.parked) return; // (placed by pose(), js/gta.js)
+      if (b.held || b.parked || b.diverted) return; // (placed by pose(), js/gta.js; diverted: off the street)
       let c;
       if (b.art && b.rear) {
         // The front car follows the route between its front and its end wall; the rear car hangs on the hinge, its
@@ -755,5 +789,5 @@ export function buildVBD(scene) {
   }).catch((error) => console.warn('[vbd] Citaro model:', error));
 
   group.userData.stats = { buses: buses.length, lines: [...new Set(buses.map((b) => b.ref))], routes: routes.length };
-  return { group, update, collidePlayer, bodies, buses, routes, hold, pose, park, release, JOINT };
+  return { group, update, collidePlayer, bodies, buses, routes, hold, pose, park, release, setClosure, JOINT };
 }
