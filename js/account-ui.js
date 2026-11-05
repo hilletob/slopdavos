@@ -17,6 +17,7 @@ export async function startAccount({ save, missionActive, progress }) {
 
   let sync = null;
   let syncState = '';
+  let loadName = null;
   const say = (text) => { status.textContent = text; status.hidden = !text; };
   const SYNC_TEXT = { saved: 'Saved to your account.', failed: 'Not saved online right now. Your game stays on this device.' };
   const item = (label, onClick) => {
@@ -45,7 +46,47 @@ export async function startAccount({ save, missionActive, progress }) {
     })));
   };
 
-  const leave = () => { sync?.stop(); sync = null; syncState = ''; renderGuest(); };
+  const leave = () => { sync?.stop(); sync = null; syncState = ''; loadName = null; renderGuest(); };
+
+  /** The public name on the leaderboards, fetched when the menu opens */
+  const nameForm = () => {
+    const form = document.createElement('form');
+    form.className = 'account-name';
+    const label = document.createElement('label');
+    label.className = 'pop-sub';
+    label.textContent = 'Name on the leaderboards';
+    const input = document.createElement('input');
+    input.className = 'player-name';
+    Object.assign(input, { type: 'text', maxLength: 20, autocomplete: 'off', spellcheck: false, disabled: true });
+    input.setAttribute('autocapitalize', 'off');
+    label.append(input);
+    const saveName = document.createElement('button');
+    saveName.className = 'pop-item account-name-save';
+    saveName.type = 'submit';
+    saveName.textContent = 'Save name';
+    saveName.disabled = true;
+    form.append(label, saveName);
+    loadName = async () => {
+      if (!input.disabled) return;
+      try {
+        const { myName } = await import('./leaderboard.js');
+        input.value = await myName();
+        input.disabled = saveName.disabled = false;
+      } catch { /* (the leaderboards are out of reach: no name to change now) */ }
+    };
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const { setName, nameFits } = await import('./leaderboard.js');
+        const answer = nameFits(input.value) ? await setName(input.value) : { error: 'invalid' };
+        if (answer.name) input.value = answer.name;
+        say(answer.name ? 'Name saved.' : answer.error === 'taken' ? 'That name is taken.' : 'Use 3 to 20 letters, digits, spaces, - or _. Some words are not allowed.');
+      } catch {
+        say('The name could not be saved. Please try again.');
+      }
+    });
+    return form;
+  };
 
   const renderUser = (user) => {
     button.setAttribute('aria-pressed', 'true');
@@ -53,7 +94,7 @@ export async function startAccount({ save, missionActive, progress }) {
     who.className = 'pop-sub account-who player-name';
     who.textContent = user.email || '';
     let confirming = false;
-    list.replaceChildren(who, item('Sign out', async () => {
+    list.replaceChildren(who, nameForm(), item('Sign out', async () => {
       try {
         await sync?.flush().catch(() => {});
         await signOut();
@@ -76,7 +117,7 @@ export async function startAccount({ save, missionActive, progress }) {
 
   say('');
   renderGuest();
-  popover.addEventListener('beforetoggle', (e) => { if (e.newState === 'open') say(SYNC_TEXT[syncState] || ''); });
+  popover.addEventListener('beforetoggle', (e) => { if (e.newState === 'open') { say(SYNC_TEXT[syncState] || ''); loadName?.(); } });
   button.hidden = false;
 
   // (a stored session loads the SDK; failing that the game goes on, and the guest's view is what shows)

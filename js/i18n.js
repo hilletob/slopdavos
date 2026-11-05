@@ -27,6 +27,13 @@ const pairs = [
   ['The account is deleted. Your game stays on this device.', 'Das Konto ist gelöscht. Dein Spiel bleibt auf diesem Gerät.'],
   ['Deleting failed. Please try again.', 'Löschen hat nicht geklappt. Bitte versuche es erneut.'],
   ['Privacy', 'Datenschutz'],
+  ['Leaderboard', 'Bestenliste'], ['Show leaderboard', 'Bestenliste anzeigen'], ['Loading the leaderboard…', 'Die Bestenliste wird geladen …'],
+  ['The leaderboard is not reachable right now.', 'Die Bestenliste ist gerade nicht erreichbar.'], ['No times yet. Be the first.', 'Noch keine Zeiten. Sei die erste Person.'],
+  ['This run was not counted. Your result stays on this device.', 'Dieser Lauf wurde nicht gewertet. Dein Ergebnis bleibt auf diesem Gerät.'],
+  ['Sign in from the account menu to join the leaderboard.', 'Melde dich im Konto-Menü an, um in die Bestenliste zu kommen.'],
+  ['Name on the leaderboards', 'Name in den Bestenlisten'], ['Save name', 'Name speichern'], ['Name saved.', 'Name gespeichert.'], ['That name is taken.', 'Dieser Name ist vergeben.'],
+  ['Use 3 to 20 letters, digits, spaces, - or _. Some words are not allowed.', 'Erlaubt sind 3 bis 20 Buchstaben, Ziffern, Leerzeichen, - oder _. Manche Wörter sind gesperrt.'],
+  ['The name could not be saved. Please try again.', 'Der Name konnte nicht gespeichert werden. Bitte versuche es erneut.'],
   ['Fast-forward the time', 'Zeit vorspulen'], ['Fast-forward', 'Vorspulen'],
   ['To the next morning', 'Zum nächsten Morgen'], ['To the next evening', 'Zum nächsten Abend'],
   ['To the next season', 'Zur nächsten Jahreszeit'], ['To the winter', 'Zum Winter'], ['To the summer', 'Zum Sommer'],
@@ -1213,6 +1220,7 @@ function translate(value) {
   dynamic = dynamic.replace(/^Completed · no medal yet$/, 'Abgeschlossen · noch keine Medaille');
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) · best medal$/, (_, medal) => `${enToDe.get(medal) || medal} · beste Medaille`);
   dynamic = dynamic.replace(/^Best time (.+)$/, 'Bestzeit $1');
+  dynamic = dynamic.replace(/^Rank (\d+) of (\d+)$/, 'Rang $1 von $2');
   dynamic = dynamic.replace(/^Best score (.+)$/, 'Bestwert $1');
   dynamic = dynamic.replace(/^Best (time|score) (.+)$/, (_, kind, value) => `Bester ${kind === 'time' ? 'Zeitwert' : 'Punktestand'} ${value}`);
   dynamic = dynamic.replace(/^New best (time|score) (.+) \(was (.+)\)$/, (_, kind, value, old) => `Neuer ${kind === 'time' ? 'Zeitrekord' : 'Punkterekord'} ${value} (vorher ${old})`);

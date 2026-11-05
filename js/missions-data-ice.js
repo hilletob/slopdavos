@@ -170,6 +170,7 @@ const lapText = (race, i) => {
 
 export const SPEED_SKATING_MISSION = {
   id: 'speed-skating',
+  board: 'speed-skating-1',
   title: 'Speed skating: 2 × 400 m',
   intro: 'The Natureisbahn Davos, Europe\'s largest natural ice rink: two laps of the 400 m track against the clock, counter-clockwise. Hold W (the joystick up) and the skates stroke by themselves; press Space (Push) just as the rhythm bar fills for a power stroke. A/D lean into the turns, S brakes. Stay outside the inner cones: a cut across the infield disqualifies.',
   mode: 'person',

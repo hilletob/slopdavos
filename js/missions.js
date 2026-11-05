@@ -49,6 +49,8 @@ import { CARE_FEATURES } from './missions-care.js';
 const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
+// (js/account.js; a static import here would load it for every guest)
+const signedIn = () => { try { return !!globalThis.localStorage?.getItem('slopdavos-session'); } catch { return false; } };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
 /** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points) */
 const scoreText = (def, v) => `${Math.round(v)} ${def.scoreUnit || 'pts'}`;
@@ -401,6 +403,40 @@ class MissionRun {
   /** The time penalties the mission has handed out so far (state.penaltyMs: a missed gate, a crash), in ms */
   penaltyMs() { return this.state?.penaltyMs || 0; }
 
+  /** The leaderboard of this run (js/leaderboard.js), or null: the day's run of a mission with `board` is ranked */
+  get board() { return (!this.night && this.def.board) || null; }
+
+  /** A signed-in player's ranked run gets its start from the server, before the stopwatch can start */
+  beginRanking() {
+    this.rankedRun = this.board && signedIn() ? import('./leaderboard.js').then((l) => l.startRun(this.board)).catch(() => null) : null;
+    this.submission = null;
+  }
+
+  submitRanking(total) {
+    if (!this.rankedRun) return;
+    const penalty = this.penaltyMs();
+    this.submission = this.rankedRun.then((run) => (run ? import('./leaderboard.js').then((l) => l.submitRun(run, total, penalty)) : null)).catch(() => null);
+  }
+
+  /** The list in a dialog: at once for a signed-in player, on a click for a guest (who otherwise never reaches the backend) */
+  boardNode(ended) {
+    const board = this.board;
+    if (!board) return [];
+    const node = el('div', 'mission-board');
+    const load = () => import('./leaderboard-ui.js')
+      .then((ui) => ui.showBoard(node, board, { format: formatTime, submission: this.submission, ended, signedIn: signedIn() }))
+      .catch(() => node.replaceChildren(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.')));
+    if (signedIn()) load();
+    else {
+      if (ended) node.append(el('p', 'mission-board-note', 'Sign in from the account menu to join the leaderboard.'));
+      const open = el('button', 'mission-btn mission-btn-secondary mission-board-open', 'Show leaderboard');
+      open.type = 'button';
+      open.addEventListener('click', load);
+      node.append(open);
+    }
+    return [node];
+  }
+
   renderSplits() {
     this.ui.splits.replaceChildren(...this.splits.map((s) => {
       const li = el('li', 'mission-split');
@@ -435,7 +471,7 @@ class MissionRun {
     const meta = el('p', 'mission-dialog-meta');
     meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
       el('span', 'mission-dialog-best', this.bestText()));
-    nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)), el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'));
+    nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)), el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'), ...this.boardNode(false));
     this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
@@ -478,7 +514,7 @@ class MissionRun {
     }
     nodes.push(splits);
     for (const extra of this.def.summary?.(this.state) || []) nodes.push(el('p', 'mission-dialog-note', extra));
-    nodes.push(el('p', 'mission-dialog-text', this.def.finish));
+    nodes.push(el('p', 'mission-dialog-text', this.def.finish), ...this.boardNode(true));
     this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
     if (award?.points) requestAnimationFrame(() => this.hooks.flashPoints?.(award.points, medalNode.querySelector('.mission-award-points')));
   }
@@ -507,6 +543,7 @@ class MissionRun {
 
   start() {
     this.setup();
+    this.beginRanking();
     this.ui.overlay.hidden = true;
     // (the mobile profile: the streets round the start come in cells after the teleport; the stopwatch is armed once
     // they stand, the player held at the start meanwhile)
@@ -659,6 +696,7 @@ class MissionRun {
     const { best, previous, improved } = rec;
     const award = this.hooks.progress ? this.hooks.progress.record(this.def, total, Date.now(), score) : null;
     this.result = { total, score, best, previous, improved, award };
+    this.submitRanking(total);
     this.renderBest();
     this.marker.visible = false;
     for (const r of Object.values(this.rings)) r.visible = false;

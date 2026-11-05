@@ -476,6 +476,7 @@ function finishLine(pts, half) {
 
 export const SLALOM_MISSION = {
   id: 'ski-slalom',
+  board: 'ski-slalom-1', // (js/leaderboard.js; supabase/migrations holds its limits)
   title: 'Slalom on the Davos Vertical',
   intro: `Race day on the Jakobshorn: the Davos Vertical is set with ${SLALOM_GATES} slalom gates, red and blue. Ski down through every gate (between its two poles) and over the finish line. Steer A/D, tuck W, skis across to brake S. A missed gate costs ${SLALOM_MISS_MS / 1000} s, the ${SLALOM_MAX_MISSES + 1}th disqualifies.`,
   mode: 'person',
@@ -615,6 +616,7 @@ const mtbSection = (id, title, toS) => ({
 
 export const MTB_MISSION = {
   id: 'mtb-race',
+  board: 'mtb-race-1',
   title: 'Downhill race: Ischalp to Bolgen',
   intro: 'The bike race of the summer: from the Ischalp down the Chüggelibahn flow trail and the Bolgen Trail to Bolgen Plaza, 2.7 km and almost 400 m of drop. Ride through every checkpoint in order (a shortcut misses one: ride back to it). Too tight a turn at speed throws you off: +5 s.',
   mode: 'cyclist',
