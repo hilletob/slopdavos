@@ -55,3 +55,12 @@ test('every provider has a label to show, and the texts are in both languages', 
   for (const text of texts) assert.ok(i18n.includes(`['${text}',`), text);
   assert.match(i18n, /\.language-switch, \.player-name/, 'player names are not translated');
 });
+
+test('the login replaces the page and gives the GPU back first, and the page after it takes a breath', () => {
+  const account = read('js/account.js'), ui = read('js/account-ui.js'), main = read('js/main.js');
+  assert.match(account, /beforeLeave\?\.\(\);[^]*?location\.replace\(data\.url\)/, 'replaced, not stacked: no page cache');
+  assert.doesNotMatch(account, /location\.assign/);
+  assert.match(ui, /signIn\(id, \{ beforeLeave: leaving \}\)/);
+  assert.match(main, /leaving: leavePage/);
+  assert.match(main, /const leavePage = \(\) => \{[^]*?device\?\.destroy[^]*?MOVING_KEY/);
+});

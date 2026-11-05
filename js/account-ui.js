@@ -6,9 +6,10 @@ import { isConfigured, signIn, signOut, deleteAccount, currentUser } from './acc
 
 /** @param {object} o
  *  @param {() => void} o.save keeps the player and the clock before the page is left for the login
+ *  @param {() => void} [o.leaving] gives the GPU back as the page is left for the login (the game is over then)
  *  @param {() => boolean} o.missionActive a running mission would be lost: no login then
  *  @param {object} o.progress the missions' progress store (js/missions-progress.js) */
-export async function startAccount({ save, missionActive, progress }) {
+export async function startAccount({ save, leaving, missionActive, progress }) {
   const button = document.getElementById('btn-account');
   const list = document.getElementById('account-items');
   const status = document.getElementById('account-status');
@@ -39,7 +40,7 @@ export async function startAccount({ save, missionActive, progress }) {
       say('Opening the sign-in…');
       try {
         save();
-        await signIn(id);
+        await signIn(id, { beforeLeave: leaving });
       } catch {
         say('The sign-in is not reachable right now. You can keep playing.');
       }

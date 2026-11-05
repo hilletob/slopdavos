@@ -69,7 +69,8 @@ const GTA = !isClassicMode();
 // A first visit starts on foot by the Bahnhof Davos Platz (classic: by bike by the Seehof Seeli); a first visit of the
 // GTA mode ignores a save from before it (it starts afresh, see js/gta.js)
 const FIRST_START = GTA ? GTA_START : PLAYER_STARTS.cyclist;
-// A teleport's reload (userTeleport) leaves this mark for the page it loads: it waits MOVE_BREATH ms before building
+// A page leaving for good (leavePage: a teleport's reload, the login) leaves this mark for the page it loads: it waits
+// MOVE_BREATH ms before building
 const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500;
 const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return !!m; } catch { return false; } };
 const FRESH_GTA = GTA && !hasGtaState();
@@ -887,6 +888,14 @@ async function initApp() {
     };
     return destination;
   }
+  // The game is over on this page (a teleport's reload, the login's redirect): its GPU memory goes back now, and the page
+  // loading next takes a breath before it builds (MOVE_BREATH). The next page is built while this one is still in
+  // memory otherwise: on an iPhone the two together were more than the GPU process is allowed
+  const leavePage = () => {
+    renderer.setAnimationLoop(null);
+    try { renderer.backend.device?.destroy?.(); } catch { /* the navigation frees it anyway */ }
+    try { sessionStorage.setItem(MOVING_KEY, '1'); } catch { /* (storage may be off: the new page just builds at once) */ }
+  };
   // A teleport (map, menu) beyond the town built in detail (the mobile profile, QUALITY.worldRadius): the player is
   // saved at the destination and the page reloads, building the town around it instead
   function userTeleport(x, z, heading) {
@@ -896,11 +905,7 @@ async function initApp() {
       const status = document.getElementById('loading-status');
       if (status) status.textContent = 'Moving the town…';
       document.getElementById('loading-overlay')?.classList.remove('hidden');
-      // (the new page is built while the old one is still in memory unless its GPU memory is given back first: on an iPhone
-      // the two together were too much)
-      renderer.setAnimationLoop(null);
-      try { renderer.backend.device?.destroy?.(); } catch { /* the reload frees it anyway */ }
-      try { sessionStorage.setItem(MOVING_KEY, '1'); } catch { /* (storage may be off: the new page just builds at once) */ }
+      leavePage();
       setTimeout(() => window.location.reload(), 50);
     }
     return destination;
@@ -1287,6 +1292,7 @@ async function initApp() {
         // The optional account (js/account-ui.js), once the city stands: no part of a guest's start
         import('./account-ui.js').then(({ startAccount }) => startAccount({
           save: () => { savePlayerState(); gameClock.save(); },
+          leaving: leavePage,
           missionActive: () => missions.active,
           progress: globalThis.__slopdavosProgress
         })).catch(() => { /* the game goes on without it */ });

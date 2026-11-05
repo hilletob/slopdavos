@@ -38,15 +38,21 @@ export function getClient() {
   return client;
 }
 
-/** Off to the provider: the page is left. Rejects when that could not be started (offline, backend down) */
-export async function signIn(provider) {
+/**
+ * Off to the provider: the page is left. Rejects when that could not be started (offline, backend down); `beforeLeave`
+ * is called once leaving is certain, right before (js/main.js gives the GPU back). The page is replaced, not stacked:
+ * a page left behind in the history stays in Safari's page cache with all its memory, and the game loading again on
+ * the way back, beside it, was more than an iPhone's GPU process is allowed.
+ */
+export async function signIn(provider, { beforeLeave } = {}) {
   const supabase = await getClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider, options: { redirectTo: callbackUrl(), skipBrowserRedirect: true }
   });
   if (error) throw error;
   try { localStorage.setItem(RETURN_KEY, location.pathname + location.search); } catch { /* (back to the start page then) */ }
-  location.assign(data.url);
+  try { beforeLeave?.(); } catch { /* (the navigation frees it anyway) */ }
+  location.replace(data.url);
 }
 
 /** auth/callback.html: the code from the URL becomes the session. Answers the path to return to */
