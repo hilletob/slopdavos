@@ -207,6 +207,7 @@ const pairs = [
   ['The hook is not over the load', 'Der Haken ist nicht über der Last'],
   ['Too hard!', 'Zu hart!'],
   ['Lift', 'Heben'],
+  ['Slew', 'Schwenken'], ['Trolley', 'Laufkatze'], ['Hook on / let go', 'Anhängen / Loslassen'],
   ['Lower', 'Senken'],
   ['Hook', 'Haken'],
   ['View', 'Ansicht'],

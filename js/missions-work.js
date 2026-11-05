@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight, surfaceHeight } from './terrain.js';
 import { ParticleBatch } from './missions-fx.js';
+import { setLocalizedText } from './i18n.js';
 import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-models.js';
@@ -1206,8 +1207,33 @@ function buildCraneLoad(load, material) {
   return { mesh, sling };
 }
 
+// The key bar under the HUD (js/main.js renderControlHints) while the driver is up in the cab: the crane's keys, not
+// the walker's; the walker's come back with the ladder (or the end of the run)
+const CRANE_HINTS = [[['A', 'D'], 'Slew'], [['W', 'S'], 'Trolley'], [['E'], 'Lift'], [['Q'], 'Lower'], [['F'], 'Hook on / let go'], [['V'], 'View']];
+function craneKeyBar(run, on) {
+  const bar = typeof document !== 'undefined' ? document.getElementById('hud-controls-hint') : null;
+  if (!bar) return;
+  if (on && !run.craneBar) {
+    run.craneBar = [...bar.childNodes];
+    bar.replaceChildren(...CRANE_HINTS.map(([keys, label]) => {
+      const item = document.createElement('span');
+      item.className = 'hint';
+      for (const k of keys) { const kbd = document.createElement('kbd'); kbd.textContent = k; item.append(kbd); }
+      const l = document.createElement('span');
+      l.className = 'hint-label';
+      setLocalizedText(l, label);
+      item.append(l);
+      return item;
+    }));
+  } else if (!on && run.craneBar) {
+    bar.replaceChildren(...run.craneBar);
+    run.craneBar = null;
+  }
+}
+
 const towerCrane = {
   setup(run) {
+    run.cleanups.push(() => craneKeyBar(run, false));
     const cm = run.hooks.controllerManager;
     const ground = (x, z) => cm.getGroundHeight(x, z, 'person');
     const site = createCraneSite(ground, DAVOS_DATA.buildings);
@@ -1277,12 +1303,14 @@ const towerCrane = {
   hold(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (w.held) return;
+    craneKeyBar(run, true);
     w.held = { had: 'personDriver' in cm, prev: cm.personDriver };
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; };
   },
   release(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (!w?.held) return;
+    craneKeyBar(run, false);
     if (w.held.had) cm.personDriver = w.held.prev; else delete cm.personDriver;
     w.held = false;
   },
