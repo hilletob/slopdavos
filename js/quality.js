@@ -44,7 +44,7 @@ const PROFILES = {
     precompile: true, // compile the pipelines behind the loading screen (?qset=precompile:false: when first seen)
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
-    flatDraws: false, // the terrain's chunks drawn without index buffers (see the mobile profile)
+    flatDraws: false, // nothing drawn with an index buffer (see the mobile profile; js/gpu-memory.js flattenDraws)
     terrainChunk: 64, // nodes a terrain chunk side (8 m a node: 512 m); the orthophotos come in tiles of 64
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
@@ -91,9 +91,10 @@ const PROFILES = {
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     compactGeometry: true,
-    // (the terrain's chunks drawn without index buffers: in Safari their indexed draws held ~200 MB in the GPU process,
-    // far more than their buffers ask for, and that process is the one iOS kills first, at 300 MB; the surroundings'
-    // tiles and the trees drawn flat saved nothing; ?qset=flatDraws:false to compare)
+    // (nothing drawn with an index buffer: Safari checks every indexed draw's indices on the GPU first, and its GPU
+    // process, the one iOS kills first at 300 MB, held ~200 MB for the terrain's indexed chunks and ~100 MB for the
+    // rest of the town's, far more than the index buffers save in vertex data; the web process ~250 MB as well;
+    // js/gpu-memory.js flattenDraws; ?qset=flatDraws:false to compare)
     flatDraws: true,
     // (chunks of 1024 m, 336 instead of 1344 meshes: Safari's web and GPU processes hold ~16 KB a GPU object whatever
     // its size; each chunk's orthophoto is composed of its 2 x 2 tiles, js/swissimage.js)

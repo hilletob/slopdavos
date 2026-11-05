@@ -125,7 +125,8 @@ export function buildLevelCrossings(scene, rhb) {
         for (const [lx, second] of [[-0.24, 0], [0.24, 1]]) {
           const lamp = place(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 16).rotateX(Math.PI / 2), lx, 0, 0.05).toNonIndexed();
           const n = lamp.attributes.position.count;
-          lamp.setAttribute('aLamp', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, k) => (k % 2 ? 0 : second)), 2));
+          // (updated when a crossing closes, so marked dynamic: left alone by the compaction and the flat-draws profile)
+          lamp.setAttribute('aLamp', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, k) => (k % 2 ? 0 : second)), 2).setUsage(THREE.DynamicDrawUsage));
           add(lampsMaterial, lamp);
           lampVertices += n;
           state.lamps[1] += n;

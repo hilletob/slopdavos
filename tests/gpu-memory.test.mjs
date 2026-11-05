@@ -19,7 +19,7 @@ export class BufferGeometry {
 }`);
 register(`data:text/javascript,${encodeURIComponent(`export async function resolve(s, c, next) { return s === 'three/webgpu' ? { url: 'data:text/javascript,${three}', shortCircuit: true } : next(s, c); }`)}`);
 const THREE = await import('three/webgpu');
-const { indexGeometry, flatGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects } = await import('../js/gpu-memory.js');
+const { indexGeometry, flatGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats } = await import('../js/gpu-memory.js');
 
 // A draped strip as drapeOverlay leaves it: non-indexed triangles, every inner corner repeated (n quads, 6 corners each)
 function strip(n) {
@@ -108,6 +108,7 @@ test('what is torn down while playing releases its render state, what is built l
   assert.match(source('world-stream.js'), /releaseRenderState\(m\)/);
   assert.match(source('missions.js'), /releaseRenderState\(o\)/);
   assert.match(source('main.js'), /keepPipelinesOfReleasedObjects\(renderer\)/);
+  assert.match(source('main.js'), /if \(QUALITY\.flatDraws\) flattenDraws\(renderer\)/, 'the flat-draws profile, before anything is drawn');
   assert.match(source('main.js'), /buildWinterScenery\(\);\s+finishLateScenery\(/, 'the winter scenery on the mobile profile');
 });
 
@@ -119,26 +120,100 @@ test('indexGeometry leaves a geometry alone that is to stay flat (the terrain ch
   assert.equal(indexGeometry(flat, { force: true }), null);
 });
 
-test('flatGeometry draws the same triangles without an index, and stays flat', () => {
+const DYNAMIC = 35048; // THREE.DynamicDrawUsage
+function quad() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]), 3));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  // (the test's three.js stub has no toNonIndexed: the corners written out in index order by hand)
-  g.toNonIndexed = () => {
-    const flat = new THREE.BufferGeometry(), src = g.attributes.position.array, out = [];
-    for (const i of [0, 1, 2, 0, 2, 3]) out.push(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]);
-    flat.setAttribute('position', new THREE.BufferAttribute(new Float32Array(out), 3));
-    return flat;
-  };
+  g.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+  return g;
+}
+const FLAT_QUAD = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0];
+
+test('flatGeometry draws the same triangles without an index, and stays flat', () => {
+  const g = quad();
+  g.setAttribute('uv', new THREE.BufferAttribute(new Uint8Array([0, 0, 1, 0, 1, 1, 0, 1]), 2, true));
+  const perInstance = new THREE.BufferAttribute(new Float32Array([1, 2, 3]), 3);
+  perInstance.isInstancedBufferAttribute = true;
+  g.setAttribute('aTint', perInstance);
+  g.addGroup(0, 3, 0); g.addGroup(3, 3, 1);
   g.setDrawRange(3, 3);
   g.userData.lodLevels = [{ start: 0, count: 6 }];
   g.boundingBox = { min: [0, 0, 0], max: [1, 1, 0] };
+  g.name = 'quad';
   const flat = flatGeometry(g);
   assert.equal(flat.index, null);
-  assert.deepEqual(Array.from(flat.attributes.position.array), [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0]);
+  assert.deepEqual(Array.from(flat.attributes.position.array), FLAT_QUAD);
+  assert.ok(flat.attributes.uv.array instanceof Uint8Array && flat.attributes.uv.normalized, 'an attribute keeps its type');
+  assert.deepEqual(Array.from(flat.attributes.uv.array), [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]);
+  assert.equal(flat.attributes.aTint, perInstance, 'an instanced attribute is shared, not written out');
+  assert.deepEqual(flat.groups, g.groups);
   assert.deepEqual({ start: flat.drawRange.start, count: flat.drawRange.count }, { start: 3, count: 3 });
   assert.deepEqual(flat.userData.lodLevels, [{ start: 0, count: 6 }]);
-  assert.equal(flat.userData.keepFlat, true);
   assert.equal(flat.boundingBox, g.boundingBox);
-  assert.equal(indexGeometry(flat, { force: true }), null);
+  assert.equal(flat.name, 'quad');
+  assert.ok(flat.userData.keepFlat && g.disposed);
+  assert.equal(indexGeometry(flat, { force: true }), null, 'stays flat');
+});
+
+test('flattenDraws writes out an indexed geometry the first time it is drawn, once for all who share it', () => {
+  const drawn = [];
+  const renderer = { renderObject(object, scene, camera, geometry, material, group, lightsNode, clipping, passId) { drawn.push({ object, geometry, passId }); return 'drawn'; } };
+  flattenDraws(renderer);
+  const shared = quad();
+  const a = { geometry: shared }, b = { geometry: shared };
+  const before = flatDrawStats();
+  assert.equal(renderer.renderObject(a, 's', 'c', a.geometry, 'm', null, 'l', null, 'shadow'), 'drawn');
+  renderer.renderObject(b, 's', 'c', b.geometry, 'm', null, 'l', null, null);
+  renderer.renderObject(a, 's', 'c', a.geometry, 'm', null, 'l', null, null);
+  assert.equal(a.geometry, b.geometry, 'one flat copy for both');
+  assert.notEqual(a.geometry, shared);
+  assert.equal(a.geometry.index, null);
+  assert.deepEqual(Array.from(a.geometry.attributes.position.array), FLAT_QUAD);
+  assert.deepEqual(drawn.map((d) => d.geometry), [a.geometry, a.geometry, a.geometry], 'the renderer only ever sees the flat one');
+  assert.equal(drawn[0].passId, 'shadow', 'the rest of the arguments pass through');
+  assert.ok(shared.disposed, 'the indexed one, never uploaded, is let go');
+  const after = flatDrawStats();
+  assert.equal(after.geometries - before.geometries, 1);
+  assert.equal(after.bytes - before.bytes, 18 * 4);
+  // Left as it is: a geometry with an attribute that is updated (its flat copy would never see the update)
+  const dynamic = quad();
+  dynamic.attributes.position.usage = DYNAMIC;
+  const d = { geometry: dynamic };
+  renderer.renderObject(d, 's', 'c', dynamic, 'm', null, 'l');
+  assert.equal(d.geometry, dynamic);
+  assert.equal(drawn[3].geometry, dynamic);
+  assert.equal(flatDrawStats().kept - before.kept, 1);
+  // ... and one whose arrays are released already
+  const released = quad();
+  released.index.array = new Uint16Array(0);
+  renderer.renderObject({ geometry: released }, 's', 'c', released, 'm', null, 'l');
+  assert.equal(drawn[4].geometry, released);
+  // A flat geometry passes untouched
+  const flat = new THREE.BufferGeometry();
+  renderer.renderObject({ geometry: flat }, 's', 'c', flat, 'm', null, 'l');
+  assert.equal(drawn[5].geometry, flat);
+});
+
+test('compactStaticGeometry on the flat-draws profile writes the index buffers out and still shrinks the normals', () => {
+  const g = quad();
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(12).fill(0).map((_, i) => (i % 3 === 2 ? 1 : 0)), 3));
+  const mesh = { isMesh: true, geometry: g, userData: {}, children: [] };
+  const stats = compactStaticGeometry([{ userData: {}, children: [mesh] }], { flat: true });
+  assert.equal(stats.geometries, 1);
+  assert.notEqual(mesh.geometry, g);
+  assert.equal(mesh.geometry.index, null);
+  assert.deepEqual(Array.from(mesh.geometry.attributes.position.array), FLAT_QUAD);
+  const nor = mesh.geometry.attributes.normal;
+  assert.ok(nor.array instanceof Int8Array && nor.normalized && nor.count === 6);
+  assert.equal(nor.array[2], 127);
+  assert.ok(mesh.geometry.userData.keepFlat && g.disposed);
+  assert.equal(stats.after, 6 * 12 + 6 * 3, 'float positions and byte normals, no index');
+  // A flat one keeps its data and only loses the float normals
+  const flat = new THREE.BufferGeometry();
+  flat.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+  flat.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(9), 3));
+  const plain = { isMesh: true, geometry: flat, userData: {}, children: [] };
+  compactStaticGeometry([{ userData: {}, children: [plain] }], { flat: true });
+  assert.equal(plain.geometry, flat);
+  assert.ok(flat.attributes.normal.array instanceof Int8Array);
 });

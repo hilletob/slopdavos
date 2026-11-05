@@ -1134,7 +1134,8 @@ const smax = (a, b, k) => {
 // Signed distance (approximate outside, exact inside) to a convex polygon given as outward half-planes [nx, ny, c]
 const polygonDistance = (px, py, planes, k) => {
   let d = null;
-  for (const [nx, ny, c] of planes) {
+  for (const plane of planes) {
+    const [nx, ny, c] = Array.isArray(plane) ? plane : [plane.x, plane.y, plane.z]; // (numbers, or a vec3 uniform)
     const e = px.mul(nx).add(py.mul(ny)).sub(c);
     d = d === null ? e : smax(d, e, k);
   }
@@ -1161,6 +1162,9 @@ const coverage = (d) => {
 };
 
 const _carMaterialCache = new Map();
+// The most pillars, door shut lines and handles a body has (the shared shader is built for that many; a body with
+// fewer puts the rest CAR_FAR metres away, where no vertex is)
+const CAR_PILLARS = 3, CAR_DOORS = 3, CAR_HANDLES = 2, CAR_FAR = 1000;
 /**
  * Creates the TSL material for lofted vehicles.
  * Instanced traffic reads the per-instance `paintColor` (vec3) and `carState` (vec4: brake, left (+x) & right (-x)
@@ -1180,11 +1184,19 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const fixed = fixedColorHex !== null;
   const stateUniform = fixed ? uniform(new THREE.Vector4(0, 0, 0, 0)) : null;
   const state = fixed ? stateUniform : attribute('carState', 'vec4');
-  const paint = fixed ? color(fixedColorHex) : attribute('paintColor', 'vec3');
+  const paint = fixed ? uniform(new THREE.Color(fixedColorHex)) : attribute('paintColor', 'vec3');
 
-  const axleZ = float(spec.wheelZ);
-  const wheelR = float(spec.wheelRadius);
-  const archR = L.archR;
+  // Every number of the body's own (its layout, lamps, plates, doors) is a uniform, and the parts a body may lack
+  // (chrome strip, rear wiper, cladding, a third pillar) are built for all and switched by one: all the bodies share
+  // one shader, so Safari's GPU process compiles and holds one pipeline for the fleet instead of one a body (each was
+  // ~44 KB of WGSL; iOS kills that process at 300 MB)
+  const U = (v) => uniform(v);
+  const planeUniforms = (planes) => planes.map(([nx, ny, c]) => uniform(new THREE.Vector3(nx, ny, c)));
+  const on = (flag) => U(flag ? 1 : 0);
+  const axleZ = U(spec.wheelZ);
+  const wheelR = U(spec.wheelRadius);
+  const archR = U(L.archR);
+  const cowl = U(cab.cowl), deck = U(cab.deck), roofRear = U(cab.roofRear);
 
   // Glass outlines from the glasshouse layout: side windows in side view (z, y), windshield & backlight from above
   // (|x|, z). Each edge is pulled in by its pillar / frame width; the seal outline sits a little further out.
@@ -1194,24 +1206,31 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const rm = L.rail.mid;
   const rr = L.rail.rear;
   const sidePoly = [[cab.cowl, bc.y], [cab.roofFront, rf.y], [L.rail.roofMid, rm.y], [cab.roofRear, rr.y], [cab.deck, bd.y]];
-  const sideGlassPlanes = polygonPlanes(sidePoly, [0.05, 0.03, 0.03, 0.065, 0.02]);
-  const sideSealPlanes = polygonPlanes(sidePoly, [0.034, 0.016, 0.016, 0.05, 0.004]);
+  const sideGlassPlanes = planeUniforms(polygonPlanes(sidePoly, [0.05, 0.03, 0.03, 0.065, 0.02]));
+  const sideSealPlanes = planeUniforms(polygonPlanes(sidePoly, [0.034, 0.016, 0.016, 0.05, 0.004]));
   const frontPoly = [[-1, cab.cowl], [-1, cab.roofFront], [rf.x, cab.roofFront], [bc.x, cab.cowl]];
-  const frontGlassPlanes = polygonPlanes(frontPoly, [0, 0.045, 0.06, 0.05]);
-  const frontSealPlanes = polygonPlanes(frontPoly, [0, 0.03, 0.045, 0.035]);
+  const frontGlassPlanes = planeUniforms(polygonPlanes(frontPoly, [0, 0.045, 0.06, 0.05]));
+  const frontSealPlanes = planeUniforms(polygonPlanes(frontPoly, [0, 0.03, 0.045, 0.035]));
   const rearPoly = [[-1, cab.roofRear], [-1, cab.deck], [bd.x, cab.deck], [rr.x, cab.roofRear]];
-  const rearGlassPlanes = polygonPlanes(rearPoly, [0, 0.045, 0.065, 0.05]);
-  const rearSealPlanes = polygonPlanes(rearPoly, [0, 0.03, 0.05, 0.035]);
-  const [hlX, hlY, hlW, hlH] = spec.headlight;
-  const [tlX, tlY, tlW, tlH] = spec.taillight;
-  const [grY, grW, grH] = spec.grille;
-  const [inY, inW, inH] = spec.intake;
-  const [plateF, plateR] = spec.plates;
-  const frontZone = spec.zFront - 0.55;
-  const rearZone = spec.zRear + 0.55;
-  const sillY = spec.sill[1][1];
-  const rearSill = spec.tail.sill[1];
-  const signY = taxiSignPlacement(spec).y + 0.105;
+  const rearGlassPlanes = planeUniforms(polygonPlanes(rearPoly, [0, 0.045, 0.065, 0.05]));
+  const rearSealPlanes = planeUniforms(polygonPlanes(rearPoly, [0, 0.03, 0.05, 0.035]));
+  const [hlX, hlY, hlW, hlH] = spec.headlight.map(U);
+  const [tlX, tlY, tlW, tlH] = spec.taillight.map(U);
+  const tallLamp = on(spec.taillight[3] > spec.taillight[2]); // (taller SUV lamps stack their sections vertically)
+  const [grY, grW, grH] = spec.grille.map(U);
+  const [inY, inW, inH] = spec.intake.map(U);
+  const [plateF, plateR] = spec.plates.map(U);
+  const zFront = U(spec.zFront), zRear = U(spec.zRear);
+  const frontZone = zFront.sub(0.55);
+  const rearZone = zRear.add(0.55);
+  const sillY = U(spec.sill[1][1]);
+  const rearSill = U(spec.tail.sill[1]);
+  const signY = U(taxiSignPlacement(spec).y + 0.105);
+  const bumperLine = spec.bumperLine.map(U);
+  const bumperRear = U(spec.bumpers[1][0]);
+  const tailEdge = U(spec.tail.edge[1]);
+  const bcY = U(bc.y), bdY = U(bd.y);
+  const claddingY = U(spec.cladding || 0), hasCladding = on(spec.cladding > 0);
   const one = float(1.0);
 
   const p = attribute('position', 'vec3');
@@ -1230,11 +1249,11 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const front = smoothstep(0.12, 0.38, n.z).mul(step(frontZone, p.z)).mul(isBody);
   const rear = smoothstep(0.12, 0.38, n.z.negate()).mul(step(p.z, rearZone)).mul(isBody);
   const under = smoothstep(-0.25, -0.55, n.y).mul(isBody);
-  const belt = mix(float(bd.y), float(bc.y), clamp(p.z.sub(cab.deck).div(cab.cowl - cab.deck), 0.0, 1.0));
+  const belt = mix(bdY, bcY, clamp(p.z.sub(deck).div(cowl.sub(deck)), 0.0, 1.0));
 
   // Glasshouse: side windows (minus the B / C pillars), windshield & backlight, their black seals, chrome sill strip
   let sideG = polygonDistance(p.z, p.y, sideGlassPlanes, 0.07);
-  for (const zp of cab.pillars) sideG = max(sideG, float(0.036).sub(abs(p.z.sub(zp))));
+  for (let k = 0; k < CAR_PILLARS; k++) sideG = max(sideG, float(0.036).sub(abs(p.z.sub(U(cab.pillars[k] ?? CAR_FAR)))));
   const backlight = coverage(polygonDistance(ax, p.z, rearGlassPlanes, 0.09)).mul(isWindow);
   const glass = max(max(coverage(sideG), coverage(polygonDistance(ax, p.z, frontGlassPlanes, 0.09))), backlight.div(max(isWindow, 1e-4)))
     .mul(isWindow);
@@ -1242,18 +1261,15 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     coverage(polygonDistance(p.z, p.y, sideSealPlanes, 0.07)),
     max(coverage(polygonDistance(ax, p.z, frontSealPlanes, 0.09)), coverage(polygonDistance(ax, p.z, rearSealPlanes, 0.09)))
   ).mul(isWindow);
-  const chromeBelt = spec.chrome
-    ? smoothstep(0.003, 0.006, p.y.sub(belt))
-      .mul(smoothstep(0.016, 0.012, p.y.sub(belt)))
-      .mul(smoothstep(0.5, 0.7, abs(n.x)))
-      .mul(step(cab.deck + 0.05, p.z))
-      .mul(step(p.z, cab.cowl - 0.08))
-      .mul(isWindow)
-    : float(0.0);
-  const chmsl = roundedRect(vec2(p.x, p.z.sub(cab.roofRear - 0.075)), vec2(0.14, 0.012), 0.005).mul(backlight).mul(step(n.z, -0.1));
-  const rearWiper = spec.rearWiper
-    ? roundedRect(vec2(p.x.add(0.15), p.z.sub(cab.deck + 0.075)), vec2(0.22, 0.006), 0.003).mul(backlight)
-    : float(0.0);
+  const chromeBelt = smoothstep(0.003, 0.006, p.y.sub(belt))
+    .mul(smoothstep(0.016, 0.012, p.y.sub(belt)))
+    .mul(smoothstep(0.5, 0.7, abs(n.x)))
+    .mul(step(deck.add(0.05), p.z))
+    .mul(step(p.z, cowl.sub(0.08)))
+    .mul(isWindow)
+    .mul(on(spec.chrome));
+  const chmsl = roundedRect(vec2(p.x, p.z.sub(roofRear.sub(0.075))), vec2(0.14, 0.012), 0.005).mul(backlight).mul(step(n.z, -0.1));
+  const rearWiper = roundedRect(vec2(p.x.add(0.15), p.z.sub(deck.add(0.075))), vec2(0.22, 0.006), 0.003).mul(backlight).mul(on(spec.rearWiper));
 
   // Wheel arches: distance from the nearest axle in side view (or from the hub of a centred, spinning wheel)
   const isCenteredWheel = step(abs(p.z), wheelR.add(0.05)).mul(max(isTyre, isAlloy));
@@ -1263,11 +1279,11 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   // Lamps, grilles & plates on the nose and tail (projected along z, so the lamps wrap around the corners)
   const hlUV = vec2(ax.sub(hlX), p.y.sub(hlY));
   const headlight = roundedRect(hlUV, vec2(hlW, hlH), 0.01).mul(smoothstep(0.02, 0.25, n.z)).mul(step(frontZone, p.z)).mul(isBody);
-  const turnFront = smoothstep(hlX + hlW * 0.65, hlX + hlW * 0.72, ax).mul(headlight);
-  const divider = smoothstep(max(fwidth(ax), 0.007), 0.002, abs(hlUV.x.add(hlW * 0.1)));
-  const headlightLens = roundedRect(hlUV, vec2(hlW - 0.012, hlH - 0.012), 0.006)
+  const turnFront = smoothstep(hlX.add(hlW.mul(0.65)), hlX.add(hlW.mul(0.72)), ax).mul(headlight);
+  const divider = smoothstep(max(fwidth(ax), 0.007), 0.002, abs(hlUV.x.add(hlW.mul(0.1))));
+  const headlightLens = roundedRect(hlUV, vec2(hlW.sub(0.012), hlH.sub(0.012)), 0.006)
     .mul(headlight).mul(one.sub(max(divider, turnFront)));
-  const drlDist = abs(hlUV.y.add(hlH * 0.6));
+  const drlDist = abs(hlUV.y.add(hlH.mul(0.6)));
   const drlEdge = max(fwidth(drlDist), 0.006);
   const drl = smoothstep(drlEdge, 0.0, drlDist).mul(headlight).mul(one.sub(turnFront));
   const grille = roundedRect(vec2(p.x, p.y.sub(grY)), vec2(grW, grH), 0.015).mul(front);
@@ -1280,31 +1296,31 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     .mul(step(p.z, rearZone))
     .mul(isBody);
   // Sedans use horizontal lenses; taller SUV lamps stack their three sections vertically.
-  const tailAxis = tlH > tlW ? tlUV.y.div(tlH) : tlUV.x.div(tlW);
+  const tailAxis = mix(tlUV.x.div(tlW), tlUV.y.div(tlH), tallLamp);
   const tailDivider = coverage(min(abs(tailAxis.sub(0.52)), abs(tailAxis.add(0.55))).sub(0.025));
-  const tailLens = roundedRect(tlUV, vec2(tlW - 0.006, tlH - 0.006), 0.017)
+  const tailLens = roundedRect(tlUV, vec2(tlW.sub(0.006), tlH.sub(0.006)), 0.017)
     .mul(taillight).mul(one.sub(tailDivider));
   const turnRearSection = smoothstep(0.50, 0.54, tailAxis);
   const reverseRearSection = smoothstep(-0.53, -0.57, tailAxis);
   const turnRear = turnRearSection.mul(tailLens);
   const redLens = tailLens.mul(one.sub(max(turnRearSection, reverseRearSection)));
   const plateRear = roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.25, 0.055), 0.006).mul(rear);
-  const platePocket = roundedRect(vec2(p.x, p.y.sub(plateR + 0.01)), vec2(0.29, 0.1), 0.03).mul(rear);
-  const trunkHandle = roundedRect(vec2(p.x, p.y.sub(plateR + 0.125)), vec2(0.18, 0.012), 0.008).mul(rear);
+  const platePocket = roundedRect(vec2(p.x, p.y.sub(plateR.add(0.01))), vec2(0.29, 0.1), 0.03).mul(rear);
+  const trunkHandle = roundedRect(vec2(p.x, p.y.sub(plateR.add(0.125))), vec2(0.18, 0.012), 0.008).mul(rear);
   const plateRecess = max(
     roundedRect(vec2(p.x, p.y.sub(plateF)), vec2(0.168, 0.056), 0.01).mul(front),
     roundedRect(vec2(p.x, p.y.sub(plateR)), vec2(0.27, 0.073), 0.016).mul(rear)
   );
-  const rearValance = smoothstep(rearSill + 0.07, rearSill + 0.015, p.y).mul(rear);
-  const reflector = roundedRect(vec2(ax.sub(0.64), p.y.sub(spec.bumpers[1][0] + 0.065)), vec2(0.065, 0.012), 0.006).mul(rear);
-  const trunkWidth = mix(float(tlX - tlW - 0.025), float(tlX), smoothstep(tlY - tlH, spec.tail.edge[1], p.y));
-  const trunkEdge = max(ax.sub(trunkWidth), float(spec.bumperLine[1]).sub(p.y));
+  const rearValance = smoothstep(rearSill.add(0.07), rearSill.add(0.015), p.y).mul(rear);
+  const reflector = roundedRect(vec2(ax.sub(0.64), p.y.sub(bumperRear.add(0.065))), vec2(0.065, 0.012), 0.006).mul(rear);
+  const trunkWidth = mix(tlX.sub(tlW).sub(0.025), tlX, smoothstep(tlY.sub(tlH), tailEdge, p.y));
+  const trunkEdge = max(ax.sub(trunkWidth), bumperLine[1].sub(p.y));
   const panelSeam = max(
-    smoothstep(0.006, 0.0025, abs(p.y.sub(spec.bumperLine[0]))).mul(step(ax, hlX - hlW * 0.6)).mul(front),
+    smoothstep(0.006, 0.0025, abs(p.y.sub(bumperLine[0]))).mul(step(ax, hlX.sub(hlW.mul(0.6)))).mul(front),
     coverage(abs(trunkEdge).sub(0.003)).mul(rear)
   );
-  const cowlPanel = smoothstep(cab.cowl + 0.085, cab.cowl + 0.07, p.z)
-    .mul(smoothstep(cab.cowl - 0.04, cab.cowl - 0.02, p.z))
+  const cowlPanel = smoothstep(cowl.add(0.085), cowl.add(0.07), p.z)
+    .mul(smoothstep(cowl.sub(0.04), cowl.sub(0.02), p.z))
     .mul(step(0.6, n.y))
     .mul(isBody);
   const signFace = smoothstep(0.55, 0.75, abs(n.z)).mul(isSign);
@@ -1312,13 +1328,11 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const mirrorGlass = isMirror.mul(step(0.55, n.z.negate()));
   const lamp = max(headlight, taillight);
   const plates = max(plateFront, plateRear);
-  const cladding =
-    spec.cladding > 0
-      ? max(smoothstep(spec.cladding + 0.01, spec.cladding - 0.01, p.y), smoothstep(archR + 0.075, archR + 0.06, wheelDist))
-        .mul(isBody)
-        .mul(one.sub(lamp))
-        .mul(one.sub(plates))
-      : float(0.0);
+  const cladding = max(smoothstep(claddingY.add(0.01), claddingY.sub(0.01), p.y), smoothstep(archR.add(0.075), archR.add(0.06), wheelDist))
+    .mul(isBody)
+    .mul(one.sub(lamp))
+    .mul(one.sub(plates))
+    .mul(hasCladding);
 
   // 5-spoke alloys (branchless 5-ray star SDF) with rim ring & hub, lug ribs on the tyre tread
   const wDir = wheelVec.div(max(wheelDist, 0.0001));
@@ -1350,7 +1364,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   // Davos taxis carry only their roof sign.
   const isPoliceCar = fixed ? float(0) : step(0.5, state.w);
   const isPolice = isPoliceCar.mul(isSide).mul(isBody);
-  const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
+  const along = smoothstep(zRear.add(0.22), zRear.add(0.3), p.z).mul(smoothstep(zFront.sub(0.28), zFront.sub(0.36), p.z));
   const orangeBand = smoothstep(0.505, 0.51, p.y).mul(smoothstep(0.655, 0.65, p.y)).mul(along);
   const blueStripe = smoothstep(0.455, 0.46, p.y).mul(smoothstep(0.5, 0.495, p.y)).mul(along);
   const band = max(orangeBand, blueStripe);
@@ -1375,13 +1389,13 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
 
   // Panel shading: soft occlusion low down & under the arch lips; unpainted cladding (SUVs); door shut lines &
   // handles; trunk / hood shut lines; black cowl panel under the windshield
-  const archLip = smoothstep(archR + 0.05, archR - 0.005, wheelDist).mul(smoothstep(0.6, 0.9, ax));
+  const archLip = smoothstep(archR.add(0.05), archR.sub(0.005), wheelDist).mul(smoothstep(0.6, 0.9, ax));
   const ao = smoothstep(0.2, 0.62, p.y).mul(0.22).add(0.78).mul(one.sub(archLip.mul(0.55)));
-  const onDoors = isSide.mul(smoothstep(sillY + 0.04, sillY + 0.07, p.y)).mul(smoothstep(0.0, -0.015, p.y.sub(belt)));
+  const onDoors = isSide.mul(smoothstep(sillY.add(0.04), sillY.add(0.07), p.y)).mul(smoothstep(0.0, -0.015, p.y.sub(belt)));
   let seams = float(0.0);
-  for (const zd of spec.doors) seams = max(seams, smoothstep(0.009, 0.003, abs(p.z.sub(zd))));
-  for (const zh of spec.handles) {
-    seams = max(seams, roundedRect(vec2(p.z.sub(zh), p.y.sub(belt.sub(0.095))), vec2(0.06, 0.011), 0.008));
+  for (let k = 0; k < CAR_DOORS; k++) seams = max(seams, smoothstep(0.009, 0.003, abs(p.z.sub(U(spec.doors[k] ?? CAR_FAR)))));
+  for (let k = 0; k < CAR_HANDLES; k++) {
+    seams = max(seams, roundedRect(vec2(p.z.sub(U(spec.handles[k] ?? CAR_FAR)), p.y.sub(belt.sub(0.095))), vec2(0.06, 0.011), 0.008));
   }
   let body = mix(painted.mul(ao), color(0x1e2124), cladding);
   body = body.mul(one.sub(seams.mul(onDoors).mul(0.55))).mul(one.sub(panelSeam.mul(0.5)));
@@ -1401,7 +1415,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   body = mix(body, color(0x222326), taillight);
   body = mix(body, tailColor, tailLens);
   // Shaded recess and handle sit in the painted trunk / hatch, above the bumper.
-  const pocketShade = smoothstep(plateR - 0.09, plateR + 0.115, p.y).mul(-0.25).add(0.9);
+  const pocketShade = smoothstep(plateR.sub(0.09), plateR.add(0.115), p.y).mul(-0.25).add(0.9);
   body = mix(body, body.mul(pocketShade), platePocket);
   body = mix(body, color(0x303438), trunkHandle);
   body = mix(body, color(0x24292d), plateRecess);

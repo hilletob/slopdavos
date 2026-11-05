@@ -205,18 +205,84 @@ export function indexGeometry(geometry, { force = false } = {}) {
 }
 
 /**
- * A non-indexed copy of `geometry` drawing the same triangles (bounds, draw range, LOD levels and the rest of the
- * user data kept; `geometry` is disposed), marked keepFlat so that indexGeometry leaves it so. The flat-draws
- * profile (js/quality.js flatDraws): what an index buffer saves in vertex data, Safari's GPU process more than spends.
+ * A non-indexed copy of `geometry` drawing the same primitives: every corner written out in index order (bounds, draw
+ * range, groups, morph targets, LOD levels and the rest of the user data kept; instanced attributes shared, not
+ * written out; `geometry` is disposed), marked keepFlat so that indexGeometry leaves it so. The flat-draws profile
+ * (js/quality.js flatDraws, flattenDraws below): what an index buffer saves in vertex data, Safari's GPU process more
+ * than spends.
  */
 export function flatGeometry(geometry) {
-  const flat = geometry.toNonIndexed();
+  const indices = geometry.index.array;
+  const expand = (a) => {
+    const s = a.itemSize, src = a.array, dst = new src.constructor(indices.length * s);
+    const stride = a.isInterleavedBufferAttribute ? a.data.stride : s, offset = a.isInterleavedBufferAttribute ? a.offset : 0;
+    for (let i = 0, o = 0; i < indices.length; i++) { const f = indices[i] * stride + offset; for (let c = 0; c < s; c++) dst[o++] = src[f + c]; }
+    const b = new THREE.BufferAttribute(dst, s, a.normalized);
+    b.name = a.name; b.usage = a.usage;
+    if (a.gpuType !== undefined) b.gpuType = a.gpuType;
+    return b;
+  };
+  const flat = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(geometry.attributes)) flat.setAttribute(name, a.isInstancedBufferAttribute ? a : expand(a));
+  for (const [name, list] of Object.entries(geometry.morphAttributes)) flat.morphAttributes[name] = list.map(expand);
+  if (geometry.morphTargetsRelative) flat.morphTargetsRelative = true;
+  for (const g of geometry.groups) flat.addGroup(g.start, g.count, g.materialIndex);
+  flat.setDrawRange(geometry.drawRange.start, geometry.drawRange.count);
   flat.boundingBox = geometry.boundingBox; flat.boundingSphere = geometry.boundingSphere;
   flat.userData = { ...geometry.userData, keepFlat: true };
-  flat.setDrawRange(geometry.drawRange.start, geometry.drawRange.count);
   flat.name = geometry.name;
   geometry.dispose();
   return flat;
+}
+
+// --- Flat draws (js/quality.js flatDraws) -------------------------------------------------------------------------------
+// Safari's WebGPU checks every indexed draw's indices on the GPU before it draws (WebKit's RenderPassEncoder::drawIndexed:
+// a clamp pass with scratch buffers, its verdict cached only once the GPU is through), and its GPU process, the one iOS
+// kills first, held ~100 MB more with the town's ~200 indexed geometries than with them drawn flat, the web process
+// ~250 MB more (Mac Safari, 2026-11-05); the terrain's chunks had cost ~200 MB the same way. So on that profile nothing
+// is drawn indexed: whatever reaches the renderer with an index buffer is written out flat the first time it is drawn.
+
+const flatStats = { geometries: 0, kept: 0, bytes: 0 };
+/** What flattenDraws has done so far: { geometries (written out flat), kept (left indexed), bytes (of flat data) } */
+export const flatDrawStats = () => ({ ...flatStats });
+
+const bytesOfGeometry = (g) => [...Object.values(g.attributes), g.index].reduce((s, a) => s + (a?.array?.byteLength || 0), 0);
+
+function flattenable(geometry) {
+  if (!geometry.index?.array?.length) return false; // (released already: nothing to read)
+  for (const a of Object.values(geometry.attributes)) {
+    if (a.isInstancedBufferAttribute) continue;
+    // (an attribute updated later would update the old geometry, not its flat copy; one released has nothing to read)
+    if (a.usage !== THREE.StaticDrawUsage || !a.array?.length) return false;
+  }
+  return true;
+}
+
+/**
+ * Makes `renderer` draw everything without index buffers: a geometry with one is replaced, the first time it is drawn,
+ * by flatGeometry() of it, once however many objects share it (so nothing indexed is ever uploaded). Left as it is: a
+ * geometry with an attribute that is updated (not StaticDrawUsage) or released already. Every draw goes through
+ * renderer.renderObject (the shadow passes', the custom render functions'), so that is what is wrapped. To be called
+ * once the renderer is initialised, before anything is drawn.
+ */
+export function flattenDraws(renderer) {
+  const flatOf = new WeakMap(); // geometry -> its flat copy, or null for one left as it is
+  const draw = renderer.renderObject;
+  renderer.renderObject = function (object, scene, camera, geometry, material, group, ...rest) {
+    if (geometry?.index) {
+      let flat = flatOf.get(geometry);
+      if (flat === undefined) {
+        flat = flattenable(geometry) ? flatGeometry(geometry) : null;
+        if (flat) { flatStats.geometries++; flatStats.bytes += bytesOfGeometry(flat); } else flatStats.kept++;
+        flatOf.set(geometry, flat);
+      }
+      if (flat) {
+        if (object.geometry === geometry) object.geometry = flat;
+        geometry = flat;
+      }
+    }
+    return draw.call(this, object, scene, camera, geometry, material, group, ...rest);
+  };
 }
 
 /** `attribute` (float, 3 a vertex) as normalized signed bytes; the same object for an attribute already quantized */
@@ -228,11 +294,13 @@ function quantizedNormal(attribute) {
 
 /**
  * Compacts the static meshes' vertex data under `roots` (indexGeometry, 8-bit normals), before anything is uploaded.
- * Leaves alone what may be read or rewritten on the CPU later: instanced meshes and their shared bases, skinned and
- * morphed meshes, lines and points, attributes that are updated (not StaticDrawUsage) and objects with
- * userData.keepCpu; `skip(object)` excludes whole subtrees. Returns { geometries, before, after } (bytes).
+ * `flat` (the flat-draws profile): the index buffers are written out instead (flatGeometry) and only the normals shrink,
+ * now rather than at the first draw (flattenDraws). Leaves alone what may be read or rewritten on the CPU later:
+ * instanced meshes and their shared bases, skinned and morphed meshes, lines and points, attributes that are updated
+ * (not StaticDrawUsage) and objects with userData.keepCpu; `skip(object)` excludes whole subtrees.
+ * Returns { geometries, before, after } (bytes).
  */
-export function compactStaticGeometry(roots, { skip = () => false } = {}) {
+export function compactStaticGeometry(roots, { skip = () => false, flat = false } = {}) {
   const stats = { geometries: 0, before: 0, after: 0 };
   const users = new Map(); // attribute -> geometries using it
   const meshes = [];
@@ -262,7 +330,8 @@ export function compactStaticGeometry(roots, { skip = () => false } = {}) {
     if (attrs.some((a) => a.usage !== THREE.StaticDrawUsage || !a.array?.length)) continue;
     const before = bytesOf(g);
     let out = g;
-    if (attrs.every((a) => (users.get(a)?.size ?? 1) === 1)) out = indexGeometry(g) || g;
+    if (flat) { if (g.index) out = flatGeometry(g); } // (disposes g, which nothing has uploaded yet)
+    else if (attrs.every((a) => (users.get(a)?.size ?? 1) === 1)) out = indexGeometry(g) || g;
     const nor = out.attributes.normal;
     if (nor && nor.itemSize === 3 && nor.array instanceof Float32Array && !nor.isInterleavedBufferAttribute) {
       // (an attribute shared by several geometries is quantized once, for all of them)
@@ -272,9 +341,9 @@ export function compactStaticGeometry(roots, { skip = () => false } = {}) {
       if (out === g && (users.get(nor)?.size ?? 1) > 1) for (const other of users.get(nor)) other.setAttribute('normal', q);
       else out.setAttribute('normal', q);
     }
-    if (out !== g) { done.set(g, out); mesh.geometry = out; g.dispose(); }
+    if (out !== g) { done.set(g, out); mesh.geometry = out; if (!flat) g.dispose(); }
     const after = bytesOf(out);
-    if (after < before) { stats.geometries++; stats.before += before; stats.after += after; }
+    if (after !== before) { stats.geometries++; stats.before += before; stats.after += after; }
   }
   return stats;
 }
