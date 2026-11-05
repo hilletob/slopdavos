@@ -45,6 +45,7 @@ const PROFILES = {
     forceWebGL: false, // ?qset=forceWebGL:true: the WebGL 2 backend even where WebGPU is available
     releaseCpu: true, // drop the CPU copies of uploaded static geometry (?qset=releaseCpu:false keeps them)
     flatDraws: false, // nothing drawn with an index buffer (see the mobile profile; js/gpu-memory.js flattenDraws)
+    dropShaderModules: false, // a shader module only while its pipeline is made (see the mobile profile; js/gpu-memory.js)
     terrainChunk: 64, // nodes a terrain chunk side (8 m a node: 512 m); the orthophotos come in tiles of 64
     compactGeometry: false, // share the static meshes' equal vertices and keep their normals in bytes (js/gpu-memory.js)
     precompileAll: true, // precompile every pipeline of the town (frustum culling off); else only what the start view shows
@@ -96,6 +97,9 @@ const PROFILES = {
     // rest of the town's, far more than the index buffers save in vertex data; the web process ~250 MB as well;
     // js/gpu-memory.js flattenDraws; ?qset=flatDraws:false to compare)
     flatDraws: true,
+    // (Safari's GPU process holds ~1.7 MB a shader module for as long as the page does, and three.js holds all of
+    // them: ~90 MB here for modules the pipelines no longer need; js/gpu-memory.js dropShaderModules)
+    dropShaderModules: true,
     // (chunks of 1024 m, 336 instead of 1344 meshes: Safari's web and GPU processes hold ~16 KB a GPU object whatever
     // its size; each chunk's orthophoto is composed of its 2 x 2 tiles, js/swissimage.js)
     terrainChunk: 128,

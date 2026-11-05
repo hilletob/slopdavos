@@ -83,6 +83,42 @@ export function keepPipelinesOfReleasedObjects(renderer) {
   };
 }
 
+const moduleStats = { made: 0, programs: 0 };
+/** What dropShaderModules() has done: modules made (one a pipeline, per stage), programs seen */
+export const shaderModuleStats = () => ({ ...moduleStats });
+
+/**
+ * Safari's GPU process keeps about 1.7 MB for every shader module a page holds (the module's compiled Metal library,
+ * beside the pipeline's own), and three.js holds every module for good, for the pipelines that may share its program:
+ * ~160 MB of the 300 an iPhone's GPU process may have were the town's 95 pipelines and 166 modules; the same shaders
+ * as modules that go right after use are half of it. So here a program's module is made when a pipeline asks for it
+ * and let go at the end of that task (three.js reads it twice while making the pipeline). A later pipeline with the
+ * same program has it compiled once more: rare, as most programs serve one pipeline, and the pipeline keeps what it
+ * needs. WebGPU backend only; to be called once the renderer is initialised.
+ */
+export function dropShaderModules(renderer) {
+  const backend = renderer.backend;
+  if (!backend?.isWebGPUBackend || typeof backend.createProgram !== 'function') return false;
+  backend.createProgram = function (program) {
+    const data = this.get(program);
+    const label = program.stage + (program.name !== '' ? `_${program.name}` : ''), code = program.code;
+    moduleStats.programs++;
+    let module = null;
+    data.module = {
+      get module() {
+        if (!module) {
+          module = backend.device.createShaderModule({ label, code });
+          moduleStats.made++;
+          setTimeout(() => { module = null; }, 0);
+        }
+        return module;
+      },
+      entryPoint: 'main'
+    };
+  };
+  return true;
+}
+
 /**
  * For an object going away for good while its material stays (the streamed cells', the missions' shared ones): three.js
  * keeps a drawn object's render state (its bindings and uniform buffers on the GPU, node state in JavaScript) until

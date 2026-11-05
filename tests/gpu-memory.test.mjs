@@ -19,7 +19,7 @@ export class BufferGeometry {
 }`);
 register(`data:text/javascript,${encodeURIComponent(`export async function resolve(s, c, next) { return s === 'three/webgpu' ? { url: 'data:text/javascript,${three}', shortCircuit: true } : next(s, c); }`)}`);
 const THREE = await import('three/webgpu');
-const { indexGeometry, flatGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats } = await import('../js/gpu-memory.js');
+const { indexGeometry, flatGeometry, compactStaticGeometry, releaseRenderState, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } = await import('../js/gpu-memory.js');
 
 // A draped strip as drapeOverlay leaves it: non-indexed triangles, every inner corner repeated (n quads, 6 corners each)
 function strip(n) {
@@ -109,6 +109,8 @@ test('what is torn down while playing releases its render state, what is built l
   assert.match(source('missions.js'), /releaseRenderState\(o\)/);
   assert.match(source('main.js'), /keepPipelinesOfReleasedObjects\(renderer\)/);
   assert.match(source('main.js'), /if \(QUALITY\.flatDraws\) flattenDraws\(renderer\)/, 'the flat-draws profile, before anything is drawn');
+  assert.match(source('main.js'), /if \(QUALITY\.dropShaderModules\) dropShaderModules\(renderer\)/, 'modules only while a pipeline is made');
+  assert.match(source('quality.js'), /dropShaderModules: true/, 'on the mobile profile');
   assert.match(source('main.js'), /buildWinterScenery\(\);\s+finishLateScenery\(/, 'the winter scenery on the mobile profile');
 });
 
@@ -216,4 +218,28 @@ test('compactStaticGeometry on the flat-draws profile writes the index buffers o
   compactStaticGeometry([{ userData: {}, children: [plain] }], { flat: true });
   assert.equal(plain.geometry, flat);
   assert.ok(flat.attributes.normal.array instanceof Int8Array);
+});
+
+test('dropShaderModules makes a program\'s module for the pipeline that asks and lets it go after that task', async () => {
+  const made = [];
+  const device = { createShaderModule(desc) { made.push(desc); return { desc }; } };
+  const data = new Map();
+  const backend = { isWebGPUBackend: true, device, get(k) { if (!data.has(k)) data.set(k, {}); return data.get(k); }, createProgram() { throw new Error('three.js own'); } };
+  assert.equal(dropShaderModules({ backend }), true);
+  assert.equal(dropShaderModules({ backend: { isWebGLBackend: true, createProgram() {} } }), false, 'WebGPU only');
+  const program = { stage: 'fragment', name: 'Terrain', code: 'fn main() {}' };
+  const before = shaderModuleStats();
+  backend.createProgram(program);
+  const gpu = backend.get(program).module;
+  assert.equal(gpu.entryPoint, 'main');
+  assert.equal(made.length, 0, 'nothing compiled until a pipeline asks');
+  const first = gpu.module;
+  assert.equal(gpu.module, first, 'read twice while the pipeline is made: one module');
+  assert.deepEqual(made, [{ label: 'fragment_Terrain', code: 'fn main() {}' }]);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.notEqual(gpu.module, first, 'the next pipeline with this program gets a fresh one');
+  assert.equal(made.length, 2);
+  const after = shaderModuleStats();
+  assert.equal(after.programs - before.programs, 1);
+  assert.equal(after.made - before.made, 2);
 });

@@ -49,7 +49,7 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './frame-guard.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
-import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats } from './gpu-memory.js';
+import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
 import { gameClock } from './game-clock.js';
 import { missionClockTime } from './mission-windows.js';
@@ -179,6 +179,7 @@ async function initApp() {
   keepPipelinesOfReleasedObjects(renderer);
   // (the mobile profile, js/quality.js flatDraws: nothing drawn with an index buffer, js/gpu-memory.js)
   if (QUALITY.flatDraws) flattenDraws(renderer);
+  if (QUALITY.dropShaderModules) dropShaderModules(renderer);
   markInit('renderer');
   // (the mobile profile: every shader module numbered in the breadcrumbs, with its object, length and hash, and the
   // compiler's complaints; ?qset=shaderLog:true elsewhere)
@@ -1316,6 +1317,7 @@ async function initApp() {
           get gta() { return gta; }, // (the GTA mode: its stand-ins, the taken vehicles, js/gta.js)
           releasedGeometry() { return { ...releasedGeometryStats(), MB: Math.round(releasedMB) }; },
           flatDraws() { return flatDrawStats(); },
+          shaderModules() { return shaderModuleStats(); },
         };
         initTimings = null;
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
