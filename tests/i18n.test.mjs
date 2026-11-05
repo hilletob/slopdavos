@@ -218,3 +218,13 @@ test('the end panels: failed and aborted, the awards, the score units and the su
   assert.equal(t('Over the limit 4 s (up to +7 km/h): −20 pts'), 'Über dem Limit 4 s (bis +7 km/h): −20 Pkt.');
   assert.equal(t('Down the Chüggelibahn'), 'Die Chüggelibahn hinunter');
 });
+
+test('the leaderboards\' comparison and the email sign-in read in German', () => {
+  setLanguage('de');
+  assert.equal(t('Place 7 of 23 · 4.1 s behind place 6 · 01:09.1 behind the leader'), 'Platz 7 von 23 · 4,1 s hinter Platz 6 · 01:09.1 hinter der Spitze');
+  assert.equal(t('You lead, 750 points ahead of place 2'), 'Du führst, 750 Punkte vor Platz 2');
+  assert.equal(t('Place 17 of 37 · 500 points behind place 16 · 15250 points behind the leader'), 'Platz 17 von 37 · 500 Punkte hinter Platz 16 · 15250 Punkte hinter der Spitze');
+  assert.equal(t('Place 2 of 3'), 'Platz 2 von 3');
+  assert.equal(t('We sent a code to '), 'Wir haben einen Code geschickt an ');
+  assert.equal(t('Leaderboards'), 'Bestenlisten');
+});

@@ -1,9 +1,49 @@
 import { fetchBoard } from './leaderboard.js';
 
 // js/leaderboard-ui.js
-// A list in a mission's intro and end dialog. textContent only, and .player-name keeps js/i18n.js off the players' names.
+// A list in a mission's intro and end dialog, and the lists of the overview (js/leaderboard-overview.js). textContent only,
+// and .player-name keeps js/i18n.js off the players' names.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
+export const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
+
+/** A gap between two times: seconds below a minute, else mm:ss.d */
+export const timeGap = (ms, format) => (ms < 60000 ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : format(ms));
+
+/** A gap in points */
+export const pointsGap = (n) => `${Math.max(0, Math.round(n))} points`;
+
+/** How the player stands against the others, in one line (null: the player is not on the list). `value(row)`: the line's
+ *  time or points, `gap(n)`: a difference written out */
+export function compareText(rows, { value, gap }) {
+  const me = rows.find((r) => r.is_me);
+  if (!me) return null;
+  const at = (place) => rows.find((r) => r.place === place);
+  const players = me.players;
+  if (me.place === 1) {
+    const second = at(2);
+    return second ? `You lead, ${gap(Math.abs(value(second) - value(me)))} ahead of place 2` : 'You lead';
+  }
+  const parts = [`Place ${me.place} of ${players}`];
+  const above = at(me.place - 1);
+  if (above) parts.push(`${gap(Math.abs(value(me) - value(above)))} behind place ${above.place}`);
+  const first = at(1);
+  if (first && me.place > 2) parts.push(`${gap(Math.abs(value(me) - value(first)))} behind the leader`);
+  return parts.join(' · ');
+}
+
+/** The lines of a list (a gap in the places: …) */
+export function boardList(rows, show) {
+  const list = el('ol', 'mission-board-list');
+  let last = 0;
+  for (const row of rows) {
+    if (row.place > last + 1) list.append(el('li', 'mission-board-gap', '…'));
+    last = row.place;
+    const li = el('li', row.is_me ? 'is-me' : null);
+    li.append(el('span', 'mission-board-place', String(row.place)), el('span', 'mission-board-name player-name', row.name), el('span', 'mission-board-time', show(row)));
+    list.append(li);
+  }
+  return list;
+}
 
 /** What the end dialog says about the run (no result: the backend could not be reached, or the run was refused) */
 function runNote(result, signedIn) {
@@ -29,14 +69,7 @@ export async function showBoard(node, board, { format, submission = null, ended 
   status.remove();
   node.append(...notes);
   if (!rows.length) { node.append(el('p', 'mission-dialog-note', 'No times yet. Be the first.')); return; }
-  const list = el('ol', 'mission-board-list');
-  let last = 0;
-  for (const row of rows) {
-    if (row.place > last + 1) list.append(el('li', 'mission-board-gap', '…'));
-    last = row.place;
-    const li = el('li', row.is_me ? 'is-me' : null);
-    li.append(el('span', 'mission-board-place', String(row.place)), el('span', 'mission-board-name player-name', row.name), el('span', 'mission-board-time', format(row.total_ms)));
-    list.append(li);
-  }
-  node.append(list);
+  const compare = !ended && compareText(rows, { value: (r) => r.total_ms, gap: (ms) => timeGap(ms, format) });
+  if (compare) node.append(el('p', 'mission-board-note is-ranked', compare));
+  node.append(boardList(rows, (row) => format(row.total_ms)));
 }

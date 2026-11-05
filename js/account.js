@@ -55,6 +55,31 @@ export async function signIn(provider, { beforeLeave } = {}) {
   location.replace(data.url);
 }
 
+/** A plausible email address: the server decides, this only spares a request it would refuse */
+export const emailFits = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email ?? '').trim()) && String(email).trim().length <= 254;
+
+/** A code that can be typed in: digits only, as many as Supabase sends (6 by default, up to 10) */
+export const cleanCode = (code) => String(code ?? '').replace(/\D/g, '');
+export const codeFits = (code) => /^\d{6,10}$/.test(cleanCode(code));
+
+/**
+ * Signing in without a provider: a one-time code goes to the email address (a new address becomes a new account), and is
+ * typed in here. No redirect, so the installed app stays where it is. Rejects with the error's `status` (429: too many).
+ * Needs the dashboard's email template "Magic Link" to show the code ({{ .Token }}), not only the link.
+ */
+export async function sendEmailCode(email) {
+  const supabase = await getClient();
+  const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+  if (error) throw error;
+}
+
+/** The code becomes the session. Rejects for a wrong or expired code */
+export async function verifyEmailCode(email, code) {
+  const supabase = await getClient();
+  const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: cleanCode(code), type: 'email' });
+  if (error) throw error;
+}
+
 /** auth/callback.html: the code from the URL becomes the session. Answers the path to return to */
 export async function finishSignIn(code) {
   const supabase = await getClient();

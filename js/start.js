@@ -17,6 +17,7 @@ if (firstVisit) {
   try {
     const { askHowToPlay } = await import('./start-choice.js');
     await askHowToPlay();
+    signedIn = !!localStorage.getItem(SESSION_KEY); // (signed in there with an email code: the cloud save comes first too)
   } catch (error) {
     console.warn('[account] the start choice could not be shown', error);
   }

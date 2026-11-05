@@ -1,5 +1,6 @@
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { isConfigured, signIn, signOut, deleteAccount, currentUser } from './account.js';
+import { emailSignIn } from './account-email.js';
 
 // js/account-ui.js
 // The account button in the toolbar and its popover (index.html). Started after the first frame by js/main.js.
@@ -33,9 +34,34 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
     return b;
   };
 
+  /** All the leaderboards in one dialog (js/leaderboard-overview.js), for a guest too */
+  const boardsItem = (signedIn) => item('Leaderboards', async () => {
+    popover.hidePopover?.();
+    try {
+      const { openLeaderboards } = await import('./leaderboard-overview.js');
+      openLeaderboards({ signedIn });
+    } catch {
+      say('The leaderboard is not reachable right now.');
+      popover.showPopover?.();
+    }
+  });
+
+  /** Signed in with an email code: the game starts again with the account, like after the Google sign-in */
+  const restartSignedIn = () => {
+    try { save(); } catch { /* */ }
+    try { leaving?.(); } catch { /* */ }
+    location.replace(location.pathname + location.search);
+  };
+
   const renderGuest = () => {
     button.setAttribute('aria-pressed', 'false');
-    list.replaceChildren(...LOGIN_PROVIDERS.map(({ id, label }) => item(label, async () => {
+    const email = emailSignIn({
+      say,
+      signedIn: restartSignedIn,
+      allowed: () => { if (missionActive()) { say('Finish the mission first.'); return false; } return true; },
+      buttonClass: 'pop-item'
+    });
+    list.replaceChildren(boardsItem(false), ...LOGIN_PROVIDERS.map(({ id, label }) => item(label, async () => {
       if (missionActive()) { say('Finish the mission first.'); return; }
       say('Opening the sign-in…');
       try {
@@ -44,7 +70,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
       } catch {
         say('The sign-in is not reachable right now. You can keep playing.');
       }
-    })));
+    })), email);
   };
 
   const leave = () => { sync?.stop(); sync = null; syncState = ''; loadName = null; renderGuest(); };
@@ -95,7 +121,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
     who.className = 'pop-sub account-who player-name';
     who.textContent = user.email || '';
     let confirming = false;
-    list.replaceChildren(who, nameForm(), item('Sign out', async () => {
+    list.replaceChildren(who, boardsItem(true), nameForm(), item('Sign out', async () => {
       try {
         await sync?.flush().catch(() => {});
         await signOut();

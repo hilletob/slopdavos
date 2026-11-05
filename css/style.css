@@ -253,6 +253,17 @@ body::after {
 .start-choice .start-choice-status { margin: 0; font-size: 12.5px; }
 .start-choice-status[hidden] { display: none; }
 .start-choice a { font-size: 12.5px; color: var(--text-3); }
+.start-choice .start-choice-or { margin: 0; font-size: 12.5px; text-align: center; color: var(--text-3); }
+
+/* Signing in with an email code (js/account-email.js): on the first-visit question and in the account menu */
+.account-email { display: flex; flex-direction: column; gap: 8px; }
+.account-email-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-3); text-align: left; }
+.account-email-field input { width: 100%; box-sizing: border-box; padding: 9px 10px; font: inherit; font-size: 16px; color: var(--text); background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px; }
+.account-email-sent { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; text-align: left; }
+.start-choice .account-email-btn.is-quiet { padding: 6px; font-size: 13px; font-weight: 500; background: none; border: 0; color: var(--text-3); text-decoration: underline; }
+.popover .account-email { max-width: 264px; padding: 6px 10px 4px; border-top: 1px solid var(--hover); margin-top: 4px; }
+.popover .account-email-btn { padding-inline: 0; }
+.popover .account-email-btn.is-quiet { color: var(--text-3); font-size: 12px; }
 
 /* While the city is being built (main thread busy) the bar sweeps on the compositor; it fills once shaders compile */
 .loader-track.is-indeterminate .loader-fill {
@@ -1899,6 +1910,14 @@ body.touch-enabled .pop-item { min-height: 44px; }
 .mission-board-place { min-width: 2.2em; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .mission-board-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mission-board-time { font-variant-numeric: tabular-nums; }
+
+/* All the leaderboards (js/leaderboard-overview.js), above a mission's list */
+.leaderboard-overlay { z-index: 45; }
+.leaderboard-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.leaderboard-tab { padding: 6px 11px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-3); background: var(--hover); border: 1px solid transparent; border-radius: 999px; cursor: pointer; }
+.leaderboard-tab:hover { color: var(--text); }
+.leaderboard-tab[aria-selected="true"] { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
+.leaderboard-body { min-height: 180px; }
 
 .mission-dialog-note {
   margin: 0;

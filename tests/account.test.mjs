@@ -37,7 +37,7 @@ test('the callback lies beside the game, also under a sub-path', () => {
 test('the SDK is pinned and stays out of a guest\'s start', () => {
   assert.match(SUPABASE_SDK, /@supabase\/supabase-js@\d+\.\d+\.\d+\/\+esm$/);
   assert.doesNotMatch(html, /supabase/i);
-  for (const module of ['account', 'account-ui', 'account-config', 'account-sync', 'account-merge', 'leaderboard', 'leaderboard-ui', 'start-choice']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
+  for (const module of ['account', 'account-ui', 'account-config', 'account-sync', 'account-merge', 'leaderboard', 'leaderboard-ui', 'leaderboard-overview', 'account-email', 'start-choice']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
   assert.doesNotMatch(read('js/main.js'), /^import .*account/m, 'js/main.js loads the account on demand only');
   assert.doesNotMatch(read('js/account.js'), /from ['"]https?:/, 'the SDK is not a static import');
 });

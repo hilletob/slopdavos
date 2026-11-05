@@ -36,8 +36,14 @@ export const startRun = (board) => rpc('start_run', { board });
 /** { accepted: true, improved, rank, players, best_ms } or { accepted: false, reason } (a penalty adds to `total`) */
 export const submitRun = (run, total, penalty) => rpc('submit_run', { run, total_ms: Math.round(total), penalty_ms: Math.round(penalty) });
 
-/** The top of a list, plus the player's own line: [{ place, name, total_ms, is_me, players }] */
-export const fetchBoard = (board) => rpc('board_top', { board });
+/** How many lines stand around the player's own (supabase/migrations/*_leaderboard_overview.sql) */
+export const AROUND = 2;
+
+/** The top of a list, the player's own line and the lines around it: [{ place, name, total_ms, is_me, players }] */
+export const fetchBoard = (board) => rpc('board_view', { board, how_many: 10, around: AROUND });
+
+/** The overall list of the missions' points from the cloud saves: [{ place, name, points, is_me, players }] */
+export const fetchPoints = () => rpc('points_view', { how_many: 10, around: AROUND });
 
 /** The player's public name (one is made up on first asking) */
 export const myName = () => rpc('my_profile');

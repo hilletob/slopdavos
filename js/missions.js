@@ -105,6 +105,10 @@ function showList(manager, progress, note = null, fastForward = null) {
   total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
   panel.append(total);
   // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
+  const boards = el('button', 'mission-btn mission-btn-secondary mission-board-open', 'Leaderboards');
+  boards.type = 'button';
+  boards.addEventListener('click', () => import('./leaderboard-overview.js').then((o) => o.openLeaderboards({ signedIn: signedIn() })).catch(() => {}));
+  panel.append(boards);
   // with the mission open (a link in a new tab, or ?mission=<id>, always starts it directly, moving the clock)
   const now = gameClock.total;
   panel.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));

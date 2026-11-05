@@ -33,6 +33,23 @@ const pairs = [
   ['The leaderboard is not reachable right now.', 'Die Bestenliste ist gerade nicht erreichbar.'], ['No times yet. Be the first.', 'Noch keine Zeiten. Sei die erste Person.'],
   ['This run was not counted. Your result stays on this device.', 'Dieser Lauf wurde nicht gewertet. Dein Ergebnis bleibt auf diesem Gerät.'],
   ['Sign in from the account menu to join the leaderboard.', 'Melde dich im Konto-Menü an, um in die Bestenliste zu kommen.'],
+  ['Leaderboards', 'Bestenlisten'], ['How you compare', 'Dein Vergleich'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
+  ['The points of your missions, from your cloud save. Every medal counts.', 'Die Punkte deiner Missionen aus deinem Online-Spielstand. Jede Medaille zählt.'],
+  ['The best time of every player, by day.', 'Die beste Zeit jeder Person, bei Tag gefahren.'],
+  ['No points on the list yet.', 'Noch keine Punkte auf der Liste.'], ['You are not on this list yet.', 'Du bist noch nicht auf dieser Liste.'],
+  ['Sign in from the account menu to appear here and compare yourself.', 'Melde dich im Konto-Menü an, um hier aufzutauchen und dich zu vergleichen.'],
+  ['You lead', 'Du führst'],
+  ['Sign in with email', 'Mit E-Mail anmelden'], ['Send code', 'Code senden'], ['Sending the code…', 'Der Code wird gesendet …'],
+  ['Please enter a valid email address.', 'Bitte gib eine gültige E-Mail-Adresse ein.'],
+  ['Too many codes asked for. Please wait a few minutes and try again.', 'Zu viele Codes angefordert. Bitte warte ein paar Minuten und versuche es dann erneut.'],
+  ['The code could not be sent. Please try again.', 'Der Code konnte nicht gesendet werden. Bitte versuche es erneut.'],
+  ['We sent a code to', 'Wir haben einen Code geschickt an'], ['. It can take a minute.', '. Das kann eine Minute dauern.'],
+  ['Code from the email', 'Code aus der E-Mail'], ['Sign in', 'Anmelden'], ['Use another email', 'Andere E-Mail verwenden'],
+  ['The code has 6 digits or more.', 'Der Code hat mindestens 6 Ziffern.'], ['Signing in…', 'Anmeldung läuft …'],
+  ['That code is wrong or has expired.', 'Dieser Code ist falsch oder abgelaufen.'],
+  ['This device holds the save of another account.', 'Auf diesem Gerät liegt der Spielstand eines anderen Kontos.'],
+  ['Continue with this account (the other save leaves this device)', 'Mit diesem Konto weiterspielen (der andere Spielstand verlässt das Gerät)'],
+  ['Cancel and sign out', 'Abbrechen und abmelden'], ['or', 'oder'],
   ['Name on the leaderboards', 'Name in den Bestenlisten'], ['Save name', 'Name speichern'], ['Name saved.', 'Name gespeichert.'], ['That name is taken.', 'Dieser Name ist vergeben.'],
   ['Use 3 to 20 letters, digits, spaces, - or _. Some words are not allowed.', 'Erlaubt sind 3 bis 20 Buchstaben, Ziffern, Leerzeichen, - oder _. Manche Wörter sind gesperrt.'],
   ['The name could not be saved. Please try again.', 'Der Name konnte nicht gespeichert werden. Bitte versuche es erneut.'],
@@ -1320,6 +1337,15 @@ function translate(value) {
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) medal$/, (_, medal) => `${enToDe.get(medal) || medal}medaille`);
   // a feedback popup: a known line and its points after two spaces
   dynamic = dynamic.replace(new RegExp(`^(.+?)${POP}$`), (whole, head, tail) => (tail && enToDe.has(head) ? enToDe.get(head) + tail : whole));
+  // the leaderboards' comparison (js/leaderboard-ui.js compareText)
+  if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
+    const gapDe = (g) => g.replace(/^(\d+) points$/, '$1 Punkte').replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
+    dynamic = dynamic
+      .replace(/^You lead, (.+) ahead of place 2$/, (_, g) => `Du führst, ${gapDe(g)} vor Platz 2`)
+      .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')
+      .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
+      .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
+  }
   return match[1] + dynamic + match[3];
 }
 

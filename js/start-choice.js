@@ -1,6 +1,7 @@
 import './i18n.js';
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { isConfigured, signIn } from './account.js';
+import { emailSignIn } from './account-email.js';
 
 // js/start-choice.js
 // The question on a first visit: sign in, or play as a guest (js/start.js holds the game back until it is answered). Signing
@@ -36,16 +37,22 @@ export function askHowToPlay() {
         say('The sign-in is not reachable right now. You can keep playing.');
       }
     }));
-    const guest = button('Play as a guest', () => {
-      try { localStorage.setItem(CHOICE_KEY, 'guest'); } catch { /* (asked again next time) */ }
+    const goOn = (choice) => {
+      try { localStorage.setItem(CHOICE_KEY, choice); } catch { /* (asked again next time) */ }
       loader.classList.remove('is-asking');
       box.remove();
       resolve();
-    });
+    };
+    const guest = button('Play as a guest', () => goOn('guest'));
+    // (signed in with an email code, the page stays: the game is built now, and js/account-ui.js finds the session)
+    const email = emailSignIn({ say: (message) => { status.textContent = message; status.hidden = !message; }, signedIn: () => goOn('account') });
+    const or = document.createElement('p');
+    or.className = 'start-choice-or';
+    or.textContent = 'or';
     const privacy = document.createElement('a');
     privacy.href = './privacy.html';
     privacy.textContent = 'Privacy';
-    box.append(text, ...signInButtons, guest, status, privacy);
+    box.append(text, ...signInButtons, email, or, guest, status, privacy);
     loader.classList.add('is-asking');
     loader.append(box);
   });
