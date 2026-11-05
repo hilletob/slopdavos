@@ -27,6 +27,8 @@ const pairs = [
   ['The account is deleted. Your game stays on this device.', 'Das Konto ist gelöscht. Dein Spiel bleibt auf diesem Gerät.'],
   ['Deleting failed. Please try again.', 'Löschen hat nicht geklappt. Bitte versuche es erneut.'],
   ['Privacy', 'Datenschutz'],
+  ['Sign in to keep your game on all your devices and join the leaderboards.', 'Melde dich an, damit dein Spiel auf all deinen Geräten weiterläuft und du in die Bestenlisten kommst.'],
+  ['Play as a guest', 'Als Gast spielen'],
   ['Leaderboard', 'Bestenliste'], ['Show leaderboard', 'Bestenliste anzeigen'], ['Loading the leaderboard…', 'Die Bestenliste wird geladen …'],
   ['The leaderboard is not reachable right now.', 'Die Bestenliste ist gerade nicht erreichbar.'], ['No times yet. Be the first.', 'Noch keine Zeiten. Sei die erste Person.'],
   ['This run was not counted. Your result stays on this device.', 'Dieser Lauf wurde nicht gewertet. Dein Ergebnis bleibt auf diesem Gerät.'],

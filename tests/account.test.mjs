@@ -37,7 +37,7 @@ test('the callback lies beside the game, also under a sub-path', () => {
 test('the SDK is pinned and stays out of a guest\'s start', () => {
   assert.match(SUPABASE_SDK, /@supabase\/supabase-js@\d+\.\d+\.\d+\/\+esm$/);
   assert.doesNotMatch(html, /supabase/i);
-  for (const module of ['account', 'account-ui', 'account-config', 'account-sync', 'account-merge', 'leaderboard', 'leaderboard-ui']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
+  for (const module of ['account', 'account-ui', 'account-config', 'account-sync', 'account-merge', 'leaderboard', 'leaderboard-ui', 'start-choice']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
   assert.doesNotMatch(read('js/main.js'), /^import .*account/m, 'js/main.js loads the account on demand only');
   assert.doesNotMatch(read('js/account.js'), /from ['"]https?:/, 'the SDK is not a static import');
 });
@@ -63,4 +63,12 @@ test('the login replaces the page and gives the GPU back first, and the page aft
   assert.match(ui, /signIn\(id, \{ beforeLeave: leaving \}\)/);
   assert.match(main, /leaving: leavePage/);
   assert.match(main, /const leavePage = \(\) => \{[^]*?device\?\.destroy[^]*?MOVING_KEY/);
+});
+
+test('a first visit is asked only from js/start.js, under the key the choice is kept in, and loads nothing for anyone else', () => {
+  const start = read('js/start.js');
+  assert.match(start, /await import\('\.\/start-choice\.js'\)/);
+  assert.doesNotMatch(start, /^import /m);
+  assert.match(read('js/start-choice.js'), /CHOICE_KEY = 'slopdavos-start-choice'/);
+  for (const key of ['slopdavos-start-choice', 'slopdavos-progress', 'slopdavos-player-state']) assert.ok(start.includes(`'${key}'`), key);
 });
