@@ -77,6 +77,22 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
       thermalList: FREE_THERMALS, thermals: freeThermals(gameClock.minute, gameClock.isWinter), thermalsT: 2,
       launchT: 0, landedT: 0, jumped: false, lastX: p.x, lastZ: p.z, airborneAt: 0, ranked: null, judged: false
     };
+    // (what the mission's run offers the feature, js/missions.js: the key bar's hints, the touch buttons relabelled;
+    // without them setup() threw and P did nothing)
+    const r0 = run;
+    const airborne = () => r0.state.flight.phase === 'air' && !touch();
+    run.hints = (list) => {
+      const off = actions?.layer('free flight:air', list.map(([kbd, label]) => ({ kind: 'hint', kbd, label, when: airborne })), { replace: airborne, rank: 10 });
+      if (off) r0.cleanups.push(off);
+      return off || (() => {});
+    };
+    run.button = (id, label) => {
+      if (!actions) return () => {};
+      actions.relabel(id, label);
+      const restore = () => actions.relabel(id);
+      r0.cleanups.push(restore);
+      return restore;
+    };
     try {
       feature.setup(run);
       feature.reset(run);
@@ -166,7 +182,7 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
       keyP.hidden = flashing && !laidOut;
     }
     // the key bar's P (js/actions.js): told when it changes
-    const wantHint = hintWanted();
+    const wantHint = `${hintWanted()}:${laidOut}:${!!f && f.phase === 'air'}`; // (shown, "Paraglider" or "Pack up", the flight's keys)
     if (wantHint !== hintShown) { hintShown = wantHint; actions?.notify(); }
     // the touch button: "Fly" where a launch works, "Pack up" while the wing lies on the ground
     const label = laidOut ? 'Pack up' : !run && licensed && onFoot() && !busy() && spot ? 'Fly' : null;
