@@ -2979,14 +2979,19 @@ function createGodRayMaterial() {
 /**
  * Soft Rounded-Rectangle Under-Vehicle Contact Shadow (Ambient Occlusion) TSL Material
  */
-function createContactShadowMaterial() {
+// round: a soft disc for a person (the default is a vehicle's rounded box with its four tyre patches, which from the
+// bird's-eye camera showed as a dark square around the pedestrian)
+function createContactShadowMaterial({ round = false } = {}) {
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true,
     depthWrite: false,
     fog: false
   });
 
-  const shadowOpacity = Fn(() => {
+  const shadowOpacity = round ? Fn(() => {
+    const r = length(uv().sub(vec2(0.5, 0.5)).mul(2.0));
+    return smoothstep(1.0, 0.0, r).pow(1.6).mul(0.6);
+  })() : Fn(() => {
     const uvCentered = uv().sub(vec2(0.5, 0.5)).mul(2.0);
     const p = abs(uvCentered);
     // Rounded-box SDF in normalized [-1, 1]^2 quad coords with smooth falloff to 0 before quad edges

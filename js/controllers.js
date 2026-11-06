@@ -923,7 +923,7 @@ class ThirdPersonControllerManager {
     // Soft Under-Foot Contact Shadow (AO)
     const shadowGeo = new THREE.PlaneGeometry(0.95, 0.95);
     shadowGeo.rotateX(-Math.PI * 0.5);
-    const pedShadow = new THREE.Mesh(shadowGeo, createContactShadowMaterial());
+    const pedShadow = new THREE.Mesh(shadowGeo, createContactShadowMaterial({ round: true }));
     pedShadow.position.y = 0.02;
     pedShadow.renderOrder = 998;
     root.add(pedShadow);
