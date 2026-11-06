@@ -27,7 +27,8 @@ const CARRIAGEWAY_KINDS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_
 // each instance keeps its part's vertices and collapses the others. Two draws, and two more for the shadow cascades.
 // Every 0.25 s only the signs within VIEW_DISTANCE of the camera are packed into the instance buffers (the meshes never
 // hold zero instances: WebGPU rejects empty buffers, they are hidden instead). At night the faces glow faintly, as
-// retroreflective sheeting does in the headlights. The posts, benches and bins are player colliders.
+// retroreflective sheeting does in the headlights. The sign posts and the stops' masts (with their bows, plates and
+// timetable cases) go down under a vehicle, like the lamp posts; the stops' benches and bins tip over.
 
 const VIEW_DISTANCE = 320;   // m: a 60 cm plate is ~2 px beyond this
 const PLATE_BOTTOM = 2.1;    // m over the sidewalk
@@ -495,7 +496,7 @@ function stopKeys(s) {
 
 /**
  * Builds the signs. `network`: the traffic network (trafficSystem.network) for the painted crosswalks; `night`: the
- * lighting's night factor uniform (0 day … 1 night). Returns { group, update(cameraPosition), colliders (the stops'),
+ * lighting's night factor uniform (0 day … 1 night). Returns { group, update(cameraPosition), colliders (none any more),
  * knockablePosts (the sign posts, for controllers.js setKnockablePosts), stats }.
  */
 export function buildTrafficSigns(scene, { network = null, night = null } = {}) {
@@ -578,7 +579,6 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   const groundAt = (x, z) => surfaceHeight(x, z) + Math.max(SIDEWALK_TOP, sidewalkRise(x, z));
   const part = (matrix, kind) => parts.push({ matrix: matrix.toArray(), part: kind });
   const plate = (matrix, front, back = NONE) => plates.push({ matrix: matrix.toArray(), front: front || NONE, back: back || NONE });
-  const boxCollider = (x, z, r, y, h) => colliders.push({ minX: x - r, maxX: x + r, minZ: z - r, maxZ: z + r, baseY: y, minY: y - 0.3, maxY: y + h });
   let moved = 0, marks = 0, benches = 0;
 
   // A sign post a vehicle drives into (controllers.js setKnockablePosts, which calls knockSet.fall) turns about its
@@ -589,13 +589,17 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   const FALL_MS = 600, FALL_ANGLE = Math.PI / 2 * 0.97;
   const _fallM = new THREE.Matrix4(), _fallR = new THREE.Matrix4(), _fallT = new THREE.Matrix4(), _fallAxis = new THREE.Vector3();
   let dirty = false;
+  // (a stop's road markings stay where they are: post.mast is the range of what falls, else the whole. A post turns
+  // about its foot; a bench or a bin (its own entry in `posts`) tips over its far bottom edge, post.tip m on in the
+  // direction of travel)
   const knockSet = {
     fall(knocked, dx, dz) {
-      const post = posts[knocked.i];
+      const post = posts[knocked.i], [parts0, parts1] = post.mast?.parts || post.parts, [plates0, plates1] = post.mast?.plates || post.plates;
+      const tip = post.tip || 0;
       falling.push({
-        post, ax: dz, az: -dx, t0: performance.now(),
-        parts: parts.slice(post.parts[0], post.parts[1]).map((p) => p.matrix.slice()),
-        plates: plates.slice(post.plates[0], post.plates[1]).map((p) => p.matrix.slice())
+        post, px: post.x + dx * tip, pz: post.z + dz * tip, ax: dz, az: -dx, t0: performance.now(),
+        parts: parts.slice(parts0, parts1).map((p) => p.matrix.slice()),
+        plates: plates.slice(plates0, plates1).map((p) => p.matrix.slice())
       });
     }
   };
@@ -607,9 +611,10 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
       const p = Math.min(1, (now - f.t0) / FALL_MS);
       // the turn about the foot, in world space: T(foot) R T(-foot)
       _fallR.makeRotationAxis(_fallAxis.set(f.ax, 0, f.az).normalize(), FALL_ANGLE * p * p); // (gaining speed as it goes)
-      _fallM.makeTranslation(-post.x, -post.y, -post.z).premultiply(_fallR).premultiply(_fallT.makeTranslation(post.x, post.y, post.z));
-      for (let j = 0; j < f.parts.length; j++) _fallT.fromArray(f.parts[j]).premultiply(_fallM).toArray(parts[post.parts[0] + j].matrix);
-      for (let j = 0; j < f.plates.length; j++) _fallT.fromArray(f.plates[j]).premultiply(_fallM).toArray(plates[post.plates[0] + j].matrix);
+      _fallM.makeTranslation(-f.px, -post.y, -f.pz).premultiply(_fallR).premultiply(_fallT.makeTranslation(f.px, post.y, f.pz));
+      const parts0 = (post.mast?.parts || post.parts)[0], plates0 = (post.mast?.plates || post.plates)[0];
+      for (let j = 0; j < f.parts.length; j++) _fallT.fromArray(f.parts[j]).premultiply(_fallM).toArray(parts[parts0 + j].matrix);
+      for (let j = 0; j < f.plates.length; j++) _fallT.fromArray(f.plates[j]).premultiply(_fallM).toArray(plates[plates0 + j].matrix);
       if (p >= 1) falling.splice(k, 1);
     }
     dirty = true;
@@ -625,7 +630,8 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
     if (p.x !== s.x || p.z !== s.z) moved++;
     const y = groundAt(p.x, p.z);
     const firstPlate = plates.length, firstPart = parts.length;
-    let height;
+    let height, mast = null;
+    const furniture = []; // a stop's bench and bin: their own entries in `posts` after the stop's (each tips over on its own)
     if (s.t === 'busstop') {
       // The VBD stop: its local frame turned to face the road (+z), the plate beside the mast (+x, against the traffic)
       const yaw = s.yaw - Math.PI / 2;
@@ -650,22 +656,13 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
       }
       plate(at(x0 + w / 2, yTop - h + bandH / 2, 0, 0, w, bandH, 1), rects.get(k.name), rects.get(k.name));
       plate(at(0, STOP.caseBottom + STOP.caseH / 2, 0.035 + STOP.caseDepth + 0.001, 0, STOP.caseW, STOP.caseH, 1), rects.get('vbdcase'));
-      height = top + 0.3;
+      mast = { parts: [firstPart, parts.length], plates: [firstPlate, plates.length] }; // (what falls with the mast)
       // A bench behind the mast along the kerb, the bin beside it (local: -x is the traffic's way, -z away from the road)
-      if (s.bench) {
-        const bx = p.x + (A.elements[0] * -1.9 + A.elements[8] * -0.9), bz = p.z + (A.elements[2] * -1.9 + A.elements[10] * -0.9);
-        const by = groundAt(bx, bz);
-        m.compose(pos.set(bx, by, bz), q, scl.set(1, 1, 1));
-        part(m, PART.bench);
-        boxCollider(bx, bz, 0.6, by, 0.85);
-        benches++;
-      }
-      if (s.bin) {
-        const bx = p.x + (A.elements[0] * 0.9 + A.elements[8] * -0.5), bz = p.z + (A.elements[2] * 0.9 + A.elements[10] * -0.5);
-        const by = groundAt(bx, bz);
-        m.compose(pos.set(bx, by, bz), q, scl.set(1, 1, 1));
-        part(m, PART.bin);
-        boxCollider(bx, bz, 0.2, by, 0.9);
+      if (s.bench) { furniture.push({ kind: 'bench', part: PART.bench, lx: -1.9, lz: -0.9, r: 0.6, tip: 0.3 }); benches++; }
+      if (s.bin) furniture.push({ kind: 'bin', part: PART.bin, lx: 0.9, lz: -0.5, r: 0.2, tip: 0.18 });
+      for (const f of furniture) {
+        f.x = p.x + (A.elements[0] * f.lx + A.elements[8] * f.lz); f.z = p.z + (A.elements[2] * f.lx + A.elements[10] * f.lz);
+        f.y = groundAt(f.x, f.z);
       }
       // The yellow zigzag along the kerb, "BUS" in the lane at its start (flat quads on the road, facing up)
       if (s.mark) {
@@ -711,10 +708,15 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
       m.compose(pos.set(p.x, y - 0.3, p.z), q, scl.set(1, height, 1));
       part(m, PART.post);
     }
-    posts.push({ x: p.x, y, z: p.z, yaw: s.yaw, kind: s.t, road: s.road, text: s.text, plates: [firstPlate, plates.length], parts: [firstPart, parts.length] });
-    // The stop's mast stays solid (bench and bin too, above); a sign post goes down under a vehicle
-    if (s.t === 'busstop') boxCollider(p.x, p.z, POST_RADIUS + 0.05, y, height - 0.3);
-    else knockablePosts.push({ x: p.x, z: p.z, r: POST_RADIUS + 0.05, set: knockSet, i: posts.length - 1 });
+    posts.push({ x: p.x, y, z: p.z, yaw: s.yaw, kind: s.t, road: s.road, text: s.text, plates: [firstPlate, plates.length], parts: [firstPart, parts.length], mast });
+    // A sign post and a stop's mast go down under a vehicle (and stop the player on foot); so do a stop's bench and bin
+    knockablePosts.push({ x: p.x, z: p.z, r: POST_RADIUS + 0.05, set: knockSet, i: posts.length - 1 });
+    for (const f of furniture) {
+      m.compose(pos.set(f.x, f.y, f.z), q, scl.set(1, 1, 1));
+      part(m, f.part);
+      posts.push({ x: f.x, y: f.y, z: f.z, yaw: s.yaw, kind: f.kind, road: s.road, text: s.text, plates: [plates.length, plates.length], parts: [parts.length - 1, parts.length], tip: f.tip });
+      knockablePosts.push({ x: f.x, z: f.z, r: f.r, set: knockSet, i: posts.length - 1 });
+    }
   }
 
   // The metal and furniture (capacity: all of them; drawn: the ones near the camera)
