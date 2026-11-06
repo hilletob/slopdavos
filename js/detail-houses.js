@@ -13,7 +13,7 @@ import { DETAIL_HOUSES, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from
 // a white plastered basement, built to the measures of the owner's 3D scan and wearing photographs of its own walls
 // baked out of it — a low Davos roof on wide eaves with a chimney, a lean-to (Schopf) on the south front, a porch with
 // the front door, a closed Laube and the outdoor stair on the east gable, a balcony on the west gable, windows set back
-// in the logs with the curtains glowing at night, gutters, and a picket fence along the street. Built in the house's
+// in the logs, lit at night, gutters, and a picket fence along the street. Built in the house's
 // local frame (frame(): x along the ridge, z to the front, y up from the ground).
 
 excludeBuildings(DETAIL_HOUSES.map((h) => h.exclude));
@@ -44,7 +44,9 @@ function materials() {
   const roof = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0.05 });
   const course = smoothstep(0.42, 0.5, abs(fract(positionWorld.y.div(0.11)).sub(0.5)));
   roof.colorNode = snowyRoof(mix(vec3(0.05, 0.053, 0.06), vec3(0.075, 0.079, 0.088), weather).mul(float(1).sub(course.mul(0.3))), float(1));
-  const frameMat = new THREE.MeshStandardNodeMaterial({ color: 0xc9c5bb, roughness: 0.6, metalness: 0 });
+  // The frames, the reveals and the sills: the white of the neighbours' window frames
+  const frameMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0 });
+  frameMat.colorNode = vec3(0.8, 0.79, 0.76);
   const metal = new THREE.MeshStandardNodeMaterial({ color: 0x5a3018, roughness: 0.45, metalness: 0.6 });
   const chimney = new THREE.MeshStandardNodeMaterial({ color: 0x3a2418, roughness: 0.9, metalness: 0 });
   // The fence and the garage door: the same larch, the fence greyed by the weather
@@ -91,8 +93,8 @@ class Builder {
 // Built to the numbers measured on the owner's 3D scan (js/detail-houses-data.js model), in the house's local frame
 // (x along the ridge to the east gable, z to the south front, y up from the ground). The walls are flat pieces wearing
 // the photographs baked out of the scan (assets/models/dischmastrasse-19-facades.jpg, tools/build-detail-house-scan.mjs:
-// their uv from facadeUV()); the windows are cut into them, with reveals, sills and glass set back — the glass showing
-// the curtains in the photograph by day and lit at night.
+// their uv from facadeUV()); the windows are cut into them, with reveals, sills and glass set back (the sky in the
+// panes by day, lit at night, as in the neighbours' windows).
 
 // The faces: the outward axis and its sign, and how the shape's x runs along the wall (so that ShapeGeometry's +z
 // turns outward)
@@ -138,7 +140,7 @@ function onFace(face, plane, a, y, d = 0) {
 }
 
 // A window in a wall piece: the reveal round the hole back to the glass `depth` behind the plane, the sill, the glass
-// (uv: the photograph at the same place — the curtains; uv1.x: the window's number for the night light)
+// (uv: 0–1 over the pane; uv1.x: the window's number for the night light, uv1.y: 1 for a cellar window in the plinth)
 function windowIn(B, glassParts, face, plane, [a0, a1, y0, y1], depth, id, bake, ctx) {
   const P = (a, y, d) => onFace(face, plane, a, y, d);
   const F = FACES[face];
@@ -156,16 +158,13 @@ function windowIn(B, glassParts, face, plane, [a0, a1, y0, y1], depth, id, bake,
   const [sx, sy, sz] = P((a0 + a1) / 2, y0 - 0.025, 0.05);
   const w = a1 - a0 + 0.12;
   B.box('frame', F.axis === 'z' ? w : 0.14, 0.05, F.axis === 'z' ? 0.14 : w, sx, sy, sz);
-  const g = wallPiece(face, plane - F.out * depth, [[a0, y0], [a1, y0], [a1, y1], [a0, y1]], [], bake, ctx);
+  const g = wallPiece(face, plane - F.out * depth, [[a0, y0], [a1, y0], [a1, y1], [a0, y1]], []);
   const n = g.attributes.position.count, uv1 = new Float32Array(n * 2);
-  for (let i = 0; i < n; i++) { uv1[i * 2] = id; uv1[i * 2 + 1] = bake ? 0 : 1; }
-  if (!bake) {
-    // (a cellar window in the plinth, no photograph: uv runs 0–1 over the pane, for the small light in its middle)
-    const p = g.attributes.position, uvs = g.attributes.uv;
-    for (let i = 0; i < n; i++) {
-      const a = F.axis === 'z' ? p.getX(i) : p.getZ(i);
-      uvs.setXY(i, (a - a0) / (a1 - a0), (p.getY(i) - y0) / (y1 - y0));
-    }
+  const p = g.attributes.position, uvs = g.attributes.uv;
+  for (let i = 0; i < n; i++) {
+    uv1[i * 2] = id; uv1[i * 2 + 1] = bake ? 0 : 1;
+    const a = F.axis === 'z' ? p.getX(i) : p.getZ(i);
+    uvs.setXY(i, (a - a0) / (a1 - a0), (p.getY(i) - y0) / (y1 - y0));
   }
   g.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
   glassParts.push(g);
@@ -368,37 +367,43 @@ function facadeMaterial(map) {
   const photo = texture(map).rgb;
   const lum = dot(photo, vec3(0.3, 0.59, 0.11));
   const woody = smoothstep(0.012, 0.045, photo.r.sub(photo.b)); // larch: red well over blue
-  const white = smoothstep(0.2, 0.45, lum).mul(float(1).sub(woody));
+  const white = smoothstep(0.32, 0.6, lum).mul(float(1).sub(woody)); // (the plaster and the frames, not the grey smears round the panes)
   const relief = lum.div(0.095).clamp(0.4, 1.7).sub(1).mul(0.7).add(1);
   const { tone, seamed } = larch(positionWorld.y.div(0.165));
   m.colorNode = mix(mix(seamed, tone.mul(relief), woody), photo.mul(0.8), white);
   return m;
 }
 
-// The glass: by day the curtains of the photograph behind a dark, glossy pane (without it: dark glass and lace); lit at
-// dusk and night like the swissBUILDINGS3D facades (js/swissbuildings3d.js windowLights): each window (its number in
-// uv1.x) on or off by its own hash, re-rolled every 5-15 min, mostly warm 2700 K, now and then a bluish TV — the glow
-// following the curtains. The cellar windows in the plinth (uv1.y = 1, no photograph) are dark glass, and at night
-// at most a dim bulb's light in the middle of the pane, lit less often
-function glassMaterial(map = null) {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0.25 });
-  const id = floor(uv(1).x.add(0.5)), cellar = step(0.5, uv(1).y);
-  const photo = map ? texture(map).rgb : mix(vec3(0.04, 0.045, 0.05), vec3(0.55, 0.52, 0.46), mx_noise_float(positionWorld.mul(30)).mul(0.25).add(0.45));
-  const behind = mix(photo, vec3(0.05, 0.05, 0.055), cellar);
-  m.colorNode = behind.mul(0.45);
+// The glass, as the neighbours' panes (js/swissbuildings3d.js createMaterial, windowLights): by day the sky's gradient
+// in a dark, glossy pane (the neighbours' pane runs over 0.3–0.84 of its storey: the same stretch of the gradient
+// here); lit at dusk and night like theirs: each window (its number in uv1.x) on or off by its own hash, re-rolled
+// every 5-15 min, lit half the time (a chalet, someone home), mostly warm 2700 K, some halogen and neutral LED, now and
+// then a bluish flickering TV, curtains drawn on a third (dimmer and warmer, in folds), brighter towards the ceiling
+// lamp. The cellar windows in the plinth (uv1.y = 1) are dark glass, and at night at most a dim bulb's light in the
+// middle of the pane, lit less often
+function glassMaterial() {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0.5 });
+  const pane = uv(), id = floor(uv(1).x.add(0.5)), cellar = step(0.5, uv(1).y);
+  const v = mix(float(0.3), float(0.84), pane.y);
+  const sky = mix(vec3(0.05, 0.065, 0.085), vec3(0.22, 0.27, 0.33), v);
+  m.colorNode = mix(sky, vec3(0.05, 0.05, 0.055), cellar);
   const iGlow = cityUniforms.uInteriorGlow;
-  const glow = smoothstep(0.7, 1.45, iGlow), late = smoothstep(1.3, 1.55, iGlow);
+  const night = smoothstep(0.7, 1.45, iGlow), late = smoothstep(1.3, 1.55, iGlow);
   const h = hash(id.add(9173)), hn = (i) => hash(h.mul(1.6e7).floor().add(i));
   const slot = time.div(mix(float(300), float(900), hn(3))).add(hn(4)).floor();
-  const on = step(hash(h.mul(1.6e7).floor().add(slot.mul(7)).add(11)), mix(0.6, 0.42, late));
-  const c = hn(5), tv = step(0.9, c);
-  const tone = mix(mix(vec3(1.0, 0.56, 0.24), vec3(1.0, 0.68, 0.38), step(0.6, c)), vec3(0.36, 0.52, 1.0).mul(mx_noise_float(vec3(time.mul(3.1), h.mul(97), 0)).mul(0.45).add(0.75)), tv);
-  const lum = dot(behind, vec3(0.3, 0.59, 0.11));
-  const room = tone.mul(lum.mul(0.9).add(0.3)).mul(hn(7).mul(0.4).add(0.85)).mul(on).mul(glow.mul(1.3));
+  const on = step(hash(h.mul(1.6e7).floor().add(slot.mul(7)).add(11)), mix(0.5, 0.4, late));
+  const c = hn(5), tv = step(0.92, c);
+  const flicker = mx_noise_float(vec3(time.mul(3.1), h.mul(97), 0)).mul(0.45).add(0.75);
+  let col = mix(vec3(1.0, 0.56, 0.24), vec3(1.0, 0.68, 0.38), step(0.55, c));
+  col = mix(col, vec3(0.92, 0.84, 0.7), step(0.8, c));
+  col = mix(col, vec3(0.36, 0.52, 1.0).mul(flicker), tv);
+  const curtain = step(hn(6), 0.33);
+  col = mix(col, col.mul(vec3(1.0, 0.82, 0.62)).mul(0.5).mul(pane.x.mul(40).sin().mul(0.12).add(0.88)), curtain);
+  const strength = hn(7).mul(0.5).add(0.75).mul(pane.y.mul(0.35).add(0.8));
+  const room = col.mul(strength).mul(on).mul(night.mul(1.15));
   // the cellar: a soft patch over the middle two thirds of the pane, a sixth as bright, on half as often
-  const pane = uv();
   const patch = smoothstep(0.1, 0.3, pane.x).mul(smoothstep(0.9, 0.7, pane.x)).mul(smoothstep(0.1, 0.35, pane.y)).mul(smoothstep(0.95, 0.7, pane.y));
-  const bulb = vec3(1.0, 0.7, 0.4).mul(patch).mul(on).mul(step(hn(8), 0.5)).mul(glow.mul(0.22));
+  const bulb = vec3(1.0, 0.7, 0.4).mul(patch).mul(on).mul(step(hn(8), 0.5)).mul(night.mul(0.22));
   m.emissiveNode = mix(room, bulb, cellar);
   return m;
 }
@@ -480,10 +485,10 @@ export function buildDetailHouses(scene) {
     group.add(body);
     buildFence(group, M, house, fr, baseY);
     root.add(group);
-    // The photographs: until they are in (or if they can't be loaded) the walls show plain logs and the glass lace
+    // The photographs: until they are in (or if they can't be loaded) the walls show plain logs
     const walls = meshes.find((x) => x.name === 'detail facade');
     loadAtlas(m.atlas)
-      .then((map) => { walls.material = facadeMaterial(map); glass.material = glassMaterial(map); })
+      .then((map) => { walls.material = facadeMaterial(map); })
       .catch((error) => console.warn(`[detail-houses] ${house.id}: the facade photographs were not loaded, plain walls`, error));
     // Colliders: the walls up to the ridge, the lean-to, the porch, the Laube, the landing and the stair, the fence
     const cs = Math.cos(fr.theta), sn = Math.sin(fr.theta);
