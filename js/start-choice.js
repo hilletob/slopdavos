@@ -1,4 +1,4 @@
-import './i18n.js';
+import { languageSwitch } from './i18n.js';
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { isConfigured, signIn, enabledProviders } from './account.js';
 import { emailSignIn } from './account-email.js';
@@ -55,7 +55,11 @@ export function askHowToPlay() {
     const privacy = document.createElement('a');
     privacy.href = './privacy.html';
     privacy.textContent = 'Privacy';
-    box.append(text, ...signInButtons, email, or, guest, status, privacy);
+    // (the language can be chosen before anything else: it stays for the game, js/i18n.js)
+    const foot = document.createElement('div');
+    foot.className = 'gate-foot';
+    foot.append(privacy, languageSwitch());
+    box.append(text, ...signInButtons, email, or, guest, status, foot);
     loader.classList.add('is-asking');
     loader.append(box);
   });

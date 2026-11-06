@@ -1546,6 +1546,27 @@ export function setLanguage(next) {
   window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: next } }));
 }
 
+/** A DE · EN switch for a screen of its own (the first-visit question, the guest's sign-in): the same language, key and
+ *  buttons as the menu's, so a choice here carries over into the game. Its labels are not translated (.language-switch). */
+export function languageSwitch() {
+  const group = document.createElement('div');
+  group.className = 'language-switch is-standalone';
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Language / Sprache');
+  for (const [lang, label] of [['de', 'Deutsch'], ['en', 'English']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'language-btn';
+    button.lang = lang;
+    button.textContent = lang.toUpperCase();
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(lang === language));
+    button.addEventListener('click', () => setLanguage(lang));
+    group.append(button);
+  }
+  return group;
+}
+
 function start() {
   document.querySelectorAll('.language-btn').forEach((button) => button.addEventListener('click', () => setLanguage(button.lang)));
   setLanguage(language);

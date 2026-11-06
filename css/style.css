@@ -267,6 +267,14 @@ dialog.guest-gate::backdrop { background: rgba(6, 7, 9, 0.62); backdrop-filter: 
 .start-choice .start-choice-status { margin: 0; font-size: 12.5px; }
 .start-choice-status[hidden] { display: none; }
 .start-choice a { font-size: 12.5px; color: var(--text-3); }
+/* The privacy link and a DE · EN switch under the first-visit question and the guest's sign-in (languageSwitch, js/i18n.js) */
+.gate-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+.gate-foot .language-switch { padding: 2px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; }
+.start-choice .gate-foot .language-btn, .guest-gate .gate-foot .language-btn { min-width: 34px; height: 28px; padding: 0 6px; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: var(--text-3); background: none; border: 0; border-radius: 6px; cursor: pointer; touch-action: manipulation; }
+.start-choice .gate-foot .language-btn:hover, .guest-gate .gate-foot .language-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+.start-choice .gate-foot .language-btn[aria-pressed="true"], .guest-gate .gate-foot .language-btn[aria-pressed="true"] { color: #121314; background: var(--text); }
+.gate-foot .language-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+@media (pointer: coarse) { .start-choice .gate-foot .language-btn, .guest-gate .gate-foot .language-btn { height: 36px; min-width: 42px; } }
 .start-choice .start-choice-or { margin: 0; font-size: 12.5px; text-align: center; color: var(--text-3); }
 
 /* Signing in with an email code (js/account-email.js): on the first-visit question and in the account menu */

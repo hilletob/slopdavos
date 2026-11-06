@@ -94,7 +94,12 @@ function openGate({ leaving, signedIn }) {
   const privacy = document.createElement('a');
   privacy.href = './privacy.html';
   privacy.textContent = 'Privacy';
-  dialog.append(title, text, ...buttons, or, email, status, privacy);
+  const foot = document.createElement('div');
+  foot.className = 'gate-foot';
+  foot.append(privacy);
+  dialog.append(title, text, ...buttons, or, email, status, foot);
+  // (the menu's language switch is behind the gate: the same one here; js/i18n.js is long loaded, imported late for the tests)
+  import('./i18n.js').then(({ languageSwitch }) => foot.append(languageSwitch())).catch(() => {});
   dialog.addEventListener('cancel', (e) => e.preventDefault()); // (Escape does not close it)
   document.body.append(dialog);
   dialog.showModal();
