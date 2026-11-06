@@ -527,18 +527,9 @@ class ThirdPersonControllerManager {
     this._touchKeys = {};
     this._gamepadKeys = {};
 
+    // (the van's indicators, the high beam, the groomer's beacon and tiller are actions of js/actions.js, bound in
+    // js/main.js: the register's keyboard calls toggleIndicator / toggleHighBeam / toggleBeacon / toggleTiller)
     const onKey = (e, isDown) => {
-      // The van's indicators: Q left, E right (pressed again: off), X hazard lights
-      if (isDown && !e.repeat && this.activeMode === 'car' && !isTypingInField(e)) {
-        const side = { KeyQ: 'left', KeyE: 'right', KeyX: 'hazard' }[e.code];
-        if (side) this.toggleIndicator(side);
-      }
-      // L: high beam of the van, the snow groomer and the helicopter's searchlight (kept when switching vehicles)
-      if (isDown && !e.repeat && e.code === 'KeyL' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleHighBeam();
-      // K: the snow groomer's rotating beacon
-      if (isDown && !e.repeat && e.code === 'KeyK' && this.activeMode === 'snowcat' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleBeacon();
-      // F: raise / lower its tiller
-      if (isDown && !e.repeat && e.code === 'KeyF' && this.activeMode === 'snowcat' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingInField(e)) this.toggleTiller();
       const action = actionsByCode.get(e.code);
       if (!action || (isDown && isTypingInField(e))) return;
       if (isDown) this._pressedCodes.add(e.code);
@@ -556,7 +547,7 @@ class ThirdPersonControllerManager {
     });
   }
 
-  // Indicators of the player's van: 'left' | 'right' | 'hazard' toggles; a turn signal cancels itself once the wheel
+  // Indicators of the player's van (Q left, E right, X hazard): 'left' | 'right' | 'hazard' toggles; a turn signal cancels itself once the wheel
   // has turned that way and comes back to straight, like the stalk on a real steering column
   toggleIndicator(side) {
     const car = this.entities.car;
@@ -566,12 +557,13 @@ class ThirdPersonControllerManager {
     car.indicatorPhase = 0;
   }
 
+  // L: high beam of the van, the snow groomer and the helicopter's searchlight (kept when switching vehicles)
   toggleHighBeam() {
     this.highBeam = !this.highBeam;
     return this.highBeam;
   }
 
-  // The snow groomer's orange rotating beacon on/off (it stays as left when the player gets out)
+  // K: the snow groomer's orange rotating beacon on/off (it stays as left when the player gets out)
   toggleBeacon() {
     const cat = this.entities.snowcat;
     if (!cat) return false;
@@ -579,7 +571,7 @@ class ThirdPersonControllerManager {
     return cat.beaconOn;
   }
 
-  // The snow groomer's tiller: lowered (grooming) or raised (driving on a road); it swings over ~1.5 s
+  // F: the snow groomer's tiller: lowered (grooming) or raised (driving on a road); it swings over ~1.5 s
   toggleTiller() {
     const cat = this.entities.snowcat;
     if (!cat) return false;

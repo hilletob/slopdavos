@@ -191,9 +191,10 @@ test('a mission starting puts the wing away first (the manager\'s beforeStart)',
   assert.deepEqual(order, ['pack', 'run'], 'an unknown mission takes nobody');
 });
 
-test('the free flight is wired: P, the touch button, the preload, the controllers guard in js/gta.js; it speaks German', async () => {
+test('the free flight is wired: P in the register, the touch button, the preload, the controllers guard in js/gta.js; it speaks German', async () => {
   const src = readFileSync(new URL('../js/paraglide-free.js', import.meta.url), 'utf8');
-  assert.match(src, /e\.code !== 'KeyP'/);
+  assert.match(src, /id: 'paraglide', keys: \['KeyP'\], pad: 'left'/, 'the key, the key bar and the gamepad come from js/actions.js');
+  assert.doesNotMatch(src, /addEventListener\('keydown'/);
   assert.match(src, /addTapButton/);
   assert.match(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /modulepreload" href="\.\/js\/paraglide-free\.js"/);
   assert.match(readFileSync(new URL('../js/gta.js', import.meta.url), 'utf8'), /cm\.paragliding\) return null/);
@@ -241,7 +242,9 @@ test('the longest free flight: a soft landing after 10 s in the air counts, by t
   const free = readFileSync(new URL('../js/paraglide-free.js', import.meta.url), 'utf8');
   assert.match(free, /startRun\(FREE_FLIGHT_BOARD, 'score'\)/);
   assert.match(free, /submitScore\(run, entry\.score, entry\.total\)/);
-  // the gamepad: d-pad left takes the wing out, like P
-  assert.match(readFileSync(new URL('../js/gamepad-controls.js', import.meta.url), 'utf8'), /const paraglide = edge\(14\)/);
-  assert.match(readFileSync(new URL('../js/main.js', import.meta.url), 'utf8'), /onParaglide: \(\) => freeFlight\?\.toggle\(\)/);
+  // the gamepad: d-pad left takes the wing out, like P (the action's slot, js/actions.js PAD_SLOTS)
+  assert.match(free, /pad: 'left'/);
+  const { PAD_SLOTS } = await import('../js/actions.js');
+  assert.equal(PAD_SLOTS.left, 14);
+  assert.match(readFileSync(new URL('../js/gamepad-controls.js', import.meta.url), 'utf8'), /PAD_SLOTS\[a\.pad\]/);
 });

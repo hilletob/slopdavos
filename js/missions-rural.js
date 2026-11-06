@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { t } from './i18n.js';
 import { painted, createHelper } from './missions-props.js';
-import { VEHICLES, createToast, holdButton, particles, lump } from './missions-work.js';
+import { VEHICLES, createToast, particles, lump } from './missions-work.js';
 import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import {
   QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_GATES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
@@ -660,11 +660,9 @@ const bioRound = {
     run.group.add(run.storage(crew));
     const toast = createToast(run);
     run.bio = { full, empty, plastic, rest, crew, toast, gauge: buildGauge(run), truck: null, stink: 0, flies: 0, smell: 0, lump: 0, loaded: 0, slotOf: new Map() };
-    // (a tap, not a hold; on the left, where it does not cover the joystick on a phone held sideways)
-    run.work = {}; // (js/missions-work.js holdButton keeps its held state there)
-    const button = holdButton(run, 'Reject');
-    Object.assign(button.style, { right: 'auto', left: 'max(var(--edge), env(safe-area-inset-left))', bottom: 'calc(max(var(--edge), env(safe-area-inset-bottom)) + 40px)', fontSize: '13px' });
-    button.addEventListener('pointerdown', () => bioRound.reject(run));
+    // (a tap: the big touch button, the gamepad's A, the key bar's Space; the jump button goes)
+    run.button('up', null);
+    run.actions([{ id: 'reject', primary: true, label: 'Reject', icon: 'i-close', keys: ['Space', 'KeyE'], kbd: ['Space'], keyboard: false, pad: 'a', run: () => bioRound.reject(run) }]);
   },
   reset(run) {
     const b = run.bio;

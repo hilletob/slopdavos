@@ -75,3 +75,41 @@ test('the missions\' list has the leaderboards as its second tab; nothing opens 
   assert.match(world, /getElementById\('btn-missions'\)/);
   assert.doesNotMatch(world, /'panel mission-score'/);
 });
+
+test('one register of actions (js/actions.js): the keys, the key bar, the touch rows and the gamepad read it', () => {
+  const read = (f) => readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8');
+  const main = read('main.js'), controllers = read('controllers.js'), gta = read('gta.js'), touch = read('touch-controls.js'), pad = read('gamepad-controls.js');
+  assert.match(main, /import \{ actions, bindKeyboard \} from '\.\/actions\.js'/);
+  assert.match(main, /actions\.layer\('vehicle'/);
+  for (const id of ['horn', 'indicatorLeft', 'indicatorRight', 'hazard', 'highBeam', 'beacon', 'tiller']) assert.match(main, new RegExp(`id: '${id}'`), `${id} is an action`);
+  assert.doesNotMatch(main, /'Shift'\], 'Boost'|'Shift'\], 'Sprint'|is-boosting/, 'no key without a function');
+  assert.doesNotMatch(controllers, /'KeyL'|'KeyK'|'KeyX'|toggleIndicator\(side\)\s*;?\s*\}\s*\n\s*\/\/ L/, 'the controller keeps the movement only');
+  assert.match(gta, /actions\?\.layer\('gta'/);
+  assert.doesNotMatch(gta, /addEventListener\('keydown'/);
+  assert.match(touch, /this\.actions\?\.subscribe\(\(\) => this\.render\(\)\)/);
+  assert.match(pad, /PAD_SLOTS\[a\.pad\]/);
+  // the two rows under the left thumb; nothing of the missions' own red or blue buttons is left
+  assert.match(html, /<div id="touch-extra" class="touch-row touch-extra" hidden><\/div>\s*<div id="touch-primary" class="touch-row touch-primary">/);
+  for (const icon of ['i-beam', 'i-horn', 'i-ind-left', 'i-ind-right', 'i-hazard', 'i-beacon', 'i-tiller', 'i-chute', 'i-hook', 'i-fire', 'i-shovel', 'i-hand', 'i-swap', 'i-radio']) assert.match(html, new RegExp(`<symbol id="${icon}"`), icon);
+  assert.doesNotMatch(css, /mission-fire|touch-tap-label/);
+  assert.match(css, /\.touch-action\[data-on="true"\]/);
+  assert.match(css, /\.hint\.is-on kbd/);
+  assert.match(css, /body\.mission-own-controls #mode-switch,/, 'the key bar stays while a mission\'s own controls are in charge');
+  assert.match(css, /body\.touch-enabled #hud-active-camera \{ display: none; \}/, 'the camera cluster: three buttons on a phone');
+  assert.match(css, /body\.gta-mode #touch-controls \{ bottom: max\(var\(--edge\), env\(safe-area-inset-bottom\)\); \}/);
+  for (const f of ['missions.js', 'missions-work.js', 'missions-wef.js', 'missions-snow.js', 'missions-rural.js']) assert.doesNotMatch(read(f), /mission-fire|'wf-pad'\)|craneKeyBar/, f);
+  const missions = read('missions.js');
+  assert.match(missions, /^\s+actions\(list, \{ replace = \(\) => this\.ownControls \} = \{\}\) \{/m);
+  assert.match(missions, /^\s+hints\(list\)/m);
+  assert.match(missions, /^\s+button\(id, label\)/m);
+  // the missions' key legends are hints of the register, not text of their own
+  for (const f of ['missions-care.js', 'missions-ice.js', 'missions-golf.js', 'missions-outdoor.js', 'missions-paraglide.js', 'missions-sport.js']) {
+    const src = read(f);
+    assert.doesNotMatch(src, /-keys'/, `${f}: no legend of its own`);
+    assert.match(src, /run\.hints\(/, `${f}: hints in the bar`);
+    assert.doesNotMatch(src, /\+ 200px\)/, `${f}: clears the touch controls by --touch-clear`);
+  }
+  for (const text of ['Hazard lights', 'Chute', 'Climb across', 'Left', 'Right', 'walk', 'steer', 'flare', 'overview']) {
+    assert.match(i18n, new RegExp(`\\['${text}', '`), `${text} has its German`);
+  }
+});

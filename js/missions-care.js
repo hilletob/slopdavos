@@ -24,7 +24,7 @@ const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
 
 const STYLE = `
-.cr-hud{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 20px))}
+.cr-hud{position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 20px))}
 .cr-hud[hidden],.cr-game[hidden]{display:none!important}
 .cr-card{background:rgba(10,12,20,.8);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:8px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:13px;font-variant-numeric:tabular-nums;text-align:center}
 .cr-card b{font-size:18px}
@@ -37,9 +37,7 @@ const STYLE = `
 .cr-bar .fill{left:0;background:linear-gradient(90deg,#ff7a59,#ffd34f 45%,#6fe27d)}
 .cr-bar .zone{background:rgba(120,235,120,.55)}
 .cr-bar .needle{width:4px;margin-left:-2px;background:#fff;box-shadow:0 0 6px #fff}
-.cr-keys{font-size:12px;opacity:.85;text-shadow:0 1px 4px rgba(0,0,0,.7)}
-body.touch-enabled .cr-keys{display:none}
-body.touch-enabled .cr-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 200px)}
+body.touch-enabled .cr-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--touch-clear, 200px))}
 .cr-game{position:fixed;inset:0;z-index:38;display:flex;align-items:flex-start;justify-content:center;padding-top:196px;box-sizing:border-box;background:rgba(12,18,20,.88);font-family:Inter,system-ui,sans-serif;color:#fff}
 .cr-game-box{display:flex;flex-direction:column;gap:8px;align-items:center;max-width:calc(100vw - 16px)}
 .cr-game canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);touch-action:none;max-width:calc(100vw - 16px);background:#222}
@@ -88,15 +86,6 @@ function blip(run, kind = 'pock') {
   o.connect(g); o.start(now); o.stop(now + 0.25);
 }
 
-/** The touch screens' action button ("Jump") relabelled for the mission; given back at the end */
-function touchLabel(run, text) {
-  const label = document.querySelector('[data-touch-label="up"]'), button = document.querySelector('[data-touch-action="up"]');
-  if (!label) return;
-  const old = label.textContent;
-  run.cleanups.push(() => { label.textContent = old; button?.setAttribute('aria-label', old); });
-  label.textContent = t(text);
-  button?.setAttribute('aria-label', t(text));
-}
 
 // =====================================================================================================================
 // 1. Snowshoes
@@ -283,10 +272,11 @@ const SNOWSHOES = {
     const zoneW = Math.sin((SHOE.window / SHOE.beat) * Math.PI) * 100; // (where the needle is at the window's ends: beatNeedle)
     zone.style.left = `${50 - zoneW / 2}%`; zone.style.width = `${zoneW}%`;
     rhythm.append(zone, needle);
-    hud.append(pop, row('Stamina', stamina), row('Rhythm', rhythm), card, el('div', 'cr-keys', 'W walk · A/D steer · Space on the beat: stride'));
+    hud.append(pop, row('Stamina', stamina), row('Rhythm', rhythm), card);
+    run.hints([[['W'], 'walk'], [['A', 'D'], 'steer'], [['Space'], 'on the beat: stride']]);
     document.body.append(hud);
     run.cleanups.push(() => hud.remove());
-    touchLabel(run, 'Step');
+    run.button('up', 'Step'); // (the touch screens' jump button, js/actions.js)
     // the world
     const group = new THREE.Group();
     group.name = 'Snowshoes';

@@ -42,10 +42,8 @@ const STYLE = `
   font-weight: 900; color: #fff; text-shadow: 0 3px 14px rgba(0,0,0,0.6); opacity: 0; transition: opacity 0.25s; }
 .ice-big.is-on { opacity: 1; }
 .ice-tally { font-size: 18px; letter-spacing: 3px; }
-.ice-keys { font-size: 11px; opacity: 0.75; font-weight: 500; }
-body.touch-enabled .ice-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 200px); }
+body.touch-enabled .ice-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--touch-clear, 200px)); }
 @media (max-width: 820px) { body.touch-enabled .ice-hud { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 188px); } }
-body.touch-enabled .ice-keys { display: none; }
 @media (max-width: 820px) { .ice-hud { min-width: 0; padding: 6px 10px; font-size: 12px; } .ice-meter { width: 170px; } .ice-big { font-size: 40px; } }
 `;
 
@@ -76,17 +74,7 @@ export function meter() {
 }
 
 /** The touch screens' action button ("Jump") relabelled for the mission; given back at the end */
-export function touchLabel(run, text) {
-  const label = document.querySelector('[data-touch-label="up"]');
-  const button = document.querySelector('[data-touch-action="up"]');
-  if (!label) return;
-  if (run._touchLabelOld === undefined) {
-    run._touchLabelOld = label.textContent;
-    run.cleanups.push(() => { label.textContent = run._touchLabelOld; button?.setAttribute('aria-label', run._touchLabelOld); });
-  }
-  label.textContent = text;
-  button?.setAttribute('aria-label', text);
-}
+export function touchLabel(run, text) { run.button('up', text); }
 
 /** The rising edge of a held key action (keys.up: Space, E, the touch button) */
 export function edge(run, cm, action = 'up') {
@@ -242,7 +230,8 @@ const skates = {
       const row = el('div', 'ice-row');
       ice.ui.speed = el('span', null, '0 km/h');
       row.append(el('span', null, 'Rhythm'), mt.m, ice.ui.speed);
-      hud.append(row, flash, el('div', 'ice-keys', 'W hold: stroke · Space in the green: power stroke · A/D lean · S brake'));
+      hud.append(row, flash);
+      run.hints([[['W'], 'hold: stroke'], [['Space'], 'in the green: power stroke'], [['A', 'D'], 'lean'], [['S'], 'brake']]);
     }
     cm.personDriver = (dt) => skates.drive(run, dt, cm);
     cm.personPoser = (dt, p) => skates.pose(run, dt, p);
@@ -531,7 +520,8 @@ const hockey = {
     ui.tally = el('div', 'ice-tally');
     ui.aimText = el('span');
     const row = el('div', 'ice-row'); row.append(ui.tally, ui.aimText);
-    ui.hud.append(row, ui.flash, el('div', 'ice-keys', 'W skate · A/D steer · S stop · Space shoot · drag to aim'));
+    ui.hud.append(row, ui.flash);
+    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'shoot'], [['Drag'], 'aim']]);
     // a click (not a drag) on the view shoots too
     let down = null;
     const canvas = document.getElementById('canvas-container');
@@ -737,7 +727,8 @@ const curling = {
     const ui = run.curlUi = { hud, flash, big, meter: mt, curl: el('span'), info: el('span'), aim: el('span') };
     const row = el('div', 'ice-row'); row.append(el('span', null, 'Power'), mt.m);
     const row2 = el('div', 'ice-row'); row2.append(ui.curl, ui.aim, ui.info);
-    hud.append(row2, row, flash, el('div', 'ice-keys', 'A/D or drag: aim · W/S: curl · hold Space: power, let go: throw · hold Space: sweep'));
+    hud.append(row2, row, flash);
+    run.hints([[['A', 'D', 'Drag'], 'aim'], [['W', 'S'], 'curl'], [['Space'], 'hold: power, let go: throw · hold: sweep']]);
     // the weight for the tee (no sweeping) on the bar: v = sqrt(2 · decel · distance)
     const vTee = Math.sqrt(2 * CURLING.decel * (SHEET.tee - CURLING.release));
     mt.mark.style.left = `${clamp((vTee - CURLING.minV) / (CURLING.maxV - CURLING.minV), 0, 1) * 100}%`;

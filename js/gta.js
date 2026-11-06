@@ -1,6 +1,5 @@
 import * as THREE from 'three/webgpu';
 import { surfaceHeight } from './terrain.js';
-import { isTypingInField } from './city-config.js';
 import { QUALITY } from './quality.js';
 import { isWinter, onSeasonChange } from './season.js';
 import { buildVwT3Geometry, upgradeVwT3Body } from './vw-t3.js';
@@ -55,7 +54,7 @@ export function isClassicMode(search = globalThis.location?.search || '') {
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
-export function buildGta({ scene, controllerManager: cm, touchControls, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
+export function buildGta({ scene, controllerManager: cm, touchControls, actions = null, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
   cm.gtaParkedLook = true;
   const missionRun = () => missions?.run || null;
   const winter = () => isWinter();
@@ -542,26 +541,15 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     return false;
   }
 
-  window.addEventListener('keydown', (e) => {
-    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingInField(e)) return;
-    // K in a taken patrol car: the blue light and the siren (the mission's own patrol car has its own K)
-    if (e.code === 'KeyK' && !missionRun() && takeover.toggleBlue()) { e.preventDefault(); return; }
-    // F, or G (F is the groomer's tiller: out of the groomer with G); Enter is the missions' start (js/missions-world.js)
-    const useKey = e.code === 'KeyG' || (e.code === 'KeyF' && cm.activeMode !== 'snowcat');
-    const drive = e.code === 'KeyT' && cm.activeMode === 'person';
-    if (!useKey && !drive) return;
-    if (mapSystem?.isFullMapOpen || missions?.listOpen) return;
-    const run = missionRun();
-    if (run && run.phase === 'intro') return; // (the mission's dialog has Enter)
-    if (drive) {
-      const a = currentAction();
-      if (a?.kind !== 'board' || !a.drive) return;
-      e.preventDefault();
-      use({ drive: true });
-      return;
-    }
-    if (use()) e.preventDefault();
-  });
+  // The keys, the key bar and the gamepad (js/actions.js; js/main.js keeps them quiet while the map, the missions'
+  // list or a mission's intro is open): F, or G (F is the groomer's tiller: out of the groomer with G); Enter is the
+  // missions' start (js/missions-world.js). T boards a bus to drive it. K in a taken patrol car: the blue light and
+  // the siren (the mission's own patrol car has its own K). The touch button above is the use action's own face.
+  actions?.layer('gta', [
+    { id: 'use', keys: ['KeyF', 'KeyG'], kbd: () => (cm.activeMode === 'snowcat' ? ['G'] : ['F']), pad: 'x', touch: false, label: () => (cm.activeMode === 'person' ? 'Get in' : 'Get out'), run: (code) => (code === 'KeyF' && cm.activeMode === 'snowcat' ? false : use()) },
+    { id: 'drive', keys: ['KeyT'], hint: false, touch: false, when: () => cm.activeMode === 'person', run: () => { const a = currentAction(); if (a?.kind !== 'board' || !a.drive) return false; use({ drive: true }); } },
+    { id: 'blue', kind: 'toggle', label: 'Blue light', keys: ['KeyK'], icon: 'i-beacon', pad: 'right', when: () => !missionRun() && takeover.inPatrolCar(), state: () => takeover.blueOn(), run: () => takeover.toggleBlue() }
+  ]);
 
   function render() {
     const now = performance.now();

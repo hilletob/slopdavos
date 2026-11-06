@@ -7,7 +7,6 @@
 // (none at night). No points. After the landing the wing is folded and the pilot walks on; P on the ground packs it up again.
 // A mission starting (js/missions-manager.js beforeStart), a teleport or another mode packs it up at once.
 import { groundHeight } from './terrain.js';
-import { isTypingInField } from './city-config.js';
 import { gameClock } from './game-clock.js';
 import { OWN_CONTROLS_CLASS } from './missions-manager.js';
 import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
@@ -46,7 +45,7 @@ function disposeTree(root) {
   for (const m of materials) { for (const v of Object.values(m)) if (v?.isTexture) v.dispose(); m.dispose(); }
 }
 
-export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = null, touchControls = null, missions = null, progress = null, audio = null, mapSystem = null }) {
+export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = null, touchControls = null, actions = null, missions = null, progress = null, audio = null, mapSystem = null }) {
   let run = null;
   let checkT = 0, licensed = false, spot = null, flashText = null, flashUntil = 0;
   const person = () => cm.entities.person;
@@ -141,10 +140,13 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
   prompt.append(keyP, body);
   prompt.addEventListener('click', () => toggle());
   document.body.append(prompt);
-  // the controls guide at the bottom (js/main.js renders it per mode): one more entry on foot with the licence
-  const hint = el('span', 'hint pg-free-hint');
-  hint.append(el('kbd', null, 'P'), el('span', 'hint-label', 'Paraglider'));
   const tapButton = touchControls?.addTapButton?.({ className: 'touch-pg', label: 'Fly', icon: GLYPH, onTap: () => toggle() }) || null;
+  // P, in the key bar and on the gamepad (js/actions.js): on foot with the licence, and while the wing lies laid out
+  // (the touch button above is the action's own face: "Fly" where a launch works)
+  const laidOut = () => run?.state.flight.phase === 'ready';
+  const hintWanted = () => laidOut() || (!run && licensed && onFoot() && !missions?.active);
+  let hintShown = false;
+  actions?.layer('free flight', [{ id: 'paraglide', keys: ['KeyP'], pad: 'left', touch: false, label: () => (laidOut() ? 'Pack up' : 'Paraglider'), when: hintWanted, run: () => (busy() || !onFoot() ? false : toggle()) }]);
 
   function flash(message) { flashText = message; flashUntil = performance.now() + 2200; render(); }
 
@@ -163,22 +165,13 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
       sub.hidden = flashing;
       keyP.hidden = flashing && !laidOut;
     }
-    // the guide's P: on foot, licensed, no mission
-    const guide = document.getElementById('hud-controls-hint');
-    const wantHint = !run && licensed && onFoot() && !missions?.active;
-    if (wantHint && guide && hint.parentNode !== guide) guide.append(hint);
-    else if (!wantHint && hint.parentNode) hint.remove();
+    // the key bar's P (js/actions.js): told when it changes
+    const wantHint = hintWanted();
+    if (wantHint !== hintShown) { hintShown = wantHint; actions?.notify(); }
     // the touch button: "Fly" where a launch works, "Pack up" while the wing lies on the ground
     const label = laidOut ? 'Pack up' : !run && licensed && onFoot() && !busy() && spot ? 'Fly' : null;
     touchControls?.setTapButton?.(tapButton, label, GLYPH);
   }
-
-  window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyP' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingInField(e)) return;
-    if (busy() || !onFoot()) return;
-    e.preventDefault();
-    toggle();
-  });
 
   // --- Every frame (js/main.js, after the controllers have moved the walker) ---------------------------------------------
   function update(dt) {

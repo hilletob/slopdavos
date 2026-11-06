@@ -1,15 +1,27 @@
 // Touch input stays separate from the keyboard, so releasing a finger never releases a held key.
+//
+// The stick sits under the right thumb; the buttons under the left one, in two rows (index.html #touch-controls):
+// the big primary row (getting in, jump / ascend / descend, a mission's Fire or Shovel) and the small extra row of
+// icons (the horn, the indicators, the high beam, a groomer's tiller, a crane's hook). Which buttons there are comes
+// from the register of actions (js/actions.js): every action with a touch face is drawn here, holds held, taps tapped,
+// toggles switched, and the register's labels (a mission's "Swing" for the jump) are followed. The two fixed buttons
+// `up` and `down` feed the controllers' inputs straight (an analog hold like the stick); the others call the register.
 const DEAD_ZONE = 0.15;
 const MAX_RADIUS = 44;
+const MODES = ['person', 'car', 'cyclist', 'cargobike', 'helicopter', 'snowcat', 'rhb'];
+const FIXED_LABELS = (mode) => ({ up: mode === 'helicopter' ? 'Ascend' : 'Jump', down: 'Descend' });
 
 class TouchControls {
-  constructor(controllerManager) {
+  constructor(controllerManager, { actions = null } = {}) {
     this.controller = controllerManager;
+    this.actions = actions;
     this.root = document.getElementById('touch-controls');
     this.stick = document.getElementById('touch-stick');
     this.knob = document.getElementById('touch-stick-knob');
+    this.rows = { primary: document.getElementById('touch-primary') || null, extra: document.getElementById('touch-extra') || null };
     this.buttons = this.root ? [...this.root.querySelectorAll('[data-touch-action]')] : [];
     this.buttonPointers = new Map();
+    this.dynamic = new Map(); // action id → { button, action, pointer, label?, glyph? } (the register's buttons)
     this.stickPointer = null;
     this.enabled = true;
     this.available = false;
@@ -82,6 +94,7 @@ class TouchControls {
       if (document.hidden) this.reset();
     });
 
+    this.actions?.subscribe(() => this.render());
     this.setMode(controllerManager.activeMode || 'car');
     this.updateAvailability();
   }
@@ -107,73 +120,162 @@ class TouchControls {
   }
 
   setMode(mode) {
-    if (!['person', 'car', 'cyclist', 'cargobike', 'helicopter', 'snowcat', 'rhb'].includes(mode)) return;
+    if (!MODES.includes(mode)) return;
     this.reset();
     if (!this.root) return;
     this.mode = mode;
-    const labels = { up: mode === 'helicopter' ? 'Ascend' : 'Jump', down: 'Descend' };
-    for (const button of this.buttons) {
-      const action = button.getAttribute('data-touch-action');
-      button.hidden = (action === 'up' && mode !== 'person' && mode !== 'helicopter') || (action === 'down' && mode !== 'helicopter');
-      button.setAttribute('aria-label', labels[action]);
-      const label = this.root.querySelector(`[data-touch-label="${action}"]`);
-      if (label) label.textContent = labels[action];
-    }
+    this.render();
   }
 
-  // A button that acts once per tap (not held like the action buttons): the GTA mode's "Enter / Exit" (js/gta.js).
-  // It sits first among the action buttons, under the left thumb (the stick is under the right one); hidden until
-  // shown with setTapButton(button, label).
-  addTapButton({ className = '', label = '', icon = '', onTap = () => {} } = {}) {
-    const actions = this.root?.querySelector('.touch-actions');
-    if (!actions) return null;
+  // --- The buttons from the register --------------------------------------------------------------------------------
+
+  /** The fixed buttons' labels and the register's buttons, as things stand now */
+  render() {
+    if (!this.root) return;
+    const A = this.actions;
+    const fixed = FIXED_LABELS(this.mode);
+    for (const button of this.buttons) {
+      const action = button.getAttribute('data-touch-action');
+      let label, hidden;
+      if (A) {
+        // (the fixed buttons are described in the register with `input`: the person's jump, the helicopter's ascend and
+        // descend; a mission may relabel one, or show one the mode has not: relabel(id, label))
+        const a = A.find(action), o = A.override(action);
+        hidden = o === null || (!a && o === undefined);
+        label = o ?? (a ? A.label(a) : fixed[action]);
+      } else {
+        hidden = (action === 'up' && this.mode !== 'person' && this.mode !== 'helicopter') || (action === 'down' && this.mode !== 'helicopter');
+        label = fixed[action];
+      }
+      if (hidden && !button.hidden) this.releaseButtonsOf(button);
+      button.hidden = hidden;
+      if (button.getAttribute('data-label') !== label) {
+        button.setAttribute('data-label', label);
+        button.setAttribute('aria-label', label);
+        const text = this.root.querySelector(`[data-touch-label="${action}"]`);
+        if (text) text.textContent = label;
+      }
+    }
+    if (!A) return;
+    const wanted = new Map();
+    for (const a of A.list()) {
+      if (a.kind === 'hint' || a.input || A.hidden(a.id)) continue;
+      const face = typeof a.touch === 'function' ? a.touch() : a.touch !== false;
+      if (face) wanted.set(a.id, a);
+    }
+    for (const [id, entry] of this.dynamic) {
+      const a = wanted.get(id);
+      if (!a && !entry.keep) { this.dropButton(entry); this.dynamic.delete(id); continue; }
+      if (!a) { entry.button.hidden = true; if (entry.pointer !== null) this.releaseDynamic(entry, false); continue; }
+      entry.action = a;
+    }
+    const order = { primary: { before: [], after: [] }, extra: [] };
+    for (const [id, a] of wanted) {
+      let entry = this.dynamic.get(id);
+      if (!entry) { entry = this.makeButton(a); this.dynamic.set(id, entry); }
+      entry.action = a;
+      const b = entry.button;
+      b.hidden = false;
+      b.classList.toggle('is-primary', !!a.primary);
+      b.classList.toggle('is-extra', !a.primary);
+      b.classList.toggle('is-held', a.kind === 'hold' && A.held(a));
+      if (a.kind === 'toggle') b.setAttribute('data-on', String(!!a.state?.())); else b.removeAttribute?.('data-on');
+      const label = a.touchLabel ?? A.label(a); // (a short face for a long hint: "Hook" for "Hook on / let go")
+      if (b.getAttribute('data-label') !== label) {
+        b.setAttribute('data-label', label);
+        b.setAttribute('aria-label', label);
+        entry.text.textContent = label;
+      }
+      const glyph = entry.glyph ?? a.glyph;
+      if (!a.icon && glyph != null && entry.face.textContent !== glyph) entry.face.textContent = glyph;
+      if (a.primary) (a.order < 0 ? order.primary.before : order.primary.after).push(b); else order.extra.push(b);
+    }
+    const rows = this.rows;
+    if (rows.primary) {
+      const first = this.buttons[0] || null;
+      for (const b of order.primary.before) if (b.nextSibling !== first || b.parentNode !== rows.primary) rows.primary.insertBefore(b, first);
+      for (const b of order.primary.after) rows.primary.append(b);
+    }
+    if (rows.extra) for (const b of order.extra) rows.extra.append(b);
+    if (rows.extra) rows.extra.hidden = !order.extra.length;
+  }
+
+  makeButton(a) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `touch-action touch-tap ${className}`.trim();
-    button.hidden = true;
-    const glyph = document.createElement('span');
-    glyph.setAttribute('aria-hidden', 'true');
-    glyph.textContent = icon;
+    button.className = `touch-action ${a.className || ''}`.trim();
+    button.setAttribute('data-action', a.id);
+    const face = document.createElement('span');
+    face.className = 'touch-face';
+    face.setAttribute('aria-hidden', 'true');
+    if (a.icon) face.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${a.icon}"/></svg>`;
+    else face.textContent = a.glyph ?? '•';
     const text = document.createElement('span');
-    text.className = 'touch-tap-label';
-    text.textContent = label;
-    button.append(glyph, text);
-    button.setAttribute('aria-label', label);
-    let pointer = null;
+    text.className = 'touch-label';
+    button.append(face, text);
+    const entry = { button, action: a, pointer: null, face, text, keep: false };
     button.addEventListener('pointerdown', (event) => {
-      if (!this.canInteract() || button.hidden || event.button !== 0 || pointer !== null || event.pointerId === this.stickPointer) return;
+      if (!this.canInteract() || button.hidden || event.button !== 0 || entry.pointer !== null || event.pointerId === this.stickPointer) return;
       event.preventDefault();
       event.stopPropagation();
-      pointer = event.pointerId;
+      entry.pointer = event.pointerId;
+      button.setPointerCapture(event.pointerId);
       button.classList.add('is-pressed');
+      const k = entry.action.kind;
+      if (k === 'hold') this.actions.hold(entry.action, true);
+      else if (k === 'toggle') this.actions.press(entry.action);
     });
-    const release = (event, fire) => {
-      if (event.pointerId !== pointer) return;
-      pointer = null;
-      button.classList.remove('is-pressed');
-      if (fire && !button.hidden && this.canInteract()) onTap();
-    };
-    button.addEventListener('pointerup', (event) => release(event, true));
-    for (const type of ['pointercancel', 'lostpointercapture']) button.addEventListener(type, (event) => release(event, false));
+    button.addEventListener('pointerup', (event) => this.releaseDynamic(entry, true, event.pointerId));
+    for (const type of ['pointercancel', 'lostpointercapture']) button.addEventListener(type, (event) => this.releaseDynamic(entry, false, event.pointerId));
     // (a mouse click on a hybrid device, or the keyboard's Enter on the focused button)
-    button.addEventListener('click', (event) => { if (event.detail === 0 && !button.hidden) onTap(); });
-    actions.prepend(button);
-    return button;
+    button.addEventListener('click', (event) => { if (event.detail === 0 && !button.hidden && entry.action.kind === 'tap') this.actions.press(entry.action); });
+    return entry;
+  }
+
+  releaseDynamic(entry, fire, pointerId = entry.pointer) {
+    if (entry.pointer === null || pointerId !== entry.pointer) return;
+    entry.pointer = null;
+    this.releaseCapture(entry.button, pointerId);
+    entry.button.classList.remove('is-pressed');
+    const a = entry.action;
+    if (a.kind === 'hold') this.actions.hold(a, false);
+    else if (a.kind === 'tap' && fire && !entry.button.hidden && this.canInteract()) this.actions.press(a);
+  }
+
+  dropButton(entry) {
+    if (entry.pointer !== null) this.releaseDynamic(entry, false);
+    entry.button.remove();
+  }
+
+  // A button that acts once per tap, kept by its maker: the GTA mode's "Get in / Get out" (js/gta.js) and the free
+  // flight's "Fly / Pack up" (js/paraglide-free.js). It sits first in the primary row, under the left thumb; hidden
+  // until shown with setTapButton(button, label, glyph). Returns the button element (null without the register).
+  addTapButton({ className = '', label = '', icon = '', onTap = () => {} } = {}) {
+    if (!this.actions || !this.rows.primary) return null;
+    const id = className || `tap-${this.dynamic.size}`;
+    const entry = this.makeButton({ id, kind: 'tap', className, glyph: icon, label });
+    entry.keep = true;
+    entry.label = null;
+    entry.glyph = icon;
+    entry.button.hidden = true;
+    this.dynamic.set(id, entry);
+    this.actions.layer(`touch:${id}`, [{ id, kind: 'tap', primary: true, order: -1, hint: false, label: () => entry.label || label, glyph: icon, when: () => !!entry.label, run: () => onTap() }]);
+    return entry.button;
   }
 
   // Shows the tap button with `label` (and `glyph`), or hides it (label null)
   setTapButton(button, label, glyph = null) {
-    if (!button) return;
-    const show = !!label;
-    if (button.hidden === !show && (!show || button.dataset.label === label)) return;
-    button.hidden = !show;
-    if (!show) { button.classList.remove('is-pressed'); return; }
-    button.dataset.label = label;
-    button.setAttribute('aria-label', label);
-    const text = button.querySelector('.touch-tap-label');
-    if (text) text.textContent = label;
-    if (glyph != null) button.firstChild.textContent = glyph;
+    const entry = button && this.dynamic.get(button.getAttribute('data-action'));
+    if (!entry) return;
+    const next = label || null;
+    const nextGlyph = glyph != null ? glyph : entry.glyph;
+    if (entry.label === next && entry.glyph === nextGlyph) return;
+    entry.label = next;
+    entry.glyph = nextGlyph;
+    this.actions.notify();
   }
+
+  // --- The stick and the fixed buttons -----------------------------------------------------------------------------
 
   moveStick(event) {
     const dx = event.clientX - this.stickCenter.x;
@@ -221,11 +323,16 @@ class TouchControls {
     this.updateButton(pointer.button, pointer.action);
   }
 
+  releaseButtonsOf(button) {
+    for (const [pointerId, pointer] of [...this.buttonPointers]) if (pointer.button === button) this.releaseButton(pointerId);
+  }
+
   // Lets go of whatever no finger in `touches` (the touches still down) started on
   releaseLiftedFingers(touches) {
     const heldOn = (element) => { for (let i = 0; i < touches.length; i++) if (element.contains(touches[i].target)) return true; return false; };
     if (this.stickPointer !== null && !heldOn(this.stick)) this.releaseStick(this.stickPointer);
     for (const [pointerId, { button }] of [...this.buttonPointers]) if (!heldOn(button)) this.releaseButton(pointerId);
+    for (const entry of this.dynamic.values()) if (entry.pointer !== null && !heldOn(entry.button)) this.releaseDynamic(entry, false);
   }
 
   reset() {
@@ -235,6 +342,7 @@ class TouchControls {
       button.classList.remove('is-pressed');
       button.setAttribute('aria-pressed', 'false');
     }
+    for (const entry of this.dynamic.values()) if (entry.pointer !== null) this.releaseDynamic(entry, false);
     this.controller.clearTouchInput();
   }
 }

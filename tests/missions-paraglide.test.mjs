@@ -216,6 +216,6 @@ test('the flight speaks German: its name, intro, steps, HUD and summary', async 
   assert.equal(t('1234 pts · 4.4 km from the launch · field 820 m'), '1234 Pkt. · 4.4 km vom Startplatz · Landeplatz 820 m');
   assert.equal(t('12:03 in the air · 4.4 km from the launch · 2950 m highest · on the field, 23 m from the cross'), '12:03 in der Luft · 4.4 km vom Startplatz · höchstens 2950 m · auf dem Landeplatz, 23 m vom Kreuz');
   assert.equal(t('0:40 in the air · 850 m from the launch · 2526 m highest · crash landing'), '0:40 in der Luft · 850 m vom Startplatz · höchstens 2526 m · Bruchlandung');
-  for (const k of ['Above ground', 'Airtime', 'Speed', 'Distance', 'Points', 'Airborne!', 'Lift! Circle in it', 'Flare now!', 'Launch', 'Flare', 'A/D steer · W speed bar · S brakes · Space flare']) assert.notEqual(t(k), k, k);
+  for (const k of ['Above ground', 'Airtime', 'Speed', 'Distance', 'Points', 'Airborne!', 'Lift! Circle in it', 'Flare now!', 'Launch', 'Flare', 'speed bar', 'brakes', 'flare']) assert.notEqual(t(k), k, k);
   setLanguage('en');
 });

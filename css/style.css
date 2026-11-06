@@ -863,7 +863,7 @@ a.pop-item { text-decoration: none; }
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px 16px;
-  max-width: 600px;
+  max-width: 820px;
   font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.88);
@@ -888,6 +888,13 @@ a.pop-item { text-decoration: none; }
 
 .hint-label {
   margin-left: 4px;
+}
+
+/* a switch that is on (the high beam, the beacon, the lowered tiller): its key in taxi yellow */
+.hint.is-on kbd {
+  color: var(--taxi-ink);
+  background: var(--taxi);
+  box-shadow: none;
 }
 
 .mode-switch {
@@ -1489,11 +1496,26 @@ body[data-mode='helicopter'] .gauge-alt {
   padding: 4px;
 }
 
+/* The buttons under the left thumb (js/touch-controls.js, from the register js/actions.js): the small row of extras
+   over the big row; a switch that is on wears a taxi ring */
 .touch-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
   padding-bottom: 22px;
 }
+.touch-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.touch-extra {
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 226px; /* (four in a row beside the stick on 390 px) */
+}
+.touch-extra[hidden] { display: none; }
 .touch-action {
   width: 64px;
   height: 64px;
@@ -1511,7 +1533,14 @@ body[data-mode='helicopter'] .gauge-alt {
   pointer-events: auto;
   touch-action: none;
 }
-.touch-action > [aria-hidden] { font-size: 23px; line-height: 1; }
+.touch-face { display: inline-flex; align-items: center; justify-content: center; font-size: 23px; line-height: 1; }
+.touch-face .icon { width: 24px; height: 24px; }
+.touch-label { font-size: 11px; white-space: nowrap; max-width: 70px; overflow: hidden; text-overflow: ellipsis; }
+.touch-action.is-extra { width: 52px; height: 52px; gap: 0; }
+.touch-action.is-extra .touch-face { font-size: 17px; }
+.touch-action.is-extra .touch-face .icon { width: 20px; height: 20px; }
+.touch-action.is-extra .touch-label { font-size: 8px; letter-spacing: -0.1px; max-width: 48px; }
+.touch-action[data-on="true"] { color: var(--taxi); border-color: var(--taxi); box-shadow: var(--shadow), inset 0 0 0 1.5px var(--taxi); }
 .touch-action.is-pressed { color: var(--taxi-ink); background: var(--taxi); border-color: var(--taxi); }
 
 body.touch-enabled .controls-hint,
@@ -1534,9 +1563,17 @@ body.touch-enabled .hud-bottom-center { bottom: max(var(--edge), env(safe-area-i
 body.touch-enabled .mode-label { display: block; font-size: 10px; }
 body.touch-enabled .mode-btn { width: 62px; height: 48px; padding: 0; flex-direction: column; justify-content: center; gap: 3px; }
 body.touch-enabled .hud-bottom-right { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); right: max(var(--edge), env(safe-area-inset-right)); bottom: auto; }
-body.touch-enabled .cluster { width: 230px; }
+body.touch-enabled .cluster { width: auto; }
 body.touch-enabled .camera-switch { border: 0; }
 body.touch-enabled .camera-switch .icon-btn { width: 44px; height: 44px; }
+/* (three buttons, no name: it is in the popover; the mission strip fits under them) */
+body.touch-enabled .camera-current { flex: none; width: 44px; height: 44px; padding: 0; }
+body.touch-enabled #hud-active-camera { display: none; }
+/* The free game (the GTA mode) has no mode bar: the controls sit right at the bottom; the missions' phone HUDs clear
+   them by --touch-clear (js/missions-golf.js and the others) */
+body.touch-enabled { --touch-clear: 250px; }
+body.touch-enabled.gta-mode { --touch-clear: 180px; }
+body.gta-mode #touch-controls { bottom: max(var(--edge), env(safe-area-inset-bottom)); }
 body.touch-enabled .hud-bottom-left { left: max(var(--edge), env(safe-area-inset-left)); bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 254px); max-width: calc(100% - 2 * var(--edge)); }
 body.touch-enabled .fullmap-header { top: max(var(--edge), env(safe-area-inset-top)); left: max(var(--edge), env(safe-area-inset-left)); right: max(var(--edge), env(safe-area-inset-right)); }
 body.touch-enabled .map-controls .icon-btn { width: 44px; height: 44px; }
@@ -2106,36 +2143,10 @@ body.touch-enabled .pop-item { min-height: 44px; }
 
 .mission-aim-info.is-on-target { color: var(--ok); }
 
-.mission-fire {
-  position: fixed;
-  right: max(var(--edge), env(safe-area-inset-right));
-  bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 190px);
-  z-index: 13;
-  display: none;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 90, 31, 0.8);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #fff;
-  background: rgba(214, 48, 20, 0.72);
-  touch-action: none;
-}
-
-.mission-fire.is-reloading { opacity: 0.45; }
-
-@media (pointer: coarse) {
-  .mission-fire { display: block; }
-}
-
 /* Phones: one compact strip under the top bar (time, step, progress, direction); the mission's title, best time,
    step text, hints and splits stay in the start and finish dialogs */
 @media (max-width: 820px) {
-  .hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); }
+  .hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 120px); }
   .mission {
     width: auto; max-width: calc(100vw - 24px);
     grid-template-columns: auto 1fr auto auto; column-gap: 8px; row-gap: 3px;
@@ -2157,10 +2168,10 @@ body.touch-enabled .pop-item { min-height: 44px; }
 /* (during a mission the touch hint gives way to the mission strip) */
 body:has(#mission-hud) .touch-look-hint { display: none; }
 /* A mission's own controls in charge (a bar, a dartboard, a cockpit: ownControls(run), js/missions.js): no walking
-   or driving meanwhile, so the game's key hints, the mode switch and the get-in prompt step aside, on a touch screen
+   or driving meanwhile, so the mode switch and the get-in prompt step aside (the key bar shows the mission's own keys), on a touch screen
    the joystick and the get-in button as well (the action buttons stay: a mission may have made them its Putt, Throw
    or Swing) */
-body.mission-own-controls .hud-bottom-center,
+body.mission-own-controls #mode-switch,
 body.mission-own-controls .gta-prompt,
 body.mission-own-controls .mission-prompt,
 body.mission-own-controls.touch-enabled #touch-controls .touch-movement,
@@ -2291,7 +2302,7 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 .mission-licence strong.mission-new-best { color: var(--taxi); }
 .mission-licence span { font-weight: 500; color: var(--text-3); }
 @media (max-width: 820px) {
-  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); }
+  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 120px); }
 }
 
 /* The GTA mode (js/gta.js): no mode bar; the prompt to get in or out above the controls guide (under a mission's
@@ -2324,7 +2335,7 @@ body.gta-mode #mode-switch { display: none; }
 .gta-prompt-sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
 .touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
-.touch-tap-label { font-size: 11px; white-space: nowrap; }
+
 
 /* Phones: a closed mission's row keeps its title on a line of its own, the wait button under it, big enough to tap */
 @media (max-width: 560px) {

@@ -1,4 +1,5 @@
 import { isTypingInField } from './city-config.js';
+import { PAD_SLOTS } from './actions.js';
 
 const DEAD_ZONE = 0.15;
 const BUTTON_COUNT = 17;
@@ -28,6 +29,7 @@ class GamepadControls {
     this.controller = controllerManager;
     this.camera = cameraSystem;
     this.callbacks = callbacks;
+    this.actions = callbacks.actions || null; // (js/actions.js: the actions with a gamepad slot, `pad`)
     this.connected = false;
     this.enabled = true;
     this.padIndex = null;
@@ -70,6 +72,7 @@ class GamepadControls {
   reset() {
     this.revision++;
     this.controller.clearGamepadInput();
+    this.actions?.releaseAll();
     const pad = this.readPad();
     if (pad && pad.index === this.padIndex && pad.id === this.padId) {
       this.previousButtons = buttons(pad);
@@ -113,8 +116,19 @@ class GamepadControls {
     // Capture edges before callbacks: changing mode or opening the map may synchronously call reset().
     const toggleMap = edge(9), closeMap = edge(1);
     const cycleMode = Number(Boolean(edge(5))) - Number(Boolean(edge(4)));
-    const cycleCamera = edge(3), recenter = edge(11), use = edge(2); // (2: X / Square, get in or out: js/gta.js)
-    const paraglide = edge(14); // (14: d-pad left, the wing off the back or packed up: js/paraglide-free.js, like P)
+    const cycleCamera = edge(3), recenter = edge(11);
+    // the register's actions: X / Square gets in or out (js/gta.js), d-pad left the wing (js/paraglide-free.js), B the
+    // high beam, L3 the horn, d-pad right a groomer's tiller or a mission's extra; a mission's hold on A while the jump
+    // button is hidden
+    const slotted = [];
+    if (this.actions) {
+      for (const a of this.actions.list()) {
+        if (a.kind === 'hint' || a.input || !a.pad || this.actions.hidden(a.id)) continue;
+        const i = PAD_SLOTS[a.pad];
+        if (i == null || i === 1 && !this.enabled) continue;
+        slotted.push([a, a.kind === 'hold' ? held(i) : edge(i)]);
+      }
+    }
     this.previousButtons = pressed;
 
     const target = document.activeElement;
@@ -141,10 +155,11 @@ class GamepadControls {
     if (revision !== this.revision) return;
     if (cycleCamera) this.callbacks.onCycleCamera?.(1);
     if (revision !== this.revision) return;
-    if (use) this.callbacks.onUse?.();
-    if (revision !== this.revision) return;
-    if (paraglide) this.callbacks.onParaglide?.();
-    if (revision !== this.revision) return;
+    for (const [a, on] of slotted) {
+      if (a.kind === 'hold') this.actions.hold(a, on);
+      else if (on) this.actions.press(a);
+      if (revision !== this.revision) return;
+    }
     if (recenter) this.camera.resetOrbit();
 
     const movement = stick(pad, 0), look = stick(pad, 2);
@@ -160,7 +175,8 @@ class GamepadControls {
     this.controller.setGamepadInput('backward', Math.max(0, -drive));
     this.controller.setGamepadInput('left', Math.max(0, -movement.x));
     this.controller.setGamepadInput('right', Math.max(0, movement.x));
-    this.controller.setGamepadInput('up', mode === 'person' ? Number(Boolean(held(0))) : Math.max(0, vertical));
+    const jump = mode === 'person' && !this.actions?.hidden('up'); // (a mission's hold has A while the jump is hidden)
+    this.controller.setGamepadInput('up', jump ? Number(Boolean(held(0))) : Math.max(0, vertical));
     this.controller.setGamepadInput('down', Math.max(0, -vertical));
     const zoom = Number(Boolean(held(13))) - Number(Boolean(held(12)));
     this.camera.applyGamepadInput(look.x, look.y, zoom, Number.isFinite(dt) ? Math.max(0, Math.min(0.1, dt)) : 0);

@@ -653,6 +653,30 @@ class MissionRun {
     this.cleanups.push(() => target.removeEventListener(type, fn, options));
   }
 
+  /** A layer of the run's actions in the register (js/actions.js: the key bar, the touch buttons, the gamepad), gone
+   *  with the run; while the mission's own controls are in charge it replaces the game's layers. The keys themselves
+   *  stay with the features' key(run, e) (keyboard: false): they swallow what the controllers must not see. Returns
+   *  what removes the layer early */
+  actions(list, { replace = () => this.ownControls } = {}) {
+    const off = this.hooks.actions?.layer(`mission:${this.def.id}`, list, { replace, rank: 10 }); // (above the game's layers, whenever the run began)
+    if (!off) return () => {};
+    this.cleanups.push(off);
+    return off;
+  }
+  /** The key bar's hints for keys that are no action of the register: [[['W'], 'walk'], ...]. A mission that says
+   *  what its keys do says it all: the game's own hints step aside */
+  hints(list) { return this.actions(list.map(([kbd, label]) => ({ kind: 'hint', kbd, label })), { replace: true }); }
+  /** The touch screens' jump (`up`) or descend (`down`) button relabelled for the mission (null: hidden; a label
+   *  shows it in a mode that has none), given back at the end; returns what gives it back early */
+  button(id, label) {
+    const A = this.hooks.actions;
+    if (!A) return () => {};
+    A.relabel(id, label);
+    const restore = () => A.relabel(id);
+    this.cleanups.push(restore);
+    return restore;
+  }
+
   start() {
     this.setup();
     this.beginRanking();
@@ -694,7 +718,7 @@ class MissionRun {
     this.group.removeFromParent();
     disposeTree(this.group);
     this.props.length = 0;
-    for (const node of [this.ui.hud, this.ui.overlay, this.ui.crosshair, this.ui.fire]) node?.remove();
+    for (const node of [this.ui.hud, this.ui.overlay, this.ui.crosshair]) node?.remove();
     if (globalThis.__slopdavosMission === this) globalThis.__slopdavosMission = null;
     this.hooks.releaseClock?.();
     this.hooks.race?.detach(this);
@@ -763,6 +787,7 @@ class MissionRun {
         this.onObjectiveDone(objective.id);
         this.renderSplits();
         this.index++;
+        this.hooks.actions?.notify(); // (a step's own buttons: the loader's chute, then the climb across)
         view = { ...view, target: null };
         if (this.index >= this.def.objectives.length) this.finish(now);
       }
@@ -802,6 +827,10 @@ class MissionRun {
     if (on === !!this.ownControls) return;
     this.ownControls = on;
     globalThis.document?.body?.classList.toggle(OWN_CONTROLS_CLASS, on);
+    // the key bar: the mission's own keys alone (run.hints, run.actions), or nothing of the game's walking and driving
+    this._ownLayer?.();
+    this._ownLayer = on ? this.hooks.actions?.layer(`mission:${this.def.id}:own`, [], { replace: true, rank: 9 }) : null;
+    this.hooks.actions?.notify();
   }
 
   abort(reason) {
@@ -936,11 +965,13 @@ const FEATURES = {
       run.ui.crosshair = cross;
       run.ui.aimInfo = info;
       document.body.append(cross);
-      const fire = el('button', 'panel mission-fire', 'Fire');
-      fire.type = 'button';
-      run.listen(fire, 'pointerdown', (e) => { e.preventDefault(); FEATURES.shooter.fire(run); });
-      run.ui.fire = fire;
-      document.body.append(fire);
+      // the fire button on touch screens and the gamepad, the key bar (js/actions.js); Space would make the pedestrian
+      // jump: the jump button goes
+      run.button('up', null);
+      run.actions([
+        { id: 'fire', primary: true, label: 'Fire', icon: 'i-fire', keys: ['Space'], keyboard: false, pad: 'a', run: () => FEATURES.shooter.fire(run) },
+        { kind: 'hint', kbd: ['Drag'], label: 'Aim' }
+      ]);
       // a click (not a drag) on the view fires too
       let down = null;
       const canvas = run.hooks.cameraSystem.camera && document.getElementById('canvas-container');

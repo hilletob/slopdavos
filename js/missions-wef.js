@@ -32,7 +32,7 @@ const setText = (node, text) => { if (node.textContent !== t(text)) setLocalized
 
 // --- Styles -------------------------------------------------------------------------------------------------------------
 const STYLE = `
-.wf-hud{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:12;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 16px))}
+.wf-hud{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:12;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 16px))}
 .wf-card{width:100%;box-sizing:border-box;background:rgba(10,12,20,.78);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:8px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:13px}
 .wf-row{display:flex;gap:12px;justify-content:space-between;align-items:baseline}
 .wf-row b{font-size:17px;font-variant-numeric:tabular-nums}
@@ -371,15 +371,12 @@ const wefEscort = {
     card.append(row, bar);
     hud.append(wf.ui.say, card);
     document.body.append(hud);
-    const pad = el('div', 'wf-pad');
-    const blue = el('button', 'wf-btn', 'Blue light'), radio = el('button', 'wf-btn sec', 'Radio');
-    blue.type = radio.type = 'button';
-    run.listen(blue, 'pointerdown', (e) => { e.preventDefault(); run.features.policeCar?.key(run, { code: 'KeyK', repeat: false }); });
-    run.listen(radio, 'pointerdown', (e) => { e.preventDefault(); wefEscort.radio(run); });
-    pad.append(blue, radio);
-    document.body.append(pad);
-    run.cleanups.push(() => { hud.remove(); pad.remove(); });
-    wf.ui.pad = pad;
+    run.cleanups.push(() => hud.remove());
+    // the blue light and the radio: the small touch row, the gamepad, the key bar (js/actions.js)
+    run.actions([
+      { id: 'blue', kind: 'toggle', label: 'Blue light', icon: 'i-beacon', keys: ['KeyK'], keyboard: false, pad: 'right', state: () => !!run.blueLight, run: () => run.features.policeCar?.key(run, { code: 'KeyK', repeat: false }) },
+      { id: 'radio', label: 'Radio', icon: 'i-radio', keys: ['KeyJ'], keyboard: false, pad: 'l3', run: () => wefEscort.radio(run) }
+    ]);
   },
   radio(run) {
     if (run.phase !== 'running' && run.phase !== 'ready') return;
@@ -433,7 +430,7 @@ const wefEscort = {
     ui.fill.style.transform = `scaleX(${clamp(1 - st.gap / ESCORT.gapLost, 0, 1)})`;
     const showing = st.last && ctx.t - st.lastAt < 4000 ? st.last : '';
     setText(ui.say, showing);
-    ui.hud.hidden = ui.pad.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
+    ui.hud.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
   }
 };
 

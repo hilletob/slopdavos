@@ -2,7 +2,6 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight, surfaceHeight } from './terrain.js';
 import { ParticleBatch } from './missions-fx.js';
-import { setLocalizedText } from './i18n.js';
 import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-models.js';
@@ -54,15 +53,11 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const mat = (color, o = {}) => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.75, ...o });
 
 // --- Shared: the hold key (Space / E, the touch button), a toast ---------------------------------------------------------
-export function holdButton(run, label) {
-  const b = el('button', 'panel mission-fire', label);
-  b.type = 'button';
-  const on = (v) => (e) => { e.preventDefault(); run.work.touchHold = v; };
-  run.listen(b, 'pointerdown', on(true));
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(b, ev, on(false));
-  document.body.append(b);
-  run.cleanups.push(() => b.remove());
-  return b;
+/** The hold as an action of the register (js/actions.js): the big touch button, the gamepad's A, the key bar's Space;
+ *  the jump button goes (Space is the hold: holdKey swallows it). `when`: while the hold applies (always otherwise) */
+export function holdButton(run, label, { icon = 'i-shovel', when = undefined } = {}) {
+  run.button('up', null);
+  run.actions([{ id: 'work-hold', kind: 'hold', primary: true, label, icon, keys: ['Space', 'KeyE'], kbd: ['Space'], keyboard: false, pad: 'a', when, run: (on) => { run.work.touchHold = on; } }]);
 }
 /** Space or E held (taken from the controllers: no jump), the keyup and a lost focus let go */
 function bindHold(run) {
@@ -828,7 +823,7 @@ const snowBlower = {
     run.group.add(mesh.mesh);
     buildParkedCars(run, route);
     run.work = { route, grid, mesh, prev: new THREE.Vector3(), lastHit: -1e9, toast: createToast(run), proj: {}, spawnAcc: 0 };
-    holdButton(run, 'Chute').addEventListener('pointerdown', () => snowBlower.turnChute(run));
+    run.actions([{ id: 'chute', label: 'Chute', icon: 'i-chute', keys: ['KeyV'], keyboard: false, pad: 'right', run: () => snowBlower.turnChute(run) }]);
   },
   reset(run) {
     const w = run.work;
@@ -1120,7 +1115,7 @@ const alpineRoses = {
     }
     run.work = { bushMesh, bloomMesh, toast: createToast(run), keyHold: false, touchHold: false };
     bindHold(run);
-    holdButton(run, 'Pick');
+    holdButton(run, 'Pick', { icon: 'i-hand' });
   },
   reset(run) {
     const w = run.work, bushes = run.state.bushes;
@@ -1209,7 +1204,7 @@ const mushrooms = {
     // (the colours once: per-instance colour index = the slot of the drawn list, so they are set as drawn)
     run.work = { meshes, toast: createToast(run), keyHold: false, touchHold: false, drawT: 1, drawnAt: null };
     bindHold(run);
-    holdButton(run, 'Pick');
+    holdButton(run, 'Pick', { icon: 'i-hand' });
   },
   reset(run) {
     const w = run.work;
@@ -1425,33 +1420,24 @@ function buildCraneLoad(load, material) {
   return { mesh, sling };
 }
 
-// The key bar under the HUD (js/main.js renderControlHints) while the driver is up in the cab: the crane's keys, not
-// the walker's; the walker's come back with the ladder (or the end of the run)
-const CRANE_HINTS = [[['A', 'D'], 'Slew'], [['W', 'S'], 'Trolley'], [['E'], 'Lift'], [['Q'], 'Lower'], [['F'], 'Hook on / let go'], [['V'], 'View']];
-function craneKeyBar(run, on) {
-  const bar = typeof document !== 'undefined' ? document.getElementById('hud-controls-hint') : null;
-  if (!bar) return;
-  if (on && !run.craneBar) {
-    run.craneBar = [...bar.childNodes];
-    bar.replaceChildren(...CRANE_HINTS.map(([keys, label]) => {
-      const item = document.createElement('span');
-      item.className = 'hint';
-      for (const k of keys) { const kbd = document.createElement('kbd'); kbd.textContent = k; item.append(kbd); }
-      const l = document.createElement('span');
-      l.className = 'hint-label';
-      setLocalizedText(l, label);
-      item.append(l);
-      return item;
-    }));
-  } else if (!on && run.craneBar) {
-    bar.replaceChildren(...run.craneBar);
-    run.craneBar = null;
-  }
+// The crane's controls while the driver is up in the cab (hold / release below), in the register (js/actions.js):
+// the key bar shows the crane's keys instead of the walker's, the touch screen's jump and descend buttons lift and
+// lower (the joystick slews and runs the trolley), the hook and the view are buttons of the small row
+function craneControls(run) {
+  return [
+    run.actions([
+      { kind: 'hint', kbd: ['A', 'D'], label: 'Slew' }, { kind: 'hint', kbd: ['W', 'S'], label: 'Trolley' },
+      { kind: 'hint', kbd: ['E'], label: 'Lift' }, { kind: 'hint', kbd: ['Q'], label: 'Lower' },
+      { id: 'hook', label: 'Hook on / let go', touchLabel: 'Hook', icon: 'i-hook', keys: ['KeyF'], keyboard: false, pad: 'right', run: () => towerCrane.hookAction(run) },
+      { id: 'view', label: 'View', icon: 'i-camera', keys: ['KeyV'], keyboard: false, pad: 'b', run: () => { run.work.view = run.work.view === 'chase' ? 'cab' : 'chase'; } }
+    ], { replace: true }),
+    run.button('up', 'Lift'),
+    run.button('down', 'Lower')
+  ];
 }
 
 const towerCrane = {
   setup(run) {
-    run.cleanups.push(() => craneKeyBar(run, false));
     const cm = run.hooks.controllerManager;
     const ground = (x, z) => cm.getGroundHeight(x, z, 'person');
     const site = createCraneSite(ground, DAVOS_DATA.buildings);
@@ -1497,38 +1483,20 @@ const towerCrane = {
       rig.reset(x, z, yaw, gf);
       return { rig, x, z, yaw, gf };
     });
-    run.work = { site, slew, trolley, hook, rope, loads, pad, plumb, crowd, crew, toast: createToast(run), crane: createCrane(site), view: 'chase', cam: new THREE.Vector3(), camInit: false, t: 0, touch: { hoist: 0 }, held: false, wind: {} };
-    // touch: lift, lower, the hook, the view (the joystick slews and runs the trolley)
-    const button = (label, offsetX, offsetY, onDown, onUp) => {
-      const b = el('button', 'panel mission-fire', label);
-      b.type = 'button';
-      Object.assign(b.style, { width: '64px', height: '64px', fontSize: '12px', transform: `translate(${offsetX}px, ${offsetY}px)` });
-      run.listen(b, 'pointerdown', (e) => { e.preventDefault(); onDown(); });
-      if (onUp) for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(b, ev, (e) => { e.preventDefault(); onUp(); });
-      document.body.append(b);
-      run.cleanups.push(() => b.remove());
-      return b;
-    };
-    const w = run.work;
-    // (a block of four over the usual button's place: it also fits a phone held sideways)
-    button('Lift', 0, -68, () => { w.touch.hoist = 1; }, () => { w.touch.hoist = 0; });
-    button('Lower', 0, 0, () => { w.touch.hoist = -1; }, () => { w.touch.hoist = 0; });
-    button('Hook', -72, 0, () => towerCrane.hookAction(run));
-    button('View', -72, -68, () => { w.view = w.view === 'chase' ? 'cab' : 'chase'; });
+    run.work = { site, slew, trolley, hook, rope, loads, pad, plumb, crowd, crew, toast: createToast(run), crane: createCrane(site), view: 'chase', cam: new THREE.Vector3(), camInit: false, t: 0, held: false, wind: {} };
     run.cleanups.push(() => towerCrane.release(run));
   },
   /** The walker stays at the foot of the mast while the driver is up in the cab (the keys are the crane's) */
   hold(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (w.held) return;
-    craneKeyBar(run, true);
-    w.held = { had: 'personDriver' in cm, prev: cm.personDriver };
+    w.held = { had: 'personDriver' in cm, prev: cm.personDriver, controls: craneControls(run) };
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; };
   },
   release(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (!w?.held) return;
-    craneKeyBar(run, false);
+    for (const off of w.held.controls) off();
     if (w.held.had) cm.personDriver = w.held.prev; else delete cm.personDriver;
     w.held = false;
   },
@@ -1539,7 +1507,6 @@ const towerCrane = {
     w.view = 'chase';
     w.camInit = false;
     w.t = 0;
-    w.touch.hoist = 0;
     w.toast.hide();
     w.site.loads.forEach((l, i) => {
       w.loads[i].mesh.position.set(l.yard.x, l.restY, l.yard.z);
@@ -1579,7 +1546,7 @@ const towerCrane = {
       const input = {
         slew: (+k.left || 0) - (+k.right || 0),
         trolley: (+k.forward || 0) - (+k.backward || 0),
-        hoist: clamp((+k.up || 0) - (+k.down || 0) + w.touch.hoist, -1, 1)
+        hoist: clamp((+k.up || 0) - (+k.down || 0), -1, 1)
       };
       const load = S.loads[st.index];
       const gust = st.carried && load ? load.gust : 0;
@@ -1734,13 +1701,9 @@ const snowLoad = {
     run.work = { route, grid, mesh, tipper, blower, blowerDrive, dump, lake, body, truck: createLoaderTruck(8), prev: new THREE.Vector3(), lastHeading: 0, lastHit: -1e9, toast: createToast(run), proj: {}, spawnAcc: 0, keyHold: false, touchHold: false, started: false };
     car.drive = blowerDrive;
     bindHold(run);
-    holdButton(run, 'E');
-    const chute = el('button', 'panel mission-fire', 'Chute');
-    chute.type = 'button';
-    Object.assign(chute.style, { width: '64px', height: '64px', fontSize: '12px', transform: 'translate(0, -76px)' });
-    run.listen(chute, 'pointerdown', (e) => { e.preventDefault(); snowLoad.turnChute(run); });
-    document.body.append(chute);
-    run.cleanups.push(() => chute.remove());
+    // (V turns the chute while loading; E climbs across into the truck once it is full)
+    run.actions([{ id: 'chute', label: 'Chute', icon: 'i-chute', keys: ['KeyV'], keyboard: false, pad: 'right', when: () => run.index === 0, run: () => snowLoad.turnChute(run) }]);
+    holdButton(run, 'Climb across', { icon: 'i-swap', when: () => run.index >= 1 });
   },
   /** Into the blower or the tipper: the car wears it, its handling and its size */
   wear(run, model, drive) {

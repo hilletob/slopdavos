@@ -375,6 +375,9 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
 
   return {
     setPlayerCarBody, candidate, take, leaveBody, update, toggleBlue, state, restore,
+    /** Driving a taken patrol car (the blue light's K, js/gta.js) */
+    inPatrolCar: () => !!body?.police && cm.activeMode === 'car',
+    blueOn: () => blue,
     get body() { return body; },
     get vacant() { return vacant; },
     set vacant(v) { vacant = !!v; },

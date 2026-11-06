@@ -54,7 +54,6 @@ const STYLE = `
 .golf-big { position: fixed; left: 50%; top: 36%; transform: translate(-50%, -50%); z-index: 12; pointer-events: none; font-size: 52px;
   font-weight: 900; color: #fff; text-shadow: 0 3px 14px rgba(0,0,0,0.6); opacity: 0; transition: opacity 0.25s; white-space: nowrap; }
 .golf-big.is-on { opacity: 1; }
-.golf-keys { font-size: 11px; opacity: 0.75; font-weight: 500; }
 .golf-cart { pointer-events: auto; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(58,166,85,0.85);
   color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
 .golf-cart[hidden] { display: none; }
@@ -84,9 +83,8 @@ const STYLE = `
 .golf-mark-arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 11px solid #fff; margin-bottom: 2px; display: none; }
 .golf-mark.is-edge .golf-mark-arrow { display: block; }
 .golf-mark-land .golf-mark-label { padding: 1px 6px; border-radius: 9px; background: rgba(40,30,0,0.65); color: #ffd23d; font-size: 12px; box-shadow: 0 0 0 1px #ffd23d; }
-body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 200px); }
-@media (max-width: 820px) { body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 280px); } }
-body.touch-enabled .golf-keys { display: none; }
+body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--touch-clear, 200px)); }
+@media (max-width: 820px) { body.touch-enabled .golf-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--touch-clear, 200px) + 80px); } }
 @media (max-width: 820px) { .golf-hud { min-width: 0; width: min(380px, calc(100vw - 16px)); box-sizing: border-box; padding: 5px 8px; font-size: 12px; gap: 3px; } .golf-meter { width: 200px; } .golf-big { font-size: 38px; } .golf-club { min-width: 34px; }
   .golf-step:not(.is-on) { display: none; } .golf-plan { font-size: 11px; gap: 6px; } .golf-report { font-size: 11px; } .golf-readout { min-width: 0; font-size: 12px; }
   .golf-card { font-size: 12px; } .golf-club { min-width: 30px; padding: 2px 4px; font-size: 11px; } .golf-club small { font-size: 9px; }
@@ -101,18 +99,6 @@ function ensureStyle() {
   document.head.append(s);
 }
 
-/** The touch screens' action button ("Jump") relabelled for the mission; given back at the end */
-function touchLabel(run, text) {
-  const label = document.querySelector('[data-touch-label="up"]');
-  const button = document.querySelector('[data-touch-action="up"]');
-  if (!label) return;
-  if (run._golfTouchOld === undefined) {
-    run._golfTouchOld = label.textContent;
-    run.cleanups.push(() => { label.textContent = run._golfTouchOld; button?.setAttribute('aria-label', run._golfTouchOld); });
-  }
-  label.textContent = text;
-  button?.setAttribute('aria-label', text);
-}
 
 // =====================================================================================================================
 // The golfer's pose: the skinned person's bones written straight into its PersonRig (js/pedestrians.js), as
@@ -397,7 +383,7 @@ const golf = {
   },
   reset(run) {
     const G = run.golf;
-    touchLabel(run, 'Swing');
+    run.button('up', 'Swing'); // (the touch screens' jump button, js/actions.js)
     Object.assign(G, { mode: 'address', meter: createMeter(), t: 0, cam: null, phi: 0, dirty: true, flashAt: 0, upWas: true, holedT: 0, lastEvent: null });
     run.state.walkTo = null;
     run.state.hint = null;
@@ -861,7 +847,8 @@ const golf = {
     const cart = el('button', 'golf-cart', 'Cart to the ball (C)');
     cart.type = 'button';
     run.listen(cart, 'pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); golf.cart(run); });
-    foot.append(el('span', 'golf-keys', 'W/S or 1-5 club · A/D or drag aim · C cart'), cart);
+    foot.append(cart);
+    run.hints([[['W', 'S', '1-5'], 'club'], [['A', 'D', 'Drag'], 'aim'], [['Space'], 'swing'], [['C'], 'cart']]);
     const mid = el('div', 'golf-row');
     mid.append(clubs, info);
     const low = el('div', 'golf-row');

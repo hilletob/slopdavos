@@ -53,7 +53,6 @@ const STYLE = `
 .sport-big{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;font-size:58px;font-weight:900;color:#fff;text-shadow:0 3px 14px rgba(0,0,0,.6);opacity:0;transition:opacity .25s;text-align:center}
 .sport-big.is-on{opacity:1}
 .sport-big small{display:block;font-size:20px;font-weight:700}
-.sport-keys{font-size:11px;opacity:.75;font-weight:500}
 .sport-choice{display:flex;gap:10px;pointer-events:auto}
 .sport-choice button{pointer-events:auto;border:0;border-radius:12px;padding:12px 18px;font:800 15px Inter,system-ui,sans-serif;color:#fff;background:linear-gradient(180deg,#e3262f,#9d1219);box-shadow:0 6px 18px rgba(0,0,0,.35);touch-action:manipulation}
 .sport-choice button.is-skate{background:linear-gradient(180deg,#2f7bff,#1847b5)}
@@ -67,10 +66,9 @@ const STYLE = `
 .sport-balance{position:relative;width:200px;height:10px;border-radius:5px;background:linear-gradient(90deg,#ff5b5b,#ffc83d 30%,#5be08c 45%,#5be08c 55%,#ffc83d 70%,#ff5b5b)}
 .sport-balance span{position:absolute;top:-3px;width:4px;height:16px;margin-left:-2px;background:#fff;box-shadow:0 0 4px #000}
 body.sport-indoor #touch-controls,body.sport-indoor .gta-prompt,body.sport-indoor .touch-use,body.sport-indoor .mission-prompt{display:none!important}
-body.touch-enabled .sport-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 200px)}
+body.touch-enabled .sport-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--touch-clear, 200px))}
 body.sport-indoor.touch-enabled .sport-hud{bottom:max(14px,env(safe-area-inset-bottom))}
 @media (max-width:820px){body.touch-enabled:not(.sport-indoor) .sport-hud{bottom:auto;top:calc(max(12px,env(safe-area-inset-top)) + 188px)}.sport-hud{min-width:0;padding:6px 10px;font-size:12px}.sport-meter{width:170px}.sport-big{font-size:42px}}
-body.touch-enabled .sport-keys{display:none}
 `;
 function addStyle(run) {
   if (run._sportStyle) return;
@@ -106,25 +104,8 @@ function bigText(run, node, text, sub = '', ms = 1100) {
 }
 const setText = (node, t) => { if (node.textContent !== t) node.textContent = t; };
 
-/** A touch action button relabelled (and shown) for the mission; restored at the end */
-function touchButton(run, action, text, show = true) {
-  const label = document.querySelector(`[data-touch-label="${action}"]`);
-  const button = document.querySelector(`[data-touch-action="${action}"]`);
-  if (!button) return;
-  run._touchOld ??= {};
-  if (!run._touchOld[action]) {
-    run._touchOld[action] = { label: label?.textContent, hidden: button.hidden, aria: button.getAttribute('aria-label') };
-    run.cleanups.push(() => {
-      const o = run._touchOld[action];
-      if (label) label.textContent = o.label;
-      button.hidden = o.hidden;
-      if (o.aria) button.setAttribute('aria-label', o.aria);
-    });
-  }
-  if (label) label.textContent = text;
-  button.setAttribute('aria-label', text);
-  if (show) button.hidden = false;
-}
+/** The touch screens' jump (`up`) or descend (`down`) button relabelled, and shown, for the mission (js/actions.js) */
+function touchButton(run, action, text) { run.button(action, text); }
 /** The rising edge of a held key action (keys.up: Space, E, the touch button) */
 function edge(run, cm, action = 'up') {
   const on = !!cm.keys[action];
@@ -314,7 +295,8 @@ const xcSkis = {
     xc.ui.meter = mt;
     xc.ui.choice = choice;
     xc.ui.race = el('div');
-    xc.ui.race.append(row, row2, xc.ui.flash, el('div', 'sport-keys', 'W hold: stride · Space in the green: power stroke · Q hold: double pole (flat) · let go of W downhill: tuck · A/D steer'));
+    xc.ui.race.append(row, row2, xc.ui.flash);
+    run.hints([[['W'], 'hold: stride · let go downhill: tuck'], [['Space'], 'in the green: power stroke'], [['Q'], 'hold: double pole (flat)'], [['A', 'D'], 'steer']]);
     xc.ui.race.hidden = true;
     hud.append(choice, xc.ui.race);
     cm.personDriver = (dt) => xcSkis.drive(run, dt, cm);
@@ -336,7 +318,7 @@ const xcSkis = {
     xc.ui.race.hidden = true;
     run._sportEdge_up = true;
     touchButton(run, 'up', 'Kick');
-    touchButton(run, 'down', 'Double pole', true);
+    touchButton(run, 'down', 'Double pole');
   },
   choose(run, style) {
     const st = run.state?.race;
@@ -794,7 +776,8 @@ const minigolf = {
     mg.ui.meter = meter();
     const row = el('div', 'sport-row');
     row.append(el('span', null, 'Power'), mg.ui.meter.m);
-    hud.append(mg.ui.title, mg.ui.line, row, mg.ui.card, el('div', 'sport-keys', look.keys));
+    hud.append(mg.ui.title, mg.ui.line, row, mg.ui.card);
+    run.hints(look.keys);
     // the slingshot: drag from anywhere on the view, the ball goes the other way, the drag's length is the power
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (!minigolf.ready(run) || e.button !== 0) return; mg.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, power: 0 }; });
@@ -996,14 +979,14 @@ const minigolf = minigolfFeature(WALDHUUS_COURSE, {
   name: 'MinigolfWaldhuus', felt: FELT, feltRoughness: 0.95, board: BOARD_COL, post: 0xd43b2a, body: 0xa8a39a, path: 0xd8d2c6, pathAcross: 6,
   ball: () => mesh(new THREE.SphereGeometry(MINIGOLF.ballR, 16, 12), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.35 }), true),
   ballLift: MINIGOLF.ballR, club: createPutter, button: 'Putt',
-  keys: 'A/D aim · hold Space, let go to putt · or drag back from the ball and let go · V overview'
+  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to putt'], [['Drag'], 'back from the ball and let go'], [['V'], 'overview']]
 });
 // Eis-Minigolf on the Arkadenplatz: the same game on rink ice between wooden boards, with a stick and a black puck
 const iceMinigolf = minigolfFeature(ARKADENPLATZ_COURSE, {
   name: 'IceMinigolfArkadenplatz', felt: 0xdcebf4, feltRoughness: 0.25, board: 0xb98a55, post: 0x2b6fb3, body: 0xe6eef2, path: 0xeef5f9, pathAcross: 24,
   ball: () => mesh(new THREE.CylinderGeometry(ICE_MINIGOLF.ballR, ICE_MINIGOLF.ballR, 0.025, 20), new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.5 }), true),
   ballLift: 0.0125, club: createStick, button: 'Shoot',
-  keys: 'A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview'
+  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to shoot'], [['Drag'], 'back from the puck and let go'], [['V'], 'overview']]
 });
 function minigolfWorldLoop(run, y, h, t) {
   const g = run.state.game, f = holeFrame(g.hole, g.course);
@@ -1164,7 +1147,8 @@ const darts = {
     dd.ui = { hud, big, title: el('div', 'sport-flash is-gold'), line: el('div'), flash: el('div', 'sport-flash'), meter: meter(DART.ideal - DART.band / 2, DART.ideal + DART.band / 2) };
     const row = el('div', 'sport-row');
     row.append(el('span', null, 'Throw'), dd.ui.meter.m);
-    hud.append(dd.ui.title, dd.ui.line, row, dd.ui.flash, el('div', 'sport-keys', 'Mouse / WASD aim · hold Space or the mouse button, let go in the green · phone: touch to aim, swipe up to throw'));
+    hud.append(dd.ui.title, dd.ui.line, row, dd.ui.flash);
+    run.hints([[['Mouse', 'W', 'A', 'S', 'D'], 'aim'], [['Space', 'Click'], 'hold, let go in the green']]);
     hud.hidden = true;
     const cross = el('div', 'sport-cross');
     cross.hidden = true;
@@ -1515,7 +1499,8 @@ const skateBowl = {
     sb.ui = { hud, big, time: el('span', 'sport-flash is-gold'), score: el('span', 'sport-flash'), combo: el('div', 'sport-flash is-good'), trick: el('div', 'sport-flash'), bal: el('div', 'sport-balance') };
     sb.ui.balNeedle = el('span'); sb.ui.bal.append(sb.ui.balNeedle); sb.ui.bal.hidden = true;
     const row = el('div', 'sport-row'); row.append(sb.ui.time, sb.ui.score);
-    hud.append(row, sb.ui.combo, sb.ui.trick, sb.ui.bal, el('div', 'sport-keys', 'W pump · A/D carve / spin · Space hold: grab · grind: A/D balance, Space drops in'));
+    hud.append(row, sb.ui.combo, sb.ui.trick, sb.ui.bal);
+    run.hints([[['W'], 'pump'], [['A', 'D'], 'carve / spin · grind: balance'], [['Space'], 'hold: grab · grind: drop in']]);
     const cm = run.hooks.controllerManager;
     cm.personDriver = (dt) => skateBowl.drive(run, dt, cm);
     cm.personPoser = (dt, p) => skateBowl.pose(run, dt, p);

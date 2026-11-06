@@ -40,9 +40,25 @@ function element(attributes = {}) {
   };
 }
 
-function harness({ coarse = true, mode = 'person' } = {}) {
+function row() {
+  const r = element();
+  r.children = [];
+  r.append = (...kids) => { for (const k of kids) { const i = r.children.indexOf(k); if (i >= 0) r.children.splice(i, 1); r.children.push(k); k.parentNode = r; } };
+  r.insertBefore = (k, ref) => { const i = r.children.indexOf(k); if (i >= 0) r.children.splice(i, 1); const j = r.children.indexOf(ref); r.children.splice(j < 0 ? r.children.length : j, 0, k); k.parentNode = r; };
+  return r;
+}
+
+function harness({ coarse = true, mode = 'person', actions = null } = {}) {
   const window = element();
   const document = { ...element(), body: element(), hidden: false };
+  document.createElement = () => {
+    const e = element();
+    e.children = [];
+    e.dataset = {};
+    e.append = (...kids) => { e.children.push(...kids); if (!e.firstChild) e.firstChild = kids[0]; };
+    e.remove = () => { const p = e.parentNode; if (p) { const i = p.children.indexOf(e); if (i >= 0) p.children.splice(i, 1); } };
+    return e;
+  };
   const media = { ...element(), matches: coarse };
   window.matchMedia = () => media;
   const root = element();
@@ -50,9 +66,11 @@ function harness({ coarse = true, mode = 'person' } = {}) {
   const knob = element();
   const buttons = Object.fromEntries(['up', 'down'].map((action) => [action, element({ 'data-touch-action': action })]));
   const labels = Object.fromEntries(Object.keys(buttons).map((action) => [action, element()]));
+  const rows = { primary: row(), extra: row() };
+  rows.primary.append(buttons.up, buttons.down);
   root.querySelectorAll = () => Object.values(buttons);
   root.querySelector = (selector) => labels[selector.match(/"(.*?)"/)[1]];
-  document.getElementById = (id) => ({ 'touch-controls': root, 'touch-stick': stick, 'touch-stick-knob': knob })[id];
+  document.getElementById = (id) => ({ 'touch-controls': root, 'touch-stick': stick, 'touch-stick-knob': knob, 'touch-primary': rows.primary, 'touch-extra': rows.extra })[id];
   const input = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down'].map((action) => [action, 0]));
   const controller = {
     activeMode: mode,
@@ -60,8 +78,8 @@ function harness({ coarse = true, mode = 'person' } = {}) {
     clearTouchInput() { for (const action of Object.keys(input)) input[action] = 0; }
   };
   const { TouchControls } = loadModule(source, { globals: { window, document } });
-  const controls = new TouchControls(controller);
-  return { controls, window, document, media, root, stick, knob, buttons, labels, input };
+  const controls = new TouchControls(controller, { actions });
+  return { controls, window, document, media, root, stick, knob, buttons, labels, input, rows };
 }
 
 function near(actual, expected) {
@@ -228,23 +246,11 @@ test('availability callback runs after visibility updates and only on an actual 
 });
 
 test('the tap button (the GTA mode\'s get in / out): first among the actions, fires once on release, hidden until labelled', () => {
-  const { controls, root, document } = harness();
-  const made = [];
-  document.createElement = () => {
-    const e = element();
-    e.children = [];
-    e.append = (...kids) => { e.children.push(...kids); if (!e.firstChild) e.firstChild = kids[0]; };
-    e.querySelector = (sel) => e.children.find((k) => sel === '.touch-tap-label' && k.className === 'touch-tap-label');
-    e.dataset = {};
-    made.push(e);
-    return e;
-  };
-  const actions = { prepended: [], prepend(b) { this.prepended.push(b); } };
-  const query = root.querySelector;
-  root.querySelector = (selector) => (selector === '.touch-actions' ? actions : query(selector));
+  const { ActionRegistry } = loadModule(readFileSync(join(__dirname, '../js/actions.js'), 'utf8'), {});
+  const registry = new ActionRegistry();
+  const { controls, rows } = harness({ actions: registry });
   let taps = 0;
   const button = controls.addTapButton({ className: 'touch-use', label: 'Get in', icon: '↗', onTap: () => taps++ });
-  assert.equal(actions.prepended[0], button, 'under the left thumb, before the hold buttons');
   assert.equal(button.hidden, true);
   button.dispatch('pointerdown');
   button.dispatch('pointerup');
@@ -252,6 +258,7 @@ test('the tap button (the GTA mode\'s get in / out): first among the actions, fi
   controls.setTapButton(button, 'Get out', '↙');
   assert.equal(button.hidden, false);
   assert.equal(button.getAttribute('aria-label'), 'Get out');
+  assert.equal(rows.primary.children[0], button, 'under the left thumb, before the hold buttons');
   button.dispatch('pointerdown');
   assert.equal(taps, 0, 'not on the press');
   button.dispatch('pointerup');
@@ -261,6 +268,51 @@ test('the tap button (the GTA mode\'s get in / out): first among the actions, fi
   assert.equal(taps, 1, 'a cancelled touch does nothing');
   controls.setTapButton(button, null);
   assert.equal(button.hidden, true);
+});
+
+test('the register\'s actions become buttons: a hold held, a toggle switched on the press, a tap on the release; a relabelled jump', () => {
+  const { ActionRegistry } = loadModule(readFileSync(join(__dirname, '../js/actions.js'), 'utf8'), {});
+  const registry = new ActionRegistry();
+  let beam = false;
+  const log = [];
+  registry.layer('vehicle', [
+    { id: 'up', kind: 'hold', input: 'up', label: 'Jump', keys: ['Space'], keyboard: false },
+    { id: 'highBeam', kind: 'toggle', label: 'High beam', keys: ['KeyL'], icon: 'i-beam', state: () => beam, run: () => { beam = !beam; } },
+    { id: 'horn', label: 'Horn', keys: ['KeyB'], icon: 'i-horn', run: () => log.push('horn') },
+    { id: 'shovel', kind: 'hold', primary: true, label: 'Shovel', run: (on) => log.push(`shovel:${on}`) }
+  ]);
+  const { rows, buttons, labels } = harness({ actions: registry });
+  assert.equal(labels.up.textContent, 'Jump');
+  assert.equal(buttons.up.hidden, false);
+  assert.deepEqual(rows.extra.children.map((b) => b.getAttribute('data-action')), ['highBeam', 'horn']);
+  assert.deepEqual(rows.primary.children.map((b) => b.getAttribute('data-action') || b.getAttribute('data-touch-action')), ['up', 'down', 'shovel'], 'after the fixed buttons');
+  const [beamBtn, hornBtn] = rows.extra.children;
+  assert.equal(beamBtn.getAttribute('data-on'), 'false');
+  beamBtn.dispatch('pointerdown');
+  assert.equal(beam, true, 'a toggle switches on the press');
+  assert.equal(beamBtn.getAttribute('data-on'), 'true');
+  beamBtn.dispatch('pointerup');
+  hornBtn.dispatch('pointerdown');
+  assert.deepEqual(log, []);
+  hornBtn.dispatch('pointerup');
+  assert.deepEqual(log, ['horn']);
+  const shovel = rows.primary.children[2];
+  shovel.dispatch('pointerdown', { pointerId: 7 });
+  assert.deepEqual(log, ['horn', 'shovel:true']);
+  shovel.dispatch('pointercancel', { pointerId: 7 });
+  assert.deepEqual(log, ['horn', 'shovel:true', 'shovel:false']);
+  registry.relabel('up', 'Swing');
+  assert.equal(labels.up.textContent, 'Swing');
+  assert.equal(buttons.up.getAttribute('aria-label'), 'Swing');
+  registry.relabel('up', null);
+  assert.equal(buttons.up.hidden, true);
+  registry.relabel('down', 'Lower');
+  assert.equal(buttons.down.hidden, false, 'shown although the mode has no descend');
+  assert.equal(labels.down.textContent, 'Lower');
+  registry.relabel('up');
+  registry.relabel('down');
+  assert.equal(labels.up.textContent, 'Jump');
+  assert.equal(buttons.down.hidden, true);
 });
 
 test('a stick whose finger never reported its release lets go when the touches say so, or a new finger takes over', () => {

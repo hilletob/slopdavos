@@ -42,8 +42,6 @@ const STYLE = `
 .pg-bar span.is-up { background: #5be08c; } .pg-bar span.is-down { background: #ff8a6b; }
 .pg-bar::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #fff; }
 .pg-flash { font-size: 15px; font-weight: 800; min-height: 18px; color: #ffc83d; }
-.pg-keys { font-size: 11px; opacity: 0.75; }
-body.touch-enabled .pg-keys { display: none; }
 .pg-instr { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 12; width: 176px; padding: 10px 12px 9px;
   pointer-events: none; border-radius: 14px; background: linear-gradient(#20262b, #14181c); color: #e9f2ea; border: 2px solid #3a434b;
   box-shadow: 0 6px 18px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.05); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
@@ -66,7 +64,7 @@ body.touch-enabled .pg-keys { display: none; }
 .pg-i-v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pg-instr-foot .pg-i-k { white-space: nowrap; }
 .pg-arrow { display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 16px; font-weight: 900; color: #8fd3ff; transform-origin: 50% 50%; }
-body.touch-enabled .pg-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 200px); }
+body.touch-enabled .pg-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--touch-clear, 200px)); }
 @media (max-width: 820px) {
   .pg-hud { padding: 6px 8px; gap: 4px; }
   .pg-row { gap: 6px; } .pg-cell { min-width: 40px; } .pg-v { font-size: 15px; } .pg-k { font-size: 8px; white-space: nowrap; letter-spacing: 0.02em; }
@@ -416,13 +414,14 @@ const paraglider = {
     const cell = (key, unit = '') => { const c = el('div', 'pg-cell'), v = el('span', 'pg-v', '–'); c.append(el('span', 'pg-k', t(key)), v, el('span', 'pg-u', unit)); return { c, v }; };
     const ui = pg.ui = {
       hud, agl: cell('Above ground'), time: cell('Airtime'), dist: cell('Distance'), pts: cell('Points'),
-      flash: el('div', 'pg-flash'), keys: el('div', 'pg-keys', t('A/D steer · W speed bar · S brakes · Space flare'))
+      flash: el('div', 'pg-flash')
     };
     ui.agl.c.classList.add('pg-agl');
     if (run.free) ui.pts.c.style.display = 'none'; // (the free flight scores nothing)
     const row = el('div', 'pg-row');
     row.append(ui.agl.c, ui.time.c, ui.dist.c, ui.pts.c);
-    hud.append(row, ui.flash, ui.keys);
+    hud.append(row, ui.flash);
+    run.hints([[['A', 'D'], 'steer'], [['W'], 'speed bar'], [['S'], 'brakes'], [['Space'], 'flare']]);
     hud.hidden = true;
     // the vario on the riser: the altimeter big, its climb bar, the speed over the ground and the wind
     const ins = el('div', 'pg-instr');

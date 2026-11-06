@@ -71,18 +71,8 @@ function riderFeature(kind) {
       s.height = park ? (x, z) => groundHeight(x, z) + bigAirProfile(x, z, park) : groundHeight;
       if (run.def.course === 'slalom') buildSlalomCourse(run, run.def.createState());
       if (park) buildBigAir(run, park);
-      if (board) {
-        // the grab on touch screens (the joystick spins and flips in the air)
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'panel mission-fire';
-        b.textContent = 'Grab';
-        const on = (v) => (e) => { e.preventDefault(); s.touchGrab = v; };
-        run.listen(b, 'pointerdown', on(true));
-        for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(b, ev, on(false));
-        document.body.append(b);
-        run.cleanups.push(() => b.remove());
-      }
+      // the grab on touch screens: the jump button, held (the joystick spins and flips in the air)
+      if (board) run.button('up', 'Grab');
       // the rider moves the pedestrian (js/controllers.js personDriver) while the mission lasts
       cm.personDriver = (dt) => drive(run, dt, cm);
       run.cleanups.push(() => { if (cm.personDriver) cm.personDriver = null; });

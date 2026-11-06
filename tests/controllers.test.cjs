@@ -598,8 +598,8 @@ test('lamp and sign posts stop the walker and a crawling van, a vehicle at speed
   assert.deepEqual([bike.position.x, bike.position.z], [10, 0]);
 });
 
-test('K switches the groomer\'s beacon (only when driving it); parked it is a traffic body, driven it is not', () => {
-  const { controller, ent: cat, key } = teleportHarness('snowcat');
+test('toggleBeacon switches the groomer\'s beacon (K, js/actions.js); parked it is a traffic body, driven it is not', () => {
+  const { controller, ent: cat } = teleportHarness('snowcat');
   const uniform = (value) => ({ value });
   const vec = () => ({ set(...v) { this.v = v; } });
   Object.assign(cat, {
@@ -607,18 +607,12 @@ test('K switches the groomer\'s beacon (only when driving it); parked it is a tr
     beacon: { on: uniform(1), dir: { value: vec() }, world: { value: vec() } },
     trackPhases: [uniform(0), uniform(0)], model: { rolled: 0, rollWheels() { this.rolled++; } }
   });
-  key('keydown', 'KeyK');
-  key('keyup', 'KeyK');
+  assert.equal(controller.toggleBeacon(), false);
   assert.equal(cat.beaconOn, false);
   controller.animateSnowcat(1.3);
   assert.equal(cat.beacon.on.value, 0, 'the dome and its glow go dark');
   assert.equal(controller.snowcatTrafficBody.x, 1e7, 'driven, the groomer is the player for the traffic');
-  controller.activeMode = 'car';
-  key('keydown', 'KeyK');
-  assert.equal(cat.beaconOn, false, 'K does nothing in the other modes');
-  key('keyup', 'KeyK');
-  controller.activeMode = 'snowcat';
-  key('keydown', 'KeyK');
+  assert.equal(controller.toggleBeacon(), true);
   controller.activeMode = 'car';
   controller.animateSnowcat(0.1);
   assert.equal(cat.beacon.on.value, 1);

@@ -230,7 +230,8 @@ const ropePark = {
     const row = el('div', 'ice-row');
     rp.ui = { hud, flash, big, mt, row, clips: el('span') };
     row.append(rp.ui.clips, mt.m);
-    hud.append(row, flash, el('div', 'ice-keys', 'W walk · A/D balance · Space clip · S brake'));
+    hud.append(row, flash);
+    run.hints([[['W'], 'walk'], [['A', 'D'], 'balance'], [['Space'], 'clip'], [['S'], 'brake']]);
     cm.personDriver = (dt) => ropePark.drive(run, dt, cm);
     cm.personPoser = (dt, p) => ropePark.pose(run, dt, p, cm);
     run.cleanups.push(() => {
@@ -552,7 +553,8 @@ const pondHockey = {
     // HUD: the score over the skates' panel, the flash
     const ui = ice.ui;
     ui.line = el('div', 'ice-tally');
-    ui.hud.append(ui.line, ui.flash, el('div', 'ice-keys', 'W skate · A/D steer · S stop · Space shoot / poke · drag to aim'));
+    ui.hud.append(ui.line, ui.flash);
+    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'shoot / poke'], [['Drag'], 'aim']]);
     // a click (not a drag) on the view does what Space does
     let down = null;
     const canvas = document.getElementById('canvas-container');

@@ -42,6 +42,7 @@ import { buildRoadPaint } from './road-paint.js';
 import { ThirdPersonControllerManager, PLAYER_STARTS } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
+import { actions, bindKeyboard } from './actions.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
 import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
@@ -481,7 +482,7 @@ async function initApp() {
   }
 
   const cameraSystem = new CameraSystem(renderer.domElement, controllerManager);
-  const touchControls = new TouchControls(controllerManager);
+  const touchControls = new TouchControls(controllerManager, { actions });
   const soundButton = document.getElementById('btn-sound');
   const audioSystem = new CityAudioSystem({ controllerManager, trafficSystem, highwayTraffic, streetDetails }, {
     onStateChange: updateSoundButton
@@ -645,8 +646,7 @@ async function initApp() {
   const elControlsHint = document.getElementById('hud-controls-hint');
   let gta = null; // (the GTA mode, built with the UI below)
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
-    onUse: () => gta?.use(),
-    onParaglide: () => freeFlight?.toggle(), // (built further down, js/paraglide-free.js)
+    actions, // (getting in and out, the wing, the vehicles' extras: the register's gamepad slots)
     onCycleMode: (step) => {
       if (GTA) return; // (the GTA mode changes vehicles by getting in and out)
       const modes = ['person', 'car', 'cyclist', 'rhb', 'helicopter', 'snowcat'];
@@ -657,39 +657,67 @@ async function initApp() {
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
 
-  // Keyboard guide for each mode: [keys, action]
-  const controlHints = {
-    person: [[['W', 'S'], 'Walk'], [['A', 'D'], 'Turn'], [['Shift'], 'Sprint'], [['Space'], 'Jump'], [['Drag'], 'Orbit']],
-    car: [[['W', 'S'], 'Drive / Reverse'], [['A', 'D'], 'Steer'], [['Shift'], 'Boost'], [['B'], 'Horn'], [['Q', 'E'], 'Indicators'], [['L'], 'High beam'], [['Drag'], 'Orbit']],
-    cyclist: [[['W', 'S'], 'Pedal / Brake'], [['A', 'D'], 'Lean & Turn'], [['Shift'], 'Sprint'], [['Drag'], 'Orbit']],
-    rhb: [[['W'], 'Throttle'], [['S'], 'Brake'], [['Drag'], 'Orbit']],
-    rhbPassenger: [[['Drag'], 'Orbit']], // (riding along, js/gta.js)
-    helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost'], [['L'], 'Searchlight']],
-    snowcat: [[['W', 'S'], 'Forward / Reverse'], [['A', 'D'], 'Turn on the spot'], [['L'], 'High beam'], [['K'], 'Beacon'], [['F'], 'Tiller'], [['Drag'], 'Orbit']]
-  };
-  // The GTA mode: getting in and out with F (or G; F is the groomer's tiller: G gets out of it; Enter starts missions)
-  if (GTA) for (const [mode, hints] of Object.entries(controlHints)) hints.push([[mode === 'snowcat' ? 'G' : 'F'], mode === 'person' ? 'Get in' : 'Get out']);
+  // The key bar at the bottom and the touch buttons come from the register of actions (js/actions.js): each mode's
+  // movement as hints, the vehicles' extras as actions (the keyboard: bindKeyboard below). The GTA mode (js/gta.js)
+  // and the free flight (js/paraglide-free.js) add their layers, the missions theirs (js/missions.js run.actions).
+  const modeNow = () => controllerManager.activeMode;
+  const is = (...modes) => () => modes.includes(modeNow());
+  const hint = (kbd, label, when) => ({ kind: 'hint', kbd, label, when });
+  const driving = () => modeNow() === 'rhb' && !controllerManager.rhbPassenger;
+  actions.layer('movement', [
+    hint(['W', 'S'], 'Walk', is('person')), hint(['A', 'D'], 'Turn', is('person')),
+    { id: 'up', kind: 'hold', input: 'up', label: 'Jump', keys: ['Space'], keyboard: false, when: is('person') },
+    hint(['W', 'S'], 'Drive / Reverse', is('car')), hint(['A', 'D'], 'Steer', is('car')),
+    hint(['W', 'S'], 'Pedal / Brake', is('cyclist')), hint(['A', 'D'], 'Lean & Turn', is('cyclist')),
+    hint(['W'], 'Throttle', driving), hint(['S'], 'Brake', driving),
+    hint(['W', 'S'], 'Pitch', is('helicopter')), hint(['A', 'D'], 'Yaw', is('helicopter')),
+    { id: 'up', kind: 'hold', input: 'up', label: 'Ascend', keys: ['Space', 'KeyE'], keyboard: false, when: is('helicopter') },
+    { id: 'down', kind: 'hold', input: 'down', label: 'Descend', keys: ['KeyQ', 'KeyC'], keyboard: false, when: is('helicopter') },
+    hint(['W', 'S'], 'Forward / Reverse', is('snowcat')), hint(['A', 'D'], 'Turn on the spot', is('snowcat'))
+  ]);
+  const car = () => controllerManager.entities.car;
+  const cat = () => controllerManager.entities.snowcat;
+  actions.layer('vehicle', [
+    { id: 'horn', label: 'Horn', keys: ['KeyB'], icon: 'i-horn', pad: 'l3', when: is('car', 'snowcat', 'rhb'), run: () => { if (mapSystem.isFullMapOpen) return false; audioSystem.honk(controllerManager.getActiveEntity()); } },
+    { id: 'indicatorLeft', kind: 'toggle', label: 'Left', keys: ['KeyQ'], icon: 'i-ind-left', hint: false, when: is('car'), state: () => car()?.indicator === 'left', run: () => controllerManager.toggleIndicator('left') },
+    { id: 'indicatorRight', kind: 'toggle', label: 'Right', keys: ['KeyE'], icon: 'i-ind-right', hint: false, when: is('car'), state: () => car()?.indicator === 'right', run: () => controllerManager.toggleIndicator('right') },
+    hint(['Q', 'E'], 'Indicators', is('car')),
+    { id: 'hazard', kind: 'toggle', label: 'Hazard lights', touchLabel: 'Hazard', keys: ['KeyX'], icon: 'i-hazard', when: is('car'), state: () => car()?.indicator === 'hazard', run: () => controllerManager.toggleIndicator('hazard') },
+    { id: 'highBeam', kind: 'toggle', label: () => (modeNow() === 'helicopter' ? 'Searchlight' : 'High beam'), keys: ['KeyL'], icon: 'i-beam', pad: 'b', when: is('car', 'snowcat', 'helicopter'), state: () => !!controllerManager.highBeam, run: () => controllerManager.toggleHighBeam() },
+    { id: 'beacon', kind: 'toggle', label: 'Beacon', keys: ['KeyK'], icon: 'i-beacon', when: is('snowcat'), state: () => !!cat()?.beaconOn, run: () => controllerManager.toggleBeacon() },
+    { id: 'tiller', kind: 'toggle', label: 'Tiller', keys: ['KeyF'], icon: 'i-tiller', pad: 'right', when: is('snowcat'), state: () => !!cat() && !cat().tillerRaised, run: () => controllerManager.toggleTiller() }
+  ]);
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
 
-  function renderControlHints(mode) {
+  // The key bar: what the register lists now; a switch's state only recolours its key (no fresh rise-in)
+  let hintsShown = '';
+  function renderHints() {
     if (!elControlsHint) return;
-    const items = (controlHints[mode] || []).map(([keys, action]) => {
+    const hints = actions.hints();
+    const shown = hints.map((h) => `${h.kbd.join('+')}|${h.label}`).join(',');
+    if (shown === hintsShown) {
+      elControlsHint.childNodes.forEach((item, i) => item.classList?.toggle('is-on', !!hints[i]?.on));
+      return;
+    }
+    hintsShown = shown;
+    const items = hints.map(({ kbd, label, on }) => {
       const item = document.createElement('span');
-      item.className = 'hint';
-      for (const key of keys) {
-        const kbd = document.createElement('kbd');
-        kbd.textContent = key;
-        item.appendChild(kbd);
+      item.className = on ? 'hint is-on' : 'hint';
+      for (const key of kbd) {
+        const k = document.createElement('kbd');
+        k.textContent = key;
+        item.appendChild(k);
       }
-      const label = document.createElement('span');
-      label.className = 'hint-label';
-      label.textContent = action;
-      item.appendChild(label);
+      const text = document.createElement('span');
+      text.className = 'hint-label';
+      text.textContent = label;
+      item.appendChild(text);
       return item;
     });
     elControlsHint.replaceChildren(...items);
   }
+  actions.subscribe(renderHints);
 
   // The taxi-yellow pill under the selected mode glides from button to button
   function placeModeIndicator() {
@@ -711,7 +739,7 @@ async function initApp() {
     placeModeIndicator();
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
-    renderControlHints(mode === 'rhb' && controllerManager.rhbPassenger ? 'rhbPassenger' : mode);
+    actions.notify(); // (the key bar and the touch buttons follow the mode)
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
     const currentCam = cameraSystem.getActivePreset();
@@ -1014,9 +1042,6 @@ async function initApp() {
       case 'KeyN':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) audioSystem.setEnabled(!audioSystem.enabled);
         break;
-      case 'KeyB':
-        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && !mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity());
-        break;
     }
   });
 
@@ -1051,15 +1076,20 @@ async function initApp() {
     applyClock(true);
   };
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem });
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem, actions });
   // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
   // Bahnhof Davos Platz)
   if (GTA) {
     document.body.classList.add('gta-mode');
-    gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
+    gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   }
   // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
-  const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
+  const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
+  actions.layer('look', [hint(['Drag'], 'Orbit', () => modeNow() !== 'helicopter')]);
+  // The register's keyboard: after the missions' own capture listeners; nothing while the map, the missions' list or
+  // a mission's intro is open
+  bindKeyboard(actions, { blocked: () => mapSystem.isFullMapOpen || !!missions.listOpen || missions.run?.phase === 'intro' });
+  renderHints();
   // The play time and the ways of travel (js/play-stats.js), counted from the first frame shown
   const playStats = createPlayStats();
   const travelNow = () => travelKind({
@@ -1385,7 +1415,6 @@ async function initApp() {
       }
       if (elSpeed) elSpeed.textContent = String(kmh);
       if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (activeEnt.topSpeedKmh || topSpeedKmh[mode] || 80))})`;
-      document.body.classList.toggle('is-boosting', controllerManager.keys.boost && kmh > 0);
       if (elAltitude) elAltitude.textContent = altitudeM.toLocaleString('de-DE');
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
