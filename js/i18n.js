@@ -154,7 +154,7 @@ const pairs = [
   ['Next camera [V]', 'Nächste Kamera [V]'], ['All cameras [V cycles]', 'Alle Kameras [V wechselt]'],
   ['Multiple Camera Angles', 'Kameraperspektiven'], ['Follow', 'Folgen'], ['Scenic', 'Aussicht'],
   ['3rd-Person Chase', 'Verfolgerkamera'], ['Low-Angle Action', 'Tiefe Actionkamera'],
-  ['First-Person / Cockpit', 'Ich-Perspektive / Cockpit'], ['Schatzalp over the valley', 'Schatzalp über dem Tal'],
+  ['First-Person / Cockpit', 'Ich-Perspektive / Cockpit'], ["Bird's-Eye (top-down)", 'Vogelperspektive'], ['Schatzalp over the valley', 'Schatzalp über dem Tal'],
   ['Dischma valley', 'Dischmatal'], ['Auto-Director Aerial', 'Automatische Luftkamera'],
   ['Touch controls', 'Touch-Steuerung'], ['Movement joystick: drag up or down to move, left or right to turn', 'Joystick: nach oben oder unten zum Bewegen, nach links oder rechts zum Lenken ziehen'],
   ['Move & steer', 'Bewegen & lenken'], ['Drag to look · Pinch to zoom', 'Ziehen zum Umschauen · Zwei Finger zum Zoomen'],

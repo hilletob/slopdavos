@@ -23,6 +23,7 @@ class PerspectiveCamera {
     this.aspect = aspect;
     this.position = new Vector3();
     this.target = new Vector3();
+    this.up = new Vector3(0, 1, 0);
   }
   updateProjectionMatrix() {}
   lookAt(v) { this.target.copy(v); }
@@ -217,6 +218,26 @@ for (const preset of ['chase', 'observatory', 'drone']) {
     }
   });
 }
+
+test('the bird\'s-eye view looks straight down over the player with north up, higher at speed, kept across a teleport', () => {
+  const h = cameraHarness();
+  h.camera.setCameraPreset('topdown', true);
+  h.camera.update(1 / 60, 0);
+  const cam = h.camera.camera;
+  close(cam.position.x, cam.target.x);
+  close(cam.position.z, cam.target.z);
+  assert.ok(cam.position.y - h.entity.position.y > 20);
+  assert.deepEqual([cam.up.x, cam.up.y, cam.up.z], [0, 0, -1]);
+  const still = cam.position.y;
+  h.entity.speed = 30;
+  for (let i = 0; i < 240; i++) h.camera.update(1 / 60, i / 60);
+  assert.ok(cam.position.y > still + 20, 'pulls up with speed');
+  h.camera.resetForTeleport();
+  assert.equal(h.camera.activePresetId, 'topdown');
+  h.camera.setCameraPreset('chase', true);
+  h.camera.update(1 / 60, 5);
+  assert.deepEqual([cam.up.x, cam.up.y, cam.up.z], [0, 1, 0]);
+});
 
 test('teleport releases every camera pointer and ignores old gestures before accepting a new drag', () => {
   const h = cameraHarness();

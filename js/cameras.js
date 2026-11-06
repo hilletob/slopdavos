@@ -11,6 +11,7 @@ const CAMERA_PRESETS = [
   { id: 'chase',       name: '3rd-Person Chase',         short: 'Chase',       category: 'follow', fov: 56 },
   { id: 'action',      name: 'Low-Angle Action',         short: 'Action',      category: 'follow', fov: 60 },
   { id: 'pov',         name: 'First-Person / Cockpit',   short: 'POV / Dash',  category: 'follow', fov: 68 },
+  { id: 'topdown',     name: "Bird's-Eye (top-down)",    short: 'Top-Down',    category: 'follow', fov: 42 },
   { id: 'centralPark', name: 'Promenade Davos Platz', short: 'Promenade', category: 'scenic', fov: 52 },
   { id: 'fifthAve', name: 'Kongresszentrum', short: 'Kongress', category: 'scenic', fov: 50 },
   { id: 'timesSquare', name: 'Bahnhof Davos Platz', short: 'Bahnhof Platz', category: 'scenic', fov: 56 },
@@ -33,6 +34,12 @@ const VIEWPOINTS = {
   waterfront: [[2783350, 1186450, 60], [2786574, 1182992, 60]] // over the Dischma's mouth, up the valley towards Teufi
 };
 const viewpoint = ([E, N, up]) => { const p = lv95ToWorld(E, N); return new THREE.Vector3(p.x, groundHeight(p.x, p.z) + up, p.z); };
+// The bird's-eye camera (GTA2 style): straight down over the player, north at the top of the screen, pulling up as the
+// player speeds up and leading the view ahead in the direction of travel. Base height by entity type, in metres
+const TOPDOWN_HEIGHT = { person: 17, cyclist: 22, cargobike: 22, car: 30, snowcat: 32, rhb: 45, helicopter: 65 };
+const UP_WORLD = new THREE.Vector3(0, 1, 0);
+const UP_NORTH = new THREE.Vector3(0, 0, -1); // world z = 1185500 − N: north is −z
+
 const VIEWS = Object.fromEntries(Object.entries(VIEWPOINTS).map(([id, [pos, look]]) => [id, { pos: viewpoint(pos), look: viewpoint(look) }]));
 
 class CameraSystem {
@@ -145,6 +152,10 @@ class CameraSystem {
 
   applyGamepadInput(lookX, lookY, zoom, dt) {
     if (!(dt > 0) || !Number.isFinite(dt)) return;
+    if (this.activePresetId === 'topdown') {
+      if (zoom) this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
+      return;
+    }
     if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
     // POV uses the orbit angles, but only chase renders a zoomed camera distance.
     if (this.activePresetId !== 'chase') zoom = 0;
@@ -172,7 +183,8 @@ class CameraSystem {
     this.followOffset.set(0, 0, 0);
     this.followLookOffset.set(0, 0, 0);
     this.followBaseY = 0;
-    this.setCameraPreset('chase', true);
+    // (the bird's-eye view is a way of playing, kept across a teleport; every other camera arrives as the chase)
+    this.setCameraPreset(this.activePresetId === 'topdown' ? 'topdown' : 'chase', true);
   }
 
   getActivePreset() {
@@ -286,6 +298,18 @@ class CameraSystem {
         break;
       }
 
+      case 'topdown': {
+        // (drags don't orbit here: north stays up, the wheel / a pinch / the pad zoom)
+        const base = TOPDOWN_HEIGHT[entity.type] ?? 30;
+        const height = (base + Math.min(60, this.smoothedSpeed * 1.3)) * this.zoomMultiplier;
+        const lead = Math.min(18, this.smoothedSpeed * 0.35);
+        const tx = entity.position.x + Math.sin(entity.heading) * lead;
+        const tz = entity.position.z + Math.cos(entity.heading) * lead;
+        desiredLook.set(tx, entity.position.y, tz);
+        desiredPos.set(tx, entity.position.y + height, tz);
+        break;
+      }
+
       case 'centralPark': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
         desiredPos.copy(VIEWS.centralPark.pos).x += sway;
@@ -360,7 +384,7 @@ class CameraSystem {
       this.currentLookAt.copy(desiredLook);
       this.initialized = true;
       this.followEntity = null; // the follow cameras re-anchor from here
-    } else if (this.activePresetId === 'chase' || this.activePresetId === 'action') {
+    } else if (this.activePresetId === 'chase' || this.activePresetId === 'action' || this.activePresetId === 'topdown') {
       // Smoothed in the followed entity's frame rather than in world space. A world-space follower trails a moving
       // target by a distance that depends on the frame time (about speed x dt), so with uneven frame times the camera
       // surged back and forth behind an accelerating or fast car. Relative to the entity a steady drive keeps the
@@ -388,6 +412,8 @@ class CameraSystem {
     }
 
     this.camera.position.copy(this.currentPos);
+    // (straight down, lookAt needs an up that isn't the view direction: north)
+    this.camera.up.copy(this.activePresetId === 'topdown' ? UP_NORTH : UP_WORLD);
     this.camera.lookAt(this.currentLookAt);
   }
 }

@@ -973,7 +973,7 @@ async function initApp() {
   // (?stats=1: the renderer and the frame rate under the brand)
   if (/[?&]stats=(1|true)\b/.test(location.search)) document.body.classList.add('show-stats');
 
-  // Global keyboard shortcuts for cameras (V / 7-0) and the HUD (H)
+  // Global keyboard shortcuts for cameras (V / O / 7-0) and the HUD (H)
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
@@ -991,6 +991,9 @@ async function initApp() {
         break;
       case 'KeyV':
         cycleCamera(e.shiftKey ? -1 : 1);
+        break;
+      case 'KeyO': // the bird's-eye view (GTA2 style) and back to the chase camera
+        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) selectCamera(cameraSystem.activePresetId === 'topdown' ? 'chase' : 'topdown', true);
         break;
       case 'KeyH':
         if (hudToggleBtn) hudToggleBtn.click();
