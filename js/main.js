@@ -1359,7 +1359,7 @@ async function initApp() {
         elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';
       }
       if (elSpeed) elSpeed.textContent = String(kmh);
-      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (topSpeedKmh[mode] || 80))})`;
+      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (activeEnt.topSpeedKmh || topSpeedKmh[mode] || 80))})`;
       document.body.classList.toggle('is-boosting', controllerManager.keys.boost && kmh > 0);
       if (elAltitude) elAltitude.textContent = altitudeM.toLocaleString('de-DE');
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones

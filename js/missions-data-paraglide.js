@@ -69,11 +69,34 @@ export const THERMALS = [
 ];
 export const DRIFT = { amp: 28, period: 260 }; // m and s of a thermal's wander
 
-/** Where the thermal stands at the flight's time `t` (s) */
-export function thermalCentre(th, t, out = { x: 0, z: 0 }) {
+/**
+ * The wind: the afternoon's valley wind, up the Landwasser valley from Filisur towards Davos (from the south-west, blowing
+ * north-east: the heading 140°, x = sin, z = cos as everywhere here). It swells and veers slowly, weaker close to the ground.
+ */
+export const WIND = { toward: 140 * Math.PI / 180, speed: 2.6, swell: 0.35, veer: 0.22, period: 95, groundShare: 0.55, lean: 0.45 };
+/** The wind (m/s over the ground) at the flight's time `t`, `agl` m over the ground: { x, z, speed, toward } */
+export function windAt(t, agl = 200, out = { x: 0, z: 0, speed: 0, toward: 0 }) {
+  const a = (t / WIND.period) * Math.PI * 2;
+  const speed = WIND.speed * (1 + WIND.swell * Math.sin(a) * Math.cos(a * 0.37)) * clamp(WIND.groundShare + (1 - WIND.groundShare) * agl / 150, WIND.groundShare, 1);
+  const toward = WIND.toward + WIND.veer * Math.sin(a * 0.61 + 1.3);
+  out.x = Math.sin(toward) * speed; out.z = Math.cos(toward) * speed; out.speed = speed; out.toward = toward;
+  return out;
+}
+
+const _tw = { x: 0, z: 0, speed: 0, toward: 0 };
+/**
+ * Where the thermal stands at the flight's time `t` (s), `agl` m over its foot: the column leans with the wind (the air rising
+ * through it drifts downwind as it climbs: a pilot circling in it drifts with it, and its cloud sits downwind of its foot)
+ */
+export function thermalCentre(th, t, out = { x: 0, z: 0 }, agl = 0) {
   const a = (t / DRIFT.period) * Math.PI * 2 + th.phase;
   out.x = th.x + Math.sin(a) * DRIFT.amp;
   out.z = th.z + Math.cos(a * 0.7) * DRIFT.amp * 0.7;
+  if (agl > 0) {
+    windAt(t, agl, _tw);
+    const rise = Math.min(agl, 1600) / (th.w * 1.6) * WIND.lean; // s the air took to rise there, times the share it drifts
+    out.x += _tw.x * rise; out.z += _tw.z * rise;
+  }
   return out;
 }
 /** How strong the thermals are at the flight's time (the afternoon tires) */
@@ -82,7 +105,7 @@ export const thermalStrength = (t) => 1 - 0.65 * clamp((t - PG.fadeFrom) / (PG.f
 const _c = { x: 0, z: 0 };
 /** The air's rise (m/s, negative: sink) of one thermal at (x, y, z), `agl` m over the ground, at the time t: the core, its rim of sink */
 export function thermalLift(th, x, y, z, agl, t) {
-  thermalCentre(th, t, _c);
+  thermalCentre(th, t, _c, agl);
   const d = Math.hypot(x - _c.x, z - _c.z), r = th.r;
   if (d > r * 2.6) return 0;
   const top = clamp((PG.cloudBase - y) / 140, 0, 1); // fades out under the cloud
@@ -128,7 +151,7 @@ export function createFlight(start = LAUNCH) {
   return {
     phase: 'ready', // ready | inflate | run | air | landed | crashed
     x: start.x, y: null, z: start.z, heading: start.heading, x0: start.x, z0: start.z, y0: null,
-    v: 0, ground: 0, bank: 0, spiral: 0, held: 0, inflate: 0, sink: 0, vy: 0, vario: 0, lift: 0, thermal: null,
+    v: 0, gs: 0, wind: null, ground: 0, bank: 0, spiral: 0, held: 0, inflate: 0, sink: 0, vy: 0, vario: 0, lift: 0, thermal: null,
     airtime: 0, maxDist: 0, maxY: null, t: 0, acc: 0, agl: 0, steer: 0, brake: 0, accel: 0, turned: 0,
     outside: false, landing: null, events: []
   };
@@ -147,10 +170,11 @@ export function judgeLanding(f, groundAt) {
   const rise = (groundAt(f.x + sx * 4, f.z + sz * 4) - groundAt(f.x - sx * 4, f.z - sz * 4)) / 8; // the ground's rise ahead, per m
   groundGrad(groundAt, f.x, f.z, _g);
   const grade = Math.hypot(_g.gx, _g.gz);
-  const into = Math.max(0, -f.vy) + f.v * Math.max(0, rise - 0.04); // m/s into the ground (a meadow's bumps are no slope)
+  const gs = f.gs || f.v; // (over the ground: into the wind slower, with it faster)
+  const into = Math.max(0, -f.vy) + gs * Math.max(0, rise - 0.04); // m/s into the ground (a meadow's bumps are no slope)
   const d = Math.hypot(f.x - FIELD.x, f.z - FIELD.z);
-  const crash = into > PG.softSink || f.v > PG.softSpeed || grade > PG.steepGrade;
-  const reason = !crash ? null : grade > PG.steepGrade ? 'steep' : f.v > PG.softSpeed ? 'fast' : rise > 0.15 ? 'slope' : 'hard';
+  const crash = into > PG.softSink || gs > PG.softSpeed || grade > PG.steepGrade;
+  const reason = !crash ? null : grade > PG.steepGrade ? 'steep' : gs > PG.softSpeed ? 'fast' : rise > 0.15 ? 'slope' : 'hard';
   const onField = !crash && d <= FIELD.r;
   const bonus = crash ? -PG.crashPenalty : onField ? PG.softBonus + PG.fieldBonus + Math.round(PG.precisionBonus * (1 - d / FIELD.r)) : PG.softBonus;
   return { crash, reason, onField, distance: d, impact: into, bonus };
@@ -195,6 +219,7 @@ function sub(f, input, h, groundAt, thermals) {
     f.z += Math.cos(f.heading) * f.v * h;
     f.y = groundAt(f.x, f.z);
     f.ground = f.y;
+    f.gs = f.v;
     if (f.phase === 'run' && f.v >= PG.takeoffV && falling) {
       f.phase = 'air';
       f.y += 0.05;
@@ -235,8 +260,12 @@ function sub(f, input, h, groundAt, thermals) {
   const omega = (PG.g * Math.tan(f.bank)) / Math.max(4, vTurn);
   f.heading = wrap(f.heading + omega * h);
   f.turned += omega * h;
-  f.x += Math.sin(f.heading) * vTurn * h;
-  f.z += Math.cos(f.heading) * vTurn * h;
+  // the wind carries the wing over the ground
+  const wind = f.wind = windAt(f.t, agl, f.wind || {});
+  const gx = Math.sin(f.heading) * vTurn + wind.x, gz = Math.cos(f.heading) * vTurn + wind.z;
+  f.gs = Math.hypot(gx, gz);
+  f.x += gx * h;
+  f.z += gz * h;
   f.vy = air.lift - sink;
   f.y += f.vy * h;
   f.sink = sink; f.lift = air.lift; f.thermal = air.best;
@@ -285,7 +314,7 @@ export function botInput(f, bot, plan = [], { leaveAt = 160, groundAt = null, ci
   bot.leg ??= 0;
   const th = THERMALS.find((t) => t.id === plan[bot.leg]);
   if (th) {
-    const c = thermalCentre(th, f.t, { x: 0, z: 0 }), d = Math.hypot(f.x - c.x, f.z - c.z);
+    const c = thermalCentre(th, f.t, { x: 0, z: 0 }, f.agl), d = Math.hypot(f.x - c.x, f.z - c.z);
     const homeAgl = (f.y - (groundAt ? groundAt(FIELD.x, FIELD.z) : 0));
     // given up: too low to work it (the valley's floor too near), or topped out
     // topped out, or out of reach: too low to get there with height to spare
@@ -333,14 +362,14 @@ export const PARAGLIDE_ID = 'paraglider-rinerhorn';
 export const PARAGLIDE_MISSION = {
   id: PARAGLIDE_ID,
   title: 'Paraglider flight from the Rinerhorn',
-  intro: 'A summer afternoon on the Rinerhorn, 2520 m, the wing laid out on the meadow behind you and cumulus building over the ridges. Press W or Space to pull it up and run down the slope. In the air A/D steer, W is the speed bar, S the brakes (and the flare just before you touch down); on a phone the stick steers, up is the bar, down the brakes, and the button flares. Find the thermals: the vario beeps, choughs circle in them and a small cloud sits on top. Stay up as long as you can, go as far as you can, and land on the field at Glaris by the valley station. The flight runs twice as fast as the clock.',
+  intro: 'A summer afternoon on the Rinerhorn, 2520 m, the wing laid out on the meadow behind you and cumulus building over the ridges. Press W or Space to pull it up and run down the slope. In the air A/D steer, W is the speed bar, S the brakes (and the flare just before you touch down); on a phone the stick steers, up is the bar, down the brakes, and the button flares. Find the thermals: the vario on the right beeps in lift and crackles softly at the edge of a thermal, choughs circle in them and a small cloud sits on top. The valley wind blows from the south-west and drifts you and the thermals; land into the wind. Stay up as long as you can, go as far as you can, and land on the field at Glaris by the valley station. The flight runs twice as fast as the clock.',
   mode: 'person',
   season: 'summer',
   time: 'midday',
   features: ['paraglider'],
   scoreMode: true,
   scoreUnit: 'pts',
-  medals: { gold: 1400, silver: 1250, bronze: 1000 }, // (the bots, tests/missions-paraglide.test.mjs: a glide to the field ~1150, one thermal ~1290, out to the Bärentaler Alp and back ~1410)
+  medals: { gold: 1360, silver: 1200, bronze: 1000 }, // (the bots in the wind, tests/missions-paraglide.test.mjs: a glide to the field ~1110, one thermal ~1250, out to the Bärentaler Alp and back ~1375)
   colour: '#f0a020',
   icon: 'paraglider',
   finish: 'The wing folded on the meadow at Glaris, a Rivella at the valley station, and already looking up for the next cloud.',

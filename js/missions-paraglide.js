@@ -5,7 +5,9 @@
 //                harness under the wing (the skinned PersonRig's bones written here), or lets it walk and run on the ground.
 //                The wing: a curved canopy of cells in colours with its lines (one mesh and one line set, swung with the
 //                bank). Over every thermal a cumulus at the cloud base and choughs circling in it, one at the pilot's height;
-//                a windsock and a cross on the landing field at Glaris; a vario that beeps in lift; the HUD at the bottom.
+//                a windsock and a cross on the landing field at Glaris, both socks in the wind; the vario (its own instrument at the
+//                right, like the pilots' on the riser: the altimeter, the climb, the speed over the ground, the wind) that beeps
+//                in lift, buzzes softly near it and moans in strong sink; the HUD at the bottom (airtime, distance, points).
 // The camera is the chase camera following the walker, pulled back and up while flying. Everything goes with the run's
 // group and its cleanups (MissionRun.dispose).
 import * as THREE from 'three/webgpu';
@@ -13,7 +15,7 @@ import { groundHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
 import { t } from './i18n.js';
 import { touchLabel } from './missions-ice.js';
-import { PG, LAUNCH, FIELD, THERMALS, H0, stepFlight, flightScore, thermalCentre, onGround } from './missions-data-paraglide.js';
+import { PG, LAUNCH, FIELD, THERMALS, H0, stepFlight, flightScore, thermalCentre, windAt, onGround } from './missions-data-paraglide.js';
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -29,7 +31,7 @@ const STYLE = `
 .pg-row { display: flex; gap: 12px; align-items: flex-end; }
 .pg-cell { display: flex; flex-direction: column; align-items: center; min-width: 52px; }
 .pg-k { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em; }
-.pg-v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.pg-v { white-space: nowrap; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .pg-u { font-size: 10px; opacity: 0.75; }
 .pg-vario .pg-v.is-up { color: #5be08c; } .pg-vario .pg-v.is-down { color: #ff8a6b; }
 .pg-bar { position: relative; width: 240px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.14); overflow: hidden; }
@@ -39,12 +41,36 @@ const STYLE = `
 .pg-flash { font-size: 15px; font-weight: 800; min-height: 18px; color: #ffc83d; }
 .pg-keys { font-size: 11px; opacity: 0.75; }
 body.touch-enabled .pg-keys { display: none; }
+.pg-instr { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 12; width: 176px; padding: 10px 12px 9px;
+  pointer-events: none; border-radius: 14px; background: linear-gradient(#20262b, #14181c); color: #e9f2ea; border: 2px solid #3a434b;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.05); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.pg-instr[hidden] { display: none; }
+.pg-instr-top { display: flex; justify-content: space-between; align-items: center; font-size: 9px; letter-spacing: 0.12em; opacity: 0.7; }
+.pg-led { width: 9px; height: 9px; border-radius: 50%; background: #2d3a31; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4); }
+.pg-led.on { background: #6dff9b; box-shadow: 0 0 8px #6dff9b; } .pg-led.sink { background: #ff7a5c; box-shadow: 0 0 8px #ff7a5c; }
+.pg-instr-main { display: flex; gap: 8px; align-items: stretch; margin-top: 4px; }
+.pg-vbar { position: relative; width: 12px; border-radius: 3px; background: #0b0e10; overflow: hidden; }
+.pg-vbar::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,0.6); }
+.pg-vbar span { position: absolute; left: 1px; right: 1px; }
+.pg-vbar span.is-up { background: #5be08c; } .pg-vbar span.is-down { background: #ff8a6b; }
+.pg-instr-vals { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.pg-i-k { font-size: 9px; opacity: 0.65; letter-spacing: 0.06em; text-transform: uppercase; }
+.pg-i-alt { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.pg-i-alt small, .pg-i-climb small { font-size: 10px; font-weight: 600; opacity: 0.7; margin-left: 2px; }
+.pg-i-climb { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.pg-i-climb.is-up { color: #5be08c; } .pg-i-climb.is-down { color: #ff8a6b; }
+.pg-instr-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); }
+.pg-i-v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pg-instr-foot .pg-i-k { white-space: nowrap; }
+.pg-arrow { display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 16px; font-weight: 900; color: #8fd3ff; transform-origin: 50% 50%; }
 body.touch-enabled .pg-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 200px); }
 @media (max-width: 820px) {
   .pg-hud { padding: 6px 8px; gap: 4px; }
   .pg-row { gap: 6px; } .pg-cell { min-width: 40px; } .pg-v { font-size: 15px; } .pg-k { font-size: 8px; white-space: nowrap; letter-spacing: 0.02em; }
-  .pg-bar { width: 180px; } .pg-agl .pg-u { display: none; }
+  .pg-bar { width: 180px; }
+  .pg-instr { right: 10px; width: 124px; padding: 7px 9px; } .pg-instr-foot { grid-template-columns: 1fr; gap: 1px; } .pg-i-alt { font-size: 19px; } .pg-i-climb { font-size: 16px; } .pg-i-v { font-size: 11px; }
   body.touch-enabled .pg-hud { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 178px); }
+  body.touch-enabled .pg-instr { transform: none; top: calc(max(12px, env(safe-area-inset-top)) + 268px); } /* (under the HUD, clear of the stick) */
 }
 `;
 function ensureStyle() {
@@ -274,7 +300,15 @@ function buildCross(y) {
 
 // --- The vario's sound ----------------------------------------------------------------------------------------------------
 class Vario {
-  constructor(audio) { this.audio = audio; this.next = 0; this.tone = null; }
+  constructor(audio) { this.audio = audio; this.next = 0; this.tone = null; this.beepAt = -1; this.nextBuzz = 0; }
+  /** When the last beep began (performance.now() ms): the instrument's LED blinks with it, sound or not */
+  blink(climb, on) {
+    const now = performance.now();
+    if (!on || climb < 0.15) return false;
+    const period = 620 / (1 + climb * 0.9);
+    if (now - this.beepAt > period) this.beepAt = now;
+    return now - this.beepAt < period * 0.45;
+  }
   ok() {
     const a = this.audio;
     return a && a.enabled && a.context && a.context.state === 'running' && a.mix;
@@ -292,6 +326,17 @@ class Vario {
       this.tone = { o, g };
     } else if (!sinkTone && this.tone) this.stopTone();
     if (this.tone) this.tone.o.frequency.setTargetAtTime(240 + climb * 12, now, 0.1);
+    // the edge of a thermal (the air sinking less than the wing): a soft crackle, short low blips (the pilots' 'buzzer')
+    if (on && climb > -0.6 && climb < 0.15 && now >= this.nextBuzz) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = 380 + climb * 120;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.02, now + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+      o.connect(g).connect(this.audio.mix);
+      o.start(now); o.stop(now + 0.08);
+      this.nextBuzz = now + 0.11 + Math.random() * 0.09;
+    }
     // climbing: beeps, higher and quicker the stronger the lift
     if (!on || climb < 0.15 || now < this.next) return;
     const period = 0.62 / (1 + climb * 0.9), f = 620 + climb * 170;
@@ -330,10 +375,15 @@ const paraglider = {
     const cm = run.hooks.controllerManager, person = cm.entities.person;
     const pg = run.pg = {
       wing: buildWing(), ...buildHarness(), clouds: [], time: 0, hudT: 0, pose: { head: new THREE.Vector3(), headQ: new THREE.Quaternion(), pelvis: new THREE.Vector3(), pelvisQ: new THREE.Quaternion() },
-      pitch: 0, roll: 0, deflate: 0, legs: 0, brakes: [0, 0], vario: new Vario(run.hooks.audio), flashT: 0,
-      saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight, target: person.cameraTargetOffset.y }
+      socks: [], wind: { x: 0, z: 0, speed: 0, toward: 0 }, pitch: 0, roll: 0, deflate: 0, legs: 0, brakes: [0, 0], vario: new Vario(run.hooks.audio), flashT: 0,
+      saved: { label: person.label, chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight, target: person.cameraTargetOffset.y }
     };
     run.group.add(pg.wing, pg.harness, pg.helmet);
+    // the speed cluster at the bottom right: a paraglider, its speed over the ground (js/main.js reads person.speed)
+    person.label = 'Paraglider';
+    person.topSpeedKmh = 60;
+    const hudLabel = document.getElementById('hud-active-mode'); // (js/main.js writes it only when the mode changes)
+    if (hudLabel) hudLabel.textContent = 'Paraglider';
     // the clouds and the birds over the thermals
     const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x9aa6b8, emissiveIntensity: 0.55 });
     THERMALS.forEach((th, i) => {
@@ -352,30 +402,49 @@ const paraglider = {
     for (const [x, z] of [[FIELD.x + 34, FIELD.z - 20], [LAUNCH.x + 6, LAUNCH.z + 9]]) {
       const w = buildWindsock();
       w.position.set(x, groundHeight(x, z), z);
-      w.userData.sock.rotation.set(0.75, Math.PI * 0.2, 0, 'YXZ'); // a breath of the valley wind, up the slopes
       run.group.add(w);
+      pg.socks.push(w.userData.sock);
     }
     // the HUD
     const hud = el('div', 'panel pg-hud');
     const cell = (key, unit = '') => { const c = el('div', 'pg-cell'), v = el('span', 'pg-v', '–'); c.append(el('span', 'pg-k', t(key)), v, el('span', 'pg-u', unit)); return { c, v }; };
     const ui = pg.ui = {
-      hud, agl: cell('Above ground'), vario: cell('Vario', 'm/s'), speed: cell('Speed', 'km/h'), time: cell('Airtime'), dist: cell('Distance'), pts: cell('Points'),
-      bar: el('div', 'pg-bar'), fill: el('span'), flash: el('div', 'pg-flash'), keys: el('div', 'pg-keys', t('A/D steer · W speed bar · S brakes · Space flare'))
+      hud, agl: cell('Above ground'), time: cell('Airtime'), dist: cell('Distance'), pts: cell('Points'),
+      flash: el('div', 'pg-flash'), keys: el('div', 'pg-keys', t('A/D steer · W speed bar · S brakes · Space flare'))
     };
-    ui.vario.c.classList.add('pg-vario');
     ui.agl.c.classList.add('pg-agl');
     const row = el('div', 'pg-row');
-    row.append(ui.agl.c, ui.vario.c, ui.speed.c, ui.time.c, ui.dist.c, ui.pts.c);
-    ui.bar.append(ui.fill);
-    hud.append(row, ui.bar, ui.flash, ui.keys);
+    row.append(ui.agl.c, ui.time.c, ui.dist.c, ui.pts.c);
+    hud.append(row, ui.flash, ui.keys);
     hud.hidden = true;
-    document.body.append(hud);
+    // the vario on the riser: the altimeter big, its climb bar, the speed over the ground and the wind
+    const ins = el('div', 'pg-instr');
+    const top = el('div', 'pg-instr-top'); ui.led = el('span', 'pg-led'); top.append(el('span', null, 'VARIO'), ui.led);
+    const main = el('div', 'pg-instr-main'); ui.vbar = el('div', 'pg-vbar'); ui.vfill = el('span'); ui.vbar.append(ui.vfill);
+    const vals = el('div', 'pg-instr-vals');
+    ui.alt = el('div', 'pg-i-alt', '–'); ui.climb = el('div', 'pg-i-climb', '–');
+    vals.append(el('span', 'pg-i-k', t('Altitude')), ui.alt, el('span', 'pg-i-k', t('Climb')), ui.climb);
+    main.append(ui.vbar, vals);
+    const foot = el('div', 'pg-instr-foot');
+    ui.gs = el('span', 'pg-i-v', '–'); ui.windV = el('span', 'pg-i-v'); ui.arrow = el('span', 'pg-arrow', '↑'); ui.windT = el('span', null, '–');
+    ui.windV.append(ui.arrow, ui.windT);
+    const fc = (k, v) => { const c = el('div'); c.append(el('div', 'pg-i-k', t(k)), v); return c; };
+    foot.append(fc('Ground speed', ui.gs), fc('Wind', ui.windV));
+    ins.append(top, main, foot);
+    ins.hidden = true;
+    ui.instr = ins;
+    document.body.append(hud, ins);
     // the walker is the pilot: driven and posed by the flight
     cm.personDriver = (dt) => paraglider.drive(run, dt, cm);
     cm.personPoser = (dt, p) => paraglider.pose(run, dt, p, cm);
     run.cleanups.push(() => {
       hud.remove();
+      ins.remove();
       pg.vario.dispose();
+      delete person.topSpeedKmh;
+      person.label = pg.saved.label;
+      const hudLabel = document.getElementById('hud-active-mode');
+      if (hudLabel) hudLabel.textContent = pg.saved.label;
       cm.personDriver = null;
       cm.personPoser = null;
       const p = cm.entities.person;
@@ -407,7 +476,7 @@ const paraglider = {
     if (f.phase !== before) paraglider.phaseChange(run, f);
     p.position.set(f.x, f.y, f.z);
     p.heading = f.heading;
-    p.speed = onGround(f) ? 0 : f.v; // (the speedometer reads the airspeed, as the HUD does)
+    p.speed = onGround(f) ? 0 : f.gs || f.v; // (the speedometer reads the speed over the ground, as a GPS vario does)
     p.verticalVel = 0;
     // the camera: up behind the wing on the launch (it lies on the slope behind the pilot), pulled back under it in the air
     const air = f.phase === 'air', ground = f.phase === 'ready' || f.phase === 'inflate';
@@ -482,14 +551,16 @@ const paraglider = {
     const ft = f ? f.t : 0, py = f?.y ?? ctx.y;
     THERMALS.forEach((th, i) => {
       thermalCentre(th, ft, _cc);
-      pg.clouds[i].position.set(_cc.x, PG.cloudBase - 8, _cc.z);
       const g = groundHeight(_cc.x, _cc.z);
+      thermalCentre(th, ft, _cc, PG.cloudBase - g); // (the cloud downwind of the thermal's foot, where its column leans to)
+      pg.clouds[i].position.set(_cc.x, PG.cloudBase - 8, _cc.z);
       for (let b = 0; b < BIRDS_PER; b++) {
         const n = i * BIRDS_PER + b;
         // one at the pilot's height when the pilot is near, the others spread up the column
         const near = Math.hypot(ctx.x - _cc.x, ctx.z - _cc.z) < 700;
         const lo = g + 60, hi = PG.cloudBase - 120;
         const y = b === 0 && near ? clamp(py + 12, lo, hi) : lo + (hi - lo) * (0.3 + 0.32 * b);
+        thermalCentre(th, ft, _cc, y - g); // (each bird in the column where it leans at its height)
         const r = 16 + b * 7, w = 0.32 + 0.05 * b, a = pg.time * w * PG.timeScale + b * 2.1 + th.phase;
         _p.set(_cc.x + Math.cos(a) * r, y + Math.sin(pg.time * 0.4 + b) * 3, _cc.z + Math.sin(a) * r);
         // flying along the circle (counter-clockwise seen from above), banked into it, a few beats now and then
@@ -502,6 +573,12 @@ const paraglider = {
       }
     });
     pg.birds.instanceMatrix.needsUpdate = true;
+    // the windsocks: down the wind, fuller the stronger it blows, a flutter
+    windAt(ft, 0, pg.wind);
+    for (const [i, sock] of pg.socks.entries()) {
+      const flutter = Math.sin(pg.time * 7.3 + i * 2) * 0.05 + Math.sin(pg.time * 2.1 + i) * 0.04;
+      sock.rotation.set(clamp(1.35 - pg.wind.speed * 0.32, 0.15, 1.3) + flutter, pg.wind.toward + flutter * 1.5, 0, 'YXZ');
+    }
     pg.vario.update(f?.phase === 'air' ? f.vario : 0, live(run) && f?.phase === 'air');
     if (pg.flashT > 0) { pg.flashT -= dt; if (pg.flashT <= 0) pg.ui.flash.textContent = ''; }
   },
@@ -509,6 +586,13 @@ const paraglider = {
     const pg = run.pg, f = run.state?.flight, ui = pg.ui;
     const show = !!f && (live(run) || run.phase === 'done') && f.phase !== 'ready';
     ui.hud.hidden = !show;
+    ui.instr.hidden = !show;
+    if (show) {
+      // the LED with every beep (every frame: the beeps are short)
+      const vz0 = f.phase === 'air' ? f.vario : 0;
+      const beeping = pg.vario.blink(vz0, live(run) && f.phase === 'air');
+      ui.led.className = beeping ? 'pg-led on' : vz0 < -2.6 ? 'pg-led sink' : 'pg-led';
+    }
     if (!show) { if (!live(run)) pg.vario.update(0, false); return; }
     // (the numbers ten times a second: no layout every frame)
     pg.hudT -= dt;
@@ -516,16 +600,21 @@ const paraglider = {
     pg.hudT = 0.1;
     const air = f.phase === 'air';
     setText(ui.agl.v, `${Math.max(0, Math.round(f.y - groundHeight(f.x, f.z)))} m`);
-    setText(ui.agl.c.lastChild, `${Math.round(f.y + H0)} m ${t('a.s.l.')}`);
     const vz = air ? f.vario : 0;
-    setText(ui.vario.v, `${vz >= 0 ? '+' : '−'}${Math.abs(vz).toFixed(1)}`);
-    ui.vario.v.classList.toggle('is-up', vz > 0.2);
-    ui.vario.v.classList.toggle('is-down', vz < -1.6);
-    const share = clamp(Math.abs(vz) / 4, 0, 1) * 50;
-    ui.fill.className = vz >= 0 ? 'is-up' : 'is-down';
-    ui.fill.style.width = `${share}%`;
-    ui.fill.style.left = vz >= 0 ? '50%' : `${50 - share}%`;
-    setText(ui.speed.v, `${Math.round(f.v * 3.6)}`);
+    // the instrument
+    ui.alt.innerHTML = `${Math.round(f.y + H0).toLocaleString('de-CH')}<small>m</small>`;
+    ui.climb.innerHTML = `${vz >= 0 ? '+' : '−'}${Math.abs(vz).toFixed(1)}<small>m/s</small>`;
+    ui.climb.classList.toggle('is-up', vz > 0.2);
+    ui.climb.classList.toggle('is-down', vz < -1.6);
+    const share = clamp(Math.abs(vz) / 5, 0, 1) * 50;
+    ui.vfill.className = vz >= 0 ? 'is-up' : 'is-down';
+    ui.vfill.style.height = `${share}%`;
+    ui.vfill.style.top = vz >= 0 ? `${50 - share}%` : '50%';
+    setText(ui.gs, `${Math.round((air ? f.gs : 0) * 3.6)} km/h`);
+    const w = air && f.wind ? f.wind : windAt(f.t, 0, pg.wind);
+    setText(ui.windT, `${Math.round(w.speed * 3.6)} km/h`);
+    // the arrow: where the wind blows to, as seen in the pilot's heading (up: a tailwind; the heading grows to the left)
+    ui.arrow.style.transform = `rotate(${((f.heading - w.toward) * 180 / Math.PI).toFixed(0)}deg)`;
     const s = Math.round(f.airtime);
     setText(ui.time.v, `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
     setText(ui.dist.v, fmtDist(f.maxDist));

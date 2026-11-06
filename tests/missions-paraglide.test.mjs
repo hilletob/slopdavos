@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  PARAGLIDE_MISSION, PARAGLIDE_MISSIONS, PG, LAUNCH, FIELD, THERMALS, H0, polarSink, targetSpeed, thermalLift, thermalCentre,
+  PARAGLIDE_MISSION, PARAGLIDE_MISSIONS, PG, LAUNCH, FIELD, THERMALS, H0, polarSink, targetSpeed, thermalLift, thermalCentre, windAt, WIND,
   thermalStrength, slopeLift, airAt, createFlight, stepFlight, judgeLanding, flightScore, botInput, onGround
 } from '../js/missions-data-paraglide.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -79,7 +79,7 @@ test('the polar: 36 km/h hands up at a glide of 8-9, the speed bar faster and st
 });
 
 test('a thermal: a strong core, sink round its rim, nothing far off, fading under the cloud and in the evening', () => {
-  const th = THERMALS[0], c = thermalCentre(th, 0, { x: 0, z: 0 });
+  const th = THERMALS[0], c = thermalCentre(th, 0, { x: 0, z: 0 }, 400);
   const core = thermalLift(th, c.x, 800, c.z, 400, 0);
   assert.ok(core > 2.5 && core <= th.w, `core ${core}`);
   assert.ok(thermalLift(th, c.x + th.r * 1.55, 800, c.z, 400, 0) < -0.4, 'the rim sinks');
@@ -89,8 +89,8 @@ test('a thermal: a strong core, sink round its rim, nothing far off, fading unde
   assert.ok(thermalLift(th, c.x, 800, c.z, 10, 0) < core * 0.6, 'weak right over the ground');
   assert.ok(thermalStrength(PG.fadeTo + 100) < 0.5 && thermalStrength(0) === 1);
   // it wanders, but not far
-  const later = thermalCentre(th, 130, { x: 0, z: 0 });
-  assert.ok(Math.hypot(later.x - c.x, later.z - c.z) > 10 && Math.hypot(later.x - th.x, later.z - th.z) < 40);
+  const foot = thermalCentre(th, 0, { x: 0, z: 0 }), later = thermalCentre(th, 130, { x: 0, z: 0 });
+  assert.ok(Math.hypot(later.x - foot.x, later.z - foot.z) > 10 && Math.hypot(later.x - th.x, later.z - th.z) < 40);
   // the sun's breeze up a south face, none on a north face or high above
   assert.ok(slopeLift(0, -0.6, 20) > 0.2 && slopeLift(0, 0.6, 20) === 0 && slopeLift(0, -0.6, 200) === 0);
   assert.equal(airAt(c.x, 800, c.z, 400, 0).best, th.id);
@@ -161,6 +161,23 @@ test('the bots on the real terrain: a glide to the field, a thermal, out to the 
   assert.ok(glide.real > 300 && glide.real < 600, `${glide.real} s`);
   assert.equal(flightScore({ ...xc.f, airtime: 1e5 }), flightScore({ ...xc.f, airtime: PG.timeCap }));
   assert.match(m.summary({ flight: xc.f })[0], /^\d+:\d\d in the air · [\d.]+ km from the launch · \d+ m highest · on the field, \d+ m from the cross$/);
+});
+
+test('the wind: up the valley from the south-west, weaker near the ground; it carries the wing and leans the thermals', () => {
+  const hi = windAt(0, 400), lo = windAt(0, 0);
+  assert.ok(hi.x > 0 && hi.z < 0, 'blowing north-east');
+  assert.ok(lo.speed < hi.speed && hi.speed > 1.5 && hi.speed < 4.5, `${lo.speed} < ${hi.speed}`);
+  // flying straight upwind is slower over the ground than downwind
+  const flat = () => 0;
+  const up = createFlight(), down = createFlight();
+  for (const [f, h] of [[up, WIND.toward + Math.PI], [down, WIND.toward]]) {
+    Object.assign(f, { phase: 'air', y: 900, v: 10, heading: h });
+    stepFlight(f, {}, 2, flat, []);
+  }
+  assert.ok(down.gs - up.gs > 3, `down ${down.gs} up ${up.gs}`);
+  // the column leans downwind with height
+  const th = THERMALS[0], foot = thermalCentre(th, 0, { x: 0, z: 0 }), top = thermalCentre(th, 0, { x: 0, z: 0 }, 800);
+  assert.ok((top.x - foot.x) * hi.x + (top.z - foot.z) * hi.z > 0 && Math.hypot(top.x - foot.x, top.z - foot.z) > 50);
 });
 
 test('the steps: the launch until airborne, then the flight until the landing, the field the target', () => {
