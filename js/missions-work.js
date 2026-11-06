@@ -1483,7 +1483,7 @@ const towerCrane = {
       rig.reset(x, z, yaw, gf);
       return { rig, x, z, yaw, gf };
     });
-    run.work = { site, slew, trolley, hook, rope, loads, pad, plumb, crowd, crew, toast: createToast(run), crane: createCrane(site), view: 'chase', cam: new THREE.Vector3(), camInit: false, t: 0, held: false, wind: {} };
+    run.work = { site, slew, trolley, hook, rope, loads, pad, plumb, crowd, crew, toast: createToast(run), crane: createCrane(site), view: 'chase', cam: new THREE.Vector3(), look: new THREE.Vector3(), camInit: false, t: 0, held: false, wind: {} };
     run.cleanups.push(() => towerCrane.release(run));
   },
   /** The walker stays at the foot of the mast while the driver is up in the cab (the keys are the crane's) */
@@ -1491,12 +1491,16 @@ const towerCrane = {
     const w = run.work, cm = run.hooks.controllerManager;
     if (w.held) return;
     w.held = { had: 'personDriver' in cm, prev: cm.personDriver, controls: craneControls(run) };
+    // no tree between the camera and the load: a clearing round the mast while up in the cab
+    w.trees = run.scene?.getObjectByName('Trees')?.userData.field || null;
+    w.trees?.setClearing({ x: CRANE.tower.x, z: CRANE.tower.z, r: CRANE.rMax + 30 });
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; };
   },
   release(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (!w?.held) return;
     for (const off of w.held.controls) off();
+    w.trees?.setClearing(null);
     if (w.held.had) cm.personDriver = w.held.prev; else delete cm.personDriver;
     w.held = false;
   },
@@ -1617,14 +1621,23 @@ const towerCrane = {
       cam.up.set(0, 1, 0);
       cam.lookAt(h.x, fy, h.z);
     } else {
-      const t = craneTrolley(w.crane);
-      const dx = t.x - CRANE.tower.x, dz = t.z - CRANE.tower.z, L = Math.hypot(dx, dz) || 1;
-      // from behind and above the load, on the tower's side: the jib points away from the viewer
-      _p.set(h.x - (dx / L) * 20, Math.max(fy + 12, S.top + 18), h.z - (dz / L) * 20);
-      if (!w.camInit) { w.cam.copy(_p); w.camInit = true; } else w.cam.lerp(_p, Math.min(1, dt * 2.5));
+      // The view takes in the hook and where it is to go (the load in the yard, then its spot on the deck): it looks at a
+      // point between the two, from the tower's side but well off the jib's line (the mast out of the way to one side, the
+      // rope and the load not hidden under the jib), as far back as both need to stay in the picture, 32° down onto the site
+      const goal = load ? (st.carried ? load.pad : load.yard) : h;
+      const goalY = load ? (st.carried ? load.padY : load.restY) : fy;
+      const ax = (h.x + goal.x) / 2, az = (h.z + goal.z) / 2, ay = (fy + goalY) / 2;
+      const span = Math.hypot(h.x - goal.x, h.z - goal.z, fy - goalY);
+      const dist = clamp(24 + span * 0.9, 26, 60);
+      const ox = ax - CRANE.tower.x, oz = az - CRANE.tower.z, oL = Math.hypot(ox, oz) || 1;
+      const yaw = Math.atan2(ox / oL, oz / oL) + 0.95; // (the heading from the mast out to the view's centre, turned off it)
+      const back = dist * Math.cos(0.56), up = dist * Math.sin(0.56);
+      _p.set(ax - Math.sin(yaw) * back, Math.max(ay + up, S.top + 8), az - Math.cos(yaw) * back);
+      if (!w.camInit) { w.cam.copy(_p); w.look.set(ax, ay, az); w.camInit = true; }
+      else { const k = Math.min(1, dt * 1.8); w.cam.lerp(_p, k); w.look.lerp(_s.set(ax, ay, az), k); }
       cam.position.copy(w.cam);
       cam.up.set(0, 1, 0);
-      cam.lookAt(h.x, fy - 1, h.z);
+      cam.lookAt(w.look);
     }
     cam.updateMatrixWorld();
   }

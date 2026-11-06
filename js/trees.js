@@ -1387,12 +1387,15 @@ function createTreeField(scene, sites) {
 
   // Repack only cells whose trees changed level; the meshes and their buffer capacities stay fixed.
   const dirtyCells = new Set();
+  // A clearing (setClearing): the trees in it are left out, e.g. round the tower crane while its driver works (the
+  // crowns stood between the camera and the load)
+  const cleared = new Uint8Array(N);
   function rebuild() {
     for (const cell of dirtyCells) {
       for (const mi of cell.meshes.values()) counts[mi] = 0;
       const l = cell.level;
       for (const i of cell.trees) {
-        if (lod[i] !== l) continue;
+        if (lod[i] !== l || cleared[i]) continue;
         const mi = meshOf[i * 3 + l];
         const c = counts[mi]++;
         if (c === 0) allocate(mi);
@@ -1531,8 +1534,21 @@ function createTreeField(scene, sites) {
     for (let mi = 0; mi < meshes.length; mi++) if (instanced[mi] && meshes[mi].cell.level === 2) instanced[mi].castShadow = on;
   }
 
+  /** Leaves out the trees within r of (x, z) (null: all trees back) */
+  function setClearing(c) {
+    for (let i = 0; i < N; i++) {
+      const out = c && (px[i] - c.x) ** 2 + (pz[i] - c.z) ** 2 < c.r * c.r ? 1 : 0;
+      if (out === cleared[i]) continue;
+      cleared[i] = out;
+      if (lod[i] !== 255) dirtyCells.add(cellOf[i * 3 + lod[i]]);
+    }
+    rebuild();
+  }
+
   // (meshes: those made so far)
-  return { group, material, atlas, update, meshes: instanced.filter(Boolean), setFarShadows, stats };
+  const field = { group, material, atlas, update, meshes: instanced.filter(Boolean), setFarShadows, setClearing, stats };
+  group.userData.field = field; // (found by name: scene.getObjectByName('Trees'))
+  return field;
 }
 
 // (makeCrown & makeCone also shade the baked EZ-Tree models: tools/bake-ez-trees.mjs)
