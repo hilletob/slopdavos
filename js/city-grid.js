@@ -66,7 +66,7 @@ import { GEO } from './nyc-geodata.js';
 import { LANDMARK_EXCLUSIONS, BERGHAIN_TREE_SITES } from './landmarks.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, berlinStrip, berlinRoadSegments, berlinGeometryGroups } from './berlin-geometry.js';
 import { CROSSWALKS } from './crosswalks-data.js';
-import { streetCorners, cornersIn, convexPlanes } from './street-corners.js';
+import { streetCorners, cornersIn, convexPlanes, inCornerCut } from './street-corners.js';
 import { freezeWater, snowyStreet } from './season.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
@@ -310,6 +310,16 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
     const nx = -s.uz, nz = s.ux, along = s.a.x * s.ux + s.a.z * s.uz, across = s.a.x * nx + s.a.z * nz;
     return [[s.ux, s.uz, along - pad], [-s.ux, -s.uz, -along - s.len - pad],
       [nx, nz, across - s.width / 2 - pad], [-nx, -nz, -across - s.width / 2 - pad]];
+  };
+  // Does (x, z) stand on the asphalt of a carriageway other than `source`'s way (its rectangle grown by `pad`), or
+  // on the asphalt of a rounded corner?
+  const onOtherCarriageway = (x, z, source, pad = 0) => {
+    const p = { x, z };
+    for (const o of nearbyCarriageways(p, p, pad)) {
+      if (o.road === source.road || o.bridge !== source.bridge) continue;
+      if (roadPlanes(o, pad).every(([nx, nz, c]) => nx * x + nz * z - c >= 0)) return true;
+    }
+    return !source.bridge && inCornerCut(corners, x, z);
   };
   const stripPoints = (s, half, offset = 0) => [
     edgePoint(s, 0, offset - half), edgePoint(s, 1, offset - half), edgePoint(s, 1, offset + half), edgePoint(s, 0, offset + half),
@@ -586,6 +596,9 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       for (let k = 0; k < count; k++) for (const side of [-1, 1]) {
         const t = (k + 0.5) / count, x = s.a.x + s.ux * s.len * t + nx * side * (width / 2 + 1.3),
           z = s.a.z + s.uz * s.len * t + nz * side * (width / 2 + 1.3);
+        // (never on another carriageway: at a junction the crossing road's asphalt, or the rounded corner's, reaches
+        // past this road's pavement; the mast stands 0.6 m clear of any curb)
+        if (onOtherCarriageway(x, z, s, 0.6)) continue;
         const key = `${Math.round(x / 14)}/${Math.round(z / 14)}`;
         if (streetSiteKeys.has(key)) continue;
         streetSiteKeys.add(key);
@@ -703,7 +716,9 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       const t0 = k / pieces, t1 = (k + 1) / pieces;
       const a = { x: s.a.x + (s.b.x - s.a.x) * t0, z: s.a.z + (s.b.z - s.a.z) * t0 }, b = { x: s.a.x + (s.b.x - s.a.x) * t1, z: s.a.z + (s.b.z - s.a.z) * t1 };
       const ya = deckAt(a.x, a.z), yb = deckAt(b.x, b.z);
-      if (Math.min(ya - groundHeight(a.x, a.z), yb - groundHeight(b.x, b.z)) < 0.8) continue;
+      // (a low piece: a short bridge over a creek, whose channel the 8 m terrain grid smooths away, or a bridgehead — the
+      // parapets only, no slab or pier sunk in the ground)
+      const low = Math.min(ya - groundHeight(a.x, a.z), yb - groundHeight(b.x, b.z)) < 0.8;
       const len = Math.hypot(b.x - a.x, b.z - a.z);
       // A box along [u0, u1] of the piece (fractions), `w` across at `offset`, from `bottom` to `top` around the deck
       const box = (w, top, bottom, offset, u0 = 0, u1 = 1) => {
@@ -721,7 +736,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         collect(g, curbMat, { world: true });
         return { cx, cz, l };
       };
-      box(half * 2, -0.02, -1.15, 0);
+      if (!low) box(half * 2, -0.02, -1.15, 0);
       // Parapets: along the stretches where no other deck continues the bridge beyond this one's edge
       const steps = Math.max(1, Math.round(len / PARAPET_STEP));
       for (const side of [-1, 1]) {
@@ -747,7 +762,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       }
       // A pier every ~24 m along spans that clear 3 m, off the streets passing underneath
       const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }, under = groundHeight(mid.x, mid.z), top = (ya + yb) / 2 - 1.15;
-      if (top - under > 3 && Math.floor(s.len * t0 / 24) !== Math.floor(s.len * t1 / 24) && pierClear(mid.x, mid.z, s.ux, s.uz, half)) {
+      if (!low && top - under > 3 && Math.floor(s.len * t0 / 24) !== Math.floor(s.len * t1 / 24) && pierClear(mid.x, mid.z, s.ux, s.uz, half)) {
         const pier = new THREE.BoxGeometry(1.2, top - under + 0.5, half * 1.2);
         pier.rotateY(-Math.atan2(b.z - a.z, b.x - a.x));
         pier.translate(mid.x, under - 0.5 + (top - under + 0.5) / 2, mid.z);

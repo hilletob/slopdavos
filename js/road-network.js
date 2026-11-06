@@ -335,6 +335,32 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       if (n && hit > n * 0.5) continue;
       links.push({ a, b, name: RG.names[ni], w, lanes, dir, pts, len, bus, walk });
     }
+    // A street cut only where its tags change (the ends of a bridge: the Seehornstrasse over the Flüelabach, 3 + 11 + 5 m
+    // between two junctions) runs on as one link through the node no other street shares. Else its short pieces were
+    // collapsed below into one junction half way between the real ones (in the stream: the Flüelastrasse's crosswalks and
+    // lanes moved onto the water), or a long piece's ends became junctions with crosswalks and stop lines of their own.
+    {
+      const degree = new Map();
+      for (const [a, b] of RG.links) for (const i of [a, b]) degree.set(i, (degree.get(i) || 0) + 1);
+      const at = new Map(); // node -> the links ending there
+      for (const l of links) for (const i of [l.a, l.b]) { if (!at.has(i)) at.set(i, new Set()); at.get(i).add(l); }
+      const reversed = (l) => ({ ...l, a: l.b, b: l.a, dir: -l.dir, pts: l.pts.slice().reverse(), walk: l.walk ? [l.walk[1], l.walk[0]] : l.walk });
+      const alike = (p, q) => p.name === q.name && p.w === q.w && p.lanes === q.lanes && p.dir === q.dir && p.bus === q.bus &&
+        JSON.stringify(p.walk ?? null) === JSON.stringify(q.walk ?? null);
+      for (const [n, set] of at) {
+        if (degree.get(n) !== 2 || set.size !== 2) continue;
+        let [p, q] = [...set];
+        if (p.a === p.b || q.a === q.b) continue;
+        const p1 = p.b === n ? p : reversed(p), q1 = q.a === n ? q : reversed(q);
+        if (p1.a === q1.b || !alike(p1, q1)) continue; // (a ring cut in two; or a different street on)
+        const merged = { ...p1, b: q1.b, pts: [...p1.pts, ...q1.pts.slice(1)], len: p1.len + q1.len };
+        for (const [l, end] of [[p, p1.a], [q, q1.b]]) { const s = at.get(end); s.delete(l); s.add(merged); }
+        at.delete(n);
+        links.splice(links.indexOf(p), 1);
+        links.splice(links.indexOf(q), 1);
+        links.push(merged);
+      }
+    }
     // Junctions a few metres apart (divided roads, offset corners) are one: collapse links under 14 m
     const parent = pos.map((_, i) => i);
     const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
@@ -662,7 +688,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       if (!outsOf.has(e.from)) outsOf.set(e.from, []);
       outsOf.get(e.from).push(e);
     }
-    const live = largestComponent(edges, (e) => (outsOf.get(e.to) || []).filter((f) => f.to !== e.from && e.dx * f.dx + e.dz * f.dz >= -0.5));
+    const live = largestComponent(edges, (e) => waysOn(e, outsOf.get(e.to) || []));
     for (const e of edges) e.live = live.has(e);
   }
   const liveArm = (a) => !!((a.in && a.in.live) || (a.out && a.out.live));
@@ -832,7 +858,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     from: paintNodes.get(from), to: paintNodes.get(to), axis, x0, z0, sx, sz, dx, dz, rx, rz, span, len, half, lanes
   }));
 
-  // 6. Movements at each intersection (no U-turns) and the lane each lane leads to, along obstacle-free curves:
+  // 6. Movements at each intersection (no U-turns but where a road ends: waysOn) and the lane each lane leads to, along obstacle-free curves:
   //    straight on, lane i keeps to lane i + k ahead, k chosen to use as many lanes there as possible with the least
   //    sideways shift; turns go from the lane nearest the turn into the lane nearest it. Lanes left with no way on
   //    (where the road ends or narrows) turn alongside the turn lane, or merge. Across the road, lanes always run
@@ -890,8 +916,14 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
   for (const e of edges) e.from.out.push(e);
   for (const e of edges) {
     const n = e.lanes.length;
-    for (const f of e.to.out) {
-      if (f.to === e.from || e.dx * f.dx + e.dz * f.dz < -0.5) continue;
+    for (const f of waysOn(e, e.to.out)) {
+      // Turning round where the road ends: a left turn across it, from the leftmost lane into the leftmost lane back
+      // (the turning circle reaches past the roadway's end, so the curb test of link can't apply)
+      if (f.to === e.from) {
+        e.moves.push({ to: f, turn: 'L', cross: -1, uturn: true, out: new Array(n).fill(-1) });
+        e.moves[e.moves.length - 1].out[0] = 0;
+        continue;
+      }
       const cross = e.dx * f.dz - e.dz * f.dx;
       e.moves.push({ to: f, turn: cross > 0.5 ? 'R' : cross < -0.5 ? 'L' : 'S', cross, out: new Array(n).fill(-1) });
     }
@@ -1266,6 +1298,18 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
   return { nodes, edges, paintEdges, connector, curvePoint, walkable, onSidewalk, isRoadClear };
 }
 
+// The edges of `outs` (those leaving the node e leads to) a vehicle on e may go on into: no U-turns and no turns
+// sharper than 120°, except where that leaves no way on. A road's only way on is taken however sharp (a hairpin bend);
+// where a two-way road ends (a village at the end of its valley road, Monstein, Sertig, the Dischma; a lane at the edge
+// of the map) drivers turn round. Without them 7. drops the road and everything reached only along it.
+function waysOn(e, outs) {
+  const others = outs.filter((f) => f.to !== e.from);
+  const ahead = others.filter((f) => e.dx * f.dx + e.dz * f.dz >= -0.5);
+  if (ahead.length) return ahead;
+  if (others.length === 1) return others;
+  return outs.filter((f) => f.to === e.from && e.dx * f.dx + e.dz * f.dz < -0.98);
+}
+
 // The largest strongly connected set of `list` (a Set), going on from item e to the items next(e)
 function largestComponent(list, next) {
   const index = new Map(list.map((e, i) => [e, i]));
@@ -1323,7 +1367,7 @@ function largestComponent(list, next) {
 }
 
 // Cubic Bézier from the end of lane i on edge e to the start of lane j on edge f: a quarter-circle-like
-// arc around the corner for turns, an S-bend for straight lane shifts. Includes an arc-length table and
+// arc around the corner for turns, an S-bend for straight lane shifts, a half circle for turning round. Includes an arc-length table and
 // the sharpest curvature along it (1 / tightest radius).
 function makeCurve(e, i, f, j) {
   const x0 = e.sx + e.dx * e.len + e.rx * e.lanes[i];
@@ -1333,7 +1377,9 @@ function makeCurve(e, i, f, j) {
   const cross = e.dx * f.dz - e.dz * f.dx;
   let k0;
   let k3;
-  if (Math.abs(cross) < 0.5) {
+  if (e.dx * f.dx + e.dz * f.dz < -0.98) {
+    k0 = k3 = 0.55 * Math.hypot(x3 - x0, z3 - z0); // turning round (a dead end): about a half circle
+  } else if (Math.abs(cross) < 0.5) {
     k0 = k3 = Math.hypot(x3 - x0, z3 - z0) / 3;
   } else {
     const t = ((x3 - x0) * f.dz - (z3 - z0) * f.dx) / cross;

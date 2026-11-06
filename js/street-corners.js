@@ -195,6 +195,23 @@ export function cornersIn(corners, minX, maxX, minZ, maxZ) {
   return [...out];
 }
 
+/**
+ * Moves p ({ x, z }) off the asphalt of a rounded corner (inCornerCut): straight towards the arc's centre O, onto the
+ * sidewalk `clear` metres inside the curb (a post mapped on the junction's corner stands behind the arc). Returns
+ * whether it moved.
+ */
+export function outOfCornerCut(corners, p, clear = 0.45) {
+  for (const c of corners.grid.get(Math.floor(p.x / CELL) * 100000 + Math.floor(p.z / CELL)) || []) {
+    if (p.x < c.minX || p.x > c.maxX || p.z < c.minZ || p.z > c.maxZ) continue;
+    if (!insideConvex(c.kite, p.x, p.z) || insideConvex(c.sector, p.x, p.z)) continue;
+    const dx = p.x - c.O.x, dz = p.z - c.O.z, d = Math.hypot(dx, dz), r = Math.max(0.05, c.R - CURB_GAP - clear);
+    if (d < 1e-6) continue;
+    p.x = c.O.x + dx / d * r; p.z = c.O.z + dz / d * r;
+    return true;
+  }
+  return false;
+}
+
 /** Is (x, z) off the sidewalk of a rounded corner: between the curb's arc and the corner of the two edges? */
 export function inCornerCut(corners, x, z) {
   for (const c of corners.grid.get(Math.floor(x / CELL) * 100000 + Math.floor(z / CELL)) || []) {

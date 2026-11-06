@@ -221,6 +221,7 @@ function populationContext() {
     focusX: 0, focusZ: 0, player: { active: false },
     clock: 0,
     VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, VEHICLE_SPACING: 30, PED_AVOID_INTERVAL: 0.12,
+    BUILT_UP: 60, RURAL_SPACING_MAX: 4, buildingsNear: () => 60,
     nearEdges: [], nearSignals: [], track: {}, KERB: 1.6, QUEUE_GAP: 0.62,
     atCurb: () => {}, laneClear: () => true, nearTramBody: () => false, trackFull: () => false, trackLoad: new Map(), STUCK_TIME: 45,
     place: (v, e, lane, s) => Object.assign(v, { edge: e, lane, s })
@@ -280,12 +281,19 @@ test('pedestrians replenish visible sidewalks ahead without appearing nearby', (
 
 test('long roads are available near their ends and spawn only in the local section', () => {
   const context = populationContext();
-  const edge = straightEdge(100, 2000);
+  const edge = straightEdge(-1000, 2000);
   Object.assign(context, { edges: [edge, straightEdge(2000)], nodes: [], nearX: Infinity, nearZ: Infinity });
-  trafficFunction('refreshNear', context)();
+  const refreshNear = trafficFunction('refreshNear', context);
+  refreshNear();
   assert.deepEqual(context.nearEdges, [edge]);
-  // (Davos) the lanes around the focus take one vehicle per VEHICLE_SPACING metres
-  assert.equal(context.capacity, Math.floor(2000 / 30));
+  // (Davos) the lanes within NEAR_RADIUS of the focus (700 m of this road) take one vehicle per VEHICLE_SPACING metres...
+  assert.equal(context.capacity, Math.floor(700 / 30));
+  // ...and out of town, with fewer buildings around, fewer
+  Object.assign(context, { buildingsNear: () => 40, nearX: Infinity });
+  refreshNear();
+  assert.equal(context.capacity, Math.floor(700 / 45));
+  Object.assign(context, { buildingsNear: () => 60, nearX: Infinity });
+  refreshNear();
   const car = { half: 2.25 };
   assert.equal(trafficFunction('spawnVehicle', context)(car, 0, 350, false), true);
   assert.ok(edge.sz + car.s <= 350);

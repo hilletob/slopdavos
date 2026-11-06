@@ -3,6 +3,11 @@ import { attribute, float, frontFacing, mix, positionLocal, select, texture, uv,
 import { TRAFFIC_SIGNS } from './traffic-signs-data.js';
 import { surfaceHeight, sidewalkRise, SIDEWALK_TOP } from './terrain.js';
 import { QUALITY } from './quality.js';
+import { BERLIN_DATA } from './city-config.js';
+import { streetCorners, outOfCornerCut } from './street-corners.js';
+
+const CARRIAGEWAY_KINDS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link',
+  'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'service']);
 
 // js/traffic-signs.js
 // Swiss road signs after the Signalisationsverordnung (SSV) (js/traffic-signs-data.js, tools/fetch-traffic-signs.mjs:
@@ -530,6 +535,39 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
     }
   }
 
+  const corners = BERLIN_DATA?.roads ? streetCorners(BERLIN_DATA.roads) : null;
+  // The carriageways at grade (as js/street-corners.js: no shared surfaces), in 32 m cells, for offCarriageways
+  const roadCells = new Map();
+  for (const road of corners ? BERLIN_DATA.roads : []) {
+    if (road.tunnel || road.bridge || !road.pts || !CARRIAGEWAY_KINDS.has(road.kind) || (road.kind === 'service' && /platz/i.test(road.name || ''))) continue;
+    for (let i = 2; i < road.pts.length; i += 2) {
+      const ax = road.pts[i - 2], az = road.pts[i - 1], len = Math.hypot(road.pts[i] - ax, road.pts[i + 1] - az);
+      if (len < 0.8) continue;
+      const seg = { ax, az, len, ux: (road.pts[i] - ax) / len, uz: (road.pts[i + 1] - az) / len, half: (road.width || 6) / 2 };
+      const r = seg.half + 1;
+      for (let ix = Math.floor((Math.min(ax, road.pts[i]) - r) / 32); ix <= Math.floor((Math.max(ax, road.pts[i]) + r) / 32); ix++) {
+        for (let iz = Math.floor((Math.min(az, road.pts[i + 1]) - r) / 32); iz <= Math.floor((Math.max(az, road.pts[i + 1]) + r) / 32); iz++) {
+          const k = ix * 65536 + iz;
+          if (!roadCells.has(k)) roadCells.set(k, []);
+          roadCells.get(k).push(seg);
+        }
+      }
+    }
+  }
+  /** Moves p across any carriageway it stands on, to the nearer edge and POST_CLEAR beyond it; whether it moved */
+  const POST_CLEAR = 0.45;
+  const offCarriageways = (p) => {
+    let moved = false;
+    for (const seg of roadCells.get(Math.floor(p.x / 32) * 65536 + Math.floor(p.z / 32)) || []) {
+      const ox = p.x - seg.ax, oz = p.z - seg.az, along = ox * seg.ux + oz * seg.uz, across = -ox * seg.uz + oz * seg.ux;
+      if (along < 0 || along > seg.len || Math.abs(across) >= seg.half + 0.3) continue;
+      const push = (across < 0 ? -1 : 1) * (seg.half + POST_CLEAR) - across;
+      p.x += -seg.uz * push; p.z += seg.ux * push;
+      moved = true;
+    }
+    return moved;
+  };
+
   // Per post: its parts' (matrix, part) and its plates' (matrix, front rect, back rect)
   const posts = [];
   const plates = [];
@@ -580,6 +618,10 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   for (const s of list) {
     // (the plates face along (sin yaw, cos yaw): the crosswalk test moves the post along the road, i.e. across that)
     const p = clearOfCrosswalks({ x: s.x, z: s.z }, crosswalks, cells);
+    // (and off a junction's rounded corner: a post mapped on the corner of the two roads' edges would stand on the
+    // asphalt the curb's arc leaves out there; it goes behind the arc, onto the sidewalk)
+    // (a push along one road can carry it onto the crossing one's asphalt at a junction: then out across that road)
+    if (corners) for (let pass = 0; pass < 3 && (offCarriageways(p) | outOfCornerCut(corners, p)); pass++);
     if (p.x !== s.x || p.z !== s.z) moved++;
     const y = groundAt(p.x, p.z);
     const firstPlate = plates.length, firstPart = parts.length;

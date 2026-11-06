@@ -26,6 +26,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attribute, mix, step, vec3 } from 'three/tsl';
 import { inService } from './hijack.js';
+import { GEO } from './nyc-geodata.js';
 
 // js/traffic.js
 // Manhattan traffic and pedestrians on the road graph road-network.js derives from the city as built:
@@ -60,6 +61,11 @@ const VEHICLE_SPAWN_DISTANCE = 250;
 // density (325 vehicles on some 5 km of lanes), gridlocking the loops of short links at every junction. Vehicles that
 // don't fit stay off the road until others leave the area.
 const VEHICLE_SPACING = 30;
+// Out of town (Monstein, the valley roads to it) fewer drive: below BUILT_UP mapped buildings within NEAR_RADIUS the
+// spacing grows with the lack of them, up to RURAL_SPACING_MAX times as far apart
+const BUILT_UP = 60;
+const RURAL_SPACING_MAX = 4;
+const BUILDING_CELL = 50;
 
 function createBusDestinationTexture() {
   const c = document.createElement('canvas');
@@ -422,7 +428,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     bike.jacketTint = jacketPalette[(i * 5) % jacketPalette.length];
     bikes.push(bike);
   }
-  const vehicles = [...cars, ...buses, ...bikes];
+  // Cars, buses and bikes interleaved in proportion: the lanes around the focus are filled in this order (update), and
+  // where they take only a few (out of town), the first in it would otherwise get them all
+  const vehicles = [cars, buses, bikes].flatMap((list) => list.map((v, i) => [(i + 0.5) / list.length, v]))
+    .sort((p, q) => p[0] - q[0]).map(([, v]) => v);
 
   // =========================================================================
   // 3. PEDESTRIAN SYSTEM
@@ -627,6 +636,23 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   }
 
   // Edges and signalized intersections around the focus, to place vehicles and pedestrians on
+  // Mapped buildings per BUILDING_CELL square (by their first corner), for how built up the area around the focus is
+  const buildingCells = new Map();
+  for (const b of GEO.berlin?.buildings || []) {
+    const k = Math.floor(b.ring[0] / BUILDING_CELL) * 100000 + Math.floor(b.ring[1] / BUILDING_CELL);
+    buildingCells.set(k, (buildingCells.get(k) || 0) + 1);
+  }
+  function buildingsNear(x, z, r) {
+    let n = 0;
+    for (let ix = Math.floor((x - r) / BUILDING_CELL); ix <= Math.floor((x + r) / BUILDING_CELL); ix++) {
+      for (let iz = Math.floor((z - r) / BUILDING_CELL); iz <= Math.floor((z + r) / BUILDING_CELL); iz++) {
+        const cx = (ix + 0.5) * BUILDING_CELL - x, cz = (iz + 0.5) * BUILDING_CELL - z;
+        if (cx * cx + cz * cz < r * r) n += buildingCells.get(ix * 100000 + iz) || 0;
+      }
+    }
+    return n;
+  }
+
   let nearX = Infinity;
   let nearZ = Infinity;
   let capacity = Infinity; // vehicles the lanes around the focus take (VEHICLE_SPACING)
@@ -644,11 +670,15 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       const dx = e.sx + e.dx * s - focusX, dz = e.sz + e.dz * s - focusZ;
       if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) {
         nearEdges.push(e);
-        laneMetres += e.len * e.lanes.length;
+        // (only the stretch within NEAR_RADIUS: a long valley road's runs reach far beyond it)
+        const b = (e.sx - focusX) * e.dx + (e.sz - focusZ) * e.dz;
+        const q = Math.sqrt(Math.max(0, b * b - ((e.sx - focusX) ** 2 + (e.sz - focusZ) ** 2 - NEAR_RADIUS * NEAR_RADIUS)));
+        laneMetres += Math.max(0, Math.min(e.len, q - b) - Math.max(0, -b - q)) * e.lanes.length;
         if (!e.noBikes) bikeRoad = true;
       }
     }
-    capacity = Math.max(12, Math.floor(laneMetres / VEHICLE_SPACING));
+    const rural = clamp(BUILT_UP / Math.max(1, buildingsNear(focusX, focusZ, NEAR_RADIUS)), 1, RURAL_SPACING_MAX);
+    capacity = Math.max(12, Math.floor(laneMetres / (VEHICLE_SPACING * rural)));
     for (const n of nodes) {
       const dx = n.x - focusX, dz = n.z - focusZ;
       if (n.signal && dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) nearSignals.push(n);
