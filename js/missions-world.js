@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MISSIONS, formatDistance, relativeBearing } from './missions-data.js';
 import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS } from './missions-progress.js';
 import { setMissionStartInReach } from './missions-manager.js';
+import { drapeRing } from './missions-props.js';
 import { surfaceHeight } from './terrain.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { QUALITY } from './quality.js';
@@ -458,16 +459,14 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
 
 // --- The markers in the world --------------------------------------------------------------------------------------
 function createBeams(count) {
-  const column = new THREE.CylinderGeometry(0.45, 0.6, BEAM_HEIGHT, QUALITY.mobile ? 8 : 14, 1, true).translate(0, BEAM_HEIGHT / 2, 0);
-  const ring = new THREE.RingGeometry(START_RADIUS - 0.6, START_RADIUS, QUALITY.mobile ? 32 : 56).rotateX(-Math.PI / 2).translate(0, 0.35, 0);
-  const geo = mergeGeometries([column.toNonIndexed(), ring.toNonIndexed()]);
+  const geo = new THREE.CylinderGeometry(0.45, 0.6, BEAM_HEIGHT, QUALITY.mobile ? 8 : 14, 1, true).translate(0, BEAM_HEIGHT / 2, 0);
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
   const pulse = sin(time.mul(1.6)).mul(0.5).add(0.5);
   const y = positionGeometry.y;
   mat.colorNode = color(0xffffff); // (times the instance's colour)
-  // the column fades with height and as the camera comes close (standing in it, it is barely there); the ring stays
+  // the column fades with height and as the camera comes close (standing in it, it is barely there)
   const near = smoothstep(6, 45, positionWorld.xz.sub(cameraPosition.xz).length());
-  mat.opacityNode = smoothstep(BEAM_HEIGHT, 0.5, y).mul(0.24).mul(pulse.mul(0.4).add(0.6)).mul(near.mul(0.85).add(0.15)).add(step(y, 0.4).mul(0.5));
+  mat.opacityNode = smoothstep(BEAM_HEIGHT, 0.5, y).mul(0.24).mul(pulse.mul(0.4).add(0.6)).mul(near.mul(0.85).add(0.15));
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.name = 'MissionPins';
   mesh.renderOrder = 978;
@@ -475,6 +474,25 @@ function createBeams(count) {
   const c = new THREE.Color();
   for (let i = 0; i < count; i++) mesh.setColorAt(i, c.set(0xffffff));
   return mesh;
+}
+
+// The start circles at the beams' feet: one mesh each (made when its pin first comes near), laid onto the ground
+// (drapeRing: a flat ring on a slope would cut into the hillside), in the pin's colour; one shared material
+let ringMaterial = null;
+function createStartRing(pin) {
+  ringMaterial ??= Object.assign(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexColors: true }), { opacity: 0.5 });
+  const geo = new THREE.RingGeometry(START_RADIUS - 0.6, START_RADIUS, QUALITY.mobile ? 32 : 56).rotateX(-Math.PI / 2);
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3));
+  const ring = new THREE.Mesh(geo, ringMaterial);
+  ring.name = `MissionStart ${pin.def.id}`;
+  ring.renderOrder = 978;
+  ring.frustumCulled = false;
+  return ring;
+}
+function paintStartRing(ring, hex) {
+  const c = new THREE.Color(hex), attr = ring.geometry.attributes.color;
+  for (let i = 0; i < attr.count; i++) attr.setXYZ(i, c.r, c.g, c.b);
+  attr.needsUpdate = true;
 }
 
 export function buildMissionWorld(scene, { manager, progress, mapSystem, controllerManager, fastForward = null }) {
@@ -526,6 +544,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
         pin.closed = closed;
         drawIcon(pin);
         beams.setColorAt(i, closed ? _c.set(0x4a4f57) : _c.set(pin.def.colour || '#3fd6ff'));
+        if (pin.ring) paintStartRing(pin.ring, closed ? 0x4a4f57 : pin.def.colour || '#3fd6ff');
         recoloured = true;
         pin.closedLabel = closed ? closedText(pin.def, total) : '';
       } else if (closed && day !== labelsDay) pin.closedLabel = closedText(pin.def, total);
@@ -693,6 +712,19 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
           pin.sprite.position.set(pin.x, pin.y + BEAM_HEIGHT * 0.45 + s * 0.5, pin.z);
         }
         beams.setMatrixAt(i, near ? _m.makeTranslation(pin.x, pin.y, pin.z) : hidden);
+        if (near && !pin.ring) {
+          pin.ring = createStartRing(pin);
+          paintStartRing(pin.ring, pin.closed ? 0x4a4f57 : pin.def.colour || '#3fd6ff');
+          group.add(pin.ring);
+        }
+        if (pin.ring) {
+          pin.ring.visible = near;
+          if (near && pin.ring.userData.y !== pin.y) {
+            pin.ring.position.set(pin.x, pin.y, pin.z);
+            drapeRing(pin.ring, pin.x, pin.y, pin.z, 1, 0.35);
+            pin.ring.userData.y = pin.y;
+          }
+        }
       });
       beams.instanceMatrix.needsUpdate = true;
       group.updateMatrixWorld(true); // (the scene's matrices are not updated automatically: js/main.js)

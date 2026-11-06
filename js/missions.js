@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { MISSIONS, getMission, SPITAL_PAD, LAUNCHER, formatTime, formatDistance, relativeBearing, bestTimeKey, readBestTimes, recordBestTime, simulateShot, inZone, scoreText } from './missions-data.js';
-import { createTargetMarker, createZoneRing, createAimMarker, createLauncher, createShell, createScriptedRega, createPoliceCar, PROP_BUILDERS, slopeQuaternion } from './missions-props.js';
+import { createTargetMarker, createZoneRing, drapeRing, createAimMarker, createLauncher, createShell, createScriptedRega, createPoliceCar, PROP_BUILDERS, slopeQuaternion } from './missions-props.js';
 import { ParticleBatch, MissionAudio } from './missions-fx.js';
 import { surfaceHeight, groundHeight, groundNormal } from './terrain.js';
 import { groomMap } from './groom-map.js';
@@ -916,11 +916,16 @@ class MissionRun {
     const y = surfaceHeight(target.x, target.z);
     this.marker.visible = true;
     this.marker.position.set(target.x, y, target.z);
+    // (the rings follow the ground: re-laid only when the target moves or changes size)
+    const at = `${target.x}|${target.z}|${target.r}|${y}`;
+    const relay = this._targetAt !== at;
+    this._targetAt = at;
+    if (relay) drapeRing(this.marker.userData.ring, target.x, y, target.z);
     this.marker.userData.colour.value.set(target.style === 'hazard' ? 0xffc21a : target.style === 'pad' ? 0xffffff : 0x3fd6ff);
     for (const [style, ring] of Object.entries(this.rings)) {
       const on = !!target.r && (target.style || 'plain') === style;
       ring.visible = on;
-      if (on) { ring.position.set(target.x, y + 0.2, target.z); ring.scale.set(target.r, 1, target.r); }
+      if (on) { ring.position.set(target.x, y, target.z); ring.scale.set(target.r, 1, target.r); if (relay || ring.userData.at !== at) { drapeRing(ring, target.x, y, target.z, target.r, 0.2); ring.userData.at = at; } }
     }
     const d = Math.hypot(target.x - ctx.x, target.z - ctx.z);
     const rel = relativeBearing(ctx.x, ctx.z, ctx.heading, target.x, target.z);

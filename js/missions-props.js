@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { atan, color, float, fract, mix, positionGeometry, sin, smoothstep, step, time, uniform, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { surfaceHeight } from './terrain.js';
 import {
   BODY_SPECS, buildCarGeometry, createLoftedCarMaterial, buildLightbarGeometry, createLightbarMaterial, buildSteerableWheelGeo,
   buildHelicopterBodyGeometry, buildHelicopterMainRotorGeometry, buildHelicopterTailRotorGeometry, createLoftedHelicopterMaterial, H145
@@ -37,26 +38,47 @@ const capsule = (r, len, hex) => painted(new THREE.CapsuleGeometry(r, len, 3, 8)
 const box = (w, h, d, hex) => painted(new THREE.BoxGeometry(w, h, d), hex);
 const place = (g, x, y, z, rx = 0, ry = 0, rz = 0) => { g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); g.translate(x, y, z); return g; };
 
-// --- The target marker: a pulsing column of light with a ring at its foot (additive, one mesh) ----------------------
+// --- Rings laid onto the ground --------------------------------------------------------------------------------------
+// A flat ring on a slope cuts into the hillside on one side and hangs in the air on the other. drapeRing() sets every
+// vertex of a ring mesh (flat geometry about its origin, scaled in x/z only) onto the ground under it, `lift` above it,
+// in the mesh's own frame (`y`: the height of its origin; a parent's offset is not taken into account).
+export function drapeRing(mesh, x, y, z, scale = 1, lift = 0.25) {
+  const pos = mesh.geometry.attributes.position;
+  const base = (mesh.geometry.userData.flat ??= Float32Array.from(pos.array));
+  for (let i = 0; i < pos.count; i++) {
+    const bx = base[i * 3], bz = base[i * 3 + 2];
+    pos.array[i * 3 + 1] = base[i * 3 + 1] + surfaceHeight(x + bx * scale, z + bz * scale, y) - y + lift;
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeBoundingSphere();
+}
+
+// --- The target marker: a pulsing column of light with a ring at its foot (additive; the ring a child laid onto the
+// ground by placeTarget, js/missions.js: drapeRing(marker.userData.ring, …)) ---------------------------------------
 export function createTargetMarker() {
   const col = uniform(new THREE.Color(0x3fd6ff));
-  const column = new THREE.CylinderGeometry(2.2, 2.6, 36, 24, 1, true).translate(0, 18, 0);
-  const ring = new THREE.RingGeometry(2.4, 3.6, 40).rotateX(-Math.PI / 2).translate(0, 0.25, 0);
-  const geo = mergeGeometries([column.toNonIndexed(), ring.toNonIndexed()]);
-  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  const geo = new THREE.CylinderGeometry(2.2, 2.6, 36, 24, 1, true).translate(0, 18, 0);
+  const material = () => new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  const mat = material();
   const pulse = sin(time.mul(2.4)).mul(0.5).add(0.5);
-  const y = positionGeometry.y;
-  // the column fades with height and breathes; the ring (y ~ 0.25) stays strong
-  const columnA = smoothstep(36, 2, y).mul(0.3).mul(pulse.mul(0.6).add(0.5));
-  const ringA = step(y, 0.3).mul(0.55).mul(pulse.mul(0.4).add(0.6));
+  // the column fades with height and breathes; the ring stays strong
   mat.colorNode = col;
-  mat.opacityNode = columnA.add(ringA);
+  mat.opacityNode = smoothstep(36, 2, positionGeometry.y).mul(0.3).mul(pulse.mul(0.6).add(0.5));
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'MissionTarget';
   mesh.renderOrder = 980;
   mesh.frustumCulled = false;
   mesh.visible = false;
+  const ringMat = material();
+  ringMat.colorNode = col;
+  ringMat.opacityNode = pulse.mul(0.4).add(0.6).mul(0.55);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(2.4, 3.6, 40).rotateX(-Math.PI / 2), ringMat);
+  ring.name = 'MissionTarget ring';
+  ring.renderOrder = 980;
+  ring.frustumCulled = false;
+  mesh.add(ring);
   mesh.userData.colour = col;
+  mesh.userData.ring = ring;
   return mesh;
 }
 
