@@ -58,6 +58,7 @@ import { presetMinute, createSample, sampleDay, wearHoursAt } from './day-cycle.
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
 import { buildGta, isClassicMode, hasGtaState } from './gta.js';
+import { createPlayStats, travelKind } from './play-stats.js';
 import { GTA_START } from './vehicle-depots.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
@@ -1055,6 +1056,15 @@ async function initApp() {
   // until the first frame is on screen
   if (loadingStatus) {
     loadingStatus.textContent = 'Bringing Davos to life…';
+  // The play time and the ways of travel (js/play-stats.js), counted from the first frame shown
+  const playStats = createPlayStats();
+  const travelNow = () => travelKind({
+    mode: controllerManager.activeMode,
+    passenger: !!controllerManager.rhbPassenger,
+    body: gta?.takeover?.body,
+    mission: missions.run?.def,
+    rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null
+  });
   }
 
   // 6b. Shader pre-compilation behind the loading screen. compileAsync() builds the node graphs in slices and has the GPU
@@ -1229,6 +1239,7 @@ async function initApp() {
       cameraSystem.currentPos,
       controllerManager.getActiveEntity(),
       controllerManager.activeMode,
+    if (warmedUp) playStats.tick(realDt, travelNow(), controllerManager.getActiveEntity().position);
       cameraSystem.camera
     );
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);

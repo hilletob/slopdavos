@@ -1,3 +1,4 @@
+import { STATS_KEY } from './play-stats.js';
 // js/account-merge.js
 // What a cloud save is and how two of them become one. No DOM and no network (tests/account-merge.test.mjs).
 // - The missions' progress and best times only ever get better, so they merge entry by entry: it does not matter in which
@@ -147,7 +148,7 @@ export function ownedByOther(storage, userId) {
 
 /** Forgets the save on this device (it stays in its own account's cloud save) */
 export function clearLocalSave(storage) {
-  for (const key of [PROGRESS_KEY, BEST_KEY, WORLD_AT_KEY, ...Object.values(WORLD_KEYS)]) {
+  for (const key of [PROGRESS_KEY, BEST_KEY, WORLD_AT_KEY, STATS_KEY, ...Object.values(WORLD_KEYS)]) {
     try { storage.removeItem(key); } catch { /* */ }
   }
 }

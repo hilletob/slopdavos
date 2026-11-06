@@ -125,6 +125,16 @@ const pairs = [
   ['Pedestrian', 'Fussgänger'], ['Cargo bike', 'Lastenrad'], ['Snow groomer', 'Pistenfahrzeug'],
   ['Previous camera', 'Vorherige Kamera'], ['Next camera', 'Nächste Kamera'],
   ['Next camera [V]', 'Nächste Kamera [V]'], ['All cameras [V cycles]', 'Alle Kameras [V wechselt]'],
+  // the player's statistics (js/play-stats.js, js/play-stats-ui.js)
+  ['Your statistics', 'Deine Statistik'], ['Statistics', 'Statistik'], ['How you play', 'Wie du spielst'], ['Play time', 'Spielzeit'],
+  ['Sessions', 'Sitzungen'], ['Devices', 'Geräte'], ['How you get about', 'Wie du unterwegs bist'], ['Nothing yet: get going.', 'Noch nichts: los gehts.'],
+  ['All your devices together. Only time with you at the game counts.', 'Alle deine Geräte zusammen. Es zählt nur die Zeit, in der du wirklich spielst.'],
+  ['This device only. Sign in to keep it with your account. Only time with you at the game counts.', 'Nur dieses Gerät. Melde dich an, damit sie mit deinem Konto mitkommt. Es zählt nur die Zeit, in der du wirklich spielst.'],
+  ['Car', 'Auto'], ['Bike', 'Velo'], ['Helicopter', 'Helikopter'], ['Snowcat', 'Pistenfahrzeug'], ['Train, driving', 'Zug, als Lokführer'],
+  ['Train, riding along', 'Zug, als Passagier'], ['Skis', 'Ski'], ['Cross-country skis', 'Langlaufski'], ['Sledge', 'Schlitten'],
+  ['Summer toboggan', 'Sommerrodelbahn'], ['Skates', 'Schlittschuhe'], ['Snowshoes', 'Schneeschuhe'], ['Water slide', 'Wasserrutsche'],
+  ['Rope park', 'Seilpark'], ['Crane', 'Kran'], ['Snow blower', 'Schneefräse'], ['Ride-on mower', 'Aufsitzmäher'], ['Garbage truck', 'Kehrichtwagen'],
+  ['Truck', 'Lastwagen'],
   ['Multiple Camera Angles', 'Kameraperspektiven'], ['Follow', 'Folgen'], ['Scenic', 'Aussicht'],
   ['3rd-Person Chase', 'Verfolgerkamera'], ['Low-Angle Action', 'Tiefe Actionkamera'],
   ['First-Person / Cockpit', 'Ich-Perspektive / Cockpit'], ['Schatzalp over the valley', 'Schatzalp über dem Tal'],
@@ -1093,6 +1103,7 @@ function translate(value) {
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
+  dynamic = dynamic.replace(/^(\d+)\.(\d) km$/, '$1,$2 km'); // (a distance alone: js/play-stats-ui.js)
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');

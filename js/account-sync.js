@@ -1,5 +1,6 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './account-config.js';
 import { getClient, SESSION_KEY } from './account.js';
+import { readStats, writeStats, mergeDevices } from './play-stats.js';
 import { readLocalSave, readWorld, mergeSaves, mergeProgress, mergeBestTimes, applySave, canonical, fromRow, ownedByOther, OWNER_KEY, WORLD_AT_KEY } from './account-merge.js';
 
 // js/account-sync.js
@@ -85,6 +86,31 @@ function pushWorld(userId) {
   }).then((response) => response.ok, () => false);
 }
 
+/** This device's play statistics (js/play-stats.js) into the cloud save, and the other devices' back: merge_stats merges
+ *  per device. A plain request, like pushWorld (the page may be on its way out) */
+async function pushStats() {
+  const stats = readStats(localStorage);
+  let token = null;
+  try { token = JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token; } catch { /* */ }
+  if (!stats || !token) return false;
+  const body = JSON.stringify({ devices: stats.devices });
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/merge_stats`, {
+      method: 'POST',
+      keepalive: body.length < KEEPALIVE_LIMIT,
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body
+    });
+    if (!response.ok) return false;
+    const devices = await response.json();
+    const now = readStats(localStorage);
+    if (now?.device === stats.device) writeStats({ ...now, devices: mergeDevices(now.devices, devices) }, localStorage);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The sync while playing.
  * @param {object} o
@@ -109,6 +135,7 @@ export async function startSync({ save, missionActive, progress, onStatus }) {
   }, () => onStatus('failed'));
 
   const syncWorld = async () => {
+    pushStats(); // (the statistics also during a mission: they hold no clock)
     if (worldHeld || missionActive() || DEBUG_SWITCHES.test(location.search)) return;
     try { save(); } catch { /* (the last saved state goes then) */ }
     onStatus(await pushWorld(userId) ? 'saved' : 'failed');
@@ -116,6 +143,7 @@ export async function startSync({ save, missionActive, progress, onStatus }) {
 
   await syncSave();
   localStorage.setItem(OWNER_KEY, userId);
+  pushStats();
 
   const unsubscribe = progress?.subscribe?.(() => {
     clearTimeout(timer);

@@ -22,6 +22,14 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
   let loadName = null;
   const say = (text) => { status.textContent = text; status.hidden = !text; };
   const SYNC_TEXT = { saved: 'Saved to your account.', failed: 'Not saved online right now. Your game stays on this device.' };
+  /** The player's statistics (js/play-stats-ui.js), for a guest too */
+  const statsItem = (signedIn) => item('Your statistics', async () => {
+    popover.hidePopover?.();
+    try {
+      const { openPlayStats } = await import('./play-stats-ui.js');
+      openPlayStats({ signedIn });
+    } catch { /* (the module could not be loaded: nothing to show) */ }
+  });
   const item = (label, onClick) => {
     const b = document.createElement('button');
     b.className = 'pop-item';
@@ -70,7 +78,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
       } catch {
         say('The sign-in is not reachable right now. You can keep playing.');
       }
-    })), email);
+    })), email, statsItem(false));
   };
 
   const leave = () => { sync?.stop(); sync = null; syncState = ''; loadName = null; renderGuest(); };
@@ -139,7 +147,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
       } catch {
         say('Deleting failed. Please try again.');
       }
-    }));
+    }), statsItem(true));
   };
 
   say('');

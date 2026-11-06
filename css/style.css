@@ -2322,6 +2322,18 @@ body.gta-mode #mode-switch { display: none; }
 .gta-prompt kbd { color: var(--taxi-ink); background: var(--taxi); }
 .gta-prompt-body { display: flex; flex-direction: column; min-width: 0; margin-left: 4px; text-align: left; }
 .gta-prompt-text { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The player's statistics (js/play-stats-ui.js) */
+.play-stats-overlay { z-index: 45; }
+.play-stats-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.play-stats-facts dt { color: var(--text-3); }
+.play-stats-facts dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.play-stats-travel { margin: 0; padding: 0; list-style: none; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.play-stats-travel li { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 12px; align-items: baseline; }
+.play-stats-kind { min-width: 0; overflow-wrap: anywhere; }
+.play-stats-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.play-stats-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--hover); position: relative; overflow: hidden; }
+.play-stats-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--share); background: var(--taxi); border-radius: 2px; }
 .gta-prompt-sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
 .touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
