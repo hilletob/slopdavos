@@ -386,6 +386,16 @@ function collisionBody(mode, radius, heading, margin = 0, dims = null) {
   };
 }
 
+// Is (x, z) within the ring [{ x, z }] (even-odd rule)
+function pointInRing(ring, x, z) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
 // Shared by movement and teleport clearance. World bounds reject distant boxes cheaply; the narrow phase
 // uses a circle for walking/cycling/flying and all four separating axes for an oriented car rectangle.
 function buildingContact(c, x, y, z, body, contact) {
@@ -443,6 +453,8 @@ class ThirdPersonControllerManager {
     this.scene = scene;
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
+    this.buildingInteriors = []; // the buildings' floor plans (setBuildingInteriors)
+    this._interiorCells = null; // built on first use, see insideBuilding()
     this.highBeam = false; // L: high beam / searchlight of the driven vehicle
     this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter' | 'snowcat' | 'rhb'
     this.railway = null; // js/rhb.js, for the rhb mode (setRailway)
@@ -677,6 +689,7 @@ class ThirdPersonControllerManager {
   isSpotClear(mode, x, z, heading = 0) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
     if (mode !== 'helicopter' && this.isUnbridgedWater(x, z)) return false;
+    if (mode !== 'helicopter' && this.insideBuilding(x, z, this.getGroundHeight(x, z, mode))) return false;
     const radius = mode === 'person' ? 0.48 : 0.65;
     const body = collisionBody(mode, radius, heading, 0.15, this.entities[mode]?.dims);
     const y = this.getGroundHeight(x, z, mode);
@@ -688,6 +701,78 @@ class ThirdPersonControllerManager {
 
   getActiveEntity() {
     return this.entities[this.activeMode];
+  }
+
+  // The buildings' floor plans (js/buildings.js interiors, lifted onto the terrain: { minX, maxX, minZ, maxZ, minY, maxY,
+  // ring: [{ x, z }], holes: [ring] }). The wall colliders stop the player at the walls but say nothing about the
+  // inside: an arrival inside one (the first start, a teleport, stepping out of a vehicle) would be walled in. So the
+  // clearance checks refuse the inside of a building, and the movement puts anyone who ends up inside (a gap between
+  // the walls, a save from before the building stood) back outside (keepOutOfBuildings)
+  setBuildingInteriors(list) {
+    this.buildingInteriors = list || [];
+    this._interiorCells = null;
+  }
+
+  // The building whose floor plan (x, z) lies in, at height y (null: any height), or null
+  insideBuilding(x, z, y = null) {
+    if (!this.buildingInteriors?.length) return null;
+    const cell = 100;
+    if (!this._interiorCells) {
+      this._interiorCells = new Map();
+      for (const b of this.buildingInteriors) {
+        for (let ix = Math.floor(b.minX / cell); ix <= Math.floor(b.maxX / cell); ix++) {
+          for (let iz = Math.floor(b.minZ / cell); iz <= Math.floor(b.maxZ / cell); iz++) {
+            const key = ix * 100003 + iz;
+            let list = this._interiorCells.get(key);
+            if (!list) this._interiorCells.set(key, (list = []));
+            list.push(b);
+          }
+        }
+      }
+    }
+    const list = this._interiorCells.get(Math.floor(x / cell) * 100003 + Math.floor(z / cell));
+    if (!list) return null;
+    for (const b of list) {
+      if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
+      if (y !== null && (y + 1.9 <= (b.minY ?? -Infinity) || y >= b.maxY)) continue;
+      if (!pointInRing(b.ring, x, z)) continue;
+      if (b.holes && b.holes.some((h) => pointInRing(h, x, z))) continue;
+      return b;
+    }
+    return null;
+  }
+
+  // A player of `radius` who is inside a building is set outside it: across the nearest stretch of its outline (the
+  // walls are 0.44 m thick), clear of any neighbour sharing that wall. True when it moved
+  keepOutOfBuildings(pos, radius) {
+    const b = this.insideBuilding(pos.x, pos.z, pos.y);
+    if (!b) return false;
+    const clearance = radius + 0.6;
+    const exits = [];
+    for (const ring of [b.ring, ...(b.holes || [])]) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[j], c = ring[i];
+        const dx = c.x - a.x, dz = c.z - a.z, L2 = dx * dx + dz * dz;
+        if (L2 < 1e-6) continue;
+        const t = Math.max(0, Math.min(1, ((pos.x - a.x) * dx + (pos.z - a.z) * dz) / L2));
+        const qx = a.x + t * dx, qz = a.z + t * dz;
+        // Away from the inside: along the line from the player to the outline, or the edge's normal from on the line
+        let ox = qx - pos.x, oz = qz - pos.z, d = Math.hypot(ox, oz);
+        if (d < 1e-3) {
+          const L = Math.sqrt(L2);
+          ox = dz / L; oz = -dx / L; d = 0;
+          const inward = pointInRing(b.ring, qx + ox * 0.3, qz + oz * 0.3) && !(b.holes || []).some((h) => pointInRing(h, qx + ox * 0.3, qz + oz * 0.3));
+          if (inward) { ox = -ox; oz = -oz; }
+        } else { ox /= d; oz /= d; }
+        exits.push({ d, x: qx + ox * clearance, z: qz + oz * clearance });
+      }
+    }
+    if (!exits.length) return false;
+    exits.sort((p, q) => p.d - q.d);
+    const exit = exits.find((e) => !this.insideBuilding(e.x, e.z, pos.y)) || exits[0];
+    pos.x = exit.x;
+    pos.z = exit.z;
+    return true;
   }
 
   teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null) {
@@ -793,6 +878,7 @@ class ThirdPersonControllerManager {
       if (!p) return false;
       if (!heli && this.isUnbridgedWater(p.x, p.z)) return false;
       const baseY = heli ? altitude : this.getGroundHeight(p.x, p.z, this.activeMode);
+      if (!heli && this.insideBuilding(p.x, p.z, baseY)) return false;
       // Keep other player models out of both the arrival and its default chase view. A corridor also prevents a
       // parked car between camera and character from hiding the character even when the camera itself is outside it.
       const viewTop = baseY + Math.max(body[entity.type][1], cameraUp);
@@ -2461,6 +2547,7 @@ class ThirdPersonControllerManager {
     p.position.x += Math.sin(p.heading) * p.speed * dt;
     p.position.z += Math.cos(p.heading) * p.speed * dt;
     this.resolveHorizontalCollision(p.position, 0.48, null, p);
+    this.keepOutOfBuildings(p.position, 0.48);
 
     const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person', p.position.y);
     if (this.keys.up && p.position.y <= groundY + 0.02) {
@@ -2534,6 +2621,7 @@ class ThirdPersonControllerManager {
       c.position.x += (nextSin * c.speed + c.vx) * step;
       c.position.z += (nextCos * c.speed + c.vz) * step;
       this.resolveHorizontalCollision(c.position, 1.35, c);
+      this.keepOutOfBuildings(c.position, 1.35);
 
       const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR.acceleration)) * 0.026;
       const targetRoll = Math.max(-0.09, Math.min(0.09, correction / step * 0.012));
@@ -2605,6 +2693,7 @@ class ThirdPersonControllerManager {
     s.position.z += Math.cos(s.heading) * s.speed * dt;
     const wantX = s.position.x, wantZ = s.position.z;
     this.resolveHorizontalCollision(s.position, 2.0, null, s);
+    this.keepOutOfBuildings(s.position, 2.0);
     // Pushed back by a wall (or the shore): the push eats the speed into it
     const pushed = Math.hypot(s.position.x - wantX, s.position.z - wantZ);
     if (pushed > 0.01) {
@@ -2693,6 +2782,7 @@ class ThirdPersonControllerManager {
     b.position.x += Math.sin(b.heading) * b.speed * dt;
     b.position.z += Math.cos(b.heading) * b.speed * dt;
     this.resolveHorizontalCollision(b.position, 0.65, null, b);
+    this.keepOutOfBuildings(b.position, 0.65);
     b.position.y = this.getGroundHeight(b.position.x, b.position.z, mode, b.position.y);
 
     const targetLean = -turnInput * Math.min(1.0, Math.abs(b.speed) / 9.0) * 0.34;

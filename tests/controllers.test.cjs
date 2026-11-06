@@ -950,3 +950,50 @@ test('player clearance respects altitude and permits a ground arrival under an a
   helicopter.position.y = 1;
   assert.notDeepEqual({ ...controller.teleportActiveTo(0, 0) }, { x: 0, z: 0 }, 'a helicopter parked at street level must be avoided');
 });
+
+// The buildings' floor plans (js/buildings.js interiors): the walls are colliders, the inside is not, so the clearance
+// checks must know the plans themselves, and the movement must put a player who is inside back out
+function squarePlan(x0, z0, x1, z1, holes = []) {
+  return { minX: x0, maxX: x1, minZ: z0, maxZ: z1, minY: 0, maxY: 200, ring: [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }], holes };
+}
+
+test('a teleport refuses the inside of a building and arrives outside it', () => {
+  for (const mode of ['person', 'car', 'cyclist', 'cargobike']) {
+    const { controller, ent } = teleportHarness(mode);
+    controller.setBuildingInteriors([squarePlan(0, 0, 10, 10)]);
+    assert.equal(controller.isSpotClear(mode, 5, 5), false, `${mode}: the inside is not a clear spot`);
+    assert.equal(controller.isSpotClear(mode, 12, 5), true, `${mode}: beside it is`);
+    const result = controller.teleportActiveTo(5, 5, 0);
+    assert.equal(controller.insideBuilding(result.x, result.z), null, `${mode} arrives outside`);
+    assert.ok(Math.hypot(result.x - 5, result.z - 5) < 12, `${mode} arrives close by`);
+    assert.deepEqual([ent.position.x, ent.position.z], [result.x, result.z]);
+  }
+  // The helicopter flies over it
+  const { controller } = teleportHarness('helicopter');
+  controller.setBuildingInteriors([squarePlan(0, 0, 10, 10)]);
+  assert.deepEqual({ ...controller.teleportActiveTo(5, 5, 0) }, { x: 5, z: 5 });
+});
+
+test('a player inside a building is set outside across the nearest wall, never into the neighbour', () => {
+  const { controller, ent } = teleportHarness('person');
+  controller.setBuildingInteriors([squarePlan(0, 0, 10, 10), squarePlan(10, 0, 20, 10)]);
+  // Nearest to the shared wall at x = 10: across it is the neighbour, so out through z = 0 instead
+  Object.assign(ent.position, { x: 9.5, y: 0, z: 1.2 });
+  assert.equal(controller.keepOutOfBuildings(ent.position, 0.48), true);
+  assert.equal(controller.insideBuilding(ent.position.x, ent.position.z), null);
+  assert.ok(Math.abs(ent.position.x - 9.5) < 1e-9 && Math.abs(ent.position.z - -1.08) < 1e-9, `out through the near wall: ${ent.position.x}, ${ent.position.z}`);
+  // Outside already: nothing moves
+  assert.equal(controller.keepOutOfBuildings(ent.position, 0.48), false);
+  // A courtyard is outside the building
+  controller.setBuildingInteriors([squarePlan(0, 0, 30, 30, [[{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }]])]);
+  Object.assign(ent.position, { x: 15, y: 0, z: 15 });
+  assert.equal(controller.keepOutOfBuildings(ent.position, 0.48), false);
+  // ... and from the building's inside the courtyard is a way out too
+  Object.assign(ent.position, { x: 15, y: 0, z: 9.5 });
+  assert.equal(controller.keepOutOfBuildings(ent.position, 0.48), true);
+  assert.ok(Math.abs(ent.position.z - 11.08) < 1e-9, `into the courtyard: ${ent.position.z}`);
+  // Over the roof (a bridge): not inside
+  controller.setBuildingInteriors([{ ...squarePlan(0, 0, 10, 10), maxY: 12 }]);
+  assert.equal(controller.insideBuilding(5, 5, 14), null);
+  assert.ok(controller.insideBuilding(5, 5, 3));
+});

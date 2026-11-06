@@ -264,6 +264,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   const group = new THREE.Group();
   group.name = BERLIN_DATA ? 'BerlinMitteCityBlocks' : 'ManhattanCityBlocks';
   const colliders = [];
+  // The floor plans of the buildings with walls at the ground (for js/controllers.js: the wall colliders say nothing
+  // about the inside, so a teleport into a building would be walled in): { bounds, maxY, ring, holes }
+  const interiors = [];
 
   // Frame of the lots being populated. Irregular blocks come with frontage frames (city-config.js BLOCKS: lots laid
   // out along the streets they front, in a frame turned by θ about p); the generator works in the frame as on a grid
@@ -2036,6 +2039,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         cornices: [], waterTowers: [], hvacUnits: [], fireEscapes: [], awnings: [], scaffoldSheds: [], yards: [],
         footprints: [{ x0: bounds.minX, x1: bounds.maxX, z0: bounds.minZ, z1: bounds.maxZ, h: height, tone, pts: poly, holes }],
         sourceHeight: source.h, sourceHeightKind: source.heightSource };
+      if (base < 1) interiors.push({ minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minZ, maxZ: bounds.maxZ, maxY: height, ring: poly, holes, id: source.id });
       for (const [ringIndex, ring] of [poly, ...holes].entries()) {
         const direction = Math.sign(signedArea(ring)) || 1;
         for (let i = 0; i < ring.length; i++) {
@@ -2739,6 +2743,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   return {
     group,
     colliders,
+    interiors,
     quadtree,
     allBlocks,
     update,

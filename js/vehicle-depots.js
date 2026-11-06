@@ -38,8 +38,10 @@ export const EXIT_MAX_AGL = 0.5;
 /** A train is boarded from within this distance of a car's side (m), while it stands at a platform */
 export const BOARD_RADIUS = 6;
 
-/** Where the game begins on a first visit: on foot by the Bahnhof Davos Platz, the bike stand and a T3 in sight */
-export const GTA_START = { x: -638, z: 462, heading: -2.46 };
+/** Where the game begins on a first visit: on foot on the pavement of the Talstrasse in front of the Bahnhof Davos
+ * Platz, the T3 in its bay ahead and the bike stand to the right (outside the station's floor plan: OSM w712452961 has
+ * the new station, which the 2014 swissBUILDINGS3D capture lacks, so its walls stood unseen round the old start) */
+export const GTA_START = { x: -648, z: 459, heading: -2.7 };
 
 export const DEPOTS = [
   // --- Snow groomers (winter) ----------------------------------------------------------------------------------------

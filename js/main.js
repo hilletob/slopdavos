@@ -434,6 +434,7 @@ async function initApp() {
 
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Helicopter, Snowcat, RhB) & Multi-Camera System
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
+  controllerManager.setBuildingInteriors(liftColliders(cityBlocks.interiors || [])); // (nobody arrives inside a building)
   worldHooks.controllers = controllerManager; // (the cells built from now on hand their colliders over directly)
   if (!skipped('rhb')) controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
   trafficBodies.push(controllerManager.snowcatTrafficBody); // the parked snow groomer is solid for the traffic
