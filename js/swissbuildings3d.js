@@ -342,6 +342,16 @@ export function bakeTile(gltf, tile, stats) {
     const c = roof ? roofColor(seed, normalsY[i] < 0.97) : f ? measuredColor(f) : facadeColor(seed, kinds[b] || '');
     colors[i * 4] = c.r * 255; colors[i * 4 + 1] = c.g * 255; colors[i * 4 + 2] = c.b * 255; colors[i * 4 + 3] = roof ? 255 : 0;
   }
+  // The roofs of the buildings whose patch of orthophoto shows ground (data/roofs/index.json `ground`, tools/roof-ground.py:
+  // newer than the photo, or missed by it) keep the roof colour: drapeRoofs and setRoofAtlasUV leave them out. Not a
+  // roof within 2.5 m of the ground (an underground garage under its lawn: the photo is right there).
+  let groundRoofs = null;
+  if (tile.ground?.length) {
+    const flagged = new Set(tile.ground), rise = new Map(), list = [];
+    for (let i = 0; i < total; i++) if (flagged.has(batchOf[i]) && !(rise.get(batchOf[i]) >= above[i])) rise.set(batchOf[i], above[i]);
+    for (let i = 0; i < total; i++) if (normalsY[i] > 0.35 && rise.get(batchOf[i]) > 2.5) list.push(i);
+    if (list.length) groundRoofs = Uint32Array.from(list);
+  }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4, true));
@@ -351,6 +361,7 @@ export function bakeTile(gltf, tile, stats) {
   geometry.computeBoundingSphere();
   geometry.computeBoundingBox();
   geometry.userData = { buildings: maxY.size, calibration: dy, minY };
+  if (groundRoofs) geometry.userData.groundRoofs = groundRoofs;
   return geometry;
 }
 
@@ -374,13 +385,24 @@ export function bakeTile(gltf, tile, stats) {
 // Both images are the drawn mesh's own (userData.orthoMap, userData.roofPages, read per object): one material serves
 // every tile with the same number of atlas pages (sharedMaterial). A material per image or tile built its large node
 // graph once each, ~1 MB of JavaScript apiece, ~250 materials over the city.
-const PLACEHOLDER = (() => {
+// Each texture node starts out on its own grey stand-in (the shader is built with it), filtered as the images are:
+// three.js builds the shader from the texture a node holds at that moment. With one shared stand-in, the nodes merged
+// into one binding (TextureNode.getUniformHash: the texture's uuid), so the orthophoto and the atlas pages were one
+// sampler, set per object by whichever read came last. And the old stand-in's nearest filter made the shader fetch
+// texels (textureLoad) instead of sampling, at the size of the first node's image (WGSLNodeBuilder caches
+// textureDimensions per texture, i.e. per stand-in): the crop was read at the orthophoto's size, clamped to its edge —
+// lawns, a stretched corner of the atlas or its grey background on the roofs — and unfiltered.
+function placeholder() {
   const t = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1);
   t.colorSpace = THREE.SRGBColorSpace; // (the shader's colour decoding follows the texture it was built with)
+  t.magFilter = t.minFilter = THREE.LinearFilter;
   t.needsUpdate = true;
   return t;
-})();
-const objectTexture = (read, uvNode) => texture(PLACEHOLDER, uvNode).onObjectUpdate(({ object }) => read(object.userData) || PLACEHOLDER);
+}
+const objectTexture = (read, uvNode) => {
+  const stand = placeholder();
+  return texture(stand, uvNode).onObjectUpdate(({ object }) => read(object.userData) || stand);
+};
 const sharedMaterials = new Map();
 function sharedMaterial(roof, pages = 0) {
   const key = `${roof ? 1 : 0}/${pages}`;
@@ -468,7 +490,9 @@ function createMaterial(roofMap = false, sharp = 0) {
   const row = course.div(0.32);
   const joint = smoothstep(0.82, 0.98, fract(row)).max(smoothstep(0.9, 0.99, fract(across.div(0.42).add(row.floor().mul(0.5)))).mul(0.6));
   const gravel = mx_noise_float(positionWorld.xz.mul(7)).mul(0.5).add(0.5);
-  let roofBase = roofMap ? objectTexture((u) => u.orthoMap, uv()).rgb : vertexColor().rgb.mul(grain);
+  // (roofMap: uv.x < 0 marks a roof the orthophoto shows as ground, drapeRoofs: the roof colour instead)
+  let roofBase = vertexColor().rgb.mul(grain);
+  if (roofMap) roofBase = mix(objectTexture((u) => u.orthoMap, uv()).rgb, roofBase, step(uv().x, -0.5));
   let photo = float(0); // how much of the roof shows the sharp crop (it carries its own tiles and gravel)
   if (sharp) {
     const at = attribute('aRoof', 'vec3');
@@ -556,9 +580,10 @@ function windowLights({ r, kind, along, above, bayW, storeyH, u, v, n, glassMask
 // per page, data/roofs/index.json): the atlas uv (the image's top row is the rect's north edge) and the page + 1
 function setRoofAtlasUV(geometry, pages) {
   const pos = geometry.attributes.position, col = geometry.attributes.color, out = new Float32Array(pos.count * 3);
+  const ground = new Set(geometry.userData.groundRoofs || []); // (roofs the photo shows as ground: none)
   let hits = 0;
   for (let i = 0; i < pos.count; i++) {
-    if (col.getW(i) < 0.5) continue; // facades
+    if (col.getW(i) < 0.5 || ground.has(i)) continue; // facades
     const x = pos.getX(i), z = pos.getZ(i);
     for (let p = 0; p < pages.length && p < MAX_PAGES; p++) {
       const { w, h, rects } = pages[p];
@@ -623,6 +648,8 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
       // (a tile reaching beyond its chunk's image keeps the roof colours, until its sharp roof atlas comes in)
       if (!tile || !orthophotoCovers(tile, box)) { mesh.userData.baseMaterial = material; return false; }
       setOrthophotoUV(mesh.geometry, tile);
+      const uvs = mesh.geometry.attributes.uv; // (the roofs the photo shows as ground: the roof colour, createMaterial)
+      for (const i of mesh.geometry.userData.groundRoofs || []) uvs.setXY(i, -1, -1);
       if (!roofImages.has(tile.f)) roofImages.set(tile.f, orthophotoTexture(tile));
       roofImages.get(tile.f).then((map) => {
         const m = sharedMaterial(true);
@@ -636,6 +663,10 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
     const hiresRoofs = QUALITY.hires ? await getJson(HIRES_ROOFS_URL) : null;
     const roofIndex = !QUALITY.sharpRoofs ? null : hiresRoofs || await getJson(ROOFS_URL);
     roofBaseUrl = hiresRoofs ? HIRES_ROOFS_URL : ROOFS_URL;
+    // The buildings the orthophoto shows as ground (per tile, by batch index: the same for either resolution), from the
+    // light index (the high-resolution one may predate it)
+    const groundIndex = !QUALITY.roofOrthophotos && !QUALITY.sharpRoofs ? null
+      : roofIndex && !hiresRoofs ? roofIndex : await getJson(ROOFS_URL);
     if (hiresRoofs) console.info(`[roofs] high-resolution roof crops (${hiresRoofs.res} m)`);
     let draped = 0;
     const base = new URL(index.base, INDEX_URL);
@@ -678,7 +709,7 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
         try {
           const tile = parseB3dm(await fetchBuffer(new URL(t.u, base)));
           const gltf = await loaderFor().parseAsync(tile.glb, '');
-          const geometry = bakeTile(gltf, { ...tile, seed: t.seed }, stats);
+          const geometry = bakeTile(gltf, { ...tile, seed: t.seed, ground: groundIndex?.ground?.[t.u] }, stats);
           if (geometry && cellSize) {
             const cell = cells.get(cellOf(t));
             cell.geometries.push(geometry);
