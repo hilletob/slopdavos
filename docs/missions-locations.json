@@ -3139,6 +3139,39 @@
    "unsicherheit": "niedrig",
    "unsicherheitNotiz": "Lage/Anordnung aus dem Orthofoto (±0.5 m). Im Bild sind 9 rote Bahnen klar erkennbar (nicht 12); die Hindernistypen der einzelnen Bahnen sind geschätzt (Eternit-Typen). Der OSM-Punkt liegt ~25 m östlich (Rezeption).",
    "nr": 65
+  },
+  {
+   "id": "paraglider-rinerhorn",
+   "status": "neu",
+   "name": "Gleitschirmflug vom Rinerhorn",
+   "kurz": "Vom Startplatz am Rinerhorn (~2520 m) mit Anlauf starten, in der Thermik kreisen, so lange und so weit wie möglich fliegen und auf dem Landeplatz in Glaris landen. Punkte: Flugzeit + Distanz vom Start + Landebonus.",
+   "saison": "sommer",
+   "fahrzeug": "Gleitschirm (zu Fuss gestartet)",
+   "anreise": "Start direkt am Startplatz unter dem Rinerhorn-Gipfel (Rinerhornbahn bis Jatzmeder)",
+   "ort": {
+    "name": "Startplatz Rinerhorn, Westflanke",
+    "x": -820,
+    "z": 6780,
+    "lv95": {
+     "E": 2781680,
+     "N": 1178720
+    }
+   },
+   "punkte": [
+    {
+     "name": "Landeplatz Glaris (bei der Talstation Rinerhornbahn)",
+     "x": -3710,
+     "z": 5745,
+     "lv95": {
+      "E": 2778790,
+      "N": 1179755
+     }
+    }
+   ],
+   "quelle": "js/missions-data-paraglide.js (LAUNCH, FIELD, THERMALS) · Höhen und Hangneigungen aus dem Geländemodell (js/terrain.js) · Rinerhornbahn aus js/bergbahnen-data.js",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Startplatz und Landeplatz aus dem Gelände gewählt (Westhang mit ~0.4 Neigung; flachste freie Wiese am Talboden neben der Talstation), nicht aus einer offiziellen Gleitschirm-Karte. Die acht Thermikschläuche liegen über steilen Süd- bis Westhängen und sind erfunden.",
+   "nr": 66
   }
  ]
 }

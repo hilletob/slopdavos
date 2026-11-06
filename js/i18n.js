@@ -262,6 +262,15 @@ const pairs = [
   ['Off the path: back to the waymarks', 'Abseits vom Weg: zurück zu den Markierungen'],
   ['The sun over the ridges, the valleys still in shadow, and a very cold thermos.', 'Die Sonne über den Graten, die Täler noch im Schatten und eine sehr kalte Thermosflasche.'],
   ['Boots off at the Jöriseen: the water is as cold as it looks.', 'Schuhe aus an den Jöriseen: Das Wasser ist so kalt, wie es aussieht.'],
+  // the paraglider flight from the Rinerhorn (js/missions-data-paraglide.js, js/missions-paraglide.js)
+  ['Paraglider flight from the Rinerhorn', 'Gleitschirmflug vom Rinerhorn'],
+  ['Take off: run down the slope', 'Start: den Hang hinunterlaufen'], ['Fly: thermals, distance, the landing at Glaris', 'Fliegen: Thermik, Distanz, Landung in Glaris'],
+  ['W or Space: pull up the wing', 'W oder Leertaste: Schirm aufziehen'], ['The wing comes up …', 'Der Schirm steigt …'], ['Run! Keep going downhill', 'Lauf! Weiter bergab'],
+  ['The edge of the map: turning back', 'Kartenrand: Der Schirm dreht um'], ['Flare now!', 'Jetzt ausflaren!'], ['Lift! Circle in it', 'Steigen! Kreise darin'],
+  ['Above ground', 'Über Grund'], ['Vario', 'Vario'], ['Airtime', 'Flugzeit'], ['Distance', 'Distanz'], ['Points', 'Punkte'], ['a.s.l.', 'ü. M.'],
+  ['A/D steer · W speed bar · S brakes · Space flare', 'A/D steuern · W Beschleuniger · S bremsen · Leertaste ausflaren'],
+  ['Airborne!', 'In der Luft!'], ['Landed on the field!', 'Auf dem Landeplatz gelandet!'], ['Crash landing', 'Bruchlandung'], ['Launch', 'Starten'], ['Flare', 'Ausflaren'],
+  ['The wing folded on the meadow at Glaris, a Rivella at the valley station, and already looking up for the next cloud.', 'Der Schirm liegt gefaltet auf der Wiese in Glaris, an der Talstation gibt es ein Rivella, und der Blick sucht schon die nächste Wolke.'],
   ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
   ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
   ['A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview', 'A/D zielen · Space halten und zum Schiessen loslassen · oder Puck zurückziehen und loslassen · V Übersicht'],
@@ -949,6 +958,7 @@ const enToDe = new Map(pairs);
 const tobogganDe = (text) => text.replace(/(\d+) bumps?/, (_, n) => `${n} ${n === '1' ? 'Rumms' : 'Rummse'}`).replace(/(\d+) rams?/, (_, n) => `${n}-mal aufgefahren`);
 
 const missionIntros = [
+  ['A summer afternoon on the Rinerhorn', 'Ein Sommernachmittag auf dem Rinerhorn, 2520 m. Der Schirm liegt hinter dir ausgelegt auf der Wiese, über den Graten wachsen Quellwolken. Mit W oder Leertaste ziehst du ihn auf und läufst den Hang hinunter. In der Luft steuern A/D, W ist der Beschleuniger, S sind die Bremsen (und kurz vor dem Boden das Ausflaren); auf dem Handy steuert der Stick, nach oben ist der Beschleuniger, nach unten sind die Bremsen, und der Knopf ist fürs Ausflaren. Such die Thermik: Das Vario piepst, Alpendohlen kreisen darin, und oben sitzt ein Wölkchen. Bleib so lange wie möglich oben, flieg so weit wie möglich und lande auf dem Landeplatz in Glaris bei der Talstation. Der Flug läuft doppelt so schnell wie die Uhr.'],
   ['The Adventure Park Färich, in the trees', 'Der Adventure Park Färich, in den Bäumen am Eingang des Flüelatals. Die Leiter hinauf, dann von Plattform zu Plattform: Wackelbrücke, Balancierbalken, Pneu-Traverse, eine wildere Brücke und die Zipline. Auf jeder Plattform hängst du mit Space (Knopf „Einhängen“) BEIDE Karabiner ein, bevor du losgehst: Vergisst du es, pfeift dich der Guide zurück, +8 s. Auf einer Querung gehst du mit W und lehnst dich mit A/D gegen das Schwanken. Fällst du, baumelst du nur komisch und unverletzt im Gurt, +5 s. Auf der Zipline bremst du mit S vor der Matte. Ein sauberer Lauf holt Gold.'],
   ['Dusk on the Seehof Seeli', 'Abenddämmerung auf dem Seehof Seeli, dem kleinen Teich beim Hotel Seehof in Davos Dorf. Den Einheimischen fehlt ein Spieler: drei gegen drei, Schuhe und Jacken als Torpfosten, keine Torhüter, wer zuerst 5 hat oder 3 Minuten. Laufen mit W, A/D und S. Space mit dem Puck schiesst dorthin, wohin du schaust, oder passt, wenn du einen Mitspieler anschaust. Space ohne Puck stochert nach dem Puckführenden oder verlangt den Pass von einem Mitspieler. Du greifst das Osttor an. Je grösser der Vorsprung am Schluss, desto besser die Medaille.'],
   ['A busy morning at Meerkämper Optik', 'Ein strenger Morgen bei Meerkämper Optik an der Promenade, und du bist die Optikerin am Phoropter. Alle Kundinnen und Kunden haben eine versteckte Sphäre und einen versteckten Zylinder. Wähl einen Wert und die Schrittweite, klapp die Gläser um und frag: besser mit eins oder zwei? Dann nimm das Glas, das sie bevorzugen. Die Tafel verschwimmt so, wie sie sie sehen, du kannst also selbst urteilen. Sehen beide Gläser bei ±0.25 gleich aus, stimmt der Wert. Stell das Rezept aus: Am meisten zählt die Genauigkeit, dann wenige Fragen und das Tempo. Und einer kneift die Augen zusammen. Drei Minuten für vier Kunden.'],
@@ -1079,6 +1089,9 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  // the paraglider flight (js/missions-data-paraglide.js)
+  dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
+  dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
@@ -1325,6 +1338,15 @@ function translate(value) {
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) · best medal$/, (_, medal) => `${enToDe.get(medal) || medal} · beste Medaille`);
   dynamic = dynamic.replace(/^Best time (.+)$/, 'Bestzeit $1');
   dynamic = dynamic.replace(/^Rank (\d+) of (\d+)$/, 'Rang $1 von $2');
+  // the leaderboards' comparison (js/leaderboard-ui.js compareText)
+  if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
+    const gapDe = (g) => g.replace(/^(\d+) points$/, '$1 Punkte').replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
+    dynamic = dynamic
+      .replace(/^You lead, (.+) ahead of place 2$/, (_, g) => `Du führst, ${gapDe(g)} vor Platz 2`)
+      .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')
+      .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
+      .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
+  }
   dynamic = dynamic.replace(/^Best score (.+)$/, 'Bestwert $1');
   dynamic = dynamic.replace(/^Best (time|score) (.+)$/, (_, kind, value) => `Bester ${kind === 'time' ? 'Zeitwert' : 'Punktestand'} ${value}`);
   dynamic = dynamic.replace(/^New best (time|score) (.+) \(was (.+)\)$/, (_, kind, value, old) => `Neuer ${kind === 'time' ? 'Zeitrekord' : 'Punkterekord'} ${value} (vorher ${old})`);
@@ -1338,15 +1360,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^(Gold|Silver|Bronze) medal$/, (_, medal) => `${enToDe.get(medal) || medal}medaille`);
   // a feedback popup: a known line and its points after two spaces
   dynamic = dynamic.replace(new RegExp(`^(.+?)${POP}$`), (whole, head, tail) => (tail && enToDe.has(head) ? enToDe.get(head) + tail : whole));
-  // the leaderboards' comparison (js/leaderboard-ui.js compareText)
-  if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
-    const gapDe = (g) => g.replace(/^(\d+) points$/, '$1 Punkte').replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
-    dynamic = dynamic
-      .replace(/^You lead, (.+) ahead of place 2$/, (_, g) => `Du führst, ${gapDe(g)} vor Platz 2`)
-      .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')
-      .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
-      .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
-  }
   return match[1] + dynamic + match[3];
 }
 

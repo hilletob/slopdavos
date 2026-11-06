@@ -420,6 +420,16 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(g * 0.3, -g * 0.08); ctx.lineTo(g * 0.48, -g * 0.62); ctx.lineTo(g * 0.76, -g * 0.62); ctx.stroke();
       break;
     }
+    case 'paraglider': { // the wing's arc, its lines down to the pilot (js/missions-data-paraglide.js)
+      ctx.lineWidth = g * 0.34;
+      ctx.beginPath(); ctx.arc(0, g * 0.55, g * 1.05, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke();
+      ctx.lineWidth = g * 0.07;
+      ctx.beginPath();
+      for (const a of [1.22, 1.38, 1.62, 1.78]) { ctx.moveTo(Math.cos(Math.PI * a) * g * 1.0, g * 0.55 + Math.sin(Math.PI * a) * g * 1.0); ctx.lineTo(0, g * 0.5); }
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, g * 0.66, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
     case 'biogas': { // the digester's dome over its wall, and a green leaf
       ctx.beginPath(); ctx.arc(0, g * 0.1, g * 0.8, Math.PI, 0); ctx.fill();
       ctx.fillRect(-g * 0.8, g * 0.1, g * 1.6, g * 0.6);

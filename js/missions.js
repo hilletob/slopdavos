@@ -32,6 +32,7 @@ import { EXPERT_FEATURES } from './missions-expert.js';
 import { WEF_FEATURES } from './missions-wef.js';
 import { RURAL_FEATURES } from './missions-rural.js';
 import { CARE_FEATURES } from './missions-care.js';
+import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -104,11 +105,11 @@ function showList(manager, progress, note = null, fastForward = null) {
   const total = el('p', 'mission-list-total');
   total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
   panel.append(total);
-  // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
   const boards = el('button', 'mission-btn mission-btn-secondary mission-board-open', 'Leaderboards');
   boards.type = 'button';
   boards.addEventListener('click', () => import('./leaderboard-overview.js').then((o) => o.openLeaderboards({ signedIn: signedIn() })).catch(() => {}));
   panel.append(boards);
+  // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
   // with the mission open (a link in a new tab, or ?mission=<id>, always starts it directly, moving the clock)
   const now = gameClock.total;
   panel.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
@@ -1066,3 +1067,4 @@ Object.assign(FEATURES, WEF_FEATURES);
 Object.assign(FEATURES, RURAL_FEATURES);
 // (js/missions-care.js: snowshoes on the Junkerboden, the plaster room of the Spital)
 Object.assign(FEATURES, CARE_FEATURES);
+Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the Rinerhorn (js/missions-paraglide.js)
