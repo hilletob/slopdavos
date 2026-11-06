@@ -15,7 +15,7 @@
 //   { id, label (text or () => text), kind: 'tap' | 'hold' | 'toggle' | 'hint',
 //     keys: ['KeyL'] (the KeyboardEvent codes; keyboard: false lists them in the bar only: a mission's own capture
 //     listener handles them), kbd: ['L'] (what the bar shows; derived from keys when left out),
-//     icon: 'i-beam' (a symbol of index.html's sprite) or glyph: '↗' (a character), touchLabel (a shorter face for
+//     icon: 'i-beam' (a symbol of index.html's sprite) or glyph: '↗' (a character), touchLabel or () => touchLabel (a shorter face for
 //     the touch button), pad: 'a' | 'b' | 'x' | 'l3' |
 //     'left' | 'right' (the gamepad's button), primary: true (the big touch row; the small row otherwise),
 //     touch: false (no touch button; or a function saying when), hint: false (not in the bar),

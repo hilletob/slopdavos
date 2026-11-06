@@ -14,9 +14,9 @@ import { missionAllowsTakeover } from './hijack.js';
 // js/gta.js
 // The GTA mode: the player is a pedestrian who gets into the vehicles standing about the valley (F, or G; in the snow
 // groomer, whose tiller is F, only G; the touch screen's "Get in" button, the gamepad's X; Enter stays the missions'
-// start, js/missions-world.js) and out of them again where they stop; the mode bar is gone (?classic=1
-// brings it back, and with it the old game without any of this). The missions still put the player straight into
-// their vehicle (js/missions.js selectMode).
+// start, js/missions-world.js) and out of them again where they stop. There is no other way to change vehicles
+// (the mode bar of the old game is gone); the missions still put the player straight into their vehicle
+// (js/missions.js selectMode).
 //
 // One controlled entity per vehicle type (js/controllers.js); every other vehicle is a parked stand-in: a copy of the
 // entity's model sharing its geometry and materials, no physics but a
@@ -45,11 +45,6 @@ const ROAD_KINDS_OFF = new Set(['footway', 'path', 'track', 'steps', 'cycleway',
 /** Has the GTA mode been played here before (its parked vehicles saved)? */
 export function hasGtaState() {
   try { return JSON.parse(localStorage.getItem(STATE_KEY))?.version === STATE_VERSION; } catch { return false; }
-}
-
-/** The GTA mode is on unless the URL says ?classic=1 (the mode bar and keys 1-6 instead) */
-export function isClassicMode(search = globalThis.location?.search || '') {
-  return new URLSearchParams(search).get('classic') === '1';
 }
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };

@@ -224,3 +224,14 @@ kompakter Kamera-Cluster). Abweichungen und Details:
 
 Nicht gemacht: das Chrome-Gamepad liess sich nicht automatisiert prüfen (nur die Zuordnung im Test); Big Air /
 Rink / Splitboard / Seilpark laufen weiter über `touchLabel` (jetzt eine Hülle über `run.button`).
+
+Nachtrag (2026-11-06, Beschriftungen): Die Extra-Buttons (52 px, 8 px Schrift) tragen höchstens neun Zeichen, deshalb
+sind die Labels gekürzt: Leiste «Drive», «Turn», «Pedal», «Lean» statt «Drive / Reverse», «Turn on the spot»,
+«Pedal / Brake», «Lean & Turn»; Touch «Warnlicht» (Hazard), «Drehlicht» (Beacon, auch in der Leiste), «Suchlicht»
+(touchLabel «Spotlight» beim Heli, die Leiste sagt weiter «Suchscheinwerfer»), «Ablehnen» (Reject). `touchLabel` darf
+eine Funktion sein. Dazu: der geschlossene Credits-Dialog nahm `.mission-dialog`s `display: flex` und ragte auf iOS
+unter die Spielfläche (die Seite liess sich bis zu ihm scrollen); `dialog.mission-dialog:not([open])` ist jetzt versteckt.
+
+Nachtrag (2026-11-06, nur noch der Spielmodus): Der Simulationsmodus (`?classic=1`, die Modusleiste mit den Tasten 1 bis 6,
+die Schultertasten des Gamepads zum Durchschalten) ist entfernt. Fahrzeuge wechselt man nur noch durch Ein- und Aussteigen;
+`#touch-controls` sitzt immer ganz unten, `--touch-clear` ist 180 px. Die Stellen oben, die `?classic=1` erwähnen, sind Geschichte.

@@ -180,7 +180,7 @@ class TouchControls {
       b.classList.toggle('is-extra', !a.primary);
       b.classList.toggle('is-held', a.kind === 'hold' && A.held(a));
       if (a.kind === 'toggle') b.setAttribute('data-on', String(!!a.state?.())); else b.removeAttribute?.('data-on');
-      const label = a.touchLabel ?? A.label(a); // (a short face for a long hint: "Hook" for "Hook on / let go")
+      const label = (typeof a.touchLabel === 'function' ? a.touchLabel() : a.touchLabel) ?? A.label(a); // (a short face for a long hint: "Hook" for "Hook on / let go"; the German has to fit too)
       if (b.getAttribute('data-label') !== label) {
         b.setAttribute('data-label', label);
         b.setAttribute('aria-label', label);

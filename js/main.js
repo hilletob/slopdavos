@@ -39,7 +39,7 @@ import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
 import { buildRoadPaint } from './road-paint.js';
-import { ThirdPersonControllerManager, PLAYER_STARTS } from './controllers.js';
+import { ThirdPersonControllerManager } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { actions, bindKeyboard } from './actions.js';
@@ -58,7 +58,7 @@ import { buildFastForward } from './fast-forward.js';
 import { presetMinute, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
 import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
-import { buildGta, isClassicMode, hasGtaState } from './gta.js';
+import { buildGta, hasGtaState } from './gta.js';
 import { createPlayStats, travelKind } from './play-stats.js';
 import { buildFreeFlight } from './paraglide-free.js';
 import { GTA_START } from './vehicle-depots.js';
@@ -67,17 +67,15 @@ import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagno
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
 const SAVE_VERSION = 7; // 7: new starts for every player (controllers.js PLAYER_STARTS: the cyclist by the Seehof Seeli, the pedestrian at the Eisstadion, the Rega over the Jakobshornbahn, the groomer on the Bündawiese); 6: the VW T3 on the Dischmastrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
-// The GTA mode (js/gta.js): on foot, into the vehicles that stand about; ?classic=1 brings back the mode bar instead
-const GTA = !isClassicMode();
-// A first visit starts on foot by the Bahnhof Davos Platz (classic: by bike by the Seehof Seeli); a first visit of the
-// GTA mode ignores a save from before it (it starts afresh, see js/gta.js)
-const FIRST_START = GTA ? GTA_START : PLAYER_STARTS.cyclist;
+// The game (js/gta.js): on foot, into the vehicles that stand about. A first visit starts on foot by the Bahnhof
+// Davos Platz, and ignores a save from before the game played this way (it starts afresh, see js/gta.js)
+const FIRST_START = GTA_START;
 // A page leaving for good (leavePage: a teleport's reload, the login) leaves this mark for the page it loads: it waits
 // MOVE_BREATH ms before building
 const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500, GONE_BREATH = 6000;
 /** The breath (ms) the page that left asked for, 0 when none did */
 const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return Number(m) || 0; } catch { return 0; } };
-const FRESH_GTA = GTA && !hasGtaState();
+const FRESH_GTA = !hasGtaState();
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
@@ -629,12 +627,9 @@ async function initApp() {
     : new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
-  const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const teleportButtons = document.querySelectorAll('[data-teleport]');
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
-  const modeSwitch = document.getElementById('mode-switch');
-  touchControls.onAvailabilityChange = placeModeIndicator;
 
   const elFps = document.getElementById('hud-fps');
   const elMode = document.getElementById('hud-active-mode');
@@ -644,14 +639,9 @@ async function initApp() {
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
   const elControlsHint = document.getElementById('hud-controls-hint');
-  let gta = null; // (the GTA mode, built with the UI below)
+  let gta = null; // (getting in and out, js/gta.js: built with the UI below)
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     actions, // (getting in and out, the wing, the vehicles' extras: the register's gamepad slots)
-    onCycleMode: (step) => {
-      if (GTA) return; // (the GTA mode changes vehicles by getting in and out)
-      const modes = ['person', 'car', 'cyclist', 'rhb', 'helicopter', 'snowcat'];
-      selectMode(modes[(modes.indexOf(controllerManager.activeMode) + step + modes.length) % modes.length]);
-    },
     onCycleCamera: cycleCamera,
     onToggleMap: () => mapSystem.toggleFullMap(!mapSystem.isFullMapOpen),
     onCloseMap: () => mapSystem.toggleFullMap(false)
@@ -667,13 +657,13 @@ async function initApp() {
   actions.layer('movement', [
     hint(['W', 'S'], 'Walk', is('person')), hint(['A', 'D'], 'Turn', is('person')),
     { id: 'up', kind: 'hold', input: 'up', label: 'Jump', keys: ['Space'], keyboard: false, when: is('person') },
-    hint(['W', 'S'], 'Drive / Reverse', is('car')), hint(['A', 'D'], 'Steer', is('car')),
-    hint(['W', 'S'], 'Pedal / Brake', is('cyclist')), hint(['A', 'D'], 'Lean & Turn', is('cyclist')),
+    hint(['W', 'S'], 'Drive', is('car')), hint(['A', 'D'], 'Steer', is('car')),
+    hint(['W', 'S'], 'Pedal', is('cyclist')), hint(['A', 'D'], 'Lean', is('cyclist')),
     hint(['W'], 'Throttle', driving), hint(['S'], 'Brake', driving),
     hint(['W', 'S'], 'Pitch', is('helicopter')), hint(['A', 'D'], 'Yaw', is('helicopter')),
     { id: 'up', kind: 'hold', input: 'up', label: 'Ascend', keys: ['Space', 'KeyE'], keyboard: false, when: is('helicopter') },
     { id: 'down', kind: 'hold', input: 'down', label: 'Descend', keys: ['KeyQ', 'KeyC'], keyboard: false, when: is('helicopter') },
-    hint(['W', 'S'], 'Forward / Reverse', is('snowcat')), hint(['A', 'D'], 'Turn on the spot', is('snowcat'))
+    hint(['W', 'S'], 'Drive', is('snowcat')), hint(['A', 'D'], 'Turn', is('snowcat'))
   ]);
   const car = () => controllerManager.entities.car;
   const cat = () => controllerManager.entities.snowcat;
@@ -683,7 +673,7 @@ async function initApp() {
     { id: 'indicatorRight', kind: 'toggle', label: 'Right', keys: ['KeyE'], icon: 'i-ind-right', hint: false, when: is('car'), state: () => car()?.indicator === 'right', run: () => controllerManager.toggleIndicator('right') },
     hint(['Q', 'E'], 'Indicators', is('car')),
     { id: 'hazard', kind: 'toggle', label: 'Hazard lights', touchLabel: 'Hazard', keys: ['KeyX'], icon: 'i-hazard', when: is('car'), state: () => car()?.indicator === 'hazard', run: () => controllerManager.toggleIndicator('hazard') },
-    { id: 'highBeam', kind: 'toggle', label: () => (modeNow() === 'helicopter' ? 'Searchlight' : 'High beam'), keys: ['KeyL'], icon: 'i-beam', pad: 'b', when: is('car', 'snowcat', 'helicopter'), state: () => !!controllerManager.highBeam, run: () => controllerManager.toggleHighBeam() },
+    { id: 'highBeam', kind: 'toggle', label: () => (modeNow() === 'helicopter' ? 'Searchlight' : 'High beam'), touchLabel: () => (modeNow() === 'helicopter' ? 'Spotlight' : 'High beam'), keys: ['KeyL'], icon: 'i-beam', pad: 'b', when: is('car', 'snowcat', 'helicopter'), state: () => !!controllerManager.highBeam, run: () => controllerManager.toggleHighBeam() },
     { id: 'beacon', kind: 'toggle', label: 'Beacon', keys: ['KeyK'], icon: 'i-beacon', when: is('snowcat'), state: () => !!cat()?.beaconOn, run: () => controllerManager.toggleBeacon() },
     { id: 'tiller', kind: 'toggle', label: 'Tiller', keys: ['KeyF'], icon: 'i-tiller', pad: 'right', when: is('snowcat'), state: () => !!cat() && !cat().tillerRaised, run: () => controllerManager.toggleTiller() }
   ]);
@@ -719,24 +709,13 @@ async function initApp() {
   }
   actions.subscribe(renderHints);
 
-  // The taxi-yellow pill under the selected mode glides from button to button
-  function placeModeIndicator() {
-    const active = modeSwitch ? modeSwitch.querySelector('.mode-btn.active') : null;
-    if (!active) return;
-    modeSwitch.style.setProperty('--ind-x', `${active.offsetLeft}px`);
-    modeSwitch.style.setProperty('--ind-w', `${active.offsetWidth}px`);
-  }
-
+  // The way of travel: the missions put the player into their vehicle, the game gets in and out (js/gta.js)
   function selectMode(mode) {
     controllerManager.setMode(mode);
     mode = controllerManager.activeMode; // (the rhb mode needs a train on the map to take over)
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
-    modeButtons.forEach((btn) => {
-      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
-    });
     document.body.dataset.mode = mode;
-    placeModeIndicator();
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     actions.notify(); // (the key bar and the touch buttons follow the mode)
@@ -853,12 +832,6 @@ async function initApp() {
         pop.style.top = `${r.bottom + 8}px`;
         pop.style.maxHeight = `${spaceBelow}px`;
       }
-    });
-  });
-
-  modeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectMode(btn.getAttribute('data-mode'));
     });
   });
 
@@ -999,28 +972,10 @@ async function initApp() {
   // (?stats=1: the renderer and the frame rate under the brand)
   if (/[?&]stats=(1|true)\b/.test(location.search)) document.body.classList.add('show-stats');
 
-  // Global keyboard shortcuts for modes (1-5), cameras (V / 6-0), and HUD (H)
+  // Global keyboard shortcuts for cameras (V / 7-0) and the HUD (H)
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
-      case 'Digit1':
-        if (!GTA) selectMode('person');
-        break;
-      case 'Digit2':
-        if (!GTA) selectMode('car');
-        break;
-      case 'Digit3':
-        if (!GTA) selectMode('cyclist');
-        break;
-      case 'Digit4':
-        if (!GTA) selectMode('rhb');
-        break;
-      case 'Digit5':
-        if (!GTA) selectMode('helicopter');
-        break;
-      case 'Digit6':
-        if (!GTA) selectMode('snowcat');
-        break;
       case 'Digit7':
         selectCamera('pov', true);
         break;
@@ -1048,7 +1003,6 @@ async function initApp() {
   window.addEventListener('resize', () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    placeModeIndicator();
     if (mapSystem.isFullMapOpen) {
       mapSystem.resizeFullCanvas();
       mapSystem.renderFullMap();
@@ -1077,12 +1031,9 @@ async function initApp() {
   };
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
   const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem, actions });
-  // The GTA mode (js/gta.js): no mode bar, the player on foot gets into the vehicles about (on a first visit by the
+  // Getting in and out (js/gta.js): the player on foot takes the vehicles standing about (on a first visit by the
   // Bahnhof Davos Platz)
-  if (GTA) {
-    document.body.classList.add('gta-mode');
-    gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
-  }
+  gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
   const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
   actions.layer('look', [hint(['Drag'], 'Orbit', () => modeNow() !== 'helicopter')]);
@@ -1100,8 +1051,6 @@ async function initApp() {
     rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null,
     gliding: freeFlight.gliding
   });
-  // the web fonts change the buttons' widths once they arrive
-  if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
 
   // The loading screen stays up while the shaders compile (precompileShaders() & the warm-up frame, see the loop) and
@@ -1312,7 +1261,7 @@ async function initApp() {
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager); // the snow's wear, the groomer's tracks
     missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers; else the pins in the world
-    gta?.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (the GTA mode)
+    gta.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (js/gta.js)
     freeFlight.update(dt); // the wing off the back with the licence: its flight's clouds, vario and HUD
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.

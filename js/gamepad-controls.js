@@ -115,7 +115,6 @@ class GamepadControls {
     const held = (i) => pressed[i] && !this.suppressedButtons[i];
     // Capture edges before callbacks: changing mode or opening the map may synchronously call reset().
     const toggleMap = edge(9), closeMap = edge(1);
-    const cycleMode = Number(Boolean(edge(5))) - Number(Boolean(edge(4)));
     const cycleCamera = edge(3), recenter = edge(11);
     // the register's actions: X / Square gets in or out (js/gta.js), d-pad left the wing (js/paraglide-free.js), B the
     // high beam, L3 the horn, d-pad right a groomer's tiller or a mission's extra; a mission's hold on A while the jump
@@ -151,8 +150,6 @@ class GamepadControls {
       if (closeMap) this.callbacks.onCloseMap?.();
       return;
     }
-    if (cycleMode) this.callbacks.onCycleMode?.(cycleMode);
-    if (revision !== this.revision) return;
     if (cycleCamera) this.callbacks.onCycleCamera?.(1);
     if (revision !== this.revision) return;
     for (const [a, on] of slotted) {

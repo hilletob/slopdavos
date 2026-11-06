@@ -371,7 +371,9 @@ body::after {
   color: var(--text);
 }
 
-/* (a native <dialog> in the missions' dialog shell: Esc, the × and a click on the backdrop close it) */
+/* (a native <dialog> in the missions' dialog shell: Esc, the × and a click on the backdrop close it; closed, it must
+   not take .mission-dialog's display: flex, or iOS lets the page scroll down to it) */
+dialog.mission-dialog:not([open]) { display: none; }
 dialog.credits-dialog {
   width: 560px;
   margin: auto;
@@ -584,7 +586,6 @@ body.hud-minimized .icon-show {
 
 .tool-btn:active,
 .icon-btn:active,
-.mode-btn:active,
 .camera-current:active,
 .pop-item:active {
   transform: scale(0.97);
@@ -894,76 +895,6 @@ a.pop-item { text-decoration: none; }
 .hint.is-on kbd {
   color: var(--taxi-ink);
   background: var(--taxi);
-  box-shadow: none;
-}
-
-.mode-switch {
-  position: relative;
-  display: flex;
-  gap: 2px;
-  padding: 5px;
-}
-
-/* The taxi-yellow pill glides to the selected mode (positioned by main.js) */
-.mode-indicator {
-  position: absolute;
-  z-index: 0;
-  top: 5px;
-  bottom: 5px;
-  left: 0;
-  width: var(--ind-w, 0px);
-  transform: translateX(var(--ind-x, 0px));
-  border-radius: 12px;
-  background: var(--taxi);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
-  transition: transform 0.45s var(--ease-out), width 0.45s var(--ease-out);
-}
-
-.mode-switch.no-anim .mode-indicator {
-  transition: none;
-}
-
-.mode-btn {
-  position: relative;
-  z-index: 1;
-  height: 42px;
-  padding: 0 12px 0 11px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--text-2);
-  transition: color 0.25s ease, background-color 0.2s ease;
-}
-
-.mode-btn:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.mode-btn.active,
-.mode-btn.active:hover {
-  color: var(--taxi-ink);
-  background: transparent;
-}
-
-.mode-btn .icon {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.7;
-}
-
-.mode-btn kbd {
-  margin-left: 2px;
-  transition: color 0.25s ease, background-color 0.25s ease;
-}
-
-.mode-btn.active kbd {
-  color: rgba(23, 20, 10, 0.62);
-  background: rgba(23, 20, 10, 0.1);
   box-shadow: none;
 }
 
@@ -1380,14 +1311,11 @@ body[data-mode='helicopter'] .gauge-alt {
 
 @media (max-width: 1240px) {
   .controls-hint { display: none; }
-  .mode-btn kbd { display: none; }
 }
 
 @media (max-width: 1080px) {
-  .mode-label,
   .tool-label,
   .tool-btn kbd { display: none; }
-  .mode-btn { padding: 0 12px; }
   .tool-btn:not(.icon-only):not(.fullmap-close) { gap: 4px; padding: 0 9px; }
 }
 
@@ -1422,7 +1350,7 @@ body[data-mode='helicopter'] .gauge-alt {
   z-index: 12;
   left: max(var(--edge), env(safe-area-inset-left));
   right: max(var(--edge), env(safe-area-inset-right));
-  bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 72px);
+  bottom: max(var(--edge), env(safe-area-inset-bottom));
   display: flex;
   flex-direction: row-reverse; /* the stick under the right thumb, the action buttons on the left */
   align-items: flex-end;
@@ -1437,7 +1365,7 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .touch-movement { text-align: center; }
 
-#canvas-container, #canvas-container canvas, .touch-action, #touch-controls, .mode-bar, .hint-bar {
+#canvas-container, #canvas-container canvas, .touch-action, #touch-controls {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -1560,8 +1488,6 @@ body.touch-enabled .dialog-close { width: 44px; height: 44px; margin: -8px -10px
 body.touch-enabled .tool-btn { min-width: 44px; min-height: 44px; }
 body.touch-enabled .tool-label { display: none; }
 body.touch-enabled .hud-bottom-center { bottom: max(var(--edge), env(safe-area-inset-bottom)); }
-body.touch-enabled .mode-label { display: block; font-size: 10px; }
-body.touch-enabled .mode-btn { width: 62px; height: 48px; padding: 0; flex-direction: column; justify-content: center; gap: 3px; }
 body.touch-enabled .hud-bottom-right { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); right: max(var(--edge), env(safe-area-inset-right)); bottom: auto; }
 body.touch-enabled .cluster { width: auto; }
 body.touch-enabled .camera-switch { border: 0; }
@@ -1569,18 +1495,15 @@ body.touch-enabled .camera-switch .icon-btn { width: 44px; height: 44px; }
 /* (three buttons, no name: it is in the popover; the mission strip fits under them) */
 body.touch-enabled .camera-current { flex: none; width: 44px; height: 44px; padding: 0; }
 body.touch-enabled #hud-active-camera { display: none; }
-/* The free game (the GTA mode) has no mode bar: the controls sit right at the bottom; the missions' phone HUDs clear
-   them by --touch-clear (js/missions-golf.js and the others) */
-body.touch-enabled { --touch-clear: 250px; }
-body.touch-enabled.gta-mode { --touch-clear: 180px; }
-body.gta-mode #touch-controls { bottom: max(var(--edge), env(safe-area-inset-bottom)); }
+/* The controls sit right at the bottom; the missions' phone HUDs clear them by --touch-clear (js/missions-golf.js
+   and the others) */
+body.touch-enabled { --touch-clear: 180px; }
 body.touch-enabled .hud-bottom-left { left: max(var(--edge), env(safe-area-inset-left)); bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 254px); max-width: calc(100% - 2 * var(--edge)); }
 body.touch-enabled .fullmap-header { top: max(var(--edge), env(safe-area-inset-top)); left: max(var(--edge), env(safe-area-inset-left)); right: max(var(--edge), env(safe-area-inset-right)); }
 body.touch-enabled .map-controls .icon-btn { width: 44px; height: 44px; }
 body.touch-enabled .pop-item { min-height: 44px; }
 
 @media (max-width: 360px) {
-  body.touch-enabled .mode-btn { width: 52px; }
   body.touch-enabled .toolbar { width: 194px; height: auto; flex-wrap: wrap; justify-content: center; }
   body.touch-enabled .hud-bottom-right { top: calc(max(var(--edge), env(safe-area-inset-top)) + 114px); }
   .touch-look-hint { top: calc(max(var(--edge), env(safe-area-inset-top)) + 172px); }
@@ -1628,10 +1551,9 @@ body.touch-enabled .pop-item { min-height: 44px; }
 .mission-prompt-wait[hidden] { display: none; }
 .mission-prompt.is-closed .mission-prompt-text { color: var(--text-2); }
 .mission-prompt.is-closed kbd { background: rgba(255, 255, 255, 0.85); }
-/* Phones: the street names move out of the view, below the touch controls and just above the mode bar, as small
-   translucent tags (no sign blue); the touch controls rise to make room */
+/* Phones: the street names move out of the view, between the touch buttons and the stick, as small translucent tags
+   (no sign blue) */
 @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
-  #touch-controls { bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 104px); }
   #hud-location {
     position: fixed;
     left: 50%;
@@ -2168,10 +2090,9 @@ body.touch-enabled .pop-item { min-height: 44px; }
 /* (during a mission the touch hint gives way to the mission strip) */
 body:has(#mission-hud) .touch-look-hint { display: none; }
 /* A mission's own controls in charge (a bar, a dartboard, a cockpit: ownControls(run), js/missions.js): no walking
-   or driving meanwhile, so the mode switch and the get-in prompt step aside (the key bar shows the mission's own keys), on a touch screen
+   or driving meanwhile, so the get-in prompt steps aside (the key bar shows the mission's own keys), on a touch screen
    the joystick and the get-in button as well (the action buttons stay: a mission may have made them its Putt, Throw
    or Swing) */
-body.mission-own-controls #mode-switch,
 body.mission-own-controls .gta-prompt,
 body.mission-own-controls .mission-prompt,
 body.mission-own-controls.touch-enabled #touch-controls .touch-movement,
@@ -2305,9 +2226,8 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
   .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 120px); }
 }
 
-/* The GTA mode (js/gta.js): no mode bar; the prompt to get in or out above the controls guide (under a mission's
-   start prompt); the touch screens' "Get in / Get out" button first among the action buttons, under the left thumb */
-body.gta-mode #mode-switch { display: none; }
+/* Getting in and out (js/gta.js): the prompt to get in or out above the controls guide (under a mission's start
+   prompt); the touch screens' "Get in / Get out" button first among the action buttons, under the left thumb */
 /* the free flight's note (js/paraglide-free.js) above the flight's panel at the bottom */
 .gta-prompt.is-over-flight { transform: translate(-50%, -120px); }
 

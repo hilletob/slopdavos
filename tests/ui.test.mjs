@@ -94,9 +94,9 @@ test('one register of actions (js/actions.js): the keys, the key bar, the touch 
   assert.doesNotMatch(css, /mission-fire|touch-tap-label/);
   assert.match(css, /\.touch-action\[data-on="true"\]/);
   assert.match(css, /\.hint\.is-on kbd/);
-  assert.match(css, /body\.mission-own-controls #mode-switch,/, 'the key bar stays while a mission\'s own controls are in charge');
+  assert.doesNotMatch(css, /mode-switch|mode-btn/, 'the mode bar of the old game is gone: the vehicles are taken by getting in');
   assert.match(css, /body\.touch-enabled #hud-active-camera \{ display: none; \}/, 'the camera cluster: three buttons on a phone');
-  assert.match(css, /body\.gta-mode #touch-controls \{ bottom: max\(var\(--edge\), env\(safe-area-inset-bottom\)\); \}/);
+  assert.match(css, /#touch-controls \{\n  position: fixed;[^}]*bottom: max\(var\(--edge\), env\(safe-area-inset-bottom\)\);/, 'the touch controls sit at the bottom');
   for (const f of ['missions.js', 'missions-work.js', 'missions-wef.js', 'missions-snow.js', 'missions-rural.js']) assert.doesNotMatch(read(f), /mission-fire|'wf-pad'\)|craneKeyBar/, f);
   const missions = read('missions.js');
   assert.match(missions, /^\s+actions\(list, \{ replace = \(\) => this\.ownControls \} = \{\}\) \{/m);
