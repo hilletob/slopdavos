@@ -48,18 +48,39 @@ function saltireMaterial() {
 }
 
 // --- Geometry --------------------------------------------------------------------------------------------------------------
-// A strip on the ground from a to b (world x, z), `width` wide, draped on the terrain `lift` metres up
-function groundStrip(ax, az, bx, bz, width, lift) {
-  const L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L * width / 2, nz = (bx - ax) / L * width / 2;
-  const p = [[ax - nx, az - nz], [bx - nx, bz - nz], [bx + nx, bz + nz], [ax + nx, az + nz]];
+// A quadrilateral on the ground (four world {x, z} corners in order around it, either winding), draped on the terrain
+// `lift` metres up
+function groundQuad(corners, lift) {
+  const p = corners.map((c) => [c.x, c.z]);
+  // (wound counter-clockwise seen from above, so it faces up, whichever way the corners come: the shoelace sign)
+  let area = 0;
+  for (let i = 0; i < 4; i++) area += p[i][0] * p[(i + 1) % 4][1] - p[(i + 1) % 4][0] * p[i][1];
+  const tri = area > 0 ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3];
   const g = new THREE.BufferGeometry();
-  // (counter-clockwise from above: facing up)
-  const tri = [0, 2, 1, 0, 3, 2];
   g.setAttribute('position', new THREE.Float32BufferAttribute(tri.flatMap((i) => [p[i][0], 0, p[i][1]]), 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(tri.flatMap(() => [0, 1, 0]), 3));
   const out = drapeOverlay(g, { maxEdge: 2, lift });
   g.dispose();
   return out;
+}
+
+// The frame of a crossing, skewed to the track: at(d, l) is the point on the line parallel to the track `d` metres
+// (square) from its centre line — positive towards where the road (dx, dz) goes — and `l` metres (square) from the
+// road's centre line, positive to the right of the road. Where the road crosses at right angles that is the plain
+// road frame; where it crosses obliquely, lines of constant d run along the rails (the barrier line, the panels' edges)
+// and lines of constant l along the road (its edges). sin: of the angle between road and track (floored, so a road
+// mapped nearly along the rails doesn't blow the layout up); cos: its complement.
+export function crossingFrame(c) {
+  const rx = c.rdx ?? -c.dz, rz = c.rdz ?? c.dx; // (no track direction: square)
+  // road · track normal = right · track (unit vectors): the sine, its sign telling which way along the track is right
+  const cross = -c.dz * rx + c.dx * rz, sign = cross < 0 ? -1 : 1;
+  const sin = Math.min(1, Math.max(Math.abs(cross), 0.35)), cos = Math.sqrt(1 - sin * sin); // (the data's rounding)
+  // Along the road by d / sin reaches distance d from the track; along the track by l / sin reaches l from the road
+  const at = (d, l) => {
+    const u = d / sin, v = sign * l / sin;
+    return { x: c.x + c.dx * u + rx * v, z: c.z + c.dz * u + rz * v };
+  };
+  return { at, sin, cos };
 }
 
 export function buildLevelCrossings(scene, rhb) {
@@ -92,19 +113,20 @@ export function buildLevelCrossings(scene, rhb) {
   for (const c of list) {
     const road = { x: c.dx, z: c.dz }, right = { x: -c.dz, z: c.dx };
     const w = c.width, half = w / 2;
-    const at = (along, across) => ({ x: c.x + road.x * along + right.x * across, z: c.z + road.z * along + right.z * across });
+    const { at, sin, cos } = crossingFrame(c);
     const yaw = Math.atan2(road.x, road.z); // facing along the road
     const state = { c, active: 0, lamps: [lampVertices, 0], closed: 0, timer: 0, booms: [], bodies: [], wasNear: false, release: 0 };
     const signals = !c.foot && (c.light || c.barrier !== 'no');
 
     // Road surface: rubber panels over the rails, white stop lines on each approach
+    // (all of it laid out along the track: at an oblique crossing the panels, stop lines and booms are parallel to the
+    // rails, not square to the road)
     if (!c.foot) {
-      const a = at(-PANEL, 0), b = at(PANEL, 0);
-      add(panelMaterial, groundStrip(a.x, a.z, b.x, b.z, w, 0.14));
+      add(panelMaterial, groundQuad([at(-PANEL, -half), at(PANEL, -half), at(PANEL, half), at(-PANEL, half)], 0.14));
       if (signals) for (const side of [-1, 1]) {
         // The stop line across the approach lane (the right half of the road for traffic coming from that side)
-        const l0 = at(side * STOP_LINE, side < 0 ? 0 : -half), l1 = at(side * STOP_LINE, side < 0 ? half : 0);
-        add(lineMaterial, groundStrip(l0.x, l0.z, l1.x, l1.z, 0.4, 0.15));
+        const a0 = side < 0 ? 0 : -half, a1 = side < 0 ? half : 0, d = side * STOP_LINE;
+        add(lineMaterial, groundQuad([at(d - 0.2, a0), at(d + 0.2, a0), at(d + 0.2, a1), at(d - 0.2, a1)], 0.15));
       }
     }
 
@@ -145,11 +167,13 @@ export function buildLevelCrossings(scene, rhb) {
       if (c.barrier !== 'no' && !c.foot) {
         // The boom pivots at the post, across the road towards its centre (half barrier: to the centre line; full:
         // across all of it)
-        const len = (c.barrier === 'full' ? w : half) + 0.4;
+        // (measured along the track, the boom's line: longer than the road is wide where it crosses obliquely)
+        const len = ((c.barrier === 'full' ? w : half) + 0.4) / sin;
         const pivot = new THREE.Object3D();
         pivot.position.set(p.x, y + 1.0, p.z);
-        // local +x points across the road, from the post towards the centre
-        const dirX = side < 0 ? -right.x : right.x, dirZ = side < 0 ? -right.z : right.z;
+        // local +x points across the road along the track, from the post towards the centre
+        const q = at(side * SIDE, 0), qL = Math.hypot(q.x - p.x, q.z - p.z) || 1;
+        const dirX = (q.x - p.x) / qL, dirZ = (q.z - p.z) / qL;
         pivot.rotation.y = Math.atan2(-dirZ, dirX);
         pivot.updateMatrix();
         // (an instance of the shared boom & counterweight meshes, placed below)
@@ -159,7 +183,8 @@ export function buildLevelCrossings(scene, rhb) {
       }
       if (signals) {
         // The body that stops the traffic of this approach in front of the stop line (parked far away while open)
-        const s = at(side * (STOP_LINE - 0.6), side < 0 ? half / 2 : -half / 2);
+        // (square to the road: on an oblique crossing pushed out until its near corner stays clear of the boom)
+        const s = at(side * Math.max(STOP_LINE - 0.6, SIDE + 0.6 + (half / 2 + 0.3) * cos + 0.3 * sin), side < 0 ? half / 2 : -half / 2);
         const body = { x: 1e7, z: 1e7, prevX: 1e7, prevZ: 1e7, y: groundHeight(s.x, s.z), sin: Math.sin(yaw), cos: Math.cos(yaw),
           halfW: half / 2 + 0.3, halfL: 0.3, mass: 1e6, vx: 0, vz: 0, angularVel: 0, tram: true, home: s };
         bodies.push(body);
