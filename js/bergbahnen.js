@@ -6,6 +6,7 @@ import { BERGBAHNEN } from './bergbahnen-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { cityUniforms } from './tsl-materials.js';
+import { groundHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
 
 // The mountain railways of Davos (js/bergbahnen-data.js, tools/fetch-bergbahnen.mjs):
@@ -636,7 +637,7 @@ function tbarGeometry() {
 export const LIFT_CONTROLS = new Map();
 
 function buildRopeways(group) {
-  const ropes = [], pylons = [], movers = [];
+  const ropes = [], pylons = [], movers = [], terminals = [];
   const geoms = { cabin: new Map(), gondola: gondolaGeometry(), chair: new Map(), tbar: tbarGeometry() };
   // geometry & ropeway -> { geometry, material, sphere, entries: [{ line, s-function }] }: a set per lift, so that the
   // view and the shadow cascades cull the lifts out of sight
@@ -658,7 +659,13 @@ function buildRopeways(group) {
     for (let i = 0; i < r.supports.length; i++) {
       const s = r.supports[i];
       const a = r.supports[Math.max(0, i - 1)], b = r.supports[Math.min(r.supports.length - 1, i + 1)];
-      pylons.push({ x: s.x, z: s.z, base: s.ground - 0.5, top: s.y + 0.4, yaw: Math.atan2(b.x - a.x, b.z - a.z), width: w + 1.2, heavy: r.kind === 'cable_car', station: s.kind === 'station' });
+      pylons.push({ x: s.x, z: s.z, base: s.ground - 0.5, top: s.y + 0.4, yaw: Math.atan2(b.x - a.x, b.z - a.z), width: w + 1.2, heavy: r.kind === 'cable_car', station: s.kind === 'station', terminal: s.kind === 'station' && r.kind === 'chair_lift' });
+    }
+    // The chair lifts' terminals (the bullwheel under its hood, the boarding deck, the attendant's hut) at both ends
+    if (r.kind === 'chair_lift') {
+      const n = r.supports.length;
+      terminals.push({ node: r.supports[0], next: r.supports[1], gauge: w, seats: r.occupancy || 2, drive: true });
+      terminals.push({ node: r.supports[n - 1], next: r.supports[n - 2], gauge: w, seats: r.occupancy || 2, drive: false });
     }
     if (r.kind === 'cable_car') {
       const key = r.occupancy >= 90 ? 100 : r.occupancy >= 50 ? 60 : 20, jak = /Jakobshorn/.test(r.name);
@@ -704,6 +711,7 @@ function buildRopeways(group) {
       }
     }
   }
+  if (terminals.length) buildChairliftTerminals(group, terminals);
   // Ropes
   const ropeGeometry = new THREE.BufferGeometry();
   ropeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(ropes, 3));
@@ -719,7 +727,7 @@ function buildRopeways(group) {
   const heavyGeometry = boxes([[2.2, 1, 2.2, 0, 0.5, 0, 0x7c8288]]);
   const armGeometry = boxes([[1, 0.45, 0.45, 0, 0, 0, 0x6c7277]]);
   const steelMaterial = vehicleMaterial();
-  for (const [geometry, list] of [[mastGeometry, pylons.filter((p) => !p.heavy && !p.station)], [heavyGeometry, pylons.filter((p) => p.heavy && !p.station)], [armGeometry, pylons]]) {
+  for (const [geometry, list] of [[mastGeometry, pylons.filter((p) => !p.heavy && !p.station)], [heavyGeometry, pylons.filter((p) => p.heavy && !p.station)], [armGeometry, pylons.filter((p) => !p.terminal)]]) {
     if (!list.length) continue;
     const mesh = new THREE.InstancedMesh(geometry, steelMaterial, list.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
@@ -761,6 +769,129 @@ function buildRopeways(group) {
       mesh.instanceMatrix.needsUpdate = true;
     }
   };
+}
+
+// --- The chair lifts' terminals -----------------------------------------------------------------------------------------------
+// At each end of a chair lift: the horizontal bullwheel the rope turns round (at the rope's height over the node, on a
+// central column), under a white hood with a red band, tilted with the rope and longer on the detachable lifts (4 and 6
+// seats: the chairs slow down along it); the steel legs; the concrete boarding deck with its rubber strip, the seat
+// ~0.5 m under the passing chairs; the attendant's hut with its window band beside it, steps down to the ground and a
+// railing; the drive's machine house on the hood of the valley end. All in one merged mesh with the vehicles' material
+// (one draw, no new shader), its foot sunk to the lowest ground under the deck (js/terrain.js groundHeight).
+// The terminals' own buildings: where OSM maps a small building round a chair lift's end (the terminal's canopy), its
+// swissBUILDINGS3D volume is left out (js/swissbuildings3d.js) and the terminal below stands in its place (as at the
+// Jakobshornbahn's valley station); the OSM footprint still gives the walker's collider
+function insideRing(ring, x, z) {
+  let c = false;
+  for (let i = 0, j = ring.length / 2 - 1; i < ring.length / 2; j = i++) {
+    const xi = ring[2 * i], zi = ring[2 * i + 1], xj = ring[2 * j], zj = ring[2 * j + 1];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+function ringArea(ring) {
+  let a = 0;
+  for (let i = 0, j = ring.length / 2 - 1; i < ring.length / 2; j = i++) a += ring[2 * j] * ring[2 * i + 1] - ring[2 * i] * ring[2 * j + 1];
+  return Math.abs(a / 2);
+}
+// (and the attendants' huts, the tiny ones beside it: the terminal brings its own)
+function ringCentre(ring) {
+  let x = 0, z = 0;
+  for (let i = 0; i < ring.length; i += 2) { x += ring[i]; z += ring[i + 1]; }
+  return { x: (x * 2) / ring.length, z: (z * 2) / ring.length };
+}
+const CHAIRLIFT_TERMINAL_BUILDINGS = BERGBAHNEN.ropeways.filter((r) => r.kind === 'chair_lift').flatMap((r) => [r.supports[0], r.supports.at(-1)])
+  .flatMap((s) => (DAVOS_DATA.buildings || []).filter((b) => {
+    const a = ringArea(b.ring), c = ringCentre(b.ring);
+    return (a < 250 && insideRing(b.ring, s.x, s.z)) || (a < 40 && Math.hypot(c.x - s.x, c.z - s.z) < 10);
+  }))
+  .map((b) => ({ id: b.id, ...ringCentre(b.ring), r: 5 }));
+excludeBuildings(CHAIRLIFT_TERMINAL_BUILDINGS);
+
+function chairliftTerminal({ node, next, gauge, seats, drive, shared }) {
+  const span = Math.hypot(next.x - node.x, next.z - node.z) || 1;
+  const yaw = Math.atan2(next.x - node.x, next.z - node.z), cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const pitch = Math.max(-0.45, Math.min(0.45, Math.atan2(next.y - node.y, span))), tan = Math.tan(pitch);
+  const H = node.y - node.ground; // the rope over the deck's foot
+  const hw = gauge / 2, chairHalf = Math.max(1.2, seats * 0.55) / 2;
+  const R = hw + chairHalf + 0.5; // the hood's half width (clear of the chairs) and its rear radius
+  const detach = seats >= 4, Lf = detach ? 9 : 2.5; // the hood's length ahead of the wheel
+  const deckTop = H - 3.0, deckBack = -R - 0.6, deckFront = Lf + 1.2, deckHalf = R + 0.8;
+  const hutW = 2.8, hutX = -deckHalf - hutW / 2 - 0.2, hutZ = Math.min(deckFront - 2, 2.5);
+  // The lowest ground under the deck and the hut (local, relative to the node's foot): the walls reach down to it
+  const world = (x, z) => ({ x: node.x + x * cos + z * sin, z: node.z - x * sin + z * cos });
+  const local = (x, z) => { const p = world(x, z), g = groundHeight(p.x, p.z) - node.ground; return Number.isFinite(g) && Math.abs(g) < 12 ? g : 0; }; // (beyond the terrain grid the relief is coarser)
+  let low = 0;
+  for (const [x, z] of [[-deckHalf, deckBack], [deckHalf, deckBack], [-deckHalf, deckFront], [deckHalf, deckFront], [hutX - hutW / 2, hutZ - 2], [hutX - hutW / 2, hutZ + 2], [deckHalf + 2, deckFront - 3]]) low = Math.min(low, local(x, z));
+  const foot = low - 0.6, white = 0xe9eaeb, red = 0xc8102e, steel = 0x5d6267, dark = 0x2b2d30, concrete = 0x9c9a95;
+  const deckH = deckTop - foot, deckLen = deckFront - deckBack, deckMid = (deckFront + deckBack) / 2;
+  const list = [
+    [deckHalf * 2, deckH, deckLen, 0, foot + deckH / 2, deckMid, concrete], // the deck
+    [deckHalf * 2 - 1.2, 0.06, deckLen - 1.6, 0, deckTop + 0.03, deckMid + 0.3, 0x34373a], // its rubber strip
+    // the hut's floor on the deck's level, the hut, its window band, its roof
+    ...(shared ? [] : [
+      [hutW + 0.8, deckH, 4.6, hutX, foot + deckH / 2, hutZ, concrete],
+      [hutW, 2.6, 3.4, hutX, deckTop + 1.3, hutZ, 0xf1ede4],
+      [hutW + 0.04, 0.95, 3.44, hutX, deckTop + 1.55, hutZ, 0x1b242c],
+      [hutW + 0.7, 0.22, 4.1, hutX, deckTop + 2.71, hutZ, 0x3a3d40],
+      [hutW + 0.74, 0.1, 4.14, hutX, deckTop + 2.56, hutZ, red],
+      [0.06, 1.9, 0.9, hutX + hutW / 2 + 0.01, deckTop + 0.95, hutZ - 1.1, 0x6b4a2f] // its door, to the deck
+    ])
+  ];
+  // The steps down to the ground on the far side, and the railing along the deck's edge there
+  const steps = shared ? 0 : Math.max(0, Math.min(14, Math.ceil((deckTop - local(deckHalf + 1, deckFront - 3)) / 0.32)));
+  for (let k = 0; k < steps; k++) {
+    const top = deckTop - (k + 1) * 0.32;
+    list.push([1.8, top - foot, 0.4, deckHalf + 0.9, foot + (top - foot) / 2, deckFront - 0.8 - k * 0.4, concrete]);
+  }
+  const railFrom = deckBack + 0.3, railTo = deckFront - 1.4;
+  if (railTo > railFrom) {
+    list.push([0.06, 0.06, railTo - railFrom, deckHalf - 0.1, deckTop + 1.0, (railFrom + railTo) / 2, steel]);
+    for (let z = railFrom; z <= railTo + 0.01; z += Math.max(1, (railTo - railFrom) / Math.ceil((railTo - railFrom) / 1.6))) list.push([0.06, 1.0, 0.06, deckHalf - 0.1, deckTop + 0.5, z, steel]);
+  }
+  // The legs: a pair at the back and at the front of the hood, the central column under the wheel
+  const hoodBottom = (z) => H + 0.22 + z * tan; // (just over the rope: the wheel shows under it)
+  for (const z of detach ? [-R * 0.5, Lf * 0.45, Lf - 0.5] : [-R * 0.5, Lf - 0.3]) {
+    const h = hoodBottom(z) - deckTop;
+    for (const x of [-R + 0.25, R - 0.25]) list.push([0.4, h, 0.4, x, deckTop + h / 2, z, steel]);
+  }
+  list.push([0.8, H - 0.25 - deckTop, 0.8, 0, deckTop + (H - 0.25 - deckTop) / 2, 0, steel]);
+  const parts = [boxes(list)];
+  // The bullwheel at the rope's height: rim, spokes, hub
+  const seg = QUALITY.mobile ? 16 : 24;
+  parts.push(tinted(new THREE.CylinderGeometry(hw, hw, 0.32, seg, 1, true), 0x8f959a, 0, H, 0));
+  parts.push(tinted(new THREE.CylinderGeometry(0.55, 0.55, 0.5, 10), dark, 0, H, 0));
+  for (let k = 0; k < 4; k++) { const g = new THREE.BoxGeometry(gauge - 0.1, 0.12, 0.16); g.rotateY((k * Math.PI) / 4); parts.push(tinted(g, dark, 0, H, 0)); }
+  // The hood over it: the rounded rear round the wheel and the straight run ahead, a red band at its foot, tilted with
+  // the rope; on the valley end the drive's machine house on top
+  const hood = [];
+  const rear = (radius, h, y, colour) => {
+    const g = new THREE.CylinderGeometry(radius, radius, h, seg, 1, false, Math.PI / 2, Math.PI);
+    return tinted(g, colour, 0, y, 0);
+  };
+  hood.push(rear(R, 1.2, 0.9, white), rear(R + 0.02, 0.32, 0.16, red), rear(R - 0.35, 0.18, 1.59, 0xc9cccf));
+  hood.push(boxes([
+    [R * 2, 1.2, Lf, 0, 0.9, Lf / 2, white],
+    [R * 2 + 0.04, 0.32, Lf, 0, 0.16, Lf / 2, red],
+    [R * 2 - 0.7, 0.18, Lf, 0, 1.59, Lf / 2, 0xc9cccf],
+    ...(drive && !shared ? [[3.2, 1.6, 3.0, 0, 2.3, -0.6, white], [3.24, 0.2, 3.04, 0, 1.6, -0.6, red], [0.8, 0.4, 0.8, 0.8, 3.3, -0.9, steel]] : [])
+  ]));
+  for (const g of hood) { g.rotateX(-pitch); g.translate(0, H + 0.22, 0); parts.push(g); }
+  const geometry = mergeGeometries(parts, false);
+  parts.forEach((g) => g.dispose());
+  geometry.rotateY(yaw);
+  geometry.translate(node.x, node.ground, node.z);
+  return geometry;
+}
+function buildChairliftTerminals(group, terminals) {
+  // (where one lift ends and the next begins, Carjöler Rank: one middle station, the hoods back to back, one hut)
+  terminals.forEach((t, i) => { t.shared = terminals.slice(0, i).some((o) => Math.hypot(o.node.x - t.node.x, o.node.z - t.node.z) < 3); });
+  const geometries = terminals.map(chairliftTerminal);
+  const mesh = new THREE.Mesh(mergeGeometries(geometries, false), vehicleMaterial());
+  geometries.forEach((g) => g.dispose());
+  mesh.name = 'Chair lift terminals';
+  mesh.castShadow = mesh.receiveShadow = true;
+  group.add(mesh);
 }
 
 // --- The Jakobshornbahn's valley station ---------------------------------------------------------------------------------
