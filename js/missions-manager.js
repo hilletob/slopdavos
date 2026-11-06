@@ -85,8 +85,9 @@ export class MissionManager {
   /** A mission runs (js/main.js: the loop calls update() only then) */
   get active() { return !!this.run; }
 
-  /** Starts the mission `id` (the one running is torn down first); unknown ids open the list with a note */
-  start(id, { night = false } = {}) {
+  /** Starts the mission `id` (the one running is torn down first); unknown ids open the list with a note. `race`: the
+   *  session of a race with other players (js/race-session.js), handed to the run as its hooks.race */
+  start(id, { night = false, race = null } = {}) {
     const def = this.getMission(id);
     if (!def) { this.showList(`Unknown mission “${id}”`); return null; }
     for (const fn of this.beforeStart) { try { fn(def); } catch (error) { this.onError(error, id); } }
@@ -94,7 +95,7 @@ export class MissionManager {
     this._closeList();
     const nightRun = !!night && !!def.nightTime;
     try {
-      this.run = this.createRun(def, { night: nightRun });
+      this.run = this.createRun(def, { night: nightRun, race });
     } catch (error) {
       this.run = null;
       this.onError(error, id);

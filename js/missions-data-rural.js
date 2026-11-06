@@ -233,6 +233,8 @@ export const QUAD_MISSION = {
   vehicle: 'quad',
   colour: '#d9731a',
   icon: 'quad',
+  // (a race with other players, js/race-session.js: the gates in the order driven for the standings, and which is next)
+  race: { gates: QUAD_GATE_LIST, nextGate: quadNextGate },
   // (the course is 2.4 km: an ideal lap from the handling's numbers, grip in the bends and all jumps, 2:34; a real run
   // with brakes and lines more. Worked out, not measured: the browser runs on a loaded machine gave no usable times)
   bonusMs: 190000,

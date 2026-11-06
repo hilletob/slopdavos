@@ -53,8 +53,9 @@ const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start b
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
-/** The head every dialog shares (css/style.css: .mission-dialog-head): the kicker and the title, the × at the top right */
-function dialogHead(kicker, title, onClose = null) {
+/** The head every dialog shares (css/style.css: .mission-dialog-head): the kicker and the title, the × at the top right
+ *  (js/race-ui.js builds its lobby with it) */
+export function dialogHead(kicker, title, onClose = null) {
   const head = el('div', 'mission-dialog-head');
   const titles = el('div');
   titles.append(el('div', 'mission-kicker', kicker), el('h2', 'mission-dialog-title', title));
@@ -108,10 +109,20 @@ export function buildMissions(scene, hooks) {
   try {
     world = buildMissionWorld(scene, { manager, progress, mapSystem: hooks.mapSystem, controllerManager: hooks.controllerManager, fastForward: hooks.fastForward });
   } catch (error) { console.warn('[missions] the pins in the world could not be built', error); }
+  // A race with other players (js/race-ui.js, js/race-session.js): the lobby for the mission `def`, or the room `code` of
+  // a link (?race=<CODE>); loaded on demand, nothing of it in a lone player's game
+  manager.openRace = (def, code = null) => {
+    manager.stop();
+    return import('./race-ui.js')
+      .then((ui) => ui.openRaceLobby({ manager, def: def || getMission('quad-heldstab'), code, getMission, signedIn: signedIn() }))
+      .catch((error) => console.warn('[missions] the race lobby could not be opened', error));
+  };
   globalThis.__slopdavosMissions = manager; // (test hooks)
   globalThis.__slopdavosProgress = progress;
   globalThis.__slopdavosMissionWorld = world;
   manager.fromSearch(location.search);
+  const raceCode = new URLSearchParams(location.search).get('race');
+  if (raceCode) manager.openRace(null, raceCode);
   return manager;
 }
 
@@ -270,11 +281,12 @@ function disposeTree(root) {
 }
 
 class MissionRun {
-  constructor(scene, def, hooks, { night }) {
+  constructor(scene, def, hooks, { night, race = null }) {
     this.active = true;
     this.scene = scene;
     this.def = def;
-    this.hooks = hooks;
+    // (a race with other players, js/race-session.js: the countdown arms the stopwatch, the others ride as ghosts)
+    this.hooks = race ? { ...hooks, race } : hooks;
     this.night = !!night && !!def.nightTime;
     this.bestKey = bestTimeKey(def.id, this.night ? 'night' : null);
     this.phase = 'intro'; // intro | ready | running | done | failed | aborted
@@ -556,7 +568,9 @@ class MissionRun {
     const licence = this.licenceNode(false);
     if (licence) nodes.push(licence);
     nodes.push(el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'), ...this.boardNode(false));
-    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
+    // (a mission with a race: the lobby, js/race-ui.js through the manager)
+    const race = this.def.race && !this.hooks.race && this.hooks.missions?.openRace ? [['Race together', null, () => this.hooks.missions.openRace(this.def), true]] : [];
+    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ...race, ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
   showEnd() {
@@ -683,9 +697,11 @@ class MissionRun {
     for (const node of [this.ui.hud, this.ui.overlay, this.ui.crosshair, this.ui.fire]) node?.remove();
     if (globalThis.__slopdavosMission === this) globalThis.__slopdavosMission = null;
     this.hooks.releaseClock?.();
+    this.hooks.race?.detach(this);
   }
 
-  restart() { this.start(); }
+  // (in a race the host starts the next one for everyone: no restart of one's own)
+  restart() { if (this.hooks.race) return; this.start(); }
 
   // --- The frame -----------------------------------------------------------------------------------------------------
   frame(cm, cs, dt, now) {
@@ -718,7 +734,9 @@ class MissionRun {
     }
     const ent = cm.getActiveEntity();
     const ctx = this.frame(cm, cs, dt, now);
-    if (this.phase === 'ready' && this.inputDetected(cm, cs, ent)) {
+    // (a race: the countdown arms the stopwatch for everyone at once, js/race-session.js released())
+    const race = this.hooks.race;
+    if (this.phase === 'ready' && (race ? race.released() : this.inputDetected(cm, cs, ent))) {
       this.phase = 'running';
       this.startedAt = now;
       this.ui.panel.dataset.phase = 'running';
@@ -737,6 +755,7 @@ class MissionRun {
         this.phase = 'failed';
         this.ui.panel.dataset.phase = 'failed';
         this.showStopped('Mission failed', view.fail);
+        race?.reportAbort(this, view.fail);
       } else if (view.done) {
         const t = this.phase === 'running' ? now - this.startedAt + this.penaltyMs() : 0;
         if (this.phase === 'ready') { this.phase = 'running'; this.startedAt = now; }
@@ -750,6 +769,7 @@ class MissionRun {
     }
     this.render(ctx, view);
     for (const f of Object.values(this.features)) f.after?.(this, ctx, dt, cm, cs);
+    race?.frame(this, ctx, dt, cm); // (the own vehicle to the others, their ghosts, the standings)
     this.syncOwnControls();
     this.animateProps(dt);
     this.group.updateMatrixWorld(true);
@@ -789,6 +809,7 @@ class MissionRun {
     this.ui.panel.dataset.phase = 'aborted';
     this.syncOwnControls(false);
     this.showStopped('Mission aborted', reason);
+    this.hooks.race?.reportAbort(this, reason);
   }
 
   finish(now) {
@@ -815,6 +836,7 @@ class MissionRun {
     this.marker.visible = false;
     for (const r of Object.values(this.rings)) r.visible = false;
     this.showEnd();
+    this.hooks.race?.reportFinish(this); // (the standings and the race's buttons into the dialog)
   }
 
   render(ctx, view) {
@@ -829,7 +851,7 @@ class MissionRun {
       if (u.text.textContent !== translateUI(view.text || '')) setLocalizedText(u.text, view.text || '');
       u.bar.hidden = view.progress == null;
       if (view.progress != null) u.fill.style.transform = `scaleX(${Math.max(0, Math.min(1, view.progress))})`;
-      const hint = view.hint || (this.phase === 'ready' ? 'Ready: the clock starts with your first input' : '');
+      const hint = view.hint || (this.phase === 'ready' ? (this.hooks.race ? 'Ready: the countdown starts the clock' : 'Ready: the clock starts with your first input') : '');
       if (u.hint.textContent !== translateUI(hint || '')) setLocalizedText(u.hint, hint || '');
       u.hint.hidden = !hint;
       this.placeTarget(view.target, ctx);
