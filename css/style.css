@@ -243,6 +243,20 @@ body::after {
   transition: transform 0.3s ease;
 }
 
+/* The sign-in after a guest's free minutes (js/guest-gate.js): no way past it */
+dialog.guest-gate { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: calc(100dvh - 32px); overflow: auto; display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: min(340px, calc(100vw - 32px)); padding: 22px 20px 18px; color: var(--text); }
+dialog.guest-gate:not([open]) { display: none; }
+dialog.guest-gate::backdrop { background: rgba(6, 7, 9, 0.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.guest-gate h2 { margin: 0; font-size: 19px; }
+.guest-gate p { margin: 0 0 6px; font-size: 14px; line-height: 1.45; color: var(--text-2, rgba(246, 245, 242, 0.7)); }
+.guest-gate button { padding: 12px 16px; font: inherit; font-size: 15px; font-weight: 600; color: var(--text); background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 10px; cursor: pointer; }
+.guest-gate button:hover { background: rgba(255, 255, 255, 0.16); }
+.guest-gate button[hidden], .start-choice button[hidden], .pop-item[data-provider][hidden] { display: none; }
+.guest-gate .guest-gate-or { margin: 0; font-size: 12.5px; text-align: center; color: var(--text-3); }
+.guest-gate .guest-gate-status { margin: 0; font-size: 12.5px; }
+.guest-gate-status[hidden] { display: none; }
+.guest-gate a { font-size: 12.5px; color: var(--text-3); }
+
 /* The question on a first visit (js/start-choice.js), in place of the bar */
 .loader.is-asking .loader-track,
 .loader.is-asking #loading-status { display: none; }

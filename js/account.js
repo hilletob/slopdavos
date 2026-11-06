@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK } from './account-config.js';
+import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK, LOGIN_PROVIDERS } from './account-config.js';
 import { OWNER_KEY, ownedByOther, clearLocalSave } from './account-merge.js';
 
 // js/account.js
@@ -36,6 +36,19 @@ export function getClient() {
     }
   })).catch((error) => { client = null; throw error; }); // (a failed download may work the next time)
   return client;
+}
+
+let providers = null;
+/**
+ * The providers of LOGIN_PROVIDERS the backend has switched on (its public settings). A provider that is off would only end
+ * on an error page of the backend. When the settings cannot be read, all are kept: the sign-in then says it is not reachable.
+ */
+export function enabledProviders(list = LOGIN_PROVIDERS, fetcher = globalThis.fetch) {
+  providers ||= fetcher(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`settings ${r.status}`))))
+    .then((settings) => list.map(({ id }) => id).filter((id) => settings?.external?.[id] === true))
+    .catch(() => { providers = null; return list.map(({ id }) => id); });
+  return providers;
 }
 
 /**

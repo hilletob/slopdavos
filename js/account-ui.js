@@ -1,5 +1,5 @@
 import { LOGIN_PROVIDERS } from './account-config.js';
-import { isConfigured, signIn, signOut, deleteAccount, currentUser } from './account.js';
+import { isConfigured, signIn, signOut, deleteAccount, currentUser, enabledProviders } from './account.js';
 import { emailSignIn } from './account-email.js';
 
 // js/account-ui.js
@@ -9,8 +9,9 @@ import { emailSignIn } from './account-email.js';
  *  @param {() => void} o.save keeps the player and the clock before the page is left for the login
  *  @param {() => void} [o.leaving] gives the GPU back as the page is left for the login (the game is over then)
  *  @param {() => boolean} o.missionActive a running mission would be lost: no login then
+ *  @param {() => void} o.pause stops the game when a guest's free time is up (js/guest-gate.js)
  *  @param {object} o.progress the missions' progress store (js/missions-progress.js) */
-export async function startAccount({ save, leaving, missionActive, progress }) {
+export async function startAccount({ save, leaving, missionActive, pause, progress }) {
   const button = document.getElementById('btn-account');
   const list = document.getElementById('account-items');
   const status = document.getElementById('account-status');
@@ -20,6 +21,16 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
   let sync = null;
   let syncState = '';
   let loadName = null;
+  let gate = null;
+  /** A guest's free time runs (js/guest-gate.js); for a signed-in player it does not */
+  const guard = (on) => {
+    if (!on) { gate?.stop(); gate = null; return; }
+    if (gate) return;
+    gate = { stop: () => {} };
+    import('./guest-gate.js')
+      .then(({ startGuestGate }) => { if (gate) gate = startGuestGate({ missionActive, pause, save, leaving, signedIn: restartSignedIn }); })
+      .catch((error) => console.warn('[account] the guest limit could not be started', error));
+  };
   const say = (text) => { status.textContent = text; status.hidden = !text; };
   const SYNC_TEXT = { saved: 'Saved to your account.', failed: 'Not saved online right now. Your game stays on this device.' };
   /** The player's statistics (js/play-stats-ui.js), for a guest too */
@@ -50,6 +61,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
     location.replace(location.pathname + location.search);
   };
 
+  const tagged = (provider, b) => { b.dataset.provider = provider; b.hidden = true; return b; };
   const renderGuest = () => {
     button.setAttribute('aria-pressed', 'false'); // (the toolbar's button says "Sign in", css/style.css)
     button.classList.remove('icon-only');
@@ -60,7 +72,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
       allowed: () => { if (missionActive()) { say('Finish the mission first.'); return false; } return true; },
       buttonClass: 'pop-item'
     });
-    list.replaceChildren(...LOGIN_PROVIDERS.map(({ id, label }) => item(label, async () => {
+    list.replaceChildren(...LOGIN_PROVIDERS.map(({ id, label }) => tagged(id, item(label, async () => {
       if (missionActive()) { say('Finish the mission first.'); return; }
       say('Opening the sign-in…');
       try {
@@ -69,10 +81,10 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
       } catch {
         say('The sign-in is not reachable right now. You can keep playing.');
       }
-    })), email, statsItem(false));
+    }))), email, statsItem(false));
   };
 
-  const leave = () => { sync?.stop(); sync = null; syncState = ''; loadName = null; renderGuest(); };
+  const leave = () => { sync?.stop(); sync = null; syncState = ''; loadName = null; renderGuest(); guard(true); };
 
   /** The public name on the leaderboards, fetched when the menu opens */
   const nameForm = () => {
@@ -145,18 +157,26 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
 
   say('');
   renderGuest();
-  popover.addEventListener('beforetoggle', (e) => { if (e.newState === 'open') { say(SYNC_TEXT[syncState] || ''); loadName?.(); } });
+  popover.addEventListener('beforetoggle', (e) => {
+    if (e.newState !== 'open') return;
+    say(SYNC_TEXT[syncState] || '');
+    loadName?.();
+    // (a provider not switched on in the backend yet is not offered; asked only once the menu opens)
+    if (list.querySelector('[data-provider]')) enabledProviders().then((on) => {
+      for (const b of list.querySelectorAll('[data-provider]')) b.hidden = !on.includes(b.dataset.provider);
+    });
+  });
   button.hidden = false;
 
   // (a stored session loads the SDK; failing that the game goes on, and the guest's view is what shows)
   try {
     const user = await currentUser();
-    if (!user) return;
+    if (!user) { guard(true); return; }
     renderUser(user);
     const { startSync } = await import('./account-sync.js');
     sync = await startSync({ save, missionActive, progress, onStatus: (state) => {
       syncState = state;
       if (popover.matches(':popover-open')) say(SYNC_TEXT[state]);
     } });
-  } catch { /* offline or the backend is down */ }
+  } catch { /* offline or the backend is down (with a session stored: the player is not stopped as a guest) */ }
 }

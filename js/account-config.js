@@ -4,7 +4,7 @@
 // row level security is what protects the data. The service role / secret key never goes in here or anywhere in this repo.
 export const SUPABASE_URL = 'https://uakamnjzdggsghayjfpv.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_KihisJw6N3u_w08bpeFzfA_YGDMSFMD';
-// Signing in is offered for these (Apple joins here once its developer account is set up)
-export const LOGIN_PROVIDERS = [{ id: 'google', label: 'Sign in with Google' }];
+// Signing in is offered for these; one the backend has not switched on yet is left out (enabledProviders, js/account.js)
+export const LOGIN_PROVIDERS = [{ id: 'apple', label: 'Sign in with Apple' }, { id: 'google', label: 'Sign in with Google' }];
 // Pinned: loaded only for a click on "sign in" or when a session is already stored, never during a guest's start
 export const SUPABASE_SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm';

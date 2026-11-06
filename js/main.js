@@ -1305,6 +1305,8 @@ async function initApp() {
           save: () => { savePlayerState(); gameClock.save(); },
           leaving: leavePage,
           missionActive: () => missions.active,
+          // (a guest's free time is up, js/guest-gate.js: the game stands still behind the sign-in)
+          pause: () => { renderer.setAnimationLoop(null); audioSystem.suspend(); document.exitPointerLock?.(); },
           progress: globalThis.__slopdavosProgress
         })).catch(() => { /* the game goes on without it */ });
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
