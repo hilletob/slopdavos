@@ -70,7 +70,8 @@ export class MissionManager {
    * @param {object} o
    * @param {(id: string) => object|null} o.getMission the mission's definition
    * @param {(def: object, opts: { night: boolean }) => object} o.createRun a run: { active, update(...), dispose() }
-   * @param {(note?: string|null) => void} o.showList / o.hideList the list of the missions
+   * @param {(note?: string|null, opts?: object) => void} o.showList / o.hideList the list of the missions (`opts.tab`:
+   *   'boards' opens the leaderboards tab, `opts.board` the list to show there)
    * @param {(search: string) => void} o.setSearch the URL's search part ('' for the free game)
    * @param {(active: boolean, ...args) => void} o.onFrame every frame, a mission running or not (the open world's pins)
    */
@@ -109,11 +110,11 @@ export class MissionManager {
     this.setSearch(missionSearch(null));
   }
 
-  /** The list of the missions (the run, if any, ends: the list starts the next one) */
-  showList(note = null) {
+  /** The list of the missions (the run, if any, ends: the list starts the next one); `opts` goes to the list */
+  showList(note = null, opts = undefined) {
     this._end();
     this._closeList();
-    this._showList(note);
+    this._showList(note, opts);
     this.listOpen = true;
     this.setSearch(missionSearch('list'));
   }

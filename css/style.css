@@ -371,55 +371,15 @@ body::after {
   color: var(--text);
 }
 
-.credits-dialog {
-  width: min(560px, calc(100% - 2 * var(--edge)));
-  max-height: calc(100% - 2 * var(--edge));
+/* (a native <dialog> in the missions' dialog shell: Esc, the × and a click on the backdrop close it) */
+dialog.credits-dialog {
+  width: 560px;
   margin: auto;
-  padding: 18px 20px;
-  overflow-y: auto;
-  color: var(--text);
   font-size: 12.5px;
   line-height: 1.5;
-  background: var(--grain), var(--glass-strong);
-  -webkit-backdrop-filter: blur(26px) saturate(170%);
-  backdrop-filter: blur(26px) saturate(170%);
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 28px 60px -22px rgba(0, 0, 0, 0.8);
+  gap: 6px;
 }
-
-.credits-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.credits-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.credits-head h2 {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.credits-close {
-  width: 30px;
-  height: 30px;
-  color: var(--text-2);
-  font-size: 20px;
-  line-height: 1;
-  background: none;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.credits-close:hover {
-  color: var(--text);
-  background: var(--divider);
-}
+dialog.credits-dialog::backdrop { background: rgba(6, 7, 9, 0.38); }
 
 .credits-list {
   margin: 12px 0;
@@ -494,12 +454,6 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
 }
 
-.brand-heading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .brand-titles h1 {
   font-size: 14.5px;
   font-weight: 650;
@@ -507,30 +461,17 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   line-height: 1.2;
 }
 
-.repo-link {
-  flex: none;
-  padding: 3px 0;
-  color: var(--text-2);
-  font-size: 11px;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.repo-link:hover,
-.repo-link:focus-visible {
-  color: var(--text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
+/* (the renderer and the frame rate: a developer's read-out, shown with ?stats=1 only) */
 .brand-subtitle {
+  display: none;
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+body.show-stats .brand-subtitle { display: block; }
 
 #hud-fps {
   font-weight: 650;
@@ -552,16 +493,26 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   padding: 0 5px;
 }
 
-.hud-clock {
+/* The clock is a button: it opens the fast-forward menu */
+.tool-btn.hud-clock { gap: 4px; padding: 0 7px 0 10px; }
+.hud-clock-text {
   display: flex;
   flex-direction: column;
   justify-content: center;
   line-height: 1.1;
-  padding: 0 8px 0 6px;
+  text-align: left;
   white-space: nowrap;
 }
 .hud-clock-time { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.hud-clock-day { font-size: 10px; opacity: 0.72; }
+.hud-clock-day { font-size: 10px; font-weight: 500; opacity: 0.72; }
+/* The missions' points (js/missions-world.js): the star in taxi yellow, a bump when points come in */
+#btn-missions[hidden] { display: none; }
+#btn-missions .mission-score-star { color: var(--taxi); font-size: 13px; }
+#btn-missions .hud-points { font-variant-numeric: tabular-nums; font-weight: 700; }
+#btn-missions .tool-label { font-weight: 600; color: var(--text-2); }
+#btn-missions.is-bumped { animation: mission-score-bump 0.6s ease-out; }
+/* The account button: "Sign in" as a guest, the icon alone once signed in (js/account-ui.js) */
+#btn-account[aria-pressed="true"] .tool-label { display: none; }
 .toolbar-divider {
   flex: none;
   width: 1px;
@@ -570,7 +521,7 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   background: var(--divider);
 }
 
-.language-switch { display: inline-flex; gap: 2px; margin-left: 3px; }
+.language-switch { display: inline-flex; gap: 2px; }
 .language-btn {
   min-width: 30px;
   height: 30px;
@@ -745,9 +696,24 @@ body.hud-minimized .icon-show {
   color: var(--text-3);
 }
 
+/* The menu (#menu-popover): a setting per row, its control or its key on the right */
+.pop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.pop-item .pop-name { display: inline-flex; align-items: center; gap: 9px; }
+.pop-item .pop-name .icon { width: 16px; height: 16px; color: var(--text-2); }
+.pop-state { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+a.pop-item { text-decoration: none; }
+#btn-sound[disabled] { opacity: 0.5; cursor: default; }
+
 #btn-account[hidden],
 .account-status[hidden] { display: none; }
-#btn-account[aria-pressed="true"] { color: var(--text); }
 .account-who,
 .account-status { max-width: 264px; padding: 4px 10px 8px; overflow-wrap: anywhere; }
 .account-name { display: flex; flex-direction: column; gap: 4px; padding: 2px 10px 6px; }
@@ -1421,11 +1387,8 @@ body[data-mode='helicopter'] .gauge-alt {
 @media (max-width: 820px) {
   :root { --edge: 12px; }
   .hud-top-left { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); }
-  .brand > .mta-bullet,
-  .brand-heading h1,
-  .brand-subtitle { display: none; }
-  .brand { height: 44px; padding: 0 12px; }
-  .repo-link { display: flex; align-items: center; gap: 4px; min-height: 44px; font-size: 12px; }
+  .hud-top-left .brand { display: none; }
+  .hud-clock-day { display: none; }
   .radar { width: 220px; height: 148px; }
   .cluster { width: 220px; }
   #hud-speed { font-size: 34px; }
@@ -1560,7 +1523,11 @@ body.touch-enabled .seg-label { display: none; }
 
 body.touch-enabled .hud-top-right { top: max(var(--edge), env(safe-area-inset-top)); right: max(var(--edge), env(safe-area-inset-right)); }
 body.touch-enabled .toolbar { gap: 2px; padding: 4px; }
-body.touch-enabled .language-btn { height: 44px; min-width: 30px; }
+body.touch-enabled .language-btn { height: 40px; min-width: 40px; }
+body.touch-enabled .hud-top-left .brand { display: none; }
+body.touch-enabled .hud-clock-day { display: none; }
+body.touch-enabled .tool-btn.hud-clock { padding: 0 6px 0 10px; }
+body.touch-enabled .dialog-close { width: 44px; height: 44px; margin: -8px -10px 0 0; }
 body.touch-enabled .tool-btn { min-width: 44px; min-height: 44px; }
 body.touch-enabled .tool-label { display: none; }
 body.touch-enabled .hud-bottom-center { bottom: max(var(--edge), env(safe-area-inset-bottom)); }
@@ -1891,6 +1858,56 @@ body.touch-enabled .pop-item { min-height: 44px; }
   letter-spacing: -0.01em;
 }
 
+/* One head for every dialog: the kicker and the title, the × at the top right (js/leaderboard-ui.js: dialogHead) */
+.mission-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mission-dialog-head > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mission-dialog-head form { flex: none; }
+.dialog-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px -8px 0 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-2);
+  background: none;
+  cursor: pointer;
+}
+.dialog-close:hover { color: var(--text); background: var(--hover); }
+
+/* The tabs of the missions' dialog: the missions, the leaderboards */
+.dialog-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--r-ctl);
+  background: rgba(255, 255, 255, 0.07);
+}
+.dialog-tab {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-2);
+  background: none;
+  cursor: pointer;
+}
+.dialog-tab:hover { color: var(--text); background: var(--hover); }
+.dialog-tab[aria-selected="true"] { color: var(--taxi-ink); background: var(--taxi); }
+.dialog-pane { display: flex; flex-direction: column; gap: 10px; }
+.dialog-pane[hidden] { display: none; }
+
 .mission-dialog-text {
   margin: 0;
   font-size: 13.5px;
@@ -1911,8 +1928,7 @@ body.touch-enabled .pop-item { min-height: 44px; }
 .mission-board-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mission-board-time { font-variant-numeric: tabular-nums; }
 
-/* All the leaderboards (js/leaderboard-overview.js), above a mission's list */
-.leaderboard-overlay { z-index: 45; }
+/* All the leaderboards (js/leaderboard-overview.js): the second tab of the missions' dialog */
 .leaderboard-pick { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-3); }
 .leaderboard-select { width: 100%; padding: 9px 10px; font: inherit; font-size: 16px; color: var(--text); background: var(--hover); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px; }
 .leaderboard-select option, .leaderboard-select optgroup { color: #111; background: #fff; }
@@ -2155,29 +2171,8 @@ body.hud-minimized .mission-hud { opacity: 1; }
 /* ------------------------------------------------------------------------------------------------------------------
    Missions in the open world (js/missions-world.js): the points, the start prompt, the waypoint, the medals
    ------------------------------------------------------------------------------------------------------------------ */
-.mission-score {
-  position: fixed;
-  top: calc(var(--edge) + 62px);
-  right: var(--edge);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px 5px 8px;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-.mission-score:hover { background: var(--hover); }
 .mission-score-star { color: var(--taxi); }
-.mission-score-label { font-weight: 600; color: var(--text-3); font-size: 11px; }
-.mission-score.is-bumped { animation: mission-score-bump 0.6s ease-out; }
-@keyframes mission-score-bump { 30% { transform: scale(1.18); box-shadow: 0 0 0 3px rgba(255, 194, 26, 0.45); } }
-body.hud-minimized .mission-score { opacity: 0; pointer-events: none; }
+@keyframes mission-score-bump { 30% { transform: scale(1.12); box-shadow: 0 0 0 3px rgba(255, 194, 26, 0.45); } }
 
 .mission-points-pop {
   position: fixed;
@@ -2279,15 +2274,9 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 .mission-list-total strong { font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
 .mission-list-points { font-size: 11.5px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
-/* touch screens and phones: the points small at the top left, under the brand; hidden during a mission (the strip) */
-body.touch-enabled .mission-score { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); right: auto; left: max(var(--edge), env(safe-area-inset-left)); padding: 4px 8px; font-size: 11px; }
+/* phones: the waypoint under the toolbar and the camera switcher */
 @media (max-width: 820px) {
-  .mission-score { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); right: auto; left: max(var(--edge), env(safe-area-inset-left)); padding: 4px 8px; font-size: 11px; }
-  .mission-score-label { display: none; }
   .mission-waypoint-panel { font-size: 11px; padding: 4px 6px 4px 10px; }
-}
-@media (max-width: 820px) {
-  body:has(#mission-hud) .mission-score { display: none; }
 }
 .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); }
 .mission-list li { flex-wrap: nowrap; }
@@ -2295,7 +2284,7 @@ body.touch-enabled .mission-score { top: calc(max(var(--edge), env(safe-area-ins
 .mission-list-points { display: flex; flex-direction: column; align-items: flex-end; flex: none; white-space: nowrap; }
 .mission-list-points .mission-list-best { font-size: 10.5px; font-weight: 500; }
 @media (max-width: 820px) {
-  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 150px); }
+  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); }
 }
 
 /* The GTA mode (js/gta.js): no mode bar; the prompt to get in or out above the controls guide (under a mission's
@@ -2322,6 +2311,17 @@ body.gta-mode #mode-switch { display: none; }
 .gta-prompt kbd { color: var(--taxi-ink); background: var(--taxi); }
 .gta-prompt-body { display: flex; flex-direction: column; min-width: 0; margin-left: 4px; text-align: left; }
 .gta-prompt-text { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gta-prompt-sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
+.touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
+.touch-tap-label { font-size: 11px; white-space: nowrap; }
+
+/* Phones: a closed mission's row keeps its title on a line of its own, the wait button under it, big enough to tap */
+@media (max-width: 560px) {
+  .mission-list li.is-closed { flex-wrap: wrap; }
+  .mission-list li.is-closed .mission-link { flex: 1 1 60%; }
+  .mission-list li.is-closed .mission-wait { flex: 1 1 100%; min-width: 0; min-height: 40px; flex-direction: row; justify-content: space-between; align-items: center; }
+}
 
 /* The player's statistics (js/play-stats-ui.js) */
 .play-stats-overlay { z-index: 45; }
@@ -2334,14 +2334,3 @@ body.gta-mode #mode-switch { display: none; }
 .play-stats-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .play-stats-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--hover); position: relative; overflow: hidden; }
 .play-stats-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--share); background: var(--taxi); border-radius: 2px; }
-.gta-prompt-sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.touch-action.touch-use { width: 76px; height: 76px; border-color: var(--taxi); }
-.touch-action.touch-use.is-waiting { opacity: 0.55; border-color: rgba(255, 255, 255, 0.22); }
-.touch-tap-label { font-size: 11px; white-space: nowrap; }
-
-/* Phones: a closed mission's row keeps its title on a line of its own, the wait button under it, big enough to tap */
-@media (max-width: 560px) {
-  .mission-list li.is-closed { flex-wrap: wrap; }
-  .mission-list li.is-closed .mission-link { flex: 1 1 60%; }
-  .mission-list li.is-closed .mission-wait { flex: 1 1 100%; min-width: 0; min-height: 40px; flex-direction: row; justify-content: space-between; align-items: center; }
-}

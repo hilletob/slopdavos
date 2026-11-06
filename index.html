@@ -192,7 +192,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&amp;family=Overpass:wght@600;700&amp;display=swap" />
-  <link rel="stylesheet" href="./css/style.css?v=20261022-repo-link" />
+  <link rel="stylesheet" href="./css/style.css?v=20261106-toolbar" />
 </head>
 <body>
   <!-- Icon sprite (24 × 24 stroke icons, drawn in currentColor) -->
@@ -222,6 +222,7 @@
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.7"/><path d="M4.8 20c.9-3.8 3.7-5.6 7.2-5.6s6.3 1.8 7.2 5.6"/></symbol>
+      <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
     </defs>
   </svg>
@@ -244,33 +245,28 @@
     <div class="panel brand">
       <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
       <div class="brand-titles">
-        <div class="brand-heading">
-          <h1>Slop Davos</h1>
-          <a class="repo-link" href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer" aria-label="Based on Slop Zürich on GitHub (opens in a new tab)" title="Based on colorfield/slop-zurich">GitHub <span aria-hidden="true">↗</span></a>
-        </div>
+        <h1>Slop Davos</h1>
+        <!-- (the renderer and the frame rate: only with ?stats=1, js/main.js sets body.show-stats) -->
         <div class="brand-subtitle">three.js · <span id="hud-backend">WebGPU</span> · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
       </div>
     </div>
   </header>
 
-  <!-- Top-Right Toolbar: Time of Day, Teleport, Map & Clean View -->
+  <!-- Top-Right Toolbar, three groups: the time (the clock opens the fast-forward), the game (missions, teleport, map)
+       and the system (account, menu, clean view) -->
   <div class="hud hud-top-right">
     <div id="hud-toolbar" class="panel toolbar">
-      <div id="hud-clock" class="hud-clock" aria-label="Game time">
-        <span id="hud-clock-time" class="hud-clock-time">--:--</span>
-        <span id="hud-clock-day" class="hud-clock-day"></span>
-      </div>
-      <button id="btn-fastforward" class="tool-btn" type="button" popovertarget="ff-popover" title="Fast-forward the time" aria-label="Fast-forward the time">
-        <svg class="icon" aria-hidden="true"><use href="#i-forward"/></svg><span class="tool-label">Fast-forward</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
-      </button>
-      <div class="language-switch" role="group" aria-label="Language / Sprache">
-        <button id="lang-de" class="language-btn" type="button" lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
-        <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
-      </div>
-      <button id="btn-account" class="tool-btn icon-only" type="button" popovertarget="account-popover" title="Account" aria-label="Account" aria-pressed="false" hidden>
-        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+      <button id="btn-fastforward" class="tool-btn hud-clock" type="button" popovertarget="ff-popover" title="Fast-forward the time" aria-label="Game time: fast-forward">
+        <span class="hud-clock-text">
+          <span id="hud-clock-time" class="hud-clock-time">--:--</span>
+          <span id="hud-clock-day" class="hud-clock-day"></span>
+        </span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
+      <!-- (the missions' points; js/missions-world.js shows the button and keeps the points current) -->
+      <button id="btn-missions" class="tool-btn" type="button" title="Missions: points and medals" hidden>
+        <span class="mission-score-star" aria-hidden="true">★</span><span id="hud-points" class="hud-points">0</span><span class="tool-label">Missions</span>
+      </button>
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="Teleport the active player">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">Teleport</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
@@ -278,13 +274,37 @@
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">Map</span><kbd>M</kbd>
       </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="btn-sound" class="tool-btn icon-only" type="button" title="Mute sound [N]" aria-label="Mute sound" aria-pressed="true">
-        <svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>
+      <button id="btn-account" class="tool-btn" type="button" popovertarget="account-popover" title="Account" aria-label="Account" aria-pressed="false" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="tool-label">Sign in</span>
+      </button>
+      <button id="btn-menu" class="tool-btn icon-only" type="button" popovertarget="menu-popover" title="Menu" aria-label="Menu">
+        <svg class="icon" aria-hidden="true"><use href="#i-dots"/></svg>
       </button>
       <button id="btn-toggle-hud" class="tool-btn icon-only" type="button" title="Clean view: hide the HUD [H]" aria-label="Hide HUD" aria-pressed="false">
         <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
       </button>
     </div>
+  </div>
+
+  <!-- The menu: what is set once in a while (the language, the sound, the clean view), the credits and the privacy -->
+  <div id="menu-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-align="hud-toolbar" aria-label="Menu">
+    <div class="pop-title">Menu</div>
+    <div class="pop-row">
+      <span class="pop-name">Language</span>
+      <div class="language-switch" role="group" aria-label="Language / Sprache">
+        <button id="lang-de" class="language-btn" type="button" lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
+        <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
+      </div>
+    </div>
+    <button id="btn-sound" class="pop-item" type="button" title="Mute sound [N]" aria-label="Mute sound" aria-pressed="true">
+      <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>Sound</span><span class="pop-state"><span id="sound-state">On</span><kbd>N</kbd></span>
+    </button>
+    <button id="btn-hud-menu" class="pop-item" type="button" title="Clean view: hide the HUD [H]">
+      <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>Clean view</span><span class="pop-state"><kbd>H</kbd></span>
+    </button>
+    <div class="pop-title">About</div>
+    <button id="btn-credits-menu" class="pop-item" type="button"><span class="pop-name">Data &amp; credits</span></button>
+    <a class="pop-item" href="./privacy.html" target="_blank" rel="noopener"><span class="pop-name">Privacy</span><span class="pop-state" aria-hidden="true">↗</span></a>
   </div>
 
   <!-- The optional account (js/account-ui.js): the button shows once js/account-config.js names a backend -->
@@ -333,10 +353,13 @@
     <button id="btn-credits" class="attribution-btn" type="button">Data &amp; credits</button>
   </div>
 
-  <dialog id="credits-dialog" class="credits-dialog" aria-labelledby="credits-title">
-    <div class="credits-head">
-      <h2 id="credits-title">Data &amp; credits</h2>
-      <form method="dialog"><button class="credits-close" type="submit" aria-label="Close">×</button></form>
+  <dialog id="credits-dialog" class="panel mission-dialog credits-dialog" aria-labelledby="credits-title">
+    <div class="mission-dialog-head">
+      <div>
+        <div class="mission-kicker">Slop Davos</div>
+        <h2 id="credits-title" class="mission-dialog-title">Data &amp; credits</h2>
+      </div>
+      <form method="dialog"><button class="dialog-close" type="submit" title="Close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
     </div>
     <p>Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.</p>
     <ul class="credits-list">

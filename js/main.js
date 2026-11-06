@@ -485,6 +485,7 @@ async function initApp() {
   const audioSystem = new CityAudioSystem({ controllerManager, trafficSystem, highwayTraffic, streetDetails }, {
     onStateChange: updateSoundButton
   });
+  const soundState = document.getElementById('sound-state');
   function updateSoundButton() {
     if (!soundButton) return;
     soundButton.disabled = !audioSystem.supported;
@@ -492,6 +493,7 @@ async function initApp() {
     soundButton.setAttribute('aria-label', audioSystem.enabled ? 'Mute sound' : 'Enable sound');
     soundButton.title = audioSystem.supported ? `${audioSystem.enabled ? 'Mute' : 'Enable'} sound [N]` : 'Web Audio is unavailable';
     soundButton.querySelector('use').setAttribute('href', audioSystem.enabled ? '#i-sound' : '#i-sound-off');
+    if (soundState) setLocalizedText(soundState, !audioSystem.supported ? 'Unavailable' : audioSystem.enabled ? 'On' : 'Off');
   }
   soundButton?.addEventListener('click', () => audioSystem.setEnabled(!audioSystem.enabled));
   updateSoundButton();
@@ -774,9 +776,11 @@ async function initApp() {
     }
   }
 
-  // Data & credits: a native modal <dialog> (Esc and the × close it; so does a click on the backdrop)
+  // Data & credits: a native modal <dialog> (Esc and the × close it; so does a click on the backdrop), opened from the
+  // attribution line at the bottom and from the menu
   const creditsDialog = document.getElementById('credits-dialog');
   document.getElementById('btn-credits')?.addEventListener('click', () => creditsDialog.showModal());
+  document.getElementById('btn-credits-menu')?.addEventListener('click', () => { closePopovers(); creditsDialog.showModal(); });
   creditsDialog?.addEventListener('click', (e) => {
     if (e.target !== creditsDialog) return;
     const r = creditsDialog.getBoundingClientRect();
@@ -959,7 +963,11 @@ async function initApp() {
       hudToggleBtn.title = isMin ? 'Show the HUD [H]' : 'Clean view: hide the HUD [H]';
       if (isMin) closePopovers();
     });
+    // (the same from the menu; the toolbar's button is the one left in the clean view, to come back)
+    document.getElementById('btn-hud-menu')?.addEventListener('click', () => hudToggleBtn.click());
   }
+  // (?stats=1: the renderer and the frame rate under the brand)
+  if (/[?&]stats=(1|true)\b/.test(location.search)) document.body.classList.add('show-stats');
 
   // Global keyboard shortcuts for modes (1-5), cameras (V / 6-0), and HUD (H)
   window.addEventListener('keydown', (e) => {
@@ -1048,14 +1056,6 @@ async function initApp() {
     document.body.classList.add('gta-mode');
     gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   }
-  // the web fonts change the buttons' widths once they arrive
-  if (document.fonts) document.fonts.ready.then(placeModeIndicator);
-  markInit('ui');
-
-  // The loading screen stays up while the shaders compile (precompileShaders() & the warm-up frame, see the loop) and
-  // until the first frame is on screen
-  if (loadingStatus) {
-    loadingStatus.textContent = 'Bringing Davos to life…';
   // The play time and the ways of travel (js/play-stats.js), counted from the first frame shown
   const playStats = createPlayStats();
   const travelNow = () => travelKind({
@@ -1065,6 +1065,14 @@ async function initApp() {
     mission: missions.run?.def,
     rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null
   });
+  // the web fonts change the buttons' widths once they arrive
+  if (document.fonts) document.fonts.ready.then(placeModeIndicator);
+  markInit('ui');
+
+  // The loading screen stays up while the shaders compile (precompileShaders() & the warm-up frame, see the loop) and
+  // until the first frame is on screen
+  if (loadingStatus) {
+    loadingStatus.textContent = 'Bringing Davos to life…';
   }
 
   // 6b. Shader pre-compilation behind the loading screen. compileAsync() builds the node graphs in slices and has the GPU
@@ -1231,6 +1239,7 @@ async function initApp() {
     levelCrossings.update(dt);
     controllerManager.update(dt, elapsed);
     constrainToTunnel(controllerManager.getActiveEntity().position);
+    if (warmedUp) playStats.tick(realDt, travelNow(), controllerManager.getActiveEntity().position);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
     trafficSystem.update(
@@ -1239,7 +1248,6 @@ async function initApp() {
       cameraSystem.currentPos,
       controllerManager.getActiveEntity(),
       controllerManager.activeMode,
-    if (warmedUp) playStats.tick(realDt, travelNow(), controllerManager.getActiveEntity().position);
       cameraSystem.camera
     );
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);

@@ -42,18 +42,7 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
     return b;
   };
 
-  /** All the leaderboards in one dialog (js/leaderboard-overview.js), for a guest too */
-  const boardsItem = (signedIn) => item('Leaderboards', async () => {
-    popover.hidePopover?.();
-    try {
-      const { openLeaderboards } = await import('./leaderboard-overview.js');
-      openLeaderboards({ signedIn });
-    } catch {
-      say('The leaderboard is not reachable right now.');
-      popover.showPopover?.();
-    }
-  });
-
+  // (the leaderboards are the second tab of the missions' dialog: no entry here)
   /** Signed in with an email code: the game starts again with the account, like after the Google sign-in */
   const restartSignedIn = () => {
     try { save(); } catch { /* */ }
@@ -62,14 +51,16 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
   };
 
   const renderGuest = () => {
-    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-pressed', 'false'); // (the toolbar's button says "Sign in", css/style.css)
+    button.classList.remove('icon-only');
+    button.title = 'Sign in';
     const email = emailSignIn({
       say,
       signedIn: restartSignedIn,
       allowed: () => { if (missionActive()) { say('Finish the mission first.'); return false; } return true; },
       buttonClass: 'pop-item'
     });
-    list.replaceChildren(boardsItem(false), ...LOGIN_PROVIDERS.map(({ id, label }) => item(label, async () => {
+    list.replaceChildren(...LOGIN_PROVIDERS.map(({ id, label }) => item(label, async () => {
       if (missionActive()) { say('Finish the mission first.'); return; }
       say('Opening the sign-in…');
       try {
@@ -124,12 +115,14 @@ export async function startAccount({ save, leaving, missionActive, progress }) {
   };
 
   const renderUser = (user) => {
-    button.setAttribute('aria-pressed', 'true');
+    button.setAttribute('aria-pressed', 'true'); // (the icon alone)
+    button.classList.add('icon-only');
+    button.title = 'Account';
     const who = document.createElement('div');
     who.className = 'pop-sub account-who player-name';
     who.textContent = user.email || '';
     let confirming = false;
-    list.replaceChildren(who, boardsItem(true), nameForm(), item('Sign out', async () => {
+    list.replaceChildren(who, nameForm(), item('Sign out', async () => {
       try {
         await sync?.flush().catch(() => {});
         await signOut();

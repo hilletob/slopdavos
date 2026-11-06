@@ -555,15 +555,14 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
   way.append(wayPanel);
   document.body.append(way);
 
-  const score = el('button', 'panel mission-score');
-  score.type = 'button';
-  score.title = 'Missions: points and medals';
-  const scoreStar = el('span', 'mission-score-star', '★');
-  const scoreValue = el('span', 'mission-score-value');
-  score.append(scoreStar, scoreValue, el('span', 'mission-score-label', 'Missions'));
-  score.addEventListener('click', () => manager.showList());
-  document.body.append(score);
-  const renderScore = () => { scoreValue.textContent = progress.points.toLocaleString('en-US'); };
+  // (the toolbar's missions button, index.html: shown now that there are missions, the points kept current)
+  const score = document.getElementById('btn-missions');
+  const scoreValue = document.getElementById('hud-points');
+  if (score) {
+    score.hidden = false;
+    score.addEventListener('click', () => manager.showList());
+  }
+  const renderScore = () => { if (scoreValue) scoreValue.textContent = progress.points.toLocaleString('en-US'); };
   renderScore();
 
   /** "+250" floating up from the score (and from `anchor`, the finish dialog's medal, when given) */
@@ -572,13 +571,14 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
     for (const target of [score, anchor]) {
       if (!target?.isConnected) continue;
       const r = target.getBoundingClientRect();
-      if (!r.width) continue; // (hidden: the score on a phone during a mission)
+      if (!r.width) continue; // (hidden: the toolbar in the clean view)
       const f = el('div', 'mission-points-pop', `+${points.toLocaleString('en-US')}`);
       f.style.left = `${r.left + r.width / 2}px`;
       f.style.top = `${r.top + r.height / 2}px`;
       document.body.append(f);
       setTimeout(() => f.remove(), 1800);
     }
+    if (!score) return;
     score.classList.remove('is-bumped');
     void score.offsetWidth; // (restart the animation)
     score.classList.add('is-bumped');

@@ -11,8 +11,10 @@ const pairs = [
   ['Davos couldn’t open this time. Please try again.', 'Davos konnte nicht geöffnet werden. Bitte versuche es erneut.'],
   ['Davos emblem', 'Davos-Wappen'],
   ['3D Interactive Slop Davos Viewport', 'Interaktive 3D-Ansicht von Slop Davos'],
-  ['Based on Slop Zürich on GitHub (opens in a new tab)', 'Basierend auf Slop Zürich auf GitHub (öffnet einen neuen Tab)'],
-  ['Based on colorfield/slop-zurich', 'Basierend auf colorfield/slop-zurich'],
+  ['Game time: fast-forward', 'Spielzeit: vorspulen'],
+  ['Menu', 'Menü'], ['Language', 'Sprache'], ['Sound', 'Ton'], ['On', 'An'], ['Off', 'Aus'], ['Unavailable', 'Nicht verfügbar'],
+  ['Clean view', 'Freie Sicht'], ['About', 'Über'],
+  ['Missions: points and medals', 'Missionen: Punkte und Medaillen'],
   ['Atmosphere & time of day', 'Atmosphäre und Tageszeit'],
   ['Golden Hour', 'Goldene Stunde'], ['Sunny Midday', 'Sonniger Mittag'], ['Midday', 'Mittag'],
   ['Blue Hour', 'Blaue Stunde'], ['Night 23:00', 'Nacht 23:00'], ['Night', 'Nacht'],
@@ -123,8 +125,6 @@ const pairs = [
   ['Vehicle telemetry and camera', 'Fahrdaten und Kamera'], ['Davos Cyclist', 'Davos-Radfahrer'],
   ['m a.s.l.', 'm ü. M.'],
   ['Pedestrian', 'Fussgänger'], ['Cargo bike', 'Lastenrad'], ['Snow groomer', 'Pistenfahrzeug'],
-  ['Previous camera', 'Vorherige Kamera'], ['Next camera', 'Nächste Kamera'],
-  ['Next camera [V]', 'Nächste Kamera [V]'], ['All cameras [V cycles]', 'Alle Kameras [V wechselt]'],
   // the player's statistics (js/play-stats.js, js/play-stats-ui.js)
   ['Your statistics', 'Deine Statistik'], ['Statistics', 'Statistik'], ['How you play', 'Wie du spielst'], ['Play time', 'Spielzeit'],
   ['Sessions', 'Sitzungen'], ['Devices', 'Geräte'], ['How you get about', 'Wie du unterwegs bist'], ['Nothing yet: get going.', 'Noch nichts: los gehts.'],
@@ -135,6 +135,8 @@ const pairs = [
   ['Summer toboggan', 'Sommerrodelbahn'], ['Skates', 'Schlittschuhe'], ['Snowshoes', 'Schneeschuhe'], ['Water slide', 'Wasserrutsche'],
   ['Rope park', 'Seilpark'], ['Crane', 'Kran'], ['Snow blower', 'Schneefräse'], ['Ride-on mower', 'Aufsitzmäher'], ['Garbage truck', 'Kehrichtwagen'],
   ['Truck', 'Lastwagen'],
+  ['Previous camera', 'Vorherige Kamera'], ['Next camera', 'Nächste Kamera'],
+  ['Next camera [V]', 'Nächste Kamera [V]'], ['All cameras [V cycles]', 'Alle Kameras [V wechselt]'],
   ['Multiple Camera Angles', 'Kameraperspektiven'], ['Follow', 'Folgen'], ['Scenic', 'Aussicht'],
   ['3rd-Person Chase', 'Verfolgerkamera'], ['Low-Angle Action', 'Tiefe Actionkamera'],
   ['First-Person / Cockpit', 'Ich-Perspektive / Cockpit'], ['Schatzalp over the valley', 'Schatzalp über dem Tal'],
@@ -1101,9 +1103,9 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  dynamic = dynamic.replace(/^(\d+)\.(\d) km$/, '$1,$2 km'); // (a distance alone: js/play-stats-ui.js)
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
-  dynamic = dynamic.replace(/^(\d+)\.(\d) km$/, '$1,$2 km'); // (a distance alone: js/play-stats-ui.js)
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');

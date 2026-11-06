@@ -3,11 +3,10 @@ import { fetchBoard, fetchPoints } from './leaderboard.js';
 import { el, boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
 
 // js/leaderboard-overview.js
-// All the leaderboards in one dialog, opened from the account menu or the mission list: the overall list of the missions'
-// points (from the cloud saves) and every mission's list (times, or scores for a mission judged by points), each with the
-// top and the lines around the player. A select picks the list: there is one for every mission.
+// All the leaderboards, the second tab of the missions' dialog (js/missions.js): the overall list of the missions' points
+// (from the cloud saves) and every mission's list (times, or scores for a mission judged by points), each with the top
+// and the lines around the player. A select picks the list: there is one for every mission.
 
-const OVERLAY_ID = 'leaderboard-overlay';
 const LAST_KEY = 'slopdavos-leaderboard-last'; // (the list picked last time, a convenience only)
 
 /** The lists: the overall points first, then every mission in the game's order, by time and by points */
@@ -41,17 +40,9 @@ const listOf = (def) => {
 const remembered = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
 const remember = (id) => { try { localStorage.setItem(LAST_KEY, id); } catch { /* */ } };
 
-export const closeLeaderboards = () => document.getElementById(OVERLAY_ID)?.remove();
-
-/** Opens the dialog. `signedIn`: whether there is a player to place, `start`: the list to show first */
-export function openLeaderboards({ signedIn = false, start = null } = {}) {
-  closeLeaderboards();
-  const overlay = el('div', 'mission-overlay leaderboard-overlay');
-  overlay.id = OVERLAY_ID;
-  const panel = el('div', 'panel mission-dialog leaderboard-dialog');
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'true');
-  panel.setAttribute('aria-label', 'Leaderboards');
+/** Renders the lists into `container` (the leaderboards tab of the missions' dialog, js/missions.js). `signedIn`: whether
+ *  there is a player to place, `start`: the list to show first (else the one picked last time) */
+export function renderLeaderboards(container, { signedIn = false, start = null } = {}) {
   const tabs = overviewTabs();
 
   const picker = el('label', 'leaderboard-pick');
@@ -83,7 +74,7 @@ export function openLeaderboards({ signedIn = false, start = null } = {}) {
     body.replaceChildren(el('h3', 'mission-board-title', tab.title), el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
     let rows;
     try { rows = await kind.load(); } catch { rows = null; }
-    if (ticket !== shown) return; // (another list was picked meanwhile)
+    if (ticket !== shown || !body.isConnected) return; // (another list was picked meanwhile, or the dialog is gone)
     const parts = [el('h3', 'mission-board-title', tab.title), el('p', 'mission-board-note', kind.hint)];
     if (!rows) parts.push(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.'));
     else {
@@ -96,22 +87,8 @@ export function openLeaderboards({ signedIn = false, start = null } = {}) {
   };
   select.addEventListener('change', () => show(tabs.find((t) => t.id === select.value) || tabs[0]));
 
-  const close = el('button', 'mission-btn mission-btn-secondary', 'Close');
-  close.type = 'button';
-  const onKey = (e) => {
-    if (!overlay.isConnected) { document.removeEventListener('keydown', onKey, true); return; } // (closed from outside)
-    if (e.key === 'Escape') { e.stopPropagation(); done(); }
-  };
-  const done = () => { document.removeEventListener('keydown', onKey, true); overlay.remove(); };
-  close.addEventListener('click', done);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) done(); });
-  document.addEventListener('keydown', onKey, true);
-
-  panel.append(el('div', 'mission-kicker', 'Leaderboards'), el('h2', 'mission-dialog-title', 'How you compare'), picker, body, close);
-  overlay.append(panel);
-  document.body.append(overlay);
+  container.replaceChildren(picker, body);
   const first = start || remembered();
   show(tabs.find((t) => t.id === first) || tabs[0]);
-  close.focus({ preventScroll: true });
-  return overlay;
+  return { show: (id) => show(tabs.find((t) => t.id === id) || tabs[0]) };
 }

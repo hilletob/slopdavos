@@ -50,6 +50,30 @@ import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
+
+/** The head every dialog shares (css/style.css: .mission-dialog-head): the kicker and the title, the × at the top right */
+function dialogHead(kicker, title, onClose = null) {
+  const head = el('div', 'mission-dialog-head');
+  const titles = el('div');
+  titles.append(el('div', 'mission-kicker', kicker), el('h2', 'mission-dialog-title', title));
+  head.append(titles);
+  if (onClose) {
+    const close = el('button', 'dialog-close');
+    close.type = 'button';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-close');
+    svg.append(use);
+    close.append(svg);
+    close.addEventListener('click', onClose);
+    head.append(close);
+  }
+  return head;
+}
 // (js/account.js; a static import here would load it for every guest)
 const signedIn = () => { try { return !!globalThis.localStorage?.getItem('slopdavos-session'); } catch { return false; } };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
@@ -66,7 +90,7 @@ export function buildMissions(scene, hooks) {
       globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
       return run;
     },
-    showList: (note) => { listOverlay = showList(manager, progress, note, hooks.fastForward); },
+    showList: (note, opts) => { listOverlay = showList(manager, progress, note, hooks.fastForward, opts); },
     hideList: () => { listOverlay?.remove(); listOverlay = null; },
     setSearch: (search) => {
       // (the URL's other switches stay: a reload keeps ?quality=, ?memhud=, ...)
@@ -89,8 +113,10 @@ export function buildMissions(scene, hooks) {
   return manager;
 }
 
-/** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever) */
-function showList(manager, progress, note = null, fastForward = null) {
+/** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever), and in a
+ *  second tab all the leaderboards (js/leaderboard-overview.js). `opts.tab`: 'boards' opens that tab, `opts.board` the
+ *  list to show there. The ×, Esc and a click beside the dialog go back to the game */
+function showList(manager, progress, note = null, fastForward = null, { tab = 'missions', board = null } = {}) {
   const overlay = el('div', 'mission-overlay');
   overlay.id = 'mission-overlay'; overlay.dataset.list = '1';
   const go = (a, id, night) => a.addEventListener('click', (e) => {
@@ -99,18 +125,53 @@ function showList(manager, progress, note = null, fastForward = null) {
     manager.start(id, { night });
   });
   const panel = el('div', 'panel mission-dialog');
-  panel.append(el('div', 'mission-kicker', 'Missions'), el('h2', 'mission-dialog-title', 'Choose a mission'));
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.append(dialogHead('Missions', 'Choose a mission', () => manager.stop()));
+  const onKey = (e) => {
+    if (!overlay.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+    if (e.key === 'Escape') { e.stopPropagation(); manager.stop(); }
+  };
+  document.addEventListener('keydown', onKey, true);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) manager.stop(); });
+
+  // The tabs: the missions, the leaderboards (rendered on the first look)
+  const tabs = el('div', 'dialog-tabs');
+  tabs.setAttribute('role', 'tablist');
+  const missionsPane = el('div', 'dialog-pane');
+  const boardsPane = el('div', 'dialog-pane');
+  const panes = { missions: missionsPane, boards: boardsPane };
+  let boardsShown = null;
+  const tabButtons = {};
+  const select = (which) => {
+    for (const [key, pane] of Object.entries(panes)) {
+      pane.hidden = key !== which;
+      tabButtons[key].setAttribute('aria-selected', String(key === which));
+    }
+    if (which === 'boards' && !boardsShown) {
+      boardsShown = import('./leaderboard-overview.js')
+        .then((o) => o.renderLeaderboards(boardsPane, { signedIn: signedIn(), start: board }))
+        .catch(() => boardsPane.replaceChildren(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.')));
+    }
+  };
+  for (const [key, label] of [['missions', 'Missions'], ['boards', 'Leaderboards']]) {
+    const b = el('button', 'dialog-tab', label);
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.addEventListener('click', () => select(key));
+    tabButtons[key] = b;
+    tabs.append(b);
+  }
+  panel.append(tabs, missionsPane, boardsPane);
+  boardsPane.append(el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
+
   const total = el('p', 'mission-list-total');
   total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
-  panel.append(total);
-  const boards = el('button', 'mission-btn mission-btn-secondary mission-board-open', 'Leaderboards');
-  boards.type = 'button';
-  boards.addEventListener('click', () => import('./leaderboard-overview.js').then((o) => o.openLeaderboards({ signedIn: signedIn() })).catch(() => {}));
-  panel.append(boards);
+  missionsPane.append(total);
   // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
   // with the mission open (a link in a new tab, or ?mission=<id>, always starts it directly, moving the clock)
   const now = gameClock.total;
-  panel.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
+  missionsPane.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
   const waitFor = (m) => {
     const scroll = panel.scrollTop;
     const reopened = fastForward?.go(nextOpening(m, gameClock.total), () => {
@@ -122,7 +183,7 @@ function showList(manager, progress, note = null, fastForward = null) {
     });
     return reopened;
   };
-  if (note) panel.append(el('p', 'mission-dialog-note', note));
+  if (note) missionsPane.append(el('p', 'mission-dialog-note', note));
   const list = el('ul', 'mission-list');
   const best = readBestTimes(globalThis.localStorage);
   for (const m of MISSIONS) {
@@ -156,11 +217,12 @@ function showList(manager, progress, note = null, fastForward = null) {
     if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
     list.append(li);
   }
-  panel.append(list);
+  missionsPane.append(list);
   const back = el('a', 'mission-btn mission-btn-secondary', 'Back to the game');
   back.href = location.pathname;
   back.addEventListener('click', (e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); manager.stop(); });
   panel.append(back);
+  select(tab === 'boards' ? 'boards' : 'missions');
   overlay.append(panel);
   document.body.append(overlay);
   return overlay;
@@ -467,7 +529,7 @@ class MissionRun {
     const o = this.ui.overlay;
     o.replaceChildren();
     const panel = el('div', 'panel mission-dialog');
-    panel.append(el('div', 'mission-kicker', kicker), el('h2', 'mission-dialog-title', title), ...nodes);
+    panel.append(dialogHead(kicker, title, () => this.hooks.missions?.stop()), ...nodes);
     const row = el('div', 'mission-dialog-buttons');
     for (const [label, key, onClick, secondary] of buttons) {
       const b = el('button', `mission-btn${secondary ? ' mission-btn-secondary' : ''}`);
