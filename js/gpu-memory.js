@@ -330,13 +330,15 @@ function quantizedNormal(attribute) {
 
 /**
  * Compacts the static meshes' vertex data under `roots` (indexGeometry, 8-bit normals), before anything is uploaded.
- * `flat` (the flat-draws profile): the index buffers are written out instead (flatGeometry) and only the normals shrink,
- * now rather than at the first draw (flattenDraws). Leaves alone what may be read or rewritten on the CPU later:
+ * `index: false`: the non-indexed geometries stay as they are and only the normals shrink (the flat-draws profile: an
+ * index would be written out again at the first draw, flattenDraws; what is indexed already stays so until then, a third
+ * of the corners in JavaScript for all the camera never reaches). `flat`: the index buffers are written out now instead
+ * (flatGeometry), rather than at the first draw. Leaves alone what may be read or rewritten on the CPU later:
  * instanced meshes and their shared bases, skinned and morphed meshes, lines and points, attributes that are updated
  * (not StaticDrawUsage) and objects with userData.keepCpu; `skip(object)` excludes whole subtrees.
  * Returns { geometries, before, after } (bytes).
  */
-export function compactStaticGeometry(roots, { skip = () => false, flat = false } = {}) {
+export function compactStaticGeometry(roots, { skip = () => false, flat = false, index = true } = {}) {
   const stats = { geometries: 0, before: 0, after: 0 };
   const users = new Map(); // attribute -> geometries using it
   const meshes = [];
@@ -367,7 +369,7 @@ export function compactStaticGeometry(roots, { skip = () => false, flat = false 
     const before = bytesOf(g);
     let out = g;
     if (flat) { if (g.index) out = flatGeometry(g); } // (disposes g, which nothing has uploaded yet)
-    else if (attrs.every((a) => (users.get(a)?.size ?? 1) === 1)) out = indexGeometry(g) || g;
+    else if (index && attrs.every((a) => (users.get(a)?.size ?? 1) === 1)) out = indexGeometry(g) || g;
     const nor = out.attributes.normal;
     if (nor && nor.itemSize === 3 && nor.array instanceof Float32Array && !nor.isInterleavedBufferAttribute) {
       // (an attribute shared by several geometries is quantized once, for all of them)

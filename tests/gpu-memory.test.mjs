@@ -220,6 +220,30 @@ test('compactStaticGeometry on the flat-draws profile writes the index buffers o
   assert.ok(flat.attributes.normal.array instanceof Int8Array);
 });
 
+test('compactStaticGeometry with index: false leaves the index buffers in place for flattenDraws and still shrinks the normals', () => {
+  const g = quad();
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(12).fill(0).map((_, i) => (i % 3 === 2 ? 1 : 0)), 3));
+  const mesh = { isMesh: true, geometry: g, userData: {}, children: [] };
+  const stats = compactStaticGeometry([{ userData: {}, children: [mesh] }], { index: false });
+  assert.equal(stats.geometries, 1);
+  assert.equal(mesh.geometry, g, 'the indexed geometry itself');
+  assert.equal(g.index.count, 6);
+  assert.ok(g.attributes.normal.array instanceof Int8Array && g.attributes.normal.normalized && g.attributes.normal.count === 4);
+  assert.equal(stats.after, 4 * 12 + 4 * 3 + 6 * 2, 'float positions, byte normals and the index');
+  // A non-indexed one is not indexed either (an index would be written out again at the first draw)
+  const strip100 = strip(100);
+  const plain = { isMesh: true, geometry: strip100, userData: {}, children: [] };
+  compactStaticGeometry([{ userData: {}, children: [plain] }], { index: false });
+  assert.equal(plain.geometry, strip100);
+  assert.equal(strip100.index, null);
+  assert.ok(strip100.attributes.normal.array instanceof Int8Array);
+  // The flat-draws profile compacts this way, and the terrain's chunks are not written out at the build any more
+  const source = (f) => readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8');
+  assert.match(source('main.js'), /compactStaticGeometry\(roots, \{ index: !QUALITY\.flatDraws \}\)/);
+  assert.doesNotMatch(source('main.js'), /flat: QUALITY\.flatDraws/);
+  assert.doesNotMatch(source('terrain.js'), /flatGeometry/, 'the terrain leaves the writing out to flattenDraws');
+});
+
 test('dropShaderModules makes a program\'s module for the pipeline that asks and lets it go after that task', async () => {
   const made = [];
   const device = { createShaderModule(desc) { made.push(desc); return { desc }; } };

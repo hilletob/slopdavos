@@ -104,7 +104,8 @@ const PROFILES = {
     // (nothing drawn with an index buffer: Safari checks every indexed draw's indices on the GPU first, and its GPU
     // process, the one iOS kills first at 300 MB, held ~200 MB for the terrain's indexed chunks and ~100 MB for the
     // rest of the town's, far more than the index buffers save in vertex data; the web process ~250 MB as well;
-    // js/gpu-memory.js flattenDraws; ?qset=flatDraws:false to compare)
+    // js/gpu-memory.js flattenDraws, the first time a geometry is drawn: what the camera never reaches stays indexed in
+    // JavaScript, a third of the corners; ?qset=flatDraws:false to compare)
     flatDraws: true,
     // (Safari's GPU process holds ~1.7 MB a shader module for as long as the page does, and three.js holds all of
     // them: ~90 MB here for modules the pipelines no longer need; js/gpu-memory.js dropShaderModules)

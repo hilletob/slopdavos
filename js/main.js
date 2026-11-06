@@ -251,11 +251,13 @@ async function initApp() {
   }
   const cityGrid = await buildCityGrid(scene); // (async: the mobile profile pauses within, js/city-grid.js)
   // (the mobile profile: the ground layers' vertices shared and their normals in bytes at once, js/gpu-memory.js:
-  // ~85 MB of draped corners down to ~25 MB before the rest is built)
+  // ~85 MB of draped corners down to ~25 MB before the rest is built. On the flat-draws profile the index buffers stay
+  // until the first draw writes them out (flattenDraws): the terrain, relief and pistes the camera never reaches had
+  // held ~130 MB written out flat in Safari's web process, a third of that indexed)
   const compacted = { geometries: 0, before: 0, after: 0 };
   const compact = (roots) => {
     if (!QUALITY.compactGeometry) return;
-    const st = compactStaticGeometry(roots, { flat: QUALITY.flatDraws });
+    const st = compactStaticGeometry(roots, { index: !QUALITY.flatDraws });
     for (const k of Object.keys(compacted)) compacted[k] += st[k];
   };
   compact([cityGrid.group]);
@@ -516,7 +518,7 @@ async function initApp() {
   const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
     'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells']);
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
-  if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries ${QUALITY.flatDraws ? 'written out flat' : 'compacted'}: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
+  if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries ${QUALITY.flatDraws ? 'with byte normals' : 'compacted'}: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;
   // The deferred scenery (see buildLater), once the town is on screen
   const buildDeferred = async () => {

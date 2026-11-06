@@ -2,7 +2,6 @@ import * as THREE from 'three/webgpu';
 import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gridLevels, pickLevel, cutTriangles } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { QUALITY } from './quality.js';
-import { flatGeometry } from './gpu-memory.js';
 import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
@@ -552,8 +551,10 @@ function chunkGeometry(i0, j0, nc, nr, steps = null) {
   g.setDrawRange(levels[0].start, levels[0].count);
   g.boundingBox = box; g.boundingSphere = sphere; // (the full chunk's, for either)
   g.userData.lodLevels = levels;
-  // (the flat-draws profile: the corners written out in index order, a level's range draws the same triangles)
-  return QUALITY.flatDraws ? flatGeometry(g) : g;
+  // (the flat-draws profile writes the corners out in index order the first time the chunk is drawn, gpu-memory.js
+  // flattenDraws, a level's range drawing the same triangles; until then, and for the chunks behind the camera for good,
+  // the indexed chunk is a third of the size in JavaScript)
+  return g;
 }
 export function buildTerrainMeshes(material, { chunk = CHUNK, carve = null, depths = null } = {}) {
   const { cols, rows, cell, minX, minZ } = TERRAIN;
