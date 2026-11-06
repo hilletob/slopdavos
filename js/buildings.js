@@ -259,7 +259,14 @@ function carve(r, holes, axis = 'x') {
   return out.map(([u0, u1, v0, v1]) => (flip ? rect(v0, v1, u0, u1) : rect(u0, u1, v0, v1)));
 }
 
-// `bag`: 3D BAG meshes already supply the facades and roofs, so only colliders and street-level details are built here.
+// Buildings whose swissBUILDINGS3D volume is incomplete: they keep their facades and roof extruded from the
+// OpenStreetMap footprint even when the streamed volumes stand in for all the others (`bag`)
+//  - w712452961: the new Bahnhof Davos Platz (RhB, 3 storeys): swisstopo has only its green roof, a slab at the eaves
+//    with nothing under it (seen from the street: no building at all); the walls come from here, the roof's rim too
+export const NEWER_THAN_SWISSBUILDINGS = new Set(['w712452961']);
+
+// `bag`: 3D BAG meshes already supply the facades and roofs, so only colliders and street-level details are built here
+// (but for NEWER_THAN_SWISSBUILDINGS).
 function buildCityBlocks(scene, { bag = false } = {}) {
   const group = new THREE.Group();
   group.name = BERLIN_DATA ? 'BerlinMitteCityBlocks' : 'ManhattanCityBlocks';
@@ -2024,6 +2031,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const base = Math.max(0, source.minHeight || 0);
       const height = Math.max(base + 0.15, source.h || (source.levels || 6) * 3.4);
       const roofHeight = Math.max(0, Math.min(source.roofHeight || 0, height * 0.4));
+      // (the streamed volumes lack this one: it is drawn from its footprint)
+      const drawn = !bag || NEWER_THAN_SWISSBUILDINGS.has(source.id);
       const pitched = roofHeight > 0.6 && poly.length === 4 && !holes.length && ['gabled', 'hipped', 'half-hipped', 'pyramidal'].includes(source.roofShape);
       const eave = pitched ? Math.max(base + 0.5, height - roofHeight) : height;
       const seed = (source.styleSeed || source.id).split('').reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) | 0, 701);
@@ -2055,7 +2064,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestBerlinRoad(x + nx * 3, z + nz * 3, 35) : null;
           const shop = !updated && road && road.distance < road.width / 2 + 13 && !['church', 'cathedral', 'school', 'university', 'civic'].includes(source.kind);
           const face = ringIndex ? WALL_KINDS.rear : shop ? WALL_KINDS.shop : WALL_KINDS.entry;
-          if (!bag) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
+          if (drawn) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
             ry, tone, facadeColour, facadeLevels: source.facadeLevels, faces: [WALL_KINDS.blankStone, WALL_KINDS.blankStone, face, face] });
           if (base < 1) {
             const hx = length / 2, hz = thickness / 2, cs = Math.cos(ry), sn = Math.sin(ry);
@@ -2063,7 +2072,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
             colliders.push({ minX: x - ex, maxX: x + ex, minZ: z - ez, maxZ: z + ez, maxY: height,
               obb: { cx: x, cz: z, hx, hz, cs, sn } });
           }
-          if (!bag && !modern && height > 7 && length > 1.5) {
+          if (drawn && !modern && height > 7 && length > 1.5) {
             detail.cornices.push({ x, z, y: eave, w: length + 0.2, h: 0.44, d: 0.85, ry });
             if (height > 13) detail.cornices.push({ x, z, y: 4.4, w: length + 0.12, h: 0.22, d: 0.62, ry });
           }
@@ -2078,8 +2087,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           }
         }
       }
-      let roof = bag ? null : berlinPolygonGeometry(poly, holes, eave + 0.035);
-      if (pitched && !bag) {
+      let roof = !drawn ? null : berlinPolygonGeometry(poly, holes, eave + 0.035);
+      if (pitched && drawn) {
         // Hipped/gabled roof on a mapped quadrilateral, preserving every eave
         // corner; no guessed Manhattan towers or rooftop water tanks.
         const ordered = signedArea(poly) < 0 ? [...poly].reverse() : poly;
@@ -2098,8 +2107,14 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         roof.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         roof.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); roof.computeVertexNormals();
       }
-      if (roof) roofBuckets[Math.floor(tone * 3)].push(roof);
-      if (!bag && !pitched && !holes.length && !source.part && height > 12 && rand() < 0.34) {
+      if (roof) {
+        // Into world heights here (the roof meshes are 'absolute'): placeOnTerrain would take the merged flat roofs for
+        // a ground overlay and drape them onto the terrain. The walls are lifted by the ground at their middles, so
+        // the roof by the mean of the ground along the outline.
+        roof.translate(0, poly.reduce((sum, q) => sum + surfaceHeight(q.x, q.z), 0) / poly.length, 0);
+        roofBuckets[Math.floor(tone * 3)].push(roof);
+      }
+      if (drawn && !pitched && !holes.length && !source.part && height > 12 && rand() < 0.34) {
         detail.hvacUnits.push({ x: cx, z: cz, y: height, w: 2.2, h: 0.85, d: 3.0, ry: 0 });
       }
       quadtree.insert(detail); allBlocks.push(detail); built++;
@@ -2112,6 +2127,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           const expanded = g.toNonIndexed(); g.dispose(); return expanded;
         });
         const mesh = new THREE.Mesh(mergeGeometries(pieces, false), roofMaterials[materialIndex]);
+        mesh.userData.terrain = 'absolute'; // (lifted above)
         mesh.castShadow = mesh.receiveShadow = true; group.add(mesh);
         if (firstMesh) mesh.userData.sharesPipelineWith = firstMesh;
         else firstMesh = mesh;
