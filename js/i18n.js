@@ -33,7 +33,9 @@ const pairs = [
   ['The leaderboard is not reachable right now.', 'Die Bestenliste ist gerade nicht erreichbar.'], ['No times yet. Be the first.', 'Noch keine Zeiten. Sei die erste Person.'],
   ['This run was not counted. Your result stays on this device.', 'Dieser Lauf wurde nicht gewertet. Dein Ergebnis bleibt auf diesem Gerät.'],
   ['Sign in from the account menu to join the leaderboard.', 'Melde dich im Konto-Menü an, um in die Bestenliste zu kommen.'],
-  ['Leaderboards', 'Bestenlisten'], ['How you compare', 'Dein Vergleich'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
+  ['Leaderboards', 'Bestenlisten'], ['List', 'Liste'], ['By time', 'Nach Zeit'], ['By points', 'Nach Punkten'],
+  ['No scores yet. Be the first.', 'Noch keine Punkte. Sei die erste Person.'],
+  ['The best score of every player, by day. The faster run wins a tie.', 'Der beste Punktestand jeder Person, bei Tag. Bei Gleichstand gewinnt der schnellere Lauf.'], ['How you compare', 'Dein Vergleich'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
   ['The points of your missions, from your cloud save. Every medal counts.', 'Die Punkte deiner Missionen aus deinem Online-Spielstand. Jede Medaille zählt.'],
   ['The best time of every player, by day.', 'Die beste Zeit jeder Person, bei Tag gefahren.'],
   ['No points on the list yet.', 'Noch keine Punkte auf der Liste.'], ['You are not on this list yet.', 'Du bist noch nicht auf dieser Liste.'],
@@ -1340,9 +1342,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^Rank (\d+) of (\d+)$/, 'Rang $1 von $2');
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)
   if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
-    const gapDe = (g) => g.replace(/^(\d+) points$/, '$1 Punkte').replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
+    const gapUnits = { points: 'Punkte', pts: 'Pkt.', goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', 'WC pts': 'Weltcup-Punkte' };
+    const gapDe = (g) => g.replace(/^(-?\d+) (goals ahead|goals|skiers|points|WC pts|pts)$/, (_, n, u) => `${n} ${n === '1' ? gapUnits[u].replace('Tore', 'Tor') : gapUnits[u]}`).replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
     dynamic = dynamic
-      .replace(/^You lead, (.+) ahead of place 2$/, (_, g) => `Du führst, ${gapDe(g)} vor Platz 2`)
+      .replace(/^You lead by (.+) over place 2$/, (_, g) => `Du führst mit ${gapDe(g).replace(/ Punkte$/, ' Punkten').replace(/ Tore$/, ' Toren')} vor Platz 2`)
       .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')
       .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
       .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);

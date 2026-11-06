@@ -561,4 +561,11 @@ export const TOEFF_POLIZEI_MISSION = {
 };
 
 export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS];
+// Every mission has a leaderboard: <id>-1 unless it names its own (supabase/migrations/*_all_leaderboards.sql holds the
+// limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
+for (const m of MISSIONS) m.board ??= `${m.id}-1`;
+
+/** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points) */
+export const scoreText = (def, v) => `${Math.round(v)} ${def.scoreUnit || 'pts'}`;
+
 export const getMission = (id) => MISSIONS.find((m) => m.id === id) || null;

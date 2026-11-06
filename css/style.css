@@ -1913,10 +1913,9 @@ body.touch-enabled .pop-item { min-height: 44px; }
 
 /* All the leaderboards (js/leaderboard-overview.js), above a mission's list */
 .leaderboard-overlay { z-index: 45; }
-.leaderboard-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-.leaderboard-tab { padding: 6px 11px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-3); background: var(--hover); border: 1px solid transparent; border-radius: 999px; cursor: pointer; }
-.leaderboard-tab:hover { color: var(--text); }
-.leaderboard-tab[aria-selected="true"] { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
+.leaderboard-pick { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-3); }
+.leaderboard-select { width: 100%; padding: 9px 10px; font: inherit; font-size: 16px; color: var(--text); background: var(--hover); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px; }
+.leaderboard-select option, .leaderboard-select optgroup { color: #111; background: #fff; }
 .leaderboard-body { min-height: 180px; }
 
 .mission-dialog-note {

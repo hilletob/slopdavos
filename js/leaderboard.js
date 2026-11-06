@@ -39,7 +39,10 @@ export const submitRun = (run, total, penalty) => rpc('submit_run', { run, total
 /** How many lines stand around the player's own (supabase/migrations/*_leaderboard_overview.sql) */
 export const AROUND = 2;
 
-/** The top of a list, the player's own line and the lines around it: [{ place, name, total_ms, is_me, players }] */
+/** A scored run (a mission judged by points): { accepted: true, improved, rank, players, best_score } or { accepted: false, reason } */
+export const submitScore = (run, score, total) => rpc('submit_score', { run, score: Math.round(score), total_ms: Math.round(total) });
+
+/** The top of a list, the player's own line and the lines around it: [{ place, name, total_ms, score, is_me, players }] (score: a list of scores) */
 export const fetchBoard = (board) => rpc('board_view', { board, how_many: 10, around: AROUND });
 
 /** The overall list of the missions' points from the cloud saves: [{ place, name, points, is_me, players }] */

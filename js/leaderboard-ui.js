@@ -12,6 +12,12 @@ export const timeGap = (ms, format) => (ms < 60000 ? `${(Math.max(0, ms) / 1000)
 /** A gap in points */
 export const pointsGap = (n) => `${Math.max(0, Math.round(n))} points`;
 
+/** How a list's lines are shown and compared: by time, or by score (`score(v)` writes one with its unit) */
+export function listKind({ format, score = null }) {
+  if (score) return { value: (r) => -r.score, gap: (n) => score(n), show: (r) => score(r.score) };
+  return { value: (r) => r.total_ms, gap: (ms) => timeGap(ms, format), show: (r) => format(r.total_ms) };
+}
+
 /** How the player stands against the others, in one line (null: the player is not on the list). `value(row)`: the line's
  *  time or points, `gap(n)`: a difference written out */
 export function compareText(rows, { value, gap }) {
@@ -21,7 +27,7 @@ export function compareText(rows, { value, gap }) {
   const players = me.players;
   if (me.place === 1) {
     const second = at(2);
-    return second ? `You lead, ${gap(Math.abs(value(second) - value(me)))} ahead of place 2` : 'You lead';
+    return second ? `You lead by ${gap(Math.abs(value(second) - value(me)))} over place 2` : 'You lead';
   }
   const parts = [`Place ${me.place} of ${players}`];
   const above = at(me.place - 1);
@@ -52,8 +58,9 @@ function runNote(result, signedIn) {
   return 'This run was not counted. Your result stays on this device.';
 }
 
-/** Fills `node`. `submission`: the run just finished (the end dialog), `signedIn`: whether there is a player to place */
-export async function showBoard(node, board, { format, submission = null, ended = false, signedIn = true }) {
+/** Fills `node`. `score`: writes a score (a list of scores), `submission`: the run just finished (the end dialog),
+ *  `signedIn`: whether there is a player to place */
+export async function showBoard(node, board, { format, score = null, submission = null, ended = false, signedIn = true }) {
   const status = el('p', 'mission-dialog-note', 'Loading the leaderboard…');
   node.replaceChildren(el('h3', 'mission-board-title', 'Leaderboard'), status);
   const result = ended && signedIn ? await submission?.catch(() => null) : null;
@@ -68,8 +75,9 @@ export async function showBoard(node, board, { format, submission = null, ended 
   }
   status.remove();
   node.append(...notes);
-  if (!rows.length) { node.append(el('p', 'mission-dialog-note', 'No times yet. Be the first.')); return; }
-  const compare = !ended && compareText(rows, { value: (r) => r.total_ms, gap: (ms) => timeGap(ms, format) });
+  if (!rows.length) { node.append(el('p', 'mission-dialog-note', score ? 'No scores yet. Be the first.' : 'No times yet. Be the first.')); return; }
+  const kind = listKind({ format, score });
+  const compare = !ended && compareText(rows, kind);
   if (compare) node.append(el('p', 'mission-board-note is-ranked', compare));
-  node.append(boardList(rows, (row) => format(row.total_ms)));
+  node.append(boardList(rows, kind.show));
 }

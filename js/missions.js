@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { MISSIONS, getMission, SPITAL_PAD, LAUNCHER, formatTime, formatDistance, relativeBearing, bestTimeKey, readBestTimes, recordBestTime, simulateShot, inZone } from './missions-data.js';
+import { MISSIONS, getMission, SPITAL_PAD, LAUNCHER, formatTime, formatDistance, relativeBearing, bestTimeKey, readBestTimes, recordBestTime, simulateShot, inZone, scoreText } from './missions-data.js';
 import { createTargetMarker, createZoneRing, createAimMarker, createLauncher, createShell, createScriptedRega, createPoliceCar, PROP_BUILDERS, slopeQuaternion } from './missions-props.js';
 import { ParticleBatch, MissionAudio } from './missions-fx.js';
 import { surfaceHeight, groundHeight, groundNormal } from './terrain.js';
@@ -53,8 +53,6 @@ const el = (tag, className, text) => { const e = document.createElement(tag); if
 // (js/account.js; a static import here would load it for every guest)
 const signedIn = () => { try { return !!globalThis.localStorage?.getItem('slopdavos-session'); } catch { return false; } };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
-/** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points) */
-const scoreText = (def, v) => `${Math.round(v)} ${def.scoreUnit || 'pts'}`;
 
 export function buildMissions(scene, hooks) {
   // (the pad the helipad module built: the Rega missions start and end on it)
@@ -417,10 +415,12 @@ class MissionRun {
     this.submission = null;
   }
 
-  submitRanking(total) {
+  /** A time, or for a mission judged by points its score (the time breaks a tie) */
+  submitRanking(total, score = null) {
     if (!this.rankedRun) return;
     const penalty = this.penaltyMs();
-    this.submission = this.rankedRun.then((run) => (run ? import('./leaderboard.js').then((l) => l.submitRun(run, total, penalty)) : null)).catch(() => null);
+    const send = (l, run) => (this.def.scoreMode ? l.submitScore(run, score, total) : l.submitRun(run, total, penalty));
+    this.submission = this.rankedRun.then((run) => (run ? import('./leaderboard.js').then((l) => send(l, run)) : null)).catch(() => null);
   }
 
   /** The list in a dialog: at once for a signed-in player, on a click for a guest (who otherwise never reaches the backend) */
@@ -429,7 +429,7 @@ class MissionRun {
     if (!board) return [];
     const node = el('div', 'mission-board');
     const load = () => import('./leaderboard-ui.js')
-      .then((ui) => ui.showBoard(node, board, { format: formatTime, submission: this.submission, ended, signedIn: signedIn() }))
+      .then((ui) => ui.showBoard(node, board, { format: formatTime, score: this.def.scoreMode ? (v) => scoreText(this.def, v) : null, submission: this.submission, ended, signedIn: signedIn() }))
       .catch(() => node.replaceChildren(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.')));
     if (signedIn()) load();
     else {
@@ -725,7 +725,7 @@ class MissionRun {
     const { best, previous, improved } = rec;
     const award = this.hooks.progress ? this.hooks.progress.record(this.def, total, Date.now(), score) : null;
     this.result = { total, score, best, previous, improved, award };
-    this.submitRanking(total);
+    this.submitRanking(total, score);
     this.renderBest();
     this.marker.visible = false;
     for (const r of Object.values(this.rings)) r.visible = false;

@@ -1,18 +1,22 @@
-import { MISSIONS, formatTime } from './missions-data.js';
+import { MISSIONS, formatTime, scoreText } from './missions-data.js';
 import { fetchBoard, fetchPoints } from './leaderboard.js';
-import { el, boardList, compareText, timeGap, pointsGap } from './leaderboard-ui.js';
+import { el, boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
 
 // js/leaderboard-overview.js
 // All the leaderboards in one dialog, opened from the account menu or the mission list: the overall list of the missions'
-// points (from the cloud saves) and every mission's list of times, each with the top and the lines around the player.
+// points (from the cloud saves) and every mission's list (times, or scores for a mission judged by points), each with the
+// top and the lines around the player. A select picks the list: there is one for every mission.
 
 const OVERLAY_ID = 'leaderboard-overlay';
+const LAST_KEY = 'slopdavos-leaderboard-last'; // (the list picked last time, a convenience only)
 
-/** The tabs: the overall points first, then every ranked mission */
+/** The lists: the overall points first, then every mission in the game's order, by time and by points */
 export function overviewTabs(missions = MISSIONS) {
+  const ranked = missions.filter((m) => m.board);
   return [
-    { id: 'points', label: 'Overall', title: 'Mission points' },
-    ...missions.filter((m) => m.board).map((m) => ({ id: m.board, label: m.title, title: m.title }))
+    { id: 'points', group: 'Overall', label: 'Mission points', title: 'Mission points' },
+    ...ranked.filter((m) => !m.scoreMode).map((m) => ({ id: m.board, group: 'By time', label: m.title, title: m.title, def: m })),
+    ...ranked.filter((m) => m.scoreMode).map((m) => ({ id: m.board, group: 'By points', label: m.title, title: m.title, def: m }))
   ];
 }
 
@@ -24,19 +28,23 @@ const POINTS = {
   empty: 'No points on the list yet.',
   hint: 'The points of your missions, from your cloud save. Every medal counts.'
 };
-const timesOf = (board) => ({
-  load: () => fetchBoard(board),
-  value: (r) => r.total_ms,
-  gap: (ms) => timeGap(ms, formatTime),
-  show: (r) => formatTime(r.total_ms),
-  empty: 'No times yet. Be the first.',
-  hint: 'The best time of every player, by day.'
-});
+const listOf = (def) => {
+  const score = def.scoreMode ? (v) => scoreText(def, v) : null;
+  return {
+    ...listKind({ format: formatTime, score }),
+    load: () => fetchBoard(def.board),
+    empty: score ? 'No scores yet. Be the first.' : 'No times yet. Be the first.',
+    hint: score ? 'The best score of every player, by day. The faster run wins a tie.' : 'The best time of every player, by day.'
+  };
+};
+
+const remembered = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
+const remember = (id) => { try { localStorage.setItem(LAST_KEY, id); } catch { /* */ } };
 
 export const closeLeaderboards = () => document.getElementById(OVERLAY_ID)?.remove();
 
-/** Opens the dialog. `signedIn`: whether there is a player to place */
-export function openLeaderboards({ signedIn = false, start = 'points' } = {}) {
+/** Opens the dialog. `signedIn`: whether there is a player to place, `start`: the list to show first */
+export function openLeaderboards({ signedIn = false, start = null } = {}) {
   closeLeaderboards();
   const overlay = el('div', 'mission-overlay leaderboard-overlay');
   overlay.id = OVERLAY_ID;
@@ -45,20 +53,37 @@ export function openLeaderboards({ signedIn = false, start = 'points' } = {}) {
   panel.setAttribute('aria-modal', 'true');
   panel.setAttribute('aria-label', 'Leaderboards');
   const tabs = overviewTabs();
-  const bar = el('div', 'leaderboard-tabs');
-  bar.setAttribute('role', 'tablist');
+
+  const picker = el('label', 'leaderboard-pick');
+  const select = el('select', 'leaderboard-select');
+  const groups = new Map();
+  for (const tab of tabs) {
+    if (!groups.has(tab.group)) {
+      const g = el('optgroup');
+      g.label = tab.group;
+      import('./i18n.js').then(({ t }) => { g.label = t(tab.group); }).catch(() => {}); // (an attribute the page's observer leaves alone)
+      groups.set(tab.group, g);
+      select.append(g);
+    }
+    const o = el('option', null, tab.label);
+    o.value = tab.id;
+    groups.get(tab.group).append(o);
+  }
+  picker.append(el('span', null, 'List'), select);
+
   const body = el('div', 'mission-board leaderboard-body');
   body.setAttribute('aria-live', 'polite');
   let shown = 0;
 
   const show = async (tab) => {
     const ticket = ++shown;
-    for (const b of bar.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab.id));
-    const kind = tab.id === 'points' ? POINTS : timesOf(tab.id);
+    select.value = tab.id;
+    remember(tab.id);
+    const kind = tab.def ? listOf(tab.def) : POINTS;
     body.replaceChildren(el('h3', 'mission-board-title', tab.title), el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
     let rows;
     try { rows = await kind.load(); } catch { rows = null; }
-    if (ticket !== shown) return; // (another tab was picked meanwhile)
+    if (ticket !== shown) return; // (another list was picked meanwhile)
     const parts = [el('h3', 'mission-board-title', tab.title), el('p', 'mission-board-note', kind.hint)];
     if (!rows) parts.push(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.'));
     else {
@@ -69,15 +94,7 @@ export function openLeaderboards({ signedIn = false, start = 'points' } = {}) {
     }
     body.replaceChildren(...parts);
   };
-
-  for (const tab of tabs) {
-    const b = el('button', 'leaderboard-tab', tab.label);
-    b.type = 'button';
-    b.dataset.tab = tab.id;
-    b.setAttribute('role', 'tab');
-    b.addEventListener('click', () => show(tab));
-    bar.append(b);
-  }
+  select.addEventListener('change', () => show(tabs.find((t) => t.id === select.value) || tabs[0]));
 
   const close = el('button', 'mission-btn mission-btn-secondary', 'Close');
   close.type = 'button';
@@ -90,10 +107,11 @@ export function openLeaderboards({ signedIn = false, start = 'points' } = {}) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) done(); });
   document.addEventListener('keydown', onKey, true);
 
-  panel.append(el('div', 'mission-kicker', 'Leaderboards'), el('h2', 'mission-dialog-title', 'How you compare'), bar, body, close);
+  panel.append(el('div', 'mission-kicker', 'Leaderboards'), el('h2', 'mission-dialog-title', 'How you compare'), picker, body, close);
   overlay.append(panel);
   document.body.append(overlay);
-  show(tabs.find((t) => t.id === start) || tabs[0]);
+  const first = start || remembered();
+  show(tabs.find((t) => t.id === first) || tabs[0]);
   close.focus({ preventScroll: true });
   return overlay;
 }
