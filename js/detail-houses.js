@@ -19,32 +19,39 @@ import { DETAIL_HOUSES, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from
 excludeBuildings(DETAIL_HOUSES.map((h) => h.exclude));
 
 // --- Materials (colours in linear space) -----------------------------------------------------------------------------------
+// The larch of the procedural facades round about (js/swissbuildings3d.js createMaterial: its `wood`), so that the house
+// sits among its neighbours in the same colours: the tone between the same two browns by the same grain noise, the
+// seams of the logs (every 16.5 cm, as measured on the house) and of the boards darkened like their board joints
+function larch(seamNode, seamDepth = 0.35) {
+  const grain = mx_noise_float(positionWorld.mul(vec3(0.6, 4, 0.6))).mul(0.5).add(0.5);
+  const tone = mix(vec3(0.2, 0.11, 0.05), vec3(0.33, 0.2, 0.1), grain);
+  const seam = smoothstep(0.42, 0.5, abs(fract(seamNode).sub(0.5)));
+  return { tone, seamed: tone.mul(float(1).sub(seam.mul(seamDepth))) };
+}
 function materials() {
-  const grain = mx_noise_float(positionWorld.mul(vec3(1.2, 6, 1.2))).mul(0.5).add(0.5);
   const weather = mx_noise_float(positionWorld.mul(0.35)).mul(0.5).add(0.5);
   const along = positionWorld.x.mul(normalWorld.z.abs()).add(positionWorld.z.mul(normalWorld.x.abs()));
-  // Strickbau: squared logs ~16.5 cm high, dark seams between them, larch as in the photographs — the walls until
-  // (or without) their photographs
+  // Strickbau: squared logs ~16.5 cm high, seams between them — the walls until (or without) their photographs
   const facade = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
-  const seam = smoothstep(0.38, 0.5, abs(fract(positionWorld.y.div(0.165)).sub(0.5)));
-  facade.colorNode = mix(vec3(0.07, 0.03, 0.014), vec3(0.12, 0.055, 0.028), grain.mul(0.6).add(weather.mul(0.4))).mul(float(1).sub(seam.mul(0.5)));
+  facade.colorNode = larch(positionWorld.y.div(0.165)).seamed;
   // Boards (the balcony, the stair, the fascias, the porch's north side)
   const boards = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0 });
-  const joint = smoothstep(0.4, 0.5, abs(fract(along.div(0.14)).sub(0.5)));
-  boards.colorNode = mix(vec3(0.07, 0.034, 0.016), vec3(0.11, 0.055, 0.026), grain).mul(float(1).sub(joint.mul(0.5)));
+  boards.colorNode = larch(along.div(0.14)).seamed;
   const plaster = new THREE.MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
   plaster.colorNode = mix(vec3(0.66, 0.65, 0.62), vec3(0.76, 0.75, 0.72), weather);
-  // Roof: dark eternit slates in courses, snow on them in winter
+  // Roof: eternit slates in courses, the slate grey of the neighbours' roofs (js/swissbuildings3d.js roofColor), snow on
+  // them in winter
   const roof = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0.05 });
   const course = smoothstep(0.42, 0.5, abs(fract(positionWorld.y.div(0.11)).sub(0.5)));
-  roof.colorNode = snowyRoof(mix(vec3(0.035, 0.03, 0.028), vec3(0.06, 0.052, 0.045), weather).mul(float(1).sub(course.mul(0.35))), float(1));
+  roof.colorNode = snowyRoof(mix(vec3(0.05, 0.053, 0.06), vec3(0.075, 0.079, 0.088), weather).mul(float(1).sub(course.mul(0.3))), float(1));
   const frameMat = new THREE.MeshStandardNodeMaterial({ color: 0xc9c5bb, roughness: 0.6, metalness: 0 });
   const metal = new THREE.MeshStandardNodeMaterial({ color: 0x5a3018, roughness: 0.45, metalness: 0.6 });
   const chimney = new THREE.MeshStandardNodeMaterial({ color: 0x3a2418, roughness: 0.9, metalness: 0 });
+  // The fence and the garage door: the same larch, the fence greyed by the weather
   const fence = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
-  fence.colorNode = mix(vec3(0.06, 0.04, 0.025), vec3(0.11, 0.075, 0.045), grain);
+  fence.colorNode = mix(larch(along.div(0.115)).tone, vec3(0.16, 0.14, 0.11), weather.mul(0.5));
   const door = new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0 });
-  door.colorNode = mix(vec3(0.09, 0.045, 0.02), vec3(0.14, 0.075, 0.035), grain);
+  door.colorNode = larch(along.div(0.12), 0.25).seamed;
   return { facade, boards, plaster, roof, frame: frameMat, glass: glassMaterial(), metal, chimney, fence, door };
 }
 
@@ -351,10 +358,20 @@ async function loadAtlas(url) {
   return map;
 }
 
-// The walls with their photographs (a little darker: the photographs hold the sunlight they were taken in)
+// The walls with their photographs, in the neighbours' colours: the photograph gives the structure (the logs and their
+// seams, the shutters, the shadows under the sills, the house number) as a relief over the larch of the procedural
+// facades (larch(): the same browns), damped so that the sunlight and the blotches baked into the scan don't come
+// through; where the scan left no larch (grey residue at the gable's top, the sky in a pane's corner) the plain logs
+// show, and the white parts (the lean-to's and the porch's plastered feet, the frames) stay white
 function facadeMaterial(map) {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.88, metalness: 0 });
-  m.colorNode = texture(map).rgb.mul(0.72);
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+  const photo = texture(map).rgb;
+  const lum = dot(photo, vec3(0.3, 0.59, 0.11));
+  const woody = smoothstep(0.012, 0.045, photo.r.sub(photo.b)); // larch: red well over blue
+  const white = smoothstep(0.2, 0.45, lum).mul(float(1).sub(woody));
+  const relief = lum.div(0.095).clamp(0.4, 1.7).sub(1).mul(0.7).add(1);
+  const { tone, seamed } = larch(positionWorld.y.div(0.165));
+  m.colorNode = mix(mix(seamed, tone.mul(relief), woody), photo.mul(0.8), white);
   return m;
 }
 
