@@ -6,7 +6,8 @@ import { touchLabel, edge } from './missions-ice.js';
 import { createToast, particles } from './missions-work.js';
 import { createRider, stepRider, riderSpeed, travelHeading, BOARD_PARAMS } from './missions-data-snow.js';
 import {
-  SPLIT, SPLIT_PLACES, createSkinner, stepSkinner, stepTransition, slopeAt, slopeAlong
+  SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, createSkinner, stepSkinner, stepTransition, slopeAt, slopeAlong,
+  createTrail, addToTrail, trailEnd, createPartner, stepPartner, lineOffset, stepRisk, burialSpot, searchView, createRescue, stepRescue
 } from './missions-data-splitboard.js';
 
 // js/missions-splitboard.js
@@ -20,6 +21,10 @@ import {
 //               the halves turned over and slid together, the bindings turned across). The marker poles (bamboo, an orange top), the gates of red flags, a cairn
 //               on the summit, and the track the player leaves in the snow: the two lines of the skins up, the board's groove
 //               down (instanced quads, the oldest dropped).
+//               Reto, the touring partner: a second figure of the same make, along your track behind you (js/missions-data-
+//               splitboard.js stepPartner), his name over his head; the group check of the transceivers with a little
+//               transceiver's display (the distance, the arrow), the same display for the search after an avalanche: the
+//               slab's crown above you, the powder cloud (js/missions-fx.js avalanche), the debris down the slope, Reto under it.
 // Everything goes with the run's group and its cleanups.
 
 const SUBSTEP = 1 / 120;
@@ -34,10 +39,12 @@ const mat = (color, o = {}) => new THREE.MeshStandardNodeMaterial({ color, rough
 const wrapNear = (a, ref) => a - Math.round((a - ref) / (Math.PI * 2)) * Math.PI * 2;
 const num = (v) => (v === true ? 1 : Number(v) || 0);
 
-/** What the player does in the step: 'check' | 'skin' | 'trans' | 'board' */
+/** What the player does in the step: 'check' | 'skin' | 'trans' | 'board' | 'rescue' */
 function stage(run) {
   const id = objectiveId(run);
   if (run.phase === 'done') return 'board';
+  const rs = run.state?.rescue;
+  if (rs && rs.stage !== 'out' && !run.state.failed) return 'rescue';
   if (id === 'transceiver') return 'check';
   if (id === 'transition') return 'trans';
   // (the steps after the transition are the descent's)
@@ -274,6 +281,90 @@ function addTrack(tr, x, z, height, width, offsets) {
   tr.dirty = true;
 }
 
+// --- Reto, the transceiver, the avalanche --------------------------------------------------------------------------------
+/** Where Reto stands for the group check: in front of you, a little to the right, facing you (where the camera sees him) */
+const checkSpot = (sk) => ({ x: sk.x + Math.sin(sk.heading) * 3.2 - Math.cos(sk.heading) * 1.4, z: sk.z + Math.cos(sk.heading) * 3.2 + Math.sin(sk.heading) * 1.4 });
+const RETO_LOOK = { jacket: 0xf2c014, pants: 0x1c2a4a, accent: 0x1f5fd1 };
+function nameTag(name) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(12,18,28,0.72)';
+  x.beginPath(); x.roundRect(40, 8, 176, 48, 24); x.fill();
+  x.fillStyle = '#ffd34d'; x.font = '800 32px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(name, 128, 33);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  const tag = new THREE.Sprite(new THREE.SpriteNodeMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false }));
+  tag.scale.set(1.6, 0.4, 1);
+  tag.renderOrder = 950;
+  return tag;
+}
+
+/** The transceiver's display (bottom middle): the mode, the distance, the arrow; hidden while not needed */
+function buildTransceiver(run) {
+  const box = document.createElement('div');
+  Object.assign(box.style, {
+    position: 'fixed', left: '50%', bottom: '118px', transform: 'translateX(-50%)', zIndex: 14, pointerEvents: 'none',
+    width: '150px', padding: '10px 12px 12px', borderRadius: '16px', background: 'linear-gradient(#1b2633, #0f161f)',
+    border: '2px solid #ff7a1a', boxShadow: '0 6px 18px rgba(0,0,0,0.45)', color: '#e9f2ff', textAlign: 'center',
+    font: '700 13px/1.2 system-ui, sans-serif', display: 'none'
+  });
+  const mode = document.createElement('div'), arrow = document.createElement('div'), dist = document.createElement('div');
+  mode.style.cssText = 'letter-spacing:0.08em;font-size:11px;color:#ffb27a';
+  arrow.style.cssText = 'font-size:34px;line-height:40px;height:40px;transition:transform 0.1s';
+  dist.style.cssText = 'font:800 22px/1.1 ui-monospace, Menlo, monospace;color:#9ff0b0';
+  box.append(mode, arrow, dist);
+  document.body.append(box);
+  run.cleanups.push(() => box.remove());
+  return {
+    show(m, d, angle) {
+      box.style.display = 'block';
+      if (mode.textContent !== m) mode.textContent = m;
+      const txt = d == null ? '– – –' : `${d.toFixed(1)} m`;
+      if (dist.textContent !== txt) dist.textContent = txt;
+      arrow.textContent = angle == null ? '·' : '▲';
+      arrow.style.transform = `rotate(${angle == null ? 0 : (-angle * 180) / Math.PI}deg)`;
+    },
+    hide() { box.style.display = 'none'; }
+  };
+}
+
+/** The slab's crown: a wall of snow 0.7 m high across the slope, `ahead` m uphill of (x, z), 44 m wide */
+function buildCrown(x, z, up, ahead = 14) {
+  const ux = Math.sin(up), uz = Math.cos(up), ax = Math.cos(up), az = -Math.sin(up);
+  const cx = x + ux * ahead, cz = z + uz * ahead, pos = [], idx = [];
+  const n = 23;
+  for (let k = 0; k < n; k++) {
+    const w = (k / (n - 1) - 0.5) * 44, jag = Math.sin(k * 2.3) * 1.2;
+    const px = cx + ax * w + ux * jag, pz = cz + az * w + uz * jag, g = groundHeight(px, pz);
+    pos.push(px, g + 0.7, pz, px - ux * 0.5, g - 0.05, pz - uz * 0.5);
+    if (k) { const a = (k - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardNodeMaterial({ color: 0x8fa6bf, roughness: 0.9, side: THREE.DoubleSide }));
+  m.name = 'AvalancheCrown';
+  return m;
+}
+/** The debris: lumps of snow over the track of the slab, from (ax, az) down to (bx, bz) */
+function buildDebris(run, ax, az, bx, bz) {
+  const n = 60, m = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), mat(0xeef3f8, { roughness: 1 }), n);
+  const L = Math.hypot(bx - ax, bz - az) || 1, tx = (bx - ax) / L, tz = (bz - az) / L;
+  for (let i = 0; i < n; i++) {
+    const f = 0.3 + 0.75 * Math.random(), w = (Math.random() - 0.5) * (10 + 16 * f);
+    const x = ax + (bx - ax) * f + tz * w, z = az + (bz - az) * f - tx * w;
+    const r = 0.5 + Math.random() * 1.1;
+    _m.compose(_P.set(x, groundHeight(x, z) + r * 0.15, z), _q.setFromAxisAngle(UP, Math.random() * 6), _Z.set(r * 1.4, r * 0.45, r));
+    m.setMatrixAt(i, _m);
+  }
+  m.castShadow = true; m.frustumCulled = false; m.name = 'AvalancheDebris';
+  run.group.add(run.storage(m));
+  return m;
+}
+
 // --- The feature -------------------------------------------------------------------------------------------------------
 const splitboard = {
   setup(run) {
@@ -285,8 +376,14 @@ const splitboard = {
     const gates = buildGates(run, state.down.gates);
     buildCairn(run);
     const person = cm.entities.person;
+    // Reto: the same figure in his colours, his name over his head
+    const reto = run.storage(createRiderFigure({ board: false, ...RETO_LOOK }));
+    reto.name = 'Partner Reto';
+    const tag = nameTag(SPLIT.partner.name);
+    run.group.add(reto, tag);
     run.split = {
-      figure, gates, halves: buildBoardHalves(run), track: buildTrack(run), toast: createToast(run),
+      figure, reto, tag, lvs: buildTransceiver(run), crown: null, debris: null, trail: null, partner: null, wasExposed: false,
+      gates, halves: buildBoardHalves(run), track: buildTrack(run), toast: createToast(run),
       skinner: null, rider: null, stage: null, person, steerSide: 1, landings: [],
       saved: { label: person.label, topSpeedKmh: person.topSpeedKmh, chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }, sprayAcc: 0, beepT: 0
     };
@@ -297,6 +394,12 @@ const splitboard = {
     const cm = run.hooks.controllerManager, s = run.split;
     const st = run.resolveStart();
     s.skinner = createSkinner(st.x, st.z, st.heading, groundHeight);
+    s.trail = createTrail(st.x, st.z, st.heading);
+    s.partner = createPartner();
+    stepPartner(s.partner, s.trail, 0, 0, groundHeight, 'up');
+    for (const k of ['crown', 'debris']) if (s[k]) { s[k].removeFromParent(); s[k].geometry.dispose(); s[k] = null; }
+    s.lvs.hide();
+    s.wasExposed = false;
     s.rider = null;
     s.stage = null;
     s.landings.length = 0;
@@ -335,18 +438,34 @@ const splitboard = {
     if (now !== s.stage) enterStage(run, now, cm);
     if (!st || !live(run)) return;
     const hold = !!cm.keys.up;
-    if (now === 'check' && !st.beeped) {
-      st.lvs = hold ? st.lvs + dt : Math.max(0, st.lvs - dt);
-      // (the transceiver's beeps while it checks, quicker as it gets there)
+    const me = s.person.position, P = s.partner;
+    if (now === 'check' && !st.check.done) {
+      const done = stepTransition(st.check, hold, dt, SPLIT.groupCheck);
+      // (his transceiver on search hears yours, then yours hears his: the beeps quicker the nearer, as a real one)
+      const at = checkSpot(s.skinner), d = Math.hypot(at.x - me.x, at.z - me.z);
       s.beepT -= dt;
-      if (hold && s.beepT <= 0) { s.beepT = 0.3; beep(run, 1320, 0.06, 0.08); }
-      if (st.lvs >= SPLIT.transceiver) {
-        st.beeped = true;
-        beep(run, 2100, 0.25, 0.12);
-        s.toast.show('Transceiver: sending ✓', '#9ff0b0', 1.6);
+      if (hold && s.beepT <= 0) { s.beepT = 0.22; beep(run, st.check.step === 0 ? 1180 : 1440, 0.06, 0.08); }
+      if (st.check.step === 0) s.lvs.show(`${SPLIT.partner.name.toUpperCase()} · SEARCH`, hold ? d : null, null);
+      else s.lvs.show('YOU · SEARCH', hold ? d : null, hold ? Math.atan2(at.x - me.x, at.z - me.z) - s.person.heading : null);
+      if (done) {
+        beep(run, 2100, 0.2, 0.1);
+        s.toast.show(done.id === 'send' ? `${SPLIT.partner.name} hears you: sending ✓` : `You hear ${SPLIT.partner.name}: receiving ✓`, '#9ff0b0', 1.6);
       }
+      if (st.check.done) { s.lvs.hide(); touchLabel(run, 'Kick turn'); }
     }
-    if (now === 'trans') {
+    if (now === 'rescue') updateRescue(run, hold, dt);
+    else if (now === 'skin' || now === 'board') {
+      if (s.lvs) s.lvs.hide();
+      updateRisk(run, now, dt);
+    }
+    // Reto along the track (buried: not)
+    if (now !== 'check' && now !== 'rescue') {
+      const lead = trailEnd(s.trail, me.x, me.z);
+      stepPartner(P, s.trail, lead, dt, groundHeight, now === 'board' ? 'down' : now === 'trans' ? 'trans' : 'up');
+      st.retoBehind = P.behind;
+      st.retoSpaced = P.spaced;
+    }
+    if (now === 'trans' && st.retoBehind <= SPLIT.partner.beside + 8) {
       const done = stepTransition(st.trans, hold, dt);
       if (done) {
         beep(run, done.id === 'bind' ? 1600 : 900, 0.08, 0.07);
@@ -369,6 +488,7 @@ const splitboard = {
   after(run) {
     const s = run.split;
     poseFigure(run);
+    posePartner(run);
     if (s.track.dirty) { s.track.mesh.instanceMatrix.needsUpdate = true; s.track.dirty = false; }
     if (s.stage === 'trans' && run.state) poseHalves(s.halves, run.state.trans, s.halfAt.x, s.halfAt.z, s.halfAt.heading);
   }
@@ -397,9 +517,16 @@ function enterStage(run, now, cm) {
     s.toast.show(`Chörbschhorn · ${SPLIT_PLACES.summit.ele} m`, '#fff', 3.2);
   } else s.halves.group.visible = false;
   cm.setEntityHidden('person', true);
+  if (now === 'rescue') {
+    // off the board (if on it) and walking, the transceiver on search
+    if (s.rider) { const r = s.rider; Object.assign(sk, { x: r.x, z: r.z, y: groundHeight(r.x, r.z), heading: travelHeading(r, r.heading), speed: 0, kickT: 0 }); s.rider = null; }
+    setKind(s, 0);
+    touchLabel(run, 'Probe/Dig');
+    return;
+  }
   if (now === 'board' && !s.rider) {
-    // the first gate's direction, the board under the feet where the walker stood
-    const g = run.state?.down.gates[0];
+    // the next gate's direction, the board under the feet where the walker stood
+    const g = run.state?.down.gates[Math.min(run.state.down.next, run.state.down.gates.length - 1)];
     const head = g ? Math.atan2(g.x - sk.x, g.z - sk.z) : sk.heading;
     s.rider = createRider(sk.x, groundHeight(sk.x, sk.z), sk.z, head);
     s.person.chaseDistance = 7.5;
@@ -415,6 +542,105 @@ function enterStage(run, now, cm) {
   if (now === 'trans') touchLabel(run, 'Hold');
 }
 
+const _rs = {};
+/** The load on the snowpack where you are; the slab when it goes */
+function updateRisk(run, now, dt) {
+  const s = run.split, st = run.state, p = s.person.position;
+  if (!st.check.done || run.phase !== 'running') return;
+  const sl = slopeAt(groundHeight, p.x, p.z, _rs), down = now === 'board';
+  const travel = down && s.rider ? travelHeading(s.rider, s.rider.heading) : s.skinner.heading;
+  const go = stepRisk(st.risk, { slope: sl.slope, off: lineOffset(down ? DESCENT_ROUTE : ASCENT_ROUTE, p.x, p.z), down, travel, up: sl.up }, dt);
+  if (st.risk.exposed && !s.wasExposed) { s.toast.show('Avalanche danger!', '#ffb36b', 1.6); beep(run, 520, 0.18, 0.08); }
+  s.wasExposed = st.risk.exposed;
+  if (go) release(run, sl.up);
+}
+
+/** The slab goes: the crown above you, the cloud, Reto under the debris (a second one ends the tour) */
+function release(run, up) {
+  const s = run.split, st = run.state, p = s.person.position, P = s.partner;
+  s.crown?.removeFromParent();
+  s.crown = buildCrown(p.x, p.z, up);
+  run.group.add(s.crown);
+  const pb = particles(run);
+  const ux = Math.sin(up), uz = Math.cos(up);
+  pb.avalanche(p.x + ux * 10, p.z + uz * 10, { count: 170, seconds: 2.6, spread: 22 });
+  run.audio?.boom?.(120, 0.8);
+  if (st.risk.releases > 1) {
+    st.failed = `A second avalanche: you and ${SPLIT.partner.name} get out of it, but the tour ends here. Keep to the marked line in steep ground.`;
+    return;
+  }
+  // Reto, behind you in the slope: buried down the fall line from where he was
+  const b = burialSpot(groundHeight, P.x, P.z);
+  P.buried = true;
+  s.debris?.removeFromParent();
+  s.debris = buildDebris(run, P.x, P.z, b.x, b.z);
+  st.rescue = createRescue(b.x, b.z);
+  st.risk.exposed = false;
+  st.rescues++;
+  st.extraMs += SPLIT.rescue.penaltyMs;
+  st.penaltyMs = st.down.penaltyMs + st.extraMs;
+  s.toast.show(`Avalanche! ${SPLIT.partner.name} is buried`, '#ff8f80', 3);
+}
+
+/** The search: the transceiver's display, the beeps; the probe and the shovel with Space; Reto out again */
+function updateRescue(run, hold, dt) {
+  const s = run.split, st = run.state, rs = st.rescue, p = s.person.position;
+  const v = searchView(p.x, p.z, s.person.heading, rs.x, rs.z);
+  s.lvs.show(rs.stage === 'search' ? 'SEARCH' : rs.stage === 'probe' ? 'PROBE' : 'DIG', v.mode === 'none' ? null : v.dist, v.mode === 'none' ? null : v.arrow);
+  s.beepT -= dt;
+  if (v.mode !== 'none' && s.beepT <= 0) { s.beepT = clamp(v.dist / 25, 0.08, 1.2); beep(run, 1500, 0.05, 0.07); }
+  const done = stepRescue(rs, p.x, p.z, hold, dt);
+  if (done === 'search') s.toast.show('Fine search: probe here', '#fff', 1.6);
+  if (done === 'probe') { beep(run, 700, 0.15, 0.08); s.toast.show('Probe hit! Dig', '#fff', 1.6); }
+  if (done === 'dig') {
+    // out, unhurt; on along your track with you
+    const P = s.partner;
+    P.buried = false;
+    P.s = trailEnd(s.trail, p.x, p.z) - 2;
+    st.risk.load = 0;
+    s.lvs.hide();
+    s.toast.show(`${SPLIT.partner.name} is out, unhurt. Back to the marked line!`, '#9ff0b0', 3);
+    touchLabel(run, s.rider ? 'Grab' : 'Kick turn');
+  }
+}
+
+/** Reto: on skins behind you, standing beside you at the transition, on the board behind you; under the snow: not seen */
+function posePartner(run) {
+  const s = run.split, P = s.partner, fig = s.reto;
+  if (!P || !s.skinner) return;
+  const st = s.stage, buried = P.buried;
+  fig.visible = s.tag.visible = !buried;
+  if (buried) return;
+  const look = fig.geometry.attributes.aLook, kind = st === 'board' ? 1 : st === 'trans' && run.state?.trans.step >= 2 ? 2 : 0;
+  if (look.array[3] !== kind) { look.array[3] = kind; look.needsUpdate = true; }
+  let x = P.x, z = P.z, yaw = P.heading;
+  if (st === 'trans') {
+    // beside you, facing the same way
+    const h = s.skinner.heading;
+    x = s.skinner.x + Math.cos(h) * SPLIT.partner.beside; z = s.skinner.z - Math.sin(h) * SPLIT.partner.beside; yaw = h;
+  } else if (st === 'check') {
+    ({ x, z } = checkSpot(s.skinner));
+    yaw = Math.atan2(s.skinner.x - x, s.skinner.z - z);
+  }
+  const y = groundHeight(x, z);
+  _Z.set(Math.sin(yaw), 0, Math.cos(yaw));
+  _Z.y = (groundHeight(x + _Z.x * 0.8, z + _Z.z * 0.8) - y) / 0.8;
+  _Z.normalize();
+  _X.crossVectors(UP, _Z).normalize();
+  _Y.set(0, 1, 0).addScaledVector(_Z, kind === 1 ? 0 : 0.12).normalize();
+  _X.crossVectors(_Y, _Z).normalize();
+  _Z.crossVectors(_X, _Y).normalize();
+  const moving = P.speed > 0.3 ? 1 : 0, ph = P.stride * Math.PI;
+  const crouch = kind === 1 ? 0.9 : 1 - 0.03 * moving * Math.abs(Math.sin(ph)) - 0.02;
+  _m.makeBasis(_X, _Y.multiplyScalar(crouch), _Z).setPosition(_P.set(x, y + 0.03, z));
+  fig.setMatrixAt(0, _m);
+  fig.instanceMatrix.needsUpdate = true;
+  const pose = fig.geometry.attributes.aPose;
+  pose.array[0] = Math.sin(yaw); pose.array[1] = 0; pose.array[2] = Math.cos(yaw); pose.array[3] = kind === 0 ? moving * Math.sin(ph) * 0.9 : 0;
+  pose.needsUpdate = true;
+  s.tag.position.set(x, y + 2.25, z);
+}
+
 /** The speed cluster's name (js/main.js writes it only when the mode changes; its bar goes by person.topSpeedKmh) */
 function setHudLabel(text) {
   const el = typeof document !== 'undefined' && document.getElementById('hud-active-mode');
@@ -422,7 +648,7 @@ function setHudLabel(text) {
 }
 function setRide(s, board) {
   s.person.label = board ? 'Snowboard' : 'Splitboard';
-  s.person.topSpeedKmh = board ? 90 : 15;
+  s.person.topSpeedKmh = board ? 90 : 25;
   setHudLabel(s.person.label);
 }
 
@@ -463,9 +689,10 @@ function drive(run, dt, cm) {
     for (const l of s.landings.splice(0)) if (l.quality === 'crash') s.toast.show('Wipe-out!', '#ffb3a8', 1.4);
   } else {
     const sk = s.skinner;
-    const moving = stg === 'skin' && run.phase !== 'done' && live(run);
+    const rescue = stg === 'rescue';
+    const moving = (stg === 'skin' || rescue) && run.phase !== 'done' && live(run);
     const input = moving
-      ? { forward: num(k.forward), back: num(k.backward), steer: num(k.left) - num(k.right), kick: kickEdge }
+      ? { forward: num(k.forward), back: num(k.backward), steer: num(k.left) - num(k.right), kick: kickEdge && !rescue }
       : { forward: 0, back: 0, steer: 0, kick: false };
     stepSkinner(sk, input, Math.min(dt, 0.1), groundHeight);
     if (st && moving) {
@@ -480,8 +707,10 @@ function drive(run, dt, cm) {
     p.heading = sk.heading;
     p.speed = Math.abs(sk.speed);
     p.verticalVel = 0;
-    if (stg === 'skin') addTrack(s.track, sk.x, sk.z, groundHeight, 0.12, [0.11, -0.11]);
+    if (stg === 'skin' || rescue) addTrack(s.track, sk.x, sk.z, groundHeight, 0.12, [0.11, -0.11]);
   }
+  // the track Reto follows
+  if (s.trail && (stg === 'skin' || stg === 'board' || stg === 'rescue')) addToTrail(s.trail, p.position.x, p.position.z);
   // the chase camera keeps the framing of level ground on the slope (js/cameras.js slopePitch)
   const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
   const pitch = Math.atan2(groundHeight(p.position.x - fx * 2, p.position.z - fz * 2) - groundHeight(p.position.x + fx * 2, p.position.z + fz * 2), 4);

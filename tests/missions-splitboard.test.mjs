@@ -3,7 +3,8 @@ import test from 'node:test';
 import {
   SPLITBOARD_MISSION, SPLITBOARD_MISSIONS, SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, skinPace, climbRate, kickTurnHeading,
   createSkinner, stepSkinner, slopeAt, createTransition, stepTransition, transitionShare, ascentPoles, descentGates, updateGates,
-  skinBot, rideBot
+  skinBot, rideBot, createTrail, addToTrail, trailEnd, trailPoint, createPartner, stepPartner, lineOffset, createRisk, stepRisk,
+  burialSpot, searchView, createRescue, stepRescue
 } from '../js/missions-data-splitboard.js';
 import { createRider, stepRider, riderSpeed, updateCheckpoints, lineLength, BOARD_PARAMS } from '../js/missions-data-snow.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -110,7 +111,8 @@ test('the mission\'s steps: the transceiver, the poles, the transition, the gate
   const m = SPLITBOARD_MISSION, st = m.createState();
   const step = (id) => m.objectives.find((o) => o.id === id);
   assert.equal(step('transceiver').check(frame(), st).done, false);
-  st.lvs = SPLIT.transceiver; st.beeped = true;
+  assert.match(step('transceiver').check(frame(), st).text, /^Send check: Reto searches/);
+  while (!st.check.done) stepTransition(st.check, true, DT, SPLIT.groupCheck);
   assert.equal(step('transceiver').check(frame(), st).done, true);
   // the poles: taken in order (only after the transceiver), a later one skipped is reported
   const poles = st.up.cps;
@@ -131,6 +133,11 @@ test('the mission\'s steps: the transceiver, the poles, the transition, the gate
     prev = b;
   }
   assert.equal(st.down.passed, gates.length);
+  // (at the finish together: with Reto still far behind, it waits for him)
+  st.retoBehind = 200;
+  assert.equal(step('stafel').check(frame(), st).done, false);
+  assert.match(step('stafel').check(frame(), st).text, /^Wait for Reto/);
+  st.retoBehind = SPLIT.partner.downGap;
   assert.equal(step('stafel').check(frame(), st).done, true);
   assert.equal(st.penaltyMs, 0);
   assert.equal(m.summary(st).length, 2);
@@ -139,15 +146,29 @@ test('the mission\'s steps: the transceiver, the poles, the transition, the gate
 test('bots on the real terrain: up on skins zig-zagging the steep steps, the transition, down through every gate: inside the medals', async () => {
   const { groundHeight: g } = await import('../js/terrain.js');
   const m = SPLITBOARD_MISSION, st = m.createState();
-  let t = SPLIT.transceiver + 0.1;
+  let t = 0;
+  while (!st.check.done) { stepTransition(st.check, true, DT, SPLIT.groupCheck); t += DT; }
   const s0 = m.start, sk = createSkinner(s0.x, s0.z, s0.heading, g);
-  let maxSteep = 0;
+  const trail = createTrail(s0.x, s0.z, s0.heading), P = createPartner(), risk = createRisk();
+  let maxSteep = 0, maxLoad = 0, spaced = 0, maxBehind = 0;
+  // (the load on the snowpack where the bot goes: it keeps to the marked line, so none may build)
+  const load = (x, z, down, travel) => { const sl = slopeAt(g, x, z); stepRisk(risk, { slope: sl.slope, off: lineOffset(down ? DESCENT_ROUTE : ASCENT_ROUTE, x, z), down, travel, up: sl.up }, DT); maxLoad = Math.max(maxLoad, risk.load); };
   while (st.up.next < st.up.cps.length && t < 3000) {
     stepSkinner(sk, skinBot(sk, st.up.cps[st.up.next], g), DT, g);
     updateCheckpoints(st.up, sk.x, sk.z, SPLIT.up.radius);
     maxSteep = Math.max(maxSteep, slopeAt(g, sk.x, sk.z).slope);
+    addToTrail(trail, sk.x, sk.z);
+    stepPartner(P, trail, trailEnd(trail, sk.x, sk.z), DT, g, 'up');
+    if (P.spaced) spaced += DT;
+    maxBehind = Math.max(maxBehind, P.behind);
+    load(sk.x, sk.z, false, sk.heading);
     t += DT;
   }
+  assert.equal(maxLoad, 0, 'the marked line up builds no load on the snowpack');
+  assert.ok(spaced > 30, `Reto kept his spacing in the steep for ${spaced.toFixed(0)} s`);
+  assert.ok(maxBehind < SPLIT.partner.waitAt, `Reto never more than ${maxBehind.toFixed(0)} m behind on the way up`);
+  // on the summit: Reto comes up beside you before the transition
+  while (stepPartner(P, trail, trailEnd(trail, sk.x, sk.z), DT, g, 'trans').behind > SPLIT.partner.beside + 8) t += DT;
   assert.equal(st.up.next, st.up.cps.length, 'on the summit');
   assert.ok(sk.kicks >= 1, `${sk.kicks} kick turns`);
   assert.ok(maxSteep > SPLIT.skin.slip, 'there is ground too steep to go straight up');
@@ -163,15 +184,21 @@ test('bots on the real terrain: up on skins zig-zagging the steep steps, the tra
     for (let k = 0; k < 2; k++) { const l = stepRider(r, input, DT / 2, g, BOARD_PARAMS); if (l?.quality === 'crash') crashes++; }
     updateGates(st.down, prev.x, prev.z, r.x, r.z);
     prev = { x: r.x, z: r.z };
+    addToTrail(trail, r.x, r.z);
+    stepPartner(P, trail, trailEnd(trail, r.x, r.z), DT, g, 'down');
+    load(r.x, r.z, true, Math.atan2(r.vx, r.vz));
     t += DT;
   }
+  assert.equal(risk.releases, 0);
+  assert.equal(maxLoad, 0, 'the line down through the gates builds no load either');
   assert.equal(st.down.next, gates.length, 'at the Stafelalp');
+  assert.ok(P.behind < SPLIT.partner.downGap + 40, `Reto ${P.behind.toFixed(0)} m behind at the finish`);
   assert.equal(st.down.missed, 0);
   assert.equal(crashes, 0);
   assert.ok(riderSpeed(r) > 3, 'still riding at the finish: no flat to push across');
   const total = t * 1000 + st.down.penaltyMs;
   assert.ok(medalFor(total, m.medals), `a medal at ${(total / 60000).toFixed(2)} min (up ${(up / 60).toFixed(2)} min, down ${((t - t0) / 60).toFixed(2)} min)`);
-  assert.ok(total > m.medals.gold * 0.85, 'gold leaves room to be quicker than the bot, not much more');
+  assert.ok(total > m.medals.gold * 0.85, `gold leaves room to be quicker than the bot, not much more (bot ${(total / 60000).toFixed(2)} min, up ${(up / 60).toFixed(2)} min)`);
 });
 
 test('the gates and the poles are spaced along their lines, the last gate at the Stafelalp', () => {
@@ -206,7 +233,90 @@ test('German: the names, the intro, the steps and the running texts', async () =
   assert.equal(t('Gate 3/18 · 2 missed (+16 s)'), 'Tor 3/18 · 2 verpasst (+16 s)');
   assert.equal(t('Join the halves (3/4)'), 'Die Hälften zusammenfügen (3/4)');
   assert.equal(t('2 kick turns · 5 s slipping'), '2 Spitzkehren · 5 s gerutscht');
+  assert.equal(t('2 kick turns · 5 s slipping · Reto dug out of an avalanche (+30 s)'), '2 Spitzkehren · 5 s gerutscht · Reto aus einer Lawine ausgegraben (+30 s)');
+  assert.equal(t('Send check: Reto searches, you send (1/2)'), 'Sendecheck: Reto sucht, du sendest (1/2)');
+  assert.equal(t('Reto is buried! Signal: 23.4 m'), 'Reto ist verschüttet! Signal: 23,4 m');
+  assert.equal(t('Wait for Reto: 85 m behind'), 'Auf Reto warten: 85 m zurück');
+  assert.equal(t('Steep slope above 35°: avalanche danger – back to the track'), 'Steilhang über 35°: Lawinengefahr – zurück in die Spur');
   assert.equal(t('16 of 18 gates · 2 missed (+16 s) · top speed 80 km/h'), '16 von 18 Toren · 2 verpasst (+16 s) · Höchsttempo 80 km/h');
   assert.notEqual(t(m.finish), m.finish);
   setLanguage('en');
+});
+
+test('Reto in your track: 4 m behind on easy ground, 11 m where it reaches 30°, beside you at the transition, 24 m on the way down', () => {
+  const run = (deg, stage, metres = 200) => {
+    const h = slope(deg, Math.PI); // (uphill along -z: the walker below goes +… here: along -z)
+    const t = createTrail(0, 0, Math.PI), P = createPartner();
+    let x = 0, z = 0;
+    for (let i = 0; i < metres * 10; i++) { z -= 0.1; addToTrail(t, x, z); stepPartner(P, t, trailEnd(t, x, z), 0.1 / 3, h, stage); }
+    for (let i = 0; i < 200; i++) stepPartner(P, t, trailEnd(t, x, z), DT, h, stage);
+    return P;
+  };
+  assert.ok(Math.abs(run(10, 'up').behind - SPLIT.partner.gap) < 1);
+  const steep = run(32, 'up');
+  assert.ok(steep.spaced && Math.abs(steep.behind - SPLIT.partner.steepGap) < 1);
+  assert.ok(Math.abs(run(32, 'trans').behind - SPLIT.partner.beside) < 1);
+  assert.ok(Math.abs(run(25, 'down').behind - SPLIT.partner.downGap) < 1.5);
+  // he goes no quicker than he can: left 300 m behind, he closes in at his own pace
+  const t = createTrail(0, 0, 0), P = createPartner();
+  for (let z = 0; z <= 300; z += 1) addToTrail(t, 0, z);
+  stepPartner(P, t, trailEnd(t, 0, 300), 1, slope(0), 'up');
+  assert.ok(P.behind > SPLIT.partner.waitAt, 'far behind: wait for him');
+  const p0 = P.s;
+  for (let i = 0; i < 60; i++) stepPartner(P, t, trailEnd(t, 0, 300), DT, slope(0), 'up');
+  assert.ok(P.s - p0 <= SPLIT.partner.upSpeed * 1 + 0.01);
+  assert.equal(Math.round(trailPoint(t, 153.5).z), 150); // (the track begins 3.5 m behind the start)
+});
+
+test('avalanches: never on the marked line; off it in 35° and more the load builds, the HUD warns, and the slab goes', () => {
+  const A = SPLIT.avalanche;
+  const on = createRisk(), off = createRisk(), mild = createRisk();
+  let warned = false, went = 0;
+  for (let i = 0; i < 600; i++) {
+    stepRisk(on, { slope: 40 * DEG, off: 10, down: false, travel: 0, up: 0 }, DT);
+    stepRisk(mild, { slope: 31 * DEG, off: 200, down: false, travel: 0, up: 0 }, DT);
+    if (stepRisk(off, { slope: 38 * DEG, off: A.offUp + 20, down: false, travel: 0, up: 0 }, DT)) { went = i * DT; break; }
+    warned ||= off.exposed;
+  }
+  assert.equal(on.load, 0, 'on the line: nothing');
+  assert.equal(mild.load, 0, 'under 35°: nothing');
+  assert.ok(warned && Math.abs(went - A.load) < 0.1, `the slab after ${went.toFixed(2)} s`);
+  assert.equal(off.releases, 1);
+  // on the board: riding the fall line of such a slope does not load it, crossing it does
+  const fall = createRisk(), cross = createRisk();
+  for (let i = 0; i < 120; i++) {
+    stepRisk(fall, { slope: 38 * DEG, off: 80, down: true, travel: Math.PI, up: 0 }, DT);
+    stepRisk(cross, { slope: 38 * DEG, off: 80, down: true, travel: Math.PI / 2, up: 0 }, DT);
+  }
+  assert.equal(fall.load, 0); assert.ok(cross.load > 0.5);
+  // back on safe ground the load goes again
+  for (let i = 0; i < 600; i++) stepRisk(cross, { slope: 20 * DEG, off: 0, down: true, travel: 0, up: 0 }, DT);
+  assert.equal(cross.load, 0);
+  assert.ok(lineOffset([0, 0, 100, 0], 50, 30) === 30);
+});
+
+test('the rescue: buried down the fall line, the signal from 50 m, the fine search, probe and shovel with Space', () => {
+  const h = slope(35, 0); // uphill along +z: down is -z
+  const b = burialSpot(h, 0, 0);
+  assert.ok(b.z < -50 && Math.abs(b.x) < 1e-6, `buried ${(-b.z).toFixed(0)} m down the fall line`);
+  assert.equal(searchView(0, 0, 0, 0, -80).mode, 'none');
+  const v = searchView(0, 0, 0, 30, 10);
+  assert.equal(v.mode, 'coarse');
+  assert.ok(v.arrow > 0, 'the arrow to the left (+x is the left of heading 0)');
+  assert.equal(searchView(0, 0, 0, 1, 1).mode, 'fine');
+  const rs = createRescue(0, -55);
+  assert.equal(stepRescue(rs, 0, 0, true, DT), null);
+  assert.equal(stepRescue(rs, 0, -54, false, DT), 'search');
+  let t = 0, got;
+  while (rs.stage !== 'out' && t < 10) { got = stepRescue(rs, 0, -54, true, DT) || got; t += DT; }
+  assert.equal(rs.stage, 'out'); assert.equal(got, 'dig');
+  assert.ok(Math.abs(t - SPLIT.rescue.probe - SPLIT.rescue.dig) < 0.1);
+  // while he is buried every step shows the rescue, and a second avalanche ends the tour
+  const m = SPLITBOARD_MISSION, st = m.createState();
+  st.rescue = createRescue(10, 10);
+  const view = m.objectives[1].check(frame(), st);
+  assert.match(view.text, /^Reto is buried!/);
+  assert.equal(view.done, false);
+  st.failed = 'A second avalanche';
+  assert.ok(m.objectives[2].check(frame(), st).fail);
 });

@@ -15,7 +15,10 @@
 //                    falling, never steeper than 38°), then smoothed.
 //
 // The phases:
-//   1. the avalanche transceiver: hold Space until it beeps (it sends) — at the start of every tour.
+//   0. the partner, Reto, on the whole tour: in your track behind you (your track as breadcrumbs, he follows along it), 4 m
+//      back, 11 m where the slope reaches 30° (the spacing that takes the load off the snowpack), beside you at the
+//      transition, 24 m behind on the way down; too far back (80 m) and you wait for him. He is not counted at the gates.
+//   1. the group check of the transceivers: hold Space while his, on search, finds yours sending; then the other way round.
 //   2. the ascent on skins, the board split into two skis: from marker pole to marker pole (any line between them). The skins
 //      hold up to a slope (`grip`) at full pace, less and less above it, not at all past `slip` (you slide back). On the
 //      gentle ground you walk at `flat` m/s; the steeper it gets, the more the pace is the climb (`climb` m of height a
@@ -26,6 +29,11 @@
 //      joined; the bindings turned to ride). Let go and the step's progress runs back.
 //   4. the descent on the board (js/missions-data-snow.js stepRider, BOARD_PARAMS): through the gates of red flags in order;
 //      one missed costs 8 s (there is no walking back up in deep snow).
+//   Avalanches: never on the marked line (the tests ride it). Off it, in a slope of 35° and more (the steepest slope at the
+//   spot), and on the board only when crossing such a slope, the load builds; the HUD warns, and after ~3 s the slab goes:
+//   its crown above you, the powder cloud, Reto buried 55 m down the fall line. Then the rescue: the transceiver on search
+//   (the signal from 50 m: the arrow and the distance), the fine search under 3 m, the probe (hold Space), the shovel
+//   (hold Space), +30 s. A second avalanche ends the tour.
 // Judged by time. The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z).
 import { lineLength, pointAt, buildCheckpoints, updateCheckpoints, crossGate } from './missions-data-snow.js';
 
@@ -67,8 +75,8 @@ export const DESCENT_ROUTE = [
 
 export const SPLIT = {
   skin: {
-    flat: 2.8, // m/s on the level, ~10 km/h (and downhill: the skins brake)
-    climb: 1.2, // m of height a second at most (the legs: on skins at `grip` the pace holds them under it)
+    flat: 5.5, // m/s on the level, ~20 km/h: quicker than life, the tour is long (and downhill: the skins brake)
+    climb: 2.2, // m of height a second at most (the legs: on skins at `grip` the pace holds them under it)
     grip: 19 * DEG, // the skins hold at full pace up to this slope along the skis
     slip: 29 * DEG, // and not at all from this one: you slide back
     slideBack: 1.6, // m/s back down at most
@@ -81,7 +89,37 @@ export const SPLIT = {
   },
   up: { spacing: 120, first: 70, radius: 22 }, // the marker poles
   down: { spacing: 135, first: 90, half: 22, reach: 90, missMs: 8000 }, // the gates of flags
-  transceiver: 1.2, // s held: it beeps, it sends
+  // the group check at the start: first Reto's transceiver on search finds yours sending, then the other way round
+  groupCheck: [
+    { id: 'send', label: 'Send check: Reto searches, you send', hold: 1.3 },
+    { id: 'receive', label: 'Receive check: you search, Reto sends', hold: 1.3 }
+  ],
+  // the touring partner: in your track behind you, the whole tour
+  partner: {
+    name: 'Reto',
+    gap: 4, // m behind you in the track on easy ground
+    steepGap: 11, // m apart where the slope reaches `steepFrom` (the spacing that takes the load off the snowpack)
+    steepFrom: 30 * DEG,
+    downGap: 24, // m behind you on the way down, one at a time
+    upSpeed: 6.2, downSpeed: 24, // m/s at most (a little quicker than you: he catches up)
+    beside: 2.4, // m beside you at the transition
+    waitAt: 80 // m behind: wait for him
+  },
+  // avalanches: only off the marked line in very steep ground (the marked line keeps out of it, as a sound choice of route does)
+  avalanche: {
+    steep: 35 * DEG, // the steepest slope at the spot from which a slab can go
+    offUp: 55, offDown: 50, // m from the marked line (up, down) from which it counts as off it
+    load: 3.2, // s of load in such a slope before it goes
+    decay: 0.5, // of the load a second, back on safe ground
+    traverse: 45 * DEG // on the board: across the slope (the way off the fall line) from this
+  },
+  rescue: {
+    range: 50, // m: the transceiver's reach
+    fine: 3, // m: the fine search
+    probe: 1.5, dig: 3, // s held: the probe's hit, the shovelling
+    burial: 55, // m down the fall line from where he was caught
+    penaltyMs: 30000
+  },
   transition: [
     { id: 'skinL', label: 'Skin off the left half', hold: 1.1 },
     { id: 'skinR', label: 'Skin off the right half', hold: 1.1 },
@@ -195,6 +233,108 @@ export const transitionShare = (tr, steps = SPLIT.transition) => {
   return (steps.slice(0, tr.step).reduce((a, s) => a + s.hold, 0) + Math.min(tr.t, steps[tr.step].hold)) / total;
 };
 
+// --- The track and the partner ---------------------------------------------------------------------------------------
+/** Your track: a point every `step` m (and one behind the start, where the partner stands for the group check) */
+export function createTrail(x, z, heading, step = 1.5) {
+  const bx = x - Math.sin(heading) * 3.5, bz = z - Math.cos(heading) * 3.5;
+  return { xs: [bx, x], zs: [bz, z], cum: [0, 3.5], step };
+}
+export function addToTrail(t, x, z) {
+  const n = t.xs.length - 1, d = Math.hypot(x - t.xs[n], z - t.zs[n]);
+  if (d < t.step) return false;
+  t.xs.push(x); t.zs.push(z); t.cum.push(t.cum[n] + d);
+  return true;
+}
+/** How far along the track (x, z) is: its end plus the bit from its last point */
+export const trailEnd = (t, x, z) => { const n = t.xs.length - 1; return t.cum[n] + Math.hypot(x - t.xs[n], z - t.zs[n]); };
+/** The point at `s` m along the track and its heading */
+export function trailPoint(t, s, out = {}) {
+  const c = t.cum, n = c.length - 1;
+  if (s >= c[n]) { out.x = t.xs[n]; out.z = t.zs[n]; out.heading = Math.atan2(t.xs[n] - t.xs[n - 1], t.zs[n] - t.zs[n - 1]); return out; }
+  let lo = 0, hi = n;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= s) lo = m; else hi = m; }
+  const f = Math.max(0, (s - c[lo]) / ((c[hi] - c[lo]) || 1));
+  out.x = t.xs[lo] + (t.xs[hi] - t.xs[lo]) * f; out.z = t.zs[lo] + (t.zs[hi] - t.zs[lo]) * f;
+  out.heading = Math.atan2(t.xs[hi] - t.xs[lo], t.zs[hi] - t.zs[lo]);
+  return out;
+}
+export const createPartner = () => ({ s: 0, x: 0, z: 0, heading: 0, speed: 0, gap: SPLIT.partner.gap, spaced: false, behind: 0, stride: 0, buried: false });
+/**
+ * The partner one step along your track: as far behind you as the ground asks (`gap`; `steepGap` where it is steep, at his
+ * spot or yours, on the way up; `downGap` on the way down; beside you at the transition), never quicker than he can go.
+ * stage: 'up' | 'trans' | 'down'; lead: where you are along the track (trailEnd)
+ */
+export function stepPartner(p, t, lead, dt, height, stage, P = SPLIT.partner) {
+  if (p.buried) return p;
+  const here = trailPoint(t, p.s, p);
+  const steep = stage === 'up' && Math.max(slopeAt(height, here.x, here.z, _s).slope, slopeAt(height, t.xs[t.xs.length - 1], t.zs[t.zs.length - 1], _s).slope) >= P.steepFrom;
+  p.spaced = steep;
+  p.gap = stage === 'down' ? P.downGap : stage === 'trans' ? P.beside : steep ? P.steepGap : P.gap;
+  const target = Math.max(0, lead - p.gap), vmax = stage === 'down' ? P.downSpeed : P.upSpeed;
+  const want = clamp((target - p.s) * 1.2, 0, vmax);
+  p.speed += clamp(want - p.speed, -6 * dt, 4 * dt);
+  p.s = Math.min(target + 0.5, p.s + p.speed * dt);
+  trailPoint(t, p.s, p);
+  p.stride += (p.speed * dt) / SPLIT.skin.stride;
+  p.behind = lead - p.s;
+  return p;
+}
+
+// --- Avalanches and the rescue ----------------------------------------------------------------------------------------
+/** The distance from (x, z) to a flat polyline [x0, z0, x1, z1, …] */
+export function lineOffset(pts, x, z) {
+  let best = Infinity;
+  for (let i = 2; i < pts.length; i += 2) {
+    const ax = pts[i - 2], az = pts[i - 1], dx = pts[i] - ax, dz = pts[i + 1] - az, L2 = dx * dx + dz * dz || 1;
+    const f = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1);
+    best = Math.min(best, Math.hypot(ax + dx * f - x, az + dz * f - z));
+  }
+  return best;
+}
+export const createRisk = () => ({ load: 0, exposed: false, releases: 0 });
+/**
+ * The load on the snowpack under you: it builds where the slope reaches `steep` and you are off the marked line (on the way
+ * down: only when crossing such a slope, not riding its fall line), and goes again on safe ground. Returns true on the step
+ * the slab goes. at: { slope (rad, the steepest at the spot), off (m from the line), down (bool), travel (heading), up (heading uphill) }
+ */
+export function stepRisk(r, at, dt, A = SPLIT.avalanche) {
+  const across = at.down ? Math.abs(Math.sin(wrapPi(at.travel - at.up))) >= Math.sin(A.traverse) : true;
+  r.exposed = at.slope >= A.steep && at.off > (at.down ? A.offDown : A.offUp) && across;
+  r.load = r.exposed ? r.load + dt / A.load : Math.max(0, r.load - A.decay * dt);
+  if (r.load < 1) return false;
+  r.load = 0; r.releases++;
+  return true;
+}
+/** Where the snow buries him: `burial` m down the fall line from (x, z), in 5 m steps (less where it flattens out) */
+export function burialSpot(height, x, z, len = SPLIT.rescue.burial) {
+  let px = x, pz = z;
+  for (let d = 0; d < len; d += 5) {
+    const sl = slopeAt(height, px, pz, _s);
+    if (sl.slope < 8 * DEG && d > 20) break;
+    px -= Math.sin(sl.up) * 5; pz -= Math.cos(sl.up) * 5;
+  }
+  return { x: px, z: pz };
+}
+/** The transceiver on search: { mode: 'none' | 'coarse' | 'fine', dist (m), arrow (rad, + left of where you look) } */
+export function searchView(x, z, heading, bx, bz, R = SPLIT.rescue) {
+  const dist = Math.hypot(bx - x, bz - z);
+  if (dist > R.range) return { mode: 'none', dist, arrow: 0 };
+  return { mode: dist <= R.fine ? 'fine' : 'coarse', dist, arrow: wrapPi(Math.atan2(bx - x, bz - z) - heading) };
+}
+/** The rescue: { x, z (where he lies), stage: 'search' | 'probe' | 'dig' | 'out', t (s held) } */
+export const createRescue = (x, z) => ({ x, z, stage: 'search', t: 0, startedAt: null });
+/** One step of the rescue at (px, pz), Space held or not; returns the stage just finished, or null */
+export function stepRescue(rs, px, pz, holding, dt, R = SPLIT.rescue) {
+  if (rs.stage === 'out') return null;
+  const near = Math.hypot(rs.x - px, rs.z - pz) <= R.fine;
+  if (rs.stage === 'search') { if (near) { rs.stage = 'probe'; rs.t = 0; return 'search'; } return null; }
+  if (!near) { rs.t = Math.max(0, rs.t - 2 * dt); return null; }
+  rs.t = holding ? rs.t + dt : Math.max(0, rs.t - dt);
+  if (rs.stage === 'probe' && rs.t >= R.probe) { rs.stage = 'dig'; rs.t = 0; return 'probe'; }
+  if (rs.stage === 'dig' && rs.t >= R.dig) { rs.stage = 'out'; rs.t = 0; return 'dig'; }
+  return null;
+}
+
 // --- The marker poles and the gates ----------------------------------------------------------------------------------
 export const ascentPoles = () => buildCheckpoints(ASCENT_ROUTE, SPLIT.up.spacing, SPLIT.up.first);
 /** The gates down: [{ i, x, z, tx, tz, nx, nz, half, s }] (the last one the finish at the Stafelalp) */
@@ -267,6 +407,27 @@ const UP_LEN = lineLength(ASCENT_ROUTE);
 const UP_PARTS = [['traverse', 'Along the ridge to the Hauptertälli', 2064], ['ridge', 'Up the ridge to the summit', Infinity]];
 const DOWN_PARTS = [['ridge-down', 'Down the south ridge past the hut', 700], ['stafel', 'Down to the Stafelalp', Infinity]];
 
+const RETO = SPLIT.partner.name;
+/** The views that come before any step's own: the mission failed, the rescue under way */
+function override(ctx, state) {
+  if (state.failed) return { done: false, fail: state.failed, text: '', progress: null, target: null, hint: null };
+  const rs = state.rescue;
+  if (!rs || rs.stage === 'out') return null;
+  const d = Math.hypot(rs.x - ctx.x, rs.z - ctx.z), R = SPLIT.rescue;
+  const text = rs.stage === 'search'
+    ? (d > R.range ? `${RETO} is buried! Search: no signal yet, go down the avalanche` : `${RETO} is buried! Signal: ${d.toFixed(1)} m`)
+    : rs.stage === 'probe' ? 'Fine search: probe (hold Space)' : 'Probe hit: dig him out (hold Space)';
+  const hint = rs.stage === 'search' ? (d > R.range ? 'Transceiver on search: down the fall line in strips' : d > 10 ? 'Coarse search: follow the arrow' : 'Close: slow down, fine search') : null;
+  return { done: false, progress: rs.stage === 'search' ? null : rs.t / (rs.stage === 'probe' ? R.probe : R.dig), text, target: null, hint };
+}
+/** The partner's line in the HUD (way behind; keeping his spacing; the warning before a slab) */
+function partnerHint(state) {
+  if (state.risk?.exposed) return 'Steep slope above 35°: avalanche danger – back to the track';
+  if (state.retoBehind > SPLIT.partner.waitAt) return `Wait for ${RETO}: ${Math.round(state.retoBehind)} m behind`;
+  if (state.retoSpaced) return `Over 30°: ${RETO} keeps 10 m spacing behind you`;
+  return null;
+}
+
 function upObjective([id, title, toS]) {
   const last = POLES.reduce((k, c, i) => (c.s <= toS + 1 ? i : k), 0);
   return {
@@ -274,25 +435,32 @@ function upObjective([id, title, toS]) {
     title,
     allowModes: ['person'],
     check(ctx, state) {
+      const o = override(ctx, state);
+      if (o) return o;
       if (ctx.t > SPLIT.timeLimitMs) return { done: false, fail: 'The sun has turned the snow to mush: too late for the descent today.', text: '', progress: null, target: null };
       const up = state.up, cp = up.cps[up.next], n = up.cps.length, sk = up.skipped != null ? up.cps[up.skipped] : null;
       const text = sk ? `Marker pole ${sk.i + 1} missed: back to it` : `Marker pole ${Math.min(n, up.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}`;
-      const hint = state.slipping ? 'Too steep: the skins slip! Zig-zag across the slope' : state.steepHint ? 'Steep: zig-zag, Space for a kick turn' : null;
+      const hint = partnerHint(state) || (state.slipping ? 'Too steep: the skins slip! Zig-zag across the slope' : state.steepHint ? 'Steep: zig-zag, Space for a kick turn' : null);
       return { done: up.next > last, progress: Math.min(1, (up.next ? up.cps[up.next - 1].s : 0) / UP_LEN), text, target: cp ? { x: cp.x, z: cp.z, r: SPLIT.up.radius, style: sk ? 'hazard' : 'plain' } : null, hint };
     }
   };
 }
 function downObjective([id, title, toS]) {
   const last = GATES.reduce((k, c, i) => (c.s <= toS + 1 ? i : k), 0);
+  const end = toS === Infinity;
   return {
     id,
     title,
     allowModes: ['person'],
     check(ctx, state) {
+      const o = override(ctx, state);
+      if (o) return o;
       const d = state.down, g = d.gates[d.next], n = d.gates.length;
+      // (at the Stafelalp: together, or it isn't done)
+      if (end && d.next > last && state.retoBehind > SPLIT.partner.downGap + 12) return { done: false, progress: 1, text: `Wait for ${RETO}`, target: null, hint: `${RETO}: ${Math.round(state.retoBehind)} m behind` };
       const text = `Gate ${Math.min(n, d.next + 1)}/${n}${d.missed ? ` · ${d.missed} missed (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : ''}`;
       const lastEv = state.lastGate;
-      const hint = lastEv && !lastEv.pass && ctx.t - lastEv.t < 2500 ? `Gate missed: +${SPLIT.down.missMs / 1000} s` : null;
+      const hint = (lastEv && !lastEv.pass && ctx.t - lastEv.t < 2500 ? `Gate missed: +${SPLIT.down.missMs / 1000} s` : null) || partnerHint(state);
       return { done: d.next > last, progress: d.next / n, text, target: g ? { x: g.x, z: g.z, r: g.half, style: 'plain' } : null, hint };
     }
   };
@@ -301,7 +469,7 @@ function downObjective([id, title, toS]) {
 export const SPLITBOARD_MISSION = {
   id: ID,
   title: 'Splitboard tour on the Chörbschhorn',
-  intro: 'A clear winter day on the Strelapass, the Schatzalp below you and the Chörbschhorn (2650 m) at the end of the ridge to the south-west. First check your avalanche transceiver: hold Space until it beeps. Then on skins, the board split in two, past the Hauptertälli and up the ridge: from marker pole to marker pole, any line you like. W walks, A/D turns. The skins hold on moderate slopes; straight up a steep one they slip and you slide back, so zig-zag across it, and press Space for a kick turn onto the other diagonal. On the summit hold Space to pull the skins and join the board. Then ride down the south ridge, past the Chörbschhornhütte, through the red flags to the Stafelalp above Frauenkirch: A/D carve, W tuck, S brake. A missed gate costs 8 s.',
+  intro: 'A clear winter day on the Strelapass, the Schatzalp below you and the Chörbschhorn (2650 m) at the end of the ridge to the south-west. You don\'t go alone: Reto comes with you, in your track. First the group check of the avalanche transceivers: hold Space while Reto\'s searches for yours, then while yours finds his. Then on skins, the board split in two, past the Hauptertälli and up the ridge: from marker pole to marker pole, any line you like. W walks, A/D turns. The skins hold on moderate slopes; straight up a steep one they slip and you slide back, so zig-zag across it, and press Space for a kick turn onto the other diagonal. Where it gets steeper than 30° Reto keeps 10 m back. Stay near the marked line: off it, in slopes of 35° and more, the snowpack can go, and then you dig Reto out with your transceiver, probe and shovel. On the summit wait for him and hold Space to pull the skins and join the board. Then ride down the south ridge, past the Chörbschhornhütte, through the red flags to the Stafelalp above Frauenkirch: A/D carve, W tuck, S brake. A missed gate costs 8 s.',
   mode: 'person',
   season: 'winter',
   time: 'midday',
@@ -310,11 +478,11 @@ export const SPLITBOARD_MISSION = {
   colour: '#e2553a',
   icon: 'splitboard',
   pin: { x: SPLIT_PLACES.start.x, z: SPLIT_PLACES.start.z },
-  // (the bots of tests/missions-splitboard.test.mjs: up in ~21:30 at ~10 km/h on the level, on the diagonal where it gets
-  // steep, the transition 5 s, down in ~2:50 at 15 m/s at most: ~24:25; a player cutting the corners at the poles, and
-  // letting the board run, is quicker)
-  bonusMs: 1440000,
-  medals: { gold: 1440000, silver: 1680000, bronze: 2100000 },
+  // (the bots of tests/missions-splitboard.test.mjs: up in ~11:05 at ~20 km/h on the level, on the diagonal where it gets
+  // steep, Reto in the track behind, the transition 5 s, down in ~2:50 at 15 m/s at most, waiting a moment for Reto at the
+  // finish: ~14:05; a player cutting the corners at the poles, and letting the board run, is quicker)
+  bonusMs: 825000,
+  medals: { gold: 825000, silver: 990000, bronze: 1260000 },
   timeLimitMs: SPLIT.timeLimitMs,
   finish: 'At the Stafelalp, a long line down from the Chörbschhorn behind you, and the Berghaus has a table in the sun.',
   get start() {
@@ -323,7 +491,8 @@ export const SPLITBOARD_MISSION = {
   },
   createState() {
     return {
-      lvs: 0, beeped: false,
+      check: createTransition(),
+      risk: createRisk(), rescue: null, rescues: 0, extraMs: 0, failed: null, retoBehind: 0, retoSpaced: false,
       up: { cps: ascentPoles(), next: 0, skipped: null },
       trans: createTransition(),
       down: { gates: descentGates(), next: 0, passed: 0, missed: 0, penaltyMs: 0, results: GATES.map(() => null) },
@@ -332,13 +501,14 @@ export const SPLITBOARD_MISSION = {
   },
   update(ctx, state) {
     if (ctx.mode !== 'person') { state.prev = null; return; }
-    if (state.beeped && !state.trans.done) updateCheckpoints(state.up, ctx.x, ctx.z, SPLIT.up.radius);
+    if (state.rescue && state.rescue.stage !== 'out') { state.prev = null; return; }
+    if (state.check.done && !state.trans.done) updateCheckpoints(state.up, ctx.x, ctx.z, SPLIT.up.radius);
     if (state.trans.done) {
       const p = state.prev;
       if (p && Math.hypot(ctx.x - p.x, ctx.z - p.z) < 60) {
         const ev = updateGates(state.down, p.x, p.z, ctx.x, ctx.z);
         if (ev.length) state.lastGate = { ...ev[ev.length - 1], t: ctx.t };
-        state.penaltyMs = state.down.penaltyMs;
+        state.penaltyMs = state.down.penaltyMs + state.extraMs;
       }
       state.prev = { x: ctx.x, z: ctx.z };
     }
@@ -346,17 +516,18 @@ export const SPLITBOARD_MISSION = {
   summary(state) {
     const d = state.down;
     return [
-      `${state.kicks} kick turn${state.kicks === 1 ? '' : 's'} · ${Math.round(state.slipT)} s slipping`,
+      `${state.kicks} kick turn${state.kicks === 1 ? '' : 's'} · ${Math.round(state.slipT)} s slipping${state.rescues ? ` · ${RETO} dug out of an avalanche (+${SPLIT.rescue.penaltyMs / 1000} s)` : ''}`,
       `${d.passed} of ${d.gates.length} gates · ${d.missed} missed${d.missed ? ` (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : ''} · top speed ${Math.round(state.topSpeed * 3.6)} km/h`
     ];
   },
   objectives: [
     {
       id: 'transceiver',
-      title: 'Check your avalanche transceiver',
+      title: 'Group check: transceivers',
       allowModes: ['person'],
       check(ctx, state) {
-        return { done: state.beeped, progress: state.lvs / SPLIT.transceiver, text: state.lvs > 0 ? 'Checking …' : 'Hold Space: transceiver on, sending', target: null, hint: null };
+        const c = state.check, st = SPLIT.groupCheck[Math.min(c.step, SPLIT.groupCheck.length - 1)];
+        return { done: c.done, progress: transitionShare(c, SPLIT.groupCheck), text: `${st.label} (${c.step + 1}/${SPLIT.groupCheck.length})`, target: null, hint: 'Hold Space' };
       }
     },
     ...UP_PARTS.map(upObjective),
@@ -365,8 +536,11 @@ export const SPLITBOARD_MISSION = {
       title: 'Transition: skins off, board together',
       allowModes: ['person'],
       check(ctx, state) {
+        const o = override(ctx, state);
+        if (o) return o;
         const tr = state.trans, st = SPLIT.transition[Math.min(tr.step, SPLIT.transition.length - 1)];
-        return { done: tr.done, progress: transitionShare(tr), text: tr.done ? 'Ready to ride' : `${st.label} (${tr.step + 1}/${SPLIT.transition.length})`, target: null, hint: 'Hold Space' };
+        const wait = state.retoBehind > SPLIT.partner.beside + 8;
+        return { done: tr.done, progress: transitionShare(tr), text: tr.done ? 'Ready to ride' : `${st.label} (${tr.step + 1}/${SPLIT.transition.length})`, target: null, hint: wait ? `Wait for ${RETO}: ${Math.round(state.retoBehind)} m behind` : 'Hold Space' };
       }
     },
     ...DOWN_PARTS.map(downObjective)
