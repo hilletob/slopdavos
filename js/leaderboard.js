@@ -30,8 +30,9 @@ async function rpc(name, args = {}, fetcher = fetch) {
   return response.json();
 }
 
-/** The run's id on the server, or null when it cannot be counted */
-export const startRun = (board) => rpc('start_run', { board });
+/** The run's id on the server, or null when it cannot be counted. `kind` ('time' or 'score'): how a list the server does
+ *  not have yet is made (supabase/migrations/*_boards_on_demand.sql) */
+export const startRun = (board, kind = 'time') => rpc('start_run', { board, kind });
 
 /** { accepted: true, improved, rank, players, best_ms } or { accepted: false, reason } (a penalty adds to `total`) */
 export const submitRun = (run, total, penalty) => rpc('submit_run', { run, total_ms: Math.round(total), penalty_ms: Math.round(penalty) });

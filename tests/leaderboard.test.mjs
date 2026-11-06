@@ -16,10 +16,12 @@ for (const [, id, mission, kind, min, max, cap] of allSql.matchAll(/\('([\w-]+)'
   boards.set(id, { mission, kind, min: +min, max: +max, cap: cap === 'null' ? null : +cap });
 }
 
-test('every mission has its list on the server, with limits its medals fit inside', () => {
+test('every list in the migrations belongs to a mission, with limits its medals fit inside', () => {
   assert.ok(MISSIONS.every((m) => m.board), 'every mission is ranked');
-  assert.deepEqual(MISSIONS.map((m) => m.board).sort(), [...boards.keys()].sort());
-  for (const m of MISSIONS) {
+  const missions = new Map(MISSIONS.map((m) => [m.board, m]));
+  assert.deepEqual([...boards.keys()].filter((id) => !missions.has(id)), [], 'no list without its mission');
+  // (a mission without a row gets its list when it is first started: supabase/migrations/*_boards_on_demand.sql)
+  for (const m of MISSIONS.filter((m) => boards.has(m.board))) {
     const b = boards.get(m.board), medals = missionMedals(m);
     assert.equal(b.mission, m.id);
     assert.equal(b.kind, m.scoreMode ? 'score' : 'time', `${m.id}: judged the same way`);
@@ -119,4 +121,16 @@ test('a list of scores compares by score, the higher first', async () => {
   assert.equal(compareText([row(1, 12), row(2, 9, true)], kind), 'Place 2 of 5 · 3 goals behind place 1');
   assert.equal(compareText([row(1, 12, true), row(2, 9)], kind), 'You lead by 3 goals over place 2');
   assert.equal(kind.show(row(1, 12)), '12 goals');
+});
+
+test('a list nobody has started yet is made by the server, judged the way the mission says', () => {
+  const demandFile = readdirSync(dir).find((f) => f.endsWith('_boards_on_demand.sql'));
+  const demand = readFileSync(new URL(demandFile, dir), 'utf8');
+  assert.match(demand, /revoke all on function public\.start_run\(text, text\) from public, anon;/);
+  assert.match(demand, /grant execute on function public\.start_run\(text, text\) to authenticated;/);
+  assert.equal([...demand.matchAll(/security definer set search_path = ''/g)].length, [...demand.matchAll(/create function/g)].length);
+  const shape = new RegExp(/board ~ '([^']+)'/.exec(demand)[1]);
+  for (const m of MISSIONS) assert.ok(m.board.length <= 64 && shape.test(m.board), `${m.board}: a list the server can make`);
+  const missions = readFileSync(new URL('../js/missions.js', import.meta.url), 'utf8');
+  assert.match(missions, /startRun\(this\.board, this\.def\.scoreMode \? 'score' : 'time'\)/);
 });

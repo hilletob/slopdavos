@@ -411,7 +411,7 @@ class MissionRun {
 
   /** A signed-in player's ranked run gets its start from the server, before the stopwatch can start */
   beginRanking() {
-    this.rankedRun = this.board && signedIn() ? import('./leaderboard.js').then((l) => l.startRun(this.board)).catch(() => null) : null;
+    this.rankedRun = this.board && signedIn() ? import('./leaderboard.js').then((l) => l.startRun(this.board, this.def.scoreMode ? 'score' : 'time')).catch(() => null) : null;
     this.submission = null;
   }
 
