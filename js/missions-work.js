@@ -109,7 +109,7 @@ export function lump(pb, a, b, T, { size = 0.35, grow = 0.6, r = 0.93, g = 0.95,
 }
 
 // --- A work map as a mesh: one vertex a cell, its height and colour from the cell's value ----------------------------------
-class GridMesh {
+export class GridMesh {
   /**
    * grid: js/missions-data-work.js createGrid; toWorld(u, v) -> { x, z } (grid metres); base(x, z): the ground under it;
    * height(h, k): m over the ground; colour(h, k, out: THREE.Color)
@@ -488,36 +488,253 @@ function buildMowerModel() {
   };
 }
 
-/** The refuse truck: the cab, the body, the hopper at the back with its packer plate */
+// --- The refuse truck --------------------------------------------------------------------------------------------------
+// Modelled after a Swiss municipal rear loader: a three-axle low-entry chassis in the manner of a Mercedes Econic with a
+// rear-loader body on it. The low cab with its deep windscreen and big side windows sits over the front axle, the door
+// behind the wheel; the rounded body has its stiffening ribs, and the tailgate at the back holds the hopper with its
+// loading sill, the comb lifter for the bins under it, the crew's steps and grab handles, the lamps and beacons.
+// Profiles extruded and boxes, merged per paint into ~16 meshes; the wheels and the packer plate stay apart.
+const TRUCK_PAINT = {
+  white: { c: 0xf1f1ec, o: { roughness: 0.42, metalness: 0.08 } },
+  green: { c: 0x3d7434, o: { roughness: 0.45, metalness: 0.1 } },
+  rib: { c: 0x335f2c, o: { roughness: 0.5, metalness: 0.1 } },
+  dark: { c: 0x26272a, o: { roughness: 0.7 } },
+  black: { c: 0x141517, o: { roughness: 0.85 } },
+  steel: { c: 0x9aa0a6, o: { roughness: 0.35, metalness: 0.7 } },
+  alu: { c: 0xc4c8cc, o: { roughness: 0.3, metalness: 0.65 } },
+  glass: { c: 0x3b5064, o: { roughness: 0.05, metalness: 0.35 } },
+  hole: { c: 0x0e0f10, o: { roughness: 0.95 } },
+  yellow: { c: 0xf2c200, o: { roughness: 0.4, emissive: 0x3a2d00, emissiveIntensity: 0.4 } },
+  red: { c: 0xc0161d, o: { roughness: 0.5 } },
+  lamp: { c: 0xfff3d0, o: { emissive: 0xffe7a8, emissiveIntensity: 0.8, roughness: 0.25 } },
+  amber: { c: 0xffb300, o: { emissive: 0xff8f00, emissiveIntensity: 0.7, roughness: 0.3 } },
+  tail: { c: 0x9e1a14, o: { emissive: 0x6a0f0c, emissiveIntensity: 0.6, roughness: 0.35 } }
+};
+/** paintBins() for the truck: the extruded profiles are not indexed, so every bin is flattened before the merge */
+function truckBins() {
+  const bins = new Map();
+  return {
+    add(key, ...geos) { const b = bins.get(key) || bins.set(key, []).get(key); b.push(...geos); return this; },
+    meshes() {
+      const out = [];
+      for (const [key, geos] of bins) {
+        const flat = geos.map((g) => { const f = g.index ? g.toNonIndexed() : g; f.deleteAttribute('uv'); return f; });
+        const spec = TRUCK_PAINT[key];
+        const m = new THREE.Mesh(mergeGeometries(flat), mat(spec.c, spec.o));
+        m.castShadow = true; m.receiveShadow = true;
+        for (const g of new Set([...geos, ...flat])) g.dispose();
+        out.push(m);
+      }
+      return out;
+    }
+  };
+}
+/** A side profile in (z, y), extruded across the truck from x0 to x1, its edges rounded by `bevel` */
+function sideProfile(shape, x0, x1, bevel = 0) {
+  if (Array.isArray(shape)) shape = new THREE.Shape(shape.map(([z, y]) => new THREE.Vector2(z, y)));
+  const g = new THREE.ExtrudeGeometry(shape, { depth: x1 - x0 - 2 * bevel, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 2, curveSegments: 12 });
+  return g.rotateY(-Math.PI / 2).translate(x1 - bevel, 0, 0); // (the shape's x to z, the extrusion to -x)
+}
+/** A cross-section in (x, y), extruded along the truck from z0 to z1 */
+function lengthProfile(shape, z0, z1, bevel = 0) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth: z1 - z0 - 2 * bevel, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 2, curveSegments: 10 });
+  return g.translate(0, 0, z0 + bevel);
+}
+/** A rectangle x0-x1 × y0-y1 with its upper corners rounded by rt and the lower by rb */
+function roundedSection(x0, x1, y0, y1, rt, rb) {
+  const s = new THREE.Shape();
+  s.moveTo(x0 + rb, y0); s.lineTo(x1 - rb, y0); s.quadraticCurveTo(x1, y0, x1, y0 + rb);
+  s.lineTo(x1, y1 - rt); s.quadraticCurveTo(x1, y1, x1 - rt, y1);
+  s.lineTo(x0 + rt, y1); s.quadraticCurveTo(x0, y1, x0, y1 - rt);
+  s.lineTo(x0, y0 + rb); s.quadraticCurveTo(x0, y0, x0 + rb, y0);
+  return s;
+}
+/** A rod of radius r from a to b ([x, y, z]) */
+function gseg(a, b, r, seg = 8) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const g = new THREE.CylinderGeometry(r, r, d.length(), seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
+  return g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+}
+/** A flat panel (glass, a lamp) of w × h, `t` thick, facing x (side 'x') or leaning back from z by `tilt` */
+const gpane = (w, h, t, x, y, z, facing = 'z', tilt = 0) => (facing === 'x' ? new THREE.BoxGeometry(t, h, w) : new THREE.BoxGeometry(w, h, t).rotateX(tilt)).translate(x, y, z);
+/** A truck wheel: the tyre (twin tyres when `dual`) and the rim with its hub, both turning about x */
+function truckWheel(r, w, dual, tyreMat, rimMat, side) {
+  const g = new THREE.Group();
+  const tyreGeo = dual
+    ? mergeGeometries([0.5, -0.5].map((k) => new THREE.CylinderGeometry(r, r, w / 2 - 0.02, 24).rotateZ(Math.PI / 2).translate(k * (w / 4 + 0.01), 0, 0)))
+    : new THREE.CylinderGeometry(r, r, w, 24).rotateZ(Math.PI / 2);
+  const o = side * (w / 2 + 0.004); // the rim's face on the outer side
+  const rimGeo = mergeGeometries([
+    new THREE.CylinderGeometry(r * 0.6, r * 0.6, 0.02, 20).rotateZ(Math.PI / 2).translate(o, 0, 0),
+    new THREE.CylinderGeometry(r * 0.26, r * 0.3, 0.08, 12).rotateZ(Math.PI / 2).translate(o + side * 0.04, 0, 0), // the hub
+    ...Array.from({ length: 8 }, (_, i) => new THREE.BoxGeometry(0.03, 0.05, 0.05).translate(o + side * 0.02, Math.cos(i * Math.PI / 4) * r * 0.4, Math.sin(i * Math.PI / 4) * r * 0.4)) // the nuts
+  ].map((p) => p.toNonIndexed()));
+  const tyre = new THREE.Mesh(tyreGeo, tyreMat), rim = new THREE.Mesh(rimGeo, rimMat);
+  tyre.castShadow = true;
+  g.add(tyre, rim);
+  return g;
+}
+const GARBAGE_TRUCK = { frontAxle: 3.2, rearAxles: [-0.78, -2.12], r: 0.52 };
+/** The "DAVOS" lettering on the body's sides */
+function truckLettering() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = '900 86px system-ui, sans-serif'; x.fillText('DAVOS', 256, 58);
+  x.fillRect(40, 108, 432, 8);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  const geo = mergeGeometries([1, -1].map((s) => new THREE.PlaneGeometry(2.2, 0.55).rotateY(s * Math.PI / 2).translate(s * 1.302, 2.35, -0.45)));
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardNodeMaterial({ map: t, transparent: true, alphaTest: 0.3, roughness: 0.45 }));
+  return m;
+}
+
 function buildGarbageModel() {
   const g = new THREE.Group();
   g.name = 'RefuseTruck';
-  const white = 0xf2f2ee, green = 0x56702e, dark = 0x2a2b2e;
-  g.add(box(2.4, 0.45, 8.2, dark, 0, 0.95, 0)); // the chassis
-  g.add(box(2.45, 2.25, 2.0, white, 0, 2.15, 3.05)); // the cab
-  g.add(glass(2.2, 0.95, 0.05, 0, 2.65, 4.07));
-  for (const x of [1.23, -1.23]) g.add(glass(0.05, 0.85, 1.3, x, 2.65, 3.3));
-  g.add(box(2.5, 0.16, 2.02, 0xf07d1a, 0, 1.45, 3.05)); // the cab's orange band
-  g.add(box(0.6, 0.12, 0.25, 0xffb300, 0, 3.33, 2.6, { emissive: 0xff8f00, emissiveIntensity: 0.6 }));
-  g.add(box(2.5, 2.7, 4.9, green, 0, 2.55, -0.2)); // the body
-  for (const x of [1.26, -1.26]) g.add(box(0.03, 0.28, 4.9, 0xf07d1a, x, 1.6, -0.2));
-  // the hopper: a tail gate leaning back, the packer plate inside swinging down through the loading sill
-  const gate = new THREE.Group();
-  gate.position.set(0, 1.3, -2.65);
-  gate.add(box(2.5, 2.4, 1.3, green, 0, 1.1, -0.55));
-  gate.add(box(2.3, 0.35, 0.5, dark, 0, -0.05, -1.05)); // the loading sill
+  const P = truckBins();
+  const T = GARBAGE_TRUCK, FZ = T.frontAxle;
+
+  // --- the cab: the low-entry cab over the front axle, the wheel arch cut out of it, the door behind the wheel ---
+  const cab = new THREE.Shape();
+  cab.moveTo(1.62, 0.5); cab.lineTo(FZ - 0.72, 0.5);
+  cab.absarc(FZ, 0.52, 0.72, Math.PI, 0, true);
+  cab.lineTo(4.18, 0.52); cab.lineTo(4.25, 0.75); cab.lineTo(4.25, 1.7); cab.lineTo(4.07, 2.95);
+  cab.quadraticCurveTo(4.02, 3.1, 3.85, 3.1); cab.lineTo(1.62, 3.1); cab.closePath();
+  P.add('white', sideProfile(cab, -1.25, 1.25, 0.05));
+  P.add('green', gpane(1.7, 0.12, 0.02, 1.26, 1.55, 3.35, 'x'), gpane(1.7, 0.12, 0.02, -1.26, 1.55, 3.35, 'x')); // the band over the wheel
+  P.add('black', gcyl(0.75, 0.06, 'x', 1.25, 0.52, FZ, 18, true, 0.1, Math.PI - 0.2), gcyl(0.75, 0.06, 'x', -1.25, 0.52, FZ, 18, true, 0.1, Math.PI - 0.2)); // the arch trims
+  // the windscreen, leaning back along the cab's front, in its black frame
+  const ws = { z: 4.16, y: 2.325, tilt: -0.143 };
+  P.add('dark', gpane(2.42, 1.3, 0.03, 0, ws.y, ws.z + 0.06, 'z', ws.tilt));
+  P.add('glass', gpane(2.3, 1.16, 0.03, 0, ws.y + 0.01, ws.z + 0.085, 'z', ws.tilt));
+  P.add('dark', gpane(2.36, 0.1, 0.25, 0, 3.0, 4.06, 'z', -0.1)); // the sun visor
+  for (const x of [0.5, -0.5]) P.add('dark', gpane(0.85, 0.03, 0.03, x, 1.8, 4.33, 'z')); // the wipers
+  // the side windows: the quarter over the wheel, the door behind it (the kerb side's door glazed to the floor)
+  for (const s of [1, -1]) {
+    const x = s * 1.255;
+    P.add('dark', gpane(1.52, 1.16, 0.02, x, 2.31, 3.22, 'x'), gpane(0.82, s > 0 ? 1.24 : 2.0, 0.02, x, s > 0 ? 2.27 : 1.89, 2.03, 'x'));
+    P.add('glass', gpane(1.42, 1.06, 0.02, x + s * 0.012, 2.31, 3.22, 'x'), gpane(0.72, s > 0 ? 1.12 : 1.88, 0.02, x + s * 0.012, s > 0 ? 2.27 : 1.89, 2.03, 'x'));
+    P.add('dark', gpane(0.03, 2.5, 0.02, x + s * 0.01, 1.8, 2.47, 'x'), gpane(0.03, 2.5, 0.02, x + s * 0.01, 1.8, 1.6, 'x')); // the door's seams
+    P.add('steel', gseg([x + s * 0.06, 1.0, 2.5], [x + s * 0.06, 2.0, 2.5], 0.022, 6)); // the grab rail by the door
+    P.add('dark', gpane(0.14, 0.04, 0.05, x + s * 0.02, 1.5, 1.75, 'x')); // the handle
+    P.add('alu', gbox(0.36, 0.05, 0.78, s * 1.08, 0.3, 2.03)); // the entry step
+    // the mirror on its arm off the windscreen pillar, the kerb mirror under it
+    P.add('dark', gseg([s * 1.24, 2.95, 3.95], [s * 1.58, 3.0, 4.18], 0.025, 6), gseg([s * 1.58, 3.0, 4.18], [s * 1.6, 2.2, 4.18], 0.02, 6));
+    P.add('dark', gbox(0.1, 0.5, 0.26, s * 1.64, 2.62, 4.2), gbox(0.1, 0.24, 0.26, s * 1.64, 2.18, 4.2));
+    P.add('amber', gbox(0.04, 0.06, 0.18, s * 1.265, 1.25, 3.95)); // the side indicator
+  }
+  // the front: the grille with its slats, the star, the bumper with the headlamps and the indicators in it
+  P.add('dark', gpane(1.8, 0.5, 0.04, 0, 1.22, 4.3));
+  for (let i = 0; i < 4; i++) P.add('steel', gpane(1.72, 0.035, 0.03, 0, 1.06 + i * 0.11, 4.325));
+  P.add('alu', gcyl(0.11, 0.04, 'z', 0, 1.55, 4.3, 16));
+  P.add('dark', gbox(2.5, 0.34, 0.24, 0, 0.66, 4.24));
+  for (const s of [1, -1]) {
+    P.add('black', gbox(0.5, 0.2, 0.04, s * 0.84, 0.7, 4.365));
+    P.add('lamp', gpane(0.2, 0.13, 0.03, s * 0.92, 0.7, 4.38), gcyl(0.05, 0.03, 'z', s * 0.7, 0.7, 4.38, 10));
+    P.add('amber', gpane(0.12, 0.13, 0.03, s * 1.13, 0.7, 4.38));
+  }
+  P.add('steel', gbox(0.4, 0.06, 0.08, 0, 0.5, 4.36)); // the tow eye
+  // the roof: the two beacons, the marker lamps over the windscreen
+  for (const s of [1, -1]) { P.add('dark', gcyl(0.13, 0.06, 'y', s * 0.9, 3.18, 3.35, 12)); P.add('amber', gcyl(0.105, 0.2, 'y', s * 0.9, 3.31, 3.35, 12)); }
+  for (const x of [-0.25, 0, 0.25]) P.add('amber', gbox(0.12, 0.05, 0.05, x, 3.12, 3.9));
+  P.add('steel', gcyl(0.05, 2.25, 'y', -1.06, 2.25, 1.51, 8)); // the exhaust stack behind the cab
+  P.add('dark', gcyl(0.06, 0.16, 'y', -1.06, 3.42, 1.51, 8));
+
+  // --- the chassis: the frame, the axles, the tanks between the wheels, the guards ---
+  for (const x of [0.48, -0.48]) P.add('dark', gbox(0.18, 0.32, 6.7, x, 0.82, 0.75));
+  for (const z of [FZ, ...T.rearAxles]) P.add('dark', gcyl(0.09, 1.9, 'x', 0, T.r, z, 8));
+  for (const z of T.rearAxles) P.add('dark', new THREE.SphereGeometry(0.24, 10, 8).translate(0, T.r, z)); // the differentials
+  P.add('alu', gbox(0.42, 0.5, 1.05, 0.92, 0.82, 0.75)); // the fuel tank (driver's side)
+  P.add('dark', gbox(0.4, 0.45, 0.7, -0.93, 0.82, 0.95)); // the battery box
+  P.add('white', gbox(0.36, 0.36, 0.45, -0.94, 0.8, 0.2)); // the AdBlue tank
+  for (const s of [1, -1]) {
+    for (const y of [0.52, 0.86]) P.add('steel', gbox(0.04, 0.08, 1.75, s * 1.2, y, 0.65)); // the under-run guard
+    for (const z of [1.4, -0.1]) P.add('dark', gbox(0.12, 0.5, 0.06, s * 1.12, 0.72, z));
+    P.add('black', gbox(0.66, 0.05, 2.62, s * 0.96, 1.1, (T.rearAxles[0] + T.rearAxles[1]) / 2)); // the rear mudguard
+    P.add('black', gbox(0.6, 0.5, 0.02, s * 0.96, 0.52, T.rearAxles[1] - 0.6)); // its flap
+    P.add('black', gbox(0.05, 0.12, 2.62, s * 1.26, 1.08, (T.rearAxles[0] + T.rearAxles[1]) / 2)); // its outer lip
+    for (const z of [0.4, -2.5]) P.add('amber', gbox(0.04, 0.07, 0.12, s * 1.27, 1.2, z)); // the side markers
+  }
+
+  // --- the body: a rounded box on the subframe, its ribs, the rails, the contour stripe ---
+  const BZ0 = -2.55, BZ1 = 1.45, BL = BZ1 - BZ0;
+  P.add('dark', gbox(1.9, 0.22, BL, 0, 1.05, (BZ0 + BZ1) / 2)); // the subframe
+  P.add('green', lengthProfile(roundedSection(-1.22, 1.22, 1.18, 3.32, 0.45, 0.04), BZ0, BZ1, 0.03));
+  for (const s of [1, -1]) {
+    for (let z = BZ1 - 0.25; z > BZ0; z -= 0.62) P.add('rib', gbox(0.06, 1.62, 0.1, s * 1.265, 2.05, z));
+    P.add('rib', gbox(0.06, 0.09, BL - 0.1, s * 1.265, 2.88, (BZ0 + BZ1) / 2), gbox(0.06, 0.12, BL - 0.1, s * 1.265, 1.25, (BZ0 + BZ1) / 2));
+    P.add('yellow', gbox(0.02, 0.06, BL - 0.2, s * 1.3, 1.43, (BZ0 + BZ1) / 2));
+  }
+  P.add('rib', gbox(2.3, 1.4, 0.06, 0, 2.2, BZ1 + 0.03)); // the front wall's stiffener
+  P.add('steel', ...[0, 1, 2, 3, 4].map((i) => gbox(0.4, 0.035, 0.035, -0.75, 1.35 + i * 0.36, BZ1 + 0.08)), gbox(0.035, 1.6, 0.035, -0.95, 2.05, BZ1 + 0.08), gbox(0.035, 1.6, 0.035, -0.55, 2.05, BZ1 + 0.08)); // the ladder
+
+  // --- the tailgate: the hopper with its mouth at the back, the side cheeks, the loading sill ---
+  const gate = (mouth) => [
+    [-2.52, 3.32], [-3.2, 3.32], [-3.45, 3.3], [-3.65, 3.18], [-4.1, 2.38], [-4.2, 2.15],
+    ...(mouth ? [[-4.18, 1.98], [-3.45, 1.98], [-3.3, 1.22], [-4.24, 1.22]] : [[-4.25, 1.16]]),
+    [-4.3, 1.08], [-4.3, 0.95], [-4.2, 0.86], [-2.95, 0.94], [-2.72, 1.16], [-2.52, 1.16]
+  ];
+  P.add('green', sideProfile(gate(true), -1.1, 1.1));
+  P.add('green', sideProfile(gate(false), 1.1, 1.25, 0.02), sideProfile(gate(false), -1.25, -1.1, 0.02));
+  P.add('rib', gbox(2.5, 0.08, 0.1, 0, 3.0, -2.56), gbox(2.5, 1.6, 0.06, 0, 2.0, -2.53)); // the seam to the body
+  // the hopper's dark inside: its roof, the back wall the packer sweeps down, the trough
+  P.add('hole', gbox(2.2, 0.02, 0.72, 0, 1.97, -3.82), gpane(2.2, 0.78, 0.02, 0, 1.6, -3.39, 'z', -0.195), gbox(2.2, 0.02, 0.92, 0, 1.235, -3.77));
+  // the sill: a steel edge; the warning stripes on the lip over the mouth and down the cheeks
+  P.add('steel', gbox(2.24, 0.06, 0.12, 0, 1.23, -4.26));
+  for (let i = 0; i < 8; i++) P.add(i % 2 ? 'white' : 'red', gpane(0.275, 0.14, 0.02, -0.9625 + i * 0.275, 2.06, -4.21, 'z'));
+  // the lift rams on the sides, the hinge at the top
+  for (const s of [1, -1]) {
+    P.add('steel', gseg([s * 1.31, 1.45, -2.2], [s * 1.31, 2.7, -3.35], 0.055, 8), gseg([s * 1.31, 1.45, -2.2], [s * 1.31, 1.95, -2.66], 0.08, 8));
+    P.add('dark', gbox(0.12, 0.18, 0.18, s * 1.3, 1.45, -2.2), gbox(0.1, 0.2, 0.2, s * 1.3, 2.7, -3.35), gbox(0.1, 0.18, 0.22, s * 1.3, 3.25, -2.55));
+  }
+  // the bin lifter under the sill: the frame, the comb bar with its teeth, the two cradles
+  for (const x of [0.78, -0.78]) P.add('dark', gbox(0.12, 0.62, 0.12, x, 0.72, -4.36));
+  P.add('steel', gbox(1.7, 0.1, 0.12, 0, 0.98, -4.42));
+  for (let i = 0; i < 7; i++) P.add('steel', gbox(0.06, 0.1, 0.08, -0.72 + i * 0.24, 1.06, -4.48));
+  for (const x of [0.38, -0.38]) P.add('dark', gbox(0.62, 0.42, 0.06, x, 0.7, -4.46));
+  P.add('dark', gbox(2.4, 0.14, 0.14, 0, 0.42, -4.3)); // the under-run bar
+  P.add('white', gpane(0.52, 0.11, 0.02, 0, 0.42, -4.38)); // the plate
+  // the crew's steps and grab handles, the lamps
+  for (const s of [1, -1]) {
+    P.add('alu', gbox(0.42, 0.05, 0.38, s * 1.0, 0.5, -4.48));
+    P.add('dark', gbox(0.04, 0.3, 0.3, s * 0.82, 0.62, -4.42), gbox(0.04, 0.3, 0.3, s * 1.18, 0.62, -4.42));
+    P.add('steel', gseg([s * 1.34, 1.1, -4.12], [s * 1.34, 2.05, -4.12], 0.022, 6), gseg([s * 1.24, 1.1, -4.12], [s * 1.34, 1.1, -4.12], 0.02, 6), gseg([s * 1.24, 2.05, -4.12], [s * 1.34, 2.05, -4.12], 0.02, 6));
+    P.add('dark', gbox(0.14, 0.62, 0.05, s * 1.18, 1.53, -4.29));
+    P.add('amber', gpane(0.1, 0.12, 0.02, s * 1.18, 1.75, -4.32));
+    P.add('tail', gpane(0.1, 0.22, 0.02, s * 1.18, 1.55, -4.32));
+    P.add('lamp', gpane(0.1, 0.1, 0.02, s * 1.18, 1.34, -4.32));
+    P.add('dark', gcyl(0.12, 0.06, 'y', s * 0.95, 3.35, -3.15, 12)); P.add('amber', gcyl(0.095, 0.18, 'y', s * 0.95, 3.47, -3.15, 12)); // the rear beacons
+  }
+  P.add('steel', gseg([-0.7, 2.3, -4.2], [0.7, 2.3, -4.2], 0.022, 6)); // the handle over the mouth
+  P.add('dark', gbox(0.4, 0.08, 0.12, 0, 1.93, -4.05)); P.add('lamp', gbox(0.32, 0.02, 0.06, 0, 1.885, -4.05)); // the work lamp into the hopper
+
+  for (const m of P.meshes()) g.add(m);
+  g.add(truckLettering());
+
+  // the packer plate hangs in the mouth and sweeps forward into the body while the crew loads
   const packer = new THREE.Group();
-  packer.position.set(0, 1.6, -0.8);
-  packer.add(box(2.1, 1.3, 0.08, 0x8c9298, 0, -0.65, 0, { metalness: 0.5, roughness: 0.4 }));
-  gate.add(packer);
-  g.add(gate);
-  g.add(box(0.5, 0.06, 0.3, 0x9a9a9a, 0.85, 0.55, -4.25), box(0.5, 0.06, 0.3, 0x9a9a9a, -0.85, 0.55, -4.25)); // the crew's steps
+  packer.position.set(0, 1.94, -3.92);
+  const packerMesh = new THREE.Mesh(mergeGeometries([gbox(2.12, 0.42, 0.06, 0, -0.23, 0), gcyl(0.06, 2.12, 'x', 0, 0, 0, 8), gbox(2.12, 0.06, 0.12, 0, -0.43, 0.03)]), mat(0x6d737a, { metalness: 0.55, roughness: 0.45 }));
+  packerMesh.castShadow = true;
+  packer.add(packerMesh);
+  g.add(packer);
+
   const wheels = [];
-  for (const [x, z] of [[1.08, 2.7], [-1.08, 2.7], [1.08, -1.45], [-1.08, -1.45], [1.08, -2.65], [-1.08, -2.65]]) { const w = wheel(0.52, 0.38); w.position.set(x, 0.52, z); g.add(w); wheels.push({ mesh: w, r: 0.52, front: z > 0 }); }
+  const tyreMat = mat(0x1a1b1d, { roughness: 0.9 }), rimMat = mat(0xd9dadb, { roughness: 0.35, metalness: 0.55 });
+  for (const z of [FZ, ...T.rearAxles]) for (const s of [1, -1]) {
+    const dual = z < 0, w = truckWheel(T.r, dual ? 0.56 : 0.34, dual, tyreMat, rimMat, s);
+    w.position.set(s * (dual ? 0.96 : 1.04), T.r, z);
+    g.add(w);
+    wheels.push({ mesh: w, r: T.r, front: z > 0 });
+  }
   return {
     group: g, wheels, packer,
-    drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.15, grip: 6.5, cornering: 4.6 },
-    dims: { halfW: 1.25, halfL: 4.35, top: 3.4, mass: 17000 }, chase: [14, 4.6], label: 'Refuse truck'
+    drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.45, grip: 6.5, cornering: 4.6 },
+    dims: { halfW: 1.27, halfL: 4.35, top: 3.55, mass: 18000 }, chase: [14, 4.6], label: 'Refuse truck'
   };
 }
 
@@ -557,6 +774,7 @@ const workVehicle = {
     // (the pitch and the roll of the car's sprung chassis, js/controllers.js; the slope from the mesh's own tilt)
     g.rotation.set((car.mesh.rotation.x || 0) + (car.chassisPivot?.rotation.x || 0), car.heading, (car.mesh.rotation.z || 0) + (car.chassisPivot?.rotation.z || 0), 'YXZ');
     for (const w of v.wheels) {
+      w.mesh.rotation.order = 'YXZ'; // (steer first, then roll about the steered axle)
       w.mesh.rotation.x += ((car.speed || 0) * dt) / w.r;
       if (w.front) w.mesh.rotation.y = car.steerAngle || 0;
     }

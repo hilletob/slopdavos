@@ -246,7 +246,9 @@ function sub(f, input, h, groundAt, thermals) {
   const vt = targetSpeed(accel, brake);
   f.v += (vt - f.v) * Math.min(1, h / PG.speedTau);
   const cb = Math.cos(f.bank), vTurn = f.v / Math.sqrt(cb);
-  let sink = polarSink(f.v) / cb ** 1.5 + f.spiral * 4.5;
+  // (the polar from the slowest the brakes fly: after a flare let go just over the ground the wing picks up speed again
+  // instead of falling out of the sky)
+  let sink = polarSink(Math.max(f.v, PG.minV)) / cb ** 1.5 + f.spiral * 4.5;
   // the ground and the air
   const ground = groundAt(f.x, f.z);
   const agl = f.y - ground;
@@ -357,12 +359,86 @@ export function botInput(f, bot, plan = [], { leaveAt = 160, groundAt = null, ci
   return { steer: steerFor(f, toField, 0.4), brake: bot.home === 'final' && over > (d - 25) / 9 + 3 ? clamp((over - (d - 25) / 9) / 12, 0.3, 1) : 0 };
 }
 
+// --- The licence and the free flight -------------------------------------------------------------------------------------
+// The mission is the licence exam: a soft landing on the field at Glaris earns the paragliding licence (js/missions-progress.js
+// keeps it with the progress, and so in the cloud save). With it the wing comes off the back anywhere in the open world
+// (js/paraglide-free.js: P, or the touch button): on a slope that falls away, into the thermals of the whole valley.
+export const LICENCE_ID = 'paraglider';
+/** The exam passed: landed, not crashed, inside the field's circle at Glaris */
+// --- The free flight's leaderboard (js/paraglide-free.js, js/leaderboard-overview.js) ----------------------------------
+// The longest free flight: the furthest distance from the launch (m), the time in the air beside it (the real time
+// from the take-off to the landing: the server checks it against the time since the run's start). Only a soft landing
+// after at least 10 s in the air counts (the server's least time for a list it makes itself, 20261106120000).
+export const FREE_FLIGHT_BOARD = 'free-flight-1';
+export const FREE_FLIGHT_MIN_MS = 10000;
+export const FREE_FLIGHT_MAX_MS = 3599000; // (the server's most for such a list: an hour)
+export function freeFlightEntry(f, airMs) {
+  if (!f?.landing || f.landing.crash || f.phase !== 'landed' || !(airMs >= FREE_FLIGHT_MIN_MS)) return null;
+  const score = Math.round(f.maxDist);
+  return score > 0 ? { score: Math.min(score, 100000), total: Math.min(Math.round(airMs), FREE_FLIGHT_MAX_MS) } : null;
+}
+export const freeFlightText = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
+
+export const licencePassed = (f) => f?.phase === 'landed' && !!f.landing && !f.landing.crash && !!f.landing.onField;
+
+/** The thermals of the free flight: the mission's and more over the valley's other sunny faces (the same search in the
+ *  terrain: facing south, a grade over 0.45, 550 m and more under the cloud base) */
+export const FREE_THERMALS = [
+  ...THERMALS,
+  { id: 'schatzalp', name: 'Above the Schatzalp', x: -900, z: -1600, r: 60, w: 3.6, phase: 0.6 },
+  { id: 'strela', name: 'West of the Strela', x: -2900, z: -2600, r: 60, w: 3.8, phase: 2.3 },
+  { id: 'dorf', name: 'Above Davos Dorf', x: 2900, z: -2200, r: 55, w: 3.5, phase: 4.4 },
+  { id: 'platz-east', name: 'East of Davos Platz', x: 3000, z: 500, r: 55, w: 3.2, phase: 1.1 },
+  { id: 'chummerhuereli', name: 'Over the Frauenkirch flank', x: -4500, z: -900, r: 60, w: 3.7, phase: 3.0 },
+  { id: 'spina', name: 'Above Spina', x: -3500, z: 3000, r: 55, w: 3.4, phase: 5.6 }
+];
+
+/** How much the sun drives the thermals at the game's minute of the day: nothing before 9:30 and after 18:30, the most
+ *  from about 13:00 to 15:00; the low winter sun about half */
+export function thermalDay(minute, winter = false) {
+  const h = minute / 60;
+  const k = h <= 9.5 || h >= 18.5 ? 0 : h < 14 ? (h - 9.5) / 4.5 : (18.5 - h) / 4.5;
+  return Math.min(1, k * 1.3) * (winter ? 0.5 : 1);
+}
+/** The free flight's thermals at that time of day (none at night: a glide down in calm air) */
+export function freeThermals(minute, winter = false, list = FREE_THERMALS) {
+  const k = thermalDay(minute, winter);
+  return k < 0.05 ? [] : list.map((th) => ({ ...th, w: th.w * k }));
+}
+
+/** Where a wing can be laid out: the ground must fall away ahead (the run and the take-off, as at the Rinerhorn) */
+export const LAUNCH_RULE = { near: 0.4, drop30: 5, drop60: 10, steep: 9, agl: 1.5 };
+/**
+ * Can the pilot launch from (x, z)? Facing `heading` if the ground falls away that way, else down the slope nearest to it.
+ * { ok, heading, drop (m over the first 30 m), reason: null | 'flat' | 'steep' }
+ */
+export function launchSpot(groundAt, x, z, heading) {
+  const g0 = groundAt(x, z);
+  const look = (h) => {
+    const s = Math.sin(h), c = Math.cos(h);
+    const d8 = g0 - groundAt(x + s * 8, z + c * 8), d30 = g0 - groundAt(x + s * 30, z + c * 30), d60 = g0 - groundAt(x + s * 60, z + c * 60);
+    const steep = d8 > LAUNCH_RULE.steep;
+    return { heading: h, drop: d30, steep, ok: !steep && d8 > LAUNCH_RULE.near && d30 >= LAUNCH_RULE.drop30 && d60 >= LAUNCH_RULE.drop60 };
+  };
+  let best = look(heading);
+  if (!best.ok) {
+    let steepest = best;
+    for (let i = 0; i < 24; i++) {
+      const r = look(wrap(heading + (i * Math.PI) / 12));
+      if (r.ok && (!best.ok || Math.abs(wrap(r.heading - heading)) < Math.abs(wrap(best.heading - heading)))) best = r;
+      if (r.drop > steepest.drop) steepest = r;
+    }
+    if (!best.ok) best = steepest;
+  }
+  return { ok: best.ok, heading: best.heading, drop: best.drop, reason: best.ok ? null : best.steep ? 'steep' : 'flat' };
+}
+
 // --- The mission ----------------------------------------------------------------------------------------------------------
 export const PARAGLIDE_ID = 'paraglider-rinerhorn';
 export const PARAGLIDE_MISSION = {
   id: PARAGLIDE_ID,
-  title: 'Paraglider flight from the Rinerhorn',
-  intro: 'A summer afternoon on the Rinerhorn, 2520 m, the wing laid out on the meadow behind you and cumulus building over the ridges. Press W or Space to pull it up and run down the slope. In the air A/D steer, W is the speed bar, S the brakes (and the flare just before you touch down); on a phone the stick steers, up is the bar, down the brakes, and the button flares. Find the thermals: the vario on the right beeps in lift and crackles softly at the edge of a thermal, choughs circle in them and a small cloud sits on top. The valley wind blows from the south-west and drifts you and the thermals; land into the wind. Stay up as long as you can, go as far as you can, and land on the field at Glaris by the valley station. The flight runs twice as fast as the clock.',
+  title: 'Paragliding licence: the flight from the Rinerhorn',
+  intro: 'A summer afternoon on the Rinerhorn, 2520 m, the wing laid out on the meadow behind you and cumulus building over the ridges. Press W or Space to pull it up and run down the slope. In the air A/D steer, W is the speed bar, S the brakes (and the flare just before you touch down); on a phone the stick steers, up is the bar, down the brakes, and the button flares. Find the thermals: the vario on the right beeps in lift and crackles softly at the edge of a thermal, choughs circle in them and a small cloud sits on top. The valley wind blows from the south-west and drifts you and the thermals; land into the wind. Stay up as long as you can, go as far as you can, and land on the field at Glaris by the valley station. The flight runs twice as fast as the clock. It is your licence exam: land softly on the field at Glaris and the paragliding licence is yours. With it you can take the wing off your back on any slope in the valley (P, or the button on a phone) and fly.',
   mode: 'person',
   season: 'summer',
   time: 'midday',
@@ -372,6 +448,13 @@ export const PARAGLIDE_MISSION = {
   medals: { gold: 1360, silver: 1200, bronze: 1000 }, // (the bots in the wind, tests/missions-paraglide.test.mjs: a glide to the field ~1110, one thermal ~1250, out to the Bärentaler Alp and back ~1375)
   colour: '#f0a020',
   icon: 'paraglider',
+  // the licence exam (js/missions.js: finish() grants it, the intro, the end and the list show it)
+  licence: {
+    id: LICENCE_ID, passed: (state) => licencePassed(state.flight), name: 'Paragliding licence', badge: 'Licence',
+    exam: 'The licence exam: land softly on the field at Glaris.', earned: 'Paragliding licence earned!', held: 'You hold the paragliding licence',
+    failed: 'No licence yet: land softly on the field at Glaris.',
+    use: 'P on any slope that falls away: the wing off your back, and fly.', useTouch: 'On a phone: the Fly button on a slope.'
+  },
   finish: 'The wing folded on the meadow at Glaris, a Rivella at the valley station, and already looking up for the next cloud.',
   start: { x: LAUNCH.x, z: LAUNCH.z, heading: LAUNCH.heading },
   props: [],

@@ -62,7 +62,7 @@ export function createGrid(cols, rows, cell) {
 }
 
 /** Marks the cell range [i0..i1] × [j0..j1] changed (the mesh updates just those) */
-function touch(g, i, j) {
+export function touch(g, i, j) {
   const d = g.dirty || (g.dirty = { i0: i, i1: i, j0: j, j1: j });
   if (i < d.i0) d.i0 = i; if (i > d.i1) d.i1 = i;
   if (j < d.j0) d.j0 = j; if (j > d.j1) d.j1 = j;

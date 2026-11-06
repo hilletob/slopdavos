@@ -79,6 +79,7 @@ export class MissionManager {
     Object.assign(this, { getMission, createRun, _showList: showList, _hideList: hideList, setSearch, onError, onFrame });
     this.run = null;
     this.listOpen = false;
+    this.beforeStart = new Set(); // ((def) => void: what the open world puts away before a mission takes the player, js/paraglide-free.js)
   }
 
   /** A mission runs (js/main.js: the loop calls update() only then) */
@@ -88,6 +89,7 @@ export class MissionManager {
   start(id, { night = false } = {}) {
     const def = this.getMission(id);
     if (!def) { this.showList(`Unknown mission “${id}”`); return null; }
+    for (const fn of this.beforeStart) { try { fn(def); } catch (error) { this.onError(error, id); } }
     this._end();
     this._closeList();
     const nightRun = !!night && !!def.nightTime;

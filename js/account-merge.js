@@ -51,14 +51,26 @@ export function cleanProgress(raw) {
       if (entry) missions[id] = entry;
     }
   }
-  return { v: PROGRESS_VERSION, missions };
+  const licences = cleanLicences(raw?.licences);
+  return licences ? { v: PROGRESS_VERSION, missions, licences } : { v: PROGRESS_VERSION, missions };
+}
+
+/** The licences (js/missions-progress.js: { [id]: at }), tidied; null for none */
+function cleanLicences(raw) {
+  if (!isObject(raw)) return null;
+  const out = {};
+  for (const [id, at] of Object.entries(raw)) if (/^[a-z][a-z0-9-]{0,23}$/.test(id) && finite(at) && at >= 0) out[id] = at;
+  return Object.keys(out).length ? out : null;
 }
 
 export function mergeProgress(a, b) {
   const one = cleanProgress(a), other = cleanProgress(b);
   const missions = { ...one.missions };
   for (const [id, entry] of Object.entries(other.missions)) missions[id] = missions[id] ? mergeEntry(missions[id], entry) : entry;
-  return { v: PROGRESS_VERSION, missions };
+  // a licence once earned on any device is held (since the earliest)
+  const licences = { ...(one.licences || {}) };
+  for (const [id, at] of Object.entries(other.licences || {})) licences[id] = id in licences ? Math.min(licences[id], at) : at;
+  return Object.keys(licences).length ? { v: PROGRESS_VERSION, missions, licences } : { v: PROGRESS_VERSION, missions };
 }
 
 export function mergeBestTimes(a, b) {

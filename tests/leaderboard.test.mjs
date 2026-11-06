@@ -71,7 +71,9 @@ const overviewSql = readFileSync(new URL(overviewFile, dir), 'utf8');
 test('the overall list counts the points like the game, capped at what all the missions are worth', async () => {
   const { maxPoints, FIRST_CLEAR_POINTS, MEDAL_POINTS } = await import('../js/missions-progress.js');
   // (a cap above the missions' worth costs nothing, one below it would cut real players: a new mission raises it)
-  const cap = +/least\((\d+), coalesce\(sum/.exec(overviewSql)[1];
+  // (the latest migration that defines save_points has the cap in force)
+  const capSql = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => readFileSync(new URL(f, dir), 'utf8')).filter((sql) => /function public\.save_points\(/.test(sql)).at(-1);
+  const cap = +/least\((\d+), coalesce\(sum/.exec(capSql)[1];
   assert.ok(cap >= maxPoints(MISSIONS), `the cap ${cap} is at least ${maxPoints(MISSIONS)}: raise it in a new migration`);
   assert.ok(overviewSql.includes(`sum(${FIRST_CLEAR_POINTS} + case e.value->>'medal' when 'gold' then ${MEDAL_POINTS.gold} when 'silver' then ${MEDAL_POINTS.silver} when 'bronze' then ${MEDAL_POINTS.bronze} else 0 end)`));
 });
@@ -98,11 +100,12 @@ test('the comparison: the lead, the gap to the line above and to the leader', as
   assert.equal(compareText([{ place: 1, points: 9000, players: 3 }, { place: 2, points: 8250, is_me: true, players: 3 }], pts), 'Place 2 of 3 · 750 points behind place 1');
 });
 
-test('every mission is a list in the overview, after the overall points', async () => {
+test('every mission is a list in the overview, after the overall points (and the free flight\'s at the end)', async () => {
   const { overviewTabs } = await import('../js/leaderboard-overview.js');
   const ids = overviewTabs().map((t) => t.id);
   assert.equal(ids[0], 'points');
-  assert.deepEqual(ids.slice(1).sort(), MISSIONS.map((m) => m.board).sort());
+  assert.equal(ids.at(-1), 'free-flight-1');
+  assert.deepEqual(ids.slice(1, -1).sort(), MISSIONS.map((m) => m.board).sort());
 });
 
 test('an email and a code are checked before anything is sent', async () => {

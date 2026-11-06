@@ -370,6 +370,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
     const mode = cm.activeMode;
     const ent = cm.getActiveEntity();
     const p = ent.position;
+    if (mode === 'person' && cm.paragliding) return null; // (the wing is out, js/paraglide-free.js: no vehicles meanwhile)
     if (mode === 'person') {
       const vehicle = findEnterable({ x: p.x, y: p.y, z: p.z }, enterCandidates().filter((c) => missionAllows(c.type)));
       const train = missionAllows('rhb') && !missionRun() ? rhb?.boardable?.(p.x, p.z, BOARD_RADIUS) : null;
@@ -380,7 +381,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, selectMo
       // the vehicles on the road (during a mission only if it allows it)
       const taking = missionAllowsTakeover(missionRun()) ? takeover.candidate({ x: p.x, y: p.y, z: p.z }) : null;
       if (taking && (!vehicle || taking.distance < vehicle.distance) && (!train || taking.distance < train.distance)) return taking;
-      if (vehicle) return { kind: 'enter', target: vehicle, label: `Get in the ${VEHICLE_LABELS[vehicle.type]}`, sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
+      // (a mission's work vehicle on the player's car, js/missions-work.js workVehicle: by its own name)
+      const name = (vehicle?.kind === 'entity' && vehicle.type === 'car' && missionRun()?.vehicle?.label) || VEHICLE_LABELS[vehicle?.type];
+      if (vehicle) return { kind: 'enter', target: vehicle, label: `Get in the ${name}`, sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
       return null;
     }
     if (!missionAllows('person')) return null;

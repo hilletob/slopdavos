@@ -420,6 +420,19 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(g * 0.3, -g * 0.08); ctx.lineTo(g * 0.48, -g * 0.62); ctx.lineTo(g * 0.76, -g * 0.62); ctx.stroke();
       break;
     }
+    case 'zamboni': { // the ice resurfacer from the side: its body, the tank on top, two wheels, the towel behind
+      ctx.fillRect(-g * 0.85, -g * 0.15, g * 1.6, g * 0.5);
+      ctx.fillRect(-g * 0.55, -g * 0.6, g * 1.05, g * 0.45);
+      ctx.fillRect(-g * 1.15, g * 0.3, g * 0.4, g * 0.12);
+      for (const x of [-0.45, 0.45]) { ctx.beginPath(); ctx.arc(x * g, g * 0.45, g * 0.22, 0, Math.PI * 2); ctx.fill(); }
+      break;
+    }
+    case 'splitboard': { // the board's two halves side by side, a skin track zig-zagging up beside them (js/missions-data-splitboard.js)
+      for (const x of [-0.62, -0.18]) { ctx.beginPath(); ctx.roundRect(g * x, -g * 0.95, g * 0.36, g * 1.9, g * 0.18); ctx.fill(); }
+      ctx.lineWidth = g * 0.14;
+      ctx.beginPath(); ctx.moveTo(g * 0.35, g * 0.9); ctx.lineTo(g * 0.9, g * 0.45); ctx.lineTo(g * 0.35, 0); ctx.lineTo(g * 0.9, -g * 0.45); ctx.lineTo(g * 0.45, -g * 0.9); ctx.stroke();
+      break;
+    }
     case 'paraglider': { // the wing's arc, its lines down to the pilot (js/missions-data-paraglide.js)
       ctx.lineWidth = g * 0.34;
       ctx.beginPath(); ctx.arc(0, g * 0.55, g * 1.05, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke();

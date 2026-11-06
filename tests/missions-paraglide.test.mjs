@@ -207,7 +207,7 @@ test('the flight speaks German: its name, intro, steps, HUD and summary', async 
   const { setLanguage, t } = await import('../js/i18n.js');
   setLanguage('de');
   const m = PARAGLIDE_MISSION;
-  assert.equal(t(m.title), 'Gleitschirmflug vom Rinerhorn');
+  assert.equal(t(m.title), 'Flugschein: Gleitschirmflug vom Rinerhorn');
   assert.match(t(m.intro), /^Ein Sommernachmittag auf dem Rinerhorn/);
   assert.match(t(m.finish), /^Der Schirm liegt gefaltet/);
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);

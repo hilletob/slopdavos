@@ -10,6 +10,9 @@
 //                in lift, buzzes softly near it and moans in strong sink; the HUD at the bottom (airtime, distance, points).
 // The camera is the chase camera following the walker, pulled back and up while flying. Everything goes with the run's
 // group and its cleanups (MissionRun.dispose).
+// The free flight (js/paraglide-free.js, with the licence) runs the same feature on a run of its own: `run.free` (no
+// landing field, no windsocks, no points), `run.thermalList` (the thermals the clouds and birds stand over) and
+// `run.thermals` (those that work now, the time of day's: [] at night).
 import * as THREE from 'three/webgpu';
 import { groundHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
@@ -367,6 +370,10 @@ const _cc = { x: 0, z: 0 };
 /** The walker's soft contact shadow (js/controllers.js: the plane under its feet) */
 const pgShadow = (p) => (p._pgShadow ??= p.mesh?.children.find((c) => c.renderOrder === 998) || null);
 
+/** The thermals the flight flies in (the free flight's: the time of day's), and those whose clouds stand */
+const flightThermals = (run) => run.thermals || THERMALS;
+const cloudThermals = (run) => run.thermalList || THERMALS;
+
 const paraglider = {
   // (the game's key hints give way to the flight's own while airborne; a touch screen keeps its stick, the steering)
   ownControls: (run) => !!run.state?.flight && run.state.flight.phase === 'air' && !touch(),
@@ -386,20 +393,19 @@ const paraglider = {
     if (hudLabel) hudLabel.textContent = 'Paraglider';
     // the clouds and the birds over the thermals
     const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x9aa6b8, emissiveIntensity: 0.55 });
-    THERMALS.forEach((th, i) => {
+    cloudThermals(run).forEach((th, i) => {
       const c = new THREE.Mesh(cloudGeometry(i + 3), cloudMat);
       c.scale.setScalar(0.8 + (th.w - 2.5) * 0.35);
       c.frustumCulled = false;
       pg.clouds.push(c);
       run.group.add(c);
     });
-    pg.birds = new THREE.InstancedMesh(birdGeometry(), new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.8, side: THREE.DoubleSide }), THERMALS.length * BIRDS_PER);
+    pg.birds = new THREE.InstancedMesh(birdGeometry(), new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.8, side: THREE.DoubleSide }), cloudThermals(run).length * BIRDS_PER);
     pg.birds.frustumCulled = false;
     run.group.add(pg.birds);
-    // the field: its cross and a windsock; a windsock at the launch
-    const fy = groundHeight(FIELD.x, FIELD.z);
-    run.group.add(buildCross(fy));
-    for (const [x, z] of [[FIELD.x + 34, FIELD.z - 20], [LAUNCH.x + 6, LAUNCH.z + 9]]) {
+    // the field: its cross and a windsock; a windsock at the launch (the free flight: none)
+    if (!run.free) run.group.add(buildCross(groundHeight(FIELD.x, FIELD.z)));
+    for (const [x, z] of run.free ? [] : [[FIELD.x + 34, FIELD.z - 20], [LAUNCH.x + 6, LAUNCH.z + 9]]) {
       const w = buildWindsock();
       w.position.set(x, groundHeight(x, z), z);
       run.group.add(w);
@@ -413,6 +419,7 @@ const paraglider = {
       flash: el('div', 'pg-flash'), keys: el('div', 'pg-keys', t('A/D steer · W speed bar · S brakes · Space flare'))
     };
     ui.agl.c.classList.add('pg-agl');
+    if (run.free) ui.pts.c.style.display = 'none'; // (the free flight scores nothing)
     const row = el('div', 'pg-row');
     row.append(ui.agl.c, ui.time.c, ui.dist.c, ui.pts.c);
     hud.append(row, ui.flash, ui.keys);
@@ -472,7 +479,7 @@ const paraglider = {
     const flare = k.up ? 1 : 0;
     const input = { steer: (+k.left || 0) - (+k.right || 0), accel: flare ? 0 : +k.forward || 0, brake: Math.max(+k.backward || 0, flare), go: !!(k.forward || k.up) };
     const before = f.phase;
-    stepFlight(f, input, dt, groundHeight);
+    stepFlight(f, input, dt, groundHeight, flightThermals(run));
     if (f.phase !== before) paraglider.phaseChange(run, f);
     p.position.set(f.x, f.y, f.z);
     p.heading = f.heading;
@@ -491,7 +498,7 @@ const paraglider = {
   },
   phaseChange(run, f) {
     if (f.phase === 'air') { paraglider.flash(run, 'Airborne!'); touchLabel(run, 'Flare'); }
-    if (f.phase === 'landed') paraglider.flash(run, f.landing.onField ? 'Landed on the field!' : 'Landed');
+    if (f.phase === 'landed') paraglider.flash(run, f.landing.onField && !run.free ? 'Landed on the field!' : 'Landed');
     if (f.phase === 'crashed') paraglider.flash(run, 'Crash landing');
   },
   flash(run, text) { run.pg.ui.flash.textContent = t(text); run.pg.flashT = 2.5; },
@@ -549,7 +556,10 @@ const paraglider = {
     pg.time += dt;
     // the clouds and birds follow the thermals' wander (the flight's own clock)
     const ft = f ? f.t : 0, py = f?.y ?? ctx.y;
-    THERMALS.forEach((th, i) => {
+    const working = !run.thermals || run.thermals.length > 0; // (the free flight at night: no thermals, no clouds over them)
+    pg.birds.visible = working;
+    cloudThermals(run).forEach((th, i) => {
+      pg.clouds[i].visible = working;
       thermalCentre(th, ft, _cc);
       const g = groundHeight(_cc.x, _cc.z);
       thermalCentre(th, ft, _cc, PG.cloudBase - g); // (the cloud downwind of the thermal's foot, where its column leans to)

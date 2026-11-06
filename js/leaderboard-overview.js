@@ -1,4 +1,5 @@
 import { MISSIONS, formatTime, scoreText } from './missions-data.js';
+import { FREE_FLIGHT_BOARD, freeFlightText } from './missions-data-paraglide.js';
 import { fetchBoard, fetchPoints } from './leaderboard.js';
 import { el, boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
 
@@ -15,7 +16,8 @@ export function overviewTabs(missions = MISSIONS) {
   return [
     { id: 'points', group: 'Overall', label: 'Mission points', title: 'Mission points' },
     ...ranked.filter((m) => !m.scoreMode).map((m) => ({ id: m.board, group: 'By time', label: m.title, title: m.title, def: m })),
-    ...ranked.filter((m) => m.scoreMode).map((m) => ({ id: m.board, group: 'By points', label: m.title, title: m.title, def: m }))
+    ...ranked.filter((m) => m.scoreMode).map((m) => ({ id: m.board, group: 'By points', label: m.title, title: m.title, def: m })),
+    { id: FREE_FLIGHT_BOARD, group: 'Free play', label: 'Longest free flight', title: 'Longest free flight', free: true }
   ];
 }
 
@@ -35,6 +37,16 @@ const listOf = (def) => {
     empty: score ? 'No scores yet. Be the first.' : 'No times yet. Be the first.',
     hint: score ? 'The best score of every player, by day. The faster run wins a tie.' : 'The best time of every player, by day.'
   };
+};
+
+// The free flight's list (js/paraglide-free.js): the furthest distance from the launch, the time in the air beside it
+const FREE_FLIGHT = {
+  load: () => fetchBoard(FREE_FLIGHT_BOARD),
+  value: (r) => -r.score,
+  gap: (m) => freeFlightText(m),
+  show: (r) => `${freeFlightText(r.score)} · ${formatTime(r.total_ms)}`,
+  empty: 'No flights yet. Be the first.',
+  hint: 'The furthest a paraglider got from where it took off, with the time in the air. Only a soft landing counts. With the licence: P on a slope.'
 };
 
 const remembered = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
@@ -70,7 +82,7 @@ export function renderLeaderboards(container, { signedIn = false, start = null }
     const ticket = ++shown;
     select.value = tab.id;
     remember(tab.id);
-    const kind = tab.def ? listOf(tab.def) : POINTS;
+    const kind = tab.free ? FREE_FLIGHT : tab.def ? listOf(tab.def) : POINTS;
     body.replaceChildren(el('h3', 'mission-board-title', tab.title), el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
     let rows;
     try { rows = await kind.load(); } catch { rows = null; }

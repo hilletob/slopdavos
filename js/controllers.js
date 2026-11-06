@@ -454,6 +454,9 @@ class ThirdPersonControllerManager {
     // A mission's own movement for the pedestrian (js/missions-snow.js: skis, a snowboard): (dt, manager) => void,
     // called instead of updatePerson while set; null: walking as ever
     this.personDriver = null;
+    // A mission's floor over water (js/missions-rink.js: the Seehof Seeli frozen): (x, z) => its height, or NaN where there
+    // is none. Where it answers, the water does not stop anyone and the ground is that height; null: none
+    this.groundPatch = null;
     this._modeListeners = new Set();
 
     this.keys = {
@@ -1932,9 +1935,16 @@ class ThirdPersonControllerManager {
     return !!b && !(b.park > 0.6 && !b.median);
   }
 
+  // The surface under a wheel (the slope a vehicle leans by): a mission's floor over the water, else the terrain's
+  slopeHeight(x, z, y) {
+    if (this.groundPatch) { const g = this.groundPatch(x, z); if (Number.isFinite(g)) return g; }
+    return surfaceHeight(x, z, y);
+  }
+
   // The water, unless a bridge deck carries whoever is up on it (at about height `y`; there is no going under it)
   isUnbridgedWater(x, z, y) {
     if (typeof waterAt !== 'function' || !waterAt(x, z)) return false;
+    if (this.groundPatch && Number.isFinite(this.groundPatch(x, z))) return false;
     const deck = deckHeight(x, z);
     return !(deck === deck && (y === undefined || y > deck - 1));
   }
@@ -1942,6 +1952,7 @@ class ThirdPersonControllerManager {
   // Height of what stands at (x, z): Davos' terrain or a bridge deck (whichever is nearest `nearY`, the entity's current
   // height, so that streets under the Hardbrücke stay under it), on the sidewalk or on the roadway laid over it.
   getGroundHeight(x, z, mode = 'person', nearY) {
+    if (this.groundPatch) { const y = this.groundPatch(x, z); if (Number.isFinite(y)) return y; }
     // (up on the raised sidewalks along the streets, js/city-grid.js)
     return surfaceHeight(x, z, nearY) + Math.max(this.isPointOnSidewalk(x, z) ? SIDEWALK_TOP : ROAD_TOP, sidewalkRise(x, z));
   }
@@ -2342,14 +2353,14 @@ class ThirdPersonControllerManager {
         const half = e.type === 'car' ? (e.drive || CAR_DRIVE).wheelbase / 2 : e.type === 'snowcat' ? SNOWCAT_DRIVE.length : 0.55;
         const track = e.type === 'car' ? 0.8 : e.type === 'snowcat' ? SNOWCAT_DRIVE.track : 0;
         const fx = Math.sin(e.heading), fz = Math.cos(e.heading), y = e.position.y;
-        const front = surfaceHeight(e.position.x + fx * half, e.position.z + fz * half, y);
-        const back = surfaceHeight(e.position.x - fx * half, e.position.z - fz * half, y);
+        const front = this.slopeHeight(e.position.x + fx * half, e.position.z + fz * half, y);
+        const back = this.slopeHeight(e.position.x - fx * half, e.position.z - fz * half, y);
         const pitch = Math.atan2(back - front, 2 * half);
         e.slopePitch = (e.slopePitch ?? pitch) + (pitch - (e.slopePitch ?? pitch)) * Math.min(1, dt * 12);
         e.mesh.rotation.x = e.slopePitch;
         if (track) {
-          const left = surfaceHeight(e.position.x + fz * track, e.position.z - fx * track, y);
-          const right = surfaceHeight(e.position.x - fz * track, e.position.z + fx * track, y);
+          const left = this.slopeHeight(e.position.x + fz * track, e.position.z - fx * track, y);
+          const right = this.slopeHeight(e.position.x - fz * track, e.position.z + fx * track, y);
           const roll = Math.atan2(left - right, 2 * track);
           e.slopeRoll = (e.slopeRoll ?? roll) + (roll - (e.slopeRoll ?? roll)) * Math.min(1, dt * 12);
           e.mesh.rotation.z = e.slopeRoll;

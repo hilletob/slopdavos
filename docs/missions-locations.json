@@ -3172,6 +3172,108 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Startplatz und Landeplatz aus dem Gelände gewählt (Westhang mit ~0.4 Neigung; flachste freie Wiese am Talboden neben der Talstation), nicht aus einer offiziellen Gleitschirm-Karte. Die acht Thermikschläuche liegen über steilen Süd- bis Westhängen und sind erfunden.",
    "nr": 66
+  },
+  {
+   "id": "seehofseeli-ice",
+   "status": "neu",
+   "name": "Frisches Eis fürs Seehofseeli",
+   "kurz": "Zu Fuss mit dem Schlauch vom Hydranten das Seehofseeli fluten (Space spritzt, frisches Wasser nicht betreten, sonst Fussabdrücke), dann mit der Eismaschine in Bahnen glätten. Wertung nach Zeit.",
+   "saison": "winter",
+   "fahrzeug": "zu Fuss mit Schlauch, dann Eismaschine",
+   "anreise": "Start am Nordufer beim Hydranten, die Eismaschine steht daneben",
+   "ort": {
+    "name": "Seehof Seeli, Nordufer (Davos Dorf)",
+    "x": 706,
+    "z": -1456,
+    "lv95": {
+     "E": 2783206,
+     "N": 1186956
+    }
+   },
+   "punkte": [
+    {
+     "name": "Hydrant",
+     "x": 712,
+     "z": -1452.5,
+     "lv95": {
+      "E": 2783212,
+      "N": 1186952
+     }
+    },
+    {
+     "name": "Eismaschine",
+     "x": 721,
+     "z": -1457.5,
+     "lv95": {
+      "E": 2783221,
+      "N": 1186958
+     }
+    }
+   ],
+   "quelle": "js/missions-data-rink.js (RINK) · Teichumriss OSM w37389726 (wie seehofseeli-hockey)",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Hydrant und Abstellplatz der Eismaschine sind erfunden (freie Schneefläche am Nordufer). Ob das Seeli real mit einer Eismaschine präpariert wird, ist nicht geprüft.",
+   "nr": 68
+  },
+  {
+   "id": "choerbschhorn-splitboard",
+   "status": "neu",
+   "name": "Splitboardtour aufs Chörbschhorn",
+   "kurz": "Skitour mit dem Splitboard vom Strelapass aufs Chörbschhorn (2650 m): zuerst das LVS prüfen (Space halten), dann mit Fellen (~10 km/h im Flachen) am Hauptertälli vorbei über den Grat von Markierstange zu Markierstange hinauf (zu steil gerade hinauf rutschen die Felle, also im Zickzack, Space für Spitzkehren), auf dem Gipfel umbauen (Space halten: Felle ab, Hälften zusammen, Bindungen drehen) und mit dem Snowboard über den Südgrat an der Chörbschhornhütte vorbei durch rote Fahnentore zur Stafelalp. Verpasstes Tor +8 s. Wertung nach Zeit.",
+   "saison": "winter",
+   "fahrzeug": "zu Fuss mit Splitboard (Aufstieg mit Fellen, Abfahrt als Snowboard)",
+   "anreise": "Start auf dem Strelapass (beim Restaurant, Bergstation des Schlepplifts Strelaberg–Strelapass), Ziel auf der Stafelalp ob Frauenkirch",
+   "ort": {
+    "name": "Strelapass (2350 m)",
+    "x": -2575,
+    "z": -1905,
+    "lv95": {
+     "E": 2779925,
+     "N": 1187405
+    }
+   },
+   "punkte": [
+    {
+     "name": "Hauptertälli (2409 m)",
+     "x": -4004,
+     "z": -497,
+     "lv95": {
+      "E": 2778496,
+      "N": 1185997
+     }
+    },
+    {
+     "name": "Chörbschhorn, Gipfel (2650 m)",
+     "x": -4720,
+     "z": 708,
+     "lv95": {
+      "E": 2777780,
+      "N": 1184792
+     }
+    },
+    {
+     "name": "Chörbschhornhütte (P. 2575, Südgrat)",
+     "x": -4685,
+     "z": 955,
+     "lv95": {
+      "E": 2777815,
+      "N": 1184545
+     }
+    },
+    {
+     "name": "Berghaus Stafelalp (1894 m), Ziel",
+     "x": -3350,
+     "z": 2997,
+     "lv95": {
+      "E": 2779150,
+      "N": 1182503
+     }
+    }
+   ],
+   "quelle": "js/missions-data-splitboard.js (ASCENT_ROUTE, DESCENT_ROUTE) · Strelapass: OSM w25771453 · Gipfel: höchster Punkt in swissALTI3D (2650.4 m) nördlich der Chörbschhornhütte (OSM w307864648) · Berghaus Stafelalp: LV95 2779150 / 1182503 (Outdooractive), Alpgebäude OSM w132452110 ff. · Tourenbeschrieb: SAC-Tourenportal",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Die Linien sind auf dem Geländemodell berechnet (Aufstieg: schnellster Weg auf Fellen, max. 34°; Abfahrt: stets fallend, max. 38°), nicht die reale Spur; die Abfahrt folgt grob dem Chörbschhoraweg. Markierstangen und Fahnentore sind Spiel-Elemente.",
+   "nr": 69
   }
  ]
 }

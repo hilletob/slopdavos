@@ -36,6 +36,8 @@ const pairs = [
   ['This run was not counted. Your result stays on this device.', 'Dieser Lauf wurde nicht gewertet. Dein Ergebnis bleibt auf diesem Gerät.'],
   ['Sign in from the account menu to join the leaderboard.', 'Melde dich im Konto-Menü an, um in die Bestenliste zu kommen.'],
   ['Leaderboards', 'Bestenlisten'], ['List', 'Liste'], ['By time', 'Nach Zeit'], ['By points', 'Nach Punkten'],
+  ['Free play', 'Freies Spiel'], ['Longest free flight', 'Längster freier Flug'], ['No flights yet. Be the first.', 'Noch keine Flüge. Sei die erste Person.'],
+  ['The furthest a paraglider got from where it took off, with the time in the air. Only a soft landing counts. With the licence: P on a slope.', 'Die grösste Distanz eines Gleitschirms vom Startpunkt, dazu die Zeit in der Luft. Es zählt nur eine weiche Landung. Mit dem Flugschein: P an einem Hang.'],
   ['No scores yet. Be the first.', 'Noch keine Punkte. Sei die erste Person.'],
   ['The best score of every player, by day. The faster run wins a tie.', 'Der beste Punktestand jeder Person, bei Tag. Bei Gleichstand gewinnt der schnellere Lauf.'], ['How you compare', 'Dein Vergleich'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
   ['The points of your missions, from your cloud save. Every medal counts.', 'Die Punkte deiner Missionen aus deinem Online-Spielstand. Jede Medaille zählt.'],
@@ -277,7 +279,21 @@ const pairs = [
   ['The sun over the ridges, the valleys still in shadow, and a very cold thermos.', 'Die Sonne über den Graten, die Täler noch im Schatten und eine sehr kalte Thermosflasche.'],
   ['Boots off at the Jöriseen: the water is as cold as it looks.', 'Schuhe aus an den Jöriseen: Das Wasser ist so kalt, wie es aussieht.'],
   // the paraglider flight from the Rinerhorn (js/missions-data-paraglide.js, js/missions-paraglide.js)
-  ['Paraglider flight from the Rinerhorn', 'Gleitschirmflug vom Rinerhorn'],
+  ['Paraglider flight from the Rinerhorn', 'Gleitschirmflug vom Rinerhorn'], ['Paragliding licence: the flight from the Rinerhorn', 'Flugschein: Gleitschirmflug vom Rinerhorn'],
+  // the paragliding licence and the free flight (js/missions.js, js/paraglide-free.js)
+  ['Paragliding licence', 'Flugschein'], ['Paragliding licence earned!', 'Flugschein erhalten!'], ['You hold the paragliding licence', 'Du hast den Flugschein'],
+  ['P on any slope that falls away: the wing off your back, and fly.', 'P an jedem Hang, der abfällt: Schirm vom Rücken nehmen und fliegen.'],
+  ['On a phone: the Fly button on a slope.', 'Auf dem Handy: der Knopf «Fliegen» an einem Hang.'],
+  ['No licence yet: land softly on the field at Glaris.', 'Noch kein Flugschein: Lande sanft auf dem Landeplatz in Glaris.'],
+  ['The licence exam: land softly on the field at Glaris.', 'Die Flugschein-Prüfung: Lande sanft auf dem Landeplatz in Glaris.'],
+  ['Licence', 'Flugschein'], ['Licence held', 'Flugschein vorhanden'],
+  ['Pack up', 'Einpacken'], ['Take off the wing', 'Schirm auspacken'], ['Pack up the wing', 'Schirm einpacken'],
+  ['W or Space: pull up the wing and run', 'W oder Leertaste: Schirm aufziehen und loslaufen'], ['P: pack it up again', 'P: wieder einpacken'],
+  ['Too flat to take off: find a slope that falls away', 'Zu flach zum Starten: Such einen Hang, der abfällt'],
+  ['Too steep to run here: find an open slope', 'Zu steil zum Anlaufen: Such einen freien Hang'],
+  ['Stand on the open ground to lay out the wing', 'Stell dich auf offenen Boden, um den Schirm auszulegen'],
+  ['The slope ran out: the wing comes down', 'Der Hang ist zu Ende: Der Schirm fällt zusammen'],
+  ['Landed', 'Gelandet'], ['Free flight', 'Freier Flug'], ['Wing packed', 'Schirm eingepackt'],
   ['Take off: run down the slope', 'Start: den Hang hinunterlaufen'], ['Fly: thermals, distance, the landing at Glaris', 'Fliegen: Thermik, Distanz, Landung in Glaris'],
   ['W or Space: pull up the wing', 'W oder Leertaste: Schirm aufziehen'], ['The wing comes up …', 'Der Schirm steigt …'], ['Run! Keep going downhill', 'Lauf! Weiter bergab'],
   ['The edge of the map: turning back', 'Kartenrand: Der Schirm dreht um'], ['Flare now!', 'Jetzt ausflaren!'], ['Lift! Circle in it', 'Steigen! Kreise darin'],
@@ -285,6 +301,25 @@ const pairs = [
   ['A/D steer · W speed bar · S brakes · Space flare', 'A/D steuern · W Beschleuniger · S bremsen · Leertaste ausflaren'],
   ['Airborne!', 'In der Luft!'], ['Landed on the field!', 'Auf dem Landeplatz gelandet!'], ['Crash landing', 'Bruchlandung'], ['Launch', 'Starten'], ['Flare', 'Ausflaren'],
   ['The wing folded on the meadow at Glaris, a Rivella at the valley station, and already looking up for the next cloud.', 'Der Schirm liegt gefaltet auf der Wiese in Glaris, an der Talstation gibt es ein Rivella, und der Blick sucht schon die nächste Wolke.'],
+  // fresh ice on the Seehofseeli (js/missions-data-rink.js, js/missions-rink.js)
+  ['Fresh ice for the Seehofseeli', 'Frisches Eis fürs Seehofseeli'],
+  ['Take the hose at the hydrant', 'Den Schlauch am Hydranten nehmen'], ['Flood the ice', 'Das Eis fluten'], ['Get on the ice resurfacer', 'Auf die Eismaschine steigen'], ['Resurface the ice', 'Das Eis glätten'],
+  ['Hold Space: spray', 'Space halten: spritzen'], ['Off the wet ice! Walk backwards (S) and spray ahead', 'Runter vom nassen Eis! Rückwärts gehen (S) und nach vorne spritzen'],
+  ['F: get on', 'F: aufsteigen'], ['Back onto the machine', 'Zurück auf die Maschine'], ['Ice resurfacer', 'Eismaschine'], ['Spray', 'Spritzen'],
+  ['Footprints in the fresh ice!', 'Fussabdrücke im frischen Eis!'],
+  ['Too late: the skaters are here and the ice is still rough.', 'Zu spät: Die Eisläufer sind da, und das Eis ist noch rau.'],
+  ['The ice shines like glass under the lanterns, and the first skaters are already lacing up on the bank.', 'Das Eis glänzt unter den Laternen wie Glas, und am Ufer schnüren die ersten schon die Schlittschuhe.'],
+  // the splitboard tour on the Chörbschhorn (js/missions-data-splitboard.js, js/missions-splitboard.js)
+  ['Splitboard tour on the Chörbschhorn', 'Splitboardtour aufs Chörbschhorn'],
+  ['Check your avalanche transceiver', 'Das LVS prüfen'], ['Hold Space: transceiver on, sending', 'Space halten: LVS ein, auf Senden'], ['Checking …', 'Prüfe …'],
+  ['Along the ridge to the Hauptertälli', 'Dem Grat entlang zum Hauptertälli'], ['Up the ridge to the summit', 'Über den Grat zum Gipfel'],
+  ['Transition: skins off, board together', 'Umbauen: Felle ab, Board zusammen'], ['Down the south ridge past the hut', 'Über den Südgrat an der Hütte vorbei'], ['Down to the Stafelalp', 'Hinunter zur Stafelalp'],
+  ['Too steep: the skins slip! Zig-zag across the slope', 'Zu steil: Die Felle rutschen! Im Zickzack quer zum Hang'], ['Steep: zig-zag, Space for a kick turn', 'Steil: im Zickzack, Space für eine Spitzkehre'],
+  ['Hold Space', 'Space halten'], ['Ready to ride', 'Bereit zur Abfahrt'], ['Kick turn', 'Spitzkehre'], ['Hold', 'Halten'],
+  ['Skin off the left half', 'Fell von der linken Hälfte'], ['Skin off the right half', 'Fell von der rechten Hälfte'], ['Join the halves', 'Die Hälften zusammenfügen'], ['Bindings to ride mode', 'Bindungen in Fahrstellung'],
+  ['Transceiver: sending ✓', 'LVS: sendet ✓'], ['Board together: drop in!', 'Board zusammen: rein in den Hang!'], ['Wipe-out!', 'Sturz!'],
+  ['The sun has turned the snow to mush: too late for the descent today.', 'Die Sonne hat den Schnee aufgeweicht: zu spät für die Abfahrt heute.'],
+  ['At the Stafelalp, a long line down from the Chörbschhorn behind you, and the Berghaus has a table in the sun.', 'Auf der Stafelalp, hinter dir eine lange Spur vom Chörbschhorn herunter, und im Berghaus ist ein Tisch an der Sonne frei.'],
   ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
   ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
   ['A/D aim · hold Space, let go to shoot · or drag back from the puck and let go · V overview', 'A/D zielen · Space halten und zum Schiessen loslassen · oder Puck zurückziehen und loslassen · V Übersicht'],
@@ -972,7 +1007,9 @@ const enToDe = new Map(pairs);
 const tobogganDe = (text) => text.replace(/(\d+) bumps?/, (_, n) => `${n} ${n === '1' ? 'Rumms' : 'Rummse'}`).replace(/(\d+) rams?/, (_, n) => `${n}-mal aufgefahren`);
 
 const missionIntros = [
-  ['A summer afternoon on the Rinerhorn', 'Ein Sommernachmittag auf dem Rinerhorn, 2520 m. Der Schirm liegt hinter dir ausgelegt auf der Wiese, über den Graten wachsen Quellwolken. Mit W oder Leertaste ziehst du ihn auf und läufst den Hang hinunter. In der Luft steuern A/D, W ist der Beschleuniger, S sind die Bremsen (und kurz vor dem Boden das Ausflaren); auf dem Handy steuert der Stick, nach oben ist der Beschleuniger, nach unten sind die Bremsen, und der Knopf ist fürs Ausflaren. Such die Thermik: Das Vario rechts piepst im Steigen und knistert leise am Rand eines Bartes, Alpendohlen kreisen darin, und oben sitzt ein Wölkchen. Der Talwind bläst aus Südwesten und versetzt dich und die Thermik; lande gegen den Wind. Bleib so lange wie möglich oben, flieg so weit wie möglich und lande auf dem Landeplatz in Glaris bei der Talstation. Der Flug läuft doppelt so schnell wie die Uhr.'],
+  ['A clear winter day on the Strelapass', 'Ein klarer Wintertag auf dem Strelapass, unter dir die Schatzalp und am Ende des Grats im Südwesten das Chörbschhorn (2650 m). Zuerst das LVS prüfen: Space halten, bis es piepst. Dann mit Fellen, das Board in zwei Hälften geteilt, am Hauptertälli vorbei und über den Grat hinauf: von Markierstange zu Markierstange, welche Linie du willst. W geht, A/D dreht. Die Felle halten an mässig steilen Hängen; gerade einen steilen hinauf rutschen sie, und du gleitest zurück. Also im Zickzack quer zum Hang, und mit Space eine Spitzkehre auf die andere Diagonale. Auf dem Gipfel Space halten: Felle abziehen, das Board zusammenfügen. Dann über den Südgrat an der Chörbschhornhütte vorbei durch die roten Fahnen hinunter zur Stafelalp ob Frauenkirch: A/D kurven, W in die Hocke, S bremsen. Ein verpasstes Tor kostet 8 s.'],
+  ['A cold evening at the Seehof Seeli', 'Ein kalter Abend am Seehof Seeli, dem kleinen Teich beim Hotel Seehof in Davos Dorf: Das Eis ist vom Tag grau und zerkratzt, und heute Abend wollen die Einheimischen Schlittschuh laufen. Nimm den Schlauch am Hydranten am Nordufer und flute das Eis, Space halten zum Spritzen. Das Wasser gefriert in ein paar Sekunden; läufst du vorher hinein, hinterlassen deine Schuhe Abdrücke, die nochmals geflutet werden müssen. Mach es also wie die Eismeister: rückwärts gehen und nach vorne spritzen. Dann steig auf die Eismaschine und fahr sie in Bahnen über den ganzen Teich: Der Aufbereiter hinten hobelt das Eis und hinterlässt einen Film aus warmem Wasser, der spiegelglatt gefriert.'],
+  ['A summer afternoon on the Rinerhorn', 'Ein Sommernachmittag auf dem Rinerhorn, 2520 m. Der Schirm liegt hinter dir ausgelegt auf der Wiese, über den Graten wachsen Quellwolken. Mit W oder Leertaste ziehst du ihn auf und läufst den Hang hinunter. In der Luft steuern A/D, W ist der Beschleuniger, S sind die Bremsen (und kurz vor dem Boden das Ausflaren); auf dem Handy steuert der Stick, nach oben ist der Beschleuniger, nach unten sind die Bremsen, und der Knopf ist fürs Ausflaren. Such die Thermik: Das Vario rechts piepst im Steigen und knistert leise am Rand eines Bartes, Alpendohlen kreisen darin, und oben sitzt ein Wölkchen. Der Talwind bläst aus Südwesten und versetzt dich und die Thermik; lande gegen den Wind. Bleib so lange wie möglich oben, flieg so weit wie möglich und lande auf dem Landeplatz in Glaris bei der Talstation. Der Flug läuft doppelt so schnell wie die Uhr. Er ist deine Flugschein-Prüfung: Lande sanft auf dem Landeplatz in Glaris, und der Flugschein gehört dir. Damit kannst du an jedem Hang im Tal den Schirm vom Rücken nehmen (P, oder der Knopf auf dem Handy) und fliegen.'],
   ['The Adventure Park Färich, in the trees', 'Der Adventure Park Färich, in den Bäumen am Eingang des Flüelatals. Die Leiter hinauf, dann von Plattform zu Plattform: Wackelbrücke, Balancierbalken, Pneu-Traverse, eine wildere Brücke und die Zipline. Auf jeder Plattform hängst du mit Space (Knopf „Einhängen“) BEIDE Karabiner ein, bevor du losgehst: Vergisst du es, pfeift dich der Guide zurück, +8 s. Auf einer Querung gehst du mit W und lehnst dich mit A/D gegen das Schwanken. Fällst du, baumelst du nur komisch und unverletzt im Gurt, +5 s. Auf der Zipline bremst du mit S vor der Matte. Ein sauberer Lauf holt Gold.'],
   ['Dusk on the Seehof Seeli', 'Abenddämmerung auf dem Seehof Seeli, dem kleinen Teich beim Hotel Seehof in Davos Dorf. Den Einheimischen fehlt ein Spieler: drei gegen drei, Schuhe und Jacken als Torpfosten, keine Torhüter, wer zuerst 5 hat oder 3 Minuten. Laufen mit W, A/D und S. Space mit dem Puck schiesst dorthin, wohin du schaust, oder passt, wenn du einen Mitspieler anschaust. Space ohne Puck stochert nach dem Puckführenden oder verlangt den Pass von einem Mitspieler. Du greifst das Osttor an. Je grösser der Vorsprung am Schluss, desto besser die Medaille.'],
   ['A busy morning at Meerkämper Optik', 'Ein strenger Morgen bei Meerkämper Optik an der Promenade, und du bist die Optikerin am Phoropter. Alle Kundinnen und Kunden haben eine versteckte Sphäre und einen versteckten Zylinder. Wähl einen Wert und die Schrittweite, klapp die Gläser um und frag: besser mit eins oder zwei? Dann nimm das Glas, das sie bevorzugen. Die Tafel verschwimmt so, wie sie sie sehen, du kannst also selbst urteilen. Sehen beide Gläser bei ±0.25 gleich aus, stimmt der Wert. Stell das Rezept aus: Am meisten zählt die Genauigkeit, dann wenige Fragen und das Tempo. Und einer kneift die Augen zusammen. Drei Minuten für vier Kunden.'],
@@ -1107,6 +1144,8 @@ function translate(value) {
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
+  // the free flight's landing (js/paraglide-free.js) and its list (js/leaderboard-overview.js)
+  dynamic = dynamic.replace(/^([\d.]+ (?:m|km)) from the launch( · personal best!)?( · rank (\d+) of (\d+))?$/, (_, d, best, _r, rank, of) => `${d} vom Startpunkt${best ? ' · persönlicher Rekord!' : ''}${rank ? ` · Rang ${rank} von ${of}` : ''}`);
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
@@ -1211,6 +1250,17 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) m to the ladder$/, '$1 m bis zur Leiter');
   dynamic = dynamic.replace(/^(\d+) m to the next deck$/, '$1 m bis zur nächsten Plattform');
   dynamic = dynamic.replace(/^(\d+) m to the face-off$/, '$1 m bis zum Bully');
+  // the splitboard tour on the Chörbschhorn (js/missions-data-splitboard.js)
+  dynamic = dynamic.replace(/^Marker pole (\d+\/\d+) · ([\d,.]+ (?:m|km))$/, 'Markierstange $1 · $2').replace(/^Marker pole (\d+) missed: back to it$/, 'Markierstange $1 verpasst: zurück zu ihr');
+  dynamic = dynamic.replace(/^Gate (\d+\/\d+) · (\d+) missed \(\+(\d+) s\)$/, 'Tor $1 · $2 verpasst (+$3 s)').replace(/^Gate (\d+) missed: \+(\d+) s$/, 'Tor $1 verpasst: +$2 s').replace(/^Gate missed: \+(\d+) s$/, 'Tor verpasst: +$1 s');
+  dynamic = dynamic.replace(/^(Skin off the left half|Skin off the right half|Join the halves|Bindings to ride mode) \((\d\/\d)\)$/, (_, l, n) => `${{ 'Skin off the left half': 'Fell von der linken Hälfte', 'Skin off the right half': 'Fell von der rechten Hälfte', 'Join the halves': 'Die Hälften zusammenfügen', 'Bindings to ride mode': 'Bindungen in Fahrstellung' }[l]} (${n})`);
+  dynamic = dynamic.replace(/^(\d+) kick turns? · (\d+) s slipping$/, (_, n, t) => `${n} ${n === '1' ? 'Spitzkehre' : 'Spitzkehren'} · ${t} s gerutscht`);
+  dynamic = dynamic.replace(/^(\d+) of (\d+) gates · (\d+) missed( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, '$1 von $2 Toren · $3 verpasst$4 · Höchsttempo $5 km/h');
+  // fresh ice on the Seehofseeli (js/missions-data-rink.js)
+  dynamic = dynamic.replace(/^(\d+) m to the hydrant$/, '$1 m bis zum Hydranten').replace(/^(\d+) m to the machine$/, '$1 m bis zur Maschine');
+  dynamic = dynamic.replace(/^Ice flooded (.+?) of (.+?)( · (\d+) footprint cells)?$/, (_, a, b, _x, n) => `Eis geflutet: ${a} von ${b}${n ? ` · ${n} Felder mit Fussabdrücken` : ''}`);
+  dynamic = dynamic.replace(/^Ice resurfaced (.+) of (.+)$/, 'Eis geglättet: $1 von $2');
+  dynamic = dynamic.replace(/^(\d+) footprints? flooded again · (.+) resurfaced$/, (_, n, p) => `${n} Fussabdr${n === '1' ? 'uck' : 'ücke'} nochmals geflutet · ${p} geglättet`);
   dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
   dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');
   dynamic = dynamic.replace(/^(\d+) (?:fall|falls) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${a === '1' ? 'Sturz' : 'Stürze'} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'mit vollem Tempo in die Matte'}`);

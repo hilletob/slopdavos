@@ -11,6 +11,9 @@ import { readBestTimes } from './missions-data.js';
 // A mission with `scoreMode: true` is judged by its points instead (def.score(state), higher is better): its medals are
 // the lowest score for each medal, its entry keeps the best score (bestScore) beside the time of that run.
 // (an older or unreadable entry starts afresh, seeded from the best times js/missions-data.js kept before points came)
+// Licences, beside the missions: `licences: { [id]: at (ms since 1970) }` (only there once one is held): a mission's exam
+// passed (def.licence, js/missions.js finish()) opens something in the open world for good, e.g. 'paraglider': the free
+// flight (js/paraglide-free.js). They go with the progress into the cloud save (js/account-merge.js) and count no points.
 
 export const PROGRESS_KEY = 'slopdavos-progress';
 export const PROGRESS_VERSION = 1;
@@ -47,6 +50,22 @@ export function entryPoints(entry) {
 }
 
 export const emptyProgress = () => ({ v: PROGRESS_VERSION, missions: {} });
+
+const LICENCE_KEY = /^[a-z][a-z0-9-]{0,23}$/;
+/** The licences of a stored progress, tidied (anything odd is dropped); null for none */
+export function cleanLicences(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const [id, at] of Object.entries(raw)) if (LICENCE_KEY.test(id) && Number.isFinite(at) && at >= 0) out[id] = at;
+  return Object.keys(out).length ? out : null;
+}
+/** Whether the progress holds the licence `id` */
+export const hasLicence = (progress, id) => Number.isFinite(progress?.licences?.[id]);
+/** The licence `id` granted: { progress (new; the old one is left as it was), first (not held before) } */
+export function grantLicence(progress, id, now = 0) {
+  if (hasLicence(progress, id)) return { progress, first: false };
+  return { progress: { ...progress, licences: { ...(progress.licences || {}), [id]: now } }, first: true };
+}
 
 export function totalPoints(progress) {
   let sum = 0;
@@ -87,6 +106,8 @@ export function readProgress(storage, missions = null) {
         at: Number.isFinite(e.at) ? e.at : 0
       };
     }
+    const licences = cleanLicences(raw.licences);
+    if (licences) progress.licences = licences;
     return progress;
   }
   return missions ? progressFromBestTimes(readBestTimes(storage), missions) : emptyProgress();
@@ -114,6 +135,7 @@ export function recordCompletion(progress, def, ms, now = 0, score = null) {
   };
   if (scored || Number.isFinite(prev?.bestScore)) entry.bestScore = Math.max(scored ? score : -Infinity, prev?.bestScore ?? -Infinity);
   const next = { v: PROGRESS_VERSION, missions: { ...progress.missions, [def.id]: entry } };
+  if (progress.licences) next.licences = progress.licences;
   const points = entryPoints(entry) - entryPoints(prev);
   return {
     progress: next,
@@ -137,6 +159,22 @@ export function createProgressStore(storage, missions) {
       saveProgress(storage, progress);
       for (const fn of listeners) fn(progress, award, def);
       return award;
+    },
+    /** Whether the licence `id` is held (also one a cloud save has written into storage since the start) */
+    hasLicence(id) {
+      if (hasLicence(progress, id)) return true;
+      const stored = readProgress(storage);
+      if (!hasLicence(stored, id)) return false;
+      progress = { ...progress, licences: { ...(progress.licences || {}), ...stored.licences } };
+      return true;
+    },
+    /** The licence `id` earned: kept and saved; { first } (false: held before) */
+    grantLicence(id, now = Date.now()) {
+      if (this.hasLicence(id)) return { first: false };
+      ({ progress } = grantLicence(progress, id, now));
+      saveProgress(storage, progress);
+      for (const fn of listeners) fn(progress, null, null);
+      return { first: true };
     },
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
   };

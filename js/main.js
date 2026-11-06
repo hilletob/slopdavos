@@ -59,6 +59,7 @@ import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
 import { buildGta, isClassicMode, hasGtaState } from './gta.js';
 import { createPlayStats, travelKind } from './play-stats.js';
+import { buildFreeFlight } from './paraglide-free.js';
 import { GTA_START } from './vehicle-depots.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
@@ -645,6 +646,7 @@ async function initApp() {
   let gta = null; // (the GTA mode, built with the UI below)
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onUse: () => gta?.use(),
+    onParaglide: () => freeFlight?.toggle(), // (built further down, js/paraglide-free.js)
     onCycleMode: (step) => {
       if (GTA) return; // (the GTA mode changes vehicles by getting in and out)
       const modes = ['person', 'car', 'cyclist', 'rhb', 'helicopter', 'snowcat'];
@@ -1056,6 +1058,8 @@ async function initApp() {
     document.body.classList.add('gta-mode');
     gta = buildGta({ scene, controllerManager, touchControls, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   }
+  // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
+  const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
   // The play time and the ways of travel (js/play-stats.js), counted from the first frame shown
   const playStats = createPlayStats();
   const travelNow = () => travelKind({
@@ -1063,7 +1067,8 @@ async function initApp() {
     passenger: !!controllerManager.rhbPassenger,
     body: gta?.takeover?.body,
     mission: missions.run?.def,
-    rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null
+    rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null,
+    gliding: freeFlight.gliding
   });
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
@@ -1278,6 +1283,7 @@ async function initApp() {
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager); // the snow's wear, the groomer's tracks
     missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers; else the pins in the world
     gta?.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (the GTA mode)
+    freeFlight.update(dt); // the wing off the back with the licence: its flight's clouds, vario and HUD
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, float, max, mix, positionLocal, select, vec3 } from 'three/tsl';
+import { attribute, float, max, mix, positionGeometry, positionLocal, select, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { groundHeight } from './terrain.js';
@@ -163,7 +163,12 @@ function createFigureMaterial() {
   // the other kind's triangles collapse to a point
   const plant = max(figure.z.mul(pose.w), 0);
   const moved = positionLocal.add(pose.xyz.mul(plant.mul(0.62))).add(vec3(0, plant.mul(0.12), 0));
-  m.positionNode = select(figure.y.sub(look.w).abs().lessThan(0.5), moved, vec3(0, -1e4, 0).mul(winter.add(1)));
+  // (kind 2: the skier without the skis and the poles, standing in the boots: js/missions-splitboard.js at the transition)
+  const bare = look.w.greaterThan(1.5);
+  const kind = select(bare, float(0), look.w);
+  const gear = part.sub(PART.accent).abs().lessThan(0.5).and(positionGeometry.y.lessThan(0.5)).or(figure.z.abs().greaterThan(1e-4));
+  const shown = figure.y.sub(kind).abs().lessThan(0.5).and(bare.and(gear).not());
+  m.positionNode = select(shown, moved, vec3(0, -1e4, 0).mul(winter.add(1)));
   return m;
 }
 
@@ -444,7 +449,8 @@ export function buildWinterSports(scene) {
  * One figure of the same make for the player (js/missions-snow.js: the slalom skier, the big air's snowboarder): an
  * instanced mesh of one, the near level of detail with its own material. The caller poses it through its single
  * instance matrix (world space, the mesh itself left at the origin: the pole plant's offsets are world-space) and
- * aPose (x, y, z: the direction of travel, w: the pole plant, + left, - right).
+ * aPose (x, y, z: the direction of travel, w: the pole plant, + left, - right); aLook.w the kind: 0 the skier, 1 the snowboarder,
+ * 2 the skier without the skis and the poles.
  */
 export function createRiderFigure({ board = false, jacket = 0xd7261e, pants = 0x15161a, accent = 0xf2f2f0 } = {}) {
   const geo = buildFigureGeometry(true);

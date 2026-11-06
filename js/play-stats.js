@@ -36,9 +36,11 @@ const MISSION_TRAVEL = {
 const MODES = { person: 'walk', car: 'car', cyclist: 'bike', cargobike: 'cargobike', helicopter: 'helicopter', snowcat: 'snowcat' };
 
 /** The way of travel now. `mode`: the controllers' active mode, `passenger`: riding along on a train, `body`: what the
- *  player's car wears (js/gta-takeover.js), `mission`: the running mission's definition, `rider`: its snow rider's kind */
-export function travelKind({ mode, passenger = false, body = null, mission = null, rider = null }) {
+ *  player's car wears (js/gta-takeover.js), `mission`: the running mission's definition, `rider`: its snow rider's kind,
+ *  `gliding`: under the wing in the free flight (js/paraglide-free.js: the run and the flight) */
+export function travelKind({ mode, passenger = false, body = null, mission = null, rider = null, gliding = false }) {
   if (mode === 'rhb') return passenger ? 'train-passenger' : 'train-driver';
+  if (mode === 'person' && gliding && !mission) return 'paraglider';
   if (mission?.vehicle && mode === 'car') return MISSION_VEHICLES[mission.vehicle] || 'car';
   if (mode === 'person' && mission) {
     if (rider === 'board') return 'snowboard';

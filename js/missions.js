@@ -33,6 +33,8 @@ import { WEF_FEATURES } from './missions-wef.js';
 import { RURAL_FEATURES } from './missions-rural.js';
 import { CARE_FEATURES } from './missions-care.js';
 import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
+import { RINK_FEATURES } from './missions-rink.js';
+import { SPLITBOARD_FEATURES } from './missions-splitboard.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -202,6 +204,7 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
     } else go(a, m.id, false);
     const entry = progress.entry(m.id);
     li.append(medalBadge(entry?.medal, !!entry), a);
+    if (m.licence && progress.hasLicence(m.licence.id)) { const tag = el('span', 'mission-list-licence', m.licence.badge || m.licence.name); tag.title = m.licence.held; li.append(tag); } // (its exam passed)
     const b = best[bestTimeKey(m.id)];
     const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `– / ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold}`);
     if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) score.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
@@ -549,7 +552,10 @@ class MissionRun {
     const meta = el('p', 'mission-dialog-meta');
     meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
       el('span', 'mission-dialog-best', this.bestText()));
-    nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)), el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'), ...this.boardNode(false));
+    nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)));
+    const licence = this.licenceNode(false);
+    if (licence) nodes.push(licence);
+    nodes.push(el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'), ...this.boardNode(false));
     this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
@@ -582,6 +588,8 @@ class MissionRun {
       medalNode.append(big, words, el('span', `mission-award-points${award.points ? '' : ' is-zero'}`, `+${award.points}`));
       nodes.push(medalNode, medalLimits(this.def, award.bestMedal));
     }
+    const licence = this.licenceNode(true);
+    if (licence) nodes.push(licence);
     const splits = el('ol', 'mission-dialog-splits');
     let prev = 0;
     for (const s of this.splits) {
@@ -595,6 +603,18 @@ class MissionRun {
     nodes.push(el('p', 'mission-dialog-text', this.def.finish), ...this.boardNode(true));
     this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
     if (award?.points) requestAnimationFrame(() => this.hooks.flashPoints?.(award.points, medalNode.querySelector('.mission-award-points')));
+  }
+
+  /** A mission that is a licence's exam (def.licence, js/missions-progress.js): the exam, the licence earned now, held, or not yet */
+  licenceNode(end) {
+    const lic = this.def.licence;
+    if (!lic) return null;
+    const earned = end && this.result?.licence?.first;
+    const held = !!this.hooks.progress?.hasLicence?.(lic.id);
+    const box = el('p', `mission-dialog-meta mission-licence${earned ? ' is-new' : held ? ' is-held' : ''}`);
+    box.append(el('strong', earned ? 'mission-new-best' : null, earned ? lic.earned : held ? lic.held : end ? lic.failed : lic.exam));
+    if (held) box.append(el('span', null, globalThis.document?.body?.classList.contains('touch-enabled') ? lic.useTouch : lic.use));
+    return box;
   }
 
   showStopped(kicker, reason) {
@@ -785,8 +805,11 @@ class MissionRun {
       rec = { best: previous === null ? score : Math.max(previous, score), previous, improved: previous === null || score > previous };
     } else rec = recordBestTime(globalThis.localStorage, this.bestKey, total);
     const { best, previous, improved } = rec;
+    // (a licence's exam passed: kept with the progress before the run's record syncs it)
+    const lic = this.def.licence;
+    const licence = lic && this.hooks.progress?.grantLicence && lic.passed(this.state) ? this.hooks.progress.grantLicence(lic.id) : null;
     const award = this.hooks.progress ? this.hooks.progress.record(this.def, total, Date.now(), score) : null;
-    this.result = { total, score, best, previous, improved, award };
+    this.result = { total, score, best, previous, improved, award, licence };
     this.submitRanking(total, score);
     this.renderBest();
     this.marker.visible = false;
@@ -1129,4 +1152,6 @@ Object.assign(FEATURES, WEF_FEATURES);
 Object.assign(FEATURES, RURAL_FEATURES);
 // (js/missions-care.js: snowshoes on the Junkerboden, the plaster room of the Spital)
 Object.assign(FEATURES, CARE_FEATURES);
+Object.assign(FEATURES, RINK_FEATURES); // fresh ice on the Seehofseeli (js/missions-rink.js)
+Object.assign(FEATURES, SPLITBOARD_FEATURES); // the splitboard tour on the Chörbschhorn (js/missions-splitboard.js)
 Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the Rinerhorn (js/missions-paraglide.js)

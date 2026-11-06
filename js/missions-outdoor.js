@@ -439,7 +439,7 @@ function iceTexture() {
 }
 
 /** The ice's height: just over the highest ground under the pond (and whatever water the city draws in it) */
-function pondIceY() {
+export function pondIceY() {
   let m = -Infinity;
   for (let i = 0; i < POND_RING.length; i += 2) {
     const x = POND.centre.x + (POND_RING[i] - POND.centre.x) * 0.92, z = POND.centre.z + (POND_RING[i + 1] - POND.centre.z) * 0.92;

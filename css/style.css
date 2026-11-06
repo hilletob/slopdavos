@@ -2283,6 +2283,13 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 .mission-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mission-list-points { display: flex; flex-direction: column; align-items: flex-end; flex: none; white-space: nowrap; }
 .mission-list-points .mission-list-best { font-size: 10.5px; font-weight: 500; }
+/* a licence's exam passed (js/missions.js, js/missions-progress.js: the paragliding licence) */
+.mission-list-licence { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+  color: var(--taxi-ink); background: var(--taxi); }
+.mission-licence { padding: 8px 10px; border-radius: var(--r-ctl); background: rgba(255, 255, 255, 0.06); flex-direction: column; gap: 2px; }
+.mission-licence strong { font-size: 14px; color: var(--text); }
+.mission-licence strong.mission-new-best { color: var(--taxi); }
+.mission-licence span { font-weight: 500; color: var(--text-3); }
 @media (max-width: 820px) {
   .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 112px); }
 }
@@ -2290,6 +2297,9 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 /* The GTA mode (js/gta.js): no mode bar; the prompt to get in or out above the controls guide (under a mission's
    start prompt); the touch screens' "Get in / Get out" button first among the action buttons, under the left thumb */
 body.gta-mode #mode-switch { display: none; }
+/* the free flight's note (js/paraglide-free.js) above the flight's panel at the bottom */
+.gta-prompt.is-over-flight { transform: translate(-50%, -120px); }
+
 .gta-prompt {
   position: fixed;
   left: 50%;
