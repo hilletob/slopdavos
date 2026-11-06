@@ -648,7 +648,7 @@ function setHudLabel(text) {
 }
 function setRide(s, board) {
   s.person.label = board ? 'Snowboard' : 'Splitboard';
-  s.person.topSpeedKmh = board ? 90 : 25;
+  s.person.topSpeedKmh = board ? 90 : 50; // (on skins: the run downhill, `glide`)
   setHudLabel(s.person.label);
 }
 

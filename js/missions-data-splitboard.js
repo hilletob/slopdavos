@@ -75,7 +75,7 @@ export const DESCENT_ROUTE = [
 
 export const SPLIT = {
   skin: {
-    flat: 5.5, // m/s on the level, ~20 km/h: quicker than life, the tour is long (and downhill: the skins brake)
+    flat: 5.5, // m/s on the level, ~20 km/h: quicker than life, the tour is long (downhill they run: `glide`)
     climb: 2.2, // m of height a second at most (the legs: on skins at `grip` the pace holds them under it)
     grip: 19 * DEG, // the skins hold at full pace up to this slope along the skis
     slip: 29 * DEG, // and not at all from this one: you slide back
@@ -85,7 +85,10 @@ export const SPLIT = {
     steepTurn: 0.45, // rad/s where the slope (the fall line) is steeper than `steep`
     steep: 22 * DEG,
     kick: 0.9, // s a kick turn takes
-    stride: 1.25 // m a stride (the poles and the bob)
+    stride: 1.25, // m a stride (the poles and the bob)
+    // downhill the skis run on their skins: gravity against the skins' drag (a friction share, and more with the speed), so
+    // they run from about 6° on, ~28 km/h at 10°, ~44 km/h at 15°, and no faster than `max` (the board in ride mode: far more)
+    glide: { mu: 0.1, drag: 0.012, max: 13 }
   },
   up: { spacing: 120, first: 70, radius: 22 }, // the marker poles
   down: { spacing: 135, first: 90, half: 22, reach: 90, missMs: 8000 }, // the gates of flags
@@ -155,6 +158,17 @@ export function skinPace(theta, S = SPLIT.skin) {
 /** The height gained a second at a slope along the skis (the zig-zag's case: the best of it at about `grip`) */
 export const climbRate = (theta, S = SPLIT.skin) => skinPace(theta, S) * Math.sin(theta);
 
+/** The skins' run downhill: the acceleration along the skis (m/s²) at a slope `theta` along them (rad, + uphill) and `v` */
+export function glideAccel(theta, v, S = SPLIT.skin) {
+  const G = S.glide;
+  return -9.81 * Math.sin(theta) - G.mu * 9.81 * Math.cos(theta) - G.drag * v * v;
+}
+/** The speed the skins run at in the end, `theta` downhill along them (rad, + downhill): 0 where they don't run */
+export function glideSpeed(theta, S = SPLIT.skin) {
+  const a = glideAccel(-theta, 0, S);
+  return a <= 0 ? 0 : Math.min(S.glide.max, Math.sqrt(a / S.glide.drag));
+}
+
 /** A kick turn: the heading mirrored about the fall line (onto the other diagonal; straight up: onto one of 40°) */
 export function kickTurnHeading(heading, up) {
   const d = wrapPi(heading - up);
@@ -164,7 +178,7 @@ export function kickTurnHeading(heading, up) {
 
 // --- The skinner -------------------------------------------------------------------------------------------------------
 export function createSkinner(x, z, heading, height) {
-  return { x, z, y: height(x, z), heading, speed: 0, kickT: 0, kickFrom: 0, kickTo: 0, kicks: 0, slipping: false, slipT: 0, stride: 0, theta: 0, slope: 0, moved: 0 };
+  return { x, z, y: height(x, z), heading, speed: 0, kickT: 0, kickFrom: 0, kickTo: 0, kicks: 0, slipping: false, gliding: false, slipT: 0, stride: 0, theta: 0, slope: 0, moved: 0 };
 }
 
 const _s = {};
@@ -181,6 +195,7 @@ export function stepSkinner(s, input, dt, height, S = SPLIT.skin) {
     s.heading = s.kickFrom + wrapPi(s.kickTo - s.kickFrom) * e;
     s.speed = 0;
     s.slipping = false;
+    s.gliding = false;
     s.y = height(s.x, s.z);
     return s;
   }
@@ -204,12 +219,18 @@ export function stepSkinner(s, input, dt, height, S = SPLIT.skin) {
   if (!fwd && theta >= S.slip) target = skinPace(theta, S);
   s.slipping = theta >= S.slip && target < 0 && !back;
   if (s.slipping) s.slipT += dt;
-  s.speed += clamp(target - s.speed, -5 * dt, 3.5 * dt);
+  const walk = s.speed + clamp(target - s.speed, -5 * dt, 3.5 * dt);
+  // downhill (or still running from it) the skis glide quicker than the legs go: gravity carries them, the skins brake, and
+  // on the flat or the next rise the run dies away into the stride again (S, a step back, stops it; at the stride's pace on
+  // ground where they don't run, letting go of W stops you as it always did)
+  const run = back > 0 || s.speed < 0 ? -Infinity : Math.min(S.glide.max, s.speed + glideAccel(theta, s.speed, S) * dt);
+  s.gliding = run > target && run > walk && (s.speed > S.flat || glideAccel(theta, 0, S) > 0);
+  s.speed = s.gliding ? run : walk;
   const step = s.speed * dt;
   s.x += Math.sin(s.heading) * step;
   s.z += Math.cos(s.heading) * step;
   s.y = height(s.x, s.z);
-  s.stride += Math.abs(step) / S.stride;
+  if (!s.gliding) s.stride += Math.abs(step) / S.stride;
   s.moved += Math.abs(step);
   return s;
 }
@@ -270,7 +291,9 @@ export function stepPartner(p, t, lead, dt, height, stage, P = SPLIT.partner) {
   const steep = stage === 'up' && Math.max(slopeAt(height, here.x, here.z, _s).slope, slopeAt(height, t.xs[t.xs.length - 1], t.zs[t.zs.length - 1], _s).slope) >= P.steepFrom;
   p.spaced = steep;
   p.gap = stage === 'down' ? P.downGap : stage === 'trans' ? P.beside : steep ? P.steepGap : P.gap;
-  const target = Math.max(0, lead - p.gap), vmax = stage === 'down' ? P.downSpeed : P.upSpeed;
+  // (on skins downhill he runs on them as you do)
+  const vmax = stage === 'down' ? P.downSpeed : Math.max(P.upSpeed, 1.15 * glideSpeed(-slopeAlong(slopeAt(height, here.x, here.z, _s), here.heading)));
+  const target = Math.max(0, lead - p.gap);
   const want = clamp((target - p.s) * 1.2, 0, vmax);
   p.speed += clamp(want - p.speed, -6 * dt, 4 * dt);
   p.s = Math.min(target + 0.5, p.s + p.speed * dt);
@@ -478,11 +501,11 @@ export const SPLITBOARD_MISSION = {
   colour: '#e2553a',
   icon: 'splitboard',
   pin: { x: SPLIT_PLACES.start.x, z: SPLIT_PLACES.start.z },
-  // (the bots of tests/missions-splitboard.test.mjs: up in ~11:05 at ~20 km/h on the level, on the diagonal where it gets
-  // steep, Reto in the track behind, the transition 5 s, down in ~2:50 at 15 m/s at most, waiting a moment for Reto at the
-  // finish: ~14:05; a player cutting the corners at the poles, and letting the board run, is quicker)
-  bonusMs: 825000,
-  medals: { gold: 825000, silver: 990000, bronze: 1260000 },
+  // (the bots of tests/missions-splitboard.test.mjs: up in ~10:00 at ~20 km/h on the level, running on the skins where it
+  // goes down, on the diagonal where it gets steep, Reto in the track behind, the transition 5 s, down in ~2:50 at 15 m/s at
+  // most: ~12:55; a player cutting the corners at the poles, and letting the board run, is quicker)
+  bonusMs: 755000,
+  medals: { gold: 755000, silver: 910000, bronze: 1155000 },
   timeLimitMs: SPLIT.timeLimitMs,
   finish: 'At the Stafelalp, a long line down from the Chörbschhorn behind you, and the Berghaus has a table in the sun.',
   get start() {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   SPLITBOARD_MISSION, SPLITBOARD_MISSIONS, SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, skinPace, climbRate, kickTurnHeading,
-  createSkinner, stepSkinner, slopeAt, createTransition, stepTransition, transitionShare, ascentPoles, descentGates, updateGates,
+  createSkinner, stepSkinner, glideSpeed, slopeAt, createTransition, stepTransition, transitionShare, ascentPoles, descentGates, updateGates,
   skinBot, rideBot, createTrail, addToTrail, trailEnd, trailPoint, createPartner, stepPartner, lineOffset, createRisk, stepRisk,
   burialSpot, searchView, createRescue, stepRescue
 } from '../js/missions-data-splitboard.js';
@@ -51,6 +51,27 @@ test('the skins: the level pace on easy ground, the climb on steeper, a slide ba
   for (const d of [8, 12, 24, 27, 30, 34]) assert.ok(climbRate(d * DEG) < best + 1e-9, `${d}°`);
   assert.ok(climbRate(30 * DEG) <= 0);
   assert.ok(best > 0.8 && best <= S.climb + 1e-9);
+});
+
+test('downhill the skins run: from standstill on a steep enough slope, quicker than the stride, slower than the board; it dies away on the flat', () => {
+  const S = SPLIT.skin, G = S.glide;
+  assert.equal(glideSpeed(3 * DEG), 0, 'a gentle slope: the skins hold');
+  assert.ok(glideSpeed(10 * DEG) > S.flat && glideSpeed(15 * DEG) > glideSpeed(10 * DEG) && glideSpeed(30 * DEG) === G.max);
+  // 12° down along +z, no key pressed: it runs to its speed, the legs still
+  const down = slope(12, Math.PI), sk = createSkinner(0, 0, 0, down);
+  for (let i = 0; i < 60 * 20; i++) stepSkinner(sk, {}, DT, down);
+  assert.ok(sk.gliding && sk.stride === 0);
+  assert.ok(Math.abs(sk.speed - glideSpeed(12 * DEG)) < 0.2 && sk.speed > 1.5 * S.flat, `${sk.speed.toFixed(1)} m/s`);
+  // W on: no quicker than the run (the stride adds nothing to it), and onto the flat it dies away into the stride, smoothly
+  const flat = slope(0);
+  let prev = sk.speed, maxDrop = 0;
+  for (let i = 0; i < 60 * 15; i++) { stepSkinner(sk, { forward: 1 }, DT, flat); maxDrop = Math.max(maxDrop, prev - sk.speed); prev = sk.speed; }
+  assert.ok(!sk.gliding && Math.abs(sk.speed - S.flat) < 1e-6 && maxDrop < 3 * DT, `the run dies away (${(maxDrop / DT).toFixed(1)} m/s² at most)`);
+  // S stops it
+  const sk2 = createSkinner(0, 0, 0, down);
+  for (let i = 0; i < 60 * 10; i++) stepSkinner(sk2, {}, DT, down);
+  for (let i = 0; i < 60 * 4; i++) stepSkinner(sk2, { back: 1 }, DT, down);
+  assert.ok(sk2.speed <= 0);
 });
 
 test('a kick turn mirrors the heading about the fall line and takes its second; the turn is slow on steep ground', () => {
