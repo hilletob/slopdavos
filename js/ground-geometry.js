@@ -37,7 +37,7 @@ const MITRE_LIMIT = 3;
  * mitred at the joints so that the corners neither gap nor double up (the mitre capped at MITRE_LIMIT half-widths).
  * A polyline whose last point is its first is closed. Appends to out = { positions, paint, side, color } (plain arrays).
  */
-export function strokePolyline(pts, width, colour, out) {
+export function strokePolyline(pts, width, colour, out, maxPiece = Infinity) {
   // drop repeated points
   const p = [];
   for (let i = 0; i < pts.length; i += 2) {
@@ -80,19 +80,27 @@ export function strokePolyline(pts, width, colour, out) {
     const a = s, b = (s + 1) % n;
     const ax = p[2 * a], az = p[2 * a + 1], bx = p[2 * b], bz = p[2 * b + 1];
     const L = Math.hypot(bx - ax, bz - az);
-    const A = along, B = along + L;
-    // (a − o, b + o, b − o), (a − o, a + o, b + o): the order of js/parking.js bayLines, facing up
-    const corners = [
-      [ax - ox[a], az - oz[a], A, -ox[a], -oz[a]], [bx + ox[b], bz + oz[b], B, ox[b], oz[b]], [bx - ox[b], bz - oz[b], B, -ox[b], -oz[b]],
-      [ax - ox[a], az - oz[a], A, -ox[a], -oz[a]], [ax + ox[a], az + oz[a], A, ox[a], oz[a]], [bx + ox[b], bz + oz[b], B, ox[b], oz[b]]
-    ];
-    for (const [x, z, t, sx, sz] of corners) {
-      out.positions.push(x, 0, z);
-      out.paint.push(t, 1, 1);
-      out.side.push(sx, sz);
-      out.color.push(colour[0], colour[1], colour[2]);
+    // (in pieces of `maxPiece` at most: a draped layer is split where its edges are long, and a corner put on a quad's
+    // diagonal would carry the mean of its two sides' offsets, nothing, which the paint's shader reads as no width)
+    const k = Math.max(1, Math.ceil(L / maxPiece));
+    for (let q = 0; q < k; q++) {
+      const f0 = q / k, f1 = (q + 1) / k, lerp = (p0, p1, f) => p0 + (p1 - p0) * f;
+      const px0 = lerp(ax, bx, f0), pz0 = lerp(az, bz, f0), px1 = lerp(ax, bx, f1), pz1 = lerp(az, bz, f1);
+      const sx0 = lerp(ox[a], ox[b], f0), sz0 = lerp(oz[a], oz[b], f0), sx1 = lerp(ox[a], ox[b], f1), sz1 = lerp(oz[a], oz[b], f1);
+      const A = along + L * f0, B = along + L * f1;
+      // (a − o, b + o, b − o), (a − o, a + o, b + o): the order of js/parking.js bayLines, facing up
+      const corners = [
+        [px0 - sx0, pz0 - sz0, A, -sx0, -sz0], [px1 + sx1, pz1 + sz1, B, sx1, sz1], [px1 - sx1, pz1 - sz1, B, -sx1, -sz1],
+        [px0 - sx0, pz0 - sz0, A, -sx0, -sz0], [px0 + sx0, pz0 + sz0, A, sx0, sz0], [px1 + sx1, pz1 + sz1, B, sx1, sz1]
+      ];
+      for (const [x, z, t, sx, sz] of corners) {
+        out.positions.push(x, 0, z);
+        out.paint.push(t, 1, 1);
+        out.side.push(sx, sz);
+        out.color.push(colour[0], colour[1], colour[2]);
+      }
     }
-    along = B;
+    along += L;
   }
   return out;
 }

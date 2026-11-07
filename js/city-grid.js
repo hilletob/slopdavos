@@ -120,8 +120,6 @@ function makeCollector() {
   const c = {
     collections, onDeck, absolute, deckContext: false,
     collect(geometry, material, { world = false } = {}) {
-      // (where the road paint is traced from the aerial photo, js/vector-ground.js draws it: these markings step back)
-      if (geometry && material === cityMats?.paintMat) { const kept = withoutTraced(geometry); if (kept !== geometry) geometry.dispose(); geometry = kept; }
       if (!geometry) return;
       if (!collections.has(material)) collections.set(material, []);
       collections.get(material).push(geometry);
@@ -151,6 +149,16 @@ async function mergeCollections({ collections, onDeck, absolute }, { mergeCell =
         const deck = onDeck.has(g);
         geometries[i] = material === curbMat ? displaceGeometry(g, { deck }) : drapeOverlay(g, { deck, maxEdge: material === lawnMat ? 10 : 8 });
         if (geometries[i] !== g) g.dispose();
+        // (where the road paint is traced from the aerial photo, js/vector-ground.js draws it: these markings step back,
+        // cut once draped, its triangles then 8 m at most: a long strip's few triangles reach well past the traced cells)
+        if (material === paintMat) {
+          const kept = withoutTraced(geometries[i]);
+          if (kept !== geometries[i]) {
+            geometries[i].dispose();
+            if (!kept) { geometries.splice(i, 1); i--; continue; }
+            geometries[i] = kept;
+          }
+        }
       }
       if (indexed && !geometries[i].index) {
         const flat = geometries[i];

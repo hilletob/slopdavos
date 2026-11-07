@@ -665,6 +665,8 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
         f.y = groundAt(f.x, f.z);
       }
       // The yellow zigzag along the kerb, "BUS" in the lane at its start (flat quads on the road, facing up)
+      // (drawn here also where the road paint is traced: the photo's zigzag breaks into bits the tracing can't join,
+      // tools/markings-layer.mjs leaves the stops' bands to this one)
       if (s.mark) {
         const [ax, az, bx, bz] = s.mark, len = Math.hypot(bx - ax, bz - az);
         const tx = (bx - ax) / len, tz = (bz - az) / len, rx = -tz, rz = tx;

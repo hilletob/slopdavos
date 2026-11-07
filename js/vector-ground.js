@@ -102,7 +102,9 @@ function surfaceGeometry(s, heading) {
 
 function linesGeometry(lines, { lift = LINE_LIFT, colours = LINE_COLOURS } = {}) {
   const out = { positions: [], paint: [], side: [], color: [] };
-  for (const l of lines) strokePolyline(linePoints(l), l.w, colours[l.c] || colours.w, out);
+  const edge = LINE_EDGE / (QUALITY.drapeScale || 1);
+  // (pieces whose diagonal stays under the drape's edge: it then splits none of them, ground-geometry.js strokePolyline)
+  for (const l of lines) strokePolyline(linePoints(l), l.w, colours[l.c] || colours.w, out, Math.sqrt(Math.max(0.01, (edge * 0.95) ** 2 - (l.w * 3) ** 2)));
   if (!out.positions.length) return null;
   const g = new THREE.BufferGeometry();
   const normals = new Float32Array(out.positions.length);
@@ -113,7 +115,7 @@ function linesGeometry(lines, { lift = LINE_LIFT, colours = LINE_COLOURS } = {})
   g.setAttribute('side', new THREE.Float32BufferAttribute(out.side, 2));
   g.setAttribute('color', new THREE.Float32BufferAttribute(out.color, 3));
   // (not split coarser on the phone, js/quality.js drapeScale: thin lines over the surfaces' exact drape would dip under it)
-  const draped = drapeOverlay(g, { maxEdge: LINE_EDGE / (QUALITY.drapeScale || 1), lift });
+  const draped = drapeOverlay(g, { maxEdge: edge, lift });
   g.dispose();
   return draped;
 }

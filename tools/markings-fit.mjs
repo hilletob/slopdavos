@@ -16,7 +16,7 @@ const quantile = (a, q) => a[Math.min(a.length - 1, Math.max(0, Math.round(q * (
  * cut into runs where its pixels leave gaps of 0.4 m, the runs of 1 m and more kept and their pixels taken out; again,
  * while a run is found. Null unless the runs hold most of the blob (an arrow or lettering stays a shape).
  */
-function straightRuns(px, w, res, x0, z0) {
+function straightRuns(px, w, res, x0, z0, hold = 0.75) {
   const n = px.length, X = new Float64Array(n), Z = new Float64Array(n);
   for (let i = 0; i < n; i++) { X[i] = x0 + (px[i] % w + 0.5) * res; Z[i] = z0 + ((px[i] - (px[i] % w)) / w + 0.5) * res; }
   const left = new Uint8Array(n).fill(1);
@@ -64,8 +64,45 @@ function straightRuns(px, w, res, x0, z0) {
     }
     if (!found) break;
   }
-  return remaining <= 0.25 * n ? runs : null;
+  return remaining <= (1 - hold) * n ? runs : null;
 }
+/**
+ * A zigzag over a band of paint (local u along it, v across, in pixels; u0, u1, span, vc in metres): the peaks at the
+ * band's edges (less the line's half width), the period (2–3.6 m a zig and back) and its phase those that most pixels lie
+ * on (within 0.15 m). Null when too few do (not a zigzag). [[u, v] …] in metres.
+ */
+function zigzag(us, vs, res, u0, u1, span, vc) {
+  const amp = Math.max(0.2, span / 2 - 0.08), n = us.length;
+  const line = (P, phase) => {
+    const pts = [];
+    for (let k = -1; ; k++) {
+      const u = u0 + phase + (k * P) / 2;
+      if (u > u1 + P / 2) break;
+      pts.push([Math.min(u1, Math.max(u0, u)), vc + (k % 2 ? amp : -amp)]);
+    }
+    return pts;
+  };
+  const score = (pts) => {
+    let hit = 0;
+    for (let i = 0; i < n; i += 2) {
+      const u = us[i] * res, v = vs[i] * res;
+      for (let k = 1; k < pts.length; k++) {
+        const [ax, ay] = pts[k - 1], [bx, by] = pts[k];
+        if (u < Math.min(ax, bx) - 0.2 || u > Math.max(ax, bx) + 0.2) continue;
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9, t = Math.max(0, Math.min(1, ((u - ax) * dx + (v - ay) * dy) / L2));
+        if (Math.hypot(u - ax - dx * t, v - ay - dy * t) < 0.15) { hit++; break; }
+      }
+    }
+    return hit / Math.ceil(n / 2);
+  };
+  let best = null;
+  for (let P = 2.0; P <= 3.6; P += 0.1) for (let ph = 0; ph < P; ph += 0.1) {
+    const pts = line(P, ph), sc = score(pts);
+    if (!best || sc > best.sc) best = { pts, sc };
+  }
+  return best && best.sc >= 0.55 ? best.pts : null;
+}
+
 // (runs in more than one direction: a comb or a corner, not one bent line)
 const turns = (runs) => runs.some((a) => runs.some((b) => Math.abs(a.ux * b.uz - a.uz * b.ux) > 0.5));
 
@@ -107,7 +144,7 @@ export function fitMarkings(img) {
       // white and short: a car's glint, a kerb stone, a garden chair (white paint runs in dashes of 1.5 m and more; the
       // short bars of the crossings are yellow; arrows and lettering are larger)
       if (c === 'w' && L < 1.2 && area < 0.6) { stats.dropped++; continue; }
-      let segs = null;
+      let segs = null, zig = null;
       const world = (u, v) => [x0 + (mx + 0.5) * res + (u * ux - v * uz), z0 + (mz + 0.5) * res + (u * uz + v * ux)];
       if (fill >= 0.55 && span < Math.max(1.2, W * 1.6)) {
         const vc = (v0 + v1) / 2 - 0.5 * res;
@@ -115,6 +152,10 @@ export function fitMarkings(img) {
         const width = W >= 0.42 ? Math.min(0.7, W) : Math.max(0.1, Math.min(0.18, W * 0.6));
         strokes.push({ c, w: width, pts: [...world(u0, vc), ...world(u1, vc)] });
         stats.bars++;
+      } else if (c === 'y' && span >= 0.5 && span <= 1.5 && L >= 4 && fill < 0.6 && (zig = zigzag(us, vs, res, u0, u1, span, (v0 + v1) / 2))) {
+        // the yellow zigzag of a bus stop (or of a no-stopping zone): the symbol laid over its band
+        strokes.push({ c, w: 0.12, pts: zig.flatMap(([u, v]) => world(u, v)) });
+        stats.zigzags = (stats.zigzags || 0) + 1;
       } else if (L >= 2 && (segs = straightRuns(px, w, res, x0, z0)) && segs.length >= 2 && turns(segs)) {
         // a comb of lines (a row of bays with its back line, an L at a corner): its straight runs, each a bar
         for (const sg of segs) strokes.push({ c, w: Math.max(0.1, Math.min(0.18, sg.width * 0.6)), pts: sg.pts });
@@ -128,7 +169,23 @@ export function fitMarkings(img) {
         }
         const pts = [];
         for (let k = 0; k < n; k++) if (cnt[k]) pts.push(...world(u0 + ((k + 0.5) / n) * L, sum[k] / cnt[k]));
-        if (pts.length >= 4) { strokes.push({ c, w: Math.max(0.1, Math.min(0.18, W * 0.6)), pts }); stats.lines++; }
+        // how far the pixels stray from the slices' middles: a line keeps to it, a zigzag swings round it
+        let spread = 0;
+        for (let i = 0; i < px.length; i++) {
+          const k = Math.min(n - 1, Math.max(0, Math.floor(((us[i] * res - u0) / L) * n)));
+          spread += Math.abs(vs[i] * res - sum[k] / Math.max(1, cnt[k]));
+        }
+        spread /= px.length;
+        if (spread <= 0.12) {
+          if (pts.length >= 4) { strokes.push({ c, w: Math.max(0.1, Math.min(0.18, W * 0.6)), pts }); stats.lines++; }
+        } else if ((segs = straightRuns(px, w, res, x0, z0, 0.5))) {
+          // (a zigzag: its zigs, each a bar)
+          for (const sg of segs) strokes.push({ c, w: Math.max(0.1, Math.min(0.18, sg.width * 0.6)), pts: sg.pts });
+          stats.bars += segs.length;
+        } else {
+          const poly = componentPolygon(cc, g, comp, 0.04, 0.05);
+          if (poly.ring && poly.ring.length >= 6) { fills.push({ c, ring: poly.ring, holes: poly.holes.map((x) => x.ring) }); stats.fills++; }
+        }
       } else if (c === 'w' && L > 1.8 && L < 6 && span > 1.1 && span < 2.4 && fill < 0.45) {
         stats.dropped++; // (the rim of a white car's roof: its middle too broad for paint, its edge left as a ring)
       } else {

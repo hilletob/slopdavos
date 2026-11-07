@@ -13,6 +13,7 @@ import { CACHE, bboxOf, cropJob, fetchCrops } from './ground-aerial.mjs';
 import { fitMarkings } from './markings-fit.mjs';
 import { rowsOfBays, rowIn } from './markings-bays.mjs';
 import { PARKING_DATA } from '../js/parking-data.js';
+import { TRAFFIC_SIGNS } from '../js/traffic-signs-data.js';
 import { pointInRing } from '../js/ground-geometry.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -40,7 +41,13 @@ const jobs = todoCells.map((c) => {
   const near = (bb) => bb[2] > j.x0 - 10 && bb[0] < x1 + MARGIN + 10 && bb[3] > j.z0 - 10 && bb[1] < z1 + MARGIN + 10;
   j.roads = DAVOS_DATA.roads.filter((r) => ROAD_KINDS.has(r.kind) && !r.tunnel && !r.bridge && near(bboxOf(r.pts)))
     .map((r) => ({ pts: j.px(r.pts), w: Math.max(2, (r.width || 5) - 0.8) / j.res })); // (the curbs' bright stones left out)
-  j.exclude = [];
+  // the bus stops' zigzag bands with their BUS (js/traffic-signs.js draws them: the photo's zigzag is too broken to trace)
+  j.exclude = TRAFFIC_SIGNS.signs.filter((s) => s.mark).map((s) => {
+    const [ax, az, bx, bz] = s.mark, L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L, rx = -tz, rz = tx, e = 2;
+    const ring = [];
+    for (const [u, v] of [[-e, -3.5], [L + e, -3.5], [L + e, 3.5], [-e, 3.5]]) ring.push(ax + tx * u + rx * v, az + tz * u + rz * v);
+    return ring;
+  }).filter((r) => near(bboxOf(r))).map((r) => j.px(r));
   j.cls = j.cls.replace(/\.cls$/, '.roads.cls');
   return j;
 });
