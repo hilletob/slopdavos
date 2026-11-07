@@ -142,6 +142,23 @@ def classify_roads(job):
     white &= ~yellow
     out = np.zeros((H, W), dtype=np.uint8)
     out[road] |= RED  # (bit 1: on the road)
+    # the paved ground off the mapped streets and car parks (yards, forecourts, drives): bit 2 dark (asphalt), 8 light
+    # (concrete, slabs); `streets`: the mapped carriageways and car parks only
+    if job.get('pavedOff'):
+        st = Image.new('L', (W, H), 0)
+        ds = ImageDraw.Draw(st)
+        # (the carriageways with their sidewalks, ~3 m each side, and the footways: drawn as their own slabs)
+        for r in job['roads'] + job.get('walks', []):
+            pts = [tuple(p) for p in r['pts']]
+            if len(pts) >= 2:
+                ds.line(pts, fill=255, width=max(1, int(round(r['w'] + (6.0 if r in job['roads'] else 0.5) / res))), joint='curve')
+        for poly in job.get('lots', []):
+            if len(poly) >= 3:
+                ds.polygon([tuple(p) for p in poly], fill=255)
+        off = paved & ~(np.asarray(st) > 0) & ~(np.asarray(bm.filter(ImageFilter.MaxFilter(int(1.0 / res) | 1))) > 0)
+        lv = box_mean(v, kp)
+        out[off & (lv < 0.5)] |= BLUE
+        out[off & (lv >= 0.5)] |= GREEN
     out[white & road] |= WHITE
     out[yellow & road] |= YELLOW
     out.tofile(job['cls'])
@@ -244,8 +261,8 @@ def occupancy(job):
 
 
 COLOURS = {'w': (255, 255, 255), 'y': (255, 215, 0), 'b': (40, 90, 255), 'r': (230, 30, 30)}
-KIND_OUTLINE = {'tartan-red': (255, 0, 255), 'tartan-blue': (0, 255, 255), 'tartan-green': (120, 255, 120), 'turf': (0, 255, 120),
-                'clay': (255, 140, 0), 'sand': (255, 230, 120), 'asphalt': (160, 160, 160), 'grass': (60, 160, 60)}
+KIND_OUTLINE = {'yard': (255, 140, 0), 'asphalt': (255, 140, 0), 'paving': (190, 190, 255), 'tartan-red': (255, 0, 255), 'tartan-blue': (0, 255, 255), 'tartan-green': (120, 255, 120), 'turf': (0, 255, 120),
+                'clay': (255, 140, 0), 'sand': (255, 230, 120), 'grass': (60, 160, 60)}
 
 
 def review(site):

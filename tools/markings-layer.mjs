@@ -11,10 +11,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { CACHE, bboxOf, cropJob, fetchCrops } from './ground-aerial.mjs';
 import { fitMarkings } from './markings-fit.mjs';
+import { snapToRoads } from './markings-snap.mjs';
 import { rowsOfBays, rowIn } from './markings-bays.mjs';
 import { PARKING_DATA } from '../js/parking-data.js';
 import { TRAFFIC_SIGNS } from '../js/traffic-signs-data.js';
 import { pointInRing } from '../js/ground-geometry.js';
+import { pavedSurfaces } from './markings-paved.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONF = JSON.parse(fs.readFileSync(path.join(DIR, 'data', 'ground-overrides.json'), 'utf8')).markings;
@@ -48,6 +50,10 @@ const jobs = todoCells.map((c) => {
     for (const [u, v] of [[-e, -3.5], [L + e, -3.5], [L + e, 3.5], [-e, 3.5]]) ring.push(ax + tx * u + rx * v, az + tz * u + rz * v);
     return ring;
   }).filter((r) => near(bboxOf(r))).map((r) => j.px(r));
+  j.pavedOff = true;
+  j.walks = DAVOS_DATA.roads.filter((r) => /^(footway|path|pedestrian|steps|cycleway)$/.test(r.kind) && !r.tunnel && near(bboxOf(r.pts)))
+    .map((r) => ({ pts: j.px(r.pts), w: Math.max(1.5, r.width || 2) / j.res }));
+  j.lots = PARKING_DATA.filter((l) => l.kind !== 'space' && near(bboxOf(l.ring))).map((l) => j.px(l.ring));
   j.cls = j.cls.replace(/\.cls$/, '.roads.cls');
   return j;
 });
@@ -72,10 +78,18 @@ for (let k = 0; k < todoCells.length; k++) {
   // (a blob belongs to the cell that owns the middle of its first point… its centre)
   const [cx0, cz0, cx1, cz1] = cell.box;
   const owns = (pts) => { let x = 0, z = 0; for (let i = 0; i < pts.length; i += 2) { x += pts[i]; z += pts[i + 1]; } x /= pts.length / 2; z /= pts.length / 2; return x >= cx0 && x < cx1 && z >= cz0 && z < cz1; };
+  // (into the game's streets: the photo's paint as information, drawn along their centrelines, tools/markings-snap.mjs)
+  const snapped = snapToRoads(fit.strokes, fit.fills, DAVOS_DATA.roads, cell.box);
+  fit.strokes = snapped.strokes; fit.fills = snapped.fills;
+  log(cell.id, 'snapped', JSON.stringify(snapped.stats));
   const lines = fit.strokes.filter((s) => owns(s.pts)).map((s) => ({ c: s.c, w: r2(s.w), pts: s.pts.map(r2) }));
   const fills = fit.fills.filter((f) => owns(f.ring)).map((f) => ({ c: f.c, ring: f.ring.map(r2), ...(f.holes.length ? { holes: f.holes.map((h) => h.map(r2)) } : {}) }));
   log(cell.id, JSON.stringify(fit.stats), `kept ${lines.length} strokes, ${fills.length} fills`);
-  results.push({ id: cell.id, box: cell.box, surfaces: [], lines, fills });
+  // the paved ground off the streets and car parks: asphalt and slabs as surfaces of the vector ground
+  const surfaces = pavedSurfaces({ cls, w: j.w, h: j.h, res: j.res, x0: j.x0, z0: j.z0 }).filter((f) => owns(f.ring))
+    .map((f) => ({ kind: f.kind, ring: f.ring.map(r2), ...(f.holes.length ? { holes: f.holes.map((h) => h.map(r2)) } : {}) }));
+  log(cell.id, `${surfaces.length} paved surfaces`);
+  results.push({ id: cell.id, box: cell.box, surfaces, lines, fills });
 }
 
 // --- The parking bays in the paint (the car parks OSM lacks): rows over all the cells, each given to the cell that owns
@@ -121,6 +135,7 @@ if (REVIEW) for (let k = 0; k < results.length; k++) {
   const r = results[k], j = jobs[k];
   reviews.push({
     img: j.img, out: path.join(CACHE, `${r.id}-review.png`), scale: 1, colours: true,
+    surfaces: r.surfaces.map((f) => ({ kind: f.kind, ring: j.px(f.ring), holes: (f.holes || []).map(j.px) })),
     lines: r.lines.map((l) => ({ c: l.c, pts: j.px(l.pts) })), fills: r.fills.map((f) => ({ c: f.c, ring: j.px(f.ring) })),
     bays: (r.lots || []).flatMap((lot) => lot.bays.map(([x, z, angle, w, l, o]) => ({ quad: j.px(quad({ x, z, angle, w, l })), occupied: o })))
   });

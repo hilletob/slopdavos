@@ -101,7 +101,7 @@ import { GROUND_SPORTS } from '../js/ground-sports-data.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
 import { orthoLevel, orthoScale } from '../js/ortho-levels.js';
 
-const KINDS = ['tartan-red', 'tartan-blue', 'tartan-green', 'clay', 'turf', 'sand', 'asphalt', 'grass'];
+const KINDS = ['tartan-red', 'tartan-blue', 'tartan-green', 'clay', 'turf', 'sand', 'asphalt', 'grass', 'yard'];
 
 test('the sports grounds: valid surfaces and lines inside their sites, in the map', () => {
   assert.ok(GROUND_SPORTS.sites.length >= 5, `${GROUND_SPORTS.sites.length} sites`);

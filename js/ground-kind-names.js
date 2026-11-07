@@ -4,5 +4,7 @@
 export const GROUND_KIND_INDEX = {
   'tartan-red': 0, 'tartan-blue': 1, 'tartan-green': 2, 'clay': 3, 'turf': 4, 'sand': 5, 'asphalt': 6, 'grass': 7,
   // the town's open ground between the streets, the buildings and the car parks (the ground class maps)
-  'lawn': 8, 'shrub': 9, 'paving': 10, 'gravel': 11, 'red-paving': 12
+  'lawn': 8, 'shrub': 9, 'paving': 10, 'gravel': 11, 'red-paving': 12,
+  // the paved yards, forecourts and drives off the streets (js/ground-markings-data.js, tools/markings-paved.mjs)
+  'yard': 13
 };

@@ -53,6 +53,8 @@ export const GROUND_KINDS = {
     }
   },
   'gravel': { index: I.gravel, roughness: 1, colour: ({ p }) => mix(vec3(0.3, 0.24, 0.17), vec3(0.39, 0.31, 0.23), grain(p, 8).mul(0.6).add(grain(p, 0.2).mul(0.4))) },
+  // Yards and forecourts: weathered asphalt in the sun's light grey (the photo's mean), patched and stained
+  'yard': { index: I.yard, roughness: 0.9, colour: ({ p }) => mix(vec3(0.24, 0.24, 0.23), vec3(0.31, 0.305, 0.29), grain(p, 6).mul(0.45).add(grain(p, 0.25).mul(0.55))) },
   'red-paving': { index: I['red-paving'], roughness: 0.85, colour: ({ p }) => mix(vec3(0.42, 0.14, 0.1), vec3(0.52, 0.18, 0.13), grain(p, 0.3).mul(0.5).add(grain(p, 5).mul(0.5))) }
 };
 
