@@ -260,10 +260,10 @@ function carve(r, holes, axis = 'x') {
 }
 
 // Buildings whose swissBUILDINGS3D volume is incomplete: they keep their facades and roof extruded from the
-// OpenStreetMap footprint even when the streamed volumes stand in for all the others (`bag`)
-//  - w712452961: the new Bahnhof Davos Platz (RhB, 3 storeys): swisstopo has only its green roof, a slab at the eaves
-//    with nothing under it (seen from the street: no building at all); the walls come from here, the roof's rim too
-export const NEWER_THAN_SWISSBUILDINGS = new Set(['w712452961']);
+// OpenStreetMap footprint even when the streamed volumes stand in for all the others (`bag`). (The Bahnhof Davos Platz,
+// w712452961, which swisstopo has only as its roofs, is rebuilt by hand now: js/landmark-buildings.js; its footprint
+// here keeps only its colliders.)
+export const NEWER_THAN_SWISSBUILDINGS = new Set();
 
 // `bag`: 3D BAG meshes already supply the facades and roofs, so only colliders and street-level details are built here
 // (but for NEWER_THAN_SWISSBUILDINGS).

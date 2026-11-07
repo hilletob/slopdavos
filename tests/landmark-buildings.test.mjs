@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  EISSTADION, KONGRESS, EISBAHN, PARSENN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, ringArea, pointInRing
 } from '../js/landmark-buildings-data.js';
 import { lv95ToWorld } from '../js/davos-frame.js';
@@ -95,7 +95,7 @@ test('the Natureisbahn: a 400 m track round the pitch, ~18 000 m² of ice with t
 });
 
 test('the replaced swissBUILDINGS3D buildings are picked out by their surveyed centres, nothing else nearby', () => {
-  assert.equal(LANDMARK_EXCLUSIONS.length, 6);
+  assert.equal(LANDMARK_EXCLUSIONS.length, 13);
   for (const e of LANDMARK_EXCLUSIONS) assert.ok(e.r > 0 && e.r <= 2);
   // the arena's centre lies under its roof; the complex's centres inside or next to its parts
   assert.ok(stadiumRoofHeight(EISSTADION.exclude[0].x, EISSTADION.exclude[0].z) > 20);
@@ -123,4 +123,49 @@ test('the Parsennbahn valley station: surveyed parts round the funicular station
   // the fronts face the Promenade (its line 668/-1426 – 690/-1459 runs outside the main block's front)
   const [fx, fz] = PARSENN.fronts[0];
   assert.ok((668 - 654.6) * fx + (-1426 + 1419.5) * fz > 0);
+});
+
+test('the stations of Davos Dorf and Davos Platz: surveyed parts by their OSM station nodes, canopies over the platforms', () => {
+  const near = (rings, e, d) => rings.some((r) => pointInRing(r, e.x, e.z) || r.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < d));
+  // Davos Dorf (station node n623883948 at 909.3/-1587.6): the block 15.4 m over a station building half as high
+  const dorf = [DORF.block, DORF.station, DORF.link].map((p) => ringPoints(p.ring));
+  assert.ok(dorf.every((r) => Math.abs(ringArea(r)) > 50));
+  assert.ok(dorf.some((r) => r.some(([x, z]) => Math.hypot(x - 909.3, z + 1587.6) < 25)));
+  assert.ok(DORF.block.h > 2 * DORF.station.h - 1 && DORF.station.h > 6);
+  for (const e of DORF.exclude) assert.ok(near(dorf, e, 6), `(${e.x}, ${e.z})`);
+  // the canopies: whole triangles, between 5 and 9 m over the platforms' ground (the engine height there ~1.4 / ~-17.9)
+  for (const [C, g] of [[DORF.canopy, 1.4], [PLATZ.canopy, -17.9]]) {
+    assert.equal(C.length % 9, 0);
+    for (let i = 1; i < C.length; i += 3) assert.ok(C[i] - g > 5 && C[i] - g < 9, `canopy at ${C[i]}`);
+  }
+  // Davos Platz (station node n3815047735 at -628/449.9): the hall the highest, the blocks on the base, the base along
+  // the street front
+  const base = ringPoints(PLATZ.base.ring), blocks = PLATZ.blocks.map((b) => ringPoints(b.ring));
+  assert.ok(pointInRing(base, -632, 450) || blocks.some((r) => pointInRing(r, -628, 449.9)));
+  const hall = PLATZ.blocks.find((b) => b.kind === 'hall');
+  assert.ok(PLATZ.blocks.every((b) => b.h <= hall.h && b.h > PLATZ.base.h));
+  for (const e of PLATZ.exclude) assert.ok(near([base, ...blocks], e, 12), `(${e.x}, ${e.z})`);
+});
+
+test('the Arkadenplatz: the square between its arcaded wings and the Kulturplatz, the arcades facing the square', () => {
+  const sq = ringPoints(ARKADEN.square);
+  assert.ok(Math.abs(ringArea(sq)) > 1500 && Math.abs(ringArea(sq)) < 2500);
+  const centre = sq.reduce((s, p) => [s[0] + p[0] / sq.length, s[1] + p[1] / sq.length], [0, 0]);
+  for (const w of ARKADEN.wings) {
+    const pts = ringPoints(w.ring);
+    assert.ok(w.h > 8 && w.h < 11);
+    // the arcades' edges run along the square, its centre on their outer side
+    if (w.arcade) {
+      assert.ok(w.arcade[0] >= 0 && w.arcade[1] <= pts.length && w.arcade[0] < w.arcade[1]);
+      for (let i = w.arcade[0]; i < w.arcade[1]; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        assert.ok(Math.hypot(m[0] - centre[0], m[1] - centre[1]) < 40);
+      }
+    }
+  }
+  // the Kulturplatz (OSM w225912221, Promenade 58C) inside the brick wing
+  const brick = ringPoints(ARKADEN.wings.find((w) => w.kind === 'brick').ring);
+  assert.ok(pointInRing(brick, -532.6, -86.6));
+  for (const [x, z] of ARKADEN.parasols) assert.ok(pointInRing(sq, x, z));
+  for (const e of ARKADEN.exclude) assert.ok(ARKADEN.wings.some((w) => { const r = ringPoints(w.ring); return pointInRing(r, e.x, e.z) || r.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 20); }), `(${e.x}, ${e.z})`);
 });

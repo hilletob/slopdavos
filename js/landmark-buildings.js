@@ -6,15 +6,19 @@ import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import {
-  EISSTADION, KONGRESS, EISBAHN, PARSENN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, pointInRing
 } from './landmark-buildings-data.js';
 
 // Landmarks of Davos Platz rebuilt by hand from the survey (js/landmark-buildings-data.js), standing in for their
 // swissBUILDINGS3D volumes (left out of the streamed tiles: js/swissbuildings3d.js excludeBuildings):
 //  - the Eisstadion: the surveyed timber roof (two crossed gables, the apex 33 m over the ground) on the concrete
-//    stands' octagon with their flat roof 10.4 m up, larch fascias and soffits, the four glazed gables over the stands,
-//    the north stand's glazed annex
+//    stands' octagon with their flat roof 10.4 m up, dark fascias and soffits, the four glazed gables over the stands
+//    in near-black frames, the north stand's glazed annex and its glass front over the recessed ground floor, the
+//    copper chimneys
+//  - the stations of Davos Dorf (the tiled block over the station, the canopy on its posts) and Davos Platz (Gaberel's
+//    cream-yellow station of 1949: the base storey with its pilasters, the blocks on it, the hall's window grid), and the
+//    Arkadenplatz (the arcaded wings, the Kulturplatz's brick front, the red square with its bollards and parasols)
 //  - the Kongresszentrum with the Kongress Hotel and the eau-là-là: every part at its surveyed outline and height, in
 //    its own skin (Gisel's board-marked concrete with ribbon windows, Degelo's larch hall with the glazed entrance
 //    under the overhang, the hotel's white plaster, the pool's dark timber and its glazing towards the park), the roofs
@@ -23,7 +27,7 @@ import {
 //    orthophoto's)
 //  - the Parsennbahn's valley station in Davos Dorf: white walls with red window frames and red-white bands, the glazed
 //    shop on the ground floor, its lettering, banner, entrance sign and roof flags from one small canvas atlas
-// All of it merged into one mesh per material (14 draw calls in all); the facades' detail (boards, mullions, windows,
+// All of it merged into one mesh per material (22 draw calls in all); the facades' detail (boards, mullions, windows,
 // panels) is drawn by the materials from the walls' uv (metres along the wall, metres over the ground), not modelled,
 // and fades to its mean colour with distance. Windows glow at dusk and night like the other buildings'
 // (cityUniforms.uInteriorGlow).
@@ -62,7 +66,8 @@ function simpleMaterials() {
   M.glass.emissiveNode = vec3(1.0, 0.8, 0.58).mul(glow.mul(0.45));
   M.roofSolar = make(snowRoof(vec3(0.1, 0.1, 0.11)), 0.6, 0.2);
   M.roofGravel = make(snowRoof(vec3(0.27, 0.26, 0.25)), 0.92);
-  M.stadiumRoof = make(snowRoof(vec3(0.09, 0.065, 0.05)), 0.7, 0.1);
+  M.stadiumRoof = make(snowRoof(vec3(0.12, 0.105, 0.097)), 0.75, 0.05);
+  M.copper = make(vec3(0.42, 0.17, 0.08), 0.5, 0.6);
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
   M.parsenn = windowed(vec3(0.71, 0.71, 0.69), 3.2, 0.24, 0.72, 0.85, 0.4);
   {
@@ -77,6 +82,34 @@ function simpleMaterials() {
   M.ice = make(vec3(0.3, 0.37, 0.42), 0.2, 0.3, { transparent: true });
   M.ice.opacityNode = winter;
   M.ice.depthWrite = true;
+  M.arenaGlass = make(vec3(0.15, 0.17, 0.19), 0.08, 0.85);
+  M.arenaGlass.emissiveNode = vec3(1.0, 0.8, 0.58).mul(glow.mul(0.45));
+  // (the stations' and the arcades' walls carry their kind in v's offset, see materials(): a lit band per row of windows
+  // in each, none on the plain walls, v < −500)
+  const lane = (v, lo, hi) => step(lo, v).mul(step(v, hi));
+  const banded = (c, b, roughness, strength) => {
+    const m = make(mix(c, vec3(0.03, 0.035, 0.04), b), roughness);
+    m.emissiveNode = warm.mul(b).mul(glow.mul(strength));
+    return m;
+  };
+  {
+    const st = step(1500, V), v = V.sub(st.mul(2000)), open = step(-500, v);
+    const fv = fract(v.sub(3.9).div(2.875));
+    const block = lane(v, 0.5, 3.1).add(step(3.9, v).mul(step(v, 15.2)).mul(lane(fv, 0.3, 0.76)));
+    M.dorf = banded(vec3(0.7, 0.69, 0.67), mix(block, lane(v, 0.9, 2.9), st).mul(open), 0.6, 0.45);
+  }
+  {
+    const hb = step(3500, V), bs = step(1500, V).mul(float(1).sub(hb)), v = V.sub(bs.mul(2000)).sub(hb.mul(4000)), open = step(-500, v);
+    const b = mix(mix(lane(v, 0.85, 2.05).add(lane(v, 2.45, 3.65)), lane(v, 1.2, 3.4), bs), lane(v, 1.0, 7.0), hb).mul(open);
+    M.platz = banded(vec3(0.64, 0.54, 0.32), b, 0.85, 0.4);
+  }
+  {
+    const sh = step(1500, V), v = V.sub(sh.mul(2000)), open = step(-500, v);
+    M.arcade = banded(vec3(0.74, 0.72, 0.69), lane(v, 0.15, 3.35).add(lane(v, 4.0, 6.3)).mul(sh).mul(open), 0.88, 0.35);
+  }
+  M.brick = make(vec3(0.36, 0.11, 0.065), 0.9);
+  M.redSquare = make(snowRoof(vec3(0.46, 0.15, 0.1)), 0.8);
+  M.canopy = make(vec3(0.46, 0.47, 0.48), 0.55, 0.3);
   return M;
 }
 
@@ -198,11 +231,19 @@ function materials() {
     M.roofGravel = r2;
     const r3 = new THREE.MeshStandardNodeMaterial({ roughness: 0.7, metalness: 0.1 });
     const seam = smoothstep(0.44, 0.5, abs(fract(U.div(0.55)).sub(0.5))).mul(fine);
-    const metal = mix(vec3(0.07, 0.05, 0.04), vec3(0.11, 0.08, 0.06), weather).mul(float(1).add(seam.mul(0.35)));
+    // (grey-brown shingles, the photograph of 2022; a course every 0.3 m, the shingles 0.55 m wide, staggered)
+    const course = floor(V.div(0.3)), shingle = hash(floor(U.div(0.55).add(course.mul(0.5))).add(course.mul(13.7)));
+    const lap = smoothstep(0.85, 1.0, fract(V.div(0.3))).mul(fine);
+    const metal = mix(vec3(0.085, 0.075, 0.07), vec3(0.15, 0.135, 0.125), weather.mul(0.6).add(shingle.mul(fine).mul(0.4))).mul(float(1).sub(lap.mul(0.3)).add(seam.mul(0.1)));
     r3.colorNode = snowyRoof(metal, float(1));
     M.stadiumRoof = r3;
   }
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.45, metalness: 0.6 });
+    m.colorNode = mix(vec3(0.36, 0.13, 0.06), vec3(0.5, 0.22, 0.1), weather);
+    M.copper = m;
+  }
   // The Parsennbahn's valley station: white render; on every upper floor (3.2 m) a band of narrow portrait windows
   // (0.85 × 1.5 m in bays of 1.45 m, a red frame and a red centre mullion each, now and then a closed pier so that the
   // band runs in groups of two to six) over red-white-red stripes at the floor line; the street fronts (uv.y + 2000)
@@ -276,15 +317,195 @@ function materials() {
     m.depthWrite = true;
     M.ice = m;
   }
+  // A rectangle of the wall's uv (u0–u1 along, v0–v1 up) as a 0/1 mask
+  const box = (u, v, u0, u1, v0, v1) => step(u0, u).mul(step(u, u1)).mul(step(v0, v)).mul(step(v, v1));
+  // The Eisstadion's glazing (the gables, the north stand's glass band, the annex): tall narrow panes in near-black
+  // frames, a transom every 2.6 m, reflecting the sky; lit from inside at night
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.08, metalness: 0.85 });
+    const mu = abs(fract(U.div(1.3)).sub(0.5)), mv = abs(fract(V.div(2.6)).sub(0.5));
+    const frame = smoothstep(0.44, 0.46, mu).max(smoothstep(0.465, 0.48, mv)).mul(near.mul(0.85).add(0.15));
+    const pane = hash(floor(U.div(1.3)).mul(13.1).add(floor(V.div(2.6)).mul(7.3)));
+    const tint = mix(vec3(0.13, 0.16, 0.18), vec3(0.2, 0.23, 0.25), pane.mul(near));
+    m.colorNode = mix(tint, vec3(0.018, 0.016, 0.015), frame);
+    m.metalnessNode = mix(float(0.9), float(0.1), frame);
+    m.roughnessNode = mix(float(0.05).add(pane.mul(0.05)), float(0.6), frame);
+    const inside = lit(floor(U.div(5.2)), floor(V.div(3.8)), 29, 0.8).mul(0.6).add(vec3(1.0, 0.82, 0.6).mul(0.35));
+    m.emissiveNode = inside.mul(float(1).sub(frame)).mul(glow.mul(0.7));
+    M.arenaGlass = m;
+  }
+  // Bahnhof Davos Dorf. v < 1500: the block: fine white tiles (0.62 × 0.31 m, staggered), the station's ground floor
+  // (3.9 m, glazed in bays of 3 m), on each upper floor (2.875 m) a column per 3 m bay of one kind all the way up: a
+  // window behind a red-brown roller shutter, a small window in a red-brown frame, a closed bay, or a glazed loggia over
+  // its red-brown parapet. v ≥ 1500: the station building (v − 2000): white render over a grey plinth, windows and doors
+  // in grey frames under the canopy, plain above
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0 });
+    const st = step(1500, V), v0 = V.sub(st.mul(2000)), plain = step(v0, -500), v = v0.add(plain.mul(1000)), open = float(1).sub(plain);
+    const red = vec3(0.15, 0.022, 0.02), glassC = vec3(0.025, 0.03, 0.035);
+    // the block
+    const row = floor(v.div(0.31)), tu = fract(U.div(0.62).add(row.mul(0.5)));
+    const joint = step(fract(v.div(0.31)), 0.045).max(step(tu, 0.025)).mul(fine);
+    const tiles = mix(vec3(0.72, 0.72, 0.7), vec3(0.79, 0.79, 0.77), hash(row.mul(17.3).add(floor(U.div(0.62).add(row.mul(0.5))))).mul(fine).mul(0.6).add(weather.mul(0.4))).mul(float(1).sub(joint.mul(0.18)));
+    const bay = floor(U.div(3.0)), bu = fract(U.div(3.0)).mul(3.0), kind = hash(bay.mul(7.13).add(3.1));
+    const gf = step(v, 3.9).mul(open), upper = step(3.9, v).mul(step(v, 15.2)).mul(open);
+    const fl = floor(v.sub(3.9).div(2.875)), fv = fract(v.sub(3.9).div(2.875)).mul(2.875);
+    const shutterK = step(kind, 0.32), smallK = step(0.32, kind).mul(step(kind, 0.6)), loggiaK = step(0.72, kind);
+    const shutter = box(bu, fv, 0.75, 2.25, 0.75, 2.2).mul(shutterK).mul(upper);
+    const reveal = box(bu, fv, 0.68, 2.32, 0.68, 2.27).mul(shutterK).mul(upper).sub(shutter);
+    const slats = step(0.5, fract(fv.div(0.07))).mul(fine);
+    const small = box(bu, fv, 1.1, 1.9, 0.8, 2.2).mul(smallK).mul(upper);
+    const smallFrame = small.sub(box(bu, fv, 1.17, 1.83, 0.87, 2.13).mul(smallK).mul(upper));
+    const loggia = box(bu, fv, 0.25, 2.75, 0.95, 2.6).mul(loggiaK).mul(upper);
+    const parapet = box(bu, fv, 0.25, 2.75, 0.05, 0.95).mul(loggiaK).mul(upper);
+    const logMull = smoothstep(0.455, 0.475, abs(fract(bu.sub(0.25).div(0.833)).sub(0.5))).mul(loggia).mul(near);
+    const gWin = box(bu, v, 0.35, 2.65, 0.5, 3.1).mul(gf), gFrame = gWin.sub(box(bu, v, 0.45, 2.55, 0.6, 3.0).mul(gf));
+    let cb = mix(tiles, vec3(0.5, 0.51, 0.5), gf.mul(float(1).sub(gWin)));
+    cb = mix(cb, red.mul(float(0.65).add(slats.mul(0.25))), shutter);
+    cb = mix(cb, vec3(0.6, 0.6, 0.58), reveal);
+    cb = mix(cb, glassC, small.max(loggia).max(gWin));
+    cb = mix(cb, red, smallFrame.max(parapet).max(logMull));
+    cb = mix(cb, vec3(0.3, 0.31, 0.31), gFrame);
+    const glassB = small.sub(smallFrame).max(loggia.sub(logMull)).max(gWin.sub(gFrame));
+    // the station building
+    const sb = floor(U.div(2.7)), su = fract(U.div(2.7)).mul(2.7), door = step(hash(sb.mul(5.7).add(1.3)), 0.22);
+    const render = mix(vec3(0.68, 0.68, 0.66), vec3(0.75, 0.75, 0.73), weather);
+    const win = box(su, v, 0.5, 2.2, 0.9, 2.9).mul(float(1).sub(door)).max(box(su, v, 0.7, 2.0, 0.0, 2.6).mul(door)).mul(open);
+    const inner = box(su, v, 0.58, 2.12, 0.98, 2.82).mul(float(1).sub(door)).max(box(su, v, 0.78, 1.92, 0.0, 2.52).mul(door)).mul(open);
+    const sFrame = win.sub(inner).max(smoothstep(0.03, 0.01, abs(su.sub(1.35))).mul(win).mul(near));
+    let cs = mix(render, vec3(0.33, 0.33, 0.33), step(v, 0.45).mul(float(1).sub(win)));
+    cs = mix(cs, glassC, win);
+    cs = mix(cs, vec3(0.42, 0.43, 0.43), sFrame);
+    const glassS = win.sub(sFrame).max(0);
+    m.colorNode = mix(cb, cs, st);
+    const glass = mix(glassB, glassS, st);
+    m.roughnessNode = mix(mix(float(0.45), float(0.85), st), float(0.1), glass);
+    m.metalnessNode = glass.mul(0.5);
+    m.emissiveNode = lit(mix(bay, sb.add(50), st), mix(fl, float(-1), st.max(gf)), 31, 0.55).mul(glass).mul(glow.mul(1.2));
+    M.dorf = m;
+  }
+  // Bahnhof Davos Platz: cream render. v ≥ 3500: the hall's street front (v − 4000 over the base's roof): vertical ribs
+  // to 1 m, then the great window grid (panes 1.2 × 1.6 m in cream frames) up to 7 m; 1500 ≤ v < 3500: the base storey
+  // (v − 2000 over the ground): white pilasters every 3.6 m, pairs of tall windows in white frames between them (now and
+  // then a door), a grey plinth; v < 1500: the upper walls over the base's roof: a copper-brown band at their foot, two
+  // rows of windows in white frames, one per 2.6 m
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0 });
+    const hb = step(3500, V), bs = step(1500, V).mul(float(1).sub(hb));
+    const v0 = V.sub(bs.mul(2000)).sub(hb.mul(4000)), plain = step(v0, -500), v = v0.add(plain.mul(1000)), open = float(1).sub(plain);
+    const cream = mix(vec3(0.62, 0.52, 0.3), vec3(0.7, 0.6, 0.36), weather.mul(0.7).add(noise(1.9).mul(0.3)));
+    const white = vec3(0.78, 0.77, 0.72), glassC = vec3(0.07, 0.085, 0.1);
+    // base storey
+    const pb = floor(U.div(3.6)), pu = fract(U.div(3.6)).mul(3.6), door = step(hash(pb.mul(3.3).add(0.7)), 0.18);
+    const pil = step(pu, 0.5).mul(step(0.5, v));
+    const w2 = box(pu, v, 0.85, 1.85, 1.2, 3.4).max(box(pu, v, 2.15, 3.15, 1.2, 3.4)).mul(float(1).sub(door)).max(box(pu, v, 1.0, 3.0, 0.0, 2.9).mul(door)).mul(open);
+    const w2in = box(pu, v, 0.95, 1.75, 1.3, 3.3).max(box(pu, v, 2.25, 3.05, 1.3, 3.3)).mul(float(1).sub(door)).max(box(pu, v, 1.1, 2.9, 0.0, 2.8).mul(door)).mul(open);
+    let cB = mix(cream, vec3(0.42, 0.4, 0.36), step(v, 0.5));
+    cB = mix(cB, white, pil.max(w2.sub(w2in)));
+    cB = mix(cB, glassC, w2in);
+    // upper walls
+    const ub = floor(U.div(2.6)), uu = fract(U.div(2.6)).mul(2.6);
+    const uw = box(uu, v, 0.85, 1.75, 0.85, 2.05).max(box(uu, v, 0.85, 1.75, 2.45, 3.65)).mul(open);
+    const uwin = box(uu, v, 0.93, 1.67, 0.93, 1.97).max(box(uu, v, 0.93, 1.67, 2.53, 3.57)).mul(open);
+    const cross = smoothstep(0.03, 0.012, abs(uu.sub(1.3))).mul(uwin).mul(near);
+    let cU = mix(cream, vec3(0.16, 0.075, 0.035), step(v, 0.45));
+    cU = mix(cU, white, uw.sub(uwin).max(cross));
+    cU = mix(cU, glassC, uwin.mul(float(1).sub(cross)));
+    // the hall's grid
+    const rib = smoothstep(0.38, 0.5, abs(fract(U.div(0.3)).sub(0.5))).mul(fine);
+    const grid = step(1.0, v).mul(step(v, 7.0)).mul(open);
+    const gf = smoothstep(0.43, 0.455, abs(fract(U.div(1.2)).sub(0.5))).max(smoothstep(0.44, 0.46, abs(fract(v.sub(1.0).div(1.6)).sub(0.5)))).mul(grid);
+    let cH = mix(cream.mul(float(1).sub(rib.mul(0.12))), glassC, grid);
+    cH = mix(cH, white.mul(0.95), gf);
+    const glassH = grid.sub(gf).max(0), glassBase = w2in, glassUp = uwin.mul(float(1).sub(cross));
+    m.colorNode = mix(mix(cU, cB, bs), cH, hb);
+    const glass = mix(mix(glassUp, glassBase, bs), glassH, hb);
+    m.roughnessNode = mix(float(0.85), float(0.1), glass);
+    m.metalnessNode = glass.mul(0.7);
+    const cellU = mix(mix(ub, pb.mul(2).add(step(2.0, pu)), bs), floor(U.div(2.4)), hb), cellV = mix(floor(v.div(1.6)), float(-3), bs);
+    m.emissiveNode = lit(cellU, cellV, 37, 0.55).mul(glass).mul(glow.mul(1.2)).add(vec3(1.0, 0.85, 0.65).mul(glassH).mul(glow.mul(0.25)));
+    M.platz = m;
+  }
+  // The Arkadenplatz's wings: white render. v < 1500: the outer walls over the square: over the arcades (7.2 m) a
+  // frieze with a painted panel every 6.8 m and a row of small dark openings under it. v ≥ 1500: the walls behind the
+  // arcades (v − 2000): red shop fronts in bays of 3.4 m, a mullion and a transom each, the mezzanine's windows in red
+  // frames over them
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.88, metalness: 0 });
+    const sh = step(1500, V), v0 = V.sub(sh.mul(2000)), plain = step(v0, -500), v = v0.add(plain.mul(1000)), open = float(1).sub(plain);
+    const plaster = mix(vec3(0.72, 0.7, 0.67), vec3(0.79, 0.77, 0.74), weather.mul(0.8).add(noise(2.3).mul(0.2)));
+    const red = vec3(0.4, 0.045, 0.02), glassC = vec3(0.03, 0.035, 0.04);
+    const fu = fract(U.div(6.8)).mul(6.8), pid = floor(U.div(6.8));
+    const panel = box(fu, v, 3.0, 3.75, 7.85, 9.0).mul(open), panelIn = box(fu, v, 3.08, 3.67, 7.93, 8.92).mul(open);
+    const figure = smoothstep(0.32, 0.18, abs(fu.sub(3.375))).mul(smoothstep(8.05, 8.15, v)).mul(smoothstep(8.85, 8.7, v));
+    const pc = mix(vec3(0.5, 0.36, 0.1), vec3(0.08, 0.13, 0.3), step(0.5, hash(pid.add(4.1))));
+    const dot = box(fract(U.div(3.4)).mul(3.4), v, 1.55, 1.85, 7.45, 7.75).mul(open);
+    let cO = mix(plaster, vec3(0.3, 0.27, 0.22), panel.sub(panelIn));
+    cO = mix(cO, mix(pc, vec3(0.75, 0.68, 0.55), figure.mul(0.7)), panelIn);
+    cO = mix(cO, vec3(0.08, 0.08, 0.08), dot);
+    const bu = fract(U.div(3.4)).mul(3.4), sb = floor(U.div(3.4));
+    const shop = box(bu, v, 0.3, 3.1, 0.15, 3.35).mul(open), shopIn = box(bu, v, 0.42, 2.98, 0.15, 3.23).mul(open);
+    const bars = smoothstep(0.04, 0.02, abs(bu.sub(1.7))).max(smoothstep(0.04, 0.02, abs(v.sub(2.55)))).mul(shopIn).mul(near);
+    const mez = box(bu, v, 0.6, 2.8, 4.0, 6.3).mul(open), mezIn = box(bu, v, 0.7, 2.7, 4.1, 6.2).mul(open);
+    const mBar = smoothstep(0.035, 0.015, abs(bu.sub(1.7))).mul(mezIn).mul(near);
+    let cS = mix(plaster, red, shop.sub(shopIn).max(mez.sub(mezIn)).max(bars).max(mBar));
+    const glassS = shopIn.sub(bars).max(mezIn.sub(mBar)).max(0);
+    cS = mix(cS, glassC, glassS);
+    m.colorNode = mix(cO, cS, sh);
+    const glass = glassS.mul(sh);
+    m.roughnessNode = mix(float(0.88), float(0.1), glass);
+    m.metalnessNode = glass.mul(0.5);
+    m.emissiveNode = lit(sb, step(3.8, v), 41, 0.75).mul(glass).mul(glow.mul(1.3)).add(vec3(1.0, 0.8, 0.55).mul(shopIn.sub(bars).max(0)).mul(sh).mul(smoothstep(0.45, 1.1, iGlow).mul(0.35)));
+    M.arcade = m;
+  }
+  // The Kulturplatz: brick (0.25 × 0.075 m, staggered) between concrete pilasters every 5.8 m, a light frieze over it
+  // (from 7.8 m) with a small square recess every 2.9 m
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+    const v = V.add(step(V, -500).mul(1000));
+    const course = floor(v.div(0.075)), bx = U.div(0.25).add(course.mul(0.5));
+    const mortar = step(fract(v.div(0.075)), 0.14).max(step(fract(bx), 0.06)).mul(fine);
+    const brick = mix(vec3(0.3, 0.085, 0.05), vec3(0.42, 0.14, 0.08), hash(floor(bx).add(course.mul(31.7))).mul(fine).mul(0.7).add(weather.mul(0.3)));
+    const wall = mix(brick, vec3(0.42, 0.38, 0.34), mortar.mul(0.8));
+    const pu = fract(U.div(5.8)).mul(5.8), pil = step(pu, 0.75);
+    const frieze = step(7.8, v), recess = box(fract(U.div(2.9)).mul(2.9), v, 1.3, 1.6, 8.35, 8.75);
+    let c = mix(wall, mix(vec3(0.46, 0.45, 0.43), vec3(0.52, 0.51, 0.49), weather), pil);
+    c = mix(c, mix(vec3(0.5, 0.42, 0.31), vec3(0.56, 0.48, 0.36), weather), frieze);
+    c = mix(c, vec3(0.2, 0.17, 0.13), recess.mul(frieze));
+    m.colorNode = c;
+    M.brick = m;
+  }
+  // The square's red paving: slabs of 1.6 m along the square's edges (turned 16° against the grid), snow in winter
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0 });
+    const a = 0.278, cs = Math.cos(a), sn = Math.sin(a);
+    const px = positionWorld.x.mul(cs).add(positionWorld.z.mul(sn)), pz = positionWorld.z.mul(cs).sub(positionWorld.x.mul(sn));
+    const joint = step(fract(px.div(1.6)), 0.012).max(step(fract(pz.div(1.6)), 0.012)).mul(fine);
+    const slab = hash(floor(px.div(1.6)).mul(7.7).add(floor(pz.div(1.6)).mul(3.1)));
+    const c = mix(vec3(0.42, 0.13, 0.08), vec3(0.5, 0.18, 0.11), slab.mul(fine).mul(0.5).add(weather.mul(0.5))).mul(float(1).sub(joint.mul(0.35)));
+    m.colorNode = snowyRoof(c, float(0.8));
+    M.redSquare = m;
+  }
+  // The platform canopies' undersides and fascias: light grey steel, a cross beam every 1.5 m
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.55, metalness: 0.3 });
+    const beam = smoothstep(0.4, 0.46, abs(fract(U.div(1.5)).sub(0.5))).mul(near);
+    m.colorNode = mix(vec3(0.5, 0.51, 0.52), vec3(0.3, 0.31, 0.32), beam);
+    M.canopy = m;
+  }
   return M;
 }
 
 // The Parsennbahn station's lettering, in one small canvas (logical 512 × 256 px; half that on the mobile profile): the
 // texts as plain type (the trademarks of Davos Klosters Bergbahnen AG are not reproduced, see assets/logos/SOURCES.md)
 const PARSENN_ATLAS = {
-  W: 512, H: 256,
+  W: 512, H: 512,
   davos: [0, 0, 512, 72], banner: [0, 72, 512, 48], logo: [0, 120, 256, 64], entrance: [256, 120, 256, 64],
-  flag: [0, 184, 448, 72], metal: [448, 184, 64, 72]
+  flag: [0, 184, 448, 72], metal: [448, 184, 64, 72],
+  // the stations' and the arena's signs (the lower half): the RhB's name plates (white on blue), the red "Rhätische Bahn"
+  // plate, the kiosk's, a platform clock, the arena's lettering over its doors
+  dorfName: [0, 256, 256, 48], platzName: [256, 256, 256, 48], rhb: [0, 304, 256, 48], kiosk: [256, 304, 256, 48],
+  clock: [0, 352, 96, 96], arena: [96, 352, 416, 40]
 };
 function parsennAtlas() {
   const A = PARSENN_ATLAS, s = Math.max(0.5, QUALITY.atlasScale ?? 1);
@@ -310,6 +531,24 @@ function parsennAtlas() {
   box([0, 244, 448, 12], BLUE);
   text('Parsenn', 214, 214, '800 52px Arial, Helvetica, sans-serif', RED);
   box(A.metal, '#a4a9ad');
+  const NAVY = '#1c2f6b';
+  for (const [r, name] of [[A.dorfName, 'Davos Dorf'], [A.platzName, 'Davos Platz']]) {
+    box(r, NAVY);
+    g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.strokeRect(r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8);
+    text(name, r[0] + r[2] / 2, r[1] + r[3] / 2 + 1, '600 26px Arial, Helvetica, sans-serif', '#ffffff');
+  }
+  box(A.rhb, '#c8102e');
+  text('Rhätische Bahn', 128, 329, '700 28px Arial, Helvetica, sans-serif', '#ffffff');
+  box(A.kiosk, '#3aa8dc');
+  text('k kiosk', 384, 329, '700 30px Arial, Helvetica, sans-serif', '#ffffff');
+  box(A.clock, '#30343a');
+  g.fillStyle = '#f6f6f4'; g.beginPath(); g.arc(48, 400, 44, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#111111'; g.lineCap = 'butt';
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.lineWidth = i % 3 ? 2 : 4; g.beginPath(); g.moveTo(48 + Math.sin(a) * 34, 400 - Math.cos(a) * 34); g.lineTo(48 + Math.sin(a) * 41, 400 - Math.cos(a) * 41); g.stroke(); }
+  g.lineWidth = 4; g.beginPath(); g.moveTo(48, 400); g.lineTo(48 + 20, 400 - 12); g.stroke();
+  g.lineWidth = 3; g.beginPath(); g.moveTo(48, 400); g.lineTo(48 - 6, 400 - 31); g.stroke();
+  box(A.arena, '#1a1817');
+  text('FANSHOP      KRISTALL CLUB      SEKTOR N      VIP NORD', 304, 372, '700 17px Arial, Helvetica, sans-serif', '#e9e6df');
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -425,29 +664,60 @@ function buildEisstadion(B, colliders) {
     const pts = F.map((p) => [p.x, floorY + p.h, p.z]), uvs = F.map(uv);
     B.tri('stadiumRoof', pts[0], pts[1], pts[2], uvs[0], uvs[1], uvs[2], [0, 1, 0]);
     const d = (v) => [v[0], v[1] - T, v[2]];
-    B.tri('larch', d(pts[0]), d(pts[1]), d(pts[2]), uvs[0], uvs[1], uvs[2], [0, -1, 0]);
+    B.tri('darkwood', d(pts[0]), d(pts[1]), d(pts[2]), uvs[0], uvs[1], uvs[2], [0, -1, 0]);
   }
-  // The larch fascia along the roof's edge, facing out (away from the apex)
+  // The dark fascia along the roof's edge, facing out (away from the apex)
   const verge = stadiumVerge(S);
   const us = [0];
   for (let i = 1; i <= verge.length; i++) { const a = verge[i - 1], b = verge[i % verge.length]; us.push(us[i - 1] + Math.hypot(b.x - a.x, b.z - a.z)); }
   const away = (a, b) => { const n = [(a.x + b.x) / 2 - A.x, (a.z + b.z) / 2 - A.z], l = Math.hypot(...n); return [n[0] / l, n[1] / l]; };
   verge.forEach((P, i) => {
     const Q = verge[(i + 1) % verge.length];
-    B.wall('larch', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, away(P, Q), us[i], floorY, false);
+    B.wall('darkwood', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, away(P, Q), us[i], floorY, false);
   });
   // The stands: the concrete outer wall round the outline up to the eaves (a low parapet over the roof), their flat
   // gravel roof between the outline and the pitched roof
   const parapet = eaves + 0.3;
   let u = 0;
   for (let i = 0; i < outline.length; i++) {
-    const a = outline[i], b = outline[(i + 1) % outline.length], n = outward(outline, a, b);
-    for (const [p, q, t0] of pieces(a, b, 3)) {
-      const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
-      B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, parapet, parapet, n, u + t0, floorY, false);
+    const a = outline[i], b = outline[(i + 1) % outline.length], n = outward(outline, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (S.glazed.includes(i)) {
+      // The north stand's front (the photograph from the Kurpark): a band of glass in near-black frames from the ledge up
+      // to a dark fascia at the eaves, over a ledge of concrete beams; the ground floor (doors, the fan shop, the club)
+      // set back in the shadow under it
+      const G = S.ground, inA = [a[0] - n[0] * G.recess, a[1] - n[1] * G.recess], inB = [b[0] - n[0] * G.recess, b[1] - n[1] * G.recess];
+      for (const [p, q, t0] of pieces(inA, inB, 3)) {
+        const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
+        B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, floorY + G.ledge, floorY + G.ledge, n, u + t0, floorY);
+      }
+      B.cap('concrete', [a, b, inB, inA], floorY + G.ledge, -1);
+      B.wall('concrete', a[0], a[1], b[0], b[1], floorY + G.ledge, floorY + G.ledge, floorY + G.glass, floorY + G.glass, n, u, floorY, false);
+      B.wall('arenaGlass', a[0], a[1], b[0], b[1], floorY + G.glass, floorY + G.glass, eaves - 0.6, eaves - 0.6, n, u, floorY + G.glass);
+      B.wall('darkwood', a[0] + n[0] * 0.05, a[1] + n[1] * 0.05, b[0] + n[0] * 0.05, b[1] + n[1] * 0.05, eaves - 0.6, eaves - 0.6, parapet, parapet, n, u, floorY, false);
+      // the beams' ends under the ledge, across the recess, one every 1.3 m
+      const ang = -Math.atan2(b[1] - a[1], b[0] - a[0]);
+      for (let t = 0.65; t < L; t += 1.3) {
+        const c = along([a, b], t / L), beam = new THREE.BoxGeometry(0.22, 0.45, G.recess);
+        beam.rotateY(ang);
+        B.add('concrete', beam.translate(c[0] - n[0] * G.recess / 2, floorY + G.ledge - 0.22, c[1] - n[1] * G.recess / 2));
+      }
+      // the lettering over the doors on the ledge
+      if (i === S.glazed[0]) plateAt(B, along([a, b], 0.42), n, 11, floorY + G.ledge + 0.12, floorY + G.glass - 0.12, PARSENN_ATLAS.arena, 0.03);
+    } else {
+      for (const [p, q, t0] of pieces(a, b, 3)) {
+        const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
+        B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, parapet, parapet, n, u + t0, floorY, false);
+      }
     }
     wallCollider(colliders, a, b, floorY - 0.5, parapet, 1.2);
-    u += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    u += L;
+  }
+  // The copper chimneys on the roof, behind the north gable's top towards the apex
+  for (const [t, w] of [[0.42, 1.3], [0.5, 1.1], [0.58, 1.3]]) {
+    const g = S.outline[1].top, x = g[0] + (A.x - g[0]) * t + 3.2, z = g[1] + (A.z - g[1]) * t - 1.0;
+    const y = floorY + stadiumRoofHeight(x, z, S);
+    B.add('copper', new THREE.BoxGeometry(w, 2.6, w).rotateY(0.5).translate(x, y + 0.9, z));
+    B.add('copper', new THREE.BoxGeometry(w + 0.3, 0.2, w + 0.3).rotateY(0.5).translate(x, y + 2.3, z));
   }
   B.cap('roofGravel', outline, eaves, 1, [verge.map((p) => [p.x, p.z])]);
   // The glazed gables: the glass stands a metre inside the roof's edge, from the stands' roof up under the verge (the
@@ -462,7 +732,7 @@ function buildEisstadion(B, colliders) {
       const a = P[j], b = P[j + 1], n = away({ x: a[0], z: a[1] }, { x: b[0], z: b[1] });
       for (const [p, q, t0] of pieces(a, b, 3)) {
         const rp = roofUnder(p[0], p[1]), rq = roofUnder(q[0], q[1]);
-        B.wall('glass', p[0], p[1], q[0], q[1], eaves - 0.3, eaves - 0.3, Math.max(eaves - 0.3, rp), Math.max(eaves - 0.3, rq), n, ug + t0, eaves);
+        B.wall('arenaGlass', p[0], p[1], q[0], q[1], eaves - 0.3, eaves - 0.3, Math.max(eaves - 0.3, rp), Math.max(eaves - 0.3, rq), n, ug + t0, eaves);
       }
       ug += Math.hypot(b[0] - a[0], b[1] - a[1]);
     }
@@ -476,8 +746,8 @@ function buildEisstadion(B, colliders) {
   let ua = 0;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b);
-    B.wall('glass', a[0], a[1], b[0], b[1], eaves - 0.3, eaves - 0.3, top, top, n, ua, eaves);
-    B.wall('larch', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
+    B.wall('arenaGlass', a[0], a[1], b[0], b[1], eaves - 0.3, eaves - 0.3, top, top, n, ua, eaves);
+    B.wall('darkwood', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
     ua += Math.hypot(b[0] - a[0], b[1] - a[1]);
   }
 }
@@ -650,6 +920,326 @@ function buildParsenn(B, colliders) {
   }
 }
 
+// --- Shared pieces of the stations and the Arkadenplatz ------------------------------------------------------------------
+// A sign plate just off a wall: centre c (plan), outward normal n, width w, from y0 to y1 (absolute heights)
+function plateAt(B, c, n, w, y0, y1, rect, off = 0.08) {
+  const r = [n[1], -n[0]], [u0, u1, vb, vt] = atlasUV(rect);
+  const x = c[0] + n[0] * off, z = c[1] + n[1] * off;
+  const L = [x - r[0] * w / 2, z - r[1] * w / 2], R = [x + r[0] * w / 2, z + r[1] * w / 2];
+  B.quad('parsennSigns', [L[0], y0, L[1]], [R[0], y0, R[1]], [R[0], y1, R[1]], [L[0], y1, L[1]], [u0, vb], [u1, vb], [u1, vt], [u0, vt], [n[0], 0, n[1]]);
+}
+const along = ([a, b], t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+// A convex ring pushed out by d (each corner along its bisector)
+function offsetRing(pts, d) {
+  return pts.map((p, i) => {
+    const a = pts[(i + pts.length - 1) % pts.length], b = pts[(i + 1) % pts.length];
+    const n1 = outward(pts, a, p), n2 = outward(pts, p, b), bx = n1[0] + n2[0], bz = n1[1] + n2[1], bl = Math.hypot(bx, bz) || 1;
+    const k = d / Math.max(0.35, (bx / bl) * n1[0] + (bz / bl) * n1[1]);
+    return [p[0] + (bx / bl) * k, p[1] + (bz / bl) * k];
+  });
+}
+// A flat roof's overhang: the roof cap pushed out by `o`, its underside and fascia (`mat`: the wall material, plain)
+function eavesSlab(B, pts, y, o, mat, thick = 0.35) {
+  const out = offsetRing(pts, o);
+  B.cap('roofGravel', out, y + 0.02);
+  B.cap(mat, out, y - thick, -1);
+  for (let i = 0; i < out.length; i++) {
+    const a = out[i], b = out[(i + 1) % out.length];
+    B.wall(mat, a[0], a[1], b[0], b[1], y - thick, y - thick, y + 0.12, y + 0.12, outward(out, a, b), 0, y - 50); // (v ~ 50: plain)
+  }
+}
+const distToSeg = (p, a, b) => {
+  const dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2));
+  return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t);
+};
+// A canopy from the survey's top triangles (flat x, y, z): its top, its underside `thick` lower, a fascia round its
+// free edges; uv along `dir`. Returns the triangles and the free edges
+function canopyFromTris(B, flat, dir, { thick = 0.4, top = 'metal' } = {}) {
+  const T = [];
+  for (let i = 0; i < flat.length; i += 9) T.push([[flat[i], flat[i + 1], flat[i + 2]], [flat[i + 3], flat[i + 4], flat[i + 5]], [flat[i + 6], flat[i + 7], flat[i + 8]]]);
+  const uvOf = (p) => [p[0] * dir[0] + p[2] * dir[1], p[0] * dir[1] - p[2] * dir[0]];
+  const key = (p) => `${p[0].toFixed(1)},${p[2].toFixed(1)}`, edges = new Map();
+  for (const t of T) {
+    B.tri(top, t[0], t[1], t[2], uvOf(t[0]), uvOf(t[1]), uvOf(t[2]), [0, 1, 0]);
+    const d = (p) => [p[0], p[1] - thick, p[2]];
+    B.tri('canopy', d(t[0]), d(t[1]), d(t[2]), uvOf(t[0]), uvOf(t[1]), uvOf(t[2]), [0, -1, 0]);
+    for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3], o = t[(k + 2) % 3], id = [key(a), key(b)].sort().join('|');
+      const e = edges.get(id);
+      if (e) e.n++; else edges.set(id, { a, b, o, n: 1 });
+    }
+  }
+  const free = [];
+  for (const { a, b, o, n } of edges.values()) {
+    if (n !== 1) continue;
+    let nx = b[2] - a[2], nz = a[0] - b[0];
+    const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+    if ((o[0] - a[0]) * nx + (o[2] - a[2]) * nz > 0) { nx = -nx; nz = -nz; }
+    B.wall('canopy', a[0], a[2], b[0], b[2], a[1] - thick, b[1] - thick, a[1] + 0.06, b[1] + 0.06, [nx, nz], uvOf(a)[0], a[1], false);
+    free.push([[a[0], a[2]], [b[0], b[2]]]);
+  }
+  return { T, free };
+}
+// The height of the triangles' surface at (x, z), or null
+function trisHeight(T, x, z) {
+  for (const [a, b, c] of T) {
+    const d = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2]);
+    if (Math.abs(d) < 1e-9) continue;
+    const l1 = ((b[2] - c[2]) * (x - c[0]) + (c[0] - b[0]) * (z - c[2])) / d, l2 = ((c[2] - a[2]) * (x - c[0]) + (a[0] - c[0]) * (z - c[2])) / d, l3 = 1 - l1 - l2;
+    if (l1 >= -1e-6 && l2 >= -1e-6 && l3 >= -1e-6) return l1 * a[1] + l2 * b[1] + l3 * c[1];
+  }
+  return null;
+}
+// Steel posts under a canopy: a row along `dir` every `step` m, each where the canopy is widest across (furthest from
+// its free edges), none inside the buildings (`avoid` rings); a Y of two raking struts on each
+function canopyPosts(B, { T, free }, dir, avoid, { step = 9, thick = 0.4, minEdge = 1.6, colliders } = {}) {
+  const P = T.flat(), us = P.map((p) => p[0] * dir[0] + p[2] * dir[1]), ws = P.map((p) => p[0] * dir[1] - p[2] * dir[0]);
+  const u0 = Math.min(...us), u1 = Math.max(...us), w0 = Math.min(...ws), w1 = Math.max(...ws);
+  const at = (u, w) => [u * dir[0] + w * dir[1], u * dir[1] - w * dir[0]];
+  const across = [dir[1], -dir[0]];
+  for (let u = u0 + step / 2; u < u1; u += step) {
+    let run = null;
+    const flush = () => {
+      if (run && run.d >= minEdge) {
+        const [x, z] = run.p, y = trisHeight(T, x, z) - thick, g = groundHeight(x, z);
+        if (y - g > 2.5) {
+          B.add('metal', new THREE.CylinderGeometry(0.11, 0.14, y - 1.1 - g, 8).translate(x, g + (y - 1.1 - g) / 2, z));
+          for (const s of [1, -1]) {
+            const L = Math.hypot(1.1, 1.6), mid = new THREE.Vector3(x + across[0] * s * 0.8, y - 0.55, z + across[1] * s * 0.8);
+            const strut = new THREE.BoxGeometry(0.12, L, 0.12);
+            strut.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(across[0] * s * 1.6, 1.1, across[1] * s * 1.6).normalize()));
+            B.add('metal', strut.translate(mid.x, mid.y, mid.z));
+          }
+          colliders?.push({ minX: x - 0.2, maxX: x + 0.2, minZ: z - 0.2, maxZ: z + 0.2, baseY: g, minY: g, maxY: y });
+        }
+      }
+      run = null;
+    };
+    for (let w = w0; w <= w1; w += 0.5) {
+      const p = at(u, w);
+      const inside = trisHeight(T, p[0], p[1]) !== null && !avoid.some((r) => pointInRing(r, p[0], p[1]));
+      if (!inside) { flush(); continue; }
+      const d = Math.min(...free.map(([a, b]) => distToSeg(p, a, b)), ...avoid.flatMap((r) => r.map((a, i) => distToSeg(p, a, r[(i + 1) % r.length]))));
+      if (!run || d > run.d) run = { p, d: d };
+    }
+    flush();
+  }
+}
+
+// --- Bahnhof Davos Dorf ----------------------------------------------------------------------------------------------------
+function buildDorf(B, colliders) {
+  const D = DORF;
+  const parts = [['block', D.block], ['station', D.station], ['link', D.link]].map(([kind, p]) => ({ ...p, kind, pts: ringPoints(p.ring) }));
+  const baseY = Math.min(...parts.map((p) => minGround(p.pts)));
+  const facing = (n) => n[0] * D.track[0] + n[1] * D.track[1];
+  const fronts = {};
+  for (const part of parts) {
+    const { pts, kind } = part, top = baseY + part.h, parapet = top + (kind === 'block' ? 0.4 : 0.15);
+    B.cap('roofGravel', pts, top);
+    let u = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const gEdge = Math.min(groundHeight(a[0], a[1]), groundHeight(b[0], b[1]));
+      // (the block: v over the platform; the station and the link: v + 2000)
+      B.wall('dorf', a[0], a[1], b[0], b[1], gEdge - 1, gEdge - 1, parapet, parapet, n, u, kind === 'block' ? baseY : baseY - 2000);
+      if (facing(n) > 0.8 && (!fronts[kind] || L > fronts[kind].L)) fronts[kind] = { a, b, n, L };
+      u += L;
+    }
+  }
+  // The canopy over the house platform, on its posts in front of the walls
+  const dir = [0.549, -0.836];
+  const canopy = canopyFromTris(B, D.canopy, dir, { thick: 0.45 });
+  canopyPosts(B, canopy, dir, parts.map((p) => p.pts), { step: 9.5, thick: 0.45, minEdge: 1.2, colliders });
+  // The blue name plate hanging under the canopy in front of the station building, the clock at the block's corner
+  const st = fronts.station, bl = fronts.block;
+  if (st) {
+    const c = along([st.a, st.b], 0.55), y = trisHeight(canopy.T, c[0] + st.n[0] * 1.6, c[1] + st.n[1] * 1.6) ?? baseY + 6.8;
+    plateAt(B, c, st.n, 2.6, y - 1.45, y - 0.95, PARSENN_ATLAS.dorfName, 1.6);
+    B.add('metal', new THREE.BoxGeometry(0.04, 0.5, 0.04).translate(c[0] + st.n[0] * 1.6, y - 0.7, c[1] + st.n[1] * 1.6));
+  }
+  if (bl) {
+    const c = along([bl.a, bl.b], 0.1), y = baseY + 4.6;
+    for (const s of [1, -1]) {
+      const r = [bl.n[1] * s, -bl.n[0] * s];
+      plateAt(B, [c[0] + bl.n[0] * 1.2, c[1] + bl.n[1] * 1.2], r, 0.75, y - 0.375, y + 0.375, PARSENN_ATLAS.clock, 0.02);
+    }
+  }
+}
+
+// --- Bahnhof Davos Platz ---------------------------------------------------------------------------------------------------
+function buildPlatz(B, colliders) {
+  const P = PLATZ, base = ringPoints(P.base.ring), blocks = P.blocks.map((b) => ({ ...b, pts: ringPoints(b.ring) }));
+  const baseY = minGround(base), roofY = baseY + P.base.h;
+  const street = (n) => n[0] * P.street[0] + n[1] * P.street[1];
+  const onBlock = (p, q) => blocks.some((b) => b.pts.some((a, i) => { const c = b.pts[(i + 1) % b.pts.length]; return distToSeg(p, a, c) < 0.3 && distToSeg(q, a, c) < 0.3; }));
+  // The base storey: its walls (v + 2000 over the ground) up under the roof slab, where no block stands on the line
+  let u = 0, front = null;
+  for (let i = 0; i < base.length; i++) {
+    const a = base[i], b = base[(i + 1) % base.length], n = outward(base, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!onBlock(a, b)) {
+      const gEdge = Math.min(groundHeight(a[0], a[1]), groundHeight(b[0], b[1]));
+      B.wall('platz', a[0], a[1], b[0], b[1], gEdge - 1, gEdge - 1, roofY - 0.5, roofY - 0.5, n, u, baseY - 2000);
+      wallCollider(colliders, a, b, gEdge - 1, roofY);
+    }
+    if (street(n) > 0.9 && (!front || L > front.L)) front = { a, b, n, L };
+    u += L;
+  }
+  // its flat roof, overhanging the street by a metre, a cream fascia
+  B.cap('roofGravel', base, roofY);
+  if (front) {
+    const { a, b, n } = front, o = 1.1, A2 = [a[0] + n[0] * o, a[1] + n[1] * o], B2 = [b[0] + n[0] * o, b[1] + n[1] * o];
+    const slab = [a, b, B2, A2];
+    B.cap('roofGravel', slab, roofY + 0.01);
+    B.cap('platz', slab, roofY - 0.5, -1);
+    B.wall('platz', A2[0], A2[1], B2[0], B2[1], roofY - 0.5, roofY - 0.5, roofY + 0.15, roofY + 0.15, n, 0, roofY - 50);
+    for (const [p, q] of [[a, A2], [B2, b]]) B.wall('platz', p[0], p[1], q[0], q[1], roofY - 0.5, roofY - 0.5, roofY + 0.15, roofY + 0.15, outward(slab, p, q), 0, roofY - 50);
+  }
+  // The blocks and the hall on it: the hall's street front its window grid (v + 4000 over the base's roof), the walls on
+  // the track side down to the ground (the base storey's skin below its roof), the others from the base's roof
+  for (const blk of blocks) {
+    const { pts } = blk, top = baseY + blk.h;
+    let ub = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const gEdge = Math.min(groundHeight(a[0], a[1]), groundHeight(b[0], b[1]));
+      const toTrack = street(n) < -0.8;
+      if (toTrack) {
+        B.wall('platz', a[0], a[1], b[0], b[1], gEdge - 1, gEdge - 1, roofY, roofY, n, ub, baseY - 2000);
+        wallCollider(colliders, a, b, gEdge - 1, top);
+      }
+      const grid = blk.kind === 'hall' && street(n) > 0.8;
+      B.wall('platz', a[0], a[1], b[0], b[1], roofY - 0.1, roofY - 0.1, top - 0.2, top - 0.2, n, ub, grid ? roofY - 4000 : roofY);
+      ub += L;
+    }
+    B.cap('roofGravel', pts, top - 0.2);
+    eavesSlab(B, pts, top, blk.kind === 'hall' ? 0.45 : 0.8, 'platz');
+  }
+  // The signs: the name plate on the north-east block under its eaves, "Rhätische Bahn" on the base's roof edge in front
+  // of the hall, the kiosk's over the north-east end
+  const ne = blocks[0], hall = blocks[1];
+  const edgeTo = (blk, want) => { const p = blk.pts; let best = null; p.forEach((a, i) => { const b = p[(i + 1) % p.length], n = outward(p, a, b); if (street(n) > want && (!best || Math.hypot(b[0] - a[0], b[1] - a[1]) > best.L)) best = { a, b, n, L: Math.hypot(b[0] - a[0], b[1] - a[1]) }; }); return best; };
+  const neFront = edgeTo(ne, 0.8);
+  if (neFront) plateAt(B, along([neFront.a, neFront.b], 0.62), neFront.n, 3.6, baseY + ne.h - 1.75, baseY + ne.h - 1.08, PARSENN_ATLAS.platzName, 0.1);
+  if (front) {
+    const hc = hall.pts.reduce((s, p) => [s[0] + p[0] / 4, s[1] + p[1] / 4], [0, 0]);
+    const { a, b, n } = front, d = [b[0] - a[0], b[1] - a[1]], L2 = d[0] * d[0] + d[1] * d[1];
+    const t = ((hc[0] - a[0]) * d[0] + (hc[1] - a[1]) * d[1]) / L2, c = along([a, b], t);
+    plateAt(B, [c[0] + n[0] * 1.1, c[1] + n[1] * 1.1], n, 4.6, roofY + 0.15, roofY + 0.95, PARSENN_ATLAS.rhb, 0.02);
+    const tk = a[0] + a[1] > b[0] + b[1] ? 0.9 : 0.1; // (the north-east end of the front)
+    const k = along([a, b], tk);
+    plateAt(B, [k[0] + n[0] * 1.1, k[1] + n[1] * 1.1], n, 3.0, roofY - 0.45, roofY - 0.06, PARSENN_ATLAS.kiosk, 0.03);
+  }
+  // The platform canopies the survey draws with the station, on their posts
+  const dir = [-0.55, 0.835];
+  const canopy = canopyFromTris(B, P.canopy, dir, { thick: 0.35, top: 'roofGravel' });
+  canopyPosts(B, canopy, dir, [base, ...blocks.map((b) => b.pts)], { step: 10, thick: 0.35, minEdge: 1.5, colliders });
+}
+
+// --- Arkadenplatz, Kulturplatz Davos ---------------------------------------------------------------------------------------
+function buildArkaden(B, colliders) {
+  const A = ARKADEN, sq = ringPoints(A.square);
+  // The square's level: the survey's, or just over the terrain's highest point under it (the terrain model's 8 m grid
+  // smooths the car park's edge: here and there it rises through the paving)
+  let Y = A.level;
+  const xs = sq.map((p) => p[0]), zs = sq.map((p) => p[1]);
+  for (let x = Math.min(...xs); x <= Math.max(...xs); x += 1.5) for (let z = Math.min(...zs); z <= Math.max(...zs); z += 1.5) {
+    if (pointInRing(sq, x, z)) Y = Math.max(Y, groundHeight(x, z) + 0.04);
+  }
+  // The red square, its edge closed down to the ground where the car park's roof stands over the terrain
+  B.cap('redSquare', sq, Y + 0.04);
+  for (let i = 0; i < sq.length; i++) {
+    const a = sq[i], b = sq[(i + 1) % sq.length], n = outward(sq, a, b);
+    for (const [p, q, t0] of pieces(a, b, 4)) {
+      const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
+      if (Math.min(gp, gq) < Y - 0.05) B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, Y) - 0.5, Math.min(gq, Y) - 0.5, Y + 0.04, Y + 0.04, n, t0, Y, false);
+    }
+  }
+  const D = A.arcadeDepth, H = Y + A.arcadeHigh;
+  for (const wing of A.wings) {
+    const pts = ringPoints(wing.ring), top = Y + wing.h, parapet = top + 0.4;
+    B.cap('roofGravel', pts, top);
+    const inArcade = (i) => wing.arcade && i >= wing.arcade[0] && i < wing.arcade[1];
+    let u = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const gEdge = Math.min(groundHeight(a[0], a[1]), groundHeight(b[0], b[1]), Y), bot = gEdge - 1;
+      if (wing.kind === 'brick') {
+        if (i === wing.front) {
+          // the Kulturplatz's front: brick between the pilasters, its four middle bays glazed up to 6.4 m
+          const bays = [];
+          for (let k = 2; k <= 5; k++) bays.push([(k * 5.8 + 0.75) / L, ((k + 1) * 5.8) / L]);
+          let t = 0;
+          for (const [s0, s1] of bays) {
+            const P0 = along([a, b], t), P1 = along([a, b], s0), Q = along([a, b], s1);
+            B.wall('brick', P0[0], P0[1], P1[0], P1[1], bot, bot, parapet, parapet, n, u + t * L, Y);
+            B.wall('glass', P1[0] - n[0] * 0.25, P1[1] - n[1] * 0.25, Q[0] - n[0] * 0.25, Q[1] - n[1] * 0.25, bot, bot, Y + 6.4, Y + 6.4, n, u + s0 * L, Y);
+            B.wall('brick', P1[0], P1[1], Q[0], Q[1], Y + 6.4, Y + 6.4, parapet, parapet, n, u + s0 * L, Y);
+            B.cap('brick', [P1, Q, [Q[0] - n[0] * 0.25, Q[1] - n[1] * 0.25], [P1[0] - n[0] * 0.25, P1[1] - n[1] * 0.25]], Y + 6.4, -1);
+            t = s1;
+          }
+          const P0 = along([a, b], t);
+          B.wall('brick', P0[0], P0[1], b[0], b[1], bot, bot, parapet, parapet, n, u + t * L, Y);
+        } else B.wall('brick', a[0], a[1], b[0], b[1], bot, bot, parapet, parapet, n, u, Y);
+      } else if (inArcade(i)) {
+        // the arcade: the frieze over it on the outline, its ceiling, the shop fronts at the back (v + 2000)
+        const ia = [a[0] - n[0] * D, a[1] - n[1] * D], ib = [b[0] - n[0] * D, b[1] - n[1] * D];
+        B.wall('arcade', a[0], a[1], b[0], b[1], H, H, parapet, parapet, n, u, Y);
+        B.wall('arcade', ia[0], ia[1], ib[0], ib[1], bot, bot, H + 0.05, H + 0.05, n, u, Y - 2000);
+        B.cap('arcade', [a, b, ib, ia], H, -1);
+        B.cap('redSquare', [a, b, ib, ia], Y + 0.03);
+      } else if (wing.street && i === wing.street[0]) {
+        B.wall('arcade', a[0], a[1], b[0], b[1], bot, bot, H, H, n, u, Y - 2000);
+        B.wall('arcade', a[0], a[1], b[0], b[1], H, H, parapet, parapet, n, u, Y);
+      } else B.wall('arcade', a[0], a[1], b[0], b[1], bot, bot, parapet, parapet, n, u, Y - 2000);
+      u += L;
+    }
+    // the arcade's piers along the outline, one every pierStep and one at either end
+    if (wing.arcade) {
+      const seg = [];
+      for (let i = wing.arcade[0]; i < wing.arcade[1]; i++) seg.push([pts[i], pts[(i + 1) % pts.length]]);
+      const total = seg.reduce((s, [a, b]) => s + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
+      const count = Math.max(1, Math.round(total / A.pierStep));
+      for (let k = 0; k <= count; k++) {
+        let s = Math.min(total - 0.01, Math.max(0.01, (k / count) * total)), j = 0;
+        while (j < seg.length - 1 && s > Math.hypot(seg[j][1][0] - seg[j][0][0], seg[j][1][1] - seg[j][0][1])) { s -= Math.hypot(seg[j][1][0] - seg[j][0][0], seg[j][1][1] - seg[j][0][1]); j++; }
+        const [a, b] = seg[j], L = Math.hypot(b[0] - a[0], b[1] - a[1]), t = Math.min(1, s / L), p = along([a, b], t), n = outward(pts, a, b);
+        const w = A.pier, c = [p[0] - n[0] * w / 2, p[1] - n[1] * w / 2];
+        const pier = new THREE.BoxGeometry(w, A.arcadeHigh + 0.6, w);
+        pier.rotateY(-Math.atan2(b[1] - a[1], b[0] - a[0]));
+        B.add('arcade', pier.translate(c[0], Y + (A.arcadeHigh + 0.6) / 2 - 0.55, c[1]));
+        colliders.push({ minX: c[0] - w * 0.7, maxX: c[0] + w * 0.7, minZ: c[1] - w * 0.7, maxZ: c[1] + w * 0.7, baseY: Y - 0.6, minY: Y - 0.6, maxY: H });
+      }
+    }
+  }
+  // The bollards along the Promenade, chains sagging between them
+  const [b0, b1] = A.bollards, L = Math.hypot(b1[0] - b0[0], b1[1] - b0[1]), nB = Math.round(L / 4.4);
+  const tops = [];
+  for (let k = 0; k <= nB; k++) {
+    const p = along([b0, b1], k / nB), y = Y + 0.04;
+    const geo = new THREE.CylinderGeometry(0.07, 0.3, 0.95, 4, 1);
+    geo.rotateY(Math.PI / 4 - Math.atan2(b1[1] - b0[1], b1[0] - b0[0]));
+    B.add('concrete', geo.translate(p[0], y + 0.475, p[1]));
+    tops.push(new THREE.Vector3(p[0], y + 0.78, p[1]));
+  }
+  for (let k = 0; k + 1 < tops.length; k++) {
+    const a = tops[k], b = tops[k + 1], mid = a.clone().lerp(b, 0.5); mid.y -= 0.32;
+    B.add('metal', new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 8, 0.022, 4, false));
+  }
+  // The parasols over the café tables
+  for (const [x, z] of A.parasols) {
+    const y = Y + 0.04;
+    B.add('metal', new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6).translate(x, y + 1.3, z));
+    const roof = new THREE.ConeGeometry(3.3, 0.8, 4, 1, true);
+    roof.rotateY(Math.PI / 4 + 0.278);
+    B.add('arcade', roof.translate(x, y + 2.75, z));
+    // (its underside: the same cone wound the other way, seen from below)
+    const under = roof.clone(), ix = under.index.array;
+    for (let i = 0; i < ix.length; i += 3) [ix[i + 1], ix[i + 2]] = [ix[i + 2], ix[i + 1]];
+    B.add('arcade', under);
+  }
+}
+
 // --- Natureisbahn ------------------------------------------------------------------------------------------------------------
 function buildEisbahn(B) {
   // The track and the pitch inside it lie flat: one sheet just over the highest ground under it
@@ -680,6 +1270,9 @@ export function buildLandmarkBuildings(scene) {
   buildKongress(B, colliders);
   buildEisbahn(B);
   buildParsenn(B, colliders);
+  buildDorf(B, colliders);
+  buildPlatz(B, colliders);
+  buildArkaden(B, colliders);
   for (const mesh of B.meshes(M)) {
     if (mesh.name === 'landmark parsennSigns') mesh.castShadow = false; // (thin plates and flags: no shadow pass)
     root.add(mesh);

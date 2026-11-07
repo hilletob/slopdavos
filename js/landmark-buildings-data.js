@@ -62,6 +62,11 @@ export const EISSTADION = {
     [10, 11, 9], [12, 13, 11]
   ],
   thickness: 1.2,
+  // The north stand's glazed front (the outline's edges either side of the NNE gable; Wikimedia Commons, Vaillant Arena
+  // Davos 2022-09-25 02): the ground floor set back under a ledge of concrete beams, the glass band from the ledge to
+  // the eaves (heights over the foot)
+  glazed: [0, 1],
+  ground: { recess: 1.6, ledge: 3.0, glass: 3.7 },
   // the glazed gables stand this far inside the roof's edge (the overhang)
   glassInset: 1.0,
   // The north stand's glazed annex (2005, the "Nordside" restaurant and the boxes) in front of the NNE gable: the OSM
@@ -244,5 +249,80 @@ export const PARSENN = {
   exclude: [{ x: 647.1, z: -1444.9, r: 2 }]
 };
 
+// The platform canopies of the stations (swissBUILDINGS3D top triangles: x, y, z per corner, y the engine height)
+const CANOPY_DORF = [909.9, 8.53, -1583.5, 909.5, 8.56, -1583.7, 901.8, 8.6, -1573.3, 901.8, 8.6, -1573.3, 909.5, 8.56, -1583.7, 898.7, 8.84, -1575.3, 898.7, 8.84, -1575.3, 909.5, 8.56, -1583.7, 909.9, 8.84, -1592.3, 909.9, 8.84, -1592.3, 909.5, 8.56, -1583.7, 913.4, 8.57, -1590, 909.5, 8.56, -1583.7, 914.6, 8.56, -1591.4, 913.4, 8.57, -1590, 913.4, 8.57, -1590, 914.6, 8.56, -1591.4, 926.6, 8.58, -1610.3, 923.2, 8.84, -1612.5, 926.6, 8.58, -1610.3, 929.8, 8.84, -1622.3, 930.1, 8.84, -1622.8, 929.8, 8.84, -1622.3, 937.5, 8.26, -1618, 929.8, 8.84, -1622.3, 926.6, 8.58, -1610.3, 937.5, 8.26, -1618, 937.5, 8.26, -1618, 926.6, 8.58, -1610.3, 922.6, 8.26, -1595.3, 926.6, 8.58, -1610.3, 914.6, 8.56, -1591.4, 922.6, 8.26, -1595.3, 914.6, 8.56, -1591.4, 914.9, 8.54, -1591.2, 922.6, 8.26, -1595.3, 914.9, 8.54, -1591.2, 909.9, 8.53, -1583.5, 922.6, 8.26, -1595.3, 909.9, 8.53, -1583.5, 901.8, 8.6, -1573.3, 922.6, 8.26, -1595.3, 922.6, 8.26, -1595.3, 901.8, 8.6, -1573.3, 887.1, 8.26, -1541.3, 889.8, 8.84, -1561.9, 879.5, 8.84, -1546.2, 892.7, 8.62, -1560, 879.5, 8.84, -1546.2, 887.1, 8.26, -1541.3, 892.7, 8.62, -1560, 887.1, 8.26, -1541.3, 901.8, 8.6, -1573.3, 892.7, 8.62, -1560];
+const CANOPY_PLATZ = [-581.9, -11.43, 385.4, -590.1, -10.85, 398.9, -579.6, -10.79, 386.9, -579.6, -10.79, 386.9, -590.1, -10.85, 398.9, -577.6, -11.43, 388.3, -590.1, -10.85, 398.9, -598.4, -10.84, 411.3, -577.6, -11.43, 388.3, -598.4, -10.84, 411.3, -603.6, -10.84, 419.2, -577.6, -11.43, 388.3, -624.6, -11.02, 453.4, -577.6, -11.43, 388.3, -620.9, -11.01, 447.6, -621.6, -10.9, 447.1, -620.9, -11.01, 447.6, -613.3, -10.91, 434.8, -620.9, -11.01, 447.6, -577.6, -11.43, 388.3, -613.3, -10.91, 434.8, -577.6, -11.43, 388.3, -603.6, -10.84, 419.2, -613.3, -10.91, 434.8, -603.6, -10.84, 419.2, -613.5, -10.83, 434.1, -613.3, -10.91, 434.8, -613.3, -10.91, 434.8, -613.5, -10.83, 434.1, -613.8, -10.83, 434.5, -633.7, -11.44, 439.4, -625.3, -11.44, 426.8, -636, -11.44, 437.9, -640.5, -11.44, 451, -643.3, -11.44, 449.2, -654, -11.44, 471.2, -647, -11.35, 475.9, -648.4, -10.82, 486.4, -643.1, -10.82, 478.5, -643.1, -10.82, 478.5, -648.4, -10.82, 486.4, -642.9, -10.85, 478.6, -642.9, -10.85, 478.6, -648.4, -10.82, 486.4, -642.8, -10.86, 478.7, -642.8, -10.86, 478.7, -648.4, -10.82, 486.4, -642.8, -10.86, 478.7, -629.1, -10.89, 458.3, -642.5, -10.87, 478.2, -628.4, -10.99, 458.8, -628.4, -10.99, 458.8, -642.5, -10.87, 478.2, -628.1, -11.01, 458.9, -642.5, -10.87, 478.2, -642.8, -10.86, 478.7, -628.1, -11.01, 458.9, -624.6, -11.02, 453.4, -628.1, -11.01, 458.9, -577.6, -11.43, 388.3, -577.6, -11.43, 388.3, -628.1, -11.01, 458.9, -688.7, -10.87, 558.3, -628.1, -11.01, 458.9, -642.8, -10.86, 478.7, -688.7, -10.87, 558.3, -642.8, -10.86, 478.7, -648.4, -10.82, 486.4, -688.7, -10.87, 558.3, -688.7, -10.87, 558.3, -648.4, -10.82, 486.4, -693.9, -10.79, 554.8, -693.9, -10.79, 554.8, -648.4, -10.82, 486.4, -696.8, -11.44, 552.8, -696.8, -11.44, 552.8, -648.4, -10.82, 486.4, -652.8, -11.44, 483.2, -648.4, -10.82, 486.4, -647, -11.35, 475.9, -652.8, -11.44, 483.2, -647, -11.35, 475.9, -647.5, -11.42, 475.6, -652.8, -11.44, 483.2, -647.5, -11.42, 475.6, -647.7, -11.44, 475.4, -652.8, -11.44, 483.2, -647.7, -11.44, 475.4, -654, -11.44, 471.2, -652.8, -11.44, 483.2, -652.8, -11.44, 483.2, -654, -11.44, 471.2, -661.6, -11.44, 477, -654, -11.44, 471.2, -643.3, -11.44, 449.2, -661.6, -11.44, 477, -661.6, -11.44, 477, -643.3, -11.44, 449.2, -628.1, -11.44, 424.9, -643.3, -11.44, 449.2, -636, -11.44, 437.9, -628.1, -11.44, 424.9, -636, -11.44, 437.9, -625.3, -11.44, 426.8, -628.1, -11.44, 424.9, -628.1, -11.44, 424.9, -625.3, -11.44, 426.8, -618.4, -11.44, 431, -625.3, -11.44, 426.8, -618.5, -11.44, 431.3, -618.4, -11.44, 431, -618.5, -11.44, 431.3, -613.8, -10.84, 434.4, -618.4, -11.44, 431, -613.8, -10.84, 434.4, -613.5, -10.83, 434.1, -618.4, -11.44, 431, -618.4, -11.44, 431, -613.5, -10.83, 434.1, -608.4, -11.43, 416, -613.5, -10.83, 434.1, -603.6, -10.84, 419.2, -608.4, -11.43, 416, -608.7, -11.43, 405, -613.4, -11.43, 412.7, -606.6, -11.43, 406.3, -613.4, -11.43, 412.7, -608.4, -11.43, 416, -606.6, -11.43, 406.3, -606.6, -11.43, 406.3, -608.4, -11.43, 416, -603.1, -11.43, 408.4, -608.4, -11.43, 416, -603.6, -10.84, 419.2, -603.1, -11.43, 408.4, -603.6, -10.84, 419.2, -598.4, -10.84, 411.3, -603.1, -11.43, 408.4, -603.1, -11.43, 408.4, -598.4, -10.84, 411.3, -596, -11.43, 397.4, -598.4, -10.84, 411.3, -590.1, -10.85, 398.9, -596, -11.43, 397.4, -590.1, -10.85, 398.9, -581.9, -11.43, 385.4, -596, -11.43, 397.4];
+
+// --- Bahnhof Davos Dorf ----------------------------------------------------------------------------------------------------
+// The RhB station (Bahnhofstrasse 8 / 8b, OSM w111016579, w758933266): the swissBUILDINGS3D buildings of tiles
+// 11/1754/1023 and 1024 (2014 survey; heights over the platform, the lowest ground under the block): the four-storey
+// block over the station's ground floor (flat roof 15.4 m), the long low station building to its south-west (7.4 m,
+// its roof running on into the platform canopy), the link between them (7.2 m) and the canopy over the house platform
+// (the survey's "Flugdach": 7.4 m at the wall, 6.9 m at the platform edge; its top triangles as they come, world
+// x, y, z with y the engine height). The look from the RhB's photograph of the platform: the block clad in fine white
+// tiles, its windows in red-brown frames, some behind red-brown roller shutters, a stack of glazed loggias with
+// red-brown parapets on the track side; the station building rendered white over a grey plinth, its windows and doors
+// under the steel canopy with its raking brackets, the blue name plate and the clock.
+export const DORF = {
+  block: { h: 15.4, ring: [903.4, -1596.5, 913.4, -1590.0, 926.6, -1610.3, 916.5, -1616.9, 911.8, -1609.7, 910.6, -1610.4, 908.5, -1607.2, 909.8, -1606.3] },
+  station: { h: 7.4, ring: [892.5, -1558.7, 909.6, -1584.8, 899.0, -1591.8, 881.9, -1565.7] },
+  link: { h: 7.2, ring: [903.7, -1596.4, 912.3, -1590.7, 908.2, -1584.6, 899.6, -1590.1] },
+  // the track side (the outward normal of the platform fronts)
+  track: [0.84, 0.55],
+  canopy: CANOPY_DORF,
+  exclude: [{ x: 895.8, z: -1575.3, r: 1.5 }, { x: 908.5, z: -1582.1, r: 1.5 }, { x: 907.3, z: -1590.0, r: 1.5 }, { x: 915.0, z: -1603.5, r: 1.5 }]
+};
+
+// --- Bahnhof Davos Platz ---------------------------------------------------------------------------------------------------
+// Rudolf Gaberel's station of 1947–49 (Talstrasse 4, OSM w712452961; listed, category B). swissBUILDINGS3D has it only as
+// an open building (tile 11/1744/1005 batch 0, "Flugdach": its roofs, nothing under them), the platform canopies with
+// it; the heights over the station square (the lowest ground under the footprint): the one-storey base along the whole
+// street front, its flat roof 6.45 m, the two-storey north-east block and the south-west wing standing on it (10.7 m),
+// the tall hall between them (14.2 m) all but flush with the street. The look from the photograph on Wikimedia Commons
+// (Davos_Platz_Bahnhof_1K4A3198): cream-yellow render, white pilasters and window frames, a copper-brown band where the
+// upper walls meet the base's roof, the hall's street front one great grid of windows over a ribbed plinth, the name
+// plate on the north-east block, "Rhätische Bahn" over the hall's doors and the kiosk at the north-east end.
+export const PLATZ = {
+  base: { h: 6.45, ring: [-628.1, 424.9, -613.3, 434.8, -621.6, 447.1, -620.9, 447.6, -628.1, 458.9, -629.1, 458.3, -642.9, 478.6, -647.0, 475.9, -652.8, 483.2, -661.6, 477.0] },
+  blocks: [
+    { kind: 'block', h: 10.7, ring: [-613.3, 434.8, -621.6, 447.1, -633.7, 439.4, -625.3, 426.8] },
+    { kind: 'hall', h: 14.2, ring: [-636.0, 437.9, -620.9, 447.6, -628.1, 458.9, -643.3, 449.2] },
+    { kind: 'block', h: 10.7, ring: [-654.0, 471.2, -642.9, 478.6, -629.1, 458.3, -640.5, 451.0] }
+  ],
+  // the street front (outward normal)
+  street: [-0.841, -0.541],
+  // the platform canopies the survey draws with it (top triangles, world x, y, z; y the engine height)
+  canopy: CANOPY_PLATZ,
+  exclude: [{ x: -637.1, z: 471.9, r: 1.5 }]
+};
+
+// --- Arkadenplatz, Kulturplatz Davos ---------------------------------------------------------------------------------------
+// The square on the Promenade (OSM w110590701, "Roter Arkadenplatz", over the underground car park) with the arcaded
+// wings on its north (Promenade 58) and south sides and the Kulturplatz (Promenade 58C) closing it to the east. The
+// wings' roofs from swissBUILDINGS3D (tile 11/1745/1010, batches 13 and 3; heights over the square's level), the look
+// from the Kulturplatz's visualisation (kulturplatz-davos.ch): white rendered wings on tall square piers, a frieze with
+// painted panels over the arcades, red shop fronts behind them; the Kulturplatz a long brick hall between concrete
+// pilasters, glazed in its middle bays, under a light frieze; the square paved red, closed to the street by concrete
+// bollards and chains, parasols over the café tables.
+export const ARKADEN = {
+  // the square (its paving) and the level of the square over the engine's zero
+  square: [-572.9, -112.2, -541.3, -103.2, -539.2, -101.8, -538.5, -100.4, -538.2, -98.6, -538.1, -96.9, -549.9, -55.5, -551.3, -54.5, -553.3, -54.4, -556.5, -54.9, -586.7, -63.3],
+  level: -1.6,
+  wings: [
+    // the north wing (Promenade 58): its arcade along the square from the Promenade round the curved corner
+    { kind: 'arcade', h: 9.9, ring: [-573.5, -113.0, -539.9, -103.3, -538.6, -102.2, -537.5, -100.4, -537.0, -98.5, -522.4, -94.2, -519.5, -104.0, -525.7, -114.7, -569.4, -127.4], arcade: [0, 4], street: [8, 0] },
+    // the south wing, along the square to the Kulturplatz
+    { kind: 'arcade', h: 9.65, ring: [-587.1, -62.5, -581.9, -48.8, -556.9, -41.5, -553.9, -38.4, -550.6, -36.8, -537.1, -43.4, -549.7, -54.8, -550.9, -53.7, -552.9, -53.1, -554.9, -53.2], arcade: [6, 10] },
+    { kind: 'arcade', h: 9.4, ring: [-582.4, -47.4, -581.9, -48.8, -587.1, -62.5, -590.8, -49.8] },
+    // the Kulturplatz: its front the edge towards the square (from the south wing to the north wing)
+    { kind: 'brick', h: 9.4, ring: [-549.7, -54.8, -536.7, -99.5, -536.4, -98.8, -522.7, -94.8, -521.4, -99.3, -520.9, -99.2, -537.1, -43.4], front: 0 }
+  ],
+  arcadeDepth: 3.4, arcadeHigh: 7.2, pier: 0.9, pierStep: 3.4,
+  // the bollards along the Promenade (from the north wing to the south wing) and the parasols (SWISSIMAGE)
+  bollards: [[-572.9, -112.2], [-586.7, -63.3]],
+  parasols: [[-571.2, -93.4], [-574.8, -79.0], [-553.8, -80.8], [-561.4, -74.8]],
+  exclude: [{ x: -546.6, z: -110.8, r: 1.5 }, { x: -555.7, z: -67.8, r: 1.5 }]
+};
+
 // Every swissBUILDINGS3D building the landmarks replace (js/swissbuildings3d.js excludeBuildings)
-export const LANDMARK_EXCLUSIONS = [...EISSTADION.exclude, ...KONGRESS.exclude, ...PARSENN.exclude];
+export const LANDMARK_EXCLUSIONS = [...EISSTADION.exclude, ...KONGRESS.exclude, ...PARSENN.exclude, ...DORF.exclude, ...PLATZ.exclude, ...ARKADEN.exclude];
