@@ -43,6 +43,8 @@ function keyboardHarness(nyc = {}) {
       './actor-models.js': {},
       './pedestrians.js': {},
       './vehicle-lights.js': {},
+      './quality.js': { QUALITY: { clusteredLighting: true } },
+      './ground-beams.js': {},
       './vw-t3.js': {},
       './landmarks.js': {},
       './snowcat.js': snowcat

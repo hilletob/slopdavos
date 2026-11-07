@@ -21,6 +21,8 @@ import {
 } from './actor-models.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
+import { QUALITY } from './quality.js';
+import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { bryantParkLawn } from './landmarks.js';
 import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } from './snowcat.js';
@@ -456,6 +458,9 @@ class ThirdPersonControllerManager {
     this.buildingInteriors = []; // the buildings' floor plans (setBuildingInteriors)
     this._interiorCells = null; // built on first use, see insideBuilding()
     this.highBeam = false; // L: high beam / searchlight of the driven vehicle
+    // (the mobile profile's stand-in for the vehicles' beams, js/ground-beams.js: in the scene from the start, so that the
+    // loading screen compiles its one pipeline)
+    if (!QUALITY.clusteredLighting) scene.add(groundBeamsMesh());
     this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'cargobike' | 'helicopter' | 'snowcat' | 'rhb'
     this.railway = null; // js/rhb.js, for the rhb mode (setRailway)
     this.rhbPassenger = null; // the train the player rides in as a passenger (the rhb mode without the controls, js/gta.js)
@@ -2454,6 +2459,7 @@ class ThirdPersonControllerManager {
       const bike = this.entities[mode];
       if (bike.headLight) bike.headLight.intensity = this.activeMode === mode ? 115 * beamScale : 0;
     }
+    if (!QUALITY.clusteredLighting) this.updateGroundBeam(beamScale);
 
     this.poseCharacters(dt);
   }
@@ -2526,6 +2532,62 @@ class ThirdPersonControllerManager {
         spot.intensity = 0;
       }
     }
+  }
+
+  // Without real lights (the mobile profile, js/quality.js clusteredLighting: false: no spot light reaches any shader)
+  // the driven vehicle's beam is a pool of light laid onto the ground ahead (js/ground-beams.js), faded in with the same
+  // `beamScale` and switched to full beam with `this.highBeam`; redraped only when something changed
+  updateGroundBeam(beamScale) {
+    if (!this._beamFrame) {
+      if (!groundBeamsMesh().parent) this.scene.add(groundBeamsMesh());
+      this._beamKey = [NaN, NaN, NaN, NaN, NaN, NaN, NaN];
+      this._beamPlace = (lat, d, out) => {
+        const f = this._beamFrame, x = f.x + f.fx * (f.z0 + d) + f.fz * lat, z = f.z + f.fz * (f.z0 + d) - f.fx * lat;
+        out[0] = x; out[2] = z;
+        out[1] = (f.air ? this.slopeHeight(x, z, f.y) : this.getGroundHeight(x, z, 'car', f.y)) + 0.1;
+      };
+      this._beamFrame = { x: 0, y: 0, z: 0, fx: 0, fz: 1, z0: 0, air: false };
+    }
+    const mode = this.activeMode, e = this.entities[mode], high = !!this.highBeam;
+    const fade = Math.min(1, beamScale);
+    let beam = null, z0 = 0;
+    if (e && beamScale > 0.01) {
+      if (mode === 'car') {
+        const spec = e.lightSpec || T3, lampX = spec.headlight[0];
+        z0 = spec.zFront;
+        beam = high
+          ? { lampX, s0: 0.45, spread: 0.12, d0: 0.4, hot: 20, reach: 68, strength: 0.42 * fade }
+          : { lampX, s0: 0.35, spread: 0.1, d0: 0.4, hot: 10, reach: 30, strength: 0.3 * fade };
+      } else if (mode === 'cyclist' || mode === 'cargobike') {
+        z0 = mode === 'cargobike' ? 1.4 : 0.7;
+        beam = { lampX: 0, s0: 0.3, spread: 0.12, d0: 0.2, hot: 6, reach: 20, strength: 0.3 * fade };
+      } else if (mode === 'snowcat') {
+        z0 = SNOWCAT_MODEL.head[2];
+        beam = high
+          ? { lampX: 0.8, s0: 1.0, spread: 0.24, d0: 0.4, hot: 16, reach: 62, strength: 0.6 * fade }
+          : { lampX: 0.8, s0: 1.0, spread: 0.3, d0: 0.4, hot: 8, reach: 36, strength: 0.48 * fade };
+      } else if (mode === 'helicopter') {
+        // the landing light's spot on the ground ahead and below; the searchlight narrower and brighter
+        const L = HELI_LANDING_LIGHT, p = e.position;
+        const agl = Math.max(0, p.y - surfaceHeight(p.x, p.z)), slant = Math.max(L.minRange, agl / Math.sin(L.down));
+        const range = high ? L.highDistance : L.distance, r = slant * Math.tan(high ? L.highAngle : L.angle);
+        const h = agl / Math.tan(L.down), far = 1 - THREE.MathUtils.smoothstep(slant, range * 0.5, range);
+        if (far > 0.01) {
+          z0 = 0;
+          beam = { lampX: 0, s0: r * 0.75, spread: 0, d0: Math.max(0, h - 1.7 * r), rise: Math.max(0, h - 1.7 * r), hot: h, reach: h + 1.7 * r, strength: (high ? 0.4 : 0.28) * fade * far };
+        }
+      }
+    }
+    if (!beam) { setPlayerBeam(null); return; }
+    const f = this._beamFrame, k = this._beamKey, p = e.position;
+    const moved = Math.abs(k[0] - p.x) > 0.3 || Math.abs(k[1] - p.z) > 0.3 || Math.abs(k[2] - e.heading) > 0.004
+      || Math.abs(k[3] - beam.strength) > 0.01 || k[4] !== (high ? 1 : 0) || k[5] !== z0 || k[6] !== beam.lampX + beam.reach;
+    if (moved) {
+      k[0] = p.x; k[1] = p.z; k[2] = e.heading; k[3] = beam.strength; k[4] = high ? 1 : 0; k[5] = z0; k[6] = beam.lampX + beam.reach;
+      f.x = p.x; f.y = mode === 'helicopter' ? surfaceHeight(p.x, p.z) : p.y; f.z = p.z;
+      f.fx = Math.sin(e.heading); f.fz = Math.cos(e.heading); f.z0 = z0; f.air = mode === 'helicopter';
+    }
+    setPlayerBeam(beam, this._beamPlace, moved);
   }
 
   updatePerson(dt) {

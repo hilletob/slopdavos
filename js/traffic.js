@@ -6,6 +6,7 @@ import { createObstacleGrid } from './obstacle-grid.js';
 import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
+import { addTrafficBeam, beginTrafficBeams, endTrafficBeams } from './ground-beams.js';
 import { surfaceHeight, deckHeight, groundHeight, roadTunnelAt, getLandwasserTunnel, ROAD_TOP } from './terrain.js';
 import { QUALITY, skipped } from './quality.js';
 import {
@@ -1821,6 +1822,42 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     return t * t * (3 - 2 * t);
   }
 
+  // Without real lights (the mobile profile: no spot light reaches any shader) the nearest cars lay a short pool of light
+  // onto the road ahead instead (js/ground-beams.js), in the plane of the car as its spots are aimed
+  const poolMatrix = new THREE.Matrix4();
+  const poolBeam = { lampX: 0.6, s0: 0.3, spread: 0.12, d0: 0.3, hot: 6, reach: 15, strength: 0 };
+  let poolZ = 0;
+  const poolPlace = (lat, d, out) => {
+    const e = poolMatrix.elements, x = lat, y = 0.12, z = poolZ + d;
+    out[0] = e[0] * x + e[4] * y + e[8] * z + e[12];
+    out[1] = e[1] * x + e[5] * y + e[9] * z + e[13];
+    out[2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+  };
+  function groundPools(beamScale) {
+    beginTrafficBeams();
+    for (let i = 0; i < litVehicleCount && beamScale > 0.001; i++) {
+      const v = litVehicles[i];
+      const fade = smoothDistFade(v._effDist, 45, 75);
+      if (fade <= 0.001) continue;
+      const spec = v.bus ? BUS_SPEC : BODY_SPECS[v.bodyType];
+      let reach = v.bus ? 17 : 15;
+      // (not through the player's vehicle stopped ahead)
+      if (player.active && v.pAhead > 0 && v.pAhead < 30 && Math.abs(v.pRight) < 3.5) reach = Math.min(reach, Math.max(4.5, v.pAhead - player.halfL - 1.5));
+      dummy.position.set(v.x, v.y, v.z);
+      dummy.rotation.set(v.pitch + v.slope, v.yaw + v.yawOffset, v.roll, 'YXZ');
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      poolMatrix.copy(dummy.matrix);
+      poolZ = spec.zFront;
+      poolBeam.lampX = spec.headlight[0];
+      poolBeam.reach = reach;
+      poolBeam.hot = Math.min(6, reach * 0.5);
+      poolBeam.strength = 0.34 * Math.min(1, beamScale) * fade;
+      if (!addTrafficBeam(poolBeam, poolPlace)) break;
+    }
+    endTrafficBeams();
+  }
+
   function updateTrafficLights() {
     litVehicles.length = litVehicleCount;
     if (litVehicleCount > 1) {
@@ -1870,6 +1907,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       spot.intensity = 0;
       spot.position.set(0, -1000, 0);
     }
+    if (!QUALITY.clusteredLighting) groundPools(beamScale);
 
     // 1. The patrol cars' blue lights (Swiss: blue only, no red): a pulsing 360° PointLight hopping between the two
     // halves of the roof bar of each nearby police car
