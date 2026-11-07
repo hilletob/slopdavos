@@ -1358,11 +1358,11 @@ function buildStreetDetails(scene) {
   const streetlightSpotPool = [];
   for (let i = 0; i < STREETLIGHT_SPOT_POOL; i++) {
     // Cobra-head LED luminaire: wide downward spread (0.96 rad half-angle) illuminating both road and sidewalk.
-    // Davos: the masts' flat LED heads (cool white, ~4000 K) throw a bounded pool onto the asphalt, ~12 m across at
-    // the cone's edge from 8.9 m up (0.62 rad half-angle), full-bright over the inner ~5 m and soft beyond (penumbra
-    // 0.55), so each lamp reads as its own bright patch with dark asphalt between (reference: Davos Dorf at night).
+    // Davos: the masts' flat LED heads (cool white, ~4000 K) spread their light wide: ~28 m across at the cone's edge
+    // from 8.9 m up (1.0 rad half-angle), brightest straight below and fading the whole way out (penumbra 0.9), so the
+    // pools of neighbouring masts meet in a dim glow instead of standing as hard white discs on black asphalt.
     const spot = BERLIN_DATA
-      ? new THREE.SpotLight(0xe8eefb, 0, 24, 0.62, 0.55, 1.25)
+      ? new THREE.SpotLight(0xe8eefb, 0, 34, 1.0, 0.9, 1.25)
       : new THREE.SpotLight(0xffe8c2, 0, 25, 0.96, 0.82, 1.25);
     spot.position.set(0, -1000, 0);
     spot.target.position.set(0, -1001, 0);
@@ -1449,7 +1449,7 @@ function buildStreetDetails(scene) {
     // left it barely lighter than the moonlit street). Snow reflects it twenty times better than asphalt, so in
     // winter the lamps are turned down, still leaving their pools clearly brighter than in summer, not burnt-out white.
     const snowDim = 1 - 0.55 * winter.value;
-    const lampCandela = (BERLIN_DATA ? 190.0 : 88.0) * lampScale * snowDim;
+    const lampCandela = (BERLIN_DATA ? 150.0 : 88.0) * lampScale * snowDim;
 
     const cobraCount = nearbyLights(cobraCells, camera, STREETLIGHT_DIST, activeCobras);
 
