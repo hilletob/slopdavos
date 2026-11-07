@@ -171,6 +171,10 @@ const pairs = [
   ['Click anywhere to teleport & set your GPS route · Drag to pan · Scroll to zoom', 'Klicken zum Teleportieren und Setzen der GPS-Route · Ziehen zum Verschieben · Scrollen zum Zoomen'],
   ['Tap to teleport · Drag to pan · Pinch to zoom', 'Tippen zum Teleportieren · Ziehen zum Verschieben · Mit zwei Fingern zoomen'],
   ['You', 'Du'], ['Landmark', 'Sehenswürdigkeit'], ['GPS route', 'GPS-Route'], ['Bridge / Hwy', 'Brücke / Hauptstrasse'],
+  ['Rega helicopter', 'Rega-Helikopter'], ['Your vehicles', 'Deine Fahrzeuge'],
+  // the helicopters' places on the full map (js/vehicle-depots.js DEPOTS labels; js/gta.js overlay)
+  ['Spital Davos helipad', 'Landeplatz Spital Davos'], ['Schatzalp meadow', 'Schatzalp-Wiese'], ['Stilli heliport', 'Heliport Stilli'],
+  ['Glaris, Rinerhorn valley station', 'Glaris, Talstation Rinerhorn'], ['Rega set down here', 'Rega hier abgestellt'],
   ['near', 'bei'], ['Click to teleport here', 'Klicken, um hierher zu teleportieren'],
   ['Mission', 'Mission'], ['Mission complete', 'Mission abgeschlossen'],
   ['Loading the surroundings …', 'Umgebung wird geladen …'],
@@ -1221,6 +1225,8 @@ function translate(value) {
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   dynamic = dynamic.replace(/^(\d+)\.(\d) km$/, '$1,$2 km'); // (a distance alone: js/play-stats-ui.js)
+  // a helicopter flown back to its pad while the player was away (js/gta.js returnStrays)
+  dynamic = dynamic.replace(/^The crew flew the (.+) back to (.+)$/, (_, what, where) => `Die Crew hat den ${what} zurück nach ${translate(where)} geflogen`);
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);

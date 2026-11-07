@@ -6,9 +6,11 @@ import { buildVwT3Geometry, upgradeVwT3Body } from './vw-t3.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import {
   DEPOTS, VEHICLE_LABELS, VEHICLE_FOOTPRINTS, BOARD_RADIUS, GTA_START,
-  findEnterable, canExit, exitSpots, pickExitSpot, inSeason, seasonOf, depotsByDistance
+  findEnterable, canExit, exitSpots, pickExitSpot, inSeason, seasonOf, depotsByDistance,
+  RETURN_TYPES, atDepot, returnDepot, shouldReturn
 } from './vehicle-depots.js';
 import { createTakeover } from './gta-takeover.js';
+import { t } from './i18n.js';
 import { missionAllowsTakeover } from './hijack.js';
 
 // js/gta.js
@@ -22,7 +24,9 @@ import { missionAllowsTakeover } from './hijack.js';
 // entity's model sharing its geometry and materials, no physics but a
 // collider (controllers.parkedVehicles). Getting into a stand-in moves the real entity to its place and leaves a
 // stand-in where the real one stood: any number of places, one entity per type. The places start at the depots of
-// js/vehicle-depots.js and are kept in localStorage (STATE_KEY) as the player leaves vehicles about.
+// js/vehicle-depots.js and are kept in localStorage (STATE_KEY) as the player leaves vehicles about. A helicopter left
+// off its pads is flown back to the nearest empty depot by its crew once the player has been away from it a while
+// (returnStrays; js/vehicle-depots.js shouldReturn), so the pads do not stand empty for good.
 // The RhB (js/rhb.js): at a station, beside a train standing at the platform, "Board the RhB" rides along as a
 // passenger (the camera follows the train, no controls) to any later station; at the line's end stations "T: Drive"
 // takes the train over (the rhb mode).
@@ -121,8 +125,10 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
   let savedTakeover = null;
 
   // --- The parked vehicles ------------------------------------------------------------------------------------------
-  // { id, type, x, z, heading, season, label, depot, position: { x, y, z }, visual }
+  // { id, type, x, z, heading, season, label, depot, since, position: { x, y, z }, visual }
+  // (since: when the player left it there, ms of Date.now(); null at a depot)
   let parked = [];
+  const leftAt = {}; // { [type]: ms }: when the player got out of each type's entity (the real one, not a stand-in)
   let nextId = 1;
   let dirty = true;
   const group = new THREE.Group();
@@ -130,9 +136,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
   scene.add(group);
 
   const restY = (type, x, z) => (type === 'helicopter' ? surfaceHeight(x, z) + 0.25 : cm.getGroundHeight(x, z, type));
-  function addParked({ type, x, z, heading, label = null, depot = null, season = seasonOf(type) }) {
+  function addParked({ type, x, z, heading, label = null, depot = null, season = seasonOf(type), since = depot ? null : Date.now() }) {
     if (!VEHICLES.includes(type) || ![x, z, heading].every(Number.isFinite)) return null;
-    const p = { id: nextId++, type, x, z, heading, label, depot, season, position: { x, y: restY(type, x, z), z }, visual: null };
+    const p = { id: nextId++, type, x, z, heading, label, depot, season, since, position: { x, y: restY(type, x, z), z }, visual: null };
     parked.push(p);
     dirty = true;
     return p;
@@ -215,7 +221,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     try {
       localStorage.setItem(STATE_KEY, JSON.stringify({
         version: STATE_VERSION,
-        parked: parked.map(({ type, x, z, heading, label, depot }) => ({ type, x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(4), label, depot })),
+        parked: parked.map(({ type, x, z, heading, label, depot, since }) => ({ type, x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(4), label, depot, since })),
+        leftAt,
         takeover: takeover.state()
       }));
       dirty = false;
@@ -226,7 +233,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     try {
       const s = JSON.parse(localStorage.getItem(STATE_KEY));
       if (s?.version !== STATE_VERSION || !Array.isArray(s.parked)) return false;
-      for (const p of s.parked) addParked(p);
+      for (const p of s.parked) addParked(p); // (an older save without `since`: left just now)
+      Object.assign(leftAt, s.leftAt || {});
       savedTakeover = s.takeover || null;
       return true;
     } catch { return false; }
@@ -261,6 +269,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     cm.teleportActiveTo(x, z, 0);
   }
   cm.setEntityHidden('person', cm.activeMode !== 'person');
+  for (const type of RETURN_TYPES) if (type !== cm.activeMode && !Number.isFinite(leftAt[type])) leftAt[type] = Date.now(); // (an older save)
   takeover.restore(savedTakeover); // (the taken car or bus driven on, or the car put away)
   function applySeason() {
     // the groomer stays in its shed in summer (unless the player drives it)
@@ -287,6 +296,8 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
       const e = cm.entities[next];
       codeSwitch = { type: next, x: e.position.x, z: e.position.z, heading: e.heading, frames: 0 };
     }
+    if (RETURN_TYPES.includes(prev)) leftAt[prev] = Date.now();
+    delete leftAt[next];
     if (next !== 'rhb') ride = null;
   });
 
@@ -297,7 +308,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     if (codeSwitch) {
       const e = cm.entities[codeSwitch.type];
       if (Math.hypot(e.position.x - codeSwitch.x, e.position.z - codeSwitch.z) > 20) {
-        if (!parked.some((p) => p.type === codeSwitch.type && Math.hypot(p.x - codeSwitch.x, p.z - codeSwitch.z) < 6)) addParked(codeSwitch);
+        if (!parked.some((p) => p.type === codeSwitch.type && Math.hypot(p.x - codeSwitch.x, p.z - codeSwitch.z) < 6)) addParked({ ...codeSwitch, since: Date.now() });
         codeSwitch = null;
       } else if (++codeSwitch.frames > 90) codeSwitch = null;
     }
@@ -488,6 +499,38 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     save();
   }
 
+  // A helicopter left off its pads (a stand-in, or the entity itself with the player out of it) goes back to the nearest
+  // empty depot once it has stood a while and the player is far away (js/vehicle-depots.js shouldReturn, returnDepot);
+  // not during a mission (its helicopter stands where the mission put it)
+  function returnStrays() {
+    if (missionRun()) return;
+    const me = cm.getActiveEntity().position;
+    const now = Date.now();
+    for (const type of RETURN_TYPES) {
+      if (cm.activeMode === type) continue;
+      const e = cm.entities[type];
+      const all = parked.filter((p) => p.type === type).map((p) => ({ x: p.x, z: p.z, ref: p, entity: false }));
+      if (e && !e.hidden && e.mesh.visible !== false) all.push({ x: e.position.x, z: e.position.z, ref: e, entity: true });
+      for (const v of all) {
+        const since = v.entity ? leftAt[type] : v.ref.since;
+        if (!shouldReturn(DEPOTS, type, v.x, v.z, since, me, now)) continue;
+        const home = returnDepot(DEPOTS, type, v.x, v.z, all.filter((o) => o !== v));
+        if (!home) continue;
+        if (v.entity) {
+          cm.placeEntity(type, home.x, home.z, home.heading);
+          leftAt[type] = now; // (standing at a depot now: shouldReturn lets it be)
+        } else {
+          Object.assign(v.ref, { x: home.x, z: home.z, heading: home.heading, label: home.label, depot: home.id, since: null });
+          v.ref.position.y = restY(type, home.x, home.z);
+          if (v.ref.visual) placeVisual(v.ref);
+        }
+        v.x = home.x; v.z = home.z; // (the pad is taken now, for the next stray)
+        dirty = true;
+        flash(`The crew flew the ${VEHICLE_LABELS[type]} back to ${home.label}`);
+      }
+    }
+  }
+
   // The ridden train left the map (it turns back beyond its end): the passenger gets off at the last station
   function followRide() {
     if (!ride || cm.activeMode !== 'rhb' || !cm.rhbPassenger) return;
@@ -573,30 +616,51 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
   }
 
   // --- The maps: the vehicles' places (the radar: those near; the full map: all) -----------------------------------
+  // The helicopters stand out: a larger disc with the rotor's ring round it, and on the full map the name of the place
+  // (its depot's label, or where it was set down), so that one sees from anywhere in the valley where the nearest is.
   const overlay = {
     draw(ctx, v, isMinimap) {
       const w = winter();
-      const r = isMinimap ? 5 : 7.5;
       const items = [];
-      for (const p of parked) if (inSeason(p, w)) items.push(p);
+      for (const p of parked) if (inSeason(p, w)) items.push({ type: p.type, x: p.x, z: p.z, label: p.label });
       for (const type of VEHICLES) {
         const e = cm.entities[type];
-        if (e && !e.hidden && e.mesh.visible !== false && type !== cm.activeMode) items.push({ type, x: e.position.x, z: e.position.z });
+        if (e && !e.hidden && e.mesh.visible !== false && type !== cm.activeMode) items.push({ type, x: e.position.x, z: e.position.z, label: null });
       }
+      // (the helicopters last: on top of the others)
+      items.sort((a, b) => (a.type === 'helicopter') - (b.type === 'helicopter'));
       ctx.save();
-      ctx.font = `700 ${isMinimap ? 6.5 : 8.5}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const p of items) {
+        const heli = p.type === 'helicopter';
+        const r = (isMinimap ? 5 : 7.5) * (heli ? 1.35 : 1);
         const x = v.toX(p.x), y = v.toY(p.z);
         if (Math.abs(x) > v.w * 0.5 - r || Math.abs(y) > v.h * 0.5 - r) continue;
         const icon = ICONS[p.type];
+        ctx.font = `700 ${(isMinimap ? 6.5 : 8.5) * (heli ? 1.3 : 1)}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = 'rgba(8, 12, 20, 0.85)';
         ctx.beginPath(); ctx.arc(x, y, r + 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = icon.colour;
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        if (heli) {
+          // the rotor: a thin ring, its two blades
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+          ctx.lineWidth = isMinimap ? 1 : 1.5;
+          ctx.beginPath(); ctx.arc(x, y, r + 4, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x - r - 4, y); ctx.lineTo(x - r - 1, y); ctx.moveTo(x + r + 1, y); ctx.lineTo(x + r + 4, y); ctx.stroke();
+        }
         ctx.fillStyle = '#fff';
         ctx.fillText(icon.letter, x, y + 0.5);
+        if (heli && !isMinimap) {
+          // (the entity, or a stand-in left by the player, standing on a pad: the pad's name)
+          const label = t(p.label || atDepot(DEPOTS, p.type, p.x, p.z)?.label || 'Rega set down here');
+          ctx.font = '600 11px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8, 12, 20, 0.85)';
+          ctx.strokeText(label, x + r + 8, y); ctx.fillText(label, x + r + 8, y);
+          ctx.textAlign = 'center';
+        }
       }
       ctx.restore();
     },
@@ -616,6 +680,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
   function update(dt, camera) {
     frame++;
     bookkeepCodeSwitch();
+    if (frame % 120 === 60) returnStrays();
     followRide();
     const leftBefore = takeover.left.length;
     takeover.update(dt);

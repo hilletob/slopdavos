@@ -67,6 +67,12 @@ export const DEPOTS = [
   { id: 'heli-weissfluhjoch', type: 'helicopter', x: -1878.8, z: -4136.6, heading: 2.4, season: 'all', label: 'Weissfluhjoch' },
   // on the Schatzalp's meadow below the hotel
   { id: 'heli-schatzalp', type: 'helicopter', x: -1153.8, z: -516, heading: 2.2, season: 'all', label: 'Schatzalp meadow' },
+  // on the Stilli meadow east of Davos Dorf, between the Flüelastrasse and the hamlet: the valley's landing site (the
+  // WEF's and the army's helicopters set down here), level to 4° all round, 50 m clear of the road and the houses
+  { id: 'heli-stilli', type: 'helicopter', x: 1475, z: -1870, heading: 2.0, season: 'all', label: 'Stilli heliport' },
+  // on the valley floor at Glaris by the Landwasser, up the meadow from the paragliders' landing field (outside its
+  // 60 m, js/missions-data-paraglide.js FIELD), across the river from the Rinerhornbahn's valley station
+  { id: 'heli-glaris', type: 'helicopter', x: -3700, z: 5665, heading: 1.3, season: 'all', label: 'Glaris, Rinerhorn valley station' },
 
   // --- VW T3 ----------------------------------------------------------------------------------------------------------
   // in the roadside bays of the Talstrasse by the Bahnhof Davos Platz (OSM w852636741), in view of the start
@@ -175,4 +181,38 @@ export function pickExitSpot(spots, isFree, onRoad = () => false) {
 /** The depots of a type nearest first to (x, z) */
 export function depotsByDistance(depots, type, x, z) {
   return depots.filter((d) => d.type === type).sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+}
+
+// --- Vehicles left about the valley come home ----------------------------------------------------------------------
+// A helicopter the player set down somewhere and walked away from (not at one of its depots) is flown back by its crew
+// to the nearest depot that stands empty, once it has stood there a while and the player is far enough away not to
+// see it go (js/gta.js returnStrays). Real time, so a helicopter left yesterday is back on a pad today.
+export const RETURN_TYPES = ['helicopter'];
+export const RETURN_AFTER_MS = 10 * 60 * 1000;
+export const RETURN_UNSEEN_M = 400;
+/** A vehicle of `type` standing within `r` m of one of its depots counts as parked there (the pad's disc, a meadow) */
+export const DEPOT_RADIUS = 15;
+
+/** The depot of `type` that (x, z) lies within DEPOT_RADIUS of, or null */
+export function atDepot(depots, type, x, z, r = DEPOT_RADIUS) {
+  return depots.find((d) => d.type === type && Math.hypot(d.x - x, d.z - z) <= r) || null;
+}
+
+/**
+ * The depot a stray vehicle of `type` at (x, z) goes back to: the nearest depot of its type with no vehicle of the type
+ * (`occupied`: [{ x, z }], the others of the type) within DEPOT_RADIUS of it, or null if every depot is taken.
+ */
+export function returnDepot(depots, type, x, z, occupied = []) {
+  return depotsByDistance(depots, type, x, z).find((d) => !occupied.some((o) => Math.hypot(o.x - d.x, o.z - d.z) <= DEPOT_RADIUS)) || null;
+}
+
+/**
+ * Should a vehicle left at (x, z) since `since` (ms, Date.now()) go home now? `player`: { x, z }; `now`: ms. Not
+ * while it stands at a depot, before it has waited RETURN_AFTER_MS, or while the player is within RETURN_UNSEEN_M.
+ */
+export function shouldReturn(depots, type, x, z, since, player, now = Date.now()) {
+  if (!RETURN_TYPES.includes(type) || !Number.isFinite(since)) return false;
+  if (now - since < RETURN_AFTER_MS) return false;
+  if (player && Math.hypot(player.x - x, player.z - z) < RETURN_UNSEEN_M) return false;
+  return !atDepot(depots, type, x, z);
 }

@@ -1307,6 +1307,28 @@ body[data-mode='helicopter'] .gauge-alt {
   box-shadow: 0 0 0 2px #0b0f14, 0 0 0 3px rgba(255, 255, 255, 0.35);
 }
 
+/* the GTA mode's vehicles on the map (js/gta.js overlay): the red H of the helicopters with the rotor's ring, the blue T3 */
+.heli-swatch,
+.vehicle-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  color: #fff;
+  font: 700 7px/13px Inter, system-ui, sans-serif;
+  text-align: center;
+}
+
+.heli-swatch {
+  background: #e11d2e;
+  box-shadow: 0 0 0 1.5px #0b0f14, 0 0 0 2.5px rgba(255, 255, 255, 0.75);
+}
+
+.vehicle-swatch {
+  background: #3b82f6;
+  font-size: 6px;
+  box-shadow: 0 0 0 1.5px #0b0f14;
+}
+
 .gps-swatch,
 .bridge-swatch {
   width: 16px;

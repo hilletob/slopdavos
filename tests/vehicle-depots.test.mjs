@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   DEPOTS, ENTER_RADIUS, VEHICLE_FOOTPRINTS, VEHICLE_LABELS, GTA_START, EXIT_MAX_AGL,
-  distanceToVehicle, findEnterable, canExit, exitSpots, pickExitSpot, inSeason, seasonOf, depotsByDistance
+  distanceToVehicle, findEnterable, canExit, exitSpots, pickExitSpot, inSeason, seasonOf, depotsByDistance,
+  RETURN_TYPES, RETURN_AFTER_MS, RETURN_UNSEEN_M, DEPOT_RADIUS, atDepot, returnDepot, shouldReturn
 } from '../js/vehicle-depots.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { HELIPAD } from '../js/helipad.js';
@@ -26,7 +27,7 @@ test('depots: the places asked for, per type', () => {
   const of = (type) => DEPOTS.filter((d) => d.type === type);
   assert.ok(of('snowcat').length >= 6, 'six groomer depots');
   assert.ok(of('snowcat').every((d) => d.season === 'winter'), 'groomers only in winter');
-  assert.ok(of('helicopter').length >= 4);
+  assert.ok(of('helicopter').length >= 6, 'six helicopter depots: three in the valley (Spital, Stilli, Glaris)');
   assert.ok(of('car').length >= 2);
   assert.ok(of('cyclist').length >= 3);
   // the Rega on the hospital's pad (js/helipad.js)
@@ -39,6 +40,49 @@ test('depots: the places asked for, per type', () => {
   }
   // no two vehicles on top of each other
   for (const a of DEPOTS) for (const b of DEPOTS) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.z - b.z) > 8, `${a.id} / ${b.id}`);
+});
+
+test('helicopter depots: three on the valley floor (Spital, Stilli, Glaris), the Glaris one clear of the paragliders\' field', async () => {
+  const helis = DEPOTS.filter((d) => d.type === 'helicopter');
+  const valley = helis.filter((d) => ['heli-spital', 'heli-stilli', 'heli-glaris'].includes(d.id));
+  assert.equal(valley.length, 3);
+  // Stilli: east of Davos Dorf, by the Flüelastrasse
+  const stilli = helis.find((d) => d.id === 'heli-stilli');
+  assert.ok(stilli.x > 1300 && stilli.x < 1700 && stilli.z > -2000 && stilli.z < -1750, 'the Stilli meadow');
+  const { FIELD } = await import('../js/missions-data-paraglide.js');
+  const glaris = helis.find((d) => d.id === 'heli-glaris');
+  const toField = Math.hypot(glaris.x - FIELD.x, glaris.z - FIELD.z);
+  assert.ok(toField > FIELD.r + 10 && toField < 150, `outside the landing field but near it: ${toField.toFixed(0)} m`);
+});
+
+test('strays come home: a helicopter left off its pads goes to the nearest empty depot after a while, unseen', () => {
+  assert.deepEqual(RETURN_TYPES, ['helicopter']);
+  const helis = DEPOTS.filter((d) => d.type === 'helicopter');
+  const spital = helis.find((d) => d.id === 'heli-spital');
+  const stilli = helis.find((d) => d.id === 'heli-stilli');
+  // at a depot (within its radius): never
+  assert.equal(atDepot(DEPOTS, 'helicopter', spital.x + 3, spital.z - 2)?.id, 'heli-spital');
+  assert.equal(atDepot(DEPOTS, 'helicopter', spital.x + DEPOT_RADIUS + 1, spital.z), null);
+  assert.equal(atDepot(DEPOTS, 'car', spital.x, spital.z), null, 'a depot of another type does not count');
+  const now = 10_000_000, far = { x: 5000, z: 5000 }, near = { x: 10, z: 10 };
+  const left = [0, 0]; // a helicopter set down in the middle of Davos Platz
+  assert.ok(!shouldReturn(DEPOTS, 'helicopter', ...left, now - RETURN_AFTER_MS + 1000, far, now), 'not yet');
+  assert.ok(shouldReturn(DEPOTS, 'helicopter', ...left, now - RETURN_AFTER_MS - 1000, far, now), 'waited long enough, player far');
+  assert.ok(!shouldReturn(DEPOTS, 'helicopter', ...left, now - RETURN_AFTER_MS - 1000, near, now), 'the player would see it go');
+  assert.ok(!shouldReturn(DEPOTS, 'helicopter', ...left, now - RETURN_AFTER_MS - 1000, { x: RETURN_UNSEEN_M - 1, z: 0 }, now));
+  assert.ok(shouldReturn(DEPOTS, 'helicopter', ...left, now - RETURN_AFTER_MS - 1000, { x: RETURN_UNSEEN_M + 1, z: 0 }, now));
+  assert.ok(!shouldReturn(DEPOTS, 'helicopter', spital.x, spital.z, 0, far, now), 'standing on the pad');
+  assert.ok(!shouldReturn(DEPOTS, 'helicopter', ...left, null, far, now), 'no time known');
+  assert.ok(!shouldReturn(DEPOTS, 'car', ...left, 0, far, now), 'the van stays where it is left');
+  // the nearest empty depot; with a helicopter standing on it, the next one
+  const [first, second] = depotsByDistance(DEPOTS, 'helicopter', 0, 0);
+  assert.equal(returnDepot(DEPOTS, 'helicopter', 0, 0, []).id, first.id);
+  const onPad = { x: first.x + 2, z: first.z + 2 };
+  assert.equal(returnDepot(DEPOTS, 'helicopter', 0, 0, [onPad]).id, second.id);
+  // from the Stilli meadow a helicopter goes to the Stilli depot itself
+  assert.equal(returnDepot(DEPOTS, 'helicopter', stilli.x + 40, stilli.z + 40, []).id, 'heli-stilli');
+  // every pad taken: nowhere to go
+  assert.equal(returnDepot(DEPOTS, 'helicopter', 0, 0, helis.map(({ x, z }) => ({ x, z }))), null);
 });
 
 test('the start: on foot by the Bahnhof Davos Platz, a bike stand and a T3 within sight (< 60 m)', () => {
