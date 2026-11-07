@@ -21,6 +21,7 @@ import { SPORT_MISSIONS } from './missions-data-sport.js'; // Davos Nordic, mini
 import { EXPERT_MISSIONS } from './missions-data-expert.js'; // the eye test at Meerkämper Optik, the snow profile for the SLF
 import { WEF_MISSIONS } from './missions-data-wef.js'; // the WEF week: the motorcade's escort, the march
 import { RURAL_MISSIONS } from './missions-data-rural.js'; // the quad from Heldstab, green waste to the biogas plant
+import { PFADI_MISSIONS } from './missions-data-pfadi.js'; // Pfadi Davos: from the Pfadiheim to the Mattawald, a Spatz and a campfire
 
 // js/missions-data.js
 // The missions (js/missions.js runs them): their definitions and the pure progress logic. No three.js and no DOM in
@@ -562,7 +563,7 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS];
 // Every mission has a leaderboard: <id>-1 unless it names its own (supabase/migrations/*_all_leaderboards.sql holds the
 // limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
 for (const m of MISSIONS) m.board ??= `${m.id}-1`;

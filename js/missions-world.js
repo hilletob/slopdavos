@@ -451,6 +451,14 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(0, g * 0.55); ctx.quadraticCurveTo(-g * 0.5, -g * 0.05, 0, -g * 0.5); ctx.quadraticCurveTo(g * 0.5, -g * 0.05, 0, g * 0.55); ctx.fill();
       break;
     }
+    case 'tent': { // a Spatz: the ridge tent with its door, a little fire beside it (js/missions-data-pfadi.js)
+      ctx.beginPath(); ctx.moveTo(-g * 1.0, g * 0.75); ctx.lineTo(-g * 0.25, -g * 0.75); ctx.lineTo(g * 0.5, g * 0.75); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = def.colour;
+      ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.75); ctx.lineTo(-g * 0.25, g * 0.05); ctx.lineTo(-g * 0.05, g * 0.75); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath(); ctx.moveTo(g * 0.8, g * 0.1); ctx.quadraticCurveTo(g * 1.05, g * 0.45, g * 0.8, g * 0.72); ctx.quadraticCurveTo(g * 0.55, g * 0.45, g * 0.8, g * 0.1); ctx.fill();
+      break;
+    }
     default:
       ctx.beginPath(); ctx.arc(0, 0, g * 0.5, 0, Math.PI * 2); ctx.fill();
   }

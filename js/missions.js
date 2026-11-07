@@ -35,6 +35,7 @@ import { CARE_FEATURES } from './missions-care.js';
 import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 import { RINK_FEATURES } from './missions-rink.js';
 import { SPLITBOARD_FEATURES } from './missions-splitboard.js';
+import { PFADI_FEATURES } from './missions-pfadi.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -561,6 +562,14 @@ class MissionRun {
 
   showIntro() {
     const nodes = [el('p', 'mission-dialog-text', this.def.intro)];
+    // (a mission in someone's name shows their logo over the briefing: def.logo, e.g. the Pfadi Davos)
+    if (this.def.logo) {
+      const logo = el('img', 'mission-dialog-logo');
+      logo.src = this.def.logo;
+      logo.alt = '';
+      Object.assign(logo.style, { display: 'block', height: '64px', width: 'auto', margin: '0 0 10px' });
+      nodes.unshift(logo);
+    }
     const meta = el('p', 'mission-dialog-meta');
     meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
       el('span', 'mission-dialog-best', this.bestText()));
@@ -1212,4 +1221,5 @@ Object.assign(FEATURES, RURAL_FEATURES);
 Object.assign(FEATURES, CARE_FEATURES);
 Object.assign(FEATURES, RINK_FEATURES); // fresh ice on the Seehofseeli (js/missions-rink.js)
 Object.assign(FEATURES, SPLITBOARD_FEATURES); // the splitboard tour on the Chörbschhorn (js/missions-splitboard.js)
+Object.assign(FEATURES, PFADI_FEATURES); // Pfadi Davos: a Spatz and a campfire in the Mattawald (js/missions-pfadi.js)
 Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the Rinerhorn (js/missions-paraglide.js)
