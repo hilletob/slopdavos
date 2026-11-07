@@ -622,17 +622,27 @@ class ThirdPersonControllerManager {
     on = !!on;
     if (this.directionalSteering === on) return;
     this.directionalSteering = on;
-    for (const source of ['touch', 'gamepad']) if (this._stickDirections[source]) this.setStickDirection(source, null);
+    for (const source of ['touch', 'gamepad']) if (this._stickDirections[source]) this._dropStick(source);
+  }
+
+  // (a car, the groomer, a bike: what brakes when the touch stick is let go)
+  _wheeled() { return this.activeMode !== 'person' && this.activeMode !== 'helicopter' && this.activeMode !== 'rhb'; }
+
+  _dropStick(source) {
+    this._stickDirections[source] = null;
+    const keys = source === 'touch' ? this._touchKeys : this._gamepadKeys;
+    for (const action of ['forward', 'backward', 'left', 'right']) this._setAnalogInput(keys, action, 0);
   }
 
   setStickDirection(source, x, y, strength) {
-    const keys = source === 'touch' ? this._touchKeys : this._gamepadKeys;
-    if (x === null || !(strength > 0)) {
-      this._stickDirections[source] = null;
-      for (const action of ['forward', 'backward', 'left', 'right']) this._setAnalogInput(keys, action, 0);
+    if (x !== null && strength > 0) {
+      this._stickDirections[source] = { x, y, strength: Math.min(1, strength) };
       return;
     }
-    this._stickDirections[source] = { x, y, strength: Math.min(1, strength) };
+    // the touch stick let go in a vehicle: it brakes to a stop (a phone has no brake key; the gamepad's triggers do)
+    const current = this._stickDirections[source];
+    if (source === 'touch' && current && !current.release && this._wheeled()) this._stickDirections.touch = { release: true };
+    else this._dropStick(source);
   }
 
   applyStickSteering(dt) {
@@ -642,6 +652,12 @@ class ThirdPersonControllerManager {
       const keys = source === 'touch' ? this._touchKeys : this._gamepadKeys;
       const set = (action, value) => this._setAnalogInput(keys, action, value);
       const ent = this.getActiveEntity();
+      if (dir.release) { // (let go: brake until it stands, then hand the stick back)
+        if (this._wheeled() && Math.abs(ent.speed) > 0.3) {
+          set('forward', ent.speed < 0 ? 0.6 : 0); set('backward', ent.speed > 0 ? 0.6 : 0); set('left', 0); set('right', 0);
+        } else this._dropStick(source);
+        continue;
+      }
       if (this.activeMode === 'rhb') { // (on the rails: up and down the screen are ahead and back)
         set('forward', Math.max(0, -dir.y) * dir.strength); set('backward', Math.max(0, dir.y) * dir.strength);
         set('left', 0); set('right', 0);
@@ -658,8 +674,24 @@ class ThirdPersonControllerManager {
         set('left', 0); set('right', 0);
         set('forward', dir.strength * Math.max(0, Math.min(1, (Math.cos(err) + 0.3) / 1.3)));
         set('backward', 0);
+      } else if (this.activeMode !== 'helicopter' && Math.abs(err) > 1.9) {
+        // pointed back against the way it faces: brake, and once it stands back up with the tail turning toward
+        // that way (backing up, the steering turns the body the other way round)
+        // (the groomer turns on the spot instead: its tracks)
+        const moving = ent.speed > 0.5;
+        if (this.activeMode === 'snowcat') {
+          const steer = moving ? 0 : Math.sign(err);
+          set('left', Math.max(0, steer)); set('right', Math.max(0, -steer));
+          set('forward', 0); set('backward', moving ? dir.strength : 0);
+          continue;
+        }
+        let rear = err - Math.PI;
+        rear -= Math.round(rear / (Math.PI * 2)) * Math.PI * 2;
+        const steer = moving ? 0 : Math.max(-1, Math.min(1, -rear * 1.8));
+        set('left', Math.max(0, steer)); set('right', Math.max(0, -steer));
+        set('forward', 0); set('backward', dir.strength);
       } else {
-        // vehicles steer toward it and drive on (a turn the other way round is a U-turn)
+        // vehicles steer toward it and drive on; rolling backwards, the forward throttle brakes first
         const steer = Math.max(-1, Math.min(1, err * 1.8));
         set('left', Math.max(0, steer)); set('right', Math.max(0, -steer));
         set('forward', dir.strength); set('backward', 0);

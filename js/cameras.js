@@ -36,7 +36,7 @@ const VIEWPOINTS = {
 const viewpoint = ([E, N, up]) => { const p = lv95ToWorld(E, N); return new THREE.Vector3(p.x, groundHeight(p.x, p.z) + up, p.z); };
 // The bird's-eye camera (GTA2 style): straight down over the player, north at the top of the screen, pulling up as the
 // player speeds up and leading the view ahead in the direction of travel. Base height by entity type, in metres
-const TOPDOWN_HEIGHT = { person: 17, cyclist: 22, cargobike: 22, car: 30, snowcat: 32, rhb: 45, helicopter: 65 };
+const TOPDOWN_HEIGHT = { person: 28, cyclist: 34, cargobike: 34, car: 45, snowcat: 45, rhb: 65, helicopter: 90 };
 const UP_WORLD = new THREE.Vector3(0, 1, 0);
 const UP_NORTH = new THREE.Vector3(0, 0, -1); // world z = 1185500 − N: north is −z
 
@@ -140,7 +140,7 @@ class CameraSystem {
   }
 
   // (the bird's-eye view may pull up much farther than the chase camera may pull back)
-  maxZoom() { return this.activePresetId === 'topdown' ? 4 : 2.4; }
+  maxZoom() { return this.activePresetId === 'topdown' ? 5 : 2.4; }
 
   setCameraPreset(presetId, snapImmediately = false) {
     const preset = CAMERA_PRESETS.find((p) => p.id === presetId);
@@ -308,8 +308,8 @@ class CameraSystem {
         // the field of view is vertical: on a portrait screen (a phone) the width would shrink to a narrow strip of the
         // street, so the camera climbs until the width shows about what a landscape screen does
         const portrait = this.camera.aspect < 1 ? Math.pow(1 / this.camera.aspect, 0.75) : 1;
-        const height = (base + Math.min(60, this.smoothedSpeed * 1.3)) * this.zoomMultiplier * portrait;
-        const lead = Math.min(18, this.smoothedSpeed * 0.35);
+        const height = (base + Math.min(90, this.smoothedSpeed * 1.8)) * this.zoomMultiplier * portrait;
+        const lead = Math.min(25, this.smoothedSpeed * 0.45);
         const tx = entity.position.x + Math.sin(entity.heading) * lead;
         const tz = entity.position.z + Math.cos(entity.heading) * lead;
         desiredLook.set(tx, entity.position.y, tz);
