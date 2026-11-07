@@ -1392,18 +1392,44 @@ async function initApp() {
     // One frame on the GPU at a time: a tick while the last frame is still being drawn is skipped. Safari's GPU process
     // holds every frame in flight with all it draws (its driver memory grows with the triangles of a pass), and iOS
     // kills it at 300 MB: ~30 MB less for a few frames a second (js/quality.js; ?qset=oneFrameInFlight:false compares)
-    let busy = false;
+    // A frame whose answer never comes (iOS suspends the GPU process of an app in the background, and the promise of
+    // the frame in flight then may never settle) doesn't hold the loop for ever: after STUCK_MS the next is drawn anyway
+    const STUCK_MS = 1500;
+    let busy = false, busySince = 0, ticket = 0;
     renderer.info.autoReset = false; // (three.js resets its counts every tick, a skipped one would show nothing drawn)
     renderer.setAnimationLoop((now) => {
-      if (busy) return;
+      const t = performance.now();
+      if (busy && t - busySince < STUCK_MS) return;
       busy = true;
+      busySince = t;
+      const mine = ++ticket;
       renderer.info.reset();
       frame(now);
-      queue.onSubmittedWorkDone().then(() => { busy = false; }, () => { busy = false; }); // (a gone device: the guard has said so)
+      const done = () => { if (mine === ticket) busy = false; };
+      queue.onSubmittedWorkDone().then(done, done); // (a gone device: the guard has said so)
     });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) busy = false; });
   } else {
     renderer.setAnimationLoop(frame);
   }
+  // Back from the background (the installed app reopened on an iPhone): iOS may have taken the GPU process away without
+  // `device.lost` saying so, and the screen stays black. If the GPU doesn't answer within RESUME_MS, the player is
+  // saved and the page reloads (frame-guard.js deviceGone: at most once in a while, a message otherwise)
+  const RESUME_MS = 6000;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !queue?.onSubmittedWorkDone) return;
+    let answered = false;
+    Promise.resolve().then(() => queue.onSubmittedWorkDone()).then(() => { answered = true; }, () => { answered = true; });
+    setTimeout(() => {
+      if (answered || document.hidden) return;
+      deviceGone('GPU silent after the app came back', {
+        storage: localStorage,
+        save: () => { try { savePlayerState(); gameClock.save(); } catch { /* */ } },
+        reload: reloadAfterGone,
+        notify: (message) => showFault(`Grafikfehler: ${message}`, reloadAfterGone)
+      });
+    }, RESUME_MS);
+  });
 }
 
 initApp().catch((error) => {
