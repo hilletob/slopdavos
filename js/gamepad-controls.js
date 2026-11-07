@@ -168,10 +168,19 @@ class GamepadControls {
     } else if (mode === 'helicopter') {
       vertical = buttonValue(pad, 7) - buttonValue(pad, 6);
     }
-    this.controller.setGamepadInput('forward', Math.max(0, drive));
-    this.controller.setGamepadInput('backward', Math.max(0, -drive));
-    this.controller.setGamepadInput('left', Math.max(0, -movement.x));
-    this.controller.setGamepadInput('right', Math.max(0, movement.x));
+    // the bird's-eye camera: the left stick points where to go on the screen (js/controllers.js setStickDirection); with
+    // the stick let go, the triggers still drive (and back up) straight on
+    const reach = Math.min(1, Math.hypot(movement.x, movement.y));
+    const pointing = this.controller.directionalSteering && reach > 0.2;
+    this.controller.setStickDirection?.('gamepad', pointing ? movement.x : null, movement.y, reach);
+    if (!pointing) {
+      const turn = this.controller.directionalSteering ? 0 : movement.x;
+      if (this.controller.directionalSteering) drive = buttonValue(pad, 7) - buttonValue(pad, 6);
+      this.controller.setGamepadInput('forward', Math.max(0, drive));
+      this.controller.setGamepadInput('backward', Math.max(0, -drive));
+      this.controller.setGamepadInput('left', Math.max(0, -turn));
+      this.controller.setGamepadInput('right', Math.max(0, turn));
+    }
     const jump = mode === 'person' && !this.actions?.hidden('up'); // (a mission's hold has A while the jump is hidden)
     this.controller.setGamepadInput('up', jump ? Number(Boolean(held(0))) : Math.max(0, vertical));
     this.controller.setGamepadInput('down', Math.max(0, -vertical));

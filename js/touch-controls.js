@@ -287,6 +287,8 @@ class TouchControls {
     const y = distance ? dy / distance : 0;
     this.knob.style.setProperty('--stick-x', `${x * reach * this.stickRadius}px`);
     this.knob.style.setProperty('--stick-y', `${y * reach * this.stickRadius}px`);
+    // the bird's-eye camera: the stick points where to go on the screen (js/controllers.js setStickDirection)
+    if (this.controller.directionalSteering) { this.controller.setStickDirection('touch', x, y, strength); return; }
     this.controller.setTouchInput('left', Math.max(0, -x * strength));
     this.controller.setTouchInput('right', Math.max(0, x * strength));
     this.controller.setTouchInput('forward', Math.max(0, -y * strength));
@@ -304,6 +306,7 @@ class TouchControls {
     this.stick.classList.remove('is-pressed');
     this.knob.style.setProperty('--stick-x', '0px');
     this.knob.style.setProperty('--stick-y', '0px');
+    this.controller.setStickDirection?.('touch', null);
     for (const action of ['forward', 'backward', 'left', 'right']) this.controller.setTouchInput(action, 0);
   }
 

@@ -543,6 +543,8 @@ class ThirdPersonControllerManager {
     this._keyboardKeys = {};
     this._touchKeys = {};
     this._gamepadKeys = {};
+    this.directionalSteering = false;
+    this._stickDirections = { touch: null, gamepad: null };
 
     // (the van's indicators, the high beam, the groomer's beacon and tiller are actions of js/actions.js, bound in
     // js/main.js: the register's keyboard calls toggleIndicator / toggleHighBeam / toggleBeacon / toggleTiller)
@@ -612,6 +614,59 @@ class ThirdPersonControllerManager {
     this._blendInput(action);
   }
 
+  // The bird's-eye camera's stick steering (js/cameras.js 'topdown', north up on the screen): a stick pushed toward a
+  // point of the screen turns the player that way and moves it. js/main.js switches it with the camera, the stick of
+  // js/touch-controls.js and the gamepad's left stick hand over their direction (x right, y down, strength 0..1; null
+  // lets go), and every frame turns it into the turn & drive inputs of that source (applyStickSteering).
+  setDirectionalSteering(on) {
+    on = !!on;
+    if (this.directionalSteering === on) return;
+    this.directionalSteering = on;
+    for (const source of ['touch', 'gamepad']) if (this._stickDirections[source]) this.setStickDirection(source, null);
+  }
+
+  setStickDirection(source, x, y, strength) {
+    const keys = source === 'touch' ? this._touchKeys : this._gamepadKeys;
+    if (x === null || !(strength > 0)) {
+      this._stickDirections[source] = null;
+      for (const action of ['forward', 'backward', 'left', 'right']) this._setAnalogInput(keys, action, 0);
+      return;
+    }
+    this._stickDirections[source] = { x, y, strength: Math.min(1, strength) };
+  }
+
+  applyStickSteering(dt) {
+    for (const source of ['touch', 'gamepad']) {
+      const dir = this._stickDirections[source];
+      if (!dir) continue;
+      const keys = source === 'touch' ? this._touchKeys : this._gamepadKeys;
+      const set = (action, value) => this._setAnalogInput(keys, action, value);
+      const ent = this.getActiveEntity();
+      if (this.activeMode === 'rhb') { // (on the rails: up and down the screen are ahead and back)
+        set('forward', Math.max(0, -dir.y) * dir.strength); set('backward', Math.max(0, dir.y) * dir.strength);
+        set('left', 0); set('right', 0);
+        continue;
+      }
+      // screen up is north (−z): the heading that walks the player toward the stick's point
+      const target = Math.atan2(dir.x, dir.y);
+      let err = target - ent.heading;
+      err -= Math.round(err / (Math.PI * 2)) * Math.PI * 2;
+      if (this.activeMode === 'person') {
+        // a pedestrian faces the way at once (a quick turn instead of the keys' slow one) and sets off as it does
+        const step = 14 * dt;
+        ent.heading += Math.max(-step, Math.min(step, err));
+        set('left', 0); set('right', 0);
+        set('forward', dir.strength * Math.max(0, Math.min(1, (Math.cos(err) + 0.3) / 1.3)));
+        set('backward', 0);
+      } else {
+        // vehicles steer toward it and drive on (a turn the other way round is a U-turn)
+        const steer = Math.max(-1, Math.min(1, err * 1.8));
+        set('left', Math.max(0, steer)); set('right', Math.max(0, -steer));
+        set('forward', dir.strength); set('backward', 0);
+      }
+    }
+  }
+
   setTouchInput(action, value) {
     this._setAnalogInput(this._touchKeys, action, value);
   }
@@ -621,17 +676,20 @@ class ThirdPersonControllerManager {
   }
 
   clearTouchInput() {
+    this._stickDirections.touch = null;
     this._touchKeys = {};
     for (const action of Object.keys(this.keys)) this._blendInput(action);
   }
 
   clearGamepadInput() {
+    this._stickDirections.gamepad = null;
     this._gamepadKeys = {};
     for (const action of Object.keys(this.keys)) this._blendInput(action);
   }
 
   resetInput() {
     this._pressedCodes.clear();
+    this._stickDirections = { touch: null, gamepad: null };
     this._keyboardKeys = {};
     this._touchKeys = {};
     this._gamepadKeys = {};
@@ -2391,6 +2449,7 @@ class ThirdPersonControllerManager {
   }
 
   update(dt, elapsed) {
+    if (this.directionalSteering) this.applyStickSteering(dt);
     const heli = this.entities.helicopter;
     // (the GTA mode: a parked helicopter's rotors are at rest and its strobes off)
     const heliRunning = !(this.gtaParkedLook && this.activeMode !== 'helicopter');

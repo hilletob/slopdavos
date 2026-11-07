@@ -107,7 +107,7 @@ class CameraSystem {
       if (pair) {
         const distance = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
         if (previousDistance > 1 && distance > 1) {
-          this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier * previousDistance / distance));
+          this.zoomMultiplier = Math.max(0.45, Math.min(this.maxZoom(), this.zoomMultiplier * previousDistance / distance));
         }
       } else {
         this.orbitYawOffset -= dx * 0.0065;
@@ -135,14 +135,18 @@ class CameraSystem {
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + e.deltaY * 0.001));
+      this.zoomMultiplier = Math.max(0.45, Math.min(this.maxZoom(), this.zoomMultiplier + e.deltaY * 0.001));
     }, { passive: false });
   }
+
+  // (the bird's-eye view may pull up much farther than the chase camera may pull back)
+  maxZoom() { return this.activePresetId === 'topdown' ? 4 : 2.4; }
 
   setCameraPreset(presetId, snapImmediately = false) {
     const preset = CAMERA_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
     this.activePresetId = preset.id;
+    this.zoomMultiplier = Math.min(this.zoomMultiplier, this.maxZoom());
     this.camera.fov = preset.fov;
     this.camera.updateProjectionMatrix();
     if (snapImmediately) {
@@ -153,7 +157,7 @@ class CameraSystem {
   applyGamepadInput(lookX, lookY, zoom, dt) {
     if (!(dt > 0) || !Number.isFinite(dt)) return;
     if (this.activePresetId === 'topdown') {
-      if (zoom) this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
+      if (zoom) this.zoomMultiplier = Math.max(0.45, Math.min(this.maxZoom(), this.zoomMultiplier + zoom * 0.9 * dt));
       return;
     }
     if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
@@ -162,7 +166,7 @@ class CameraSystem {
     if (!lookX && !lookY && !zoom) return;
     this.orbitYawOffset -= lookX * 2.0 * dt;
     this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
-    this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
+    this.zoomMultiplier = Math.max(0.45, Math.min(this.maxZoom(), this.zoomMultiplier + zoom * 0.9 * dt));
     this.userOrbitTimer = 4.0;
   }
 
@@ -301,7 +305,10 @@ class CameraSystem {
       case 'topdown': {
         // (drags don't orbit here: north stays up, the wheel / a pinch / the pad zoom)
         const base = TOPDOWN_HEIGHT[entity.type] ?? 30;
-        const height = (base + Math.min(60, this.smoothedSpeed * 1.3)) * this.zoomMultiplier;
+        // the field of view is vertical: on a portrait screen (a phone) the width would shrink to a narrow strip of the
+        // street, so the camera climbs until the width shows about what a landscape screen does
+        const portrait = this.camera.aspect < 1 ? Math.pow(1 / this.camera.aspect, 0.75) : 1;
+        const height = (base + Math.min(60, this.smoothedSpeed * 1.3)) * this.zoomMultiplier * portrait;
         const lead = Math.min(18, this.smoothedSpeed * 0.35);
         const tx = entity.position.x + Math.sin(entity.heading) * lead;
         const tz = entity.position.z + Math.cos(entity.heading) * lead;

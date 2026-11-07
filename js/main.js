@@ -738,6 +738,8 @@ async function initApp() {
 
   function selectCamera(camId, snap = false) {
     cameraSystem.setCameraPreset(camId, snap);
+    // (the bird's-eye view: the touch stick and the gamepad's left stick point where to go, js/controllers.js)
+    controllerManager.setDirectionalSteering(cameraSystem.activePresetId === 'topdown');
     cameraButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-camera') === camId);
     });
