@@ -693,5 +693,11 @@ export function buildLandmarkBuildings(scene) {
     if (typeof requestAnimationFrame !== 'undefined') { const loop = () => { sync(); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
   }
   scene.add(root);
-  return { group: root, colliders };
+  // The Eisstadion's outline as a floor plan for js/controllers.js keepOutOfBuildings: its walls stand round the stands,
+  // well outside the OSM footprint (w37221744 is the inner hall), so whoever got in between (a gap at a gable, a way led
+  // across a corner) was walled in with no floor plan to put him out
+  const ring = EISSTADION.outline.map((p) => ({ x: p.x, z: p.z }));
+  const xs = ring.map((p) => p.x), zs = ring.map((p) => p.z);
+  const interiors = [{ id: 'eisstadion', ring, holes: [], minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), maxY: EISSTADION.eaves + EISSTADION.apex.h }]; // (up to the apex: on the stands' roof too)
+  return { group: root, colliders, interiors };
 }

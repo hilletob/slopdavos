@@ -42,8 +42,10 @@ export const PFADI_PLACES = {
 
 // The way: the start, the town's footways and streets, the path along the foot of the Mattawald, the camp
 // (the shortest walk over the OSM lines, simplified to 2.5 m)
+// (the first metres go round the Eisstadion's SSW gable, then along the Sportzentrum's north side, 4-6 m off the walls:
+// js/landmark-buildings-data.js EISSTADION.outline, OSM w37221745; straight across, the way led into the stadium)
 export const PFADI_ROUTE = [
-  PFADI_PLACES.start.x, PFADI_PLACES.start.z, -298.2, -287.8, -233.9, -251.5, -216.1, -273.8, -143.7, -221.1, -80.8, -287.2, -61.6, -300.6, 275.5, -493.8, 359.9, -433.4, 376.2, -416.9, 399.4, -346,
+  PFADI_PLACES.start.x, PFADI_PLACES.start.z, -298.2, -287.8, -271.8, -266.0, -236.5, -248.5, -185.6, -207.5, -170.0, -205.0, -154.5, -219.0, -143.7, -221.1, -80.8, -287.2, -61.6, -300.6, 275.5, -493.8, 359.9, -433.4, 376.2, -416.9, 399.4, -346,
   403.3, -282, 424.7, -237.4, 488.8, -263.5, 500.2, -230.7, 497.9, -217, 506.7, -186.3, 534.1, -160.4, 542.4, -160.3, 595.5, -206.2, 637.3, -227.7,
   660.5, -234, 699.5, -226.6, 750.4, -231.6, 771.8, -218.3, 843.3, -221.9, 840, -232
 ];
