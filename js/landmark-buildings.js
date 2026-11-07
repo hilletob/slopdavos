@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
-import { groundHeight, addRaisedSidewalk } from './terrain.js';
+import { groundHeight, addRaisedSidewalk, TERRAIN } from './terrain.js';
 import { snowyRoof, winter } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
@@ -18,7 +18,7 @@ import {
 //    copper chimneys
 //  - the stations of Davos Dorf (the tiled block over the station, the canopy on its posts) and Davos Platz (Gaberel's
 //    cream-yellow station of 1949: the base storey with its pilasters, the blocks on it, the hall's window grid), and the
-//    Arkadenplatz (the arcaded wings, the Kulturplatz's brick front, the red square with its bollards and parasols)
+//    Arkadenplatz (the arcaded wings, the Kulturplatz's brick front, the red square on the ground with its parasols)
 //  - the Kongresszentrum with the Kongress Hotel and the eau-là-là: every part at its surveyed outline and height, in
 //    its own skin (Gisel's board-marked concrete with ribbon windows, Degelo's larch hall with the glazed entrance
 //    under the overhang, the hotel's white plaster, the pool's dark timber and its glazing towards the park), the roofs
@@ -27,7 +27,7 @@ import {
 //    orthophoto's)
 //  - the Parsennbahn's valley station in Davos Dorf: white walls with red window frames and red-white bands, the glazed
 //    shop on the ground floor, its lettering, banner, entrance sign and roof flags from one small canvas atlas
-// All of it merged into one mesh per material (22 draw calls in all); the facades' detail (boards, mullions, windows,
+// All of it merged into one mesh per material (24 draw calls in all); the facades' detail (boards, mullions, windows,
 // panels) is drawn by the materials from the walls' uv (metres along the wall, metres over the ground), not modelled,
 // and fades to its mean colour with distance. Windows glow at dusk and night like the other buildings'
 // (cityUniforms.uInteriorGlow).
@@ -68,6 +68,7 @@ function simpleMaterials() {
   M.roofGravel = make(snowRoof(vec3(0.27, 0.26, 0.25)), 0.92);
   M.stadiumRoof = make(snowRoof(vec3(0.12, 0.105, 0.097)), 0.75, 0.05);
   M.copper = make(vec3(0.42, 0.17, 0.08), 0.5, 0.6);
+  M.arenaTrim = make(vec3(0.025, 0.024, 0.023), 0.6, 0.3);
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
   M.parsenn = windowed(vec3(0.71, 0.71, 0.69), 3.2, 0.24, 0.72, 0.85, 0.4);
   {
@@ -108,7 +109,7 @@ function simpleMaterials() {
     M.arcade = banded(vec3(0.74, 0.72, 0.69), lane(v, 0.15, 3.35).add(lane(v, 4.0, 6.3)).mul(sh).mul(open), 0.88, 0.35);
   }
   M.brick = make(vec3(0.36, 0.11, 0.065), 0.9);
-  M.redSquare = make(snowRoof(vec3(0.46, 0.15, 0.1)), 0.8);
+  M.redSquare = make(vec3(0.46, 0.15, 0.1), 0.8);
   M.canopy = make(vec3(0.46, 0.47, 0.48), 0.55, 0.3);
   M.platform = make(snowRoof(mix(mix(vec3(0.1, 0.1, 0.102), vec3(0.42, 0.41, 0.39), step(4000, V)), vec3(0.8, 0.8, 0.78), step(5500, V))), 0.9);
   return M;
@@ -245,6 +246,8 @@ function materials() {
     m.colorNode = mix(vec3(0.36, 0.13, 0.06), vec3(0.5, 0.22, 0.1), weather);
     M.copper = m;
   }
+  // The arena's trims (the verges, the fascia over the glass band): near-black metal
+  M.arenaTrim = new THREE.MeshStandardNodeMaterial({ color: 0x1c1b1a, roughness: 0.55, metalness: 0.4 });
   // The Parsennbahn's valley station: white render; on every upper floor (3.2 m) a band of narrow portrait windows
   // (0.85 × 1.5 m in bays of 1.45 m, a red frame and a red centre mullion each, now and then a closed pier so that the
   // band runs in groups of two to six) over red-white-red stripes at the floor line; the street fronts (uv.y + 2000)
@@ -476,7 +479,7 @@ function materials() {
     m.colorNode = c;
     M.brick = m;
   }
-  // The square's red paving: slabs of 1.6 m along the square's edges (turned 16° against the grid), snow in winter
+  // The square's red paving: slabs of 1.6 m along the square's edges (turned 16° against the grid), cleared in winter
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0 });
     const a = 0.278, cs = Math.cos(a), sn = Math.sin(a);
@@ -484,7 +487,7 @@ function materials() {
     const joint = step(fract(px.div(1.6)), 0.012).max(step(fract(pz.div(1.6)), 0.012)).mul(fine);
     const slab = hash(floor(px.div(1.6)).mul(7.7).add(floor(pz.div(1.6)).mul(3.1)));
     const c = mix(vec3(0.42, 0.13, 0.08), vec3(0.5, 0.18, 0.11), slab.mul(fine).mul(0.5).add(weather.mul(0.5))).mul(float(1).sub(joint.mul(0.35)));
-    m.colorNode = snowyRoof(c, float(0.8));
+    m.colorNode = c; // (cleared of snow in winter, like the streets)
     M.redSquare = m;
   }
   // The stations' platforms: asphalt on top, concrete at their edges (the walls: normal not up); v ≥ 4000: the light edge
@@ -686,7 +689,7 @@ function buildEisstadion(B, colliders) {
   const away = (a, b) => { const n = [(a.x + b.x) / 2 - A.x, (a.z + b.z) / 2 - A.z], l = Math.hypot(...n); return [n[0] / l, n[1] / l]; };
   verge.forEach((P, i) => {
     const Q = verge[(i + 1) % verge.length];
-    B.wall('darkwood', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, away(P, Q), us[i], floorY, false);
+    B.wall('arenaTrim', P.x, P.z, Q.x, Q.z, floorY + P.h - T, floorY + Q.h - T, floorY + P.h + 0.05, floorY + Q.h + 0.05, away(P, Q), us[i], floorY, false);
   });
   // The stands: the concrete outer wall round the outline up to the eaves (a low parapet over the roof), their flat
   // gravel roof between the outline and the pitched roof
@@ -701,12 +704,20 @@ function buildEisstadion(B, colliders) {
       const G = S.ground, inA = [a[0] - n[0] * G.recess, a[1] - n[1] * G.recess], inB = [b[0] - n[0] * G.recess, b[1] - n[1] * G.recess];
       for (const [p, q, t0] of pieces(inA, inB, 3)) {
         const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
-        B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, floorY + G.ledge, floorY + G.ledge, n, u + t0, floorY);
+        B.wall('arenaGlass', p[0], p[1], q[0], q[1], Math.min(gp, floorY) - 0.5, Math.min(gq, floorY) - 0.5, floorY + G.ledge, floorY + G.ledge, n, u + t0, floorY);
+      }
+      // the square piers in the front line, carrying the ledge
+      const ang0 = -Math.atan2(b[1] - a[1], b[0] - a[0]), np = Math.max(1, Math.round(L / G.pierStep));
+      for (let k = 0; k <= np; k++) {
+        const c = along([a, b], Math.min(0.985, Math.max(0.015, k / np))), g = Math.min(groundHeight(c[0], c[1]), floorY) - 0.5, h = floorY + G.ledge - g;
+        const pier = new THREE.BoxGeometry(0.55, h, 0.55);
+        pier.rotateY(ang0);
+        B.add('concrete', pier.translate(c[0] - n[0] * 0.35, g + h / 2, c[1] - n[1] * 0.35));
       }
       B.cap('concrete', [a, b, inB, inA], floorY + G.ledge, -1);
       B.wall('concrete', a[0], a[1], b[0], b[1], floorY + G.ledge, floorY + G.ledge, floorY + G.glass, floorY + G.glass, n, u, floorY, false);
       B.wall('arenaGlass', a[0], a[1], b[0], b[1], floorY + G.glass, floorY + G.glass, eaves - 0.6, eaves - 0.6, n, u, floorY + G.glass);
-      B.wall('darkwood', a[0] + n[0] * 0.05, a[1] + n[1] * 0.05, b[0] + n[0] * 0.05, b[1] + n[1] * 0.05, eaves - 0.6, eaves - 0.6, parapet, parapet, n, u, floorY, false);
+      B.wall('arenaTrim', a[0] + n[0] * 0.05, a[1] + n[1] * 0.05, b[0] + n[0] * 0.05, b[1] + n[1] * 0.05, eaves - 0.6, eaves - 0.6, parapet, parapet, n, u, floorY, false);
       // the beams' ends under the ledge, across the recess, one every 1.3 m
       const ang = -Math.atan2(b[1] - a[1], b[0] - a[0]);
       for (let t = 0.65; t < L; t += 1.3) {
@@ -760,7 +771,7 @@ function buildEisstadion(B, colliders) {
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b);
     B.wall('arenaGlass', a[0], a[1], b[0], b[1], eaves - 0.3, eaves - 0.3, top, top, n, ua, eaves);
-    B.wall('darkwood', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
+    B.wall('arenaTrim', a[0] + n[0] * 0.06, a[1] + n[1] * 0.06, b[0] + n[0] * 0.06, b[1] + n[1] * 0.06, top - 0.6, top - 0.6, top + 0.1, top + 0.1, n, ua, floorY, false);
     ua += Math.hypot(b[0] - a[0], b[1] - a[1]);
   }
 }
@@ -1149,6 +1160,43 @@ function buildPlatz(B, colliders) {
   canopyPosts(B, canopy, dir, [base, ...blocks.map((b) => b.pts)], { step: 10, thick: 0.35, minEdge: 1.5, colliders });
 }
 
+// A surface laid exactly on the terrain, `lift` over it: the terrain's own triangles (its 8 m grid, each cell split like
+// js/terrain-grid.js gridHeight) cut to the outline `pts` (each triangle clipping the outline, Sutherland–Hodgman), so
+// that no crease of the ground can rise through it
+function drapeOnTerrain(B, mat, pts, lift) {
+  const { cell, minX, minZ, cols, rows } = TERRAIN;
+  const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+  const i0 = Math.max(0, Math.floor((Math.min(...xs) - minX) / cell)), i1 = Math.min(cols - 2, Math.floor((Math.max(...xs) - minX) / cell));
+  const j0 = Math.max(0, Math.floor((Math.min(...zs) - minZ) / cell)), j1 = Math.min(rows - 2, Math.floor((Math.max(...zs) - minZ) / cell));
+  const clip = (subject, tri) => {
+    let out = subject;
+    for (let e = 0; e < 3 && out.length; e++) {
+      const a = tri[e], b = tri[(e + 1) % 3], c = tri[(e + 2) % 3];
+      const side = (p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+      const sc = Math.sign(side(c)), inside = (p) => side(p) * sc >= -1e-9, input = out;
+      out = [];
+      for (let k = 0; k < input.length; k++) {
+        const P = input[k], Q = input[(k + 1) % input.length], pin = inside(P), qin = inside(Q);
+        if (pin) out.push(P);
+        if (pin !== qin) { const sp = side(P), sq = side(Q), t = sp / (sp - sq); out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t]); }
+      }
+    }
+    return out;
+  };
+  const y = (p) => groundHeight(p[0], p[1]) + lift;
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const x0 = minX + i * cell, z0 = minZ + j * cell, x1 = x0 + cell, z1 = z0 + cell;
+    for (const tri of [[[x0, z0], [x1, z0], [x1, z1]], [[x0, z0], [x1, z1], [x0, z1]]]) {
+      const poly = clip(pts, tri);
+      if (poly.length < 3) continue;
+      // (a convex triangle cuts a concave outline into pieces joined along its edge: triangulated as one polygon)
+      let tris;
+      try { tris = THREE.ShapeUtils.triangulateShape(poly.map(([px, pz]) => new THREE.Vector2(px, pz)), []); } catch { continue; }
+      for (const [a, b, c] of tris) B.tri(mat, [poly[a][0], y(poly[a]), poly[a][1]], [poly[b][0], y(poly[b]), poly[b][1]], [poly[c][0], y(poly[c]), poly[c][1]], poly[a], poly[b], poly[c], [0, 1, 0]);
+    }
+  }
+}
+
 // --- Arkadenplatz, Kulturplatz Davos ---------------------------------------------------------------------------------------
 function buildArkaden(B, colliders) {
   const A = ARKADEN, sq = ringPoints(A.square);
@@ -1159,20 +1207,39 @@ function buildArkaden(B, colliders) {
   for (let x = Math.min(...xs); x <= Math.max(...xs); x += 1.5) for (let z = Math.min(...zs); z <= Math.max(...zs); z += 1.5) {
     if (pointInRing(sq, x, z)) Y = Math.max(Y, groundHeight(x, z) + 0.04);
   }
-  // The red square, its edge closed down to the ground where the car park's roof stands over the terrain
-  B.cap('redSquare', sq, Y + 0.04);
-  for (let i = 0; i < sq.length; i++) {
-    const a = sq[i], b = sq[(i + 1) % sq.length], n = outward(sq, a, b);
-    for (const [p, q, t0] of pieces(a, b, 4)) {
-      const gp = groundHeight(p[0], p[1]), gq = groundHeight(q[0], q[1]);
-      if (Math.min(gp, gq) < Y - 0.05) B.wall('concrete', p[0], p[1], q[0], q[1], Math.min(gp, Y) - 0.5, Math.min(gq, Y) - 0.5, Y + 0.04, Y + 0.04, n, t0, Y, false);
-    }
+  // The red square: paving laid on the ground (a few centimetres over it, the terrain's every metre and a half), raised
+  // ground for whoever walks there (js/terrain.js); cars drive over it at the roads' height
+  const pave = (x, z) => groundHeight(x, z) + A.paving;
+  const grid = [];
+  for (let i = 0; i < sq.length; i++) for (const [p] of pieces(sq[i], sq[(i + 1) % sq.length], 1.5)) grid.push(p);
+  drapeOnTerrain(B, 'redSquare', sq, A.paving);
+  for (let i = 0; i < grid.length; i++) {
+    const a = grid[i], b = grid[(i + 1) % grid.length];
+    B.wall('concrete', a[0], a[1], b[0], b[1], pave(a[0], a[1]) - 0.3, pave(b[0], b[1]) - 0.3, pave(a[0], a[1]), pave(b[0], b[1]), outward(grid, a, b), i, 0, false);
   }
+  addRaisedSidewalk(sq.map(([x, z]) => ({ x, z })), 'arkadenplatz', A.paving);
   const D = A.arcadeDepth, H = Y + A.arcadeHigh;
   for (const wing of A.wings) {
     const pts = ringPoints(wing.ring), top = Y + wing.h, parapet = top + 0.4;
     B.cap('roofGravel', pts, top);
     const inArcade = (i) => wing.arcade && i >= wing.arcade[0] && i < wing.arcade[1];
+    let back = null;
+    if (wing.arcade) {
+      const [i0, i1] = wing.arcade, chain = [];
+      for (let i = i0; i <= i1; i++) chain.push(pts[i % pts.length]);
+      const nOf = (k) => outward(pts, pts[(i0 + k) % pts.length], pts[(i0 + k + 1) % pts.length]);
+      back = chain.map((p, k) => {
+        const n0 = nOf(Math.max(0, k - 1)), n1 = nOf(Math.min(chain.length - 2, k));
+        const bx = n0[0] + n1[0], bz = n0[1] + n1[1], bl = Math.hypot(bx, bz) || 1, cos = Math.max(0.5, (bx / bl) * n1[0] + (bz / bl) * n1[1]);
+        return [p[0] - (bx / bl) * D / cos, p[1] - (bz / bl) * D / cos];
+      });
+      // its two ends closed (a wall from the outline to the back line, facing into the arcade)
+      for (const [k, kIn] of [[0, 1], [chain.length - 1, chain.length - 2]]) {
+        const p = chain[k], q = back[k], into = [chain[kIn][0] - p[0], chain[kIn][1] - p[1]], l = Math.hypot(into[0], into[1]) || 1;
+        const g = Math.min(groundHeight(p[0], p[1]), groundHeight(q[0], q[1]), Y) - 1;
+        B.wall('arcade', p[0], p[1], q[0], q[1], g, g, H + 0.05, H + 0.05, [into[0] / l, into[1] / l], 0, Y - 2000);
+      }
+    }
     let u = 0;
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -1195,12 +1262,13 @@ function buildArkaden(B, colliders) {
           B.wall('brick', P0[0], P0[1], b[0], b[1], bot, bot, parapet, parapet, n, u + t * L, Y);
         } else B.wall('brick', a[0], a[1], b[0], b[1], bot, bot, parapet, parapet, n, u, Y);
       } else if (inArcade(i)) {
-        // the arcade: the frieze over it on the outline, its ceiling, the shop fronts at the back (v + 2000)
-        const ia = [a[0] - n[0] * D, a[1] - n[1] * D], ib = [b[0] - n[0] * D, b[1] - n[1] * D];
+        // the arcade: the frieze over it on the outline, its ceiling, its floor, the shop fronts at the back (v + 2000)
+        // along the back line (the outline moved in by its depth, mitred at the corners: no gaps round the curve)
+        const ia = back[i - wing.arcade[0]], ib = back[i + 1 - wing.arcade[0]];
         B.wall('arcade', a[0], a[1], b[0], b[1], H, H, parapet, parapet, n, u, Y);
         B.wall('arcade', ia[0], ia[1], ib[0], ib[1], bot, bot, H + 0.05, H + 0.05, n, u, Y - 2000);
         B.cap('arcade', [a, b, ib, ia], H, -1);
-        B.cap('redSquare', [a, b, ib, ia], Y + 0.03);
+        drapeOnTerrain(B, 'redSquare', [a, b, ib, ia], A.paving);
       } else if (wing.street && i === wing.street[0]) {
         B.wall('arcade', a[0], a[1], b[0], b[1], bot, bot, H, H, n, u, Y - 2000);
         B.wall('arcade', a[0], a[1], b[0], b[1], H, H, parapet, parapet, n, u, Y);
@@ -1225,23 +1293,9 @@ function buildArkaden(B, colliders) {
       }
     }
   }
-  // The bollards along the Promenade, chains sagging between them
-  const [b0, b1] = A.bollards, L = Math.hypot(b1[0] - b0[0], b1[1] - b0[1]), nB = Math.round(L / 4.4);
-  const tops = [];
-  for (let k = 0; k <= nB; k++) {
-    const p = along([b0, b1], k / nB), y = Y + 0.04;
-    const geo = new THREE.CylinderGeometry(0.07, 0.3, 0.95, 4, 1);
-    geo.rotateY(Math.PI / 4 - Math.atan2(b1[1] - b0[1], b1[0] - b0[0]));
-    B.add('concrete', geo.translate(p[0], y + 0.475, p[1]));
-    tops.push(new THREE.Vector3(p[0], y + 0.78, p[1]));
-  }
-  for (let k = 0; k + 1 < tops.length; k++) {
-    const a = tops[k], b = tops[k + 1], mid = a.clone().lerp(b, 0.5); mid.y -= 0.32;
-    B.add('metal', new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 8, 0.022, 4, false));
-  }
   // The parasols over the café tables
   for (const [x, z] of A.parasols) {
-    const y = Y + 0.04;
+    const y = pave(x, z);
     B.add('metal', new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6).translate(x, y + 1.3, z));
     const roof = new THREE.ConeGeometry(3.3, 0.8, 4, 1, true);
     roof.rotateY(Math.PI / 4 + 0.278);

@@ -46,6 +46,7 @@ import { GEO } from './nyc-geodata.js';
 import { fdrViaduct, pavedPlazaRects, parkTreeSites, sidewalkBlocks } from './city-grid.js';
 import { berlinPoints, berlinBounds, berlinPolygonGeometry, nearestBerlinRoad, berlinSpatialGroups, berlinGeometryGroups } from './berlin-geometry.js';
 import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
+import { UNSURVEYED_BUILDINGS } from './unsurveyed-buildings-data.js';
 import { surfaceHeight } from './terrain.js';
 
 // js/buildings.js
@@ -263,7 +264,8 @@ function carve(r, holes, axis = 'x') {
 // OpenStreetMap footprint even when the streamed volumes stand in for all the others (`bag`). (The Bahnhof Davos Platz,
 // w712452961, which swisstopo has only as its roofs, is rebuilt by hand now: js/landmark-buildings.js; its footprint
 // here keeps only its colliders.)
-export const NEWER_THAN_SWISSBUILDINGS = new Set();
+// Likewise the buildings swisstopo does not have at all (js/unsurveyed-buildings-data.js: built after the 2014 survey)
+export const NEWER_THAN_SWISSBUILDINGS = new Set(UNSURVEYED_BUILDINGS);
 
 // `bag`: 3D BAG meshes already supply the facades and roofs, so only colliders and street-level details are built here
 // (but for NEWER_THAN_SWISSBUILDINGS).
@@ -2029,7 +2031,11 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       if (LANDMARK_EXCLUSIONS.some(r => cx > r.minX && cx < r.maxX && cz > r.minZ && cz < r.maxZ)) continue;
       if (Math.abs(signedArea(poly)) < 7) continue;
       const base = Math.max(0, source.minHeight || 0);
-      const height = Math.max(base + 0.15, source.h || (source.levels || 6) * 3.4);
+      // (the buildings swisstopo lacks and OSM gives no height: OSM's default of 9 m made a tower of every shed; by their
+      // floor area instead: a shed or garage, a small house, a house)
+      const plan = Math.abs(signedArea(poly));
+      const guessed = bag && UNSURVEYED_BUILDINGS.has(source.id) && source.heightSource === 'default' ? (plan < 40 ? 3 : plan < 120 ? 6 : 9) : 0;
+      const height = Math.max(base + 0.15, guessed || source.h || (source.levels || 6) * 3.4);
       const roofHeight = Math.max(0, Math.min(source.roofHeight || 0, height * 0.4));
       // (the streamed volumes lack this one: it is drawn from its footprint)
       const drawn = !bag || NEWER_THAN_SWISSBUILDINGS.has(source.id);
