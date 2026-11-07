@@ -1,12 +1,12 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
-import { groundHeight } from './terrain.js';
+import { groundHeight, addRaisedSidewalk } from './terrain.js';
 import { snowyRoof, winter } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import {
-  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, PLATFORMS, PLATFORM_RISE, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, pointInRing
 } from './landmark-buildings-data.js';
 
@@ -110,6 +110,7 @@ function simpleMaterials() {
   M.brick = make(vec3(0.36, 0.11, 0.065), 0.9);
   M.redSquare = make(snowRoof(vec3(0.46, 0.15, 0.1)), 0.8);
   M.canopy = make(vec3(0.46, 0.47, 0.48), 0.55, 0.3);
+  M.platform = make(snowRoof(mix(mix(vec3(0.1, 0.1, 0.102), vec3(0.42, 0.41, 0.39), step(4000, V)), vec3(0.8, 0.8, 0.78), step(5500, V))), 0.9);
   return M;
 }
 
@@ -485,6 +486,18 @@ function materials() {
     const c = mix(vec3(0.42, 0.13, 0.08), vec3(0.5, 0.18, 0.11), slab.mul(fine).mul(0.5).add(weather.mul(0.5))).mul(float(1).sub(joint.mul(0.35)));
     m.colorNode = snowyRoof(c, float(0.8));
     M.redSquare = m;
+  }
+  // The stations' platforms: asphalt on top, concrete at their edges (the walls: normal not up); v ≥ 4000: the light edge
+  // stones along the tracks, v ≥ 5500: the white safety line
+  {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+    const asphalt = mix(vec3(0.075, 0.075, 0.078), vec3(0.12, 0.12, 0.122), noise(1.1).mul(0.5).add(weather.mul(0.5)));
+    const side = smoothstep(0.6, 0.3, normalWorld.y);
+    let c = mix(asphalt, mix(vec3(0.34, 0.33, 0.31), vec3(0.42, 0.41, 0.39), weather), side);
+    c = mix(c, mix(vec3(0.46, 0.45, 0.43), vec3(0.54, 0.53, 0.5), weather), step(4000, V));
+    c = mix(c, vec3(0.8, 0.8, 0.78), step(5500, V));
+    m.colorNode = snowyRoof(c, float(0.6));
+    M.platform = m;
   }
   // The platform canopies' undersides and fascias: light grey steel, a cross beam every 1.5 m
   {
@@ -1240,6 +1253,46 @@ function buildArkaden(B, colliders) {
   }
 }
 
+// --- The stations' platforms ------------------------------------------------------------------------------------------------
+// A slab PLATFORM_RISE over the ground (its top following the terrain, its edges down into it), the edge stones and the
+// white line along the tracks; registered as raised ground (js/terrain.js), so that whoever walks there stands on it
+function buildPlatforms(B) {
+  const R = PLATFORM_RISE;
+  for (const P of PLATFORMS) {
+    const ring = ringPoints(P.ring);
+    // the outline every 3 m, the top over the ground at each point
+    const pts = [];
+    for (let i = 0; i < ring.length; i++) for (const [p] of pieces(ring[i], ring[(i + 1) % ring.length], 3)) pts.push(p);
+    const top = (x, z) => groundHeight(x, z) + R + 0.02;
+    const tris = THREE.ShapeUtils.triangulateShape(pts.map(([x, z]) => new THREE.Vector2(x, z)), []);
+    for (const [i, j, k] of tris) {
+      const a = pts[i], b = pts[j], c = pts[k];
+      B.tri('platform', [a[0], top(a[0], a[1]), a[1]], [b[0], top(b[0], b[1]), b[1]], [c[0], top(c[0], c[1]), c[1]], a, b, c, [0, 1, 0]);
+    }
+    let u = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length], n = outward(pts, a, b);
+      B.wall('platform', a[0], a[1], b[0], b[1], groundHeight(a[0], a[1]) - 0.3, groundHeight(b[0], b[1]) - 0.3, top(a[0], a[1]), top(b[0], b[1]), n, u, 0, false);
+      u += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    // along the tracks: the edge stones (0.35 m) and the white line 0.8 m in
+    for (const e of P.track) {
+      const a0 = ring[e], b0 = ring[(e + 1) % ring.length], n = outward(ring, a0, b0);
+      for (const [p, q] of pieces(a0, b0, 3)) {
+        const strip = (d0, d1, v, lift) => {
+          const P0 = [p[0] - n[0] * d0, p[1] - n[1] * d0], Q0 = [q[0] - n[0] * d0, q[1] - n[1] * d0];
+          const P1 = [p[0] - n[0] * d1, p[1] - n[1] * d1], Q1 = [q[0] - n[0] * d1, q[1] - n[1] * d1];
+          const y = (pt) => top(pt[0], pt[1]) + lift;
+          B.quad('platform', [P0[0], y(P0), P0[1]], [Q0[0], y(Q0), Q0[1]], [Q1[0], y(Q1), Q1[1]], [P1[0], y(P1), P1[1]], [0, v], [0, v], [0, v], [0, v], [0, 1, 0]);
+        };
+        strip(0, 0.35, 5000, 0.006);
+        strip(0.8, 0.9, 6000, 0.006);
+      }
+    }
+    addRaisedSidewalk(ring.map(([x, z]) => ({ x, z })), 'platform', R);
+  }
+}
+
 // --- Natureisbahn ------------------------------------------------------------------------------------------------------------
 function buildEisbahn(B) {
   // The track and the pitch inside it lie flat: one sheet just over the highest ground under it
@@ -1273,6 +1326,7 @@ export function buildLandmarkBuildings(scene) {
   buildDorf(B, colliders);
   buildPlatz(B, colliders);
   buildArkaden(B, colliders);
+  buildPlatforms(B);
   for (const mesh of B.meshes(M)) {
     if (mesh.name === 'landmark parsennSigns') mesh.castShadow = false; // (thin plates and flags: no shadow pass)
     root.add(mesh);

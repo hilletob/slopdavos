@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, PLATFORMS, PLATFORM_RISE, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, ringArea, pointInRing
 } from '../js/landmark-buildings-data.js';
 import { lv95ToWorld } from '../js/davos-frame.js';
+import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { TELEPORT_LOCATIONS } from '../js/city-config.js';
 
 test('the Eisstadion: the surveyed roof over the stands\' octagon, 33 m over the ground, the glazed gables and the annex under it', () => {
@@ -168,4 +169,44 @@ test('the Arkadenplatz: the square between its arcaded wings and the Kulturplatz
   assert.ok(pointInRing(brick, -532.6, -86.6));
   for (const [x, z] of ARKADEN.parasols) assert.ok(pointInRing(sq, x, z));
   for (const e of ARKADEN.exclude) assert.ok(ARKADEN.wings.some((w) => { const r = ringPoints(w.ring); return pointInRing(r, e.x, e.z) || r.some(([x, z]) => Math.hypot(x - e.x, z - e.z) < 20); }), `(${e.x}, ${e.z})`);
+});
+
+test('the stations\' platforms: clear of the trains (1.45 m from every track\'s centreline), their track edges along a track', () => {
+  const segs = [];
+  for (const r of DAVOS_DATA.railways) if (!r.tunnel) for (let i = 0; i + 3 < r.pts.length; i += 2) segs.push([r.pts[i], r.pts[i + 1], r.pts[i + 2], r.pts[i + 3]]);
+  const dist = ([x, z]) => Math.min(...segs.map(([ax, az, bx, bz]) => {
+    const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    return Math.hypot(x - ax - dx * t, z - az - dz * t);
+  }));
+  assert.ok(PLATFORM_RISE > 0.2 && PLATFORM_RISE < 0.6);
+  assert.equal(PLATFORMS.length, 4);
+  for (const P of PLATFORMS) {
+    const ring = ringPoints(P.ring);
+    assert.ok(Math.abs(ringArea(ring)) > 150);
+    // the outline every metre stays clear; no track runs across the platform
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      for (let s = 0; s <= L; s += 1) assert.ok(dist([a[0] + (b[0] - a[0]) * s / L, a[1] + (b[1] - a[1]) * s / L]) > 1.44, `platform edge ${i}`);
+    }
+    for (const [ax, az, bx, bz] of segs) for (let t = 0; t <= 1; t += 0.05) assert.ok(!pointInRing(ring, ax + (bx - ax) * t, az + (bz - az) * t));
+    assert.ok(P.track.length > 0);
+    for (const e of P.track) { const a = ring[e], b = ring[(e + 1) % ring.length]; assert.ok(dist([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]) < 3.2); }
+  }
+  // both stations get theirs: Davos Dorf's by its node (909.3/-1587.6), Davos Platz's by its (-628/449.9)
+  const centre = (P) => { const r = ringPoints(P.ring); return r.reduce((s, p) => [s[0] + p[0] / r.length, s[1] + p[1] / r.length], [0, 0]); };
+  assert.equal(PLATFORMS.filter((P) => Math.hypot(centre(P)[0] - 909.3, centre(P)[1] + 1587.6) < 120).length, 2);
+  assert.equal(PLATFORMS.filter((P) => Math.hypot(centre(P)[0] + 628, centre(P)[1] - 449.9) < 120).length, 2);
+});
+
+test('raised ground: a piece stands at its own rise (a platform over a sidewalk), the default the sidewalks\' height', async () => {
+  const { addRaisedSidewalk, removeRaisedSidewalks, sidewalkRise, RAISED_SIDEWALK_TOP } = await import('../js/terrain.js');
+  const sq = (x0, z0, s) => [{ x: x0, z: z0 }, { x: x0 + s, z: z0 }, { x: x0 + s, z: z0 + s }, { x: x0, z: z0 + s }];
+  addRaisedSidewalk(sq(50000, 50000, 10), 'test-sidewalk');
+  addRaisedSidewalk(sq(50005, 50000, 10), 'test-platform', 0.35);
+  assert.equal(sidewalkRise(50002, 50005), RAISED_SIDEWALK_TOP);
+  assert.equal(sidewalkRise(50007, 50005), 0.35); // (both: the higher)
+  assert.equal(sidewalkRise(50013, 50005), 0.35);
+  assert.equal(sidewalkRise(50020, 50005), 0);
+  removeRaisedSidewalks('test-sidewalk'); removeRaisedSidewalks('test-platform');
+  assert.equal(sidewalkRise(50007, 50005), 0);
 });

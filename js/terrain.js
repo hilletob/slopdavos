@@ -26,12 +26,13 @@ export const SIDEWALK_TOP = 0;
 export const RAISED_SIDEWALK_TOP = 0.16;
 const RAISED_CELL = 16;
 const raisedCells = new Map();
-/** Registers a raised sidewalk piece (a convex polygon, [{ x, z }]) for sidewalkRise(); `owner`: whoever built it
- *  (js/world-stream.js: a cell, whose pieces go with it, removeRaisedSidewalks) */
-export function addRaisedSidewalk(poly, owner = null) {
+/** Registers a raised sidewalk piece (a polygon, [{ x, z }]) for sidewalkRise(); `owner`: whoever built it
+ *  (js/world-stream.js: a cell, whose pieces go with it, removeRaisedSidewalks); `rise`: its top over the ground (the
+ *  stations' platforms stand higher than the sidewalks, js/landmark-buildings.js) */
+export function addRaisedSidewalk(poly, owner = null, rise = RAISED_SIDEWALK_TOP) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of poly) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  const piece = { poly, minX, maxX, minZ, maxZ, owner };
+  const piece = { poly, minX, maxX, minZ, maxZ, owner, rise };
   for (let ix = Math.floor(minX / RAISED_CELL); ix <= Math.floor(maxX / RAISED_CELL); ix++) {
     for (let iz = Math.floor(minZ / RAISED_CELL); iz <= Math.floor(maxZ / RAISED_CELL); iz++) {
       const k = ix * 65536 + iz;
@@ -54,20 +55,21 @@ export function removeRaisedSidewalks(owner) {
     if (kept.length) raisedCells.set(k, kept); else raisedCells.delete(k);
   }
 }
-/** How far the surface at (x, z) stands over the ground on a raised sidewalk (RAISED_SIDEWALK_TOP), else 0 */
+/** How far the surface at (x, z) stands over the ground on a raised sidewalk or platform (its rise), else 0 */
 export function sidewalkRise(x, z) {
   const list = raisedCells.get(Math.floor(x / RAISED_CELL) * 65536 + Math.floor(z / RAISED_CELL));
   if (!list) return 0;
-  for (const { poly, minX, maxX, minZ, maxZ } of list) {
+  let top = 0;
+  for (const { poly, minX, maxX, minZ, maxZ, rise } of list) {
     if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
     let inside = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
       const a = poly[i], b = poly[j];
       if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
     }
-    if (inside) return RAISED_SIDEWALK_TOP;
+    if (inside) top = Math.max(top, rise);
   }
-  return 0;
+  return top;
 }
 const ENGINE_SIDEWALK = 0.22;
 // Flat-world objects standing on the engine's sidewalks (their base at 0.15-0.3 m) stand on the terrain instead

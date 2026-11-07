@@ -324,5 +324,20 @@ export const ARKADEN = {
   exclude: [{ x: -546.6, z: -110.8, r: 1.5 }, { x: -555.7, z: -67.8, r: 1.5 }]
 };
 
+// --- The stations' platforms ------------------------------------------------------------------------------------------------
+// Raised 0.35 m over the ground and walked on (js/terrain.js addRaisedSidewalk). Davos Dorf: the OSM platforms (w758933265,
+// the house platform, and w1461939839, the narrow one between tracks 1 and 2); Davos Platz, which OSM lacks: the island
+// platform under its canopy (w712452971) and the house platform from the canopy's track-side edge (w113626474) 6 m in
+// towards the station. Every edge pushed to 1.45 m or more from the tracks' centrelines (a metre-gauge car is 2.65 m
+// wide); `track`: the edges along a track (the white line, the edge stones). (Davos Dorf's house platform reaches 2.3 m
+// further in than OSM's, under the surveyed walls: no strip of bare ground between them)
+export const PLATFORM_RISE = 0.35;
+export const PLATFORMS = [
+  { ring: [991.2, -1701, 873.61, -1519.98, 866.93, -1510.18, 862.17, -1513.26, 925.57, -1610.96, 925.87, -1610.86, 986.47, -1704.17], track: [0, 1] },
+  { ring: [881.1, -1525.4, 992.01, -1695.19, 993.49, -1694.44, 882.25, -1524.66], track: [0, 2] },
+  { ring: [-668.9, 541.6, -663.9, 544.9, -600.1, 447.3, -594.9, 438.5, -591.3, 431.5, -584.6, 417.5, -587, 416.1], track: [1, 2, 3, 4, 6] },
+  { ring: [-577.6, 388.5, -689.9, 558.9, -694.92, 555.62, -648.62, 486.92, -644.12, 479.52, -582.62, 385.22], track: [0] }
+];
+
 // Every swissBUILDINGS3D building the landmarks replace (js/swissbuildings3d.js excludeBuildings)
 export const LANDMARK_EXCLUSIONS = [...EISSTADION.exclude, ...KONGRESS.exclude, ...PARSENN.exclude, ...DORF.exclude, ...PLATZ.exclude, ...ARKADEN.exclude];
