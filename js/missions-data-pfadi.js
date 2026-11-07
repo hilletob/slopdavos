@@ -5,9 +5,10 @@
 //
 //   pfadi-spatz  Summer, evening. From the Pfadiheim Davos (Eisbahnstrasse 5, Davos Platz; OSM w116881199, the house of the
 //                Pfadi Battasendas Davos) on foot to the Mattawald, the forest across the Landwasser at the foot of the
-//                slope south-east of Davos Platz (swisstopo: Gebiet "Mattawald", LV95 2783296 / 1185328). The way follows
-//                the town's footways and streets (the shortest walk over OSM's lines, 1.5 km): along the Talstrasse, over
-//                the Hertistrasse and the Mattastrasse to the Landwasser, and on the forest path along the foot of the
+//                slope south-east of Davos Platz (swisstopo: Gebiet "Mattawald", LV95 2783296 / 1185328). The way (1.6 km)
+//                keeps to footways and sidewalks: round the Eisstadion on the Erwin-Pöschel-Weg, over the Kurgartenstrasse
+//                and through the Kurpark on the Carl-Dorno-Weg, over the Talstrasse and along its sidewalk, down the
+//                Hertistrasse's and along the Mattastrasse's to the Landwasser, and on the forest path along the foot of the
 //                Mattawald to a level spot inside the wood (P. ~1560 m, LV95 2783340 / 1185732, slope ~5°). Pfadi trail
 //                signs (Wegzeichen: sticks laid as an arrow) mark the way. ASSUMPTION: the camp spot itself is invented, a
 //                plausible flat piece of the Mattawald by its path; no Pfadi Lagerplatz is on record there.
@@ -40,14 +41,25 @@ export const PFADI_PLACES = {
   fire: { x: 842.6, z: -229.4 } // the fireplace, 8 m in front of its door
 };
 
-// The way: the start, the town's footways and streets, the path along the foot of the Mattawald, the camp
-// (the shortest walk over the OSM lines, simplified to 2.5 m)
-// (the first metres go round the Eisstadion's SSW gable, then along the Sportzentrum's north side, 4-6 m off the walls:
-// js/landmark-buildings-data.js EISSTADION.outline, OSM w37221745; straight across, the way led into the stadium)
+// The way: the start, the footways and the sidewalks (OSM's footways and paths, the sidewalk strips of roads[].sidewalk
+// as js/city-grid.js lays them: a cheapest walk over a 0.5 m grid, simplified, kept 1 m off every building and 4.7 m
+// off the Eisstadion's outline, js/landmark-buildings-data.js EISSTADION.outline), then the forest path:
+// north between the Pfadiheim and the Eisstadion, round its west side on the outer edge of the Erwin-Pöschel-Weg, over
+// the Kurgartenstrasse at the zebra crossing and a few metres up its sidewalk, through the Kurpark on the Carl-Dorno-Weg,
+// over the Talstrasse at the zebra crossing by the park's east gate, along its south sidewalk to the Hertistrasse, over
+// that at the zebra crossing, down its east sidewalk, along the Mattastrasse's north sidewalk, across it to the lane
+// down to the Landwasser, the forest path along the foot of the Mattawald, the camp
 export const PFADI_ROUTE = [
-  PFADI_PLACES.start.x, PFADI_PLACES.start.z, -298.2, -287.8, -271.8, -266.0, -236.5, -248.5, -185.6, -207.5, -170.0, -205.0, -154.5, -219.0, -143.7, -221.1, -80.8, -287.2, -61.6, -300.6, 275.5, -493.8, 359.9, -433.4, 376.2, -416.9, 399.4, -346,
-  403.3, -282, 424.7, -237.4, 488.8, -263.5, 500.2, -230.7, 497.9, -217, 506.7, -186.3, 534.1, -160.4, 542.4, -160.3, 595.5, -206.2, 637.3, -227.7,
-  660.5, -234, 699.5, -226.6, 750.4, -231.6, 771.8, -218.3, 843.3, -221.9, 840, -232
+  PFADI_PLACES.start.x, PFADI_PLACES.start.z, -301.7, -295.7, -300.2, -298.2, -300.2, -304.7, -298.7, -306.2,
+  -296.2, -324.2, -296.2, -335.7, -284.2, -346.7, -249.7, -374.2, -248.2, -375.2, -243.7, -375.2, -243.2, -374.7,
+  -235.2, -373.2, -222.2, -372.2, -205.7, -380.7, -194.2, -388.2, -189.2, -382.7, -173.2, -359.2, -172.2, -358.2,
+  -159.2, -360.7, -143.2, -355.7, -132.7, -354.7, -96.2, -377.2, -79.7, -393.7, -71.2, -396.7, -64.2, -393.7,
+  -48.7, -380.2, -31.2, -375.2, -13.7, -374.7, 31.3, -381.2, 71.3, -395.7, 73.3, -395.7, 77.8, -390.7, 82.8, -381.2,
+  84.3, -378.7, 85.3, -377.7, 274.8, -487.7, 277.3, -487.7, 293.8, -476.2, 295.3, -475.7, 300.8, -479.7, 303.3, -478.7,
+  369.3, -431.2, 377.8, -422.7, 381.8, -416.7, 393.8, -385.7, 404.3, -343.2, 405.3, -298.7, 407.8, -282.7,
+  414.8, -265.7, 424.8, -246.2, 426.8, -244.2, 483.3, -265.2, 487.8, -260.2, 500.2, -230.7, 497.9, -217, 506.7, -186.3,
+  534.1, -160.4, 542.4, -160.3, 595.5, -206.2, 637.3, -227.7, 660.5, -234, 699.5, -226.6, 750.4, -231.6, 771.8, -218.3,
+  843.3, -221.9, 840, -232
 ];
 
 export const PFADI = {
@@ -287,9 +299,10 @@ export const PFADI_MISSION = {
   icon: 'tent',
   logo: './assets/pfadi/pfadi-davos-logo.svg',
   // (tests/missions-pfadi.test.mjs: the bot walks the way at the pedestrian's top speed and does each step at once: ~3:37;
-  // gold a little above it, a real walk round the corners and a strike or two missed)
-  bonusMs: 230000,
-  medals: { gold: 230000, silver: 310000, bronze: 460000 },
+  // gold with room for the level crossing on the Hertistrasse, where a train calling at Davos Kongress/Eisstadion keeps
+  // the barrier down for up to ~50 s, a real walk round the corners and a strike or two missed)
+  bonusMs: 280000,
+  medals: { gold: 280000, silver: 360000, bronze: 520000 },
   timeLimitMs: PFADI.timeLimitMs,
   finish: 'The Spatz stands taut between the spruces of the Mattawald, the fire crackles, and the first cervelats are on their sticks. Allzeit bereit!',
   start: { x: PFADI_PLACES.start.x, z: PFADI_PLACES.start.z, heading: PFADIHEIM_START.heading }, // (looking at the Pfadiheim's door)

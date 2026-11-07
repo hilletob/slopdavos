@@ -160,7 +160,8 @@ test('a bot walks the way and pitches, gathers, builds and lights: inside the go
   assert.equal(index, m.objectives.length, `stuck at ${PFADI_STEPS[index]}`);
   const ms = t * 1000;
   assert.equal(medalFor(ms, m.medals), 'gold', `${(ms / 1000).toFixed(1)} s`);
-  assert.ok(ms > m.medals.gold * 0.85, `the gold time is not too generous: bot ${(ms / 1000).toFixed(1)} s`);
+  // (the bot never waits at the level crossing: gold allows ~50 s for a train standing over it)
+  assert.ok(ms > m.medals.gold * 0.72, `the gold time is not too generous: bot ${(ms / 1000).toFixed(1)} s`);
   assert.ok(st.tent.done && st.ring.done && st.flint.lit && st.blow.fire >= 1);
   assert.match(views[0], /to the camp in the Mattawald$/);
   assert.match(m.summary(st)[0], /good strikes? · \d+ missed the steel$/);
