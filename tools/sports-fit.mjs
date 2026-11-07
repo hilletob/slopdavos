@@ -55,7 +55,7 @@ const close = (g, r) => morph(morph(g, r, 'max'), r, 'min');
 const open = (g, r) => morph(morph(g, r, 'min'), r, 'max');
 
 /** Connected components (4-neighbourhood) of a binary grid: { labels (Int32Array, 0 = none), comps: [{ id, n, box }] } */
-function components(g) {
+export function components(g) {
   const { w, h, a } = g, labels = new Int32Array(w * h), comps = [], stack = new Int32Array(w * h);
   let id = 0;
   for (let s = 0; s < w * h; s++) {
@@ -136,7 +136,7 @@ function outlineRing(px, g, eps) {
 }
 
 /** The polygon (outer ring and holes ≥ minHole m²) of component `id` */
-function componentPolygon(cc, g, comp, eps = 0.25, minHole = 4) {
+export function componentPolygon(cc, g, comp, eps = 0.25, minHole = 4) {
   const { labels } = cc, { w, h } = g, id = comp.id;
   const [bx0, by0, bx1, by1] = comp.box;
   const isIn = (x, y) => x >= 0 && y >= 0 && x < w && y < h && labels[y * w + x] === id;

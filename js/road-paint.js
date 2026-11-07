@@ -4,6 +4,7 @@ import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
 import { GEO } from './nyc-geodata.js';
 import { worldRegion } from './quality.js';
+import { tracedMarkings } from './ground-markings-area.js';
 
 // js/road-paint.js
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
@@ -36,6 +37,7 @@ function buildRoadPaint(scene, network, region = worldRegion()) {
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) return;
     if (!region.ownsSegment(ax, az, bx, bz)) return; // (the mobile profile: the cell being built, js/world-stream.js)
+    if (tracedMarkings((ax + bx) / 2, (az + bz) / 2)) return; // (the paint traced from the aerial photo instead: js/vector-ground.js)
     const sx = ((az - bz) / len) * w * 0.5;
     const sz = ((bx - ax) / len) * w * 0.5;
     const i = position.length / 3;

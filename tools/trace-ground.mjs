@@ -7,37 +7,33 @@
 // fitted here (tools/sports-fit.mjs): tartan and turf surfaces, the track's stadium snapped onto its painted lanes,
 // the football pitch and the courts found in their paint, with the regulation markings of tools/sports-templates.mjs.
 // --review draws every site's vectors over its photo (<site>-review.png in the cache) for checking by eye.
-// usage: node tools/trace-ground.mjs [--layer sports] [--only <site id>] [--review]
+// Layer `markings` (tools/markings-layer.mjs): the paint on the roads. Layer `classes` (tools/classes-layer.mjs): the
+// town's open ground as maps of ground kinds, one per orthophoto tile.
+// usage: node tools/trace-ground.mjs [--layer sports|markings|classes] [--only <site id>] [--review]
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { worldToLv95 } from '../js/davos-frame.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { fitSite } from './sports-fit.mjs';
 import { linePoints } from '../js/ground-geometry.js';
+import { CACHE, bboxOf, cropJob, fetchCrops } from './ground-aerial.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const CACHE = path.join(DIR, 'data', 'cache', 'ground-aerial');
 const OVERRIDES = JSON.parse(fs.readFileSync(path.join(DIR, 'data', 'ground-overrides.json'), 'utf8'));
-const WMS = 'https://wms.geo.admin.ch/';
-const RES = 0.1, MAX_PX = 3800, MARGIN = 12, CONCURRENCY = 4;
+const MARGIN = 12;
 const arg = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
 const LAYER = arg('--layer') || 'sports';
 const ONLY = arg('--only');
 const REVIEW = process.argv.includes('--review');
 const log = (...a) => console.log('[trace-ground]', ...a);
+if (LAYER === 'markings') { await import('./markings-layer.mjs'); process.exit(0); }
+if (LAYER === 'classes') { await import('./classes-layer.mjs'); process.exit(0); }
 if (LAYER !== 'sports') throw new Error(`unknown layer ${LAYER}`);
 const CONF = OVERRIDES.sports;
 const OUT = path.join(DIR, '..', 'js', 'ground-sports-data.js');
-fs.mkdirSync(CACHE, { recursive: true });
 
 // --- The sites --------------------------------------------------------------------------------------------------------
-const bboxOf = (ring) => {
-  const b = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < ring.length; i += 2) { b[0] = Math.min(b[0], ring[i]); b[1] = Math.min(b[1], ring[i + 1]); b[2] = Math.max(b[2], ring[i]); b[3] = Math.max(b[3], ring[i + 1]); }
-  return b;
-};
 const boxGap = (a, b) => Math.max(a[0] - b[2], b[0] - a[2], a[1] - b[3], b[1] - a[3]);
 const union = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 
@@ -73,46 +69,12 @@ function collectSites() {
   return sites.filter((s) => !s.override.skip);
 }
 
-// --- Fetching the crops -----------------------------------------------------------------------------------------------
-async function fetchRetry(url, file) {
-  for (let attempt = 1; ; attempt++) {
-    const res = await fetch(url).catch((error) => ({ ok: false, status: error.message }));
-    if (res.ok && /^image\//.test(res.headers.get('content-type') || '')) { fs.writeFileSync(file, Buffer.from(await res.arrayBuffer())); return; }
-    if (attempt === 4) throw new Error(`${url}: ${res.status}`);
-    await new Promise((r) => setTimeout(r, attempt * 2000));
-  }
-}
-
-function job(site) {
-  const [x0, z0, x1, z1] = site.crop;
-  const res = Math.max(RES, (x1 - x0) / MAX_PX, (z1 - z0) / MAX_PX);
-  const w = Math.round((x1 - x0) / res), h = Math.round((z1 - z0) / res);
-  const sw = worldToLv95(x0, z1), ne = worldToLv95(x1, z0); // world z grows to the south
-  const key = `${x0}_${z0}_${x1}_${z1}`.replace(/\./g, 'p');
-  const img = path.join(CACHE, `${site.id}-${key}-${res.toFixed(3)}.jpg`);
-  const px = (ring) => { const out = []; for (let i = 0; i < ring.length; i += 2) out.push([(ring[i] - x0) / res, (ring[i + 1] - z0) / res]); return out; };
-  const buildings = DAVOS_DATA.buildings.filter((b) => { const bb = bboxOf(b.ring); return bb[2] > x0 && bb[0] < x1 && bb[3] > z0 && bb[1] < z1; }).map((b) => px(b.ring));
-  return {
-    id: site.id, img, cls: img.replace(/\.jpg$/, '.cls'), res, x0, z0, w, h, buildings, px,
-    url: `${WMS}?${new URLSearchParams({
-      SERVICE: 'WMS', VERSION: '1.3.0', REQUEST: 'GetMap', LAYERS: 'ch.swisstopo.swissimage', STYLES: '', CRS: 'EPSG:2056',
-      BBOX: `${sw.E},${sw.N},${ne.E},${ne.N}`, WIDTH: String(w), HEIGHT: String(h), FORMAT: 'image/jpeg'
-    })}`
-  };
-}
-
 // --- Run --------------------------------------------------------------------------------------------------------------
 const sites = collectSites().filter((s) => !ONLY || s.id === ONLY);
 if (!sites.length) throw new Error(`no site ${ONLY}`);
 log(`${sites.length} sites:`, sites.map((s) => `${s.id} (${s.pitches.map((p) => p.sport || '?').join(', ') || '–'})`).join('; '));
-const jobs = sites.map(job);
-let next = 0;
-await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
-  while (next < jobs.length) {
-    const j = jobs[next++];
-    if (!fs.existsSync(j.img)) { await fetchRetry(j.url, j.img); log('fetched', path.basename(j.img)); }
-  }
-}));
+const jobs = sites.map((s) => cropJob(s.id, s.crop));
+await fetchCrops(jobs, log);
 const todo = jobs.filter((j) => !fs.existsSync(j.cls) || fs.statSync(j.cls).mtimeMs < fs.statSync(path.join(DIR, 'ground-sports.py')).mtimeMs);
 if (todo.length) {
   const jobFile = path.join(CACHE, 'jobs.json');

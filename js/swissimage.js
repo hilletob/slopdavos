@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { texture, uniform, positionWorld, vec2, float } from 'three/tsl';
+import { texture, uniform, positionWorld, vec2, float, mix, step, mx_noise_float } from 'three/tsl';
 import { snowyGround, isWinter } from './season.js';
 import { orthoLevel, orthoScale } from './ortho-levels.js';
 import { QUALITY } from './quality.js';
 import { releaseImageAfterUpload } from './gpu-memory.js';
 import { groomedGround, groomedRoughness } from './groom-map.js';
+import { groundKindNodes, TOWN_KIND_NAMES } from './ground-kinds.js';
 
 // swisstopo SWISSIMAGE orthophotos (data/swissimage/, tools/fetch-swissimage.mjs): one WebP per terrain mesh chunk,
 // reaching `margin` metres beyond it. The terrain chunks drape their own image; a swissBUILDINGS3D tile drapes its roofs
@@ -34,6 +35,41 @@ export function hiresOrthophotoIndex() {
     .catch(() => null);
   return hiresPromise;
 }
+
+// The ground class maps (data/ground-classes/, tools/trace-ground.mjs --layer classes): where a chunk has one and
+// QUALITY.groundClasses is on, the chunk is drawn from its map of ground kinds (js/ground-kinds.js) instead of the
+// photograph, whose smallest level stays for the tint
+const CLASSES_URL = new URL('../data/ground-classes/index.json', import.meta.url);
+let classesPromise = null;
+export function groundClassIndex() {
+  if (!QUALITY.groundClasses) return Promise.resolve(null);
+  classesPromise ??= fetch(CLASSES_URL)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((index) => index && { ...index, byChunk: new Map(index.tiles.map((t) => [`${t.i0}/${t.j0}`, t])) })
+    .catch(() => null);
+  return classesPromise;
+}
+// A class map as a one-byte texture, read texel by texel (no filtering: the kinds' numbers don't blend), rows turned so
+// that its north edge lies at v = 1 as the photographs' do
+async function loadClassMap(url) {
+  const bitmap = await createImageBitmap(await fetchBlob(url));
+  const w = bitmap.width, h = bitmap.height, canvas = new OffscreenCanvas(w, h), ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const rgba = ctx.getImageData(0, 0, w, h).data, data = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { const src = (h - 1 - y) * w; for (let x = 0; x < w; x++) data[y * w + x] = rgba[(src + x) * 4]; }
+  const t = new THREE.DataTexture(data, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.needsUpdate = true;
+  return t;
+}
+const CLASS_NONE = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat, THREE.UnsignedByteType);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+})();
 
 // The image whose chunk holds (x, z), or null
 export function orthophotoAt(index, x, z) {
@@ -148,7 +184,18 @@ const groundMaterial = () => {
   const mapUV = vec2(positionWorld.x.sub(rect.x).mul(rect.z), float(1).sub(positionWorld.z.sub(rect.y).mul(rect.w)));
   const node = texture(PLACEHOLDER, mapUV).onObjectUpdate(({ object }) => object.userData.orthoMap || PLACEHOLDER);
   // summer as photographed; snow in winter (season.js), with the player groomer's tracks in it (groom-map.js)
-  material.colorNode = groomedGround(snowyGround(node.rgb));
+  let base = node.rgb;
+  if (QUALITY.groundClasses) {
+    // the ground class map, where the chunk has one: its kind's procedural colour, tinted a little by the photo's
+    // smallest level; the edges between kinds frayed by ~0.45 m of noise (the map's 0.5 m texels would show as steps)
+    const jitter = vec2(mx_noise_float(positionWorld.xz.mul(2.3)), mx_noise_float(positionWorld.xz.mul(2.3).add(31.7))).mul(0.45);
+    const classUV = vec2(positionWorld.x.add(jitter.x).sub(rect.x).mul(rect.z), float(1).sub(positionWorld.z.add(jitter.y).sub(rect.y).mul(rect.w)));
+    const cls = texture(CLASS_NONE, classUV).onObjectUpdate(({ object }) => object.userData.classMap || CLASS_NONE);
+    const value = cls.r.mul(255).round();
+    const { colour } = groundKindNodes(value.sub(1), { p: positionWorld.xz, dir: vec2(1, 0), edge: float(10) }, TOWN_KIND_NAMES);
+    base = mix(node.rgb, mix(colour, node.rgb, 0.2), step(0.5, value));
+  }
+  material.colorNode = groomedGround(snowyGround(base));
   material.roughnessNode = groomedRoughness(0.96);
   material.name = 'TerrainOrthophoto';
   return (ground = material);
@@ -164,14 +211,15 @@ const groundMaterial = () => {
 // (the distances and sizes come from the device profile, js/quality.js: the mobile one shows level 1 at half its linear
 // size, a quarter of the memory, within a shorter radius, and never level 2)
 const chunks = [];
-let lastTick = 0, loads = 0, hiresIndex, coverageOf = null;
+let lastTick = 0, loads = 0, classLoads = 0, hiresIndex, classIndex, coverageOf = null;
 hiresOrthophotoIndex().then((index) => { hiresIndex = index; });
+groundClassIndex().then((index) => { classIndex = index; });
 
 /** The vector ground's coverage of a rectangle (js/vector-ground.js groundCoverage), for js/ortho-levels.js */
 export function setGroundCoverage(fn) { coverageOf = fn; for (const c of chunks) c.coverage = undefined; }
 
 function wanted(c, camera) {
-  if (c.coverage === undefined) c.coverage = coverageOf ? coverageOf([c.rect.x0, c.rect.z0, c.rect.x1, c.rect.z1]) : 0;
+  if (c.coverage === undefined) c.coverage = c.classTile ? 1 : coverageOf ? coverageOf([c.rect.x0, c.rect.z0, c.rect.x1, c.rect.z1]) : 0;
   return orthoLevel({ d: Math.hypot(c.x - camera.x, c.z - camera.z), level: c.level, hires: !!(hiresIndex && c.hires), winter: isWinter(), coverage: c.coverage }, QUALITY);
 }
 function load(c, level) {
@@ -208,6 +256,25 @@ export function updateTerrainDetail(camera) {
   // moved, as when the map grew, would put another place's photograph on the chunk)
   const fits = (h, t) => h && Math.abs(h.x0 - t.x0) < 0.5 && Math.abs(h.z0 - t.z0) < 0.5 && Math.abs(h.x1 - t.x1) < 0.5 && Math.abs(h.z1 - t.z1) < 0.5;
   if (hiresIndex) for (const c of chunks) if (c.hires === undefined) { const h = hiresIndex.byChunk.get(c.key); c.hires = fits(h, c.tile) ? h : null; }
+  if (classIndex) for (const c of chunks) if (c.classTile === undefined) {
+    const t = c.tiles.length === 1 ? classIndex.byChunk.get(c.key) : null; // (a composed chunk keeps its photo for now)
+    c.classTile = fits(t, c.tile) ? t : null;
+    if (c.classTile) c.coverage = undefined;
+  }
+  // the class maps of the chunks near enough for the light image (whatever level the photo shows), dropped beyond
+  for (const c of chunks) {
+    if (!c.classTile || c.classLoading) continue;
+    const d = Math.hypot(c.x - camera.x, c.z - camera.z), near = d < QUALITY.orthoFullNear || (c.classMap && d < QUALITY.orthoFullFar);
+    if (near && !c.classMap && classLoads < 2) { // (their own queue: the photos' first pass holds the other for a while)
+      c.classLoading = true; classLoads++;
+      loadClassMap(new URL(c.classTile.f, CLASSES_URL).href)
+        .then((t) => { c.classMap = t; c.mesh.userData.classMap = t; })
+        .catch((error) => { console.warn('[swissimage] class map', c.classTile.f, error); c.classTile = null; })
+        .finally(() => { c.classLoading = false; classLoads--; });
+    } else if (!near && c.classMap) {
+      c.mesh.userData.classMap = null; drop(c.classMap); c.classMap = null;
+    }
+  }
   const todo = [];
   for (const c of chunks) {
     if (c.loading >= 0) continue;

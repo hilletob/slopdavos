@@ -74,6 +74,7 @@ import { BERGBAHNEN } from './bergbahnen-data.js';
 import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree, plantedAt } from './trees.js';
 import { QUALITY, REGION_ALL } from './quality.js';
 import { indexGeometry } from './gpu-memory.js';
+import { withoutTraced } from './ground-markings-area.js';
 import { FRAME } from './davos-frame.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
 
@@ -119,6 +120,8 @@ function makeCollector() {
   const c = {
     collections, onDeck, absolute, deckContext: false,
     collect(geometry, material, { world = false } = {}) {
+      // (where the road paint is traced from the aerial photo, js/vector-ground.js draws it: these markings step back)
+      if (geometry && material === cityMats?.paintMat) { const kept = withoutTraced(geometry); if (kept !== geometry) geometry.dispose(); geometry = kept; }
       if (!geometry) return;
       if (!collections.has(material)) collections.set(material, []);
       collections.get(material).push(geometry);

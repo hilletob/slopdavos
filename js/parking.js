@@ -9,6 +9,12 @@ import { snowyStreet } from './season.js';
 import { berlinPolygonGeometry } from './berlin-geometry.js';
 import { QUALITY, worldRegion } from './quality.js';
 import { bayKey, createLotRegistry } from './hijack.js';
+import { tracedMarkings } from './ground-markings-area.js';
+import { GROUND_MARKINGS } from './ground-markings-data.js';
+
+// The car parks OSM lacks (private yards and forecourts): their bays read from the paint traced in the aerial photo
+// (js/ground-markings-data.js lots, tools/markings-bays.mjs: kind 'traced', no asphalt of their own, the ground's photo)
+const ALL_LOTS = [...(PARKING_DATA || []), ...GROUND_MARKINGS.sites.flatMap((s) => s.lots || [])];
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
 // bays and parked cars. In each lot the bays are laid out along its longest edge: thin lots (street-side and lane
@@ -188,6 +194,7 @@ function bayLines(bays) {
 
 // The asphalt of a lot, draped on the terrain
 function lotSurface(lot) {
+  if (lot.kind === 'traced') return null; // (a yard's own ground, as photographed)
   const ring = flatPts(lot.ring);
   if (ring.length > 2 && ring[0].x === ring[ring.length - 1].x && ring[0].z === ring[ring.length - 1].z) ring.pop();
   if (ring.length < 3) return null;
@@ -224,7 +231,7 @@ export function buildParking(scene, region = worldRegion()) {
   scene.add(group);
   const obs = sharedObstacles || (sharedObstacles = obstacles());
   // (the mobile profile, js/quality.js worldRadius: only the car parks of the cell being built)
-  const lots = (PARKING_DATA || []).filter((lot) => !lot.ring?.length ? region.all : region.owns(lot.ring[0], lot.ring[1]));
+  const lots = ALL_LOTS.filter((lot) => !lot.ring?.length ? region.all : region.owns(lot.ring[0], lot.ring[1]));
   const bays = [];
   let photographed = 0;
   for (const lot of lots) {
@@ -256,7 +263,9 @@ export function buildParking(scene, region = worldRegion()) {
 
   // Lines (one merged mesh), pulled forward over the asphalt
   const lineGeometries = [];
-  for (let i = 0; i < bays.length; i += 400) { const g = bayLines(bays.slice(i, i + 400)); if (g) lineGeometries.push(g); }
+  // (where the paint is traced from the aerial photo, js/vector-ground.js draws the real lines; the bays and their cars stay)
+  const painted = bays.filter((b) => !tracedMarkings(b.x, b.z));
+  for (let i = 0; i < painted.length; i += 400) { const g = bayLines(painted.slice(i, i + 400)); if (g) lineGeometries.push(g); }
   if (lineGeometries.length) {
     const material = snowyStreet(createRoadPaintMaterial(), { paint: true });
     material.polygonOffset = true; material.polygonOffsetFactor = -1; material.polygonOffsetUnits = -4;
@@ -432,7 +441,7 @@ export function buildParking(scene, region = worldRegion()) {
 /** The bays of one lot as buildParking lays them out: [{ x, z, ux, uz, w, l, occupied }] (`occupied`: a parked car stands
  *  there; the missions' marshal, js/missions-resort.js, sends cars to the free ones) */
 export function lotBays(lotId) {
-  const lot = (PARKING_DATA || []).find((l) => l.id === lotId);
+  const lot = ALL_LOTS.find((l) => l.id === lotId);
   if (!lot) return [];
   const obs = sharedObstacles || (sharedObstacles = obstacles());
   if (lot.bays?.length) return lot.bays.filter(([x, z]) => !obs.blocked(x, z, false)).map(([x, z, angle, w, l, occupied]) => ({ x, z, ux: Math.sin(angle), uz: Math.cos(angle), w, l, occupied: !!occupied }));

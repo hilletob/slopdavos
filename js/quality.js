@@ -33,6 +33,9 @@ const PROFILES = {
     // winter: no high-resolution image, the light one at half its size (the snow covers the photo; js/ortho-levels.js);
     // a chunk the vector ground covers to orthoSkipCoverage keeps the small image only (2: never, not used yet)
     orthoWinterLevel: 1, orthoWinterScale: 0.5, orthoSkipCoverage: 2,
+    // the town's chunks drawn from their ground class maps instead of the photograph (data/ground-classes/; a prototype:
+    // ?qset=groundClasses:true; js/swissimage.js), the photo's smallest level kept for the tint
+    groundClasses: false,
     orthoWhenSeen: false,
     roofOrthophotos: true, // the buildings' roofs drape the orthophoto of their terrain chunk
     sharpRoofs: true, sharpRoofNear: 420, sharpRoofFar: 700, // the sharp roof crops (data/roofs) near the camera
@@ -79,7 +82,7 @@ const PROFILES = {
     shadowFarMax: 240,
     hires: false,
     orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 1,
-    orthoWinterLevel: 1, orthoWinterScale: 0.25, orthoSkipCoverage: 2,
+    orthoWinterLevel: 1, orthoWinterScale: 0.25, orthoSkipCoverage: 2, groundClasses: false,
     // (a terrain chunk's image only once the chunk is drawn: an ImageBitmap is closed after its upload, and one for each of
     // the ~1300 chunks kept ~1.3 MB of graphics memory each in Safari's web process, far more than its pixels)
     orthoWhenSeen: true,
@@ -172,6 +175,8 @@ if (globalThis.location) {
     QUALITY[key] = raw === 'true' ? true : raw === 'false' ? false : Number.isFinite(+raw) ? +raw : raw;
   }
 }
+// (with the ground class maps a chunk they cover keeps only the photo's smallest level: js/ortho-levels.js)
+if (QUALITY.groundClasses && QUALITY.orthoSkipCoverage > 1) QUALITY.orthoSkipCoverage = 0.95;
 
 /**
  * The systems ?qset=skip:a+b+c leaves out (a bisect switch for devices that crash at the start: "+" or spaces between
