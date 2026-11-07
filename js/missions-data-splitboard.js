@@ -25,8 +25,9 @@
 //      second at most): so straight up a steep face is slow or impossible, and a zig-zag across it, at the slope the skins
 //      still hold, is the quickest way up. On steep ground the turn is slow (the skis cross the fall line); a kick turn (Space)
 //      turns you round onto the other diagonal in a second.
-//   3. the transition on the summit: hold Space through the four steps (the skins off, one after the other; the halves
-//      joined; the bindings turned to ride). Let go and the step's progress runs back.
+//   3. the transition on the summit: hold Space through the six steps (the skins off, one half after the other: peeled from
+//      the tail, folded glue to glue, stowed; the halves slid together, the hooks in; the clips closed; the bindings across
+//      onto the pucks, the pins in; stepped in, the straps closed). Let go and the step's progress runs back.
 //   4. the descent on the board (js/missions-data-snow.js stepRider, BOARD_PARAMS): through the gates of red flags in order;
 //      one missed costs 8 s (there is no walking back up in deep snow).
 //   Avalanches: never on the marked line (the tests ride it). Off it, in a slope of 35° and more (the steepest slope at the
@@ -123,11 +124,16 @@ export const SPLIT = {
     burial: 55, // m down the fall line from where he was caught
     penaltyMs: 30000
   },
+  // the transition on the summit (js/missions-splitboard.js poseBoard shows each step as it is held): each skin peeled from
+  // the tail to the tip, folded glue to glue and into the jacket; the halves slid together under the hooks; the clips
+  // closed; the bindings across the board onto the pucks, the pins in; stepped in, the straps closed
   transition: [
-    { id: 'skinL', label: 'Skin off the left half', hold: 1.1 },
-    { id: 'skinR', label: 'Skin off the right half', hold: 1.1 },
-    { id: 'join', label: 'Join the halves', hold: 1.5 },
-    { id: 'bind', label: 'Bindings to ride mode', hold: 1.2 }
+    { id: 'skin1', label: 'Skin off the first half', hold: 1.3 },
+    { id: 'skin2', label: 'Skin off the second half', hold: 1.3 },
+    { id: 'join', label: 'Halves together, hooks in', hold: 1.0 },
+    { id: 'clips', label: 'Close the clips', hold: 0.6 },
+    { id: 'bind', label: 'Bindings across, pins in', hold: 1.0 },
+    { id: 'strap', label: 'Step in, straps tight', hold: 0.8 }
   ],
   timeLimitMs: 50 * 60 * 1000
 };
@@ -492,7 +498,7 @@ function downObjective([id, title, toS]) {
 export const SPLITBOARD_MISSION = {
   id: ID,
   title: 'Splitboard tour on the Chörbschhorn',
-  intro: 'A clear winter day on the Strelapass, the Schatzalp below you and the Chörbschhorn (2650 m) at the end of the ridge to the south-west. You don\'t go alone: Reto comes with you, in your track. First the group check of the avalanche transceivers: hold Space while Reto\'s searches for yours, then while yours finds his. Then on skins, the board split in two, past the Hauptertälli and up the ridge: from marker pole to marker pole, any line you like. W walks, A/D turns. The skins hold on moderate slopes; straight up a steep one they slip and you slide back, so zig-zag across it, and press Space for a kick turn onto the other diagonal. Where it gets steeper than 30° Reto keeps 10 m back. Stay near the marked line: off it, in slopes of 35° and more, the snowpack can go, and then you dig Reto out with your transceiver, probe and shovel. On the summit wait for him and hold Space to pull the skins and join the board. Then ride down the south ridge, past the Chörbschhornhütte, through the red flags to the Stafelalp above Frauenkirch: A/D carve, W tuck, S brake. A missed gate costs 8 s.',
+  intro: 'A clear winter day on the Strelapass, the Schatzalp below you and the Chörbschhorn (2650 m) at the end of the ridge to the south-west. You don\'t go alone: Reto comes with you, in your track. First the group check of the avalanche transceivers: hold Space while Reto\'s searches for yours, then while yours finds his. Then on skins, the board split in two, past the Hauptertälli and up the ridge: from marker pole to marker pole, any line you like. W walks, A/D turns. Where the track drops, the skins glide: you run downhill and pick up speed. The skins hold on moderate slopes; straight up a steep one they slip and you slide back, so zig-zag across it, and press Space for a kick turn onto the other diagonal. Where it gets steeper than 30° Reto keeps 10 m back. Stay near the marked line: off it, in slopes of 35° and more, the snowpack can go, and then you dig Reto out with your transceiver, probe and shovel. On the summit wait for him and hold Space to pull the skins and join the board. Then ride down the south ridge, past the Chörbschhornhütte, through the red flags to the Stafelalp above Frauenkirch: A/D carve, W tuck, S brake. A missed gate costs 8 s.',
   mode: 'person',
   season: 'winter',
   time: 'midday',
@@ -502,7 +508,7 @@ export const SPLITBOARD_MISSION = {
   icon: 'splitboard',
   pin: { x: SPLIT_PLACES.start.x, z: SPLIT_PLACES.start.z },
   // (the bots of tests/missions-splitboard.test.mjs: up in ~10:00 at ~20 km/h on the level, running on the skins where it
-  // goes down, on the diagonal where it gets steep, Reto in the track behind, the transition 5 s, down in ~2:50 at 15 m/s at
+  // goes down, on the diagonal where it gets steep, Reto in the track behind, the transition 6 s, down in ~2:50 at 15 m/s at
   // most: ~12:55; a player cutting the corners at the poles, and letting the board run, is quicker)
   bonusMs: 755000,
   medals: { gold: 755000, silver: 910000, bronze: 1155000 },

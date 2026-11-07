@@ -102,7 +102,8 @@ test('straight up a 32° slope the skins slip back; across it, on a diagonal, th
   assert.ok(across.y > 5, `the diagonal climbed ${across.y.toFixed(1)} m`);
 });
 
-test('the transition: four holds, letting go runs the step back', () => {
+test('the transition: six holds (js/missions-splitboard.js poseBoard shows them by these ids), letting go runs the step back', () => {
+  assert.deepEqual(SPLIT.transition.map((s) => s.id), ['skin1', 'skin2', 'join', 'clips', 'bind', 'strap']);
   const tr = createTransition();
   let t = 0;
   while (!tr.done && t < 20) { stepTransition(tr, true, DT); t += DT; }
@@ -252,7 +253,9 @@ test('German: the names, the intro, the steps and the running texts', async () =
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
   assert.equal(t('Marker pole 3/20 · 120 m'), 'Markierstange 3/20 · 120 m');
   assert.equal(t('Gate 3/18 · 2 missed (+16 s)'), 'Tor 3/18 · 2 verpasst (+16 s)');
-  assert.equal(t('Join the halves (3/4)'), 'Die Hälften zusammenfügen (3/4)');
+  assert.equal(t('Close the clips (4/6)'), 'Clips schliessen (4/6)');
+  for (const st of SPLIT.transition) assert.notEqual(t(`${st.label} (1/6)`), `${st.label} (1/6)`, st.label);
+  assert.match(t(m.intro), /Wo die Spur abfällt, gleiten die Felle/);
   assert.equal(t('2 kick turns · 5 s slipping'), '2 Spitzkehren · 5 s gerutscht');
   assert.equal(t('2 kick turns · 5 s slipping · Reto dug out of an avalanche (+30 s)'), '2 Spitzkehren · 5 s gerutscht · Reto aus einer Lawine ausgegraben (+30 s)');
   assert.equal(t('Send check: Reto searches, you send (1/2)'), 'Sendecheck: Reto sucht, du sendest (1/2)');

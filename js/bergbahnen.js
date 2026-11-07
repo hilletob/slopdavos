@@ -655,11 +655,11 @@ function buildRopeways(group) {
     sphere = linesSphere([right, left], 12); // (the cabins hang up to ~10 m below the rope)
     sphere.uuid = THREE.MathUtils.generateUUID();
     for (const line of [right, left]) for (let i = 1; i < line.pts.length; i++) ropes.push(line.pts[i - 1].x, line.pts[i - 1].y, line.pts[i - 1].z, line.pts[i].x, line.pts[i].y, line.pts[i].z);
-    // Pylons (the stations of the circulating lifts as low frames too)
+    // Pylons (none at the stations: the terminals and station buildings there carry the ropes)
     for (let i = 0; i < r.supports.length; i++) {
       const s = r.supports[i];
       const a = r.supports[Math.max(0, i - 1)], b = r.supports[Math.min(r.supports.length - 1, i + 1)];
-      pylons.push({ x: s.x, z: s.z, base: s.ground - 0.5, top: s.y + 0.4, yaw: Math.atan2(b.x - a.x, b.z - a.z), width: w + 1.2, heavy: r.kind === 'cable_car', station: s.kind === 'station', terminal: s.kind === 'station' && r.kind === 'chair_lift' });
+      pylons.push({ x: s.x, z: s.z, base: s.ground - 0.5, top: s.y + 0.4, yaw: Math.atan2(b.x - a.x, b.z - a.z), width: w + 1.2, heavy: r.kind === 'cable_car', station: s.kind === 'station' });
     }
     // The chair lifts' terminals (the bullwheel under its hood, the boarding deck, the attendant's hut) at both ends
     if (r.kind === 'chair_lift') {
@@ -711,7 +711,7 @@ function buildRopeways(group) {
       }
     }
   }
-  if (terminals.length) buildChairliftTerminals(group, terminals);
+  buildTerminals(group, terminals);
   // Ropes
   const ropeGeometry = new THREE.BufferGeometry();
   ropeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(ropes, 3));
@@ -727,7 +727,7 @@ function buildRopeways(group) {
   const heavyGeometry = boxes([[2.2, 1, 2.2, 0, 0.5, 0, 0x7c8288]]);
   const armGeometry = boxes([[1, 0.45, 0.45, 0, 0, 0, 0x6c7277]]);
   const steelMaterial = vehicleMaterial();
-  for (const [geometry, list] of [[mastGeometry, pylons.filter((p) => !p.heavy && !p.station)], [heavyGeometry, pylons.filter((p) => p.heavy && !p.station)], [armGeometry, pylons.filter((p) => !p.terminal)]]) {
+  for (const [geometry, list] of [[mastGeometry, pylons.filter((p) => !p.heavy && !p.station)], [heavyGeometry, pylons.filter((p) => p.heavy && !p.station)], [armGeometry, pylons.filter((p) => !p.station)]]) {
     if (!list.length) continue;
     const mesh = new THREE.InstancedMesh(geometry, steelMaterial, list.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
@@ -883,15 +883,290 @@ function chairliftTerminal({ node, next, gauge, seats, drive, shared }) {
   geometry.translate(node.x, node.ground, node.z);
   return geometry;
 }
-function buildChairliftTerminals(group, terminals) {
+// One mesh for all the lifts' terminals and stations (the chair lifts' and the others', below): one draw, the vehicles'
+// material
+function buildTerminals(group, terminals) {
   // (where one lift ends and the next begins, Carjöler Rank: one middle station, the hoods back to back, one hut)
   terminals.forEach((t, i) => { t.shared = terminals.slice(0, i).some((o) => Math.hypot(o.node.x - t.node.x, o.node.z - t.node.z) < 3); });
-  const geometries = terminals.map(chairliftTerminal);
+  const geometries = [...terminals.map(chairliftTerminal), ...LIFT_TERMINALS.map(liftTerminal).filter(Boolean)];
+  if (!geometries.length) return;
   const mesh = new THREE.Mesh(mergeGeometries(geometries, false), vehicleMaterial());
   geometries.forEach((g) => g.dispose());
-  mesh.name = 'Chair lift terminals';
+  mesh.name = 'Lift terminals';
   mesh.castShadow = mesh.receiveShadow = true;
   group.add(mesh);
+}
+
+// --- The other lifts' terminals: T-bars, drag lifts, gondolas and aerial tramways -----------------------------------------------
+// Each end of a lift gets one of (LIFT_TERMINALS, planned once from the data):
+//  - 'frame' (T-bars and drag lifts in the open): the horizontal bullwheel at the rope's height under a cantilever arm on
+//    a steel column behind it, on a concrete footing; at the valley end the drive's housing and motor on top of the arm,
+//    the rack the bars are stored on and the operator's hut by the boarding lane (each unless a building stands
+//    there: a small one close by is the real hut); at the top the return wheel with its tensioning counterweight behind the column;
+//  - 'housed' (the end lies inside a mapped building, swissBUILDINGS3D draws it): only what shows at the cable exit —
+//    for a T-bar the wheel on its arm just outside the wall, for a gondola or tramway a steel portal round the ropes
+//    with a canopy and the sheave batteries (saddles) the ropes leave over;
+//  - 'station' (a gondola or tramway end with no building mapped): a station hall on a concrete plinth at the cabins'
+//    floor level, walls with a window band, a flat roof with a red fascia, open towards the ropes; inside the bullwheel
+//    (gondola, with the drive's machine house on the roof of the valley end) or the track ropes' sheaves (tramway);
+//  - 'shared' (where one drag lift ends the next begins: one terminal) and 'custom' (the Jakobshornbahn's valley
+//    station, below): nothing more.
+// (The data maps no middle stations on these lifts: only their two ends are stations.)
+// Where the housed ends' ropes really leave their station building (the OSM footprint's wall lies up to a few metres off
+// the swissBUILDINGS3D volume drawn), per end ("<lift>|valley" or "<lift>|top"), in the end's local frame (metres; origin
+// the rope's end node on the ground, +z along the rope, +x across it): d the facade along the rope axis, left / right
+// its run across the rope (+x / -x) in that plane, foot0 / footL / footR its lowest point under the axis and the posts,
+// top its highest over the axis (heights over the node's ground); osm the footprint's exit it replaces. Measured in the
+// game against the loaded tiles and written here by tools/measure-lift-portals.mjs (re-run it after a new buildings
+// release or new lift data); an end missing from it keeps the footprint's exit.
+// <lift-portals> (generated)
+export const LIFT_PORTALS = {
+  'Gipfelbahn|valley': { d: 13.24, left: 14, right: 1, top: 11.5, foot0: -5, footL: -4.75, footR: -5, osm: 7.5 },
+  'Gipfelbahn|top': { d: 5.5, left: 5, right: 4.75, top: 16.25, foot0: -4.5, footL: -4.5, footR: -4.5, osm: 7 },
+  'Schiferbahn 2|top': { d: 15.89, left: 5, right: 4.75, top: 12, foot0: -6.25, footL: -6.25, footR: -6.25, osm: 13.25 },
+  'Parsennhüttenbahn|top': { d: 14.71, left: 6.75, right: 3.5, top: 13, foot0: -6, footL: -6, footR: -6, osm: 12.5 },
+  'Jakobshornbahn Sektion 1|top': { d: 16.1, left: 4.5, right: 9.25, top: 16, foot0: -5.75, footL: -5.75, footR: -5.75, osm: 18.5 },
+  'Jakobshornbahn Sektion 2|valley': { d: 15.59, left: 5.25, right: 6.5, top: 23.75, foot0: -1.75, footL: -1.75, footR: -1.75, osm: 14.5 },
+  'Jakobshornbahn Sektion 2|top': { d: 7.09, left: 5.75, right: 6.5, top: 16.75, foot0: -3.75, footL: -3.75, footR: -3.75, osm: 5.5 },
+  'Güggel|valley': { d: 8.72, left: 1.75, right: 3.75, top: 13, foot0: -1, footL: -1, footR: -1, osm: 10.5 },
+  'Bolgen|valley': { d: 5.31, left: 3, right: 4.25, top: 8, foot0: -0.75, footL: -0.75, footR: -0.75, osm: 7.25 },
+  'Pischabahn|valley': { d: 6.27, left: 7.75, right: 5.5, top: 17.25, foot0: -0.5, footL: -0.5, footR: -0.5, osm: 6.25 },
+  'Pischabahn|top': { d: 7.27, left: 6.25, right: 7, top: 16.5, foot0: -4.5, footL: -4.5, footR: -4.5, osm: 7.5 },
+  'Rinerhornbahn|valley': { d: 10.22, left: 14, right: 11, top: 17.25, foot0: -1.75, footL: -1.75, footR: -1.75, osm: 12.5 },
+  'Rinerhornbahn|top': { d: 22.01, left: 7, right: 6.75, top: 10.75, foot0: -4.25, footL: -4.25, footR: -4.25, osm: 23.5 },
+  'Juonli I|valley': { d: 5.66, left: 1.25, right: 10.75, top: 11, foot0: -2.75, footL: -2.75, footR: -2.75, osm: 6.75 },
+  'Juonli II|valley': { d: 5.59, left: 10.75, right: 1.25, top: 11, foot0: -2.75, footL: -2.75, footR: -2.75, osm: 6.75 },
+  'Nüllisch I|valley': { d: 7, left: 4, right: 11.75, top: 12.75, foot0: -3, footL: -3, footR: -3, osm: 7.25 },
+  'Nüllisch II|valley': { d: 7.05, left: 12.25, right: 3.5, top: 12.75, foot0: -3.25, footL: -3.25, footR: -3.25, osm: 6.75 },
+  'Juonlimeder|valley': { d: 4.54, left: 3.75, right: 2, top: 9.75, foot0: -1, footL: -1, footR: -1, osm: 5 },
+  'Bünda|valley': { d: 0.2, left: 9, right: 0.5, top: 8, foot0: -0.5, footL: -0.5, footR: -0.5, osm: 2 },
+  'Strelaberg-Strelapass|valley': { d: 6.37, left: 3.5, right: 2.5, top: 11.5, foot0: -0.75, footL: -0.75, footR: -0.75, osm: 6.5 }
+};
+// </lift-portals>
+const LIFT_TYPE = { 't-bar': 'tbar', drag_lift: 'tbar', platter: 'tbar', gondola: 'aerial', mixed_lift: 'aerial', cable_car: 'aerial' };
+function ringDistance(ring, x, z) {
+  let d = Infinity;
+  for (let i = 0; i < ring.length; i += 2) d = Math.min(d, Math.hypot(ring[i] - x, ring[i + 1] - z));
+  return insideRing(ring, x, z) ? 0 : d;
+}
+// How far along the rope (towards `next`) it leaves the footprint `ring`
+function exitDistance(ring, node, next) {
+  const span = Math.hypot(next.x - node.x, next.z - node.z) || 1, dx = (next.x - node.x) / span, dz = (next.z - node.z) / span;
+  for (let d = 0; d <= Math.min(60, span * 0.8); d += 0.25) if (!insideRing(ring, node.x + dx * d, node.z + dz * d)) return d;
+  return null;
+}
+export const LIFT_TERMINALS = (() => {
+  const out = [], seen = [], buildings = DAVOS_DATA.buildings || [];
+  for (const r of BERGBAHNEN.ropeways) {
+    const type = LIFT_TYPE[r.kind], n = r.supports.length;
+    if (!type) continue;
+    for (const [node, next, valley] of [[r.supports[0], r.supports[1], true], [r.supports[n - 1], r.supports[n - 2], false]]) {
+      const t = { lift: r.name || r.id, kind: r.kind, type, node, next, valley, gauge: GAUGE[r.kind] || 4, sag: SAG[r.kind] || 0.02, occupancy: r.occupancy || 0 };
+      out.push(t);
+      if (seen.some((o) => Math.hypot(o.x - node.x, o.z - node.z) < 3)) { t.mode = 'shared'; continue; }
+      seen.push(node);
+      if (valley && /^Jakobshornbahn Sektion 1/.test(r.name)) { t.mode = 'custom'; continue; }
+      const home = buildings.find((b) => insideRing(b.ring, node.x, node.z));
+      t.exit = home ? exitDistance(home.ring, node, next) : null;
+      t.mode = t.exit != null ? 'housed' : type === 'aerial' ? 'station' : 'frame';
+      // (housed: the drawn wall, measured against swissBUILDINGS3D, where the footprint's lies off it)
+      t.facade = t.mode === 'housed' ? LIFT_PORTALS[`${t.lift}|${valley ? 'valley' : 'top'}`] || null : null;
+      t.osmExit = t.exit;
+      if (t.facade) t.exit = t.facade.d;
+      // (no hut of its own where a small building stands close by, nor where another lift ends: one hut per lift chain)
+      const junction = BERGBAHNEN.ropeways.some((o) => o !== r && [o.supports[0], o.supports.at(-1)].some((s) => Math.hypot(s.x - node.x, s.z - node.z) < 3));
+      t.hut = type === 'tbar' && valley && t.mode === 'frame' && !junction && !buildings.some((b) => ringArea(b.ring) < 80 && ringDistance(b.ring, node.x, node.z) < 14);
+      // (the bars' rack beside the down rope, unless a building stands there)
+      const span = Math.hypot(next.x - node.x, next.z - node.z) || 1, sin = (next.x - node.x) / span, cos = (next.z - node.z) / span, rx = t.gauge / 2 + 1.9;
+      t.rack = type === 'tbar' && valley && t.mode === 'frame' && !buildings.some((b) => ringDistance(b.ring, node.x + rx * cos + sin, node.z - rx * sin + cos) < 3.5);
+    }
+  }
+  return out;
+})();
+
+// A terminal's local frame: origin (cx, base, cz), +z along the rope towards the next support, +x across (the up rope
+// on -x); local(x, z): the ground there relative to the origin
+function terminalFrame(cx, cz, base, yaw) {
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const local = (x, z) => {
+    const g = groundHeight(cx + x * cos + z * sin, cz - x * sin + z * cos) - base;
+    return Number.isFinite(g) && Math.abs(g) < 12 ? g : 0; // (beyond the terrain grid the relief is coarser)
+  };
+  const lowest = (pts) => pts.reduce((m, [x, z]) => Math.min(m, local(x, z)), 0);
+  const place = (geometry) => { geometry.rotateY(yaw); geometry.translate(cx, base, cz); return geometry; };
+  return { local, lowest, place };
+}
+// A point `d` along the rope from the node: its position, the rope's height (chord less the sag) and the ground
+function alongRope(t, d) {
+  const { node, next, sag } = t, span = Math.hypot(next.x - node.x, next.z - node.z) || 1, f = d / span;
+  const x = node.x + ((next.x - node.x) * d) / span, z = node.z + ((next.z - node.z) * d) / span;
+  const g = groundHeight(x, z), base = d && Number.isFinite(g) && Math.abs(g - node.ground) < 12 ? g : node.ground;
+  return { x, z, base, ropeY: node.y + (next.y - node.y) * f - 4 * sag * span * f * (1 - f), yaw: Math.atan2(next.x - node.x, next.z - node.z) };
+}
+// A horizontal bullwheel: rim, hub, spokes
+function bullwheel(radius, y, z = 0) {
+  const seg = QUALITY.mobile ? 16 : 24, dark = 0x2b2d30, parts = [
+    tinted(new THREE.CylinderGeometry(radius, radius, 0.3, seg, 1, true), 0x8f959a, 0, y, z),
+    tinted(new THREE.CylinderGeometry(0.4, 0.4, 0.45, 10), dark, 0, y, z)
+  ];
+  for (let k = 0; k < 4; k++) { const g = new THREE.BoxGeometry(radius * 2 - 0.1, 0.1, 0.14); g.rotateY((k * Math.PI) / 4); parts.push(tinted(g, dark, 0, y, z)); }
+  return parts;
+}
+const TERMINAL_COLOURS = { concrete: 0x9c9a95, steel: 0x5d6267, machine: 0x6f767c, dark: 0x2b2d30, red: 0xc8102e, white: 0xe9eaeb, glass: 0x1b242c, roof: 0x4a4f54, timber: 0x8a5a3b, wall: 0xd9d5cc };
+
+function liftTerminal(t) {
+  if (t.mode === 'frame' || (t.mode === 'housed' && t.type === 'tbar')) return tbarTerminal(t);
+  if (t.mode === 'housed') return aerialPortal(t);
+  if (t.mode === 'station') return aerialStation(t);
+  return null;
+}
+
+// The T-bars' and drag lifts' terminals (housed: the wheel just outside the building's wall)
+function tbarTerminal(t) {
+  const { concrete, steel, machine, dark, red, glass, roof, timber } = TERMINAL_COLOURS;
+  const p = alongRope(t, t.mode === 'housed' ? t.exit + 1.8 : 0);
+  const F = terminalFrame(p.x, p.z, p.base, p.yaw), H = p.ropeY - p.base, R = t.gauge / 2, colZ = -R - 0.9;
+  const list = [];
+  // The column on its footing, the arm over the wheel, the wheel's shaft
+  const colFoot = F.lowest([[-0.8, colZ - 0.8], [0.8, colZ - 0.8], [-0.8, colZ + 0.8], [0.8, colZ + 0.8]]) - 0.5;
+  list.push([1.6, 0.5 - colFoot, 1.6, 0, (0.5 + colFoot) / 2, colZ, concrete]);
+  list.push([0.55, H + 0.6, 0.55, 0, 0.5 + (H + 0.6) / 2, colZ, machine]);
+  list.push([0.5, 0.5, 0.4 - colZ, 0, H + 0.85, (colZ + 0.4) / 2, machine]);
+  list.push([0.25, 0.7, 0.25, 0, H + 0.35, 0, dark]);
+  if (t.valley) {
+    // The drive: its housing over the wheel with a red band, the motor behind
+    list.push([1.5, 1.0, 1.9, 0, H + 1.6, -0.3, machine], [1.54, 0.16, 1.94, 0, H + 1.18, -0.3, red], [0.7, 0.7, 1.1, 0, H + 2.45, -0.6, dark]);
+  } else {
+    // The return wheel's tensioning: a lever behind the column and the counterweight hanging from it
+    list.push([0.3, 0.3, 1.7, 0, H + 0.85, colZ - 0.85, machine], [0.08, 1.2, 0.08, 0, H + 0.15, colZ - 1.5, dark], [1.0, 1.3, 0.9, 0, H - 1.1, colZ - 1.5, concrete]);
+  }
+  // The rack the bars are stored on (beside the down rope)
+  if (t.rack) {
+    const x = R + 1.9, top = 2.8;
+    for (const z of [-1.2, 3.2]) { const f = F.local(x, z) - 0.3; list.push([0.12, top - f, 0.12, x, (top + f) / 2, z, steel]); }
+    list.push([0.1, 0.1, 4.6, x, top, 1, steel]);
+    for (let k = 0; k < 7; k++) {
+      const z = -0.8 + k * 0.62;
+      list.push([0.22, 0.32, 0.22, x, top - 0.25, z, dark], [0.05, 1.5, 0.05, x, top - 1.15, z, 0x5c5f63], [1.0, 0.08, 0.08, x, top - 1.9, z, dark]);
+    }
+  }
+  // The operator's hut by the boarding lane (on the up rope's side), its door towards the lift
+  if (t.hut) {
+    const W = 2.2, D = 2.6, x = -(R + 3.0), z = 1.4;
+    const f = F.lowest([[x - W / 2, z - D / 2], [x + W / 2, z - D / 2], [x - W / 2, z + D / 2], [x + W / 2, z + D / 2]]) - 0.4;
+    list.push(
+      [W + 0.4, 0.3 - f, D + 0.4, x, (0.3 + f) / 2, z, concrete],
+      [W, 2.3, D, x, 1.45, z, timber],
+      [W + 0.04, 0.8, D + 0.04, x, 1.75, z, glass],
+      [W + 0.6, 0.18, D + 0.6, x, 2.69, z, roof],
+      [W + 0.64, 0.1, D + 0.64, x, 2.56, z, red],
+      [0.06, 1.9, 0.8, x + W / 2 + 0.01, 1.25, z - 0.7, 0x6b4a2f]
+    );
+  }
+  const geometry = mergeGeometries([boxes(list), ...bullwheel(R, H)], false);
+  return F.place(geometry);
+}
+
+// How far below the rope a cabin's floor hangs (the gondolas' and the tramways' cabins above)
+const cabinDrop = (t) => (t.kind === 'cable_car' ? (t.occupancy >= 90 ? 9.2 : t.occupancy >= 50 ? 8.0 : 6.5) : 4.35);
+
+// The portal at a housed gondola's or tramway's cable exit, flush on the facade the ropes leave (t.facade, measured
+// against swissBUILDINGS3D: LIFT_PORTALS; without it the OSM footprint's wall, the posts down to the ground):
+// the lintel and the canopy over both tracks, the sheave batteries (saddles) the ropes leave over hung from it; a post
+// at each end where the wall runs on behind it, as a pilaster down the facade to its foot; where the wall ends short of
+// it (a narrow station tower) the lintel is carried on a knee brace from the wall's edge instead, nothing in the air
+function aerialPortal(t) {
+  const { steel, dark, red, roof } = TERMINAL_COLOURS;
+  const p = alongRope(t, t.exit + 0.3), fa = t.facade;
+  const F = terminalFrame(p.x, p.z, p.base, p.yaw), H = p.ropeY - p.base, R = t.gauge / 2, cable = t.kind === 'cable_car';
+  const lift = t.node.ground - p.base; // (the table's heights are over the node's ground)
+  const halfW = R + (cable ? 2.4 : 1.8), clear = R + (cable ? 1.9 : 1.3); // (the cabins pass within ±clear)
+  let top = H + (cable ? 1.6 : 1.2);
+  if (fa) top = Math.max(H + 0.7, Math.min(top, fa.top + lift - 1.1)); // (the canopy under the roof's edge)
+  const list = [];
+  const sides = [[1, fa?.left, fa?.footL], [-1, fa?.right, fa?.footR]].map(([s, run, foot]) => {
+    if (!fa) return { s, x: halfW + 0.3, post: true, foot: Math.min(F.local(s * (halfW + 0.3), 0), Math.max(F.lowest([[-halfW, 0], [halfW, 0]]), H - cabinDrop(t) - 0.4)) - 0.3 };
+    // the post as far out as the wall runs (but clear of the cabins), or none: the lintel's end on a bracket
+    const x = Math.min(halfW + 0.3, run - 0.3);
+    return x >= clear + 0.3 ? { s, x, post: true, foot: Math.max(foot + lift, F.local(s * x, 0) - 0.3) } : { s, x: halfW + 0.3, post: false, edge: Math.max(0.3, run - 0.3) };
+  });
+  const xl = sides[0].x, xr = sides[1].x, mid = (xl - xr) / 2, span = xl + xr;
+  list.push(
+    [span + 0.6, 0.6, 0.6, mid, top + 0.3, 0, steel], // the lintel
+    [span + 1.8, 0.25, 2.4, mid, top + 0.75, 0.9, roof], // the canopy
+    [span + 1.84, 0.22, 2.44, mid, top + 0.56, 0.9, red]
+  );
+  for (const { s, x, post, foot, edge } of sides) {
+    if (post) list.push([0.6, top - foot, 0.6, s * x, (top + foot) / 2, 0, steel]); // the post
+    else {
+      // the knee brace: from the wall's edge under the lintel out to its end, flat on the facade
+      const x0 = s * edge, x1 = s * (x - 0.3), y0 = top - Math.min(4, Math.abs(x1 - x0) * 0.8), y1 = top;
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      list.push([len, 0.3, 0.3, (x0 + x1) / 2, (y0 + y1) / 2, 0, steel, 0, Math.atan2(y1 - y0, x1 - x0)]);
+      list.push([0.5, 0.6, 0.5, x0, y0, 0, steel]); // its bearing on the wall
+    }
+  }
+  // (without a measured facade: the sill at the cabins' floor where the ground falls away under the opening)
+  if (!fa) {
+    const bottom = Math.max(F.lowest([[-halfW, 0], [halfW, 0]]), H - cabinDrop(t) - 0.4);
+    if (bottom > F.local(0, 0) + 0.5) list.push([2 * halfW + 1.2, 0.4, 0.6, 0, bottom - 0.2, 0, steel]);
+  }
+  // The sheave batteries (saddles) the ropes leave over, hung from the canopy
+  for (const x of [-R, R]) {
+    list.push([0.18, top + 0.6 - H, 0.18, x, (top + 0.6 + H) / 2 + 0.2, 0.9, steel], [0.45, 0.35, 2.4, x, H + 0.3, 0.9, dark]);
+    for (let k = 0; k < 4; k++) list.push([0.16, 0.42, 0.42, x, H + 0.12, k * 0.6, 0x3a3d40]);
+  }
+  return F.place(boxes(list));
+}
+
+// A station hall where no building is mapped
+function aerialStation(t) {
+  const { concrete, steel, machine, red, white, glass, roof, wall } = TERMINAL_COLOURS;
+  const { node, next } = t, cable = t.kind === 'cable_car';
+  const F = terminalFrame(node.x, node.z, node.ground, Math.atan2(next.x - node.x, next.z - node.z));
+  const H = node.y - node.ground, R = t.gauge / 2;
+  const halfW = R + (cable ? 3.2 : 2.2), back = cable ? -7 : -R - 2.6, front = cable ? 4 : 8, len = front - back, mid = (front + back) / 2;
+  const plat = H - cabinDrop(t) - 0.15, roofY = H + (cable ? 3 : 2.4), wallH = roofY - plat;
+  const foot = F.lowest([[-halfW, back], [halfW, back], [-halfW, front], [halfW, front]]) - 0.6;
+  const list = [
+    [2 * halfW, plat - foot, len, 0, (plat + foot) / 2, mid, concrete], // the plinth, the platform on it
+    [2 * halfW - 1.2, 0.04, len - 1.0, 0, plat + 0.02, mid + 0.4, 0x6b6e70],
+    [2 * halfW, wallH, 0.4, 0, plat + wallH / 2, back + 0.2, wall], // the back wall
+    [2 * halfW - 0.8, wallH - 0.3, 0.05, 0, plat + (wallH - 0.3) / 2, back + 0.43, 0x3a3936],
+    [2 * halfW + 1.2, 0.35, len + 1.6, 0, roofY + 0.17, mid + 0.4, roof], // the roof, its red fascia
+    [2 * halfW + 1.24, 0.3, len + 1.64, 0, roofY - 0.05, mid + 0.4, red],
+    [2 * halfW, roofY - (H + (cable ? 1.6 : 1.2)), 0.5, 0, (roofY + H + (cable ? 1.6 : 1.2)) / 2, front - 0.25, wall] // the lintel over the opening
+  ];
+  for (const s of [-1, 1]) {
+    list.push([0.4, wallH, len, s * (halfW - 0.2), plat + wallH / 2, mid, wall]); // the side walls, their window band
+    list.push([0.44, Math.min(1.4, wallH * 0.3), len - 2, s * (halfW - 0.2), plat + wallH * 0.62, mid, glass]);
+    // the railing along the platform's open front edge
+    list.push([0.06, 1.0, 0.06, s * (halfW - 0.6), plat + 0.5, front - 0.2, steel]);
+  }
+  list.push([2 * halfW - 1.2, 0.06, 0.06, 0, plat + 1.0, front - 0.2, steel]);
+  // Steps up to the platform at the back corner
+  const steps = Math.max(0, Math.min(16, Math.ceil((plat - F.local(halfW + 1, back + 2)) / 0.3)));
+  for (let k = 0; k < steps; k++) {
+    const top = plat - (k + 1) * 0.3;
+    list.push([1.6, top - foot, 0.35, halfW + 0.8, (top + foot) / 2, back + 1.0 + k * 0.35, concrete]);
+  }
+  const parts = [];
+  if (cable) {
+    // The track ropes' sheaves under a beam (as in the Jakobshornbahn's valley station)
+    list.push([2 * R + 1.6, 0.6, 0.6, 0, H + 1.2, -2.4, steel]);
+    for (const x of [-R, R]) {
+      list.push([0.3, H + 1.0 - plat, 0.3, x + Math.sign(x) * 0.8, plat + (H + 1.0 - plat) / 2, -2.4, steel]);
+      const sheave = new THREE.CylinderGeometry(2.0, 2.0, 0.35, QUALITY.mobile ? 16 : 24, 1, true);
+      sheave.rotateZ(Math.PI / 2);
+      parts.push(tinted(sheave, 0x9da2a7, x, H - 2.0, -2.4));
+    }
+  } else {
+    // The bullwheel on its column; the drive's machine house on the roof of the valley end
+    list.push([0.7, H - 0.3 - plat, 0.7, 0, plat + (H - 0.3 - plat) / 2, 0, machine], [0.5, roofY - H, 0.5, 0, (roofY + H) / 2, 0, machine]);
+    parts.push(...bullwheel(R, H));
+    if (t.valley) list.push([3.6, 1.8, 3.4, 0, roofY + 1.2, -0.8, white], [3.64, 0.2, 3.44, 0, roofY + 0.45, -0.8, red], [0.9, 0.5, 0.9, 1, roofY + 2.35, -1.2, steel]);
+  }
+  return F.place(mergeGeometries([boxes(list), ...parts], false));
 }
 
 // --- The Jakobshornbahn's valley station ---------------------------------------------------------------------------------

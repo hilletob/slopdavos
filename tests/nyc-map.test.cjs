@@ -125,16 +125,13 @@ function mapHarness() {
   };
 }
 
-test('unrelated touches cannot move or release the map pan', () => {
+test('touches off the map cannot move or release the map pan', () => {
   const h = mapHarness();
   assert.equal(h.canvas.style.touchAction, 'none');
   h.pointer(h.canvas, 'pointerdown', 1);
   h.pointer(h.controls, 'pointerdown', 2);
-  h.pointer(h.canvas, 'pointerdown', 3);
   h.pointer(h.controls, 'pointermove', 2, 190);
-  h.pointer(h.canvas, 'pointermove', 3, 190);
   h.pointer(h.controls, 'pointerup', 2);
-  h.pointer(h.canvas, 'pointercancel', 3);
   assert.equal(h.map.viewCenterX, 1000);
   assert.equal(h.map.isPanning, true);
   assert.equal(h.teleports.length, 0);
@@ -145,6 +142,30 @@ test('unrelated touches cannot move or release the map pan', () => {
   assert.equal(h.map.isPanning, false);
   assert.equal(h.wrapper.classList.contains('is-panning'), false);
   assert.equal(h.teleports.length, 0);
+});
+
+test('two fingers on the map pinch-zoom it about their midpoint, without a teleport', () => {
+  const h = mapHarness();
+  h.pointer(h.canvas, 'pointerdown', 1, 100, 120);
+  h.pointer(h.canvas, 'pointerdown', 3, 140, 120);
+  assert.equal(h.map.isPanning, false);
+  const before = h.map.screenToWorld(110, 100, 200, 200);
+  h.pointer(h.canvas, 'pointermove', 1, 80, 120);
+  h.pointer(h.canvas, 'pointermove', 3, 160, 120);
+  assert.ok(Math.abs(h.map.viewZoom - 2) < 1e-9, `zoom ${h.map.viewZoom}`);
+  const after = h.map.screenToWorld(110, 100, 200, 200);
+  assert.ok(Math.abs(after.x - before.x) < 1e-6 && Math.abs(after.z - before.z) < 1e-6);
+  // the fingers lift one after the other: the one left over neither pans nor teleports
+  h.pointer(h.canvas, 'pointerup', 3, 160, 120);
+  const cx = h.map.viewCenterX;
+  h.pointer(h.canvas, 'pointermove', 1, 20, 120);
+  assert.equal(h.map.viewCenterX, cx);
+  h.pointer(h.canvas, 'pointerup', 1, 20, 120);
+  assert.equal(h.teleports.length, 0);
+  // and the next single tap teleports again
+  h.pointer(h.canvas, 'pointerdown', 4);
+  h.pointer(h.canvas, 'pointerup', 4);
+  assert.equal(h.teleports.length, 1);
 });
 
 test('a normal map tap teleports once and releases capture', () => {

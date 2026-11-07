@@ -3,7 +3,7 @@ import test from 'node:test';
 import { LEVEL_CROSSINGS } from '../js/level-crossings-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { buildLine, routePoint } from '../js/rhb-route.js';
-import { crossingFrame } from '../js/level-crossings.js';
+import { crossingFrame, crossingTracks } from '../js/level-crossings.js';
 
 test('the level crossings lie on the RhB line, with a road direction across it', () => {
   const list = LEVEL_CROSSINGS.crossings;
@@ -46,6 +46,35 @@ test('the barrier line of a crossing runs along the track, also where the road c
       // … and the side d > 0 is the side the road heads to (on its centre line)
       const m = at(d, 0);
       assert.ok(((m.x - c.x) * c.dx + (m.z - c.z) * c.dz) * d > 0, `${c.id} side`);
+    }
+  }
+});
+
+test('a crossing over parallel tracks covers them all, its posts outside the outermost', () => {
+  const list = LEVEL_CROSSINGS.crossings;
+  const ways = DAVOS_DATA.railways.filter((w) => w.kind === 'narrow_gauge' && !w.tunnel);
+  // The distance from a point to the nearest rail centre line
+  const fromRails = (p) => {
+    let best = Infinity;
+    for (const w of ways) for (let i = 0; i + 3 < w.pts.length; i += 2) {
+      const ax = w.pts[i], az = w.pts[i + 1], ex = w.pts[i + 2] - ax, ez = w.pts[i + 3] - az;
+      const t = Math.max(0, Math.min(1, ((p.x - ax) * ex + (p.z - az) * ez) / (ex * ex + ez * ez || 1)));
+      best = Math.min(best, Math.hypot(ax + ex * t - p.x, az + ez * t - p.z));
+    }
+    return best;
+  };
+  // Mühlestrasse in Davos Dorf: the main track and a siding about 4.3 m from it, on the side the road comes from
+  const muehle = list.find((c) => c.road === 'Mühlestrasse');
+  const span = crossingTracks(muehle);
+  assert.ok(span.lo < -4 && span.lo > -5 && Math.abs(span.hi) < 0.1, `Mühlestrasse spans ${span.lo}…${span.hi}`);
+  for (const c of list) {
+    const { lo, hi } = crossingTracks(c);
+    assert.ok(lo <= 0 && hi >= 0 && hi - lo < 12, `${c.id} span`);
+    // The posts stand clear of every track (none between two tracks of a crossing)
+    const f = crossingFrame(c), half = c.width / 2;
+    for (const side of [-1, 1]) for (const across of [half + 0.7, -(half + 0.7)]) {
+      const p = f.at((side < 0 ? lo : hi) + side * 3.4, across);
+      assert.ok(fromRails(p) > 1.5, `${c.id} post clear of the rails (${fromRails(p).toFixed(2)} m)`);
     }
   }
 });

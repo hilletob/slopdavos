@@ -219,9 +219,19 @@ class LightingSystem {
     // Reuses a single RenderTarget so texture identity never changes.
     this.sky.showSunDisc.value = 0;
     this.envScene.add(this.sky);
-    this.envRenderTarget = this.pmremGenerator.fromScene(this.envScene, 0, 0.1, 100, {
-      renderTarget: this.envRenderTarget
-    });
+    // The cube faces take the sky's colour alone: a scene MRT left on the renderer (the shader precompile, js/main.js,
+    // keeps the scene pass's output/normal/metalRough set across its awaits, and a mission start or clock change can
+    // bake in between) names none of the cube target's textures, and the sky's fragment shader would write an
+    // output struct without members (WGSL: "structures must have at least one member", an invalid pipeline).
+    const mrt = this.renderer.getMRT();
+    this.renderer.setMRT(null);
+    try {
+      this.envRenderTarget = this.pmremGenerator.fromScene(this.envScene, 0, 0.1, 100, {
+        renderTarget: this.envRenderTarget
+      });
+    } finally {
+      this.renderer.setMRT(mrt);
+    }
     this.scene.environment = this.envRenderTarget.texture;
     this.sky.showSunDisc.value = this.sunDisc;
     this.scene.add(this.sky);

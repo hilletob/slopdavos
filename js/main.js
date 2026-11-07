@@ -33,6 +33,7 @@ import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
+import { buildPfadiheim } from './pfadiheim.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder } from './world-stream.js';
 import { FRAME } from './davos-frame.js';
@@ -334,6 +335,7 @@ async function initApp() {
   if (world && !skipped('parking')) world.addBuilder(parkingBuilder()); // (cell by cell round the player instead)
   const detailHouses = skipped('detailhouses') ? { colliders: [] } : buildDetailHouses(scene); // houses rebuilt from photographs (js/detail-houses.js)
   const landmarkBuildings = skipped('landmarks') ? { colliders: [] } : buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
+  const pfadiheim = skipped('pfadiheim') ? { colliders: [] } : buildPfadiheim(scene); // the Pfadiheim Davos, after its photographs (js/pfadiheim.js)
   markInit('cityGrid');
   await breathe();
   // The relief around the city, out to the Alps (swissALTIRegio)
@@ -396,7 +398,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (their fire escapes and shop fronts too; the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }
@@ -938,7 +940,7 @@ async function initApp() {
       gamepadControls.setEnabled(!open);
       const mapHint = document.getElementById('fullmap-hover-info');
       if (open && touchControls.available && mapHint) {
-        mapHint.textContent = 'Tap to teleport · Drag to pan · Use + / − to zoom';
+        mapHint.textContent = 'Tap to teleport · Drag to pan · Pinch to zoom';
       }
     },
     onTeleport: (x, z, heading) => userTeleport(x, z, heading)

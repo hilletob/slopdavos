@@ -632,7 +632,29 @@ class NYCMapSystem {
 
     if (this.fullCanvas) {
       this.fullCanvas.style.touchAction = 'none';
+      // Touch: one finger pans (a tap teleports), two fingers pinch-zoom and pan the map itself (the page never scales)
+      this.touchPoints = new Map();
+      this.pinch = null;
+      const pinchSpan = () => {
+        const [a, b] = [...this.touchPoints.values()];
+        return { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      };
+      const startPinch = () => {
+        this.cancelPan();
+        const rect = this.fullCanvas.getBoundingClientRect(), s = pinchSpan();
+        this.pinch = { d0: s.d, zoom0: this.viewZoom, anchor: this.screenToWorld(s.x - rect.left, s.y - rect.top, rect.width, rect.height) };
+      };
       this.fullCanvas.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' && this.isFullMapOpen) {
+          this.touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (this.touchPoints.size === 2) {
+            e.preventDefault();
+            this.fullCanvas.setPointerCapture(e.pointerId);
+            startPinch();
+            return;
+          }
+          if (this.touchPoints.size > 2 || this.pinch) return;
+        }
         if (e.button !== 0 || !this.isFullMapOpen || this.panPointerId !== null) return;
         e.preventDefault();
         this.panPointerId = e.pointerId;
@@ -648,6 +670,18 @@ class NYCMapSystem {
 
       this.fullCanvas.addEventListener('pointermove', (e) => {
         if (!this.isFullMapOpen || !this.fullCanvas) return;
+        if (this.touchPoints.has(e.pointerId)) this.touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.pinch) {
+          if (this.touchPoints.size < 2) return;
+          e.preventDefault();
+          const rect = this.fullCanvas.getBoundingClientRect(), s = pinchSpan(), p = this.pinch;
+          // the place first under the fingers' midpoint stays under it: zoom by the spread, pan with the midpoint
+          this.viewZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, p.zoom0 * s.d / p.d0));
+          this.viewCenterX = p.anchor.x - (s.x - rect.left - rect.width * 0.5) / this.viewZoom;
+          this.viewCenterZ = p.anchor.z - (s.y - rect.top - rect.height * 0.5) / this.viewZoom;
+          this.renderFullMap();
+          return;
+        }
         if (this.isPanning ? e.pointerId !== this.panPointerId : e.pointerType !== 'mouse') return;
         const rect = this.fullCanvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
@@ -676,7 +710,15 @@ class NYCMapSystem {
         }
       });
 
+      const liftTouch = (e) => {
+        if (!this.touchPoints.delete(e.pointerId)) return;
+        // the pinch ends with the last finger: no tap, no teleport, no pan with the finger left over
+        if (this.pinch && this.touchPoints.size === 0) this.pinch = null;
+      };
       this.fullCanvas.addEventListener('pointerup', (e) => {
+        const pinching = Boolean(this.pinch);
+        liftTouch(e);
+        if (pinching) return;
         if (e.pointerId !== this.panPointerId) return;
         const clicked = !this.dragMoved && Math.hypot(e.clientX - this.panStart.x, e.clientY - this.panStart.y) <= 5;
         this.cancelPan();
@@ -702,6 +744,7 @@ class NYCMapSystem {
       });
       for (const type of ['pointercancel', 'lostpointercapture']) {
         this.fullCanvas.addEventListener(type, (e) => {
+          if (type === 'pointercancel') liftTouch(e);
           if (e.pointerId === this.panPointerId) this.cancelPan();
         });
       }
@@ -775,7 +818,7 @@ class NYCMapSystem {
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
-    if (!this.isFullMapOpen) this.cancelPan();
+    if (!this.isFullMapOpen) { this.cancelPan(); this.touchPoints?.clear(); this.pinch = null; }
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);

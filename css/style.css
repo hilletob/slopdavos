@@ -58,6 +58,7 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
   -webkit-user-select: none; /* iOS Safari: a long press or a drag must never start a text selection */
+  touch-action: manipulation; /* iOS Safari: no double-tap zoom on the HUD (the canvas and the touch controls are touch-action: none) */
   -webkit-touch-callout: none;
   overscroll-behavior: none;
 }

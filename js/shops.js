@@ -18,6 +18,8 @@ import { releaseRenderState } from './gpu-memory.js';
 const ROW = 64, PAD = 14, ATLAS = 2048; // atlas row height (px), padding, size
 const BOARD_Y = 4.5, OFFSET = 0.14; // the boards' lower edge above the ground, off the wall (metres)
 const MAX_DIST = 22; // a business farther than this from any building gets no sign
+// Businesses (their OSM ids) whose hand-built house carries its own signs (js/pfadiheim.js adds the Pfadiheim)
+export const SHOP_EXCLUSIONS = new Set();
 
 function fontFor(b, px) {
   const family = b.font === 'serif' ? 'Georgia, "Times New Roman", serif' : 'Inter, "Helvetica Neue", Arial, sans-serif';
@@ -170,6 +172,7 @@ export function buildShops(scene) {
   // Place each business on its wall; businesses sharing a wall line up along it
   const index = buildingIndex(), walls = new Map(), placed = [];
   for (const s of SHOPS_DATA) {
+    if (SHOP_EXCLUSIONS.has(s.osm)) continue;
     const w = nearestWall(index, s.x, s.z);
     if (!w || w.d > MAX_DIST) continue;
     const h = 0.62 * (s.brand.scale || 1);

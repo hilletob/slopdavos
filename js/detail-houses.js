@@ -381,7 +381,7 @@ function facadeMaterial(map) {
 // then a bluish flickering TV, curtains drawn on a third (dimmer and warmer, in folds), brighter towards the ceiling
 // lamp. The cellar windows in the plinth (uv1.y = 1) are dark glass, and at night at most a dim bulb's light in the
 // middle of the pane, lit less often
-function glassMaterial() {
+export function glassMaterial() {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0.5 });
   const pane = uv(), id = floor(uv(1).x.add(0.5)), cellar = step(0.5, uv(1).y);
   const v = mix(float(0.3), float(0.84), pane.y);

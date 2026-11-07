@@ -348,3 +348,19 @@ class TouchControls {
 }
 
 export { TouchControls };
+
+// iOS Safari zooms the page on a double tap and on a pinch outside the canvas, whatever the viewport meta says
+// (user-scalable=no is ignored there since iOS 10): the game is a fixed full-screen page, so neither may scale it. The
+// game's own two-finger zoom is on the canvas (touch-action: none) and is not a page gesture.
+if (typeof document !== 'undefined') {
+  const stop = (e) => e.preventDefault();
+  document.addEventListener('gesturestart', stop, { passive: false });
+  document.addEventListener('dblclick', stop, { passive: false });
+  let lastEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = e.timeStamp;
+    const field = e.target?.closest?.('input, textarea, select, button, a, label, [role="button"], [contenteditable="true"]');
+    if (!field && now - lastEnd < 320 && e.touches.length === 0) e.preventDefault(); // (a second tap on plain HUD: no zoom; buttons keep quick repeated taps, touch-action: manipulation keeps them from zooming)
+    lastEnd = now;
+  }, { passive: false });
+}

@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, float, fract, mix, positionGeometry, smoothstep, step, uniform, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LEVEL_CROSSINGS } from './level-crossings-data.js';
+import { DAVOS_DATA } from './davos-geodata.js';
 import { groundHeight, drapeOverlay } from './terrain.js';
 
 // The level crossings of the RhB line (js/level-crossings-data.js, tools/fetch-level-crossings.mjs: OSM). Swiss
@@ -21,6 +22,7 @@ const TRAIN_LENGTH = 78;    // a Capricorn unit and a little
 const PRE_LIGHT = 4;        // s of flashing before the booms move
 const LOWER = 6, RAISE = 5; // s for the booms to come down / go up
 const CLEAR = 3;            // s after the train has cleared before they rise
+const TRACK_REACH = 12;     // m along the road: other tracks this close to a crossing's own are part of the crossing
 
 // --- Materials ----------------------------------------------------------------------------------------------------------
 function stripedBoomMaterial() {
@@ -83,6 +85,35 @@ export function crossingFrame(c) {
   return { at, sin, cos };
 }
 
+// The tracks a crossing's road goes over: the data has one point per crossing, on the line's own track, but in the
+// stations (Davos Dorf's Mühlestrasse: the main track and a siding 4.3 m beside it) the road crosses parallel tracks
+// in one go. Every way of the railway (js/davos-geodata.js) that the road's centre line meets within TRACK_REACH of the
+// crossing, running about along its track, counts. Returns the span { lo, hi } of their centre lines, in the frame's
+// square distance from the crossing's own track (lo ≤ 0 ≤ hi; positive towards where the road goes): the panels cover
+// all of it, the stop lines, posts and booms stand outside it.
+export function crossingTracks(c, railways = DAVOS_DATA?.railways || []) {
+  const { sin } = crossingFrame(c);
+  let lo = 0, hi = 0;
+  if (c.rdx === undefined) return { lo, hi };
+  for (const w of railways) {
+    if (w.tunnel || w.kind !== 'narrow_gauge') continue;
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i], az = p[i + 1], ex = p[i + 2] - ax, ez = p[i + 3] - az, len = Math.hypot(ex, ez);
+      if (len < 1e-6 || Math.abs(ex * c.rdx + ez * c.rdz) / len < 0.8) continue; // (not along the crossing's track)
+      // The road's centre line c + t (dx, dz) meets the segment a + s e
+      const den = c.dx * ez - c.dz * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((ax - c.x) * ez - (az - c.z) * ex) / den, s = ((ax - c.x) * c.dz - (az - c.z) * c.dx) / den;
+      if (s < 0 || s > 1 || Math.abs(t) > TRACK_REACH) continue;
+      // (along the road by u is u · sin from the track, as in crossingFrame)
+      lo = Math.min(lo, t * sin);
+      hi = Math.max(hi, t * sin);
+    }
+  }
+  return { lo, hi };
+}
+
 export function buildLevelCrossings(scene, rhb) {
   const group = new THREE.Group();
   group.name = 'LevelCrossings';
@@ -114,6 +145,9 @@ export function buildLevelCrossings(scene, rhb) {
     const road = { x: c.dx, z: c.dz }, right = { x: -c.dz, z: c.dx };
     const w = c.width, half = w / 2;
     const { at, sin, cos } = crossingFrame(c);
+    // Several parallel tracks: one panel over all of them, everything else outside the outermost on each side
+    // (edge(side): the centre line of the outermost track on that side)
+    const tracks = crossingTracks(c), edge = (side) => (side < 0 ? tracks.lo : tracks.hi);
     const yaw = Math.atan2(road.x, road.z); // facing along the road
     const state = { c, active: 0, lamps: [lampVertices, 0], closed: 0, timer: 0, booms: [], bodies: [], wasNear: false, release: 0 };
     const signals = !c.foot && (c.light || c.barrier !== 'no');
@@ -122,10 +156,11 @@ export function buildLevelCrossings(scene, rhb) {
     // (all of it laid out along the track: at an oblique crossing the panels, stop lines and booms are parallel to the
     // rails, not square to the road)
     if (!c.foot) {
-      add(panelMaterial, groundQuad([at(-PANEL, -half), at(PANEL, -half), at(PANEL, half), at(-PANEL, half)], 0.14));
+      const p0 = tracks.lo - PANEL, p1 = tracks.hi + PANEL;
+      add(panelMaterial, groundQuad([at(p0, -half), at(p1, -half), at(p1, half), at(p0, half)], 0.14));
       if (signals) for (const side of [-1, 1]) {
         // The stop line across the approach lane (the right half of the road for traffic coming from that side)
-        const a0 = side < 0 ? 0 : -half, a1 = side < 0 ? half : 0, d = side * STOP_LINE;
+        const a0 = side < 0 ? 0 : -half, a1 = side < 0 ? half : 0, d = edge(side) + side * STOP_LINE;
         add(lineMaterial, groundQuad([at(d - 0.2, a0), at(d + 0.2, a0), at(d + 0.2, a1), at(d - 0.2, a1)], 0.15));
       }
     }
@@ -134,7 +169,7 @@ export function buildLevelCrossings(scene, rhb) {
     for (const side of [-1, 1]) {
       // Approaching from side -1 the traffic heads +road and keeps right (+right); from +1 it heads -road (-right)
       const across = side < 0 ? half + 0.7 : -(half + 0.7);
-      const p = at(side * SIDE, across), y = groundHeight(p.x, p.z);
+      const p = at(edge(side) + side * SIDE, across), y = groundHeight(p.x, p.z);
       const face = side < 0 ? yaw + Math.PI : yaw; // the board faces the approaching traffic
       const post = new THREE.CylinderGeometry(0.06, 0.07, 2.9, 8).translate(0, 1.45, 0);
       add(postMaterial, post.applyMatrix4(new THREE.Matrix4().makeTranslation(p.x, y, p.z)));
@@ -172,7 +207,7 @@ export function buildLevelCrossings(scene, rhb) {
         const pivot = new THREE.Object3D();
         pivot.position.set(p.x, y + 1.0, p.z);
         // local +x points across the road along the track, from the post towards the centre
-        const q = at(side * SIDE, 0), qL = Math.hypot(q.x - p.x, q.z - p.z) || 1;
+        const q = at(edge(side) + side * SIDE, 0), qL = Math.hypot(q.x - p.x, q.z - p.z) || 1;
         const dirX = (q.x - p.x) / qL, dirZ = (q.z - p.z) / qL;
         pivot.rotation.y = Math.atan2(-dirZ, dirX);
         pivot.updateMatrix();
@@ -184,7 +219,7 @@ export function buildLevelCrossings(scene, rhb) {
       if (signals) {
         // The body that stops the traffic of this approach in front of the stop line (parked far away while open)
         // (square to the road: on an oblique crossing pushed out until its near corner stays clear of the boom)
-        const s = at(side * Math.max(STOP_LINE - 0.6, SIDE + 0.6 + (half / 2 + 0.3) * cos + 0.3 * sin), side < 0 ? half / 2 : -half / 2);
+        const s = at(edge(side) + side * Math.max(STOP_LINE - 0.6, SIDE + 0.6 + (half / 2 + 0.3) * cos + 0.3 * sin), side < 0 ? half / 2 : -half / 2);
         const body = { x: 1e7, z: 1e7, prevX: 1e7, prevZ: 1e7, y: groundHeight(s.x, s.z), sin: Math.sin(yaw), cos: Math.cos(yaw),
           halfW: half / 2 + 0.3, halfL: 0.3, mass: 1e6, vx: 0, vz: 0, angularVel: 0, tram: true, home: s };
         bodies.push(body);

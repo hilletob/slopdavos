@@ -112,26 +112,28 @@ function addSkier(f, near) {
 
 function addBoarder(f, near) {
   const K = 1;
-  // Board along the direction of travel, the rider standing across it facing +x (the toe side), front foot ahead
+  // Board along the direction of travel (+z), the rider standing across it: regular, the left foot ahead, facing -x (the
+  // toe side; T the way he faces). (js/missions-splitboard.js stands its rider at the transition the same way.)
+  const T = -1;
   f.box([0, 0.022, 0], [0.27, 0.022, 1.36], PART.accent, K);
   if (near) for (const e of [1, -1]) f.box([0, 0.05, 0.73 * e], [0.27, 0.02, 0.14], PART.accent, K, [0.45 * e, 0, 0]);
   for (const e of [1, -1]) {
     const z = 0.25 * e;
     f.box([0.0, 0.13, z], [0.28, 0.22, 0.13], PART.dark, K); // boot (and binding)
-    f.tube([0.02, 0.22, z], [0.2, 0.52, z * 0.85], 0.06, 0.065, PART.pants, K); // shin
-    f.tube([0.2, 0.52, z * 0.85], [0.0, 0.86, z * 0.5], 0.07, 0.085, PART.pants, K); // thigh
-    f.tube([0.06, 1.3, 0.19 * e], [0.12, 1.12, 0.42 * e], 0.055, 0.05, PART.jacket, K); // upper arm, out for balance
-    f.tube([0.12, 1.12, 0.42 * e], [0.18, 1.0, 0.6 * e], 0.05, 0.045, PART.jacket, K); // forearm
-    if (near) f.box([0.18, 0.99, 0.63 * e], [0.1, 0.09, 0.08], PART.dark, K); // glove
+    f.tube([0.02 * T, 0.22, z], [0.2 * T, 0.52, z * 0.85], 0.06, 0.065, PART.pants, K); // shin
+    f.tube([0.2 * T, 0.52, z * 0.85], [0.0, 0.86, z * 0.5], 0.07, 0.085, PART.pants, K); // thigh
+    f.tube([0.06 * T, 1.3, 0.19 * e], [0.12 * T, 1.12, 0.42 * e], 0.055, 0.05, PART.jacket, K); // upper arm, out for balance
+    f.tube([0.12 * T, 1.12, 0.42 * e], [0.18 * T, 1.0, 0.6 * e], 0.05, 0.045, PART.jacket, K); // forearm
+    if (near) f.box([0.18 * T, 0.99, 0.63 * e], [0.1, 0.09, 0.08], PART.dark, K); // glove
   }
-  f.tube([0, 0.84, 0], [0.12, 1.34, 0.03], 0.17, 0.19, PART.jacket, K, { flat: 1.45 }); // torso, wide along z
-  if (near) f.tube([0.12, 1.33, 0.03], [0.14, 1.44, 0.04], 0.05, 0.05, PART.skin, K);
-  f.sphere([0.15, 1.53, 0.05], 0.1, PART.skin, K, { scale: [1, 1.08, 0.92] });
-  f.sphere([0.145, 1.545, 0.05], 0.125, PART.accent, K, { top: true, scale: [1.1, 1, 0.95] });
+  f.tube([0, 0.84, 0], [0.12 * T, 1.34, 0.03], 0.17, 0.19, PART.jacket, K, { flat: 1.45 }); // torso, wide along z
+  if (near) f.tube([0.12 * T, 1.33, 0.03], [0.14 * T, 1.44, 0.04], 0.05, 0.05, PART.skin, K);
+  f.sphere([0.15 * T, 1.53, 0.05], 0.1, PART.skin, K, { scale: [1, 1.08, 0.92] });
+  f.sphere([0.145 * T, 1.545, 0.05], 0.125, PART.accent, K, { top: true, scale: [1.1, 1, 0.95] });
   if (near) {
-    // Goggles looking ahead over the front shoulder (towards +x+z)
-    f.box([0.215, 1.52, 0.135], [0.2, 0.065, 0.03], PART.lens, K, [0, Math.PI / 4, 0]);
-    f.box([0.205, 1.52, 0.125], [0.215, 0.08, 0.02], PART.dark, K, [0, Math.PI / 4, 0]);
+    // Goggles looking ahead over the front shoulder (towards T·x + z)
+    f.box([0.215 * T, 1.52, 0.135], [0.2, 0.065, 0.03], PART.lens, K, [0, T * Math.PI / 4, 0]);
+    f.box([0.205 * T, 1.52, 0.125], [0.215, 0.08, 0.02], PART.dark, K, [0, T * Math.PI / 4, 0]);
   }
 }
 
@@ -163,9 +165,11 @@ function createFigureMaterial() {
   // the other kind's triangles collapse to a point
   const plant = max(figure.z.mul(pose.w), 0);
   const moved = positionLocal.add(pose.xyz.mul(plant.mul(0.62))).add(vec3(0, plant.mul(0.12), 0));
-  // (kind 2: the skier without the skis and the poles, standing in the boots: js/missions-splitboard.js at the transition)
+  // (kind 2: the skier without the skis and the poles, standing in the boots: js/missions-splitboard.js at the transition;
+  // kind 3: the snowboarder without the board, on the splitboard's own model there)
   const bare = look.w.greaterThan(1.5);
-  const kind = select(bare, float(0), look.w);
+  const boardless = look.w.greaterThan(2.5);
+  const kind = select(boardless, float(1), select(bare, float(0), look.w));
   const gear = part.sub(PART.accent).abs().lessThan(0.5).and(positionGeometry.y.lessThan(0.5)).or(figure.z.abs().greaterThan(1e-4));
   const shown = figure.y.sub(kind).abs().lessThan(0.5).and(bare.and(gear).not());
   m.positionNode = select(shown, moved, vec3(0, -1e4, 0).mul(winter.add(1)));
@@ -450,7 +454,7 @@ export function buildWinterSports(scene) {
  * instanced mesh of one, the near level of detail with its own material. The caller poses it through its single
  * instance matrix (world space, the mesh itself left at the origin: the pole plant's offsets are world-space) and
  * aPose (x, y, z: the direction of travel, w: the pole plant, + left, - right); aLook.w the kind: 0 the skier, 1 the snowboarder,
- * 2 the skier without the skis and the poles.
+ * 2 the skier without the skis and the poles, 3 the snowboarder without the board.
  */
 export function createRiderFigure({ board = false, jacket = 0xd7261e, pants = 0x15161a, accent = 0xf2f2f0 } = {}) {
   const geo = buildFigureGeometry(true);

@@ -128,9 +128,14 @@ export function setOrthophotoUV(geometry, tile) {
 // the 572 chunks.
 // The image is mapped from above, from the chunk's userData.orthoRect ([x0, z0, 1 / width, 1 / depth] of its image):
 // no uv attribute (a sixth of the terrain's vertex data).
+// The stand-in is filtered as the images are: three.js builds the shader from the texture the node holds at that moment,
+// and a DataTexture's default nearest filter made it fetch texels (WGSLNodeBuilder.isUnfilterable: textureLoad, level 0,
+// no sampler) — every image read unfiltered and without its mipmaps, blocky up close (as the roofs, js/swissbuildings3d.js)
 const PLACEHOLDER = (() => {
   const t = new THREE.DataTexture(new Uint8Array([110, 120, 100, 255]), 1, 1);
   t.colorSpace = THREE.SRGBColorSpace; // (the shader decodes the colour as the texture it was built with says)
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.anisotropy = 8;
   t.needsUpdate = true;
   return t;
 })();
