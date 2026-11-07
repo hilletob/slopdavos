@@ -203,7 +203,10 @@ export function updateTerrainDetail(camera) {
   const now = performance.now();
   if (now - lastTick < 250 || !chunks.length) return;
   lastTick = now;
-  if (hiresIndex) for (const c of chunks) if (c.hires === undefined) c.hires = hiresIndex.byChunk.get(c.key) || null;
+  // (the high-resolution image only where it covers the chunk's own rectangle: one generated before the terrain's grid
+  // moved, as when the map grew, would put another place's photograph on the chunk)
+  const fits = (h, t) => h && Math.abs(h.x0 - t.x0) < 0.5 && Math.abs(h.z0 - t.z0) < 0.5 && Math.abs(h.x1 - t.x1) < 0.5 && Math.abs(h.z1 - t.z1) < 0.5;
+  if (hiresIndex) for (const c of chunks) if (c.hires === undefined) { const h = hiresIndex.byChunk.get(c.key); c.hires = fits(h, c.tile) ? h : null; }
   const todo = [];
   for (const c of chunks) {
     if (c.loading >= 0) continue;
