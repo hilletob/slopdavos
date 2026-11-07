@@ -42,12 +42,15 @@ const place = (g, x, y, z, rx = 0, ry = 0, rz = 0) => { g.rotateX(rx); g.rotateY
 // A flat ring on a slope cuts into the hillside on one side and hangs in the air on the other. drapeRing() sets every
 // vertex of a ring mesh (flat geometry about its origin, scaled in x/z only) onto the ground under it, `lift` above it,
 // in the mesh's own frame (`y`: the height of its origin; a parent's offset is not taken into account).
-export function drapeRing(mesh, x, y, z, scale = 1, lift = 0.25) {
-  const pos = mesh.geometry.attributes.position;
-  const base = (mesh.geometry.userData.flat ??= Float32Array.from(pos.array));
+export function drapeRing(mesh, x, y, z, scale = 1, lift = 0.3) {
+  // (the rings are built flat at y = 0, and draping changes only y: x and z are the flat base, read fresh each time. A
+  // copy of the flat positions kept from the first call went stale on the phone, where js/gpu-memory.js flattenDraws
+  // writes indexed geometry out flat on its first draw: 82 vertices became 240, the copy covered a third of them, and
+  // the rest were laid at NaN, the ring in broken pieces)
+  const pos = mesh.geometry.attributes.position, a = pos.array;
   for (let i = 0; i < pos.count; i++) {
-    const bx = base[i * 3], bz = base[i * 3 + 2];
-    pos.array[i * 3 + 1] = base[i * 3 + 1] + surfaceHeight(x + bx * scale, z + bz * scale, y) - y + lift;
+    const bx = a[i * 3], bz = a[i * 3 + 2];
+    a[i * 3 + 1] = surfaceHeight(x + bx * scale, z + bz * scale, y) - y + lift;
   }
   pos.needsUpdate = true;
   mesh.geometry.computeBoundingSphere();
@@ -55,6 +58,11 @@ export function drapeRing(mesh, x, y, z, scale = 1, lift = 0.25) {
 
 // --- The target marker: a pulsing column of light with a ring at its foot (additive; the ring a child laid onto the
 // ground by placeTarget, js/missions.js: drapeRing(marker.userData.ring, …)) ---------------------------------------
+// The rings drawn on the ground keep in front of it: the drawn terrain is the grid between its nodes (and carved under
+// the roads and paths), not the interpolated surface they are laid on, so a ring lifted a few centimetres was half under
+// it at a low angle. Lifted a little more and biased towards the
+// camera in the depth test.
+export const RING_DEPTH = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 };
 export function createTargetMarker() {
   const col = uniform(new THREE.Color(0x3fd6ff));
   const geo = new THREE.CylinderGeometry(2.2, 2.6, 36, 24, 1, true).translate(0, 18, 0);
@@ -69,7 +77,7 @@ export function createTargetMarker() {
   mesh.renderOrder = 980;
   mesh.frustumCulled = false;
   mesh.visible = false;
-  const ringMat = material();
+  const ringMat = Object.assign(material(), RING_DEPTH);
   ringMat.colorNode = col;
   ringMat.opacityNode = pulse.mul(0.4).add(0.6).mul(0.55);
   const ring = new THREE.Mesh(new THREE.RingGeometry(2.4, 3.6, 40).rotateX(-Math.PI / 2), ringMat);
@@ -85,7 +93,7 @@ export function createTargetMarker() {
 // --- A zone on the ground: a flat ring of radius 1 (scaled to the zone), hazard-striped, cyan or landing-pad white ----
 export function createZoneRing(style = 'plain') {
   const geo = new THREE.RingGeometry(0.82, 1.0, 64).rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, ...RING_DEPTH });
   const angle = atan(positionGeometry.z, positionGeometry.x).div(Math.PI * 2);
   const pulse = sin(time.mul(3)).mul(0.5).add(0.5);
   if (style === 'hazard') {

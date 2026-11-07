@@ -934,7 +934,7 @@ class MissionRun {
     for (const [style, ring] of Object.entries(this.rings)) {
       const on = !!target.r && (target.style || 'plain') === style;
       ring.visible = on;
-      if (on) { ring.position.set(target.x, y, target.z); ring.scale.set(target.r, 1, target.r); if (relay || ring.userData.at !== at) { drapeRing(ring, target.x, y, target.z, target.r, 0.2); ring.userData.at = at; } }
+      if (on) { ring.position.set(target.x, y, target.z); ring.scale.set(target.r, 1, target.r); if (relay || ring.userData.at !== at) { drapeRing(ring, target.x, y, target.z, target.r, 0.25); ring.userData.at = at; } }
     }
     const d = Math.hypot(target.x - ctx.x, target.z - ctx.z);
     const rel = relativeBearing(ctx.x, ctx.z, ctx.heading, target.x, target.z);

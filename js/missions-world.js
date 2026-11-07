@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MISSIONS, formatDistance, relativeBearing } from './missions-data.js';
 import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS } from './missions-progress.js';
 import { setMissionStartInReach } from './missions-manager.js';
-import { drapeRing } from './missions-props.js';
+import { drapeRing, RING_DEPTH } from './missions-props.js';
 import { surfaceHeight } from './terrain.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { QUALITY } from './quality.js';
@@ -488,7 +488,7 @@ function createBeams(count) {
 // (drapeRing: a flat ring on a slope would cut into the hillside), in the pin's colour; one shared material
 let ringMaterial = null;
 function createStartRing(pin) {
-  ringMaterial ??= Object.assign(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexColors: true }), { opacity: 0.5 });
+  ringMaterial ??= Object.assign(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexColors: true, ...RING_DEPTH }), { opacity: 0.5 });
   const geo = new THREE.RingGeometry(START_RADIUS - 0.6, START_RADIUS, QUALITY.mobile ? 32 : 56).rotateX(-Math.PI / 2);
   geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3));
   const ring = new THREE.Mesh(geo, ringMaterial);
@@ -729,7 +729,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
           pin.ring.visible = near;
           if (near && pin.ring.userData.y !== pin.y) {
             pin.ring.position.set(pin.x, pin.y, pin.z);
-            drapeRing(pin.ring, pin.x, pin.y, pin.z, 1, 0.35);
+            drapeRing(pin.ring, pin.x, pin.y, pin.z, 1, 0.4);
             pin.ring.userData.y = pin.y;
           }
         }
