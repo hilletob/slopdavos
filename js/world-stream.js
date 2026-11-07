@@ -6,6 +6,7 @@ import { buildGroundLayers } from './city-grid.js';
 import { buildRoadPaint } from './road-paint.js';
 import { buildTrackBed } from './trams.js';
 import { buildParking } from './parking.js';
+import { buildVectorGround } from './vector-ground.js';
 import { carveRoads, addRaisedSidewalk, removeRaisedSidewalks, drapeOverlay, liftColliders } from './terrain.js';
 
 // js/world-stream.js
@@ -237,6 +238,19 @@ export function parkingBuilder() {
       parking.group.removeFromParent();
       if (!parking.stats.lots) { parking.group.traverse((m) => { m.geometry?.dispose(); if (m.isInstancedMesh) m.dispose(); }); return { objects: [] }; }
       return { objects: [parking.group], colliders: parking.colliders, update: parking.update, dispose: parking.dispose };
+    }
+  };
+}
+
+/** The vector ground's surfaces and lines (js/vector-ground.js) of the sites whose centre the cell owns */
+export function vectorGroundBuilder() {
+  return {
+    name: 'vectorGround',
+    async build(region) {
+      await yieldNow();
+      const ground = buildVectorGround(null, { region });
+      if (!ground.group.children.length) return { objects: [] };
+      return { objects: [ground.group], dispose: ground.dispose };
     }
   };
 }

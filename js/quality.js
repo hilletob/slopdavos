@@ -30,6 +30,9 @@ const PROFILES = {
     shadowFarMax: 720, // the sun's shadow range (m) at the most (from the air); 200 m at street level
     hires: true, // the optional high-resolution orthophotos and roof crops (npm run data:hires), when present
     orthoFullNear: 1200, orthoFullFar: 1600, orthoFullScale: 1, orthoSmall: 1 / 8, orthoLoads: 3,
+    // winter: no high-resolution image, the light one at half its size (the snow covers the photo; js/ortho-levels.js);
+    // a chunk the vector ground covers to orthoSkipCoverage keeps the small image only (2: never, not used yet)
+    orthoWinterLevel: 1, orthoWinterScale: 0.5, orthoSkipCoverage: 2,
     orthoWhenSeen: false,
     roofOrthophotos: true, // the buildings' roofs drape the orthophoto of their terrain chunk
     sharpRoofs: true, sharpRoofNear: 420, sharpRoofFar: 700, // the sharp roof crops (data/roofs) near the camera
@@ -76,6 +79,7 @@ const PROFILES = {
     shadowFarMax: 240,
     hires: false,
     orthoFullNear: 450, orthoFullFar: 650, orthoFullScale: 0.5, orthoSmall: 1 / 8, orthoLoads: 1,
+    orthoWinterLevel: 1, orthoWinterScale: 0.25, orthoSkipCoverage: 2,
     // (a terrain chunk's image only once the chunk is drawn: an ImageBitmap is closed after its upload, and one for each of
     // the ~1300 chunks kept ~1.3 MB of graphics memory each in Safari's web process, far more than its pixels)
     orthoWhenSeen: true,
@@ -173,7 +177,7 @@ if (globalThis.location) {
  * The systems ?qset=skip:a+b+c leaves out (a bisect switch for devices that crash at the start: "+" or spaces between
  * the names; "all" leaves out every one of them, which keeps the terrain with its orthophotos, the player and the camera).
  */
-export const SKIP_NAMES = ['buildings', 'landmarks', 'detailhouses', 'golf', 'parking', 'shops', 'streams', 'signs', 'bergbahnen',
+export const SKIP_NAMES = ['buildings', 'landmarks', 'detailhouses', 'golf', 'ground', 'parking', 'shops', 'streams', 'signs', 'bergbahnen',
   'rhb', 'traffic', 'pedestrians', 'trees', 'details', 'winter', 'snowfall', 'surroundings', 'lights', 'postfx', 'water'];
 
 /** The skipped systems' names (a Set; 'all' expanded) */

@@ -1,0 +1,49 @@
+{
+  "sports": {
+    "note": "Hand corrections for tools/trace-ground.mjs --layer sports. extraSites: grounds not (fully) in OSM; sites.<id>: skip, margin, hints, drop (fit names), surfaces / lines (world frame) added as they are.",
+    "skipSports": [
+      "shooting",
+      "free_flying",
+      "padel",
+      "paddle_tennis",
+      "padel;pickleball"
+    ],
+    "extraSites": [
+      {
+        "id": "sportzentrum",
+        "name": "Sportzentrum Davos Platz",
+        "box": [
+          -385,
+          -262,
+          -188,
+          -58
+        ],
+        "hints": {
+          "track": true,
+          "football": true
+        }
+      },
+      {
+        "id": "schulhaus-platz",
+        "name": "Schulhaus Davos Platz",
+        "box": [
+          -470,
+          -82,
+          -385,
+          -8
+        ]
+      },
+      {
+        "id": "buenda",
+        "name": "Sportplatz Bünda",
+        "box": [
+          930,
+          -1372,
+          1100,
+          -1140
+        ]
+      }
+    ],
+    "sites": {}
+  }
+}

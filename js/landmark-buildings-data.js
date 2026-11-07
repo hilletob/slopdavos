@@ -189,10 +189,12 @@ export const KONGRESS = {
 // --- Natureisbahn ----------------------------------------------------------------------------------------------------------
 // Europe's largest natural ice rink (18 000 m², since 1894; Talstrasse 41): in winter the running track, the football
 // pitch inside it and the hard court beside it lie under ice; in summer they are the sports ground (the orthophoto).
-// The track's outline: a 400 m stadium shape fitted to SWISSIMAGE (centre, long axis, half the straights, radius).
+// The track's outline: the stadium tools/trace-ground.mjs fitted to the painted lanes in the 0.1 m SWISSIMAGE
+// (js/ground-sports-data.js, site sportzentrum: centre, long axis, half the straights; the kerb at 36.57 m, six lanes of
+// 1.22 m, the ice reaching 0.4 m past the outer lane), the court the hard court's tartan rectangle traced there.
 export const EISBAHN = {
-  track: { x: -271.5, z: -162.5, ux: 0.551, uz: -0.835, half: 44.5, r: 44.0 },
-  court: [[-303.3, -199.4], [-333.9, -223.6], [-370.8, -177.1], [-340.2, -153]]
+  track: { x: -269.9, z: -163.5, ux: 0.6251, uz: -0.7805, half: 40.8, r: 44.29 },
+  court: [[-303.7, -200.2], [-334.9, -224.9], [-371.7, -178.3], [-340.6, -153.6]]
 };
 
 export function trackOutline(t = EISBAHN.track, n = 24) {

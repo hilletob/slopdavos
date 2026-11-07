@@ -28,6 +28,7 @@
     "data:gwr": "node tools/build-gwr.mjs",
     "data:tlm-trees": "node tools/fetch-tlm-trees.mjs",
     "data:parking-bays": "node tools/detect-parking-bays.mjs",
+    "data:ground": "node tools/trace-ground.mjs --layer sports",
     "bake:trees": "node tools/bake-ez-trees.mjs"
   },
   "devDependencies": {

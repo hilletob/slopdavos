@@ -71,15 +71,17 @@ function splitConvex(poly, fu, fv, k) {
 // Flat triangulated polygon in the x/z plane (y = 0), facing up, cut along the terrain grid's cell edges and diagonals
 // (terrain-grid.js gridHeight): every piece then lies within one of the terrain's planar triangles, so that the draped
 // overlay follows the relief exactly (no chords sagging into the ground over the mounds of greens and tees)
-function polygonGeometry(ring) {
+// (`holes`: flat rings cut out of it; js/vector-ground.js)
+export function polygonGeometry(ring, holes = []) {
   const { minX, minZ, cell } = TERRAIN;
-  const contour = [];
-  for (let i = 0; i < ring.length; i += 2) contour.push(new THREE.Vector2(ring[i], ring[i + 1]));
-  const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+  const toV2 = (r) => { const out = []; for (let i = 0; i < r.length; i += 2) out.push(new THREE.Vector2(r[i], r[i + 1])); return out; };
+  const contour = toV2(ring), holeV2 = holes.map(toV2);
+  const tris = THREE.ShapeUtils.triangulateShape(contour, holeV2);
+  const all = contour.concat(...holeV2); // (the triangles index the contour, then the holes' points)
   const pos = [];
   for (const [a, b, c] of tris) {
     // (counter-clockwise seen from above: with z pointing south that is clockwise in x/z)
-    const p = [contour[a], contour[b], contour[c]];
+    const p = [all[a], all[b], all[c]];
     const cross = (p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[1].y - p[0].y) * (p[2].x - p[0].x);
     if (cross > 0) p.reverse();
     // in grid units u, v; the cell edges u = k, v = k and the diagonals u − v = k

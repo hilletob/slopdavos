@@ -10,7 +10,7 @@ import { buildBoroughs } from './boroughs.js';
 import { buildLandmarks } from './landmarks.js';
 import { buildCityBlocks } from './buildings.js';
 import { streamSwissBuildings } from './swissbuildings3d.js';
-import { drapeTerrainOrthophotos } from './swissimage.js';
+import { drapeTerrainOrthophotos, setGroundCoverage } from './swissimage.js';
 import { buildSurroundings } from './surroundings.js';
 import { buildTrams } from './trams.js';
 import { buildRhB } from './rhb.js';
@@ -35,7 +35,8 @@ import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
 import { buildPfadiheim } from './pfadiheim.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
-import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder } from './world-stream.js';
+import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder, vectorGroundBuilder } from './world-stream.js';
+import { buildVectorGround, groundCoverage } from './vector-ground.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
@@ -328,6 +329,11 @@ async function initApp() {
   const deferred = [];
   const buildLater = (build) => (QUALITY.deferScenery ? deferred.push(build) : build());
   if (!skipped('golf')) buildLater(() => buildGolf(scene)); // the Golf Club Davos' fairways, greens, tees and bunkers, under the snow in winter
+  // the vector ground: the sports grounds' tartan, turf and clay and their lines, traced from the full-resolution aerial
+  // photo (js/vector-ground.js), sharp where the orthophoto is not; cell by cell round the player on the phone
+  if (!skipped('ground') && !world) buildLater(() => buildVectorGround(scene));
+  if (world && !skipped('ground')) world.addBuilder(vectorGroundBuilder());
+  if (!skipped('ground')) setGroundCoverage(groundCoverage()); // (measured per chunk; QUALITY.orthoSkipCoverage decides)
   const winterSports = skipped('winter') ? { update: NOOP } : buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
   if (!skipped('streams')) buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = skipped('shops') ? { refine: NOOP } : buildShops(scene); // the businesses' signs (js/shops-data.js)
@@ -522,7 +528,7 @@ async function initApp() {
   // repacked), the moving vehicles, the signs (rebuilt by shops.refine) or the rail crossings (lamp attributes); the
   // buildings once the shop signs have been moved onto their facades (a raycast).
   const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
-    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells']);
+    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells', 'VectorGround']);
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
   if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries ${QUALITY.flatDraws ? 'with byte normals' : 'compacted'}: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;

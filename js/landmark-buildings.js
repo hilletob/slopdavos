@@ -24,7 +24,7 @@ import {
 //    under the overhang, the hotel's white plaster, the pool's dark timber and its glazing towards the park), the roofs
 //    under their solar panels; the outdoor pool and the slide's helix
 //  - the Natureisbahn: ice over the track, the pitch and the court in winter (the summer's sports ground is the
-//    orthophoto's)
+//    vector ground's, js/vector-ground.js, traced from the same photograph as the ice's outline)
 //  - the Parsennbahn's valley station in Davos Dorf: white walls with red window frames and red-white bands, the glazed
 //    shop on the ground floor, its lettering, banner, entrance sign and roof flags from one small canvas atlas
 // All of it merged into one mesh per material (24 draw calls in all); the facades' detail (boards, mullions, windows,

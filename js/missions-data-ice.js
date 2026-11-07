@@ -86,11 +86,13 @@ export function stepSkater(sk, input, dt, P, { offIce = false } = {}) {
 
 // =====================================================================================================================
 // The 400 m track (Natureisbahn, js/landmark-buildings-data.js EISBAHN.track: the ice's outline, a stadium shape round
-// a spine of 2 × `half` along u). The lanes: the inner kerb INNER m from the spine, the outer edge of the outer lane
-// OUTER; the 400 m are measured on LINE (2 · 89 m straights + 2 π · 35.3 m ≈ 400 m). Counter-clockwise, as raced:
-// along +u on the +v side (the infield on the skater's left).
+// a spine of 2 × `half` along u). The lanes: the inner kerb INNER m from the spine (the summer track's kerb), the outer
+// edge of the outer lane OUTER (its six lanes); the 400 m are measured on LINE (2 · 81.6 m straights + 2 π · 37.69 m
+// = 400 m: the Davos track is short, its lane 1 ~395 m). Counter-clockwise, as raced: along +u on the +v side (the
+// infield on the skater's left).
 export const TRACK = EISBAHN.track;
-export const TRACK_LANES = { inner: 33.5, divider: 37.5, outer: 41.5, line: 35.3, cut: 31.0, ice: TRACK.r };
+const LINE = (400 - 4 * TRACK.half) / (2 * Math.PI);
+export const TRACK_LANES = { inner: 36.57, divider: 40.23, outer: 43.89, line: LINE, cut: 34.0, ice: TRACK.r };
 export const LAP_LENGTH = 2 * (2 * TRACK.half) + 2 * Math.PI * TRACK_LANES.line;
 export const RACE_LAPS = 2;
 const TV = { x: -TRACK.uz, z: TRACK.ux }; // v: across the track

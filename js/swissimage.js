@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { texture, uniform, positionWorld, vec2, float } from 'three/tsl';
-import { snowyGround } from './season.js';
+import { snowyGround, isWinter } from './season.js';
+import { orthoLevel, orthoScale } from './ortho-levels.js';
 import { QUALITY } from './quality.js';
 import { releaseImageAfterUpload } from './gpu-memory.js';
 import { groomedGround, groomedRoughness } from './groom-map.js';
@@ -154,30 +155,30 @@ const groundMaterial = () => {
 };
 
 // --- Streaming the terrain's images by distance ----------------------------------------------------------------------
-// All 572 light images at full size would take ~0.9 GB of GPU memory. Each chunk shows one level at a time, by its
-// distance from the camera (with hysteresis, so that a chunk on the boundary doesn't flip back and forth):
+// All 1344 light images at full size would take ~2 GB of GPU memory. Each chunk shows one level at a time, by its
+// distance from the camera (with hysteresis, so that a chunk on the boundary doesn't flip back and forth; js/ortho-levels.js):
 //   0: the light image decoded at 1/8 of its linear size (~0.1 MB on the GPU)        beyond orthoFullFar (1600 m)
 //   1: the light image (0.5-2 m, up to 1152 px square: ~7 MB)                         within orthoFullNear (1200 m)
 //   2: the high-resolution image (npm run data:hires, 0.25 m: ~28 MB), when generated within HIRES_NEAR
 // Loads go nearest first, a few at a time; the replaced texture is disposed once the new one is in.
 // (the distances and sizes come from the device profile, js/quality.js: the mobile one shows level 1 at half its linear
 // size, a quarter of the memory, within a shorter radius, and never level 2)
-const HIRES_NEAR = 700, HIRES_FAR = 1000;
 const chunks = [];
-let lastTick = 0, loads = 0, hiresIndex;
+let lastTick = 0, loads = 0, hiresIndex, coverageOf = null;
 hiresOrthophotoIndex().then((index) => { hiresIndex = index; });
 
+/** The vector ground's coverage of a rectangle (js/vector-ground.js groundCoverage), for js/ortho-levels.js */
+export function setGroundCoverage(fn) { coverageOf = fn; for (const c of chunks) c.coverage = undefined; }
+
 function wanted(c, camera) {
-  const d = Math.hypot(c.x - camera.x, c.z - camera.z);
-  if (hiresIndex && c.hires && (d < HIRES_NEAR || (c.level === 2 && d < HIRES_FAR))) return 2;
-  if (d < QUALITY.orthoFullNear || (c.level >= 1 && d < QUALITY.orthoFullFar)) return 1;
-  return 0;
+  if (c.coverage === undefined) c.coverage = coverageOf ? coverageOf([c.rect.x0, c.rect.z0, c.rect.x1, c.rect.z1]) : 0;
+  return orthoLevel({ d: Math.hypot(c.x - camera.x, c.z - camera.z), level: c.level, hires: !!(hiresIndex && c.hires), winter: isWinter(), coverage: c.coverage }, QUALITY);
 }
 function load(c, level) {
   const tile = level === 2 ? c.hires : c.tile, base = level === 2 ? HIRES_URL : INDEX_URL;
   const [w, h] = pixels(tile);
   c.loading = level; loads++;
-  const scale = level === 0 ? QUALITY.orthoSmall : level === 1 ? QUALITY.orthoFullScale : 1;
+  const scale = orthoScale(level, isWinter(), QUALITY);
   const loading = c.tiles.length > 1 && level < 2 ? loadComposed(c.tiles, c.rect, base, scale)
     : loadTexture(new URL(tile.f, base).href, scale < 1 ? [Math.max(16, Math.round(w * scale)), Math.max(16, Math.round(h * scale))] : null);
   return loading
@@ -185,7 +186,7 @@ function load(c, level) {
       c.mesh.userData.orthoMap = map;
       if (!c.material) { c.material = groundMaterial(); c.mesh.material = c.material; }
       drop(c.texture);
-      c.texture = map; c.level = level;
+      c.texture = map; c.level = level; c.scale = scale;
     })
     .catch((error) => { console.warn('[swissimage]', tile.f, error); if (level === 2) c.hires = null; })
     .finally(() => { c.loading = -1; loads--; });
@@ -216,7 +217,8 @@ export function updateTerrainDetail(camera) {
       if (c.level > want) unload(c);
       continue;
     }
-    if (want !== c.level) todo.push({ c, want, d: Math.hypot(c.x - camera.x, c.z - camera.z) });
+    // (a new level, or the same at another size: the season changed)
+    if (want !== c.level || (c.level >= 0 && orthoScale(want, isWinter(), QUALITY) !== c.scale)) todo.push({ c, want, d: Math.hypot(c.x - camera.x, c.z - camera.z) });
   }
   // Upgrades nearest first; downgrades (freeing memory) whenever a slot is free
   todo.sort((p, q) => (q.want > q.c.level) - (p.want > p.c.level) || p.d - q.d);
