@@ -1,5 +1,5 @@
 // tools/markings-layer.mjs — layer `markings` of tools/trace-ground.mjs: the paint on the roads, traced from the
-// full-resolution SWISSIMAGE into js/ground-markings-data.js. The areas (tools/data/ground-overrides.json markings) are
+// full-resolution SWISSIMAGE into data/ground-markings/ (and js/ground-markings-data.js: the cells, the car parks). The areas (tools/data/ground-overrides.json markings) are
 // cut into square cells; per cell a 0.1 m crop, the mask the carriageways of DAVOS_DATA.roads and every other paved
 // surface (yards, forecourts, the car parks, private ones too, which OSM mostly lacks), the paint classified (tools/ground-sports.py classify-roads) and vectorised
 // (tools/markings-fit.mjs). Inside the traced cells js/vector-ground.js draws this paint and the rule-based markings
@@ -27,17 +27,32 @@ const log = (...a) => console.log('[trace-ground markings]', ...a);
 const ROAD_KINDS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'living_street', 'service', 'pedestrian']);
 const MARGIN = 2; // m round each cell (paint across its edge is cut where the cell owns it: by the blob's centre)
 
-// The cells
+// The cells: the configured areas, and with `auto` every 120 m square of the town (four buildings and a street at least)
 const cells = [];
-for (const area of CONF.areas) {
-  const [ax0, az0, ax1, az1] = area.box, n = CONF.cell;
-  for (let z = az0; z < az1; z += n) for (let x = ax0; x < ax1; x += n) {
-    cells.push({ id: `${area.id}-${Math.round(x)}_${Math.round(z)}`, area: area.id, box: [x, z, Math.min(x + n, ax1), Math.min(z + n, az1)] });
+const N = CONF.cell;
+for (const area of CONF.areas || []) {
+  const [ax0, az0, ax1, az1] = area.box;
+  for (let z = az0; z < az1; z += N) for (let x = ax0; x < ax1; x += N) {
+    cells.push({ id: `${area.id}-${Math.round(x)}_${Math.round(z)}`, area: area.id, box: [x, z, Math.min(x + N, ax1), Math.min(z + N, az1)] });
+  }
+}
+if (CONF.auto) {
+  const count = new Map(), key = (x, z) => `${Math.floor(x / N)},${Math.floor(z / N)}`;
+  const bump = (k, f) => { const c = count.get(k) || { b: 0, r: 0 }; c[f]++; count.set(k, c); };
+  for (const b of DAVOS_DATA.buildings) bump(key(b.ring[0], b.ring[1]), 'b');
+  const STREETS = /^(primary|secondary|tertiary|residential|unclassified|living_street|service)$/;
+  for (const r of DAVOS_DATA.roads) if (STREETS.test(r.kind) && !r.tunnel) for (let i = 0; i < r.pts.length; i += 2) bump(key(r.pts[i], r.pts[i + 1]), 'r');
+  const taken = cells.map((c) => c.box);
+  for (const [k, c] of count) {
+    if (c.b < (CONF.minBuildings ?? 4) || !c.r) continue;
+    const [i, j] = k.split(',').map(Number), box = [i * N, j * N, (i + 1) * N, (j + 1) * N];
+    if (taken.some((b) => b[0] < box[2] && b[2] > box[0] && b[1] < box[3] && b[3] > box[1])) continue;
+    cells.push({ id: `t${i}_${j}`, area: 'town', box });
   }
 }
 const todoCells = cells.filter((c) => !ONLY || c.id === ONLY || c.area === ONLY);
 log(`${todoCells.length} cells`);
-const jobs = todoCells.map((c) => {
+function makeJob(c) {
   const [x0, z0, x1, z1] = c.box;
   const j = cropJob(c.id, [x0 - MARGIN, z0 - MARGIN, x1 + MARGIN, z1 + MARGIN]);
   const near = (bb) => bb[2] > j.x0 - 10 && bb[0] < x1 + MARGIN + 10 && bb[3] > j.z0 - 10 && bb[1] < z1 + MARGIN + 10;
@@ -56,19 +71,31 @@ const jobs = todoCells.map((c) => {
   j.lots = PARKING_DATA.filter((l) => l.kind !== 'space' && near(bboxOf(l.ring))).map((l) => j.px(l.ring));
   j.cls = j.cls.replace(/\.cls$/, '.roads.cls');
   return j;
-});
-await fetchCrops(jobs, log);
+}
+const jobs = todoCells.map(makeJob);
+// (each cell's result is kept: a run carries on where the last stopped, and redoes a cell when the tools changed)
+const CELLS_CACHE = path.join(CACHE, 'markings-cells');
+fs.mkdirSync(CELLS_CACHE, { recursive: true });
+const toolsMtime = Math.max(...['ground-sports.py', 'markings-layer.mjs', 'markings-fit.mjs', 'markings-snap.mjs', 'markings-paved.mjs'].map((f) => fs.statSync(path.join(DIR, f)).mtimeMs));
+const cached = (c) => { const f = path.join(CELLS_CACHE, `${c.id}.json`); return fs.existsSync(f) && fs.statSync(f).mtimeMs > toolsMtime ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
+const BATCH = 16;
+const r2 = (v) => Math.round(v * 100) / 100;
+const results = new Array(todoCells.length), reviews = [];
+for (let b0 = 0; b0 < todoCells.length; b0 += BATCH) {
+  const idx = [];
+  for (let k = b0; k < Math.min(todoCells.length, b0 + BATCH); k++) { const c = cached(todoCells[k]); if (c && !REVIEW) results[k] = c; else idx.push(k); }
+  if (!idx.length) continue;
+  log(`cells ${b0 + 1}–${Math.min(todoCells.length, b0 + BATCH)} of ${todoCells.length}`);
+  await fetchCrops(idx.map((k) => jobs[k]), log);
 const pyMtime = Math.max(...['ground-sports.py', 'markings-layer.mjs'].map((f) => fs.statSync(path.join(DIR, f)).mtimeMs)); // (the mask comes from here)
-const todo = jobs.filter((j) => !fs.existsSync(j.cls) || fs.statSync(j.cls).mtimeMs < pyMtime);
+const todo = idx.map((k) => jobs[k]).filter((j) => !fs.existsSync(j.cls) || fs.statSync(j.cls).mtimeMs < pyMtime);
 if (todo.length) {
   const file = path.join(CACHE, 'markings-jobs.json');
   fs.writeFileSync(file, JSON.stringify(todo.map(({ px, url, ...j }) => j)));
   execFileSync('python3', ['-I', path.join(DIR, 'ground-sports.py'), 'classify-roads', file], { stdio: 'inherit' });
 }
 
-const r2 = (v) => Math.round(v * 100) / 100;
-const results = [], reviews = [];
-for (let k = 0; k < todoCells.length; k++) {
+for (const k of idx) {
   const cell = todoCells[k], j = jobs[k];
   const cls = new Uint8Array(fs.readFileSync(j.cls));
   const yel = new Uint8Array(fs.readFileSync(j.cls + '.yel'));
@@ -89,7 +116,9 @@ for (let k = 0; k < todoCells.length; k++) {
   const surfaces = pavedSurfaces({ cls, w: j.w, h: j.h, res: j.res, x0: j.x0, z0: j.z0 }).filter((f) => owns(f.ring))
     .map((f) => ({ kind: f.kind, ring: f.ring.map(r2), ...(f.holes.length ? { holes: f.holes.map((h) => h.map(r2)) } : {}) }));
   log(cell.id, `${surfaces.length} paved surfaces`);
-  results.push({ id: cell.id, box: cell.box, surfaces, lines, fills });
+  results[k] = { id: cell.id, box: cell.box, surfaces, lines, fills };
+  fs.writeFileSync(path.join(CELLS_CACHE, `${cell.id}.json`), JSON.stringify(results[k]));
+}
 }
 
 // --- The parking bays in the paint (the car parks OSM lacks): rows over all the cells, each given to the cell that owns
@@ -141,15 +170,36 @@ if (REVIEW) for (let k = 0; k < results.length; k++) {
   });
 }
 
-let all = results;
+// Out: per cell data/ground-markings/<id>.json (loaded near the camera, js/vector-ground.js), its points as whole
+// multiples of 2 cm from the cell's corner; js/ground-markings-data.js the cells' boxes and the traced car parks
+const DATA_DIR = path.join(DIR, '..', 'data', 'ground-markings');
+if (!ONLY) fs.rmSync(DATA_DIR, { recursive: true, force: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const Q = 0.02;
+let bytes = 0;
+for (const r of results) {
+  const [ox, oz] = r.box, enc = (flat) => flat.map((v, i) => Math.round((v - (i % 2 ? oz : ox)) / Q));
+  const file = {
+    o: [ox, oz], q: Q,
+    surfaces: r.surfaces.map((f) => ({ kind: f.kind, ring: enc(f.ring), ...(f.holes ? { holes: f.holes.map(enc) } : {}) })),
+    lines: r.lines.map((l) => ({ c: l.c, w: l.w, pts: enc(l.pts) })),
+    fills: r.fills.map((f) => ({ c: f.c, ring: enc(f.ring), ...(f.holes ? { holes: f.holes.map(enc) } : {}) }))
+  };
+  if (!file.surfaces.length && !file.lines.length && !file.fills.length) continue;
+  const text = JSON.stringify(file);
+  bytes += text.length;
+  fs.writeFileSync(path.join(DATA_DIR, `${r.id}.json`), text);
+}
+let index = results.map((r) => ({ id: r.id, box: r.box, lots: r.lots || [] }));
 if (ONLY && fs.existsSync(OUT)) {
   const { GROUND_MARKINGS } = await import(`${pathToFileURL(OUT).href}?${Date.now()}`);
-  const ids = new Set(results.map((r) => r.id));
-  all = [...GROUND_MARKINGS.sites.filter((s) => !ids.has(s.id)), ...results];
+  const ids = new Set(index.map((r) => r.id));
+  index = [...(GROUND_MARKINGS.cells || []).filter((c) => !ids.has(c.id)), ...index];
 }
-const data = { source: 'swisstopo SWISSIMAGE (road paint traced by tools/trace-ground.mjs --layer markings)', fetched: new Date().toISOString().slice(0, 10), layer: 'markings', sites: all };
-fs.writeFileSync(OUT, `// js/ground-markings-data.js — GENERATED by tools/trace-ground.mjs --layer markings, do not edit by hand (areas: tools/data/ground-overrides.json).\nexport const GROUND_MARKINGS = ${JSON.stringify(data)};\n`);
-log(`${all.length} cells, ${(fs.statSync(OUT).size / 1024).toFixed(1)} KB -> ${path.relative(process.cwd(), OUT)}`);
+index = index.filter((c) => fs.existsSync(path.join(DATA_DIR, `${c.id}.json`)) || c.lots.length);
+const data = { source: 'swisstopo SWISSIMAGE (road paint traced by tools/trace-ground.mjs --layer markings)', fetched: new Date().toISOString().slice(0, 10), layer: 'markings', cell: N, cells: index };
+fs.writeFileSync(OUT, `// js/ground-markings-data.js — GENERATED by tools/trace-ground.mjs --layer markings, do not edit by hand (areas: tools/data/ground-overrides.json).\n// The traced cells (their paint in data/ground-markings/<id>.json) and the car parks read from it.\nexport const GROUND_MARKINGS = ${JSON.stringify(data)};\n`);
+log(`${index.length} cells: ${(bytes / 1048576).toFixed(1)} MB in data/ground-markings/, ${(fs.statSync(OUT).size / 1024).toFixed(1)} KB -> ${path.relative(process.cwd(), OUT)}`);
 if (REVIEW && reviews.length) {
   const file = path.join(CACHE, 'markings-review.json');
   fs.writeFileSync(file, JSON.stringify(reviews));

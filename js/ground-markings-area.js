@@ -4,7 +4,7 @@ import { GROUND_MARKINGS } from './ground-markings-data.js';
 // tools/trace-ground.mjs --layer markings): there js/vector-ground.js draws it, and the rule-based markings
 // (js/road-paint.js from the road network, js/city-grid.js centre lines, BUS lettering and OSM crossings) step back.
 
-const BOXES = GROUND_MARKINGS.sites.map((s) => s.box);
+const BOXES = (GROUND_MARKINGS.cells || []).map((c) => c.box);
 
 /** Whether the paint at (x, z) is traced */
 export const tracedMarkings = (x, z) => BOXES.some((b) => x >= b[0] && x < b[2] && z >= b[1] && z < b[3]);
@@ -31,3 +31,15 @@ export function withoutTraced(geometry) {
   if (flat !== geometry) flat.dispose();
   return keep.length ? out : null;
 }
+
+/** A cell's file decoded: its points stored as whole multiples of `q` metres from the cell's corner `o` */
+export function decodeMarkingsCell(id, file) {
+  const [ox, oz] = file.o, q = file.q, dec = (a) => a.map((v, i) => v * q + (i % 2 ? oz : ox));
+  return {
+    id, box: [ox, oz, ox + 120, oz + 120],
+    surfaces: (file.surfaces || []).map((f) => ({ kind: f.kind, ring: dec(f.ring), ...(f.holes ? { holes: f.holes.map(dec) } : {}) })),
+    lines: (file.lines || []).map((l) => ({ c: l.c, w: l.w, pts: dec(l.pts) })),
+    fills: (file.fills || []).map((f) => ({ c: f.c, ring: dec(f.ring), ...(f.holes ? { holes: f.holes.map(dec) } : {}) }))
+  };
+}
+

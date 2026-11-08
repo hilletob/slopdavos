@@ -47,23 +47,14 @@
     "sites": {}
   },
   "markings": {
-    "note": "Areas whose road paint tools/trace-ground.mjs --layer markings traces (cut into cells of `cell` metres). Inside them the traced paint replaces the rule-based markings (js/road-paint.js, js/city-grid.js).",
+    "note": "tools/trace-ground.mjs --layer markings: auto traces every `cell` m square of the town with minBuildings buildings and a street; areas adds boxes of its own.",
     "cell": 120,
-    "areas": [
-      {
-        "id": "promenade",
-        "name": "Promenade, Davos Platz",
-        "box": [
-          -680,
-          -240,
-          -440,
-          0
-        ]
-      }
-    ]
+    "auto": true,
+    "minBuildings": 4,
+    "areas": []
   },
   "classes": {
-    "note": "Areas whose open ground tools/trace-ground.mjs --layer classes classifies (every hires orthophoto tile touching them) into data/ground-classes/.",
+    "note": "Areas whose open ground tools/trace-ground.mjs --layer classes classifies into data/ground-classes/ (every hires orthophoto tile touching them); auto: also every tile with minBuildings buildings.",
     "areas": [
       {
         "id": "platz",
@@ -75,6 +66,8 @@
           0
         ]
       }
-    ]
+    ],
+    "auto": true,
+    "minBuildings": 30
   }
 }

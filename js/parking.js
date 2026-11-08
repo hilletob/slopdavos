@@ -14,7 +14,7 @@ import { GROUND_MARKINGS } from './ground-markings-data.js';
 
 // The car parks OSM lacks (private yards and forecourts): their bays read from the paint traced in the aerial photo
 // (js/ground-markings-data.js lots, tools/markings-bays.mjs: kind 'traced', no asphalt of their own, the ground's photo)
-const ALL_LOTS = [...(PARKING_DATA || []), ...GROUND_MARKINGS.sites.flatMap((s) => s.lots || [])];
+const ALL_LOTS = [...(PARKING_DATA || []), ...(GROUND_MARKINGS.cells || []).flatMap((c) => c.lots || [])];
 
 // The open-air car parks of Davos (js/parking-data.js, tools/fetch-parking.mjs: OSM amenity=parking areas) with their
 // bays and parked cars. In each lot the bays are laid out along its longest edge: thin lots (street-side and lane

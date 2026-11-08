@@ -36,7 +36,7 @@ import { buildLandmarkBuildings } from './landmark-buildings.js';
 import { buildPfadiheim } from './pfadiheim.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder, vectorGroundBuilder } from './world-stream.js';
-import { buildVectorGround, groundCoverage } from './vector-ground.js';
+import { buildVectorGround, groundCoverage, streamGroundMarkings } from './vector-ground.js';
 import { FRAME } from './davos-frame.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
@@ -334,6 +334,8 @@ async function initApp() {
   if (!skipped('ground') && !world) buildLater(() => buildVectorGround(scene));
   if (world && !skipped('ground')) world.addBuilder(vectorGroundBuilder());
   if (!skipped('ground')) setGroundCoverage(groundCoverage()); // (measured per chunk; QUALITY.orthoSkipCoverage decides)
+  // the road paint and the yards traced from the aerial photo, cell by cell near the camera (js/vector-ground.js)
+  const groundMarkings = skipped('ground') ? { update: NOOP } : streamGroundMarkings(scene);
   const winterSports = skipped('winter') ? { update: NOOP } : buildWinterSports(scene); // skiers and snowboarders on the runs near the camera, in winter
   if (!skipped('streams')) buildLater(() => buildStreams(scene)); // the Landwasser's open stretches, the Dischmabach and the side creeks
   const shops = skipped('shops') ? { refine: NOOP } : buildShops(scene); // the businesses' signs (js/shops-data.js)
@@ -1271,6 +1273,7 @@ async function initApp() {
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
     streamTerrain(cameraSystem.camera.position); // the terrain chunks' full geometry near the camera, coarse farther
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
+    groundMarkings.update(cameraSystem.camera.position); // the traced road paint near the camera
     if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager); // the snow's wear, the groomer's tracks

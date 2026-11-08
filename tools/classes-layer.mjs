@@ -27,7 +27,9 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const KINDS = Object.fromEntries(['lawn', 'shrub', 'paving', 'gravel', 'red-paving', 'asphalt'].map((k) => [k, GROUND_KIND_INDEX[k] + 1]));
 const overlaps = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
-const tiles = index.tiles.filter((t) => CONF.areas.some((a) => overlaps(a.box, [t.x0, t.z0, t.x1, t.z1])));
+const inTile = (t, x, z) => x >= t.x0 + index.margin && x < t.x1 - index.margin && z >= t.z0 + index.margin && z < t.z1 - index.margin;
+const tiles = index.tiles.filter((t) => CONF.areas.some((a) => overlaps(a.box, [t.x0, t.z0, t.x1, t.z1])) ||
+  (CONF.auto && DAVOS_DATA.buildings.filter((b) => inTile(t, b.ring[0], b.ring[1])).length >= (CONF.minBuildings ?? 30)));
 log(`${tiles.length} tiles`);
 const jobs = tiles.map((t) => {
   const px = (ring) => { const out = []; for (let i = 0; i < ring.length; i += 2) out.push([(ring[i] - t.x0) / t.res, (ring[i + 1] - t.z0) / t.res]); return out; };

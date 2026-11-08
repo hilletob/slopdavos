@@ -152,25 +152,33 @@ test('the orthophoto levels: by distance with hysteresis, capped in winter, the 
 });
 
 import { GROUND_MARKINGS } from '../js/ground-markings-data.js';
-import { tracedMarkings } from '../js/ground-markings-area.js';
+import { tracedMarkings, decodeMarkingsCell } from '../js/ground-markings-area.js';
 
-test('the road paint traced at the Promenade: strokes and shapes in their cells, the rule-based markings stepping back there', () => {
-  assert.ok(GROUND_MARKINGS.sites.length >= 4, `${GROUND_MARKINGS.sites.length} cells`);
-  let strokes = 0, yellow = 0;
-  for (const s of GROUND_MARKINGS.sites) {
-    const [x0, z0, x1, z1] = s.box;
-    for (const l of s.lines) {
-      assert.ok(['w', 'y'].includes(l.c) && l.w >= 0.08 && l.w <= 0.7 && l.pts.length >= 4, `${s.id} stroke`);
+import { readFileSync as readCell, existsSync as cellExists } from 'node:fs';
+
+test('the road paint traced over the town: a file per cell, strokes and shapes inside it, the rule-based markings stepping back there', () => {
+  const cells = GROUND_MARKINGS.cells;
+  assert.ok(cells.length >= 200, `${cells.length} cells`);
+  let strokes = 0, yellow = 0, files = 0, yards = 0;
+  for (const c of cells) {
+    const url = new URL(`../data/ground-markings/${c.id}.json`, import.meta.url);
+    if (!cellExists(url)) { assert.ok(c.lots.length, `${c.id}: neither paint nor car parks`); continue; }
+    files++;
+    const site = decodeMarkingsCell(c.id, JSON.parse(readCell(url, 'utf8')));
+    const [x0, z0, x1, z1] = c.box;
+    for (const l of site.lines) {
+      assert.ok(['w', 'y'].includes(l.c) && l.w >= 0.08 && l.w <= 0.7 && l.pts.length >= 4, `${c.id} stroke`);
       let x = 0, z = 0; for (let i = 0; i < l.pts.length; i += 2) { x += l.pts[i]; z += l.pts[i + 1]; }
       x /= l.pts.length / 2; z /= l.pts.length / 2;
-      assert.ok(x >= x0 && x < x1 && z >= z0 && z < z1, `${s.id} stroke in its cell`);
-      assert.ok(tracedMarkings(x, z));
+      assert.ok(x >= x0 - 2 && x < x1 + 2 && z >= z0 - 2 && z < z1 + 2, `${c.id} stroke in its cell`);
+      assert.ok(tracedMarkings(Math.min(x1 - 0.01, Math.max(x0, x)), Math.min(z1 - 0.01, Math.max(z0, z))));
       strokes++; if (l.c === 'y') yellow++;
     }
-    for (const f of s.fills || []) assert.ok(f.ring.length >= 6 && f.ring.every(Number.isFinite), `${s.id} fill`);
+    for (const f of site.fills) assert.ok(f.ring.length >= 6 && f.ring.every(Number.isFinite), `${c.id} fill`);
+    for (const f of site.surfaces) { assert.equal(f.kind, 'yard'); yards++; }
   }
-  assert.ok(strokes > 200 && yellow > 10, `${strokes} strokes, ${yellow} yellow`);
-  assert.ok(!tracedMarkings(1000, 1000), 'elsewhere the rule-based markings stay');
+  assert.ok(files >= 200 && strokes > 5000 && yellow > 500 && yards > 200, `${files} files, ${strokes} strokes, ${yellow} yellow, ${yards} yards`);
+  assert.ok(!tracedMarkings(-8000, 12000), 'outside the town the rule-based markings stay');
 });
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -183,7 +191,7 @@ test('the ground class maps: one PNG per listed tile, the kinds numbered as js/g
   for (const [name, value] of Object.entries(index.kinds)) assert.equal(value, GROUND_KIND_INDEX[name] + 1, name);
   for (const t of index.tiles) {
     assert.ok(existsSync(new URL(t.f, dir)), t.f);
-    assert.ok(t.x1 > t.x0 && t.z1 > t.z0 && t.res === 0.5, t.f);
+    assert.ok(t.x1 > t.x0 && t.z1 > t.z0 && [0.5, 1, 2].includes(t.res), t.f); // (twice the hires tile's resolution)
   }
   // the kinds' numbers are unique
   assert.equal(new Set(Object.values(GROUND_KIND_INDEX)).size, Object.keys(GROUND_KIND_INDEX).length);
@@ -205,8 +213,8 @@ test('bays from the traced paint: a row of separators, the one a car hides put b
 });
 
 test('the traced car parks: bays of plausible size with a car where the photo shows one', () => {
-  const lots = GROUND_MARKINGS.sites.flatMap((s) => s.lots || []);
-  assert.ok(lots.length >= 3, `${lots.length} traced lots`);
+  const lots = GROUND_MARKINGS.cells.flatMap((c) => c.lots || []);
+  assert.ok(lots.length >= 20, `${lots.length} traced lots`);
   for (const lot of lots) {
     assert.equal(lot.kind, 'traced');
     assert.ok(lot.ring.length === 8);

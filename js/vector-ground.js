@@ -10,13 +10,15 @@ import { GROUND_KINDS, groundKindNodes } from './ground-kinds.js';
 import { strokePolyline, linePoints, ringDistance, ringBounds, chunkCoverage } from './ground-geometry.js';
 import { GROUND_SPORTS } from './ground-sports-data.js';
 import { GROUND_MARKINGS } from './ground-markings-data.js';
+import { decodeMarkingsCell } from './ground-markings-area.js';
 
 // js/vector-ground.js — the vector ground: what must be sharp on the ground drawn as draped vectors over the orthophoto
 // instead of left to its pixels (0.5 m in the valley, ~1 m on the phone, where the lanes of a track and the lines of a
 // pitch blur away). Surfaces with a ground kind (js/ground-kinds.js: tartan, turf, clay …) and painted lines, traced
 // from the full-resolution SWISSIMAGE by tools/trace-ground.mjs into one data file per layer (js/ground-sports-data.js:
-// the sports grounds; js/ground-markings-data.js: the paint on the roads, whose strokes and filled shapes (arrows,
-// lettering) replace the rule-based markings where traced, js/ground-markings-area.js). One mesh of surfaces (one procedural material, the kind per vertex) and one of lines (the road
+// the sports grounds; data/ground-markings/<cell>.json: the paint on the roads and the yards off them, a 120 m cell each,
+// loaded near the camera (streamGroundMarkings), whose strokes and filled shapes (arrows, lettering) replace the
+// rule-based markings where traced, js/ground-markings-area.js). One mesh of surfaces (one procedural material, the kind per vertex) and one of lines (the road
 // paint's material and attributes, js/parking.js bayLines) per region: the whole map on the desktop, a 500 m cell of
 // js/world-stream.js on the phone. In winter the surfaces lie under the same snow as the photo (season.js snowyGround)
 // and the lines only show through faintly (snowyStreet paint).
@@ -26,7 +28,7 @@ import { GROUND_MARKINGS } from './ground-markings-data.js';
 // groundCoverage(): the share of a rectangle the surfaces cover, for the orthophoto loader (js/swissimage.js), which
 // can leave out the photo of a chunk the vector ground covers whole (not yet: QUALITY.orthoSkipCoverage).
 
-export const GROUND_LAYERS = [GROUND_SPORTS, GROUND_MARKINGS];
+export const GROUND_LAYERS = [GROUND_SPORTS]; // (built whole, or per cell of js/world-stream.js; the markings: streamGroundMarkings)
 const SURFACE_LIFT = 0.06, LINE_LIFT = 0.085, ROAD_PAINT_LIFT = 0.13, SURFACE_EDGE = 4, LINE_EDGE = 3;
 const LINE_COLOURS = { w: [0.9, 0.89, 0.86], y: [0.91, 0.68, 0.13], b: [0.16, 0.38, 0.78], r: [0.7, 0.1, 0.08] };
 // (the road paint: js/road-paint.js's white and the Swiss yellow, 0xe6e2d6 and 0xf6bf10 in linear terms)
@@ -202,4 +204,54 @@ export function buildVectorGround(scene, { layers = GROUND_LAYERS, region = worl
 export function groundCoverage(layers = GROUND_LAYERS) {
   const surfaces = layers.flatMap((l) => l.sites.flatMap((s) => s.surfaces)).filter((s) => !GROUND_KINDS[s.kind]?.lines).map((s) => ({ ...s, bounds: ringBounds(s.ring) }));
   return (rect) => chunkCoverage(surfaces, rect, 4);
+}
+
+// --- The road paint, cell by cell near the camera ------------------------------------------------------------------
+const MARKINGS_URL = new URL('../data/ground-markings/', import.meta.url);
+const ANY = Object.freeze({ all: false, owns: () => true }); // (a cell's paint is all its own)
+
+/**
+ * Streams the traced paint (js/ground-markings-data.js cells, data/ground-markings/) round the camera: a cell's file is
+ * fetched and built when its square comes within `radius`, a couple at a time, nearest first, and dropped beyond
+ * radius + 150 m. Returns { update(position), group, stats }.
+ */
+export function streamGroundMarkings(scene, { radius = QUALITY.mobile ? 380 : 750 } = {}) {
+  const group = new THREE.Group();
+  group.name = 'VectorGroundMarkings';
+  group.userData.terrain = 'absolute';
+  scene.add(group);
+  const live = new Map(); // id -> { ground } | { loading: true }
+  const stats = { cells: 0, loads: 0 };
+  let loading = 0, last = 0;
+  const distance = (box, p) => Math.hypot(Math.max(box[0] - p.x, 0, p.x - box[2]), Math.max(box[1] - p.z, 0, p.z - box[3]));
+  return {
+    group, stats,
+    update(p) {
+      const now = performance.now();
+      if (now - last < 400) return;
+      last = now;
+      for (const [id, cell] of live) {
+        if (cell.ground && distance(cell.box, p) > radius + 150) { cell.ground.dispose(); live.delete(id); stats.cells--; }
+      }
+      const wanted = GROUND_MARKINGS.cells.filter((c) => !live.has(c.id) && distance(c.box, p) < radius).sort((a, b) => distance(a.box, p) - distance(b.box, p));
+      for (const c of wanted) {
+        if (loading >= 2) break;
+        loading++;
+        const entry = { box: c.box, loading: true };
+        live.set(c.id, entry);
+        fetch(new URL(`${c.id}.json`, MARKINGS_URL))
+          .then((res) => (res.ok ? res.json() : null))
+          .then((file) => {
+            if (!file || live.get(c.id) !== entry) { if (!file) live.set(c.id, { box: c.box, ground: { dispose() {} } }); return; }
+            const site = decodeMarkingsCell(c.id, file);
+            const ground = buildVectorGround(null, { layers: [{ layer: 'markings', sites: [site] }], region: ANY });
+            group.add(ground.group);
+            entry.ground = ground; entry.loading = false;
+            stats.cells++; stats.loads++;
+          })
+          .catch((error) => { console.warn('[vector-ground] markings', c.id, error); live.delete(c.id); })
+          .finally(() => { loading--; });
+      }
+    }
+  };
 }
