@@ -490,7 +490,7 @@ const radarCheck = {
     run.actions([
       { id: 'radar-measure', primary: true, label: 'Measure', icon: 'i-fire', keys: ['Space'], keyboard: false, pad: 'a', when: () => checking() && R.laserOn, run: () => { R.input.measure = true; } },
       { id: 'radar-stop', primary: true, label: 'Stop sign', keys: ['KeyE'], keyboard: false, pad: 'b', when: () => checking() && cm.activeMode === 'person', run: () => { R.input.stop = true; } },
-      { id: 'radar-laser', kind: 'toggle', label: 'Laser', keys: ['KeyQ'], keyboard: false, pad: 'y', when: () => checking() && (R.laserOn || nearLaser(run, cm)), state: () => R.laserOn, run: () => setLaser(run, !R.laserOn) },
+      { id: 'radar-laser', kind: 'toggle', primary: true, label: 'Laser', glyph: '◎', keys: ['KeyQ'], keyboard: false, pad: 'y', when: () => checking() && (R.laserOn || nearLaser(run, cm)), state: () => R.laserOn, run: () => setLaser(run, !R.laserOn) },
       { kind: 'hint', kbd: ['Drag', 'A', 'D'], label: 'Aim', when: () => checking() && R.laserOn }
     ]);
     // a drag on the view aims the laser, a click (not a drag) measures
@@ -584,6 +584,11 @@ const radarCheck = {
     renderStream(run, dt);
     // (the reading's beep)
     if (check.laser.phase !== R.lastPhase) { if (check.laser.phase === 'shown') beep(run, true); R.lastPhase = check.laser.phase; }
+    // (a stopped car is waiting: out of the laser's view once, so the walker and the stick come back to go to it; a phone
+    // has no other way out while the display covers the small row)
+    const stopPhase = check.stop?.phase || null;
+    if (stopPhase === 'stopped' && R.lastStop !== 'stopped' && R.laserOn) setLaser(run, false);
+    R.lastStop = stopPhase;
     R.input.measure = R.input.stop = false;
     R.input.fine = null;
     // the stop sign in the raised hand
