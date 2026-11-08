@@ -367,6 +367,18 @@ const pairs = [
   ['Footprints in the fresh ice!', 'Fussabdrücke im frischen Eis!'],
   ['Too late: the skaters are here and the ice is still rough.', 'Zu spät: Die Eisläufer sind da, und das Eis ist noch rau.'],
   ['The ice shines like glass under the lanterns, and the first skaters are already lacing up on the bank.', 'Das Eis glänzt unter den Laternen wie Glas, und am Ufer schnüren die ersten schon die Schlittschuhe.'],
+  // the snowfarming Loipe in the Färich (js/missions-data-snowfarm.js, js/missions-snowfarm.js)
+  ['The snowfarming Loipe', 'Die Snowfarming-Loipe'],
+  ['End of October in the Färich: the meadows are still green, but under the wood chips and the white fleece of the depot lies last winter\'s snow, kept over the summer. Today it becomes the first Loipe of the season. Drive the tipper to the loading spot at the depot and let the wheel loader fill it. Then spread the snow along the marked round: hold Space to raise the bed, and the snow runs out behind the truck. Your pace sets the layer: too fast leaves gaps, too slow piles the snow up and the load runs short. When the round is white, walk over to the snowcat and groom it with the tiller lowered (F): it spreads the windrow over its whole width, and where there is no snow there is nothing to groom.', 'Ende Oktober im Färich: Die Wiesen sind noch grün, aber unter den Holzschnitzeln und dem weissen Vlies des Depots liegt der Schnee des letzten Winters, über den Sommer aufbewahrt. Heute wird daraus die erste Loipe der Saison. Fahr den Kipper zum Ladeplatz beim Depot und lass ihn vom Pneulader beladen. Dann verteilst du den Schnee entlang der markierten Runde: Space halten hebt die Brücke, und der Schnee rinnt hinter dem Lastwagen hinaus. Dein Tempo bestimmt die Schicht: zu schnell gibt Lücken, zu langsam türmt den Schnee auf, und die Ladung reicht nicht. Ist die Runde weiss, geh hinüber zum Pistenfahrzeug und präpariere sie mit abgesenkter Fräse (F): Sie verteilt den Schneewall über ihre ganze Breite, und wo kein Schnee liegt, gibt es nichts zu präparieren.'],
+  ['Load the snow at the depot', 'Am Depot Schnee laden'], ['Spread the snow along the Loipe', 'Den Schnee entlang der Loipe verteilen'],
+  ['Walk over to the snowcat', 'Hinüber zum Pistenfahrzeug'], ['Groom the Loipe', 'Die Loipe präparieren'],
+  ['Back into the tipper', 'Zurück in den Kipper'], ['Back into the snowcat', 'Zurück ins Pistenfahrzeug'], ['F: get out of the tipper', 'F: aus dem Kipper aussteigen'],
+  ['The loader is filling the bed: stay put', 'Der Pneulader belädt die Brücke: stehen bleiben'], ['Stop with the bed beside the heap', 'Mit der Brücke neben dem Haufen anhalten'],
+  ['The bed is empty: back to the depot for another load', 'Die Brücke ist leer: zurück zum Depot und nachladen'], ['Standing still: the snow piles up behind you', 'Du stehst: Der Schnee türmt sich hinter dir auf'],
+  ['Hold Space: spread', 'Space halten: verteilen'], ['Spread', 'Verteilen'], ['Lower the tiller [F]', 'Fräse absenken [F]'],
+  ['Full: off to the Loipe', 'Voll: ab auf die Loipe'], ['Empty: back to the depot', 'Leer: zurück zum Depot'],
+  ['The first cross-country skiers are waiting at the Loipe, and it is still green: too slow.', 'Die ersten Langläufer warten an der Loipe, und sie ist noch grün: zu langsam.'],
+  ['The round lies white and groomed in the green meadow of the Färich, the corduroy shining in the low sun. Tomorrow the first skiers of the season are on it.', 'Die Runde liegt weiss und präpariert in der grünen Wiese des Färich, die Rillen glänzen in der tiefen Sonne. Morgen ziehen die ersten Langläufer der Saison darauf ihre Spur.'],
   // the splitboard tour on the Chörbschhorn (js/missions-data-splitboard.js, js/missions-splitboard.js)
   ['Splitboard tour on the Chörbschhorn', 'Splitboardtour aufs Chörbschhorn'],
   ['Group check: transceivers', 'Gruppencheck: LVS'], ['Send check: Reto searches, you send', 'Sendecheck: Reto sucht, du sendest'], ['Receive check: you search, Reto sends', 'Empfangscheck: du suchst, Reto sendet'],
@@ -403,6 +415,19 @@ const pairs = [
   ['FLINT AND STEEL', 'FEUERSTEIN UND STAHL'], ['BREATH', 'ATEM'], ['EMBER', 'GLUT'], ['Camp in the Mattawald', 'Lagerplatz im Mattawald'], ['Pfadi Davos logo', 'Logo der Pfadi Davos'],
   ['It is dark in the Mattawald, and the others have pitched their tents without you.', 'Im Mattawald ist es dunkel, und die anderen haben ihre Zelte ohne dich aufgestellt.'],
   ['The Spatz stands taut between the spruces of the Mattawald, the fire crackles, and the first cervelats are on their sticks. Allzeit bereit!', 'Der Spatz steht straff zwischen den Fichten des Mattawalds, das Feuer knistert, und die ersten Cervelats stecken an den Stecken. Allzeit bereit!'],
+  // the police speed check on the Talstrasse (js/missions-data-radar.js, js/missions-radar.js; its texts with numbers come in German from there)
+  ['Police: speed check on the Talstrasse', 'Polizei: Geschwindigkeitskontrolle an der Talstrasse'],
+  ['The Kantonspolizei Graubünden is checking speeds on the Talstrasse between Davos Platz and Davos Dorf: 50 km/h. Drive the patrol car to the verge, get out (F) and set up the laser on its tripod. Looking through it (Q), aim at an oncoming car (drag or A/D) and measure with Space: 30 to 300 m away, the laser needs a moment on the car. Over 53 km/h (the tolerance is 3 km/h) is an offence: raise the stop sign (E) while the car is still coming, walk to it and hand out the right fine (1-4): 1-5 km/h over CHF 40, 6-10 CHF 120, 11-15 CHF 250, 16 and more a report. Let a driver within the tolerance go (0). Four minutes.', 'Die Kantonspolizei Graubünden kontrolliert die Geschwindigkeit an der Talstrasse zwischen Davos Platz und Davos Dorf: 50 km/h. Fahr den Streifenwagen an den Strassenrand, steig aus (F) und stell den Laser auf das Stativ. Schau hindurch (Q), ziel auf ein entgegenkommendes Auto (ziehen oder A/D) und miss mit der Leertaste: 30 bis 300 m entfernt, der Laser braucht einen Moment auf dem Auto. Über 53 km/h (die Toleranz beträgt 3 km/h) ist eine Übertretung: Heb die Kelle (E), solange das Auto noch kommt, geh hin und verteil die richtige Busse (1-4): 1-5 km/h zu schnell CHF 40, 6-10 CHF 120, 11-15 CHF 250, ab 16 eine Anzeige. Wer innerhalb der Toleranz fährt, darf weiter (0). Vier Minuten.'],
+  ['End of the check: the laser is packed, the readings go to the Kantonspolizei in Chur.', 'Ende der Kontrolle: Der Laser ist eingepackt, die Messungen gehen an die Kantonspolizei in Chur.'],
+  ['Drive to the speed check on the Talstrasse', 'Zur Geschwindigkeitskontrolle an der Talstrasse fahren'], ['Set up the laser on its tripod', 'Den Laser auf dem Stativ aufstellen'],
+  ['Measure the oncoming cars, stop the speeders', 'Entgegenkommende Autos messen, Raser anhalten'],
+  ['Parked on the verge …', 'Am Strassenrand geparkt …'], ['Park on the verge beside the Talstrasse', 'Am Rand der Talstrasse parkieren'],
+  ['Get out: F', 'Aussteigen: F'], ['Get out [F]', 'Aussteigen [F]'], ['Setting up the laser …', 'Der Laser wird aufgestellt …'], ['Walk to the marked spot beside the road', 'Geh zur markierten Stelle neben der Strasse'],
+  ['At the car: choose the fine (1-4) or let the driver go (0)', 'Beim Auto: Busse wählen (1-4) oder weiterfahren lassen (0)'], ['Walk to the stopped car', 'Geh zum angehaltenen Auto'],
+  ['The car is pulling over …', 'Das Auto hält am Rand an …'], ['Time is up', 'Die Zeit ist um'],
+  ['Measure with the laser (Q), stop speeders with the stop sign (E)', 'Mit dem Laser messen (Q), Raser mit der Kelle anhalten (E)'],
+  ['Measure', 'Messen'], ['Stop sign', 'Kelle'], ['Laser', 'Laser'], ['Stopped', 'Angehalten'], ['Traffic stop', 'Verkehrskontrolle'], ['Reading', 'Messung'],
+  ['limit', 'Limite'], ['tolerance', 'Toleranz'], ['No reading for this car', 'Für dieses Auto gibt es keine Messung'], ['Let go', 'Weiterfahren lassen'], ['no offence', 'keine Übertretung'], ['Report', 'Anzeige'],
   ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
   ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
   ['Shoot', 'Schiessen'],
@@ -542,6 +567,28 @@ const pairs = [
   ['Skating', 'Skating'],
   ['F: get out', 'F: aussteigen'],
   ['F: get in', 'F: einsteigen'],
+  // winter driving: summer tyres on the Flüela, snow chains over Clavadel (js/missions-data-winterroad.js, js/missions-winterroad.js)
+  ['Summer tyres on the Flüela', 'Sommerpneus am Flüela'],
+  ['An early winter has come overnight: 20 cm of fresh snow on the Flüelapassstrasse, the plough has been through once, and your van still wears its summer tyres. Drive the 5.9 km from the Gasthaus zum Tschuggen up to the Flüela Hospiz on the pass, 2383 m. The tyres hardly grip: brake early and gently, take the bends slowly, and ease into the throttle; too much and the rear wheels spin, worst of all from a standstill on the slope. Into the snowbank costs 5 s; off the road, or stuck for good, and the climb is over.', 'Der Winter ist über Nacht früh gekommen: 20 cm Neuschnee auf der Flüelapassstrasse, der Pflug ist einmal durch, und dein Bus hat noch die Sommerpneus drauf. Fahr die 5,9 km vom Gasthaus zum Tschuggen hinauf zum Flüela Hospiz auf der Passhöhe, 2383 m. Die Pneus greifen kaum: früh und sanft bremsen, langsam in die Kurven und gefühlvoll Gas geben; zu viel, und die Hinterräder drehen durch, am schlimmsten beim Anfahren am Hang. Im Schneewall kostet es 5 s; neben der Strasse oder endgültig stecken geblieben, und die Fahrt ist vorbei.'],
+  ['At the Hospiz the engine ticks as it cools. Winter tyres before the drive down, though.', 'Beim Hospiz tickt der Motor beim Abkühlen. Vor der Talfahrt aber bitte Winterpneus.'],
+  ['Up to the Wägerhus', 'Hinauf zum Wägerhus'], ['Up to the Wägerhütta', 'Hinauf zur Wägerhütta'], ['Up to the Flüela Hospiz', 'Hinauf zum Flüela Hospiz'],
+  ['Snow chains over Clavadel', 'Schneeketten über Clavadel'],
+  ['Snow down to the valley floor, and your van on summer tyres has to get to Frauenkirch, the long way round over Clavadel. In Islen, past the KMA on the Clavadelerstrasse, pull over on the right and stop. Get out (F) and put the chains on the two rear wheels, the ones that drive: hold Space to lay the chain out, press Space when the needle is in the green to pull it over the tyre, then tap Space to tension it. Back behind the wheel, up to Clavadel and down the Sertigerstrasse to Frauenkirch. The chains grip, and they rattle, but they are good for 50 km/h at most: any faster and they strain until one snaps.', 'Schnee bis in den Talboden, und dein Bus auf Sommerpneus muss nach Frauenkirch, auf dem langen Weg über Clavadel. In Islen, nach der KMA an der Clavadelerstrasse, rechts ranfahren und anhalten. Steig aus (F) und montiere die Ketten an den zwei Hinterrädern, den angetriebenen: Space halten, um die Kette auszulegen, Space drücken, wenn die Nadel im Grünen ist, um sie über den Pneu zu ziehen, dann Space schnell antippen, um sie zu spannen. Zurück hinters Steuer, hinauf nach Clavadel und die Sertigerstrasse hinunter nach Frauenkirch. Die Ketten greifen, und sie rasseln, aber mehr als 50 km/h vertragen sie nicht: schneller, und sie werden überlastet, bis eine reisst.'],
+  ['Frauenkirch: the chains come off again by the church, cold, wet and rattling.', 'Frauenkirch: Bei der Kirche kommen die Ketten wieder runter, kalt, nass und rasselnd.'],
+  ['Pull over in Islen', 'In Islen rechts ranfahren'], ['Put the chains on the rear wheels', 'Ketten an die Hinterräder'], ['Back behind the wheel', 'Zurück hinters Steuer'],
+  ['Up to Clavadel', 'Hinauf nach Clavadel'], ['Down to Frauenkirch', 'Hinunter nach Frauenkirch'],
+  ['Off the road: the van slid off the Flüelapassstrasse and down the slope.', 'Von der Strasse abgekommen: Der Bus ist von der Flüelapassstrasse den Hang hinunter gerutscht.'],
+  ['Off the road: the van slid off the Clavadelerstrasse into the snow-covered meadow.', 'Von der Strasse abgekommen: Der Bus ist von der Clavadelerstrasse in die verschneite Wiese gerutscht.'],
+  ['Stuck: the van has not got any further up the road for 40 s.', 'Stecken geblieben: Der Bus ist seit 40 s nicht mehr weitergekommen.'],
+  ['A chain snapped: snow chains are good for 50 km/h at most.', 'Eine Kette ist gerissen: Schneeketten vertragen höchstens 50 km/h.'],
+  ['Wheels spinning: ease off the throttle (tap W)', 'Die Räder drehen durch: weniger Gas (W antippen)'], ['In the snowbank: back onto the road', 'Im Schneewall: zurück auf die Strasse'],
+  ['Stop here, on the right', 'Hier rechts anhalten'], ['Brake (S) to a stop', 'Bremsen (S) bis zum Stillstand'], ['Back to the pull-in', 'Zurück zum Halteplatz'],
+  ['Space when the needle is in the green', 'Space, wenn die Nadel im Grünen ist'], ['Tap Space quickly', 'Space schnell antippen'], ['Get back into the van', 'Steig wieder in den Bus'], ['Chains on', 'Ketten montiert'],
+  ['Into the snowbank  +5 s', 'In den Schneewall  +5 s'], ['Crash  +8 s', 'Unfall  +8 s'], ['The chain slipped off  +2.5 s', 'Die Kette ist abgerutscht  +2,5 s'],
+  ['One chain on: now the other wheel', 'Eine Kette ist dran: jetzt das andere Rad'], ['Both chains on', 'Beide Ketten sind dran'], ['Wheelspin!', 'Die Räder drehen durch!'],
+  ['The chains are straining: under 50 km/h!', 'Die Ketten werden überlastet: unter 50 km/h!'],
+  ['Left rear wheel', 'Hinterrad links'], ['Right rear wheel', 'Hinterrad rechts'], ['Lay the chain out: hold Space', 'Kette auslegen: Space halten'],
+  ['Pull it over: Space in the green', 'Überziehen: Space im Grünen'], ['Tension it: tap Space', 'Spannen: Space antippen'], ['Chains', 'Ketten'],
   ['At the bar', 'An der Bar'],
   ['Order a Flämmli', 'Flämmli bestellen'],
   // Nageln in the Tijuana Bar, Barista at the Kafi Klatsch (js/missions-data-bars.js)
@@ -1070,6 +1117,29 @@ const pairs = [
   ['The Rega pilot says hello. Lovely view from up there, by the way.', 'Der Rega-Pilot lässt grüssen. Schöne Aussicht von da oben, übrigens.'],
   ['Will it match my ski suit? No? Then sign it nicely.', 'Passt das zu meinem Skianzug? Nein? Dann unterschreib wenigstens schön.'],
   ['It was the snow’s fault. Write that on the cast.', 'Der Schnee war schuld. Schreib das auf den Gips.'],
+  // the snow plough over the Wolfgang (js/missions-data-plough.js, js/missions-plough.js)
+  ['Snow plough over the Wolfgang', 'Schneepflug über den Wolfgang'],
+  ['Five in the morning, and it has snowed twenty centimetres since midnight. The Kanton\'s plough lorry comes out of the Seegalerie by the Davosersee: clear the Prättigauerstrasse up to the Wolfgang Passhöhe (1631 m) on the right lane, turn at the pass and clear the other lane back down to the gallery, before the first post bus. The blade sweeps 3.6 m and throws the snow off its trailing end into a wall: V swings it to the other side, F lifts and lowers it. Mind the snow poles on the verges, the oncoming traffic, the houses by the road (below 30 km/h there, or the snow lands on the pavement), the joints of the Totalpbach bridge and the side roads, whose mouths the wall must not bury.', 'Fünf Uhr früh, und seit Mitternacht hat es zwanzig Zentimeter geschneit. Der Pfluglastwagen des Kantons kommt aus der Seegalerie am Davosersee: Räume die Prättigauerstrasse auf der rechten Spur hinauf bis zur Wolfgang-Passhöhe (1631 m), wende auf dem Pass und räume die Gegenspur zurück hinunter bis zur Galerie, bevor das erste Postauto kommt. Die Pflugschar räumt 3,6 m breit und wirft den Schnee an ihrem hinteren Ende zu einem Wall auf: V schwenkt sie auf die andere Seite, F hebt und senkt sie. Achte auf die Schneestangen am Strassenrand, den Gegenverkehr, die Häuser an der Strasse (dort unter 30 km/h, sonst landet der Schnee auf dem Trottoir), die Fugen der Totalpbachbrücke und die Seitenstrassen, deren Einmündungen der Wall nicht zuschütten darf.'],
+  ['Clear the lane up to the Wolfgang Passhöhe', 'Räume die Spur hinauf zur Wolfgang-Passhöhe'],
+  ['Turn at the pass, clear the other lane back down', 'Wende auf dem Pass, räume die Gegenspur hinunter'],
+  ['The Prättigauerstrasse is black from the Davosersee to the Wolfgang, the walls stand along the verges, and the first post bus to Klosters comes over the pass on time.', 'Die Prättigauerstrasse ist vom Davosersee bis zum Wolfgang schwarz, die Wälle stehen am Strassenrand, und das erste Postauto nach Klosters kommt pünktlich über den Pass.'],
+  ['The morning traffic is stuck in the snow on the Wolfgang: too slow.', 'Der Morgenverkehr steckt am Wolfgang im Schnee fest: zu langsam.'],
+  ['Back into the plough', 'Zurück in den Schneepflug'],
+  ['You are throwing the snow onto the road: V swings the blade', 'Du wirfst den Schnee auf die Fahrbahn: V schwenkt die Pflugschar'],
+  ['Houses by the road: below 30 km/h, or the snow flies onto the pavement', 'Häuser an der Strasse: unter 30 km/h, sonst fliegt der Schnee aufs Trottoir'],
+  ['Bridge joints ahead: F lifts the blade (or crawl over them)', 'Brückenfugen voraus: F hebt die Pflugschar (oder im Schritttempo darüber)'],
+  ['The blade is up: F lowers it', 'Die Pflugschar ist oben: F senkt sie'],
+  ['Keep to the right lane: the blade clears 3.6 m', 'Bleib auf der rechten Spur: Die Pflugschar räumt 3,6 m'],
+  ['Keep to the right lane on the way down', 'Bleib auch hinunter auf der rechten Spur'],
+  ['Too much snow left on the lane: go back and clear it', 'Zu viel Schnee auf der Spur geblieben: zurück und nachräumen'],
+  ['Snow thrown back onto the lane you cleared: it needs clearing again', 'Schnee auf die geräumte Spur zurückgeworfen: Sie muss nochmals geräumt werden'],
+  ['Turn round: the lane down is on the other side', 'Wenden: Die Spur hinunter ist auf der anderen Seite'],
+  ['The blade hit the bridge joint!', 'Die Pflugschar ist an der Brückenfuge angeschlagen!'],
+  ['Snow pole knocked down! +3 s', 'Schneestange umgefahren! +3 s'],
+  ['You hit a car! +10 s', 'Auto angefahren! +10 s'],
+  ['Swing the blade', 'Pflugschar schwenken'], ['Blade side', 'Pflugseite'], ['Lift the blade', 'Pflugschar heben'],
+  ['Snow plough', 'Schneepflug'],
+  ['A clean run: no penalties', 'Sauber gefahren: keine Strafzeit'],
 ];
 
 const enToDe = new Map(pairs);
@@ -1241,6 +1311,18 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) on the Promenade$/, '$1 Leute · noch $2 auf der Promenade');
   dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) to (.+)$/, (whole, n, d, label) => (placeDe.has(label) ? `${n} Leute · ${d} bis ${placeDe.get(label)[0]}` : whole));
   dynamic = dynamic.replace(/^Everybody stands still … (\d+) s$/, 'Alle stehen still … $1 s').replace(/^Sit-in … (\d+) s$/, 'Sitzstreik … $1 s').replace(/^The closing speech … (\d+) s$/, 'Die Schlussrede … $1 s');
+  // winter driving: summer tyres on the Flüela, snow chains over Clavadel (js/missions-data-winterroad.js)
+  {
+    const placeW = { 'the Wägerhus': 'zum Wägerhus', 'the Wägerhütta': 'zur Wägerhütta', 'the Flüela Hospiz': 'zum Flüela Hospiz', Islen: 'Islen', Clavadel: 'Clavadel', Frauenkirch: 'Frauenkirch' };
+    const times = (n) => (n ? ` · ${n}-mal im Schneewall` : '');
+    dynamic = dynamic
+      .replace(/^([\d.]+ (?:m|km)) to (the Wägerhus|the Wägerhütta|the Flüela Hospiz|Islen|Clavadel|Frauenkirch) · (\d+) km\/h(?: · (\d+) times? in the snowbank)?$/, (_, d, p, v, n) => `${d.replace('.', ',')} bis ${placeW[p]} · ${v} km/h${times(n)}`)
+      .replace(/^Chains on (\d) of 2 wheels(?: · go to the (left|right) rear wheel)?$/, (_, n, s) => `Ketten an ${n} von 2 Rädern${s ? ` · geh zum ${s === 'left' ? 'linken' : 'rechten'} Hinterrad` : ''}`)
+      .replace(/^(Left|Right) rear wheel: (lay the chain out|pull it over the tyre|tension the chain)$/, (_, s, w) => `Hinterrad ${s === 'Left' ? 'links' : 'rechts'}: ${{ 'lay the chain out': 'Kette auslegen', 'pull it over the tyre': 'über den Pneu ziehen', 'tension the chain': 'Kette spannen' }[w]}`)
+      .replace(/^Chains rattling at (\d+) km\/h: slow down below 50!$/, 'Die Ketten rasseln bei $1 km/h: unter 50 bremsen!')
+      .replace(/^Wheelspin (\d+) s · (\d+) times? in the snowbank · (\d+) (crash|crashes)$/, (_, s, n, c, w) => `Durchdrehen ${s} s · ${n}-mal im Schneewall · ${c} ${w === 'crash' ? 'Unfall' : 'Unfälle'}`)
+      .replace(/^(\d+) chains? slipped · top speed (\d+) km\/h · (\d+) times? in the snowbank$/, '$1-mal Kette abgerutscht · Höchsttempo $2 km/h · $3-mal im Schneewall');
+  }
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
@@ -1353,6 +1435,28 @@ function translate(value) {
   dynamic = dynamic.replace(/^Reto is buried! Signal: ([\d.]+) m$/, (_, d) => `Reto ist verschüttet! Signal: ${d.replace('.', ',')} m`);
   dynamic = dynamic.replace(/^Wait for Reto: (\d+) m behind$/, 'Auf Reto warten: $1 m zurück').replace(/^Reto: (\d+) m behind$/, 'Reto: $1 m zurück');
   dynamic = dynamic.replace(/^(\d+) of (\d+) gates · (\d+) missed( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, '$1 von $2 Toren · $3 verpasst$4 · Höchsttempo $5 km/h');
+  // the snow plough over the Wolfgang (js/missions-data-plough.js)
+  dynamic = dynamic.replace(/^To the (Passhöhe|Seegalerie): (.+) · lane cleared (.+) of (.+)$/, (_, w, d, a, b) => `Bis zur ${w}: ${d.replace('.', ',')} · Spur geräumt: ${a} von ${b}`);
+  const ploughPlace = (n) => ({ 'the old Prättigauerstrasse': 'alte Prättigauerstrasse', 'the filling station': 'Tankstelle' }[n] || n);
+  dynamic = dynamic.replace(/^(.+) ahead on your throw side: F lifts the blade past it$/, (_, n) => `Einmündung ${ploughPlace(n)} voraus auf der Wurfseite: F hebt die Pflugschar`);
+  dynamic = dynamic.replace(/^You buried the mouth of (.+)!$/, (_, n) => `Einmündung ${ploughPlace(n)} zugeschüttet!`);
+  dynamic = dynamic.replace(/^Up (.+) · down (.+) cleared$/, 'Hinauf $1 · hinunter $2 geräumt');
+  if (/snow poles? \(|cars? hit \(|bridge joints? \(|side roads? buried|snow on the road \d|too fast by the houses/.test(dynamic)) {
+    dynamic = dynamic
+      .replace(/(^| · )(\d+) snow poles? \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Schneestange' : 'Schneestangen'} (+${s} s)`)
+      .replace(/(^| · )(\d+) cars? hit \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Auto' : 'Autos'} angefahren (+${s} s)`)
+      .replace(/(^| · )(\d+) bridge joints? \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Brückenfuge' : 'Brückenfugen'} (+${s} s)`)
+      .replace(/(^| · )(\d+) side roads? buried \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Einmündung' : 'Einmündungen'} zugeschüttet (+${s} s)`)
+      .replace(/(^| · )snow on the road (\d+) s \(\+(\d+) s\)/, '$1Schnee auf der Fahrbahn $2 s (+$3 s)')
+      .replace(/(^| · )too fast by the houses (\d+) s \(\+(\d+) s\)/, '$1zu schnell bei den Häusern $2 s (+$3 s)');
+  }
+  // the snowfarming Loipe (js/missions-data-snowfarm.js)
+  dynamic = dynamic.replace(/^Bed (\d+ %) full$/, 'Brücke zu $1 voll').replace(/^(\d+) m to the snowcat$/, '$1 m bis zum Pistenfahrzeug');
+  dynamic = dynamic.replace(/^Loipe covered (.+?) of (.+?) · bed (\d+ %)( · layer (\d+) cm)?$/, (_, a, b, c, _l, n) => `Loipe bedeckt: ${a} von ${b} · Brücke ${c}${n ? ` · Schicht ${n} cm` : ''}`);
+  dynamic = dynamic.replace(/^Too fast: (\d+) cm, that leaves a gap$/, 'Zu schnell: $1 cm, das gibt eine Lücke').replace(/^Too slow: (\d+) cm, the load will run short$/, 'Zu langsam: $1 cm, die Ladung reicht nicht');
+  dynamic = dynamic.replace(/^Loipe groomed (.+) of (.+)$/, 'Loipe präpariert: $1 von $2');
+  dynamic = dynamic.replace(/^(\d+) loads? · Loipe covered (.+) · groomed (.+)$/, (_, n, a, b) => `${n} ${n === '1' ? 'Fuhre' : 'Fuhren'} · Loipe bedeckt ${a} · präpariert ${b}`);
+  dynamic = dynamic.replace(/^(\d+ %) of the snow beside the Loipe$/, '$1 des Schnees neben der Loipe');
   // fresh ice on the Seehofseeli (js/missions-data-rink.js)
   dynamic = dynamic.replace(/^(\d+) m to the hydrant$/, '$1 m bis zum Hydranten').replace(/^(\d+) m to the machine$/, '$1 m bis zur Maschine');
   dynamic = dynamic.replace(/^Ice flooded (.+?) of (.+?)( · (\d+) footprint cells)?$/, (_, a, b, _x, n) => `Eis geflutet: ${a} von ${b}${n ? ` · ${n} Felder mit Fussabdrücken` : ''}`);

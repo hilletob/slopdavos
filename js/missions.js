@@ -36,6 +36,10 @@ import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 import { RINK_FEATURES } from './missions-rink.js';
 import { SPLITBOARD_FEATURES } from './missions-splitboard.js';
 import { PFADI_FEATURES } from './missions-pfadi.js';
+import { RADAR_FEATURES } from './missions-radar.js';
+import { WINTERROAD_FEATURES } from './missions-winterroad.js';
+import { PLOUGH_FEATURES } from './missions-plough.js';
+import { SNOWFARM_FEATURES } from './missions-snowfarm.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -1222,4 +1226,8 @@ Object.assign(FEATURES, CARE_FEATURES);
 Object.assign(FEATURES, RINK_FEATURES); // fresh ice on the Seehofseeli (js/missions-rink.js)
 Object.assign(FEATURES, SPLITBOARD_FEATURES); // the splitboard tour on the Chörbschhorn (js/missions-splitboard.js)
 Object.assign(FEATURES, PFADI_FEATURES); // Pfadi Davos: a Spatz and a campfire in the Mattawald (js/missions-pfadi.js)
+Object.assign(FEATURES, RADAR_FEATURES); // the police speed check with the radar (js/missions-radar.js)
+Object.assign(FEATURES, WINTERROAD_FEATURES); // winter driving: summer tyres from Tschuggen to the Flüelapass, chains from Islen via Clavadel to Frauenkirch (js/missions-winterroad.js)
+Object.assign(FEATURES, PLOUGH_FEATURES); // the snow plough clears the road over the Wolfgang (js/missions-plough.js)
+Object.assign(FEATURES, SNOWFARM_FEATURES); // Snowfarming: the old snow spread on the Loipe with a lorry, then groomed with the snowcat (js/missions-snowfarm.js)
 Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the Rinerhorn (js/missions-paraglide.js)

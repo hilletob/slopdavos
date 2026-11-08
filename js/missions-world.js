@@ -66,6 +66,13 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.closePath(); ctx.fill();
       break;
     }
+    case 'radar': { // a laser gun with its beam (js/missions-data-radar.js: the speed check)
+      ctx.beginPath(); ctx.roundRect(-g * 0.95, -g * 0.55, g * 1.2, g * 0.6, g * 0.12); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.7, 0); ctx.lineTo(-g * 0.25, 0); ctx.lineTo(-g * 0.45, g * 0.85); ctx.lineTo(-g * 0.85, g * 0.85); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = g * 0.16;
+      for (const k of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(g * 0.45, -g * 0.25); ctx.lineTo(g, -g * 0.25 + k * g * 0.4); ctx.stroke(); }
+      break;
+    }
     case 'ski': { // two crossed skis (js/missions-data-snow.js: the slalom)
       ctx.lineWidth = g * 0.26;
       for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(-g * 0.8 * s, -g * 0.9); ctx.lineTo(g * 0.8 * s, g * 0.9); ctx.stroke(); }
@@ -231,6 +238,15 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.fillRect(-g * 0.95, -g * 0.7, g * 0.28, g * 0.4);
       ctx.fillRect(g * 0.62, -g * 0.55, g * 0.07, g * 0.75);
       ctx.fillRect(g * 0.46, g * 0.2, g * 0.38, g * 0.3);
+      break;
+    }
+    case 'plough': { // a plough lorry from the side: the cab, the hopper, the angled blade in front (js/missions-data-plough.js)
+      ctx.fillRect(-g * 0.95, -g * 0.2, g * 0.85, g * 0.55); // the hopper
+      ctx.fillRect(-g * 0.1, -g * 0.55, g * 0.55, g * 0.9); // the cab
+      ctx.fillRect(-g * 0.95, g * 0.35, g * 1.4, g * 0.15); // the frame
+      ctx.beginPath(); ctx.arc(-g * 0.6, g * 0.6, g * 0.2, 0, Math.PI * 2); ctx.arc(g * 0.2, g * 0.6, g * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = g * 0.18;
+      ctx.beginPath(); ctx.moveTo(g * 0.62, -g * 0.25); ctx.quadraticCurveTo(g * 0.62, g * 0.55, g * 1.02, g * 0.72); ctx.stroke(); // the blade
       break;
     }
     case 'snowtruck': { // a tipper: the cab, the raised bed, the snow sliding off
@@ -457,6 +473,31 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(-g * 0.45, g * 0.75); ctx.lineTo(-g * 0.25, g * 0.05); ctx.lineTo(-g * 0.05, g * 0.75); ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#ffd166';
       ctx.beginPath(); ctx.moveTo(g * 0.8, g * 0.1); ctx.quadraticCurveTo(g * 1.05, g * 0.45, g * 0.8, g * 0.72); ctx.quadraticCurveTo(g * 0.55, g * 0.45, g * 0.8, g * 0.1); ctx.fill();
+      break;
+    }
+    case 'snowfarm': { // the depot: a heap, half under the fleece, half under wood chips; the Loipe's two tracks below (js/missions-data-snowfarm.js)
+      ctx.beginPath(); ctx.moveTo(-g * 1.0, g * 0.3); ctx.quadraticCurveTo(-g * 0.9, -g * 0.75, 0, -g * 0.75); ctx.quadraticCurveTo(g * 0.9, -g * 0.75, g * 1.0, g * 0.3); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.clip(); ctx.fillStyle = '#6b4423'; ctx.fillRect(-g * 1.1, -g, g * 0.95, g * 1.4); ctx.restore();
+      ctx.lineWidth = g * 0.12;
+      for (const y of [0.58, 0.85]) { ctx.beginPath(); ctx.moveTo(-g * 0.95, g * y); ctx.lineTo(g * 0.95, g * y); ctx.stroke(); }
+      break;
+    }
+    case 'snowtyre': { // a tyre with its tread, a snowflake beside it (js/missions-data-winterroad.js)
+      ctx.lineWidth = g * 0.3;
+      ctx.beginPath(); ctx.arc(-g * 0.25, g * 0.1, g * 0.62, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = g * 0.08;
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(-g * 0.25 + Math.cos(a) * g * 0.5, g * 0.1 + Math.sin(a) * g * 0.5); ctx.lineTo(-g * 0.25 + Math.cos(a) * g * 0.8, g * 0.1 + Math.sin(a) * g * 0.8); ctx.stroke(); }
+      ctx.lineWidth = g * 0.09;
+      for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI; ctx.beginPath(); ctx.moveTo(g * 0.72 - Math.cos(a) * g * 0.3, -g * 0.55 - Math.sin(a) * g * 0.3); ctx.lineTo(g * 0.72 + Math.cos(a) * g * 0.3, -g * 0.55 + Math.sin(a) * g * 0.3); ctx.stroke(); }
+      break;
+    }
+    case 'snowchain': { // three links of a chain, across
+      ctx.lineWidth = g * 0.2;
+      for (const [x, y, a] of [[-0.6, 0.45, -0.7], [0, 0, -0.7], [0.6, -0.45, -0.7]]) {
+        ctx.save(); ctx.translate(x * g, y * g); ctx.rotate(a);
+        ctx.beginPath(); ctx.ellipse(0, 0, g * 0.42, g * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
       break;
     }
     default:
