@@ -279,7 +279,7 @@ test('after sunset the light comes from the moon in the moon\'s colour', () => {
 test('the lamps and windows switch just before the season\'s sunset and after its sunrise, not at fixed hours', () => {
   const lamp = (minute, w) => { const x = Math.max(0, Math.min(1, (sampleDay(minute, w).interiorGlow - 0.4) / 0.7)); return x * x * (3 - 2 * x); };
   for (const w of [0, 1]) {
-    const dusk = minuteAtHeight(4.5, w, false), dawn = minuteAtHeight(4.5, w, true);
+    const dusk = minuteAtHeight(8.3, w, false), dawn = minuteAtHeight(8.3, w, true);
     near(lamp(dusk, w), 0.5, 0.1);
     near(lamp(dawn, w), 0.5, 0.1);
     assert.ok(lamp(dusk - 45, w) < 0.1, 'still off before dusk');

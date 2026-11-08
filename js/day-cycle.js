@@ -102,9 +102,9 @@ const table = (rows, h) => {
 };
 // The window light and street lamps (uInteriorGlow; the lamps' smoothstep(0.4, 1.1) is halfway at 0.75) switch before
 // sunset and after sunrise, whichever hour that is in the season: in the valley the sun is behind the mountains well before
-// it reaches the horizon, and the streets are dark while it still stands a few degrees up. 4.5 deg is halfway through the
-// change, fully on at 1 deg
-const GLOW = [[-12, 1.55], [1, 1.25], [6, 0.55], [12, 0.46], [30, 0.24]];
+// it reaches the horizon, and the streets are dark while it still stands several degrees up. 8.3 deg is halfway through the
+// change, fully on at 4 deg
+const GLOW = [[-12, 1.55], [4, 1.25], [10, 0.55], [16, 0.46], [30, 0.24]];
 // The direct light: the sun down to the horizon, then nothing for a moment, then the moon as the sky darkens. A low sun meets
 // the walls head on, and a high one the ground: what matters is the larger of intensity * cos(height) and * sin(height),
 // so that the light walls keep their shade at 09:00 as the plazas do at noon.
