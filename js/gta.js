@@ -300,6 +300,18 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     delete leftAt[next];
     if (next !== 'rhb') ride = null;
   });
+  // A mission taking the player out of a vehicle of the road (a taken taxi, a bus): it stays where it stands, as when
+  // getting out, and the mission drives the player's own car. Otherwise the car went on wearing the taken body (a
+  // mission already in 'car' changes no mode), getting out of the mission's car left that body standing and put the car
+  // away, and there was nothing to get back into (the patrol car of the speed check).
+  missions?.beforeStart?.add(() => {
+    if (!takeover.body) return;
+    const inCar = cm.activeMode === 'car';
+    takeover.leaveBody();
+    if (inCar) { takeover.vacant = false; cm.setEntityHidden('car', false); }
+    refreshColliders();
+    save();
+  });
 
   // A vehicle moved by code (a mission's start) leaves a stand-in where it stood, and takes the place of a stand-in it
   // lands on (the mission's helipad), so the count stays the same
@@ -387,7 +399,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
       const taking = missionAllowsTakeover(missionRun()) ? takeover.candidate({ x: p.x, y: p.y, z: p.z }) : null;
       if (taking && (!vehicle || taking.distance < vehicle.distance) && (!train || taking.distance < train.distance)) return taking;
       // (a mission's work vehicle on the player's car, js/missions-work.js workVehicle: by its own name)
-      const name = (vehicle?.kind === 'entity' && vehicle.type === 'car' && missionRun()?.vehicle?.label) || VEHICLE_LABELS[vehicle?.type];
+      const name = (vehicle?.kind === 'entity' && vehicle.type === 'car' && (missionRun()?.vehicle?.label || (missionRun()?.features?.policeCar && 'patrol car'))) || VEHICLE_LABELS[vehicle?.type];
       if (vehicle) return { kind: 'enter', target: vehicle, label: `Get in the ${name}`, sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
       return null;
     }

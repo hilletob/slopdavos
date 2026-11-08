@@ -126,7 +126,7 @@ const pairs = [
   ['Walk', 'Gehen'], ['Drive', 'Fahren'], ['Fly', 'Fliegen'],
   ['Vehicle telemetry and camera', 'Fahrdaten und Kamera'], ['Davos Cyclist', 'Davos-Radfahrer'],
   ['m a.s.l.', 'm ü. M.'],
-  ['Pedestrian', 'Fussgänger'], ['Cargo bike', 'Lastenrad'], ['Snow groomer', 'Pistenfahrzeug'],
+  ['Pedestrian', 'Fussgänger'], ['Cargo bike', 'Lastenrad'], ['Snow groomer', 'Pistenfahrzeug'], ['patrol car', 'Streifenwagen'],
   // the player's statistics (js/play-stats.js, js/play-stats-ui.js)
   // (a race with other players: js/race-ui.js, js/race-session.js)
   ['Race together', 'Gemeinsam fahren'], ['Multiplayer', 'Mehrspieler'], ['Race code', 'Rennen-Code'], ['Copy link', 'Link kopieren'], ['Copied', 'Kopiert'],
