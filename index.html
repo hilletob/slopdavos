@@ -90,6 +90,9 @@
       position: absolute; inset: 0;
       background: linear-gradient(180deg, rgba(29, 42, 63, 0) 35%, rgba(29, 42, 63, 0.55) 62%, rgba(29, 42, 63, 0.94) 100%);
     }
+    /* the film from the game behind the hero (added by the script below unless motion is reduced or data saved) */
+    .hero-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; opacity: 0; transition: opacity 600ms ease; }
+    .hero-video.is-playing { opacity: 1; }
     .hero-inner { position: relative; z-index: 1; padding: 0 0 clamp(36px, 7vh, 72px); }
     .brand {
       position: absolute; z-index: 1; top: 20px; left: 16px; right: 16px;
@@ -238,6 +241,7 @@
 </head>
 <body>
   <header class="hero">
+    <video class="hero-video" muted loop playsinline preload="none" poster="./assets/welcome/hero-poster.webp" aria-hidden="true" tabindex="-1"></video>
     <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="34" height="34" />Slop Davos</a>
     <div class="langs" role="group" aria-label="Sprache / Language">
       <button type="button" data-set-lang="de" lang="de">Deutsch</button>
@@ -367,6 +371,18 @@
     </div>
   </footer>
 
+  <script>
+    // The hero's film: the valley at dusk, the paraglider, the snow groomer, the sunrise on the Schwarzhorn (recorded in
+    // the game). Not with reduced motion or a data saver; the smaller cut on narrow screens. Fades in once it plays.
+    (() => {
+      const video = document.querySelector('.hero-video');
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData;
+      if (!video || still) { video?.remove(); return; }
+      video.src = matchMedia('(min-width: 900px)').matches ? './assets/welcome/hero-1280.mp4' : './assets/welcome/hero-854.mp4';
+      video.addEventListener('playing', () => video.classList.add('is-playing'), { once: true });
+      video.play().catch(() => {});
+    })();
+  </script>
   <script type="module">
     import { SUPABASE_URL, SUPABASE_KEY } from './js/account-config.js';
 
