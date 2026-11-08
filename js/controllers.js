@@ -2773,6 +2773,13 @@ class ThirdPersonControllerManager {
       c.vz = -nextSin * (slip + correction);
       c.position.x += (nextSin * c.speed + c.vx) * step;
       c.position.z += (nextCos * c.speed + c.vz) * step;
+      // Rear-wheel steering (CAR.rearSteer: the front axle's distance ahead of the body's origin, m): the front axle
+      // runs true and the tail swings out of the turn, so the origin moves sideways by −ω·a against the turn.
+      if (CAR.rearSteer) {
+        const k = -CAR.rearSteer * c.angularVel * step;
+        c.position.x += nextCos * k;
+        c.position.z -= nextSin * k;
+      }
       this.resolveHorizontalCollision(c.position, 1.35, c);
       this.keepOutOfBuildings(c.position, 1.35);
 

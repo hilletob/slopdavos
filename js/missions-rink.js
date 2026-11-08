@@ -175,7 +175,7 @@ function buildZamboniModel() {
   }
   return {
     group: g, wheels, beacon,
-    drive: { speed: 6.5, reverseSpeed: 2.2, acceleration: 2.2, powerSpeed: 0, rolling: 0.35, drag: 0, coast: 1.5, brake: 4.2, wheelbase: RES.axleF - RES.axleR, grip: 3.6, cornering: 3.6 },
+    drive: { speed: 6.5, reverseSpeed: 2.2, acceleration: 2.2, powerSpeed: 0, rolling: 0.35, drag: 0, coast: 1.5, brake: 4.2, wheelbase: RES.axleF - RES.axleR, grip: 3.6, cornering: 3.6, rearSteer: RES.axleF }, // (steered at the rear axle, like the real machines: the tail swings out)
     dims: { halfW: 1.2, halfL: 2.3, top: 3.1, mass: 3400 }, chase: [9, 3.8], label: 'Ice resurfacer',
     seat: { seat: new THREE.Vector3(0, 1.37, 0.92), bars: new THREE.Vector3(0, 1.92, 1.6), gripHalf: 0.17, bracket: new THREE.Vector3(0, 1.1, 1.75), crankLength: 0, pedalHalf: 0.16, lean: 0.05 }
   };

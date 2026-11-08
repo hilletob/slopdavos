@@ -771,7 +771,8 @@ const workVehicle = {
     for (const w of v.wheels) {
       w.mesh.rotation.order = 'YXZ'; // (steer first, then roll about the steered axle)
       w.mesh.rotation.x += ((car.speed || 0) * dt) / w.r;
-      if (w.front) w.mesh.rotation.y = car.steerAngle || 0;
+      // (a rear-steered machine, drive.rearSteer — the ice resurfacer: the rear wheels turn, against the steer)
+      if (car.drive?.rearSteer ? !w.front : w.front) w.mesh.rotation.y = (car.drive?.rearSteer ? -1 : 1) * (car.steerAngle || 0);
     }
     v.pose?.(g, car, dt); // (a vehicle's own body motion over the physics: the quad of js/missions-rural.js)
     g.updateMatrixWorld(true);
