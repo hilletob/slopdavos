@@ -1,585 +1,478 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Slop Davos</title>
-  <link rel="icon" type="image/png" href="./assets/icons/icon-192.png" />
-  <!-- Installable app (PWA): manifest, home-screen icon & full-screen on iOS, service worker (sw.js, registered by js/main.js) -->
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
-  <meta name="theme-color" content="#1b1b1b" />
-  <style>html { background: #0a0b0d; }</style>
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Davos" />
-  <meta name="description" content="Slop Davos: Davos Platz, Davos Dorf, Davosersee, Frauenkirch und Dischmatal im Massstab 1:1 auf echtem Alpenrelief. Explore Davos at 1:1 on its real alpine terrain, built with Three.js WebGPURenderer and TSL from swisstopo (swissBUILDINGS3D, swissALTI3D, SWISSIMAGE) and OpenStreetMap data, with a full street map, third-person navigation (Person, Car, Cyclist, RhB train, Helicopter, snow groomer), and 11 cinematic cameras at 60 FPS." />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <!-- three.js dev branch pinned to a commit (builds committed to mrdoob/three.js@dev, served by jsDelivr) -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.webgpu.js",
-        "three/webgpu": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.webgpu.js",
-        "three/tsl": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/build/three.tsl.js",
-        "three/addons/": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@f17eb5d689094a3fbd4cd0d64d54729a48036ce0/examples/jsm/"
-      }
-    }
+  <meta charset="utf-8" />
+  <script>
+    // (an old link to the game, ?mission=… or ?race=… on the site's root: straight on into the game, play.html)
+    if (location.search) location.replace('./play.html' + location.search + location.hash);
   </script>
-  <!-- Fetch the city modules in parallel before stylesheets; the module graph controls evaluation order. -->
-  <link rel="modulepreload" href="./js/davos-geodata.js" />
-  <link rel="modulepreload" href="./js/i18n.js" />
-  <link rel="modulepreload" href="./js/swiss-projection.js" />
-  <link rel="modulepreload" href="./js/davos-frame.js" />
-  <link rel="modulepreload" href="./js/quality.js" />
-  <link rel="modulepreload" href="./js/gpu-memory.js" />
-  <link rel="modulepreload" href="./js/terrain-grid.js" />
-  <link rel="modulepreload" href="./js/tunnel-profile.js" />
-  <link rel="modulepreload" href="./js/terrain.js" />
-  <link rel="modulepreload" href="./js/tunnels.js" />
-  <link rel="modulepreload" href="./js/nyc-geodata.js" />
-  <link rel="modulepreload" href="./js/berlin-geometry.js" />
-  <link rel="modulepreload" href="./js/frame-guard.js" />
-  <link rel="modulepreload" href="./js/street-corners.js" />
-  <link rel="modulepreload" href="./js/city-config.js" />
-  <link rel="modulepreload" href="./js/tsl-materials.js" />
-  <link rel="modulepreload" href="./js/trees.js" />
-  <link rel="modulepreload" href="./js/actor-models.js" />
-  <link rel="modulepreload" href="./js/plates.js" />
-  <link rel="modulepreload" href="./js/vehicle-lights.js" />
-  <link rel="modulepreload" href="./js/ground-beams.js" />
-  <link rel="modulepreload" href="./js/vw-t3.js" />
-  <link rel="modulepreload" href="./js/snowcat.js" />
-  <link rel="modulepreload" href="./js/vehicle-physics.js" />
-  <link rel="modulepreload" href="./js/obstacle-grid.js" />
-  <link rel="modulepreload" href="./js/pedestrians.js" />
-  <link rel="modulepreload" href="./js/lighting.js" />
-  <link rel="modulepreload" href="./js/city-grid.js" />
-  <link rel="modulepreload" href="./js/boroughs.js" />
-  <link rel="modulepreload" href="./js/buildings.js" />
-  <link rel="modulepreload" href="./js/unsurveyed-buildings-data.js" />
-  <link rel="modulepreload" href="./js/fire-escapes.js" />
-  <link rel="modulepreload" href="./js/landmarks.js" />
-  <link rel="modulepreload" href="./js/street-details.js" />
-  <link rel="modulepreload" href="./js/road-network.js" />
-  <link rel="modulepreload" href="./js/road-paint.js" />
-  <link rel="modulepreload" href="./js/crosswalks-data.js" />
-  <link rel="modulepreload" href="./js/traffic.js" />
-  <link rel="modulepreload" href="./js/pedestrian-system.js" />
-  <link rel="modulepreload" href="./js/pedestrian-routes.js" />
-  <link rel="modulepreload" href="./js/controllers.js" />
-  <link rel="modulepreload" href="./js/touch-controls.js" />
-  <link rel="modulepreload" href="./js/actions.js" />
-  <link rel="modulepreload" href="./js/gamepad-controls.js" />
-  <link rel="modulepreload" href="./js/cameras.js" />
-  <link rel="modulepreload" href="./js/nyc-map.js" />
-  <link rel="modulepreload" href="./js/scene-culling.js" />
-  <link rel="modulepreload" href="./js/post-processing.js" />
-  <link rel="modulepreload" href="./js/audio-synthesis.js" />
-  <link rel="modulepreload" href="./js/audio-events.js" />
-  <link rel="modulepreload" href="./js/audio-sources.js" />
-  <link rel="modulepreload" href="./js/audio-acoustics.js" />
-  <link rel="modulepreload" href="./js/audio-system.js" />
-  <link rel="modulepreload" href="./js/swissbuildings3d.js" />
-  <link rel="modulepreload" href="./js/gwr.js" />
-  <link rel="modulepreload" href="./js/gwr-data.js" />
-  <link rel="modulepreload" href="./js/swissimage.js" />
-  <link rel="modulepreload" href="./js/season.js" />
-  <link rel="modulepreload" href="./js/game-clock.js" />
-  <link rel="modulepreload" href="./js/solar.js" />
-  <link rel="modulepreload" href="./js/mission-windows.js" />
-  <link rel="modulepreload" href="./js/fast-forward.js" />
-  <link rel="modulepreload" href="./js/day-cycle.js" />
-  <link rel="modulepreload" href="./js/surroundings.js" />
-  <link rel="modulepreload" href="./js/trams.js" />
-  <link rel="modulepreload" href="./js/rhb.js" />
-  <link rel="modulepreload" href="./js/rhb-route.js" />
-  <link rel="modulepreload" href="./js/vbd.js" />
-  <link rel="modulepreload" href="./js/vbd-data.js" />
-  <link rel="modulepreload" href="./js/bergbahnen.js" />
-  <link rel="modulepreload" href="./js/bergbahnen-data.js" />
-  <link rel="modulepreload" href="./js/shops.js" />
-  <link rel="modulepreload" href="./js/shops-data.js" />
-  <link rel="modulepreload" href="./js/parking.js" />
-  <link rel="modulepreload" href="./js/world-cells.js" />
-  <link rel="modulepreload" href="./js/world-stream.js" />
-  <link rel="modulepreload" href="./js/parking-data.js" />
-  <link rel="modulepreload" href="./js/traffic-signs.js" />
-  <link rel="modulepreload" href="./js/traffic-signs-data.js" />
-  <link rel="modulepreload" href="./js/detail-houses.js" />
-  <link rel="modulepreload" href="./js/detail-houses-data.js" />
-  <link rel="modulepreload" href="./js/pfadiheim.js" />
-  <link rel="modulepreload" href="./js/pfadiheim-data.js" />
-  <link rel="modulepreload" href="./js/landmark-buildings.js" />
-  <link rel="modulepreload" href="./js/landmark-buildings-data.js" />
-  <link rel="modulepreload" href="./js/facades-data.js" />
-  <link rel="modulepreload" href="./js/level-crossings.js" />
-  <link rel="modulepreload" href="./js/level-crossings-data.js" />
-  <link rel="modulepreload" href="./js/streams.js" />
-  <link rel="modulepreload" href="./js/streams-data.js" />
-  <link rel="modulepreload" href="./js/tlm-trees-data.js" />
-  <link rel="modulepreload" href="./js/logos.js" />
-  <link rel="modulepreload" href="./js/loipen.js" />
-  <link rel="modulepreload" href="./js/cross-country.js" />
-  <link rel="modulepreload" href="./js/winter-hikes.js" />
-  <link rel="modulepreload" href="./js/winter-hikes-data.js" />
-  <link rel="modulepreload" href="./js/winter-hikers.js" />
-  <link rel="modulepreload" href="./js/cross-country-routes.js" />
-  <link rel="modulepreload" href="./js/golf.js" />
-  <link rel="modulepreload" href="./js/golf-data.js" />
-  <link rel="modulepreload" href="./js/vector-ground.js" />
-  <link rel="modulepreload" href="./js/ground-kinds.js" />
-  <link rel="modulepreload" href="./js/ground-geometry.js" />
-  <link rel="modulepreload" href="./js/ground-sports-data.js" />
-  <link rel="modulepreload" href="./js/ortho-levels.js" />
-  <link rel="modulepreload" href="./js/ground-markings-data.js" />
-  <link rel="modulepreload" href="./js/ground-markings-area.js" />
-  <link rel="modulepreload" href="./js/ground-kind-names.js" />
-  <link rel="modulepreload" href="./js/bus-bays.js" />
-  <link rel="modulepreload" href="./js/helipad.js" />
-  <link rel="modulepreload" href="./js/ski-pistes.js" />
-  <link rel="modulepreload" href="./js/ski-pistes-data.js" />
-  <link rel="modulepreload" href="./js/winter-sports.js" />
-  <link rel="modulepreload" href="./js/groom-map.js" />
-  <link rel="modulepreload" href="./js/missions-data.js" />
-  <link rel="modulepreload" href="./js/missions-props.js" />
-  <link rel="modulepreload" href="./js/missions-fx.js" />
-  <link rel="modulepreload" href="./js/missions-manager.js" />
-  <link rel="modulepreload" href="./js/missions-progress.js" />
-  <link rel="modulepreload" href="./js/missions-world.js" />
-  <link rel="modulepreload" href="./js/missions-data-snow.js" />
-  <link rel="modulepreload" href="./js/missions-snow.js" />
-  <link rel="modulepreload" href="./js/missions-data-ice.js" />
-  <link rel="modulepreload" href="./js/missions-ice.js" />
-  <link rel="modulepreload" href="./js/missions-data-fun.js" />
-  <link rel="modulepreload" href="./js/missions-fun.js" />
-  <link rel="modulepreload" href="./js/missions-data-golf.js" />
-  <link rel="modulepreload" href="./js/missions-golf.js" />
-  <link rel="modulepreload" href="./js/missions-data-local.js" />
-  <link rel="modulepreload" href="./js/missions-local.js" />
-  <link rel="modulepreload" href="./js/missions-data-sledge.js" />
-  <link rel="modulepreload" href="./js/missions-sledge.js" />
-  <link rel="modulepreload" href="./js/missions-data-mine.js" />
-  <link rel="modulepreload" href="./js/missions-mine.js" />
-  <link rel="modulepreload" href="./js/missions-data-work.js" />
-  <link rel="modulepreload" href="./js/missions-work.js" />
-  <link rel="modulepreload" href="./js/missions-data-sport.js" />
-  <link rel="modulepreload" href="./js/missions-sport.js" />
-  <link rel="modulepreload" href="./js/missions-data-resort.js" />
-  <link rel="modulepreload" href="./js/missions-resort.js" />
-  <link rel="modulepreload" href="./js/missions-data-outdoor.js" />
-  <link rel="modulepreload" href="./js/missions-outdoor.js" />
-  <link rel="modulepreload" href="./js/missions-hike-routes.js" />
-  <link rel="modulepreload" href="./js/missions-data-hike.js" />
-  <link rel="modulepreload" href="./js/missions-hike.js" />
-  <link rel="modulepreload" href="./js/missions-data-gastro.js" />
-  <link rel="modulepreload" href="./js/missions-gastro.js" />
-  <link rel="modulepreload" href="./js/missions-data-bars.js" />
-  <link rel="modulepreload" href="./js/missions-bars.js" />
-  <link rel="modulepreload" href="./js/missions-data-expert.js" />
-  <link rel="modulepreload" href="./js/missions-expert.js" />
-  <link rel="modulepreload" href="./js/missions-data-wef.js" />
-  <link rel="modulepreload" href="./js/missions-wef.js" />
-  <link rel="modulepreload" href="./js/missions-data-rural.js" />
-  <link rel="modulepreload" href="./js/missions-rural.js" />
-  <link rel="modulepreload" href="./js/missions-data-care.js" />
-  <link rel="modulepreload" href="./js/missions-care.js" />
-  <link rel="modulepreload" href="./js/missions-data-paraglide.js" />
-  <link rel="modulepreload" href="./js/missions-paraglide.js" />
-  <link rel="modulepreload" href="./js/paraglide-free.js" />
-  <link rel="modulepreload" href="./js/missions-data-rink.js" />
-  <link rel="modulepreload" href="./js/missions-rink.js" />
-  <link rel="modulepreload" href="./js/missions-data-splitboard.js" />
-  <link rel="modulepreload" href="./js/missions-splitboard.js" />
-  <link rel="modulepreload" href="./js/missions-data-pfadi.js" />
-  <link rel="modulepreload" href="./js/missions-pfadi.js" />
-  <link rel="modulepreload" href="./js/missions-data-snowfarm.js" />
-  <link rel="modulepreload" href="./js/missions-snowfarm.js" />
-  <link rel="modulepreload" href="./js/missions-data-plough.js" />
-  <link rel="modulepreload" href="./js/missions-plough.js" />
-  <link rel="modulepreload" href="./js/missions-data-winterroad.js" />
-  <link rel="modulepreload" href="./js/missions-winterroad.js" />
-  <link rel="modulepreload" href="./js/missions-data-radar.js" />
-  <link rel="modulepreload" href="./js/missions-radar.js" />
-  <link rel="modulepreload" href="./js/missions.js" />
-  <link rel="modulepreload" href="./js/vehicle-depots.js" />
-  <link rel="modulepreload" href="./js/gta.js" />
-  <link rel="modulepreload" href="./js/gta-takeover.js" />
-  <link rel="modulepreload" href="./js/play-stats.js" />
-  <link rel="modulepreload" href="./js/hijack.js" />
-  <link rel="modulepreload" href="./js/bus-joint.js" />
-  <link rel="modulepreload" href="./js/bus-stopping.js" />
-  <link rel="modulepreload" href="./js/snowfall.js" />
-  <link rel="modulepreload" href="./js/gpu-diagnostics.js" />
-  <link rel="modulepreload" href="./js/main.js" />
-  <link rel="modulepreload" href="./js/start.js" />
-  <script type="module" src="./js/start.js"></script>
-  <!-- The player's VW T3 body (js/vw-t3.js fetches it as soon as it loads) -->
-  <link rel="preload" href="./assets/models/vw-t3-body.glb" as="fetch" crossorigin />
-  <!-- Inter (UI) & Overpass (street-name signs: modelled on Highway Gothic, the US road sign typeface) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&amp;family=Overpass:wght@600;700&amp;display=swap" />
-  <link rel="stylesheet" href="./css/style.css?v=20261106-labels" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slop Davos – Davos im Browser</title>
+  <meta name="description" content="Slop Davos: ganz Davos im Massstab 1:1 im Browser, vom Wolfgang bis Monstein und vom Dischma bis zum Flüelapass. Zu Fuss, im Auto, im Pistenfahrzeug, mit der RhB, dem Rega-Helikopter oder am Gleitschirm, mit 70 Missionen in Sommer und Winter." />
+  <meta property="og:title" content="Slop Davos" />
+  <meta property="og:description" content="Ganz Davos im Massstab 1:1 im Browser. Einfach losspielen." />
+  <meta property="og:image" content="https://davos.tschopp.cloud/assets/welcome/davos-valley-1200.webp" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#1d2a3f" />
+  <link rel="icon" href="./assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <link rel="preload" href="./assets/welcome/fonts/signika-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <style>
+    @font-face {
+      font-family: 'Signika';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url(./assets/welcome/fonts/signika-latin.woff2) format('woff2');
+    }
+    :root {
+      --gelb: #f2c200;      /* the yellow of the Swiss trail signposts */
+      --gelb-tief: #d9ad00;
+      --fels: #24292e;      /* text: the grey of the granite, not black */
+      --fels-weich: #59626b;
+      --schnee: #f5f7f9;
+      --nacht: #1d2a3f;     /* the blue of the Davos evening in the hero */
+      --nacht-hell: #c9d4e3;
+      --see: #2f6f99;
+      --pfosten: #9aa3ab;
+      --radius: 3px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--schnee);
+      color: var(--fels);
+      font: 400 18px/1.55 'Signika', system-ui, sans-serif;
+      font-feature-settings: 'kern', 'lnum';
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: var(--see); text-underline-offset: 3px; }
+    a:focus-visible, .plate:focus-visible { outline: 3px solid var(--see); outline-offset: 3px; }
+    .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+    /* --- The signpost plate: the one shape the page is built on ------------------------------------------------- */
+    .plate {
+      --tip: 26px;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 28px;
+      justify-content: space-between;
+      min-width: 260px;
+      padding: 12px calc(var(--tip) + 18px) 12px 20px;
+      background: var(--gelb);
+      color: #1b1d1f;
+      text-decoration: none;
+      font-weight: 600;
+      line-height: 1.15;
+      clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%);
+    }
+    .plate.left {
+      padding: 12px 20px 12px calc(var(--tip) + 18px);
+      clip-path: polygon(var(--tip) 0, 100% 0, 100% 100%, var(--tip) 100%, 0 50%);
+    }
+    .plate .to { font-size: 1.05em; }
+    .plate .far { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* --- Hero ---------------------------------------------------------------------------------------------------- */
+    .hero {
+      position: relative;
+      min-height: min(92vh, 860px);
+      display: grid;
+      align-items: end;
+      background: var(--nacht) url(./assets/welcome/davos-valley-1200.webp) center 40% / cover no-repeat;
+      color: #fff;
+      overflow: hidden;
+    }
+    @media (min-width: 1000px) { .hero { background-image: url(./assets/welcome/davos-valley-2000.webp); } }
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(29, 42, 63, 0) 35%, rgba(29, 42, 63, 0.55) 62%, rgba(29, 42, 63, 0.94) 100%);
+    }
+    .hero-inner { position: relative; z-index: 1; padding: 0 0 clamp(36px, 7vh, 72px); }
+    .brand {
+      position: absolute; z-index: 1; top: 20px; left: 16px; right: 16px;
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 600; font-size: 17px; color: #fff; text-decoration: none;
+    }
+    .brand img { width: 34px; height: 34px; border-radius: 8px; }
+    @media (min-width: 1152px) { .brand { left: calc((100% - 1120px) / 2); } }
+    h1 {
+      margin: 0;
+      font-weight: 700;
+      font-size: clamp(56px, 11vw, 150px);
+      line-height: 0.9;
+      letter-spacing: -0.035em;
+    }
+    .lede {
+      max-width: 34em;
+      margin: 18px 0 30px;
+      font-size: clamp(19px, 2.1vw, 23px);
+      line-height: 1.4;
+      color: #eef2f7;
+    }
+    .hero .plate { font-size: 22px; min-width: 300px; padding-block: 16px; --tip: 32px; }
+    .hero .plate:hover { background: #ffd21f; }
+    .hero-note { margin: 12px 0 0; font-size: 15px; color: var(--nacht-hell); }
+
+    /* --- Sections ------------------------------------------------------------------------------------------------ */
+    section { padding: clamp(56px, 9vw, 112px) 0; }
+    h2 {
+      margin: 0 0 18px;
+      font-weight: 700;
+      font-size: clamp(32px, 4.4vw, 52px);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+    .prose { max-width: 36em; }
+    .prose p { margin: 0 0 1em; }
+
+    /* the place: text beside the signpost */
+    .place { display: grid; gap: 48px; align-items: center; }
+    @media (min-width: 900px) { .place { grid-template-columns: 1fr 1fr; } }
+    .post {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      padding: 14px 0 54px;
+    }
+    .post::before { /* the pole */
+      content: '';
+      position: absolute; top: 0; bottom: 0; left: 50%;
+      width: 14px; margin-left: -7px;
+      border-radius: 7px 7px 0 0;
+      background: linear-gradient(90deg, #b9c0c6, var(--pfosten) 55%, #7d868e);
+    }
+    .post .plate { position: relative; width: min(330px, 86%); font-size: 18px; }
+    .post .plate.right { transform: translateX(min(42%, 140px)); }
+    .post .plate.left { transform: translateX(max(-42%, -140px)); }
+    @media (max-width: 760px) { /* narrow: the pole at the left edge, every plate pointing on from it */
+      .post { justify-items: start; padding-left: 0; }
+      .post::before { left: 7px; }
+      .post .plate.left, .post .plate.right {
+        transform: none; width: calc(100% - 22px); margin-left: 22px; font-size: 17px;
+        padding: 11px 42px 11px 16px;
+        clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%);
+      }
+      .post .home { margin-left: 0; width: auto; min-width: 60%; text-align: left; }
+    }
+    .post .home {
+      position: relative;
+      width: min(240px, 66%);
+      padding: 10px 14px;
+      background: #fff;
+      border: 2px solid #1b1d1f;
+      border-radius: var(--radius);
+      text-align: center;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .post .home small { display: block; font-weight: 400; font-size: 15px; color: var(--fels-weich); }
+
+    /* the pictures */
+    .shots { display: grid; gap: 14px; }
+    figure { margin: 0; }
+    figure img { width: 100%; border-radius: var(--radius); background: #d8dee4; }
+    figcaption { padding: 8px 2px 0; font-size: 15px; color: var(--fels-weich); }
+    .wide { display: grid; gap: 14px; }
+    @media (min-width: 900px) {
+      .wide { grid-template-columns: 1.35fr 1fr; align-items: end; }
+      .wide.flip { grid-template-columns: 1fr 1.35fr; }
+      .wide.flip .text { order: -1; }
+    }
+    .wide .text { padding: 8px 4px 22px; max-width: 30em; }
+    .wide .text h3 { margin: 0 0 8px; font-size: 26px; line-height: 1.15; font-weight: 700; }
+    .wide .text p { margin: 0; }
+    .grid5 { display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .grid5 { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1000px) { .grid5 { grid-template-columns: repeat(6, 1fr); } .grid5 figure:nth-child(-n+2) { grid-column: span 3; } .grid5 figure:nth-child(n+3) { grid-column: span 2; } }
+
+    .ways { margin-top: 56px; display: grid; gap: 32px; }
+    @media (min-width: 900px) { .ways { grid-template-columns: repeat(3, 1fr); } }
+    .ways h3 { margin: 0 0 6px; font-size: 21px; }
+    .ways p { margin: 0; color: var(--fels-weich); }
+
+    /* the numbers */
+    .stats { background: var(--nacht); color: #fff; }
+    .stats .intro { color: var(--nacht-hell); max-width: 36em; margin: 0 0 40px; }
+    .numbers { display: grid; gap: 28px 24px; grid-template-columns: repeat(2, 1fr); margin: 0 0 56px; }
+    @media (min-width: 900px) { .numbers { grid-template-columns: repeat(4, 1fr); } }
+    .numbers div { border-top: 3px solid var(--gelb); padding-top: 12px; }
+    .numbers dt { font-size: 16px; color: var(--nacht-hell); }
+    .numbers dd { margin: 2px 0 0; font-size: clamp(36px, 5vw, 58px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .travel h3 { margin: 0 0 16px; font-size: 21px; }
+    .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 760px; }
+    .bars li { display: grid; grid-template-columns: 9.5em 1fr 6.5em; gap: 12px; align-items: center; font-size: 16px; }
+    .bars .bar { height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden; }
+    .bars .bar span { display: block; height: 100%; background: var(--gelb); transform-origin: left; }
+    .bars .km { text-align: right; font-variant-numeric: tabular-nums; color: var(--nacht-hell); }
+    @media (max-width: 520px) { .bars li { grid-template-columns: 7.5em 1fr 5.5em; font-size: 15px; } }
+    .stats .when { margin: 28px 0 0; font-size: 14px; color: var(--nacht-hell); }
+    .stats[data-state='loading'] .numbers dd { color: rgba(255, 255, 255, 0.35); }
+
+    /* the end */
+    .last { padding-bottom: 40px; }
+    .last .plate { font-size: 22px; min-width: 300px; padding-block: 16px; --tip: 32px; }
+    footer { padding: 28px 0 40px; font-size: 15px; color: var(--fels-weich); }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; border-top: 1px solid #d9dfe5; padding-top: 20px; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .bars .bar span { animation: grow 900ms cubic-bezier(.2, .7, .2, 1) both; }
+      @keyframes grow { from { transform: scaleX(0); } }
+    }
+
+    /* two languages: the text of the other one hidden (the switch top right, the game's choice remembered) */
+    html[lang='de'] [data-l='en'], html[lang='en'] [data-l='de'] { display: none; }
+    .langs { position: absolute; z-index: 2; top: 20px; right: 16px; display: flex; gap: 4px; }
+    @media (min-width: 1152px) { .langs { right: calc((100% - 1120px) / 2); } }
+    .langs button {
+      font: 600 15px/1 'Signika', system-ui, sans-serif; color: #fff; cursor: pointer;
+      padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--radius);
+      background: rgba(29, 42, 63, 0.35);
+    }
+    .langs button[aria-pressed='true'] { background: var(--gelb); border-color: var(--gelb); color: #1b1d1f; }
+    .langs button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  </style>
 </head>
 <body>
-  <!-- Icon sprite (24 × 24 stroke icons, drawn in currentColor) -->
-  <svg class="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false">
-    <defs>
-      <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.4" r="2"/><path d="M12.3 8.2 10.8 13.8M10.8 13.8 9.2 17.2 7.2 20.5M10.8 13.8l2.4 3 1.6 3.8M12.3 8.6 9.6 10.2l-.8 2.6M12.3 8.6l2.1 2.4 2.4.8"/></symbol>
-      <symbol id="i-car" viewBox="0 0 24 24"><path d="M9.6 4.8V3.4a.6.6 0 0 1 .6-.6h3.6a.6.6 0 0 1 .6.6v1.4"/><path d="m5.2 10.5 1.4-4.1A2.2 2.2 0 0 1 8.7 4.8h6.6a2.2 2.2 0 0 1 2.1 1.6l1.4 4.1"/><rect x="3" y="10.5" width="18" height="6.5" rx="2"/><path d="M6 17v2.6M18 17v2.6M6.6 13.8h1.6M15.8 13.8h1.6"/></symbol>
-      <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="5.5" cy="16.5" r="3.6"/><circle cx="18.5" cy="16.5" r="3.6"/><path d="M5.5 16.5 9.3 9.6h6.3M11.6 16.5 9.3 9.6M11.6 16.5l4-6.9M5.5 16.5h6.1M15.6 9.6l2.9 6.9M15.6 9.6 14.8 7h2.4M8 8.4h2.8"/></symbol>
-      <symbol id="i-train" viewBox="0 0 24 24"><path d="M7 3.5h10a2.5 2.5 0 0 1 2.5 2.5v9a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 15V6A2.5 2.5 0 0 1 7 3.5z"/><path d="M4.5 10h15M8 14h.01M16 14h.01M8 17.5 5.5 21M16 17.5l2.5 3.5M10 3.5V2M14 3.5V2"/></symbol>
-      <symbol id="i-snowcat" viewBox="0 0 24 24"><path d="M6 13V9.2a1.2 1.2 0 0 1 1.2-1.2h5.6l2.2 5"/><path d="M9.6 8v5M11 5.6h2M12 5.6V8"/><rect x="3" y="13" width="15" height="5" rx="2.5"/><circle cx="6.5" cy="15.5" r="1"/><circle cx="14.5" cy="15.5" r="1"/><path d="M18 11.5h2.4l.6 6.5h-3"/></symbol>
-      <symbol id="i-heli" viewBox="0 0 24 24"><path d="M3.5 4h15M11 4v3.2"/><path d="M6 12.2a5 5 0 0 1 5-5h1.6a4.4 4.4 0 0 1 4.4 4.4V15H8.8A2.8 2.8 0 0 1 6 12.2z"/><path d="M17 11h4.2M21.2 8.8v4.4M7 19h10.5M9.5 15v4M15 15v4"/></symbol>
-      <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.6 4.6 12 7l2.4-2.4M9.6 19.4 12 17l2.4 2.4M4.3 11.2l3.2.9-.9 3.2M19.7 12.8l-3.2-.9.9-3.2"/></symbol>
-      <symbol id="i-forward" viewBox="0 0 24 24"><path d="M4 6.5v11l7.5-5.5zM12.5 6.5v11l7.5-5.5z"/></symbol>
-      <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.2s-6.6-5.7-6.6-11.2a6.6 6.6 0 0 1 13.2 0c0 5.5-6.6 11.2-6.6 11.2z"/><circle cx="12" cy="10" r="2.4"/></symbol>
-      <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.6v13l5.5-2.1 6 2.1 5.5-2.1v-13L15 6.6 9 4.5zM9 4.5v13M15 6.6v13"/></symbol>
-      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
-      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3.5 3.5l17 17M10.6 5.6c.5-.1.9-.1 1.4-.1 6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.4 3.2M6.6 6.6A15.6 15.6 0 0 0 2.5 12s3.5 6.5 9.5 6.5c1.6 0 3.1-.4 4.4-1.1M9.9 9.9a2.8 2.8 0 0 0 4.2 4.2"/></symbol>
-      <symbol id="i-sound" viewBox="0 0 24 24"><path d="m11 4-5 4H3v8h3l5 4V4ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></symbol>
-      <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="m11 4-5 4H3v8h3l5 4V4ZM16 9l6 6M22 9l-6 6"/></symbol>
-      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></symbol>
-      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.5 6.5 9 12l5.5 5.5"/></symbol>
-      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"/></symbol>
-      <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.8" y="6.5" width="12.4" height="11" rx="2.4"/><path d="m15.2 10.4 6-3.4v10l-6-3.4"/></symbol>
-      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
-      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5.5 12h13"/></symbol>
-      <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><path d="M12 2.5v3.1M12 18.4v3.1M2.5 12h3.1M18.4 12h3.1"/></symbol>
-      <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
-      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
-      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.7"/><path d="M4.8 20c.9-3.8 3.7-5.6 7.2-5.6s6.3 1.8 7.2 5.6"/></symbol>
-      <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/></symbol>
-      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
-      <!-- the actions' faces (js/actions.js: the vehicles' extras and the missions' buttons) -->
-      <symbol id="i-beam" viewBox="0 0 24 24"><path d="M9 7a5 5 0 0 0 0 10h2.5V7H9zM14.5 8.5H21M14.5 12H21M14.5 15.5H21"/></symbol>
-      <symbol id="i-horn" viewBox="0 0 24 24"><path d="M3.5 9.5v5h4l7 4.5v-14l-7 4.5h-4zM17.5 9.5a3.5 3.5 0 0 1 0 5"/></symbol>
-      <symbol id="i-ind-left" viewBox="0 0 24 24"><path d="M13 5.5 4.5 12l8.5 6.5v-13zM15 12h5"/></symbol>
-      <symbol id="i-ind-right" viewBox="0 0 24 24"><path d="M11 5.5l8.5 6.5-8.5 6.5v-13zM4 12h5"/></symbol>
-      <symbol id="i-hazard" viewBox="0 0 24 24"><path d="M12 4.5 2.8 19.5h18.4L12 4.5zM12 10v4M12 16.5h.01"/></symbol>
-      <symbol id="i-beacon" viewBox="0 0 24 24"><path d="M5.5 17h13M8 17v-5a4 4 0 0 1 8 0v5M12 3.5v2M5 6.5l1.5 1.5M19 6.5l-1.5 1.5M6 20h12"/></symbol>
-      <symbol id="i-tiller" viewBox="0 0 24 24"><path d="M4.5 10.5h15l2 4.5h-19l2-4.5zM5 15v4M9.5 15v4M14.5 15v4M19 15v4M12 4.5v6"/></symbol>
-      <symbol id="i-chute" viewBox="0 0 24 24"><path d="M6 20v-7.5A4.5 4.5 0 0 1 10.5 8H16M13 4.5 16.5 8 13 11.5"/></symbol>
-      <symbol id="i-hook" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="1.5"/><path d="M12 6v7.5a4 4 0 0 1-8 0V12"/></symbol>
-      <symbol id="i-fire" viewBox="0 0 24 24"><path d="M12 3.5c.5 3.5 4.5 5.5 4.5 10a4.5 4.5 0 0 1-9 0c0-2 1-3.5 1-3.5s.5 2.5 2.5 2.5C11 9 10 7 12 3.5z"/></symbol>
-      <symbol id="i-shovel" viewBox="0 0 24 24"><path d="M14 4l6 6M17 7l-8.5 8.5M8.5 15.5l-2.5 2.5a1.8 1.8 0 0 0 0 2.5 1.8 1.8 0 0 0 2.5 0l2.5-2.5"/></symbol>
-      <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8.5 12.5V6a1.5 1.5 0 0 1 3 0v6M11.5 11V4.5a1.5 1.5 0 0 1 3 0V11M14.5 11.5V6.5a1.5 1.5 0 0 1 3 0v6.5M17.5 13v-.5a1.5 1.5 0 0 1 3 0V15a5.5 5.5 0 0 1-5.5 5.5h-2a5.5 5.5 0 0 1-4.6-2.5L5.3 13a1.5 1.5 0 0 1 2.5-1.6l.7 1.1"/></symbol>
-      <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13.5l-3-3M20 16H6.5l3 3"/></symbol>
-      <symbol id="i-radio" viewBox="0 0 24 24"><rect x="7" y="7.5" width="10" height="13" rx="2"/><path d="M10 7.5v-4M9.5 12h5M9.5 15h5"/></symbol>
-    </defs>
-  </svg>
-
-  <!-- Loading Screen -->
-  <div id="loading-overlay" role="status" aria-live="polite">
-    <div class="loader">
-      <img class="loader-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet loader-bullet',textContent:'D'}))" />
-      <div class="loader-title">Slop Davos</div>
-      <div class="loader-track is-indeterminate" aria-hidden="true"><span id="loading-progress" class="loader-fill"></span></div>
-      <div id="loading-status">Initializing WebGPURenderer &amp; TSL Shaders...</div>
+  <header class="hero">
+    <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="34" height="34" />Slop Davos</a>
+    <div class="langs" role="group" aria-label="Sprache / Language">
+      <button type="button" data-set-lang="de" lang="de">Deutsch</button>
+      <button type="button" data-set-lang="en" lang="en">English</button>
     </div>
-  </div>
-
-  <!-- 3D WebGPU Viewport Container -->
-  <main id="canvas-container" aria-label="3D Interactive Slop Davos Viewport"></main>
-
-  <!-- Top-Left: Brand & Renderer Telemetry -->
-  <header class="hud hud-top-left">
-    <div class="panel brand">
-      <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
-      <div class="brand-titles">
-        <h1>Slop Davos</h1>
-        <!-- (the renderer and the frame rate: only with ?stats=1, js/main.js sets body.show-stats) -->
-        <div class="brand-subtitle">three.js · <span id="hud-backend">WebGPU</span> · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
-      </div>
+    <div class="hero-inner wrap">
+      <h1><span data-l="de">Davos,<br />eins zu eins.</span><span data-l="en">Davos,<br />one to one.</span></h1>
+      <p class="lede"><span data-l="de">Die ganze Landschaft Davos im Browser: jede Strasse, jedes Haus, jeder Hang auf dem echten Relief. Zu Fuss, im Auto, mit der RhB, im Pistenfahrzeug oder am Gleitschirm.</span><span data-l="en">All of Davos in your browser: every street, every house, every slope on the real terrain. On foot, by car, on the RhB, in a snow groomer or under a paraglider.</span></p>
+      <a class="plate" href="./play.html"><span class="to"><span data-l="de">Davos spielen</span><span data-l="en">Play Davos</span></span><span class="far"><span data-l="de">sofort</span><span data-l="en">now</span></span></a>
+      <p class="hero-note"><span data-l="de">Läuft im Browser, auf dem Computer und auf dem Handy. Nichts zu installieren.</span><span data-l="en">Runs in the browser, on your computer and your phone. Nothing to install.</span></p>
     </div>
   </header>
 
-  <!-- Top-Right Toolbar, three groups: the time (the clock opens the fast-forward), the game (missions, teleport, map)
-       and the system (account, menu, clean view) -->
-  <div class="hud hud-top-right">
-    <div id="hud-toolbar" class="panel toolbar">
-      <button id="btn-fastforward" class="tool-btn hud-clock" type="button" popovertarget="ff-popover" title="Fast-forward the time" aria-label="Game time: fast-forward">
-        <span class="hud-clock-text">
-          <span id="hud-clock-time" class="hud-clock-time">--:--</span>
-          <span id="hud-clock-day" class="hud-clock-day"></span>
-        </span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
-      </button>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <!-- (the missions' points; js/missions-world.js shows the button and keeps the points current) -->
-      <button id="btn-missions" class="tool-btn" type="button" title="Missions: points and medals" hidden>
-        <span class="mission-score-star" aria-hidden="true">★</span><span id="hud-points" class="hud-points">0</span><span class="tool-label">Missions</span>
-      </button>
-      <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="Teleport the active player">
-        <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">Teleport</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
-      </button>
-      <button id="btn-open-map" class="tool-btn" type="button" title="Full Davos street map [M]">
-        <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">Map</span><kbd>M</kbd>
-      </button>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="btn-account" class="tool-btn" type="button" popovertarget="account-popover" title="Account" aria-label="Account" aria-pressed="false" hidden>
-        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="tool-label">Sign in</span>
-      </button>
-      <button id="btn-menu" class="tool-btn icon-only" type="button" popovertarget="menu-popover" title="Menu" aria-label="Menu">
-        <svg class="icon" aria-hidden="true"><use href="#i-dots"/></svg>
-      </button>
-      <button id="btn-toggle-hud" class="tool-btn icon-only" type="button" title="Clean view: hide the HUD [H]" aria-label="Hide HUD" aria-pressed="false">
-        <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
-      </button>
-    </div>
-  </div>
-
-  <!-- The menu: what is set once in a while (the language, the sound, the clean view), the credits and the privacy -->
-  <div id="menu-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-align="hud-toolbar" aria-label="Menu">
-    <div class="pop-title">Menu</div>
-    <div class="pop-row">
-      <span class="pop-name">Language</span>
-      <div class="language-switch" role="group" aria-label="Language / Sprache">
-        <button id="lang-de" class="language-btn" type="button" lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
-        <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
-      </div>
-    </div>
-    <button id="btn-sound" class="pop-item" type="button" title="Mute sound [N]" aria-label="Mute sound" aria-pressed="true">
-      <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>Sound</span><span class="pop-state"><span id="sound-state">On</span><kbd>N</kbd></span>
-    </button>
-    <button id="btn-hud-menu" class="pop-item" type="button" title="Clean view: hide the HUD [H]">
-      <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>Clean view</span><span class="pop-state"><kbd>H</kbd></span>
-    </button>
-    <div class="pop-title">About</div>
-    <button id="btn-credits-menu" class="pop-item" type="button"><span class="pop-name">Data &amp; credits</span></button>
-    <a class="pop-item" href="./privacy.html" target="_blank" rel="noopener"><span class="pop-name">Privacy</span><span class="pop-state" aria-hidden="true">↗</span></a>
-  </div>
-
-  <!-- The optional account (js/account-ui.js): the button shows once js/account-config.js names a backend -->
-  <div id="account-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-align="hud-toolbar" aria-label="Account">
-    <div class="pop-title">Account</div>
-    <div id="account-items"></div>
-    <div id="account-status" class="pop-sub account-status" role="status" hidden></div>
-    <a class="pop-sub account-link" href="./privacy.html" target="_blank" rel="noopener">Privacy</a>
-  </div>
-
-  <!-- Fast-forward (js/fast-forward.js): a short fade, and the clock jumps -->
-  <div id="ff-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-align="hud-toolbar" aria-label="Fast-forward the time">
-    <div class="pop-title">Fast-forward</div>
-    <button class="pop-item" data-ff="morning" type="button"><span class="pop-name">To the next morning</span><span class="pop-sub"></span></button>
-    <button class="pop-item" data-ff="evening" type="button"><span class="pop-name">To the next evening</span><span class="pop-sub"></span></button>
-    <button class="pop-item" data-ff="season" type="button"><span class="pop-name" data-ff-season>To the next season</span><span class="pop-sub" data-ff-season-sub></span></button>
-  </div>
-
-  <!-- Teleport Destinations (native popover: light-dismiss & Esc) -->
-  <div id="teleport-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" aria-label="Teleport the active player">
-    <div class="pop-title">Teleport to</div>
-    <button id="tp-platz" class="pop-item tp-btn" data-teleport="platz" type="button"><span class="pop-name">Bahnhof Davos Platz</span><span class="pop-sub">Talstrasse · Davos Platz</span></button>
-    <button id="tp-spital" class="pop-item tp-btn" data-teleport="spital" type="button"><span class="pop-name">Spital Davos &amp; Rega-Landeplatz</span><span class="pop-sub">Promenade · Davos Platz</span></button>
-    <button id="tp-promenade" class="pop-item tp-btn" data-teleport="promenade" type="button"><span class="pop-name">Promenade</span><span class="pop-sub">Davos Platz</span></button>
-    <button id="tp-schatzalp" class="pop-item tp-btn" data-teleport="schatzalp" type="button"><span class="pop-name">Schatzalpbahn</span><span class="pop-sub">Promenade · Davos Platz</span></button>
-    <button id="tp-eisstadion" class="pop-item tp-btn" data-teleport="eisstadion" type="button"><span class="pop-name">Eisstadion &amp; Vaillant Arena</span><span class="pop-sub">Eisbahnstrasse · Davos Platz</span></button>
-    <button id="tp-kirchner" class="pop-item tp-btn" data-teleport="kirchner" type="button"><span class="pop-name">Kirchner Museum</span><span class="pop-sub">Promenade · Davos Platz</span></button>
-    <button id="tp-kongress" class="pop-item tp-btn" data-teleport="kongress" type="button"><span class="pop-name">Kongresszentrum</span><span class="pop-sub">Promenade · Davos Platz</span></button>
-    <button id="tp-jakobshorn" class="pop-item tp-btn" data-teleport="jakobshorn" type="button"><span class="pop-name">Talstation Jakobshornbahn</span><span class="pop-sub">Skistrasse · Davos Platz</span></button>
-    <button id="tp-parsenn" class="pop-item tp-btn" data-teleport="parsenn" type="button"><span class="pop-name">Talstation Parsennbahn</span><span class="pop-sub">Promenade · Davos Dorf</span></button>
-    <button id="tp-dorf" class="pop-item tp-btn" data-teleport="dorf" type="button"><span class="pop-name">Bahnhof Davos Dorf</span><span class="pop-sub">Bahnhofstrasse · Davos Dorf</span></button>
-    <button id="tp-see" class="pop-item tp-btn" data-teleport="see" type="button"><span class="pop-name">Davosersee &amp; Strandbad</span><span class="pop-sub">Davos Dorf</span></button>
-    <button id="tp-frauenkirch" class="pop-item tp-btn" data-teleport="frauenkirch" type="button"><span class="pop-name">Frauenkirch</span><span class="pop-sub">Landwasserstrasse · Frauenkirch</span></button>
-    <button id="tp-glaris" class="pop-item tp-btn" data-teleport="glaris" type="button"><span class="pop-name">Bahnhof Davos Glaris</span><span class="pop-sub">Landwassertal</span></button>
-    <button id="tp-monstein" class="pop-item tp-btn" data-teleport="monstein" type="button"><span class="pop-name">Davos Monstein</span><span class="pop-sub">Dorf · Silberberg</span></button>
-    <button id="tp-monstein-bahnhof" class="pop-item tp-btn" data-teleport="monstein_bahnhof" type="button"><span class="pop-name">Bahnhof Davos Monstein</span><span class="pop-sub">Schmelzboden</span></button>
-    <button id="tp-wiesen" class="pop-item tp-btn" data-teleport="wiesen" type="button"><span class="pop-name">Davos Wiesen</span><span class="pop-sub">Dorf</span></button>
-    <button id="tp-wiesen-bahnhof" class="pop-item tp-btn" data-teleport="wiesen_bahnhof" type="button"><span class="pop-name">Bahnhof Davos Wiesen</span><span class="pop-sub">Zügenschlucht</span></button>
-    <button id="tp-teufi" class="pop-item tp-btn" data-teleport="teufi" type="button"><span class="pop-name">Teufi</span><span class="pop-sub">Dischmastrasse · Dischma</span></button>
-    <button id="tp-duerrboden" class="pop-item tp-btn" data-teleport="duerrboden" type="button"><span class="pop-name">Dürrboden</span><span class="pop-sub">Dischmastrasse · Dischma</span></button>
-  </div>
-
-  <!-- Bottom edge: data attribution, always on screen (swisstopo terms, OSM attribution guidelines) -->
-  <div class="hud hud-attribution">
-    © swisstopo · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> ·
-    <button id="btn-credits" class="attribution-btn" type="button">Data &amp; credits</button>
-  </div>
-
-  <dialog id="credits-dialog" class="panel mission-dialog credits-dialog" aria-labelledby="credits-title">
-    <div class="mission-dialog-head">
-      <div>
-        <div class="mission-kicker">Slop Davos</div>
-        <h2 id="credits-title" class="mission-dialog-title">Data &amp; credits</h2>
-      </div>
-      <form method="dialog"><button class="dialog-close" type="submit" title="Close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
-    </div>
-    <p>Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.</p>
-    <ul class="credits-list">
-      <li>
-        <b>swissBUILDINGS3D 3.0</b>: buildings and roofs.<br>
-        <b>swissALTI3D</b>: the terrain.<br>
-        <b>SWISSIMAGE</b>: the orthophotos on the ground and the roofs.<br>
-        <b>swissTLM3D</b> (vector tiles): single trees and woodland.<br>
-        <b>swissSURFACE3D Raster</b>: the bridge decks.<br>
-        <span class="credits-source">© swisstopo, Federal Office of Topography swisstopo (<a href="https://www.swisstopo.admin.ch/de/nutzungsbedingungen-kostenlose-geodaten-und-geodienste" target="_blank" rel="noopener noreferrer">terms of use</a>)</span>
-      </li>
-      <li>
-        <b>swissALTIRegio</b>: the surroundings, out to the Alps.<br>
-        <span class="credits-source">Bundesamt für Landestopografie swisstopo; Tarquini S., I. Isola, M. Favalli, A. Battistini, G. Dotta (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size (Version 1.1). Istituto Nazionale di Geofisica e Vulcanologia (INGV). https://doi.org/10.13127/tinitaly/1.1; DGM Österreich, geoland.at; DGM1, Bayerische Vermessungsverwaltung – www.geodaten.bayern.de; DGM 1 Baden-Württemberg: LGL, www.lgl-bw.de, dl-de/by-2-0; RGEAlti, Institut National de l'information géographique et forestière, données originales téléchargées sur https://geoservices.ign.fr/rgealti#telechargement5m, mise à jour du juillet 2023</span>
-      </li>
-      <li>
-        <b>OpenStreetMap</b>: streets, rail lines, building footprints, trees, parks and water; the downhill ski runs (piste:type=downhill, with their difficulty) for the winter pistes, skiers and snowboarders.<br>
-        <span class="credits-source">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, Open Database License (ODbL)</span>
-      </li>
-      <li>
-        <b>Winterwanderwege</b> (ch.astra.winterwanderwege): the signposted winter hiking trails, their pink markers and the winter hikers.<br>
-        <span class="credits-source">© Bundesamt für Strassen ASTRA / swisstopo, SchweizMobil, Kanton Graubünden; via <a href="https://api3.geo.admin.ch" target="_blank" rel="noopener noreferrer">geo.admin.ch</a>, <a href="https://opendata.swiss/de/terms-of-use/#terms_by" target="_blank" rel="noopener noreferrer">opendata.swiss terms of use (open use, must provide the source)</a></span>
-      </li>
-    </ul>
-    <p class="credits-source">Logos: Marken der jeweiligen Inhaber; Quellen siehe <a href="./assets/logos/SOURCES.md" target="_blank" rel="noopener noreferrer">assets/logos/SOURCES.md</a> (Wikimedia Commons).</p>
-    <p class="credits-source">Gebäudenutzung, Geschosse und Baujahre der Fassaden: Eidg. Gebäude- und Wohnungsregister (GWR), © <a href="https://www.housing-stat.ch" target="_blank" rel="noopener noreferrer">Bundesamt für Statistik BFS</a>, Open Government Data.</p>
-    <p class="credits-source">Fassadenfarben aus Strassenbildern: <a href="https://www.mapillary.com" target="_blank" rel="noopener noreferrer">Mapillary</a>-Mitwirkende, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>.</p>
-    <p class="credits-source">VBD bus model: “Low Poly Mercedes-Benz Citaro 530” by <a href="https://sketchfab.com/giosassets" target="_blank" rel="noopener noreferrer">giosassets</a> (<a href="https://sketchfab.com/3d-models/low-poly-mercedes-benz-citaro-530-881e83d1378c496eb8e42708a4ad3b96" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, recoloured, tyres simplified.</p>
-    <p class="credits-source">VW T3 model: “VW T3 Van scale1-100 lowpoly for 3D-printing” by <a href="https://sketchfab.com/fishermans" target="_blank" rel="noopener noreferrer">fishermans garage</a> (<a href="https://sketchfab.com/3d-models/vw-t3-van-scale1-100-lowpoly-for-3d-printing-b26d56e82819444aa2379e6461500ff6" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, rescaled, wheels removed, recoloured.</p>
-    <p class="credits-source">Close-up trees grown with <a href="https://github.com/dgreenheck/ez-tree" target="_blank" rel="noopener noreferrer">EZ-Tree by Dan Greenheck</a> (MIT; <a href="./assets/trees/LICENSE-ez-tree.txt" target="_blank" rel="noopener noreferrer">licence</a>).</p>
-    <p class="credits-source">Code under the MIT License, based on colorfield's <a href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer">Slop Zürich</a>, itself after mrdoob's <a href="https://github.com/mrdoob/slop-newyork" target="_blank" rel="noopener noreferrer">Slop New York</a>. Built with <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> (MIT).</p>
-  </dialog>
-
-  <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
-  <div class="hud hud-bottom-left">
-    <div id="hud-location" class="location" aria-live="off"></div>
-    <aside id="minimap-card" class="panel radar" aria-label="Live Davos Street Radar Minimap" title="Open the full Davos street map [M]">
-      <canvas id="minimap-canvas"></canvas>
-      <span class="radar-north" aria-hidden="true">N</span>
-      <kbd class="radar-key">M</kbd>
-    </aside>
-  </div>
-
-  <!-- Bottom-Center: Third-Person Mode Switcher & Controls Guide -->
-  <footer class="hud hud-bottom-center">
-    <div id="hud-controls-hint" class="controls-hint"></div>
-  </footer>
-
-  <!-- Bottom-Right: Speed Cluster & Camera Switcher -->
-  <div class="hud hud-bottom-right">
-    <section id="hud-cluster" class="panel cluster" aria-label="Vehicle telemetry and camera">
-      <div class="gauge">
-        <div class="gauge-top">
-          <span id="hud-active-mode" class="gauge-label">Davos Cyclist</span>
-          <span class="gauge-alt"><span class="gauge-alt-label">Alt</span> <span id="hud-altitude">0</span> m a.s.l.</span>
+  <main>
+    <section>
+      <div class="wrap place">
+        <div class="prose">
+          <h2><span data-l="de">Wohin du willst</span><span data-l="en">Go where you like</span></h2>
+          <p><span data-l="de">Vom Wolfgang bis Monstein, vom Dischma bis hinauf zum Flüelapass. Das Gelände stammt aus den Höhendaten von swisstopo, die Häuser aus swissBUILDINGS3D, die Strassen, Wege und Loipen aus OpenStreetMap.</span><span data-l="en">From the Wolfgang to Monstein, from the Dischma up to the Flüela Pass. The terrain comes from swisstopo's elevation data, the houses from swissBUILDINGS3D, the roads, paths and cross-country trails from OpenStreetMap.</span></p>
+          <p><span data-l="de">Busse halten an ihren Haltestellen, die RhB fährt durchs Tal, die Bergbahnen laufen. Die Uhr geht weiter: Am Morgen dämmert es über den Bergen, am Abend gehen die Lichter an, und im Winter liegt Schnee bis ins Dorf.</span><span data-l="en">Buses pull in at their stops, the RhB runs through the valley, the mountain lifts turn. The clock keeps going: dawn breaks over the mountains, the lights come on in the evening, and in winter the snow lies right down into the village.</span></p>
         </div>
-        <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
-        <div class="gauge-meter" aria-hidden="true"><span id="hud-speed-meter"></span></div>
-      </div>
-      <div id="camera-switch" class="camera-switch">
-        <button id="cam-prev" class="icon-btn" type="button" title="Previous camera" aria-label="Previous camera">
-          <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg>
-        </button>
-        <button id="cam-menu-btn" class="camera-current" type="button" popovertarget="camera-popover" title="All cameras [V cycles]">
-          <svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg><span id="hud-active-camera">3rd-Person Chase</span><kbd>V</kbd>
-        </button>
-        <button id="cam-next" class="icon-btn" type="button" title="Next camera [V]" aria-label="Next camera">
-          <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
-        </button>
+        <div class="post" data-label-de="Orte im Spiel" data-label-en="Places in the game" aria-label="Orte im Spiel">
+          <span class="plate right"><span class="to">Flüela Schwarzhorn</span><span class="far">3146 m</span></span>
+          <span class="plate left"><span class="to">Jakobshorn</span><span class="far">2590 m</span></span>
+          <span class="plate right"><span class="to">Flüelapass</span><span class="far">2383 m</span></span>
+          <span class="plate left"><span class="to">Rinerhorn</span><span class="far">2528 m</span></span>
+          <span class="plate right"><span class="to">Wolfgang</span><span class="far">1631 m</span></span>
+          <span class="plate left"><span class="to">Clavadel</span><span class="far">1664 m</span></span>
+          <span class="plate right"><span class="to">Frauenkirch</span><span class="far">1508 m</span></span>
+          <div class="home">Davos Platz<small>1560 m</small></div>
+        </div>
       </div>
     </section>
-  </div>
 
-  <!-- Touch input stays available in clean view; the map temporarily suspends it. -->
-  <section id="touch-controls" aria-label="Touch controls" hidden>
-    <div class="touch-movement">
-      <div id="touch-stick" role="group" aria-label="Movement joystick: drag up or down to move, left or right to turn">
-        <span class="touch-stick-axis" aria-hidden="true"></span>
-        <span id="touch-stick-knob" aria-hidden="true"></span>
-      </div>
-      <span class="touch-caption">Move &amp; steer</span>
-    </div>
-    <p class="touch-look-hint">Drag to look · Pinch to zoom</p>
-    <!-- The buttons under the left thumb, from the register of actions (js/actions.js, js/touch-controls.js): the small
-         row of extras (horn, indicators, high beam, a mission's hook) over the big row (get in, jump, a mission's fire) -->
-    <div class="touch-actions" role="group" aria-label="Actions">
-      <div id="touch-extra" class="touch-row touch-extra" hidden></div>
-      <div id="touch-primary" class="touch-row touch-primary">
-        <button class="touch-action" data-touch-action="up" type="button" aria-label="Jump" aria-pressed="false" hidden>
-          <span class="touch-face" aria-hidden="true">↑</span><span class="touch-label" data-touch-label="up">Jump</span>
-        </button>
-        <button class="touch-action" data-touch-action="down" type="button" aria-label="Descend" aria-pressed="false" hidden>
-          <span class="touch-face" aria-hidden="true">↓</span><span class="touch-label" data-touch-label="down">Descend</span>
-        </button>
-      </div>
-    </div>
-  </section>
+    <section style="padding-top: 0">
+      <div class="wrap shots">
+        <div class="wide">
+          <figure>
+            <img src="./assets/welcome/schwarzhorn-sunrise-960.webp" srcset="./assets/welcome/schwarzhorn-sunrise-960.webp 960w, ./assets/welcome/schwarzhorn-sunrise-1600.webp 1600w" sizes="(min-width: 900px) 640px, 100vw" width="1600" height="1000" data-alt-de="Die Sonne geht über den Bergen auf, eine Wanderin steht auf dem Gipfelgrat" data-alt-en="The sun rises over the mountains, a hiker stands on the summit ridge" alt="Die Sonne geht über den Bergen auf, eine Wanderin steht auf dem Gipfelgrat" loading="lazy" />
+          </figure>
+          <div class="text">
+            <h3><span data-l="de">Vor der Sonne aufs Schwarzhorn</span><span data-l="en">Up the Schwarzhorn before the sun</span></h3>
+            <p><span data-l="de">Mit der Stirnlampe los, wenn es noch dunkel ist, über Geröll hinauf auf 3146 Meter. Oben wartest du, bis die Sonne über den Gipfeln im Osten aufgeht. Unterwegs schauen dir Gämsen und Steinböcke nach.</span><span data-l="en">Set out with a headlamp while it is still dark, up the scree to 3146 metres. At the top you wait for the sun to rise over the peaks in the east. Chamois and ibex watch you on the way.</span></p>
+          </div>
+        </div>
+        <div class="wide flip">
+          <figure>
+            <img src="./assets/welcome/paraglider-rinerhorn-960.webp" srcset="./assets/welcome/paraglider-rinerhorn-960.webp 960w, ./assets/welcome/paraglider-rinerhorn-1600.webp 1600w" sizes="(min-width: 900px) 640px, 100vw" width="1600" height="1000" data-alt-de="Ein Gleitschirm über einem Bergtal, darunter Wald und Wiesen" data-alt-en="A paraglider over a mountain valley, forest and meadows below" alt="Ein Gleitschirm über einem Bergtal, darunter Wald und Wiesen" loading="lazy" />
+          </figure>
+          <div class="text">
+            <h3><span data-l="de">Am Gleitschirm vom Rinerhorn</span><span data-l="en">Paragliding from the Rinerhorn</span></h3>
+            <p><span data-l="de">Aufziehen, ein paar Schritte den Hang hinunter, und du fliegst. Das Vario piepst in der Thermik, Alpendohlen kreisen darin, der Talwind versetzt dich nach Nordosten. Mit dem Flugschein darfst du danach überall frei starten.</span><span data-l="en">Pull up the wing, a few steps down the slope, and you are flying. The vario beeps in the thermals, alpine choughs circle in them, the valley wind drifts you north-east. With the licence you may take off anywhere afterwards.</span></p>
+          </div>
+        </div>
+        <div class="grid5">
+          <figure>
+            <img src="./assets/welcome/snowcat-dischma-625.webp" srcset="./assets/welcome/snowcat-dischma-625.webp 625w, ./assets/welcome/snowcat-dischma-1000.webp 1000w" sizes="(min-width: 1000px) 550px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein rotes Pistenfahrzeug präpariert eine Loipe" data-alt-en="A red snow groomer grooming a cross-country trail" alt="Ein rotes Pistenfahrzeug präpariert eine Loipe" loading="lazy" />
+            <figcaption><span data-l="de">Mit dem Pistenfahrzeug die Loipe präparieren</span><span data-l="en">Grooming the cross-country trail in a snowcat</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/rega-heliport-625.webp" srcset="./assets/welcome/rega-heliport-625.webp 625w, ./assets/welcome/rega-heliport-1000.webp 1000w" sizes="(min-width: 1000px) 550px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Der rote Rega-Helikopter auf dem Landeplatz des Spitals" data-alt-en="The red Rega helicopter on the hospital's helipad" alt="Der rote Rega-Helikopter auf dem Landeplatz des Spitals" loading="lazy" />
+            <figcaption><span data-l="de">Im Rega-Helikopter zum Spital</span><span data-l="en">In the Rega helicopter to the hospital</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/plough-wolfgang-625.webp" srcset="./assets/welcome/plough-wolfgang-625.webp 625w, ./assets/welcome/plough-wolfgang-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein Schneepflug räumt in der Nacht eine verschneite Strasse" data-alt-en="A snow plough clearing a snowy road at night" alt="Ein Schneepflug räumt in der Nacht eine verschneite Strasse" loading="lazy" />
+            <figcaption><span data-l="de">Vor dem ersten Postauto den Wolfgang räumen</span><span data-l="en">Clearing the Wolfgang before the first PostBus</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/rhb-train-625.webp" srcset="./assets/welcome/rhb-train-625.webp 625w, ./assets/welcome/rhb-train-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein roter Zug der Rhätischen Bahn in verschneiter Landschaft" data-alt-en="A red Rhaetian Railway train in a snowy landscape" alt="Ein roter Zug der Rhätischen Bahn in verschneiter Landschaft" loading="lazy" />
+            <figcaption><span data-l="de">Im Führerstand der RhB</span><span data-l="en">In the driver's cab of the RhB</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/flueela-snow-625.webp" srcset="./assets/welcome/flueela-snow-625.webp 625w, ./assets/welcome/flueela-snow-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein blauer VW-Bus auf der verschneiten Flüelastrasse" data-alt-en="A blue VW van on the snowy Flüela road" alt="Ein blauer VW-Bus auf der verschneiten Flüelastrasse" loading="lazy" />
+            <figcaption><span data-l="de">Mit Sommerpneus auf Schnee zum Flüelapass</span><span data-l="en">Summer tyres on snow up to the Flüela Pass</span></figcaption>
+          </figure>
+        </div>
 
-  <!-- All Cameras: 4 Follow Cameras + 7 Davos Viewpoints + Auto-Director Drone -->
-  <div id="camera-popover" class="popover" popover data-side="above" data-anchor="hud-cluster" data-align="hud-cluster" aria-label="Multiple Camera Angles">
-    <div class="pop-title">Follow</div>
-    <button id="cam-chase" class="pop-item cam-btn active" data-camera="chase" type="button"><span class="pop-name">3rd-Person Chase</span></button>
-    <button id="cam-action" class="pop-item cam-btn" data-camera="action" type="button"><span class="pop-name">Low-Angle Action</span></button>
-    <button id="cam-pov" class="pop-item cam-btn" data-camera="pov" type="button"><span class="pop-name">First-Person / Cockpit</span><kbd>7</kbd></button>
-    <button id="cam-topdown" class="pop-item cam-btn" data-camera="topdown" type="button"><span class="pop-name">Bird's-Eye (top-down)</span><kbd>O</kbd></button>
-    <div class="pop-title">Scenic</div>
-    <button id="cam-centralPark" class="pop-item cam-btn" data-camera="centralPark" type="button"><span class="pop-name">Promenade Davos Platz</span></button>
-    <button id="cam-fifthAve" class="pop-item cam-btn" data-camera="fifthAve" type="button"><span class="pop-name">Kongresszentrum</span><kbd>8</kbd></button>
-    <button id="cam-timesSquare" class="pop-item cam-btn" data-camera="timesSquare" type="button"><span class="pop-name">Bahnhof Davos Platz</span><kbd>9</kbd></button>
-    <button id="cam-chryslerGCT" class="pop-item cam-btn" data-camera="chryslerGCT" type="button"><span class="pop-name">Davosersee &amp; Davos Dorf</span><kbd>0</kbd></button>
-    <button id="cam-observatory" class="pop-item cam-btn" data-camera="observatory" type="button"><span class="pop-name">Schatzalp over the valley</span></button>
-    <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name">Eisstadion &amp; Kirchner Museum</span></button>
-    <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">Dischma valley</span></button>
-    <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name">Auto-Director Aerial</span></button>
-  </div>
-
-  <!-- Full-Screen Interactive Davos Street Map ([M]) -->
-  <section id="fullmap-modal" class="fullmap-modal hidden" role="dialog" aria-modal="true" aria-label="Full Davos Interactive Street Map">
-    <div id="fullmap-canvas-wrap" class="fullmap-canvas-wrap">
-      <canvas id="fullmap-canvas"></canvas>
-    </div>
-
-    <div class="fullmap-header">
-      <div class="panel fullmap-title">
-        <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
-        <div>
-          <h2>Davos Map</h2>
-          <p id="fullmap-player-info" class="fullmap-subtitle">You are on the Promenade</p>
+        <div class="ways">
+          <div>
+            <h3><span data-l="de">70 Missionen</span><span data-l="en">70 missions</span></h3>
+            <p><span data-l="de">Rettungsflüge, Arbeit auf der Strasse und am Berg, Rennen, Bars und Beizen. Jede mit Medaillen und eigener Rangliste.</span><span data-l="en">Rescue flights, work on the road and on the mountain, races, bars and restaurants. Each with medals and its own leaderboard.</span></p>
+          </div>
+          <div>
+            <h3><span data-l="de">Sommer und Winter</span><span data-l="en">Summer and winter</span></h3>
+            <p><span data-l="de">Die Jahreszeiten wechseln, die Tage werden kürzer und länger. Manche Missionen gibt es nur bei Schnee, andere nur im Sommer oder nach Mitternacht.</span><span data-l="en">The seasons change, the days grow shorter and longer. Some missions only happen in the snow, others only in summer or after midnight.</span></p>
+          </div>
+          <div>
+            <h3><span data-l="de">Einfach einsteigen</span><span data-l="en">Just get in</span></h3>
+            <p><span data-l="de">Mit F steigst du in jedes Fahrzeug, das herumsteht: Auto, Bus, Velo, Pistenfahrzeug, Helikopter. Missionen startest du an ihrem Startpunkt mit Enter, oder direkt aus der Liste.</span><span data-l="en">Press F to get into any vehicle standing around: car, bus, bike, snowcat, helicopter. Start a mission with Enter at its starting point, or straight from the list.</span></p>
+          </div>
         </div>
       </div>
-      <label class="panel fullmap-search-wrap">
-        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-        <input id="fullmap-search" class="fullmap-search" type="text" placeholder="Search streets &amp; landmarks — Promenade, Talstrasse, Kongresszentrum…" aria-label="Search street or landmark" autocomplete="off" spellcheck="false" />
-      </label>
-      <button id="close-fullmap-btn" class="panel tool-btn fullmap-close" type="button" title="Close map [M / Esc]">
-        <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg><span class="tool-label">Close</span><kbd>Esc</kbd>
-      </button>
-    </div>
+    </section>
 
-    <div class="map-controls">
-      <div class="panel map-compass" title="True north">
-        <svg viewBox="0 0 44 44" aria-hidden="true">
-          <g id="map-compass-needle">
-            <path d="M22 9.5 25.6 22h-7.2z" fill="#f05a4f"/>
-            <path d="M22 34.5 25.6 22h-7.2z" fill="rgba(255,255,255,0.72)"/>
-            <text x="22" y="8" text-anchor="middle">N</text>
-          </g>
-        </svg>
+    <section class="stats" id="statistik" data-state="loading" aria-live="polite" hidden>
+      <div class="wrap">
+        <h2><span data-l="de">Bisher in Davos unterwegs</span><span data-l="en">Out and about in Davos so far</span></h2>
+        <p class="intro"><span data-l="de">Alle Spielerinnen und Spieler mit Konto zusammen, laufend nachgeführt. Wer als Gast spielt, zählt hier nicht mit.</span><span data-l="en">All players with an account together, kept up to date. Guests are not counted here.</span></p>
+        <dl class="numbers">
+          <div><dt><span data-l="de">Stunden gespielt</span><span data-l="en">Hours played</span></dt><dd data-stat="playHours">–</dd></div>
+          <div><dt><span data-l="de">Kilometer unterwegs</span><span data-l="en">Kilometres travelled</span></dt><dd data-stat="km">–</dd></div>
+          <div><dt><span data-l="de">Missionen geschafft</span><span data-l="en">Missions completed</span></dt><dd data-stat="missionsDone">–</dd></div>
+          <div><dt><span data-l="de">Goldmedaillen</span><span data-l="en">Gold medals</span></dt><dd data-stat="gold">–</dd></div>
+        </dl>
+        <div class="travel" hidden>
+          <h3><span data-l="de">So viele Kilometer, so unterwegs</span><span data-l="en">Kilometres by way of travel</span></h3>
+          <ul class="bars"></ul>
+        </div>
+        <p class="when"></p>
       </div>
-      <div class="panel map-zoom">
-        <button id="map-zoom-in" class="icon-btn" type="button" title="Zoom in" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
-        <button id="map-zoom-out" class="icon-btn" type="button" title="Zoom out" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button>
-      </div>
-      <div class="panel map-zoom">
-        <button id="map-center-player" class="icon-btn" type="button" title="Street view around you" aria-label="Center on player"><svg class="icon" aria-hidden="true"><use href="#i-locate"/></svg></button>
-        <button id="map-view-all" class="icon-btn" type="button" title="All of Davos (Wolfgang to Frauenkirch and Dürrboden)" aria-label="Fit the whole map"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
-      </div>
-    </div>
+    </section>
 
-    <div class="fullmap-footer">
-      <div class="panel fullmap-status">
-        <span id="fullmap-hover-info">Click anywhere to teleport &amp; set your GPS route · Drag to pan · Scroll to zoom</span>
+    <section class="last">
+      <div class="wrap">
+        <h2><span data-l="de">Davos wartet.</span><span data-l="en">Davos is waiting.</span></h2>
+        <p class="prose" style="margin: 0 0 28px"><span data-l="de">Du startest am Bahnhof Davos Platz. Melde dich an, damit dein Spiel auf allen Geräten weitergeht und deine Zeiten in die Ranglisten kommen, oder spiel zuerst zwei Minuten als Gast.</span><span data-l="en">You start at Davos Platz station. Sign in so that your game carries on across all your devices and your times go on the leaderboards, or play two minutes as a guest first.</span></p>
+        <a class="plate" href="./play.html"><span class="to"><span data-l="de">Davos spielen</span><span data-l="en">Play Davos</span></span><span class="far"><span data-l="de">sofort</span><span data-l="en">now</span></span></a>
       </div>
-    </div>
+    </section>
+  </main>
 
-    <div class="panel fullmap-legend">
-      <span class="legend-item"><span class="legend-swatch player-swatch"></span>You</span>
-      <span class="legend-item"><span class="legend-swatch landmark-swatch"></span>Landmark</span>
-      <span class="legend-item"><span class="legend-swatch heli-swatch">H</span>Rega helicopter</span>
-      <span class="legend-item"><span class="legend-swatch vehicle-swatch">T3</span>Your vehicles</span>
-      <span class="legend-item"><span class="legend-swatch gps-swatch"></span>GPS route</span>
-      <span class="legend-item"><span class="legend-swatch bridge-swatch"></span>Bridge / Hwy</span>
-      <span class="legend-item legend-credits">© swisstopo · © OpenStreetMap contributors</span>
-      <span id="fullmap-counts" class="legend-counts"></span>
+  <footer>
+    <div class="wrap">
+      <span><span data-l="de">Karten und Gelände © swisstopo, Strassen © OpenStreetMap-Mitwirkende</span><span data-l="en">Maps and terrain © swisstopo, roads © OpenStreetMap contributors</span></span>
+      <a href="./privacy.html"><span data-l="de">Datenschutz</span><span data-l="en">Privacy</span></a>
+      <a href="https://github.com/hilletob/slopdavos"><span data-l="de">Quellcode</span><span data-l="en">Source code</span></a>
     </div>
-  </section>
+  </footer>
 
+  <script type="module">
+    import { SUPABASE_URL, SUPABASE_KEY } from './js/account-config.js';
+
+    // The language: the game's own choice (js/i18n.js keeps it under the same key on this site), else the browser's
+    const KEY = 'slopdavos-language';
+    const META = {
+      de: {
+        title: 'Slop Davos – Davos im Browser',
+        description: 'Slop Davos: ganz Davos im Massstab 1:1 im Browser, vom Wolfgang bis Monstein und vom Dischma bis zum Flüelapass. Zu Fuss, im Auto, im Pistenfahrzeug, mit der RhB, dem Rega-Helikopter oder am Gleitschirm, mit 70 Missionen in Sommer und Winter.'
+      },
+      en: {
+        title: 'Slop Davos – Davos in your browser',
+        description: 'Slop Davos: all of Davos at 1:1 in your browser, from the Wolfgang to Monstein and from the Dischma to the Flüela Pass. On foot, by car, in a snow groomer, on the RhB, in the Rega helicopter or under a paraglider, with 70 missions in summer and winter.'
+      }
+    };
+    const TRAVEL = {
+      de: {
+        walk: 'Zu Fuss', car: 'Auto', bus: 'Bus', bike: 'Velo', cargobike: 'Cargovelo', helicopter: 'Helikopter',
+        snowcat: 'Pistenfahrzeug', 'train-driver': 'Lokführer', 'train-passenger': 'Im Zug', ski: 'Ski', snowboard: 'Snowboard',
+        'xc-ski': 'Langlauf', sledge: 'Schlitten', toboggan: 'Rodelbahn', skates: 'Schlittschuhe', skateboard: 'Skateboard',
+        snowshoe: 'Schneeschuhe', paraglider: 'Gleitschirm', waterslide: 'Rutschbahn', climbing: 'Seilpark', crane: 'Kran',
+        quad: 'Quad', 'snow-blower': 'Schneefräse', mower: 'Rasenmäher', 'garbage-truck': 'Kehrichtwagen', truck: 'Lastwagen'
+      },
+      en: {
+        walk: 'On foot', car: 'Car', bus: 'Bus', bike: 'Bike', cargobike: 'Cargo bike', helicopter: 'Helicopter',
+        snowcat: 'Snowcat', 'train-driver': 'Train driver', 'train-passenger': 'By train', ski: 'Skis', snowboard: 'Snowboard',
+        'xc-ski': 'Cross-country', sledge: 'Sledge', toboggan: 'Toboggan', skates: 'Skates', skateboard: 'Skateboard',
+        snowshoe: 'Snowshoes', paraglider: 'Paraglider', waterslide: 'Water slide', climbing: 'Rope park', crane: 'Crane',
+        quad: 'Quad', 'snow-blower': 'Snow blower', mower: 'Ride-on mower', 'garbage-truck': 'Garbage truck', truck: 'Truck'
+      }
+    };
+    const LOCALE = { de: 'de-CH', en: 'en-GB' };
+    let lang = 'de';
+    try { const saved = localStorage.getItem(KEY); lang = saved === 'de' || saved === 'en' ? saved : /^de(?:-|$)/i.test(navigator.language || '') ? 'de' : 'en'; } catch { /* */ }
+
+    const section = document.getElementById('statistik');
+    let stats = null;
+    const fmt = (n, digits = 0) => Number(n || 0).toLocaleString(LOCALE[lang], { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+
+    function renderStats() {
+      if (!stats) return;
+      const s = stats;
+      for (const dd of section.querySelectorAll('[data-stat]')) {
+        const key = dd.dataset.stat;
+        dd.textContent = fmt(s[key], key === 'km' && s[key] < 100 ? 1 : 0);
+      }
+      const ways = (s.travel || []).filter((t) => t.km >= 0.1).slice(0, 8);
+      const list = section.querySelector('.bars');
+      list.replaceChildren();
+      if (ways.length) {
+        const max = Math.max(...ways.map((t) => t.km));
+        for (const t of ways) {
+          const li = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = TRAVEL[lang][t.kind] || t.kind;
+          const bar = document.createElement('span');
+          bar.className = 'bar';
+          const fill = document.createElement('span');
+          fill.style.width = `${Math.max(1.5, (t.km / max) * 100)}%`;
+          bar.append(fill);
+          const km = document.createElement('span');
+          km.className = 'km';
+          km.textContent = `${fmt(t.km, t.km < 10 ? 1 : 0)} km`;
+          li.append(name, bar, km);
+          list.append(li);
+        }
+        section.querySelector('.travel').hidden = false;
+      }
+      const players = Number(s.players || 0);
+      const when = new Date(s.at || Date.now()).toLocaleString(LOCALE[lang], { dateStyle: 'medium', timeStyle: 'short' });
+      section.querySelector('.when').textContent = lang === 'de'
+        ? `${fmt(players)} ${players === 1 ? 'Konto' : 'Konten'}, Stand ${when}`
+        : `${fmt(players)} ${players === 1 ? 'account' : 'accounts'}, as of ${when}`;
+    }
+
+    function applyLanguage(next, keep = false) {
+      lang = next;
+      document.documentElement.lang = lang;
+      document.title = META[lang].title;
+      document.querySelector('meta[name="description"]').content = META[lang].description;
+      for (const img of document.querySelectorAll('[data-alt-de]')) img.alt = img.dataset[lang === 'de' ? 'altDe' : 'altEn'];
+      for (const el of document.querySelectorAll('[data-label-de]')) el.setAttribute('aria-label', el.dataset[lang === 'de' ? 'labelDe' : 'labelEn']);
+      for (const b of document.querySelectorAll('[data-set-lang]')) b.setAttribute('aria-pressed', String(b.dataset.setLang === lang));
+      if (keep) { try { localStorage.setItem(KEY, lang); } catch { /* */ } } // (the game then speaks it too)
+      renderStats();
+    }
+    for (const b of document.querySelectorAll('[data-set-lang]')) b.addEventListener('click', () => applyLanguage(b.dataset.setLang, true));
+    applyLanguage(lang);
+
+    async function load() {
+      if (!SUPABASE_URL) throw new Error('no backend');
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/global_stats`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      return response.json();
+    }
+    load().then((s) => {
+      stats = s;
+      renderStats();
+      section.dataset.state = 'ready';
+      section.hidden = false; // (shown only with numbers: supabase/migrations/*_global_stats.sql applied)
+    }).catch(() => { /* (no numbers: the section stays hidden, the page works without it) */ });
+  </script>
 </body>
 </html>

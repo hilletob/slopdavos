@@ -5,7 +5,7 @@ import { SUPABASE_SDK, LOGIN_PROVIDERS } from '../js/account-config.js';
 import { hasStoredSession, safeReturnPath, callbackUrl, isConfigured, SESSION_KEY } from '../js/account.js';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const html = read('index.html');
+const html = read('play.html');
 
 test('the account is off until both the URL and the key are set', () => {
   assert.equal(isConfigured('', ''), false);
@@ -25,7 +25,7 @@ test('a session is recognised without the SDK, and a sign-in under way is not on
 test('the login returns only to a path on this site', () => {
   assert.equal(safeReturnPath('/?memhud=1'), '/?memhud=1');
   for (const bad of ['https://evil.test/', '//evil.test/', '/\\evil.test', 'javascript:alert(1)', '', null, undefined]) {
-    assert.equal(safeReturnPath(bad), '/', String(bad));
+    assert.equal(safeReturnPath(bad), '/play.html', String(bad));
   }
 });
 

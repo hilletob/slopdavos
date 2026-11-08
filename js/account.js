@@ -17,7 +17,7 @@ export function hasStoredSession(storage = globalThis.localStorage) {
 }
 
 /** Where the login comes back to. Only a path on this site: the value is read back from storage after a redirect */
-export function safeReturnPath(value, fallback = '/') {
+export function safeReturnPath(value, fallback = '/play.html') {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return fallback;
   return value;
 }

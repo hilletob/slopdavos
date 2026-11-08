@@ -12,7 +12,7 @@ test.before(async () => {
 });
 
 test('every teleport button has a destination on a real roadway inside the mapped city', () => {
-  const buttons = [...read('index.html').matchAll(/data-teleport="([^"]+)"/g)].map((match) => match[1]);
+  const buttons = [...read('play.html').matchAll(/data-teleport="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(Object.keys(TELEPORT_LOCATIONS).sort(), buttons.sort());
   const [minX, minZ, maxX, maxZ] = WORLD_BOUNDS;
   for (const [name, point] of Object.entries(TELEPORT_LOCATIONS)) {

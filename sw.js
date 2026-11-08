@@ -1,5 +1,5 @@
 // sw.js — the service worker of the installed app (PWA): Davos also starts without a network once it has been
-// visited. Registered by index.html everywhere except on the development server (localhost / 127.0.0.1).
+// visited. Registered by play.html (the game) everywhere except on the development server (localhost / 127.0.0.1).
 // - The site's own files: network first (a deploy is seen at once; the browser's HTTP cache still answers unchanged
 //   files with 304s), the cached copy when offline. Every successful GET is kept, so whatever was streamed in on a
 //   visit (terrain, imagery, buildings near the route) is there the next time.

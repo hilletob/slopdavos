@@ -54,7 +54,7 @@ test('the WEF missions are registered, by points, with their pins apart from eve
 });
 
 test('the runtime is preloaded and the missions join in the engine', () => {
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../play.html', import.meta.url), 'utf8');
   assert.match(html, /missions-data-wef\.js/);
   assert.match(html, /missions-wef\.js/);
   const locations = JSON.parse(readFileSync(new URL('../docs/missions-locations.json', import.meta.url), 'utf8'));

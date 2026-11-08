@@ -196,7 +196,7 @@ test('the free flight is wired: P in the register, the touch button, the preload
   assert.match(src, /id: 'paraglide', keys: \['KeyP'\], pad: 'left'/, 'the key, the key bar and the gamepad come from js/actions.js');
   assert.doesNotMatch(src, /addEventListener\('keydown'/);
   assert.match(src, /addTapButton/);
-  assert.match(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /modulepreload" href="\.\/js\/paraglide-free\.js"/);
+  assert.match(readFileSync(new URL('../play.html', import.meta.url), 'utf8'), /modulepreload" href="\.\/js\/paraglide-free\.js"/);
   assert.match(readFileSync(new URL('../js/gta.js', import.meta.url), 'utf8'), /cm\.paragliding\) return null/);
   const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
   assert.match(main, /buildFreeFlight\(/); assert.match(main, /freeFlight\.update\(dt\)/); assert.match(main, /gliding: freeFlight\.gliding/);

@@ -21,7 +21,7 @@ for (const b of D.buildings) {
   for (let x = Math.min(...xs) + st / 2; x < Math.max(...xs); x += st) for (let z = Math.min(...zs) + st / 2; z < Math.max(...zs); z += st) if (inRing(pts, x, z)) samples.push([x, z]);
   if (samples.length) cands.push({ id: b.id, samples: samples.slice(0, 40) });
 }
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').match(/<script type="importmap">[\s\S]*?<\/script>/)[0];
+const html = fs.readFileSync(path.join(ROOT, 'play.html'), 'utf8').match(/<script type="importmap">[\s\S]*?<\/script>/)[0];
 const draco = html.match(/"three\/addons\/": "([^"]+)"/)[1] + 'libs/draco/gltf/';
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage();

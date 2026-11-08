@@ -149,7 +149,7 @@ test('the quad mission is raceable: its gates in order, the next one from the st
 });
 
 test('the race modules load on demand only, and the run takes the race from the manager', () => {
-  const html = read('index.html');
+  const html = read('play.html');
   for (const module of ['race-protocol', 'race-net', 'race-session', 'race-ghosts', 'race-ui']) assert.ok(!html.includes(`href="./js/${module}.js"`), `${module} is not preloaded`);
   const missions = read('js/missions.js');
   assert.doesNotMatch(missions, /^import .*race-/m, 'js/missions.js loads the lobby on demand');

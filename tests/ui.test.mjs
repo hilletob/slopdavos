@@ -5,7 +5,7 @@ import test from 'node:test';
 // The HUD's shape (index.html, css/style.css): one toolbar in three groups, the menu for what is set once in a while,
 // one dialog shell for the missions, the leaderboards and the credits
 
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../play.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../css/style.css', import.meta.url), 'utf8');
 const i18n = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
 const toolbar = html.match(/<div id="hud-toolbar"[^]*?<\/div>\s*<\/div>/)[0];

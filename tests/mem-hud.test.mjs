@@ -43,6 +43,6 @@ test('without the switch in the URL the read-out is not even loaded', () => {
   const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /from '\.\/mem-hud\.js'/);
   assert.match(main, /\/\[\?&\]memhud=\(1\|true\)\\b\/\.test\(location\.search\) \? await import\('\.\/mem-hud\.js'\) : null/);
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../play.html', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /mem-hud/, 'nor preloaded');
 });
