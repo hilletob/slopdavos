@@ -8,7 +8,7 @@ import { emailSignIn } from './account-email.js';
 // let finish first. Signed out again later, the time is long gone: the question comes at once.
 
 export const GUEST_TIME_KEY = 'slopdavos-guest-ms';
-export const GUEST_LIMIT_MS = 120000;
+export const GUEST_LIMIT_MS = 300000; // (five minutes)
 const TICK = 1000; // ms
 const MAX_STEP = 2000; // ms counted for one tick at most (a sleeping device, a throttled tab)
 

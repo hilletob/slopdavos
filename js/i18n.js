@@ -31,7 +31,7 @@ const pairs = [
   ['Privacy', 'Datenschutz'],
   ['Sign in to keep your game on all your devices and join the leaderboards.', 'Melde dich an, damit dein Spiel auf all deinen Geräten weiterläuft und du in die Bestenlisten kommst.'],
   ['Play as a guest', 'Als Gast spielen'],
-  ['Try it for 2 minutes as a guest', '2 Minuten als Gast ausprobieren'], ['Sign in with Apple', 'Mit Apple anmelden'],
+  ['Try it for 5 minutes as a guest', '5 Minuten als Gast ausprobieren'], ['Sign in with Apple', 'Mit Apple anmelden'],
   ['Please sign in', 'Bitte melde dich an'],
   ['To keep playing, sign in. Your game goes on where you are, on all your devices.', 'Um weiterzuspielen, melde dich an. Dein Spiel geht dort weiter, wo du bist, auf all deinen Geräten.'],
   ['The sign-in is not reachable right now. Please try again.', 'Die Anmeldung ist gerade nicht erreichbar. Bitte versuche es erneut.'],

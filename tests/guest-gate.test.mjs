@@ -8,13 +8,13 @@ const { createGuestClock, GUEST_TIME_KEY, GUEST_LIMIT_MS } = await import('../js
 const { enabledProviders } = await import('../js/account.js');
 const { LOGIN_PROVIDERS } = await import('../js/account-config.js');
 
-test('a guest plays two minutes, and a reload does not give them back', () => {
-  assert.equal(GUEST_LIMIT_MS, 120000);
+test('a guest plays five minutes, and a reload does not give them back', () => {
+  assert.equal(GUEST_LIMIT_MS, 300000);
   const storage = memory();
   const clock = createGuestClock(storage);
-  for (let i = 0; i < 119; i++) assert.equal(clock.add(1000), false);
+  for (let i = 0; i < 299; i++) assert.equal(clock.add(1000), false);
   assert.equal(clock.add(1000), true);
-  assert.equal(storage.getItem(GUEST_TIME_KEY), '120000');
+  assert.equal(storage.getItem(GUEST_TIME_KEY), '300000');
   assert.equal(createGuestClock(storage).over, true, 'the time stays on the device');
 });
 

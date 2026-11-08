@@ -45,8 +45,8 @@ export function askHowToPlay() {
       box.remove();
       resolve();
     };
-    // (a guest plays two minutes, then js/guest-gate.js asks for the sign-in)
-    const guest = button('Try it for 2 minutes as a guest', () => goOn('guest'));
+    // (a guest plays five minutes, then js/guest-gate.js asks for the sign-in)
+    const guest = button('Try it for 5 minutes as a guest', () => goOn('guest'));
     // (signed in with an email code, the page stays: the game is built now, and js/account-ui.js finds the session)
     const email = emailSignIn({ say: (message) => { status.textContent = message; status.hidden = !message; }, signedIn: () => goOn('account') });
     const or = document.createElement('p');
