@@ -240,6 +240,36 @@ const tramStops = [];
 const stations = []; // railway stations and halts (the RhB's, and the funiculars')
 const loipen = []; // cross-country ski trails, drawn in winter (js/loipen.js)
 let trees = [];
+// Sidewalks mapped as bridge ways of their own (footway=sidewalk) beside a street that is not one: a brook culverted
+// under the street, the bridge tag on the sidewalk only (the Promenade's eastern sidewalk over the Guggerbach, level
+// with the street on the aerial photo, no railing). They stay on the ground: no deck, no parapets in the lane.
+const isBridgeTag = (t) => !!t.bridge && t.bridge !== 'no' && t.bridge !== 'culvert';
+const sidewalkCulverts = new Set();
+{
+  const streets = [];
+  for (const e of osm.elements) {
+    const t = e.tags || {};
+    if (e.type !== 'way' || !e.geometry || !t.highway || MINOR.test(t.highway) || /^(proposed|construction|platform|raceway|bridleway)$/.test(t.highway)) continue;
+    const pts = geomPts(e.geometry);
+    for (let i = 1; i < pts.length; i++) streets.push({ a: pts[i - 1], b: pts[i], bridge: isBridgeTag(t) });
+  }
+  for (const e of osm.elements) {
+    const t = e.tags || {};
+    if (e.type !== 'way' || !e.geometry || t.footway !== 'sidewalk' || !isBridgeTag(t)) continue;
+    const pts = geomPts(e.geometry), [x0, z0] = pts[0], [x1, z1] = pts[pts.length - 1];
+    const ux = x1 - x0, uz = z1 - z0, U = Math.hypot(ux, uz) || 1, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    // The street it runs along: the nearest roughly parallel one (within ~15°, 12 m)
+    let best = Infinity, street = null;
+    for (const s of streets) {
+      const dx = s.b[0] - s.a[0], dz = s.b[1] - s.a[1], L = Math.hypot(dx, dz);
+      if (L < 1 || Math.abs(ux * dz - uz * dx) > 0.26 * L * U) continue;
+      const tc = Math.max(0, Math.min(1, ((mx - s.a[0]) * dx + (mz - s.a[1]) * dz) / (L * L)));
+      const d = Math.hypot(s.a[0] + tc * dx - mx, s.a[1] + tc * dz - mz);
+      if (d < 12 && d < best) { best = d; street = s; }
+    }
+    if (street && !street.bridge) sidewalkCulverts.add(e.id);
+  }
+}
 for (const e of osm.elements) {
   const t = e.tags || {};
   if (e.type === 'node') {
@@ -255,12 +285,13 @@ for (const e of osm.elements) {
   if (e.type !== 'way' || !e.geometry) continue;
   const pts = geomPts(e.geometry);
   if (!bboxInFrame(bbox(pts), 50)) continue;
-  const bridge = !!t.bridge && t.bridge !== 'no' && t.bridge !== 'culvert';
+  const culvert = sidewalkCulverts.has(e.id);
+  const bridge = isBridgeTag(t) && !culvert;
   // Below ground counts as a tunnel: the engine has no underground, and the terrain tool fills the open cuts leading
   // there (the Bahnhofquai underpass, the ramps to the HB's underground stations)
   const tunnel = (!!t.tunnel && t.tunnel !== 'no' && t.tunnel !== 'building_passage') || t.covered === 'yes' || t.location === 'underground' ||
     (!bridge && (num(t.layer) ?? 0) < 0);
-  const layer = num(t.layer) ?? (bridge ? 1 : tunnel ? -1 : 0);
+  const layer = culvert ? 0 : num(t.layer) ?? (bridge ? 1 : tunnel ? -1 : 0);
   // Cross-country ski trails (OSM piste:type=nordic; often on a track or path that is also a road record below)
   if (t['piste:type'] === 'nordic') {
     loipen.push({ id: `w${e.id}`, pts: flat(rdp(pts, 1)), grooming: t['piste:grooming'] || 'classic+skating', difficulty: t['piste:difficulty'] || '', name: t['piste:name'] || t.name || '' });
