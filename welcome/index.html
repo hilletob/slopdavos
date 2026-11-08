@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slop Davos – Davos im Browser</title>
+  <meta name="description" content="Slop Davos: ganz Davos im Massstab 1:1 im Browser, vom Wolfgang bis Monstein und vom Dischma bis zum Flüelapass. Zu Fuss, im Auto, im Pistenfahrzeug, mit der RhB, dem Rega-Helikopter oder am Gleitschirm, mit 70 Missionen in Sommer und Winter." />
+  <meta property="og:title" content="Slop Davos" />
+  <meta property="og:description" content="Ganz Davos im Massstab 1:1 im Browser. Einfach losspielen." />
+  <meta property="og:image" content="https://davos.tschopp.cloud/assets/welcome/davos-valley-1200.webp" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#1d2a3f" />
+  <link rel="icon" href="../assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png" />
+  <link rel="preload" href="../assets/welcome/fonts/signika-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <style>
+    @font-face {
+      font-family: 'Signika';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url(../assets/welcome/fonts/signika-latin.woff2) format('woff2');
+    }
+    :root {
+      --gelb: #f2c200;      /* the yellow of the Swiss trail signposts */
+      --gelb-tief: #d9ad00;
+      --fels: #24292e;      /* text: the grey of the granite, not black */
+      --fels-weich: #59626b;
+      --schnee: #f5f7f9;
+      --nacht: #1d2a3f;     /* the blue of the Davos evening in the hero */
+      --nacht-hell: #c9d4e3;
+      --see: #2f6f99;
+      --pfosten: #9aa3ab;
+      --radius: 3px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--schnee);
+      color: var(--fels);
+      font: 400 18px/1.55 'Signika', system-ui, sans-serif;
+      font-feature-settings: 'kern', 'lnum';
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: var(--see); text-underline-offset: 3px; }
+    a:focus-visible, .plate:focus-visible { outline: 3px solid var(--see); outline-offset: 3px; }
+    .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+    /* --- The signpost plate: the one shape the page is built on ------------------------------------------------- */
+    .plate {
+      --tip: 26px;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 28px;
+      justify-content: space-between;
+      min-width: 260px;
+      padding: 12px calc(var(--tip) + 18px) 12px 20px;
+      background: var(--gelb);
+      color: #1b1d1f;
+      text-decoration: none;
+      font-weight: 600;
+      line-height: 1.15;
+      clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%);
+    }
+    .plate.left {
+      padding: 12px 20px 12px calc(var(--tip) + 18px);
+      clip-path: polygon(var(--tip) 0, 100% 0, 100% 100%, var(--tip) 100%, 0 50%);
+    }
+    .plate .to { font-size: 1.05em; }
+    .plate .far { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* --- Hero ---------------------------------------------------------------------------------------------------- */
+    .hero {
+      position: relative;
+      min-height: min(92vh, 860px);
+      display: grid;
+      align-items: end;
+      background: var(--nacht) url(../assets/welcome/davos-valley-1200.webp) center 40% / cover no-repeat;
+      color: #fff;
+      overflow: hidden;
+    }
+    @media (min-width: 1000px) { .hero { background-image: url(../assets/welcome/davos-valley-2000.webp); } }
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(29, 42, 63, 0) 35%, rgba(29, 42, 63, 0.55) 62%, rgba(29, 42, 63, 0.94) 100%);
+    }
+    .hero-inner { position: relative; z-index: 1; padding: 0 0 clamp(36px, 7vh, 72px); }
+    .brand {
+      position: absolute; z-index: 1; top: 20px; left: 16px; right: 16px;
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 600; font-size: 17px; color: #fff; text-decoration: none;
+    }
+    .brand img { width: 34px; height: 34px; border-radius: 8px; }
+    @media (min-width: 1152px) { .brand { left: calc((100% - 1120px) / 2); } }
+    h1 {
+      margin: 0;
+      font-weight: 700;
+      font-size: clamp(56px, 11vw, 150px);
+      line-height: 0.9;
+      letter-spacing: -0.035em;
+    }
+    .lede {
+      max-width: 34em;
+      margin: 18px 0 30px;
+      font-size: clamp(19px, 2.1vw, 23px);
+      line-height: 1.4;
+      color: #eef2f7;
+    }
+    .hero .plate { font-size: 22px; min-width: 300px; padding-block: 16px; --tip: 32px; }
+    .hero .plate:hover { background: #ffd21f; }
+    .hero-note { margin: 12px 0 0; font-size: 15px; color: var(--nacht-hell); }
+
+    /* --- Sections ------------------------------------------------------------------------------------------------ */
+    section { padding: clamp(56px, 9vw, 112px) 0; }
+    h2 {
+      margin: 0 0 18px;
+      font-weight: 700;
+      font-size: clamp(32px, 4.4vw, 52px);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+    .prose { max-width: 36em; }
+    .prose p { margin: 0 0 1em; }
+
+    /* the place: text beside the signpost */
+    .place { display: grid; gap: 48px; align-items: center; }
+    @media (min-width: 900px) { .place { grid-template-columns: 1fr 1fr; } }
+    .post {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      padding: 14px 0 54px;
+    }
+    .post::before { /* the pole */
+      content: '';
+      position: absolute; top: 0; bottom: 0; left: 50%;
+      width: 14px; margin-left: -7px;
+      border-radius: 7px 7px 0 0;
+      background: linear-gradient(90deg, #b9c0c6, var(--pfosten) 55%, #7d868e);
+    }
+    .post .plate { position: relative; width: min(330px, 86%); font-size: 18px; }
+    .post .plate.right { transform: translateX(min(42%, 140px)); }
+    .post .plate.left { transform: translateX(max(-42%, -140px)); }
+    @media (max-width: 760px) { /* narrow: the pole at the left edge, every plate pointing on from it */
+      .post { justify-items: start; padding-left: 0; }
+      .post::before { left: 7px; }
+      .post .plate.left, .post .plate.right {
+        transform: none; width: calc(100% - 22px); margin-left: 22px; font-size: 17px;
+        padding: 11px 42px 11px 16px;
+        clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%);
+      }
+      .post .home { margin-left: 0; width: auto; min-width: 60%; text-align: left; }
+    }
+    .post .home {
+      position: relative;
+      width: min(240px, 66%);
+      padding: 10px 14px;
+      background: #fff;
+      border: 2px solid #1b1d1f;
+      border-radius: var(--radius);
+      text-align: center;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .post .home small { display: block; font-weight: 400; font-size: 15px; color: var(--fels-weich); }
+
+    /* the pictures */
+    .shots { display: grid; gap: 14px; }
+    figure { margin: 0; }
+    figure img { width: 100%; border-radius: var(--radius); background: #d8dee4; }
+    figcaption { padding: 8px 2px 0; font-size: 15px; color: var(--fels-weich); }
+    .wide { display: grid; gap: 14px; }
+    @media (min-width: 900px) {
+      .wide { grid-template-columns: 1.35fr 1fr; align-items: end; }
+      .wide.flip { grid-template-columns: 1fr 1.35fr; }
+      .wide.flip .text { order: -1; }
+    }
+    .wide .text { padding: 8px 4px 22px; max-width: 30em; }
+    .wide .text h3 { margin: 0 0 8px; font-size: 26px; line-height: 1.15; font-weight: 700; }
+    .wide .text p { margin: 0; }
+    .grid5 { display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .grid5 { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1000px) { .grid5 { grid-template-columns: repeat(6, 1fr); } .grid5 figure:nth-child(-n+2) { grid-column: span 3; } .grid5 figure:nth-child(n+3) { grid-column: span 2; } }
+
+    .ways { margin-top: 56px; display: grid; gap: 32px; }
+    @media (min-width: 900px) { .ways { grid-template-columns: repeat(3, 1fr); } }
+    .ways h3 { margin: 0 0 6px; font-size: 21px; }
+    .ways p { margin: 0; color: var(--fels-weich); }
+
+    /* the numbers */
+    .stats { background: var(--nacht); color: #fff; }
+    .stats .intro { color: var(--nacht-hell); max-width: 36em; margin: 0 0 40px; }
+    .numbers { display: grid; gap: 28px 24px; grid-template-columns: repeat(2, 1fr); margin: 0 0 56px; }
+    @media (min-width: 900px) { .numbers { grid-template-columns: repeat(4, 1fr); } }
+    .numbers div { border-top: 3px solid var(--gelb); padding-top: 12px; }
+    .numbers dt { font-size: 16px; color: var(--nacht-hell); }
+    .numbers dd { margin: 2px 0 0; font-size: clamp(36px, 5vw, 58px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .travel h3 { margin: 0 0 16px; font-size: 21px; }
+    .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 760px; }
+    .bars li { display: grid; grid-template-columns: 9.5em 1fr 6.5em; gap: 12px; align-items: center; font-size: 16px; }
+    .bars .bar { height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden; }
+    .bars .bar span { display: block; height: 100%; background: var(--gelb); transform-origin: left; }
+    .bars .km { text-align: right; font-variant-numeric: tabular-nums; color: var(--nacht-hell); }
+    @media (max-width: 520px) { .bars li { grid-template-columns: 7.5em 1fr 5.5em; font-size: 15px; } }
+    .stats .when { margin: 28px 0 0; font-size: 14px; color: var(--nacht-hell); }
+    .stats[data-state='loading'] .numbers dd { color: rgba(255, 255, 255, 0.35); }
+
+    /* the end */
+    .last { padding-bottom: 40px; }
+    .last .plate { font-size: 22px; min-width: 300px; padding-block: 16px; --tip: 32px; }
+    footer { padding: 28px 0 40px; font-size: 15px; color: var(--fels-weich); }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; border-top: 1px solid #d9dfe5; padding-top: 20px; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .bars .bar span { animation: grow 900ms cubic-bezier(.2, .7, .2, 1) both; }
+      @keyframes grow { from { transform: scaleX(0); } }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="../"><img src="../assets/icons/icon-192.png" alt="" width="34" height="34" />Slop Davos</a>
+    <div class="hero-inner wrap">
+      <h1>Davos,<br />eins zu eins.</h1>
+      <p class="lede">Die ganze Landschaft Davos im Browser: jede Strasse, jedes Haus, jeder Hang auf dem echten Relief. Zu Fuss, im Auto, mit der RhB, im Pistenfahrzeug oder am Gleitschirm.</p>
+      <a class="plate" href="../"><span class="to">Davos spielen</span><span class="far">sofort</span></a>
+      <p class="hero-note">Läuft im Browser, auf dem Computer und auf dem Handy. Nichts zu installieren.</p>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="wrap place">
+        <div class="prose">
+          <h2>Wohin du willst</h2>
+          <p>Vom Wolfgang bis Monstein, vom Dischma bis hinauf zum Flüelapass. Das Gelände stammt aus den Höhendaten von swisstopo, die Häuser aus swissBUILDINGS3D, die Strassen, Wege und Loipen aus OpenStreetMap.</p>
+          <p>Busse halten an ihren Haltestellen, die RhB fährt durchs Tal, die Bergbahnen laufen. Die Uhr geht weiter: Am Morgen dämmert es über den Bergen, am Abend gehen die Lichter an, und im Winter liegt Schnee bis ins Dorf.</p>
+        </div>
+        <div class="post" aria-label="Orte im Spiel">
+          <span class="plate right"><span class="to">Flüela Schwarzhorn</span><span class="far">3146 m</span></span>
+          <span class="plate left"><span class="to">Jakobshorn</span><span class="far">2590 m</span></span>
+          <span class="plate right"><span class="to">Flüelapass</span><span class="far">2383 m</span></span>
+          <span class="plate left"><span class="to">Rinerhorn</span><span class="far">2528 m</span></span>
+          <span class="plate right"><span class="to">Wolfgang</span><span class="far">1631 m</span></span>
+          <span class="plate left"><span class="to">Clavadel</span><span class="far">1664 m</span></span>
+          <span class="plate right"><span class="to">Frauenkirch</span><span class="far">1508 m</span></span>
+          <div class="home">Davos Platz<small>1560 m</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding-top: 0">
+      <div class="wrap shots">
+        <div class="wide">
+          <figure>
+            <img src="../assets/welcome/schwarzhorn-sunrise-960.webp" srcset="../assets/welcome/schwarzhorn-sunrise-960.webp 960w, ../assets/welcome/schwarzhorn-sunrise-1600.webp 1600w" sizes="(min-width: 900px) 640px, 100vw" width="1600" height="1000" alt="Die Sonne geht über den Bergen auf, eine Wanderin steht auf dem Gipfelgrat" loading="lazy" />
+          </figure>
+          <div class="text">
+            <h3>Vor der Sonne aufs Schwarzhorn</h3>
+            <p>Mit der Stirnlampe los, wenn es noch dunkel ist, über Geröll hinauf auf 3146 Meter. Oben wartest du, bis die Sonne über den Gipfeln im Osten aufgeht. Unterwegs schauen dir Gämsen und Steinböcke nach.</p>
+          </div>
+        </div>
+        <div class="wide flip">
+          <figure>
+            <img src="../assets/welcome/paraglider-rinerhorn-960.webp" srcset="../assets/welcome/paraglider-rinerhorn-960.webp 960w, ../assets/welcome/paraglider-rinerhorn-1600.webp 1600w" sizes="(min-width: 900px) 640px, 100vw" width="1600" height="1000" alt="Ein Gleitschirm über einem Bergtal, darunter Wald und Wiesen" loading="lazy" />
+          </figure>
+          <div class="text">
+            <h3>Am Gleitschirm vom Rinerhorn</h3>
+            <p>Aufziehen, ein paar Schritte den Hang hinunter, und du fliegst. Das Vario piepst in der Thermik, Alpendohlen kreisen darin, der Talwind versetzt dich nach Nordosten. Mit dem Flugschein darfst du danach überall frei starten.</p>
+          </div>
+        </div>
+        <div class="grid5">
+          <figure>
+            <img src="../assets/welcome/snowcat-dischma-625.webp" srcset="../assets/welcome/snowcat-dischma-625.webp 625w, ../assets/welcome/snowcat-dischma-1000.webp 1000w" sizes="(min-width: 1000px) 550px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" alt="Ein rotes Pistenfahrzeug präpariert eine Loipe" loading="lazy" />
+            <figcaption>Mit dem Pistenfahrzeug die Loipe präparieren</figcaption>
+          </figure>
+          <figure>
+            <img src="../assets/welcome/rega-heliport-625.webp" srcset="../assets/welcome/rega-heliport-625.webp 625w, ../assets/welcome/rega-heliport-1000.webp 1000w" sizes="(min-width: 1000px) 550px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" alt="Der rote Rega-Helikopter auf dem Landeplatz des Spitals" loading="lazy" />
+            <figcaption>Im Rega-Helikopter zum Spital</figcaption>
+          </figure>
+          <figure>
+            <img src="../assets/welcome/plough-wolfgang-625.webp" srcset="../assets/welcome/plough-wolfgang-625.webp 625w, ../assets/welcome/plough-wolfgang-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" alt="Ein Schneepflug räumt in der Nacht eine verschneite Strasse" loading="lazy" />
+            <figcaption>Vor dem ersten Postauto den Wolfgang räumen</figcaption>
+          </figure>
+          <figure>
+            <img src="../assets/welcome/rhb-train-625.webp" srcset="../assets/welcome/rhb-train-625.webp 625w, ../assets/welcome/rhb-train-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" alt="Ein roter Zug der Rhätischen Bahn in verschneiter Landschaft" loading="lazy" />
+            <figcaption>Im Führerstand der RhB</figcaption>
+          </figure>
+          <figure>
+            <img src="../assets/welcome/flueela-snow-625.webp" srcset="../assets/welcome/flueela-snow-625.webp 625w, ../assets/welcome/flueela-snow-1000.webp 1000w" sizes="(min-width: 1000px) 360px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" alt="Ein blauer VW-Bus auf der verschneiten Flüelastrasse" loading="lazy" />
+            <figcaption>Mit Sommerpneus auf Schnee zum Flüelapass</figcaption>
+          </figure>
+        </div>
+
+        <div class="ways">
+          <div>
+            <h3>70 Missionen</h3>
+            <p>Rettungsflüge, Arbeit auf der Strasse und am Berg, Rennen, Bars und Beizen. Jede mit Medaillen und eigener Rangliste.</p>
+          </div>
+          <div>
+            <h3>Sommer und Winter</h3>
+            <p>Die Jahreszeiten wechseln, die Tage werden kürzer und länger. Manche Missionen gibt es nur bei Schnee, andere nur im Sommer oder nach Mitternacht.</p>
+          </div>
+          <div>
+            <h3>Einfach einsteigen</h3>
+            <p>Mit F steigst du in jedes Fahrzeug, das herumsteht: Auto, Bus, Velo, Pistenfahrzeug, Helikopter. Missionen startest du an ihrem Startpunkt mit Enter, oder direkt aus der Liste.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats" id="statistik" data-state="loading" aria-live="polite" hidden>
+      <div class="wrap">
+        <h2>Bisher in Davos unterwegs</h2>
+        <p class="intro">Alle Spielerinnen und Spieler mit Konto zusammen, laufend nachgeführt. Wer als Gast spielt, zählt hier nicht mit.</p>
+        <dl class="numbers">
+          <div><dt>Stunden gespielt</dt><dd data-stat="playHours">–</dd></div>
+          <div><dt>Kilometer unterwegs</dt><dd data-stat="km">–</dd></div>
+          <div><dt>Missionen geschafft</dt><dd data-stat="missionsDone">–</dd></div>
+          <div><dt>Goldmedaillen</dt><dd data-stat="gold">–</dd></div>
+        </dl>
+        <div class="travel" hidden>
+          <h3>So viele Kilometer, so unterwegs</h3>
+          <ul class="bars"></ul>
+        </div>
+        <p class="when"></p>
+      </div>
+    </section>
+
+    <section class="last">
+      <div class="wrap">
+        <h2>Davos wartet.</h2>
+        <p class="prose" style="margin: 0 0 28px">Du startest am Bahnhof Davos Platz. Melde dich an, damit dein Spiel auf allen Geräten weitergeht und deine Zeiten in die Ranglisten kommen, oder spiel zuerst zwei Minuten als Gast.</p>
+        <a class="plate" href="../"><span class="to">Davos spielen</span><span class="far">sofort</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Karten und Gelände © swisstopo, Strassen © OpenStreetMap-Mitwirkende</span>
+      <a href="../privacy.html">Datenschutz</a>
+      <a href="https://github.com/hilletob/slopdavos">Quellcode</a>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { SUPABASE_URL, SUPABASE_KEY } from '../js/account-config.js';
+
+    const TRAVEL = {
+      walk: 'Zu Fuss', car: 'Auto', bus: 'Bus', bike: 'Velo', cargobike: 'Cargovelo', helicopter: 'Helikopter',
+      snowcat: 'Pistenfahrzeug', 'train-driver': 'Lokführer', 'train-passenger': 'Im Zug', ski: 'Ski', snowboard: 'Snowboard',
+      'xc-ski': 'Langlauf', sledge: 'Schlitten', toboggan: 'Rodelbahn', skates: 'Schlittschuhe', skateboard: 'Skateboard',
+      snowshoe: 'Schneeschuhe', paraglider: 'Gleitschirm', waterslide: 'Rutschbahn', climbing: 'Seilpark', crane: 'Kran',
+      quad: 'Quad', 'snow-blower': 'Schneefräse', mower: 'Rasenmäher', 'garbage-truck': 'Kehrichtwagen', truck: 'Lastwagen'
+    };
+    const section = document.getElementById('statistik');
+    const fmt = (n, digits = 0) => Number(n || 0).toLocaleString('de-CH', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+
+    async function load() {
+      if (!SUPABASE_URL) throw new Error('no backend');
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/global_stats`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      return response.json();
+    }
+
+    load().then((s) => {
+      for (const dd of section.querySelectorAll('[data-stat]')) {
+        const key = dd.dataset.stat;
+        dd.textContent = fmt(s[key], key === 'km' && s[key] < 100 ? 1 : 0);
+      }
+      const ways = (s.travel || []).filter((t) => t.km >= 0.1).slice(0, 8);
+      if (ways.length) {
+        const max = Math.max(...ways.map((t) => t.km));
+        const list = section.querySelector('.bars');
+        for (const t of ways) {
+          const li = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = TRAVEL[t.kind] || t.kind;
+          const bar = document.createElement('span');
+          bar.className = 'bar';
+          const fill = document.createElement('span');
+          fill.style.width = `${Math.max(1.5, (t.km / max) * 100)}%`;
+          bar.append(fill);
+          const km = document.createElement('span');
+          km.className = 'km';
+          km.textContent = `${fmt(t.km, t.km < 10 ? 1 : 0)} km`;
+          li.append(name, bar, km);
+          list.append(li);
+        }
+        section.querySelector('.travel').hidden = false;
+      }
+      const players = Number(s.players || 0);
+      section.querySelector('.when').textContent = `${fmt(players)} ${players === 1 ? 'Konto' : 'Konten'}, Stand ${new Date(s.at || Date.now()).toLocaleString('de-CH', { dateStyle: 'medium', timeStyle: 'short' })}`;
+      section.dataset.state = 'ready';
+      section.hidden = false; // (shown only with numbers: supabase/migrations/*_global_stats.sql applied)
+    }).catch(() => {
+      section.hidden = true; // (no numbers: the page works without them)
+    });
+  </script>
+</body>
+</html>
