@@ -3,6 +3,7 @@ import { attribute, float, mix, normalGeometry, positionGeometry, smoothstep, st
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { logoIndex, logoImage, drawLogo } from './logos.js';
 import { VBD_DATA } from './vbd-data.js';
+import { busBays } from './bus-bays.js';
 import { surfaceHeight, ROAD_TOP } from './terrain.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 import { clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bellowsRingCount, trailerYaw, solveTrailerAxle, wrapAngle, MAX_BEND } from './bus-joint.js';
@@ -49,7 +50,43 @@ function polyline(v) {
   for (let i = 0; i < v.pts.length; i += 2) pts.push({ x: v.pts[i], z: v.pts[i + 1] });
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
-  return { ...v, pts, cum, len: cum[cum.length - 1] };
+  const r = { ...v, pts, cum, len: cum[cum.length - 1] };
+  r.bays = routeBays(r);
+  return r;
+}
+
+// The bus bays along a route (js/bus-bays.js) on its right, the side it serves: from s0 to s1 the bus runs `out` metres
+// further right than its lane, in the bay, easing in and out over PULL metres before and after
+const PULL = 14, BAY_KERB_GAP = 0.5;
+function routeBays(r) {
+  const out = [];
+  for (const bay of busBays()) {
+    const at = (x, z) => {
+      let best = null;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i], L = r.cum[i] - r.cum[i - 1];
+        if (L < 1e-6) continue;
+        const dx = (b.x - a.x) / L, dz = (b.z - a.z) / L, t = Math.max(0, Math.min(L, (x - a.x) * dx + (z - a.z) * dz));
+        const px = a.x + dx * t, pz = a.z + dz * t, d = Math.hypot(x - px, z - pz);
+        if (!best || d < best.d) best = { d, s: r.cum[i - 1] + t, rx: -dz, rz: dx };
+      }
+      return best;
+    };
+    const p = at(bay.cx, bay.cz);
+    if (!p || p.d > 10 || p.rx * bay.nx + p.rz * bay.nz < 0.5) continue; // (another street, or the far side)
+    const pa = at(bay.ax, bay.az), pb = at(bay.bx, bay.bz);
+    // (the bus's side in the bay, BAY_KERB_GAP from its kerb)
+    const lateral = bay.half + bay.depth - BAY_KERB_GAP - HALF_WIDTH - LANE;
+    if (lateral > 0.3) out.push({ s0: Math.min(pa.s, pb.s) - 2, s1: Math.max(pa.s, pb.s) + 4, out: lateral });
+  }
+  return out;
+}
+const smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+/** How far right of its lane a route's bus runs at s (in a bay) */
+function bayOffset(r, s) {
+  let o = 0;
+  for (const b of r.bays || []) o = Math.max(o, b.out * smooth01((s - (b.s0 - PULL)) / PULL) * smooth01(((b.s1 + PULL) - s) / PULL));
+  return o;
 }
 
 // Position (in the right-hand lane) and unit direction at distance s along a route
@@ -73,7 +110,7 @@ function pointAt(r, s, out = {}) {
   const ta = s - r.cum[lo - 1], tb = r.cum[lo] - s;
   if (lo >= 2 && ta < BEND) blend(r.pts[lo - 2], a, ta);
   if (lo + 1 < r.pts.length && tb < BEND) blend(b, r.pts[lo + 1], tb);
-  const m = Math.hypot(nx, nz) || 1, k = LANE / Math.max(0.6, (nx * -out.dz + nz * out.dx) / m) / m;
+  const m = Math.hypot(nx, nz) || 1, k = (LANE + bayOffset(r, s)) / Math.max(0.6, (nx * -out.dz + nz * out.dx) / m) / m;
   out.x = a.x + (b.x - a.x) * t + nx * k; out.z = a.z + (b.z - a.z) * t + nz * k;
   return out;
 }

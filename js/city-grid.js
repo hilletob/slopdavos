@@ -75,6 +75,7 @@ import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree, plantedAt } from '.
 import { QUALITY, REGION_ALL } from './quality.js';
 import { indexGeometry } from './gpu-memory.js';
 import { withoutTraced } from './ground-markings-area.js';
+import { busBaySegments } from './bus-bays.js';
 import { FRAME } from './davos-frame.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
 
@@ -249,7 +250,8 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
 
   // (the segments the region owns are built; those a little beyond it still clip their sidewalks and curbs, and the
   // joints to them are kept, so that the pieces of neighbouring cells meet without a notch)
-  const allSegments = berlinRoadSegments();
+  // (with the bus bays, js/bus-bays.js: carriageway pieces of their own beside the streets they widen)
+  const allSegments = [...berlinRoadSegments(), ...busBaySegments()];
   const roadSegments = region.all ? allSegments : allSegments.filter(s => region.ownsSegment(s.a.x, s.a.z, s.b.x, s.b.z));
   const nearSegments = region.all ? allSegments : allSegments.filter(s => region.segment(s.a.x, s.a.z, s.b.x, s.b.z, 80));
   // Joints: the consecutive segments of a way (OSM's bends are rounded into arcs, tools/build-davos-geodata.mjs) meet at
@@ -602,7 +604,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         curbRuns++;
       }
     }
-    if (streetSites && s.len >= 12 && s.road.kind !== 'service') {
+    if (streetSites && s.len >= 12 && s.road.kind !== 'service' && !s.road.bay) {
       const count = Math.max(1, Math.floor(s.len / 34));
       for (let k = 0; k < count; k++) for (const side of [-1, 1]) {
         const t = (k + 0.5) / count, x = s.a.x + s.ux * s.len * t + nx * side * (width / 2 + 1.3),

@@ -224,3 +224,16 @@ test('the traced car parks: bays of plausible size with a car where the photo sh
     }
   }
 });
+
+import { BUS_BAY_MARKS, busBaySegments, busBayShift, BUS_BAY_DEPTH } from '../js/bus-bays.js';
+import { TRAFFIC_SIGNS } from '../js/traffic-signs-data.js';
+
+test('the bus bays: each at a stop of the map, three carriageway pieces beside its street, the stop moved out 3 m', () => {
+  const marks = TRAFFIC_SIGNS.signs.filter((s) => s.mark).map((s) => s.mark);
+  for (const m of BUS_BAY_MARKS) assert.ok(marks.some((k) => k.every((v, i) => Math.abs(v - m[i]) < 0.05)), `a stop at ${m}`);
+  const segs = busBaySegments();
+  assert.equal(segs.length, BUS_BAY_MARKS.length * 3);
+  for (const s of segs) assert.ok(s.road.bay && s.len > 5 && s.width > 1.5 && s.width < 4, s.road.id);
+  for (const m of BUS_BAY_MARKS) near(Math.hypot(busBayShift(m).x, busBayShift(m).z), BUS_BAY_DEPTH, 1e-9);
+  assert.deepEqual(busBayShift([0, 0, 1, 1]), { x: 0, z: 0 });
+});

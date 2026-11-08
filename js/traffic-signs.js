@@ -5,6 +5,7 @@ import { surfaceHeight, sidewalkRise, SIDEWALK_TOP } from './terrain.js';
 import { QUALITY } from './quality.js';
 import { BERLIN_DATA } from './city-config.js';
 import { streetCorners, outOfCornerCut } from './street-corners.js';
+import { busBayShift } from './bus-bays.js';
 
 const CARRIAGEWAY_KINDS = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link',
   'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'service']);
@@ -620,7 +621,10 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
     dirty = true;
   }
 
-  for (const s of list) {
+  for (const s0 of list) {
+    // (a stop with a bus bay, js/bus-bays.js: its post, zigzag and bench out in the bay's kerb)
+    const shift = s0.t === 'busstop' ? busBayShift(s0.mark) : { x: 0, z: 0 };
+    const s = shift.x || shift.z ? { ...s0, x: s0.x + shift.x, z: s0.z + shift.z, mark: [s0.mark[0] + shift.x, s0.mark[1] + shift.z, s0.mark[2] + shift.x, s0.mark[3] + shift.z] } : s0;
     // (the plates face along (sin yaw, cos yaw): the crosswalk test moves the post along the road, i.e. across that)
     const p = clearOfCrosswalks({ x: s.x, z: s.z }, crosswalks, cells);
     // (and off a junction's rounded corner: a post mapped on the corner of the two roads' edges would stand on the

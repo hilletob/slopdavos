@@ -60,9 +60,9 @@ function makeJob(c) {
     .map((r) => ({ pts: j.px(r.pts), w: Math.max(2, (r.width || 5) - 0.8) / j.res })); // (the curbs' bright stones left out)
   // the bus stops' zigzag bands with their BUS (js/traffic-signs.js draws them: the photo's zigzag is too broken to trace)
   j.exclude = TRAFFIC_SIGNS.signs.filter((s) => s.mark).map((s) => {
-    const [ax, az, bx, bz] = s.mark, L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L, rx = -tz, rz = tx, e = 2;
+    const [ax, az, bx, bz] = s.mark, L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L, rx = -tz, rz = tx, e = 8; // (wide: the photo's zigzag may lie metres off the stop's data)
     const ring = [];
-    for (const [u, v] of [[-e, -3.5], [L + e, -3.5], [L + e, 3.5], [-e, 3.5]]) ring.push(ax + tx * u + rx * v, az + tz * u + rz * v);
+    for (const [u, v] of [[-e, -7], [L + e, -7], [L + e, 7], [-e, 7]]) ring.push(ax + tx * u + rx * v, az + tz * u + rz * v);
     return ring;
   }).filter((r) => near(bboxOf(r))).map((r) => j.px(r));
   j.pavedOff = true;
