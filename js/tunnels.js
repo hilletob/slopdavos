@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, attribute, cameraPosition, clamp, exp, float, fract, fwidth, max, mix, normalize, positionWorld, smoothstep, vec3 } from 'three/tsl';
 import { getRoadTunnels, getRhBTunnels, tunnelOpenRuns, groundHeight, TUNNEL_ROOF, ROAD_TOP } from './terrain.js';
+import { isGallery } from './tunnel-profile.js';
 import { cityUniforms } from './tsl-materials.js';
 
 // The mountain is the roof above a tunnel; terrain.js cuts its surface open at the mouths. Drawn here, at the height of
@@ -28,6 +29,10 @@ export const RAIL_BORE = {
   wallPaint: 0, wallAlbedo: 0.26, paintAlbedo: 0.26, crownAlbedo: 0.12, floorAlbedo: 0.09, sos: 0
 };
 const DASH = { first: 4, period: 12, length: 3 };
+// A gallery (the Seegalerie along the Davosersee): a road along a slope under a concrete roof, the hillside wall closed,
+// the valley side open between pillars. The survey runs the slope over the roof, too little cover for a bore, so its
+// whole length is an open cut (terrain.js): here the cut gets its roof, the uphill wall up to it and the pillars.
+const GALLERY = { roof: 5.2, slab: 0.6, overhang: 0.6, pillar: 0.6, pillarEvery: 6, parapet: 1.1 };
 const SOS_FIRST = 75; // (a niche every ROAD_BORE.sos metres from here on)
 
 const coord = attribute('tunnelCoord', 'vec4');
@@ -194,7 +199,7 @@ function addMouth(parts, p, half, height, dir, arch) {
 }
 
 function addTunnel(parts, profile, railway) {
-  const bore = railway ? RAIL_BORE : ROAD_BORE;
+  const bore = railway ? RAIL_BORE : ROAD_BORE, gallery = !railway && isGallery(profile.name);
   const half = profile.width / 2, height = bore.roof;
   const floorUp = railway ? ROAD_TOP / 2 : ROAD_TOP - 0.02;
   const runs = tunnelOpenRuns(profile);
@@ -220,8 +225,14 @@ function addTunnel(parts, profile, railway) {
     const a = profile.at(s0), b = profile.at(s1);
     if (open) {
       quad(railway ? parts.ballastOut : parts.asphaltOut, at(a, -half, floorUp), at(a, half, floorUp), at(b, half, floorUp), at(b, -half, floorUp));
+      // (a gallery: which side is the valley's, the lower ground a few metres out)
+      const valley = gallery ? (groundAt(a, half + 4) < groundAt(a, -half - 4) ? 1 : -1) : 0;
       for (const side of [-half, half]) {
-        const topA = groundAt(a, side) - a.y + 0.15, topB = groundAt(b, side) - b.y + 0.15;
+        let topA = groundAt(a, side) - a.y + 0.15, topB = groundAt(b, side) - b.y + 0.15;
+        if (gallery) {
+          const top = Math.sign(side) === valley ? GALLERY.parapet : GALLERY.roof;
+          topA = Math.max(topA, top); topB = Math.max(topB, top);
+        }
         if (topA <= 0 && topB <= 0) continue;
         quad(parts.concrete, at(a, side, 0), at(b, side, 0), at(b, side, Math.max(topB, 0)), at(a, side, Math.max(topA, 0)));
       }
@@ -234,9 +245,22 @@ function addTunnel(parts, profile, railway) {
       const crown = arch.at(-1);
       boreStrip(lining, a, b, -crown[0], crown[1], crown[0], crown[1], ma, mb);
     }
+    if (gallery && open) {
+      const r0 = GALLERY.roof, r1 = r0 + GALLERY.slab, w = half + GALLERY.overhang;
+      quad(parts.concrete, at(a, -w, r0), at(a, w, r0), at(b, w, r0), at(b, -w, r0));
+      quad(parts.concrete, at(a, -w, r1), at(a, w, r1), at(b, w, r1), at(b, -w, r1));
+      for (const side of [-w, w]) quad(parts.concrete, at(a, side, r0), at(b, side, r0), at(b, side, r1), at(a, side, r1));
+    }
     if (railway && open) {
       for (const offset of [-0.5, 0.5]) quad(parts.steel,
         at(a, offset - 0.055, 0.14), at(a, offset + 0.055, 0.14), at(b, offset + 0.055, 0.14), at(b, offset - 0.055, 0.14));
+    }
+  }
+  if (gallery) {
+    for (let s = GALLERY.pillarEvery / 2; s < profile.length; s += GALLERY.pillarEvery) {
+      if (!isOpen(s)) continue;
+      const p = profile.at(s), valley = groundAt(p, half + 4) < groundAt(p, -half - 4) ? 1 : -1;
+      box(parts.concrete, p, valley * (half + GALLERY.pillar / 2), 0, GALLERY.pillar / 2, GALLERY.roof, 0, GALLERY.pillar);
     }
   }
   if (!railway) {

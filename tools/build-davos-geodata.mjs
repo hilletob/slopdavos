@@ -270,8 +270,11 @@ const sidewalkCulverts = new Set();
     if (street && !street.bridge) sidewalkCulverts.add(e.id);
   }
 }
+// Ways OSM leaves unnamed that the game names (street labels, js/tunnel-profile.js's drivable tunnels): the gallery of
+// the Prättigauerstrasse (Hauptstrasse 28) along the Davosersee, mapped as an unnamed tunnel
+const OSM_NAMES = { 30419867: 'Seegalerie' };
 for (const e of osm.elements) {
-  const t = e.tags || {};
+  const t = OSM_NAMES[e.id] && !e.tags?.name ? { ...e.tags, name: OSM_NAMES[e.id] } : e.tags || {};
   if (e.type === 'node') {
     const [x, z] = toWorld(e.lon, e.lat);
     if (!inFrame(x, z)) continue;

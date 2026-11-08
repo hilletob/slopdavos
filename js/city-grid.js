@@ -77,7 +77,7 @@ import { indexGeometry } from './gpu-memory.js';
 import { withoutTraced } from './ground-markings-area.js';
 import { busBaySegments } from './bus-bays.js';
 import { FRAME } from './davos-frame.js';
-import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP } from './terrain.js';
+import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP, OVERPASSES } from './terrain.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
 let centralParkClearings;
@@ -105,13 +105,15 @@ function cityMaterials() {
   const sidewalkMat = snowyStreet(createSidewalkMaterial(), { cover: 0.9 });
   const walkMat = snowyStreet(createSidewalkMaterial({ asphalt: true }), { cover: 0.9 }); // the raised sidewalks
   const curbMat = snowyStreet(createCurbMaterial(), { cover: 0.95, top: true });
+  // (the road bridges' slabs, parapets and piers and the overpasses' abutments: cast concrete)
+  const concreteMat = snowyStreet(new THREE.MeshStandardNodeMaterial({ color: 0x8c8b84, roughness: 0.96 }), { cover: 0.95, top: true });
   const waterMat = freezeWater(createWaterMaterial());
   const lawnMat = createParkLawnMaterial(false);
   const pavingMat = snowyStreet(createParkPavingMaterial(), { cover: 0.9 });
   const paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true });
   // (the markings lie ~1 cm over the asphalt: pulled forward in depth so that they never flicker through it far off)
   paintMat.polygonOffset = true; paintMat.polygonOffsetFactor = -1; paintMat.polygonOffsetUnits = -4;
-  return (cityMats = { roadMat, sidewalkMat, walkMat, curbMat, waterMat, lawnMat, pavingMat, paintMat });
+  return (cityMats = { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, waterMat, lawnMat, pavingMat, paintMat });
 }
 // Everything is built flat (small y offsets above y = 0) and laid on the terrain before merging: ground layers are
 // draped, solids displaced; geometry of a bridge follows its deck; `absolute` geometry is already in world heights.
@@ -136,7 +138,7 @@ const firstMeshOf = new Map(); // material -> the first merged mesh drawn with i
 // strip has ~5 corners a vertex) and merges them indexed: the town's ground layers never stand in memory in full,
 // non-indexed, twice over (~200 MB).
 async function mergeCollections({ collections, onDeck, absolute }, { mergeCell = CITY_MERGE_CELL } = {}) {
-  const { curbMat, lawnMat, waterMat, paintMat } = cityMaterials();
+  const { curbMat, concreteMat, lawnMat, waterMat, paintMat } = cityMaterials();
   const indexed = QUALITY.compactGeometry;
   const meshes = [];
   // (the mobile profile pauses once per ~600 pieces handled, a small cell's few hundred not at all)
@@ -148,7 +150,7 @@ async function mergeCollections({ collections, onDeck, absolute }, { mergeCell =
       const g = geometries[i];
       if (!absolute.has(g)) {
         const deck = onDeck.has(g);
-        geometries[i] = material === curbMat ? displaceGeometry(g, { deck }) : drapeOverlay(g, { deck, maxEdge: material === lawnMat ? 10 : 8 });
+        geometries[i] = material === curbMat || material === concreteMat ? displaceGeometry(g, { deck }) : drapeOverlay(g, { deck, maxEdge: material === lawnMat ? 10 : 8 });
         if (geometries[i] !== g) g.dispose();
         // (where the road paint is traced from the aerial photo, js/vector-ground.js draws it: these markings step back,
         // cut once draped, its triangles then 8 m at most: a long strip's few triangles reach well past the traced cells)
@@ -192,7 +194,7 @@ async function mergeCollections({ collections, onDeck, absolute }, { mergeCell =
       if (QUALITY.mobile) { cell.fill(null, i - batch.length, i); await pause(batch.length); } // (the merged pieces may go)
       if (!merged) continue;
       const mesh = new THREE.Mesh(merged, material);
-      mesh.receiveShadow = material !== waterMat; mesh.castShadow = material === curbMat;
+      mesh.receiveShadow = material !== waterMat; mesh.castShadow = material === curbMat || material === concreteMat;
       if (material === paintMat) mesh.renderOrder = 1;
       const first = firstMeshOf.get(material);
       if (first && first.parent) mesh.userData.sharesPipelineWith = first; // (one shader build serves the rest)
@@ -204,6 +206,16 @@ async function mergeCollections({ collections, onDeck, absolute }, { mergeCell =
   return meshes;
 }
 const streetSiteKeys = new Set(); // (the lamps' sites along the streets, one per 14 m square, never twice)
+// Where the street lamps end on a road leaving the town (its last houses, like an Ortsende): on the roads whose name
+// matches, no lamp beyond the line through (x, z) across (dx, dz), the direction away from the town. The Flüelastrasse
+// is lit through Davos Dorf up to Stilli; past the hamlet's last houses by the road (the two commercial buildings at
+// x ≈ 1900, just after the bus terminus) it climbs the Flüelatal to the pass unlit (Flüelapassstrasse, Via Pass dal
+// Flüela: the only carriageway up the valley). Nothing hangs off a missing mast either: the site carries the street-name
+// plate and the light (js/street-details.js), so the road beyond keeps neither.
+const UNLIT_BEYOND = [
+  { road: /Flüela/, x: 1920, z: -1765, dx: 0.97, dz: 0.24 }
+];
+const beyondStreetLamps = (road, x, z) => UNLIT_BEYOND.some((e) => e.road.test(road.name || '') && (x - e.x) * e.dx + (z - e.z) * e.dz > 0);
 
 /**
  * The town's ground layers in `region` (js/quality.js regions: everything, or one of js/world-stream.js's cells): the
@@ -214,7 +226,7 @@ const streetSiteKeys = new Set(); // (the lamps' sites along the streets, one pe
  * `streetSites`: collect the street lamps' sites (berlinStreetSites) along the way (js/street-details.js reads them once).
  */
 async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSites = true } = {}) {
-  const { roadMat, sidewalkMat, walkMat, curbMat, lawnMat, pavingMat, paintMat } = cityMaterials();
+  const { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, lawnMat, pavingMat, paintMat } = cityMaterials();
   const collector = makeCollector();
   const { collect } = collector;
   const colliders = [], carveStrips = [], raised = [];
@@ -612,6 +624,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         // (never on another carriageway: at a junction the crossing road's asphalt, or the rounded corner's, reaches
         // past this road's pavement; the mast stands 0.6 m clear of any curb)
         if (onOtherCarriageway(x, z, s, 0.6)) continue;
+        if (beyondStreetLamps(s.road, x, z)) continue;
         const key = `${Math.round(x / 14)}/${Math.round(z / 14)}`;
         if (streetSiteKeys.has(key)) continue;
         streetSiteKeys.add(key);
@@ -722,6 +735,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   const PARAPET = 0.3, PARAPET_STEP = 1.5;
   for (const s of bridgeSlabs) {
     const half = deckHalfWidth(s.road);
+    const deckMat = /^(primary|secondary|tertiary|residential|unclassified|living_street|service)(_link)?$/.test(s.road.kind) ? concreteMat : curbMat;
     const nx = -s.uz, nz = s.ux;
     const deckAt = (x, z) => { const d = deckHeight(x, z); return d === d ? d : groundHeight(x, z); };
     const pieces = Math.max(1, Math.ceil(s.len / 6));
@@ -746,7 +760,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
           p.setY(v, deck + (p.getY(v) > 0.5 ? top : bottom));
         }
         g.computeVertexNormals();
-        collect(g, curbMat, { world: true });
+        collect(g, deckMat, { world: true });
         return { cx, cz, l };
       };
       if (!low) box(half * 2, -0.02, -1.15, 0);
@@ -779,7 +793,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         const pier = new THREE.BoxGeometry(1.2, top - under + 0.5, half * 1.2);
         pier.rotateY(-Math.atan2(b.z - a.z, b.x - a.x));
         pier.translate(mid.x, under - 0.5 + (top - under + 0.5) / 2, mid.z);
-        collect(pier, curbMat, { world: true });
+        collect(pier, deckMat, { world: true });
         bridgePiers++;
       }
     }
@@ -809,6 +823,24 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       box(-WING, u.len + WING, v0, v1, floor - 0.5, u.y - 0.4, true);
     }
     for (const s of [0, u.len]) box(s - 0.15, s + 0.15, -wall - THICK, wall + THICK, u.y - 0.02, u.y + 1.05, true);
+  }
+  // The abutments of the road bridges over a street (js/terrain.js OVERPASSES, which lays the street's corridor under the
+  // deck at its level): a concrete block each side, from the verge out over the grid cell the terrain was lowered in,
+  // from below the street up to the deck's underside, a little longer than the deck is wide.
+  for (const o of OVERPASSES) {
+    if (!region.owns(o.x, o.z)) continue;
+    const nx = -o.uz, nz = o.ux, angle = -Math.atan2(o.uz, o.ux), S = o.along + 2, DEPTH = 9;
+    for (const side of [-1, 1]) {
+      const v0 = side < 0 ? -o.wall - DEPTH : o.wall, v1 = v0 + DEPTH, y0 = o.roadY - 0.5, y1 = o.deckY - 1.15;
+      const g = new THREE.BoxGeometry(2 * S, y1 - y0, DEPTH);
+      const v = (v0 + v1) / 2, cx = o.x + nx * v, cz = o.z + nz * v;
+      g.rotateY(angle);
+      g.translate(cx, (y0 + y1) / 2, cz);
+      collect(g, concreteMat, { world: true });
+      const hx = S, hz = DEPTH / 2, cs = o.ux, sn = -o.uz;
+      const ex = Math.abs(cs) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(cs) * hz;
+      colliders.push({ minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, baseY: y0, minY: y0, maxY: y1, obb: { cx, cz, hx, hz, cs, sn } });
+    }
   }
   const meshes = await mergeCollections(collector, { mergeCell });
   return { meshes, colliders, carveStrips, raised, stats: { roads: roadSegments.length, bridgeSegments: bridgeSlabs.length, bridgePiers, bridgeParapets,

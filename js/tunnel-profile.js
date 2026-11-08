@@ -1,10 +1,13 @@
 // Surveyed tunnel centrelines and a continuous grade between their two portals.
 // The surface model measures the mountain above the tunnel, so it cannot supply the road or rail height inside.
 
-// The road tunnels between Davos, Monstein (its Hauptstrasse) and Wiesen. (The other mapped road tunnels stay
+// The road tunnels between Davos, Monstein (its Hauptstrasse) and Wiesen, and the Seegalerie of the Prättigauerstrasse
+// along the Davosersee (unnamed in OSM: tools/build-davos-geodata.mjs names it). (The other mapped road tunnels stay
 // out of the drivable network, as before.) Used by the data tool, the street list and the terrain.
-const DRIVABLE_TUNNELS = new Set(['Landwassertunnel', 'Landwasserstrasse', 'Hauptstrasse']);
+const DRIVABLE_TUNNELS = new Set(['Landwassertunnel', 'Landwasserstrasse', 'Hauptstrasse', 'Seegalerie']);
 export const isDrivableTunnel = (name) => DRIVABLE_TUNNELS.has(name);
+// The galleries among them: open on the valley side under a roof (js/tunnels.js)
+export const isGallery = (name) => name === 'Seegalerie';
 
 export function tunnelProfile(record, groundHeight, halfWidth) {
   const pts = record.pts;

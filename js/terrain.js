@@ -110,8 +110,52 @@ const inWater = (x, z) => WATER.some((w) => x >= w.minX && x <= w.maxX && z >= w
 // Bridgeheads: the survey lowers the ground under bridges towards the river, bridgeheads included. The data tool lists
 // where the surveyed road is higher (DAVOS_DATA.terrainPatches); the ground rises smoothly to meet it there (never
 // inside the rivers and the lake).
+//
+// Overpasses: a road bridge over a street at ground level (the Meierhofstrasse over the Prättigauerstrasse at Wolfgang).
+// The 8 m grid cannot hold the cut the street runs in: the embankments' nodes stand a cell beside the carriageway, the
+// triangles between pull its edges metres up, and the bridgeheads' patches add humps under the deck (in winter a white
+// wall the street seemed to run into). So under a deck the street's corridor is laid at the street's level, the patches
+// keep out of it, and js/city-grid.js stands the abutments (concrete walls up to the deck) along its sides.
+const OVERPASS = { VERGE: 1.5, CLEARANCE: 4.5, WING: 2 }; // (a lower deck is a bridgehead meeting a street, not a span over it)
+export const OVERPASSES = [];
 {
   const { cols, rows, cell, minX, minZ, heights } = TERRAIN;
+  const raw = (x, z) => gridHeight(TERRAIN, x, z);
+  const DRIVE = /^(primary|secondary|tertiary|residential|unclassified|living_street|service)(_link)?$/;
+  const decks = DAVOS_DATA.roads.filter((r) => r.bridge && !r.tunnel && r.ys && DRIVE.test(r.kind));
+  // (the street of a road underpass, tools/underpass.mjs, has its lid and walls already)
+  const underpassIds = new Set((DAVOS_DATA.underpasses || []).map((u) => u.id));
+  const streets = DAVOS_DATA.roads.filter((r) => !r.bridge && !r.tunnel && DRIVE.test(r.kind) && r.width >= 3 && !underpassIds.has(r.id));
+  for (const d of decks) for (let i = 0; i + 3 < d.pts.length; i += 2) {
+    const ax = d.pts[i], az = d.pts[i + 1], bx = d.pts[i + 2], bz = d.pts[i + 3];
+    for (const r of streets) for (let k = 0; k + 3 < r.pts.length; k += 2) {
+      const cx = r.pts[k], cz = r.pts[k + 1], ex = r.pts[k + 2], ez = r.pts[k + 3];
+      const den = (bx - ax) * (ez - cz) - (bz - az) * (ex - cx);
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((cx - ax) * (ez - cz) - (cz - az) * (ex - cx)) / den, u = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / den;
+      if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+      const x = ax + (bx - ax) * t, z = az + (bz - az) * t, deckY = d.ys[i / 2] + (d.ys[i / 2 + 1] - d.ys[i / 2]) * t, roadY = raw(x, z);
+      if (deckY - roadY < OVERPASS.CLEARANCE) continue;
+      const L = Math.hypot(ex - cx, ez - cz), ux = (ex - cx) / L, uz = (ez - cz) / L;
+      const dl = Math.hypot(bx - ax, bz - az), sin = Math.abs(((bx - ax) * uz - (bz - az) * ux) / dl);
+      if (sin < 0.3) continue;
+      // `along`: half the deck's footprint along the street; `wall`: the abutments' faces from the street's centre
+      OVERPASSES.push({ x, z, ux, uz, deckY, roadY, along: deckHalfWidth(d) / sin, wall: r.width / 2 + OVERPASS.VERGE, name: d.name, under: r.name });
+    }
+  }
+  // The nodes of the corridor under each deck, out to a cell beyond the abutments' faces (behind them, under the walls),
+  // go down to the street's level: the raw ground at its centreline (the road bed of tools/build-davos-terrain.mjs)
+  const bed = [];
+  for (const o of OVERPASSES) {
+    const S = o.along + OVERPASS.WING, V = o.wall + cell, R = Math.hypot(S, V);
+    for (let j = Math.max(0, Math.ceil((o.z - R - minZ) / cell)); j <= Math.min(rows - 1, Math.floor((o.z + R - minZ) / cell)); j++) {
+      for (let i = Math.max(0, Math.ceil((o.x - R - minX) / cell)); i <= Math.min(cols - 1, Math.floor((o.x + R - minX) / cell)); i++) {
+        const nx = minX + i * cell, nz = minZ + j * cell;
+        const s = (nx - o.x) * o.ux + (nz - o.z) * o.uz, v = (nx - o.x) * -o.uz + (nz - o.z) * o.ux;
+        if (Math.abs(s) <= S && Math.abs(v) <= V) bed.push([j * cols + i, raw(o.x + o.ux * s, o.z + o.uz * s)]);
+      }
+    }
+  }
   for (const { x, z, h, r } of DAVOS_DATA.terrainPatches || []) {
     for (let j = Math.max(0, Math.ceil((z - r - minZ) / cell)); j <= Math.min(rows - 1, Math.floor((z + r - minZ) / cell)); j++) {
       for (let i = Math.max(0, Math.ceil((x - r - minX) / cell)); i <= Math.min(cols - 1, Math.floor((x + r - minX) / cell)); i++) {
@@ -122,6 +166,7 @@ const inWater = (x, z) => WATER.some((w) => x >= w.minX && x <= w.maxX && z >= w
       }
     }
   }
+  for (const [k, y] of bed) heights[k] = Math.min(heights[k], y);
 }
 export const groundHeight = (x, z) => gridHeight(TERRAIN, x, z);
 export const groundNormal = (x, z, out) => gridNormal(TERRAIN, x, z, out);
@@ -200,7 +245,7 @@ export function constrainToTunnel(position, radius = 1.2) {
 const DECK_CELL = 32;
 /** Half width of a bridge's deck: the carriageway plus the sidewalks city-grid.js lays along it (width / 2 + 2.8 m), a
  *  path, or a track bed. The deck slab and its parapets are drawn to this edge. */
-export const deckHalfWidth = (r) => (r.width ? r.width / 2 + (/^(footway|path|steps|cycleway|pedestrian)$/.test(r.kind) ? 0.6 : 3.2) : 3);
+export function deckHalfWidth(r) { return r.width ? r.width / 2 + (/^(footway|path|steps|cycleway|pedestrian)$/.test(r.kind) ? 0.6 : 3.2) : 3; }
 const deckCells = new Map();
 let deckSegments = 0;
 for (const list of [DAVOS_DATA.roads, DAVOS_DATA.railways]) {
