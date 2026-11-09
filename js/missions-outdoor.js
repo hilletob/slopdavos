@@ -306,7 +306,7 @@ const ropePark = {
     poseSkater(p.rig, p.position.x, p.position.y - 0.09, p.position.z, yaw, opts);
     // the helmet on the head, the lanyards from the chest to the cable
     bonePoint(p.rig, HEAD_BONE, _a, 0);
-    rp.helmet.visible = true;
+    rp.helmet.visible = !p.crowd?.model; // (made for the lofted head: a Rocketbox figure goes without, js/player-figure.js)
     rp.helmet.position.copy(_a).addScaledVector(_up, 0.075);
     rp.helmet.rotation.y = yaw;
     const q = rp.pose;

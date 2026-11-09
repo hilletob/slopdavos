@@ -136,10 +136,14 @@ recoloured in the VBD livery at runtime. The app loads `assets/models/citaro-530
 tyres replaced by plain cylinders (`node tools/build-citaro-lite.mjs`).
 
 The people's motion-captured stances (`assets/models/person-clips.bin`: idling, talking, listening, writing a ticket)
-and the optional police figure (`assets/models/rocketbox-police-m01.glb`, `?qset=playerModel:police-m01`) come from the
+and the player's figures (`assets/models/rocketbox-*.glb`, chosen in the menu, js/player-figure.js) come from the
 Microsoft Rocketbox Avatar Library (https://github.com/microsoft/Microsoft-Rocketbox), MIT License, © Microsoft
 (`assets/models/LICENSE-rocketbox.txt`), retargeted to the game's 15-bone skeleton by `tools/build-person-clips.mjs`
 and `tools/build-rocketbox.mjs`.
+
+The cycling helmet `assets/models/bicycle-helmet.glb` is “Bicycle Hat” by MR.Sirapop
+(https://sketchfab.com/3d-models/bicycle-hat-660183838e9f4a16b53043e639ad8609), licensed under CC BY 4.0
+(http://creativecommons.org/licenses/by/4.0/); rescaled and re-oriented, textures reduced (`node tools/build-bicycle-helmet.mjs`).
 
 The code is available under the [MIT License](LICENSE), like the upstream projects
 ([colorfield/slop-zurich](https://github.com/colorfield/slop-zurich), [mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork)).

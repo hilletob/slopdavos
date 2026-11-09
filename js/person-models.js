@@ -8,7 +8,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const cache = new Map();
 
-/** The model `name` (e.g. 'police-m01'): a promise of { geometry, map } */
+/**
+ * The model `name` (e.g. 'police-m01'): a promise of { geometry, map, scale, female, alphaTest } — scale & female for
+ * the PersonRig that poses it (PersonRig.setBuild), alphaTest > 0 for hair strands & lashes cut from the map's alpha
+ */
 export function loadPersonModel(name) {
   if (!cache.has(name)) {
     const url = new URL(`../assets/models/rocketbox-${name}.glb`, import.meta.url);
@@ -24,8 +27,10 @@ export function loadPersonModel(name) {
       const map = mesh.material.map;
       map.colorSpace = THREE.SRGBColorSpace;
       map.anisotropy = 4;
+      const alphaTest = mesh.material.alphaTest || 0;
       mesh.material.dispose();
-      return { geometry, map };
+      const extras = gltf.asset?.extras || {};
+      return { name, geometry, map, alphaTest, scale: extras.scale || 1, female: !!extras.female };
     }));
   }
   return cache.get(name);

@@ -408,6 +408,24 @@ dialog.credits-dialog {
 }
 dialog.credits-dialog::backdrop { background: rgba(6, 7, 9, 0.38); }
 
+/* The player's figure (js/player-figure.js) */
+dialog.figure-dialog { width: 520px; margin: auto; gap: 8px; }
+dialog.figure-dialog::backdrop { background: rgba(6, 7, 9, 0.38); }
+.figure-note { margin: 0; color: var(--text-2); font-size: 12.5px; }
+.figure-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.figure-option {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 10px;
+  border: 1px solid var(--glass-border); border-radius: var(--r-ctl); background: var(--hover);
+  color: var(--text); font: 600 12.5px/1.25 var(--font-sans); cursor: pointer; text-align: center;
+}
+.figure-option img { width: auto; height: 118px; pointer-events: none; }
+.figure-option:hover { background: rgba(255, 255, 255, 0.14); }
+.figure-option[aria-checked="true"] { border-color: var(--taxi); box-shadow: inset 0 0 0 1px var(--taxi); }
+@media (max-width: 560px) {
+  dialog.figure-dialog { width: calc(100vw - 32px); }
+  .figure-option img { height: 92px; }
+}
+
 .credits-list {
   margin: 12px 0;
   padding: 0;

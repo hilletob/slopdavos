@@ -65,6 +65,7 @@
   <link rel="modulepreload" href="./js/obstacle-grid.js" />
   <link rel="modulepreload" href="./js/pedestrians.js" />
   <link rel="modulepreload" href="./js/person-models.js" />
+  <link rel="modulepreload" href="./js/player-figure.js" />
   <link rel="modulepreload" href="./js/person-clips.js" />
   <link rel="modulepreload" href="./js/lighting.js" />
   <link rel="modulepreload" href="./js/city-grid.js" />
@@ -352,6 +353,9 @@
         <button id="lang-en" class="language-btn" type="button" lang="en" aria-label="English" aria-pressed="true">EN</button>
       </div>
     </div>
+    <button id="btn-figure-menu" class="pop-item" type="button" aria-haspopup="dialog">
+      <span class="pop-name">Figure</span><span class="pop-state"><span id="figure-state"></span></span>
+    </button>
     <button id="btn-sound" class="pop-item" type="button" title="Mute sound [N]" aria-label="Mute sound" aria-pressed="true">
       <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>Sound</span><span class="pop-state"><span id="sound-state">On</span><kbd>N</kbd></span>
     </button>
@@ -409,6 +413,19 @@
     <button id="btn-credits" class="attribution-btn" type="button">Data &amp; credits</button>
   </div>
 
+  <!-- The player's figure (js/player-figure.js): the same on foot and on the bikes, kept in this browser -->
+  <dialog id="figure-dialog" class="panel mission-dialog figure-dialog" aria-labelledby="figure-title">
+    <div class="mission-dialog-head">
+      <div>
+        <div class="mission-kicker">Slop Davos</div>
+        <h2 id="figure-title" class="mission-dialog-title">Your figure</h2>
+      </div>
+      <form method="dialog"><button class="dialog-close" type="submit" title="Close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
+    </div>
+    <p class="figure-note">On foot, on the bicycle and on the cargo bike.</p>
+    <div id="figure-grid" class="figure-grid" role="radiogroup" aria-labelledby="figure-title"></div>
+  </dialog>
+
   <dialog id="credits-dialog" class="panel mission-dialog credits-dialog" aria-labelledby="credits-title">
     <div class="mission-dialog-head">
       <div>
@@ -445,7 +462,8 @@
     <p class="credits-source">Fassadenfarben aus Strassenbildern: <a href="https://www.mapillary.com" target="_blank" rel="noopener noreferrer">Mapillary</a>-Mitwirkende, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>.</p>
     <p class="credits-source">VBD bus model: “Low Poly Mercedes-Benz Citaro 530” by <a href="https://sketchfab.com/giosassets" target="_blank" rel="noopener noreferrer">giosassets</a> (<a href="https://sketchfab.com/3d-models/low-poly-mercedes-benz-citaro-530-881e83d1378c496eb8e42708a4ad3b96" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, recoloured, tyres simplified.</p>
     <p class="credits-source">VW T3 model: “VW T3 Van scale1-100 lowpoly for 3D-printing” by <a href="https://sketchfab.com/fishermans" target="_blank" rel="noopener noreferrer">fishermans garage</a> (<a href="https://sketchfab.com/3d-models/vw-t3-van-scale1-100-lowpoly-for-3d-printing-b26d56e82819444aa2379e6461500ff6" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, rescaled, wheels removed, recoloured.</p>
-    <p class="credits-source">People's motion-captured stances and the police figure: <a href="https://github.com/microsoft/Microsoft-Rocketbox" target="_blank" rel="noopener noreferrer">Microsoft Rocketbox Avatar Library</a> (MIT, © Microsoft; <a href="./assets/models/LICENSE-rocketbox.txt" target="_blank" rel="noopener noreferrer">licence</a>), retargeted to the game's skeleton.</p>
+    <p class="credits-source">The player's figures and the people's motion-captured stances: <a href="https://github.com/microsoft/Microsoft-Rocketbox" target="_blank" rel="noopener noreferrer">Microsoft Rocketbox Avatar Library</a> (MIT, © Microsoft; <a href="./assets/models/LICENSE-rocketbox.txt" target="_blank" rel="noopener noreferrer">licence</a>), retargeted to the game's skeleton.</p>
+    <p class="credits-source">Cycling helmet: “Bicycle Hat” by <a href="https://sketchfab.com/Sirapop.Satemrn" target="_blank" rel="noopener noreferrer">MR.Sirapop</a> (<a href="https://sketchfab.com/3d-models/bicycle-hat-660183838e9f4a16b53043e639ad8609" target="_blank" rel="noopener noreferrer">Sketchfab</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, rescaled, textures reduced.</p>
     <p class="credits-source">Close-up trees grown with <a href="https://github.com/dgreenheck/ez-tree" target="_blank" rel="noopener noreferrer">EZ-Tree by Dan Greenheck</a> (MIT; <a href="./assets/trees/LICENSE-ez-tree.txt" target="_blank" rel="noopener noreferrer">licence</a>).</p>
     <p class="credits-source">Code under the MIT License, based on colorfield's <a href="https://github.com/colorfield/slop-zurich" target="_blank" rel="noopener noreferrer">Slop Zürich</a>, itself after mrdoob's <a href="https://github.com/mrdoob/slop-newyork" target="_blank" rel="noopener noreferrer">Slop New York</a>. Built with <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> (MIT).</p>
   </dialog>

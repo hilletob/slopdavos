@@ -68,7 +68,7 @@ const PROFILES = {
     treeAtlas: 2048, // the leaf atlas (px a side, 4 x 4 tiles)
     facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
     deferScenery: false, // build the golf course and the streams after the first frame (their build's garbage apart)
-    playerModel: '', // the player on foot as a converted Rocketbox figure (?qset=playerModel:police-m01; js/person-models.js)
+    playerModel: '', // the player's figure for a test, over the menu's choice (?qset=playerModel:police-m01; js/player-figure.js)
     worldRadius: 0, // m: the streets, sidewalks, markings, track bed and car parks only this far round the player, streamed in cells (0: everywhere at once)
   },
   mobile: {

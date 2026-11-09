@@ -13,6 +13,7 @@ export const THIGH = 0.42, SHIN = 0.42, ANKLE_H = 0.08, HIP_X = 0.09, UPPER_ARM 
 export const HIP_Y = ANKLE_H + SHIN + THIGH;
 export const PELVIS_Y = 0.96;
 const SHOULDER = [0.185, 1.43, -0.015];
+const SHOULDER_F = [0.165, 1.415, -0.015]; // (js/pedestrians.js shoulderJoint(female))
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const armDir = (side) => V(side * Math.sin(ARM_BIND_ABDUCTION), -Math.cos(ARM_BIND_ABDUCTION), 0);
 export const TGT = {
@@ -60,9 +61,12 @@ export const DRIVER = ['Pelvis', 'Spine2', 'Head', 'L_UpperArm', 'L_Forearm', 'R
 /**
  * The skinned mesh of an avatar and its maps onto the game's bind pose: joint(name) & bindQuaternion(name) of a biped
  * bone in the bind pose (cm, Y up, facing +Z, +X on the avatar's left — the game's axes), and MAP[gameBone] =
- * { fn(p): biped point (cm) -> game bind pose (m), q: the rotation it turns the limb by }
+ * { fn(p): biped point (cm) -> game bind pose (m), q: the rotation it turns the limb by }. `female`: onto the female
+ * bind pose (narrower shoulders). `scale`: the avatar's size against the game's body (by the shoulders' height), the
+ * PersonRig scale that gives it back; the maps divide it out, so every figure is built at the bind pose's size.
  */
-export function avatarRig(scene) {
+export function avatarRig(scene, { female = false } = {}) {
+  const SH = female ? SHOULDER_F : SHOULDER;
   let mesh = null;
   scene.traverse((o) => { if (o.isSkinnedMesh && !mesh) mesh = o; });
   if (!mesh) throw new Error('no skinned mesh');
@@ -79,21 +83,23 @@ export function avatarRig(scene) {
     return q;
   };
 
-  // Torso & head: y stretched so the biped's hips & shoulders land on the game's, x & z scaled 1:100
+  // Torso & head: y stretched so the biped's hips & shoulders land on the game's, x & z scaled to the bind pose's size
   const srcHipY = joint('L_Thigh').y, srcShoulderY = joint('L_UpperArm').y;
-  const torsoK = (SHOULDER[1] - HIP_Y) / ((srcShoulderY - srcHipY) * 0.01);
-  const torso = (p) => V(p.x * 0.01, HIP_Y + (p.y - srcHipY) * 0.01 * torsoK, p.z * 0.01);
+  const scale = (srcShoulderY * 0.01) / SH[1];
+  const U = 0.01 / scale; // (cm of this avatar -> m of the bind pose)
+  const torsoK = (SH[1] - HIP_Y) / ((srcShoulderY - srcHipY) * U);
+  const torso = (p) => V(p.x * U, HIP_Y + (p.y - srcHipY) * U * torsoK, p.z * U);
   const neckSrc = joint('Neck');
   const neckTgt = torso(neckSrc);
-  const head = (p) => neckTgt.clone().add(p.clone().sub(neckSrc).multiplyScalar(0.01));
+  const head = (p) => neckTgt.clone().add(p.clone().sub(neckSrc).multiplyScalar(U));
   // A limb segment: from joint a to joint b in the biped onto from A along unit dir D, length len, in the game
   const segment = (a, b, A, D, len) => {
     const dir = b.clone().sub(a);
-    const k = len / (dir.length() * 0.01);
+    const k = len / (dir.length() * U);
     const q = new THREE.Quaternion().setFromUnitVectors(dir.clone().normalize(), D);
     const axis = dir.clone().normalize();
     const fn = (p) => {
-      const d = p.clone().sub(a).multiplyScalar(0.01);
+      const d = p.clone().sub(a).multiplyScalar(U);
       const along = d.dot(axis);
       d.addScaledVector(axis, along * (k - 1)); // stretched along the bone only
       return d.applyQuaternion(q).add(A);
@@ -115,10 +121,11 @@ export function avatarRig(scene) {
     const foot = segment(ankle, toe, TGT.ankle(side), footDir.clone().normalize(), footDir.length());
     MAP[L ? BONE.FOOT_L : BONE.FOOT_R] = foot;
     // the toes: turned with the foot, unstretched, from the ball of the foot
-    MAP[L ? BONE.TOE_L : BONE.TOE_R] = { fn: (p) => p.clone().sub(toe).multiplyScalar(0.01).applyQuaternion(foot.q).add(TGT.toe(side)), q: foot.q };
-    MAP[L ? BONE.UPPER_ARM_L : BONE.UPPER_ARM_R] = segment(shoulder, elbow, TGT.shoulder(side), armDir(side), UPPER_ARM);
-    const elbowTgt = TGT.shoulder(side).addScaledVector(armDir(side), UPPER_ARM);
+    MAP[L ? BONE.TOE_L : BONE.TOE_R] = { fn: (p) => p.clone().sub(toe).multiplyScalar(U).applyQuaternion(foot.q).add(TGT.toe(side)), q: foot.q };
+    const shoulderTgt = V(side * SH[0], SH[1], SH[2]);
+    MAP[L ? BONE.UPPER_ARM_L : BONE.UPPER_ARM_R] = segment(shoulder, elbow, shoulderTgt, armDir(side), UPPER_ARM);
+    const elbowTgt = shoulderTgt.clone().addScaledVector(armDir(side), UPPER_ARM);
     MAP[L ? BONE.FOREARM_L : BONE.FOREARM_R] = segment(elbow, wrist, elbowTgt, armDir(side), FOREARM);
   }
-  return { mesh, joint, bindQuaternion, MAP, torsoK, srcHipY };
+  return { mesh, joint, bindQuaternion, MAP, torsoK, srcHipY, scale };
 }

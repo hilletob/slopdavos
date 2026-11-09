@@ -42,7 +42,7 @@ function keyboardHarness(nyc = {}) {
       './tsl-materials.js': {},
       './actor-models.js': {},
       './pedestrians.js': {},
-      './person-models.js': {},
+      './player-figure.js': { applyFigure: () => new Promise(() => {}), chosenFigure: () => 'f04' },
       './person-clips.js': { loadPersonClips: () => new Promise(() => {}) },
       './vehicle-lights.js': {},
       './quality.js': { QUALITY: { clusteredLighting: true } },

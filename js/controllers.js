@@ -20,7 +20,7 @@ import {
   H145
 } from './actor-models.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
-import { loadPersonModel } from './person-models.js';
+import { applyFigure, chosenFigure } from './player-figure.js';
 import { loadPersonClips } from './person-clips.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { QUALITY } from './quality.js';
@@ -496,6 +496,8 @@ class ThirdPersonControllerManager {
       snowcat: this.createSnowcatEntity(),
       rhb: this.createRhBEntity()
     };
+    // The player's figure (js/player-figure.js): the chosen Rocketbox person on foot and on the bikes, once it has loaded
+    this.figure = applyFigure(this, chosenFigure()).catch((e) => console.warn('[player-figure]', e));
 
     Object.values(this.entities).forEach((ent) => {
       if (ent.mesh) {
@@ -1044,16 +1046,7 @@ class ThirdPersonControllerManager {
     };
 
     // Motion-captured stances while the player stands (js/person-clips.js)
-    loadPersonClips().then((lib) => rig.setClips(lib.idle(false))).catch((e) => console.warn(e));
-    // ?qset=playerModel:police-m01: a converted Rocketbox figure in the player's place once it has loaded (the same rig)
-    if (QUALITY.playerModel) {
-      loadPersonModel(QUALITY.playerModel).then((model) => {
-        const old = ent.crowd;
-        ent.crowd = new PersonCrowd(1, { farDistance: Infinity, dress: { model } });
-        ent.crowd.meshes.forEach((m) => this.scene.add(m));
-        old.meshes.forEach((m) => { this.scene.remove(m); m.material.dispose(); }); // (the lofted body's geometry is shared)
-      }).catch((e) => console.warn('[person-models]', e));
-    }
+    loadPersonClips().then((lib) => { if (!rig.clips) rig.setClips(lib.idle(rig.female)); }).catch((e) => console.warn(e));
     return ent;
   }
 
@@ -2493,8 +2486,12 @@ class ThirdPersonControllerManager {
       bike.riderCrowd.begin();
       if (ridden) bike.riderCrowd.add(bike.riderRig, 0);
       bike.riderCrowd.end();
+      // (the figure's fitted helmet, js/player-figure.js helmetFit, else the lofted body's)
+      const fit = bike.helmetFit, rs = bike.riderRig.s;
+      if (fit) bike.helmet.scale.setScalar(fit.s * rs);
       bike.helmet.quaternion.copy(bike.riderRig.headQuaternion);
-      bike.helmet.position.set(0, 0.175, -0.012).applyQuaternion(bike.helmet.quaternion).add(bike.riderRig.headPosition);
+      bike.helmet.position.set(0, fit ? fit.y * rs : 0.175, fit ? fit.z * rs : -0.012)
+        .applyQuaternion(bike.helmet.quaternion).add(bike.riderRig.headPosition);
     }
   }
 

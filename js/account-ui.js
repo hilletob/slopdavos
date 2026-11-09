@@ -178,5 +178,7 @@ export async function startAccount({ save, leaving, missionActive, pause, progre
       syncState = state;
       if (popover.matches(':popover-open')) say(SYNC_TEXT[state]);
     } });
+    // (a setting the account keeps, e.g. the player's figure, js/player-figure.js: saved at once)
+    addEventListener('slopdavos:save-now', () => { sync?.flush().catch(() => {}); });
   } catch { /* offline or the backend is down (with a session stored: the player is not stopped as a guest) */ }
 }

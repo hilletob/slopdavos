@@ -99,3 +99,11 @@ test('js/start.js reads the session where js/account.js keeps it, and the page s
   assert.match(start, /late\.abort\(\)/, 'a late answer writes nothing into a running game');
   assert.doesNotMatch(start, /^import /m, 'a guest loads nothing else');
 });
+
+test('the player\'s figure travels with the world: read from this device, written from a newer cloud save', () => {
+  const s = storage({ [WORLD_KEYS.figure]: '"m04"', [WORLD_KEYS.player]: '{"x":1}' });
+  assert.deepEqual(readLocalSave(s).world, { player: { x: 1 }, figure: 'm04' });
+  const merged = mergeSaves(readLocalSave(s), { progress: null, bestTimes: null, world: { player: { x: 2 }, figure: 'f01' }, worldAt: Date.now() });
+  applySave(s, merged);
+  assert.equal(s.getItem(WORLD_KEYS.figure), '"f01"');
+});

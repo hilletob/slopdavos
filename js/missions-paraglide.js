@@ -507,6 +507,7 @@ const paraglider = {
     const air = f?.phase === 'air';
     // (before the start the walker may still be wherever the game left it: no wing in town)
     pg.wing.visible = pg.harness.visible = pg.helmet.visible = run.phase !== 'intro' && run.phase !== 'loading';
+    if (p.crowd?.model) pg.helmet.visible = false; // (made for the lofted head: a Rocketbox figure flies without, js/player-figure.js)
     if (!air) rig.update(dt, p.position.x, p.position.z, p.heading, (c, x, z, near) => c.getGroundHeight(x, z, 'person', near), cm, 0);
     // the wing's attitude: laid out behind on the slope, up overhead with the inflation, banked and pitched in the air,
     // collapsing behind after the landing

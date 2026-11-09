@@ -1090,7 +1090,13 @@ function createModelPersonMaterial(pose, model) {
     normalLocal.assign(normalize(mix(qrot(qa, n), qrot(qb, n), skin.z)));
     return mix(qrot(qa, p).mul(ta.w).add(ta.xyz), qrot(qb, p).mul(tb.w).add(tb.xyz), skin.z);
   })();
-  mat.colorNode = texture(model.map, uv()).rgb;
+  const tex = texture(model.map, uv());
+  mat.colorNode = tex.rgb;
+  if (model.alphaTest > 0) { // (hair strands & lashes: cut out, seen from both sides)
+    mat.opacityNode = tex.a;
+    mat.alphaTest = model.alphaTest;
+    mat.side = THREE.DoubleSide;
+  }
   return mat;
 }
 
@@ -1303,6 +1309,18 @@ class PersonRig {
     this.clipFade = 1;
     this.pose = new Float32Array(STRIDE * 4);
     this.pose.set([seed, this.female, girth, Math.min(1, Math.max(0, hair)) + hairstyle * 2], (STRIDE - 1) * 4);
+  }
+
+  /**
+   * A new build for the same person (the player's figure, js/player-figure.js): its scale and the female or male bind
+   * pose; it stands afresh where it is
+   */
+  setBuild({ scale = this.s, female = this.female } = {}) {
+    this.s = scale;
+    this.female = female ? 1 : 0;
+    this.bind = BIND[this.female];
+    this.pose[(STRIDE - 1) * 4 + 1] = this.female;
+    this.placed = false;
   }
 
   get legLength() {

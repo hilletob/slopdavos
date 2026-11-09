@@ -3,13 +3,13 @@ import { STATS_KEY } from './play-stats.js';
 // What a cloud save is and how two of them become one. No DOM and no network (tests/account-merge.test.mjs).
 // - The missions' progress and best times only ever get better, so they merge entry by entry: it does not matter in which
 //   order, or how often, two devices meet.
-// - The world (where the player stands, the parked vehicles, the clock) cannot be merged: the newer one wins, as a whole
+// - The world (where the player stands, the parked vehicles, the clock, the player's figure) cannot be merged: the newer one wins, as a whole
 //   (without its GTA state a player's save starts afresh, js/main.js FRESH_GTA).
 // Not in a save: the Kirchner gallery (too big), the language and the sound (they belong to the device), diagnostics.
 
 export const PROGRESS_KEY = 'slopdavos-progress';
 export const BEST_KEY = 'slopdavos-mission-best';
-export const WORLD_KEYS = { player: 'slopdavos-player-state', gta: 'slopdavos-gta', clock: 'slopdavos-clock' };
+export const WORLD_KEYS = { player: 'slopdavos-player-state', gta: 'slopdavos-gta', clock: 'slopdavos-clock', figure: 'slopdavos-figure' };
 export const WORLD_AT_KEY = 'slopdavos-world-at';
 export const OWNER_KEY = 'slopdavos-account-owner';
 
@@ -93,7 +93,7 @@ function readJson(storage, key) {
   try { return JSON.parse(storage.getItem(key)); } catch { return null; }
 }
 
-/** The world on this device: { player, gta, clock } (whichever exist), or null */
+/** The world on this device: { player, gta, clock, figure } (whichever exist), or null */
 export function readWorld(storage) {
   const world = {};
   for (const [name, key] of Object.entries(WORLD_KEYS)) {

@@ -481,8 +481,8 @@ const radarCheck = {
     };
     R.obstacles = [];
     // the officer's stances: writing the ticket at the stopped car (js/person-clips.js), idling otherwise
-    loadPersonClips().then((lib) => { R.clips = { note: [lib.byName.get('m_documents_note')], idle: lib.idle(false) }; }).catch((e) => console.warn(e));
-    run.cleanups.push(() => { if (R.rig && R.clips) R.rig.setClips(R.clips.idle); });
+    loadPersonClips().then((lib) => { R.clips = { note: [lib.byName.get('m_documents_note')], lib }; }).catch((e) => console.warn(e));
+    run.cleanups.push(() => { if (R.rig && R.clips) R.rig.setClips(R.clips.lib.idle(R.rig.female)); });
     R.stream = createStream(1 + Math.random() * 1e6);
     R.streamCars = buildStreamCars(run);
     R.tripod = buildTripod();
@@ -595,7 +595,7 @@ const radarCheck = {
     R.lastStop = stopPhase;
     const rig = cm.entities.person?.rig;
     if (rig && R.clips) {
-      const want = check.stop?.atCar ? R.clips.note : R.clips.idle;
+      const want = check.stop?.atCar ? R.clips.note : R.clips.lib.idle(rig.female);
       if (rig.clips !== want) rig.setClips(want);
       R.rig = rig;
     }

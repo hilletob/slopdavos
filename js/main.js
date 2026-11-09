@@ -1,4 +1,5 @@
 import { setLocalizedText } from './i18n.js';
+import { FIGURES, applyFigure, chosenFigure, rememberFigure } from './player-figure.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -566,7 +567,8 @@ async function initApp() {
     scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
-    controllerManager.entities.cyclist.helmet
+    controllerManager.entities.cyclist.helmet,
+    controllerManager.entities.cargobike.helmet
   ].filter(Boolean);
   scene.updateMatrixWorld(true);
   scene.matrixWorldAutoUpdate = false;
@@ -797,6 +799,45 @@ async function initApp() {
       setLocalizedText(elClockDay, `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'}`);
     }
   }
+
+  // The player's figure (js/player-figure.js): a choice of six in the menu, kept in this browser
+  const figureDialog = document.getElementById('figure-dialog');
+  const figureGrid = document.getElementById('figure-grid');
+  const figureState = document.getElementById('figure-state');
+  const showFigure = (id) => {
+    const figure = FIGURES.find((f) => f.id === id);
+    if (figureState) setLocalizedText(figureState, figure?.label || '');
+    figureGrid?.querySelectorAll('.figure-option').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.figure === id)));
+  };
+  for (const figure of FIGURES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'figure-option';
+    button.dataset.figure = figure.id;
+    button.setAttribute('role', 'radio');
+    const img = document.createElement('img');
+    img.src = `./assets/figures/${figure.id}.webp`;
+    img.alt = '';
+    img.loading = 'lazy';
+    const label = document.createElement('span');
+    setLocalizedText(label, figure.label);
+    button.append(img, label);
+    button.addEventListener('click', () => {
+      rememberFigure(figure.id);
+      showFigure(figure.id);
+      window.dispatchEvent(new CustomEvent('slopdavos:save-now')); // (signed in: into the cloud save now, js/account-ui.js)
+      controllerManager.figure = applyFigure(controllerManager, figure.id).catch((e) => console.warn('[player-figure]', e));
+      figureDialog.close();
+    });
+    figureGrid?.append(button);
+  }
+  showFigure(chosenFigure());
+  document.getElementById('btn-figure-menu')?.addEventListener('click', () => { closePopovers(); figureDialog.showModal(); });
+  figureDialog?.addEventListener('click', (e) => {
+    if (e.target !== figureDialog) return;
+    const r = figureDialog.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) figureDialog.close();
+  });
 
   // Data & credits: a native modal <dialog> (Esc and the × close it; so does a click on the backdrop), opened from the
   // attribution line at the bottom and from the menu
