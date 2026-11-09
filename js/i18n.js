@@ -312,6 +312,14 @@ const pairs = [
   ['The load slides off into the Davosersee. The road is black again and the Werkhof sends the next truck.', 'Die Ladung rutscht in den Davosersee. Die Strasse ist wieder schwarz, und der Werkhof schickt den nächsten Lastwagen.'],
   ['Mowing the Kurpark lawn', 'Rasenmähen im Kurpark'],
   ['Refuse round in Davos Platz', 'Kehrichtrunde in Davos Platz'],
+  // the postman's round (js/missions-data-post.js, js/missions-post.js)
+  ['Emptying the post boxes', 'Briefkästen leeren'],
+  ['The late-morning collection: take the Post\'s yellow van from the Dischmastrasse through Davos Dorf and along the Promenade to Davos Platz and empty the eight public post boxes on the way. Stop by each box and hold Space (or Empty) while the postman unlocks it and tips its letters into the sack; a full box takes longer. Each plate shows its collection time. Then hand the sacks in at the post office Davos Platz on the Talstrasse before the noon dispatch leaves. A box left out costs 45 s.', 'Die Leerung am späten Vormittag: Fahr mit dem gelben Lieferwagen der Post von der Dischmastrasse durch Davos Dorf und über die Promenade nach Davos Platz und leere unterwegs die acht öffentlichen Briefkästen. Halte bei jedem Briefkasten an und halte die Leertaste (oder «Leeren») gedrückt, während der Pöstler ihn aufschliesst und die Briefe in den Sack kippt; ein voller Kasten dauert länger. Auf jedem Schild steht die Leerungszeit. Dann gibst du die Säcke bei der Poststelle Davos Platz an der Talstrasse ab, bevor der Mittagsversand abfährt. Ein ausgelassener Briefkasten kostet 45 s.'],
+  ['The sacks are in, the dispatch to the letter centre leaves at noon. Tomorrow the letters of Davos are in Zürich, Basel and Bern.', 'Die Säcke sind abgegeben, der Versand ins Briefzentrum fährt am Mittag. Morgen sind die Briefe aus Davos in Zürich, Basel und Bern.'],
+  ['Empty the post boxes', 'Die Briefkästen leeren'], ['Hand the mail in at the post office', 'Die Post bei der Poststelle abgeben'],
+  ['The noon dispatch has left: the letters stay in Davos until tomorrow.', 'Der Mittagsversand ist weg: Die Briefe bleiben bis morgen in Davos.'],
+  ['Back into the van', 'Zurück in den Lieferwagen'], ['Hold Space to empty the box', 'Leertaste halten: Briefkasten leeren'], ['Stop by the post box', 'Beim Briefkasten anhalten'],
+  ['Stand still while the sacks go in', 'Stehen bleiben, während die Säcke abgegeben werden'], ['Empty', 'Leeren'], ['Post van', 'Lieferwagen der Post'],
   ['Alpine roses below the Strelaberg', 'Alpenrosen unter dem Strelaberg'],
   ['Mushroom hunt in the Dischma forest', 'Pilzsuche im Dischmawald'],
   ['Horn sledge race at the Rinerhorn', 'Hornschlittenrennen am Rinerhorn'],
@@ -1146,6 +1154,16 @@ const pairs = [
   ['Swing the blade', 'Pflugschar schwenken'], ['Blade side', 'Pflugseite'], ['Lift the blade', 'Pflugschar heben'],
   ['Snow plough', 'Schneepflug'],
   ['A clean run: no penalties', 'Sauber gefahren: keine Strafzeit'],
+  // the medicine round by cargo bike (js/missions-data-pharmacy.js, js/missions-pharmacy.js)
+  ['Medicine round by cargo bike', 'Medikamente mit dem Cargovelo'],
+  ['The morning round of the Amavita Apotheke Flüela at the Bahnhofstrasse in Davos Dorf: six parcels in the crate of the yellow cargo bike, for six addresses round the village. The insulin in the cool box goes first, it stays cold for 1:30 (+45 s if it gets warm). Two parcels hold glass: take the kerbs slowly and do not crash, or they break (+30 s each). Stop at each door to hand a parcel over, then ride back to the pharmacy.', 'Die Morgenrunde der Amavita Apotheke Flüela an der Bahnhofstrasse in Davos Dorf: sechs Pakete in der Kiste des gelben Cargovelos, für sechs Adressen im Dorf. Das Insulin in der Kühlbox kommt zuerst, es bleibt 1:30 kalt (+45 s, wenn es warm wird). Zwei Pakete enthalten Glas: Nimm die Randsteine langsam und bau keinen Unfall, sonst gehen sie kaputt (+30 s pro Paket). Halte an jeder Tür an, um ein Paket zu übergeben, und fahr dann zurück zur Apotheke.'],
+  ['The crate is empty and the cargo bike back at the Bahnhofstrasse. Six homes in Davos Dorf have their medicine.', 'Die Kiste ist leer und das Cargovelo zurück an der Bahnhofstrasse. Sechs Haushalte in Davos Dorf haben ihre Medikamente.'],
+  ['The insulin to Mühlestrasse 10', 'Das Insulin an die Mühlestrasse 10'], ['Deliver the other parcels', 'Die übrigen Pakete ausliefern'], ['Back to the pharmacy', 'Zurück zur Apotheke'],
+  ['Back onto the cargo bike', 'Zurück aufs Cargovelo'], ['Stop at the door to hand the parcel over', 'An der Tür anhalten: Paket übergeben'],
+  ['Glass aboard: slow down over kerbs', 'Glas an Bord: über Randsteine langsam'], ['Stop in front of the pharmacy', 'Vor der Apotheke anhalten'],
+  ['The insulin is warm: +45 s', 'Das Insulin ist warm: +45 s'],
+  ['Insulin (cool box)', 'Insulin (Kühlbox)'], ['Blood pressure tablets', 'Blutdrucktabletten'], ['Asthma inhaler', 'Asthmaspray'],
+  ['Eye drops (glass)', 'Augentropfen (Glas)'], ['Wound dressings', 'Wundverbände'], ['Cough syrup (glass)', 'Hustensirup (Glas)'],
 ];
 
 const enToDe = new Map(pairs);
@@ -1311,6 +1329,14 @@ function translate(value) {
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
+  // the medicine round by cargo bike (js/missions-data-pharmacy.js, js/missions-pharmacy.js)
+  dynamic = dynamic.replace(/^Insulin cold for (\d+:\d\d) · (.+) to (.+)$/, (_, c, d, w) => `Insulin noch ${c} kalt · ${d.replace('.', ',')} bis ${w}`).replace(/^The insulin is warm \(\+45 s\) · (.+) to (.+)$/, (_, d, w) => `Das Insulin ist warm (+45 s) · ${d.replace('.', ',')} bis ${w}`);
+  dynamic = dynamic.replace(/^Delivered (\d+\/\d+) · next (.+), ([\d,.]+ (?:m|km))(?: · fragile (\d+) %)?$/, (_, n, where, d, f) => `Abgegeben ${n} · nächste: ${where}, ${d.replace('.', ',')}${f ? ` · zerbrechlich ${f} %` : ''}`);
+  dynamic = dynamic.replace(/^Delivered (\d+\/\d+)$/, 'Abgegeben $1').replace(/^Crate empty · (.+) to the pharmacy$/, (_, d) => `Kiste leer · ${d.replace('.', ',')} bis zur Apotheke`).replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
+  dynamic = dynamic.replace(/^Delivered: (.+)$/, (_, what) => `Abgegeben: ${translate(what)}`).replace(/^(.+) broken: \+30 s$/, (_, what) => `${translate(what)} kaputt: +30 s`);
+  dynamic = dynamic.replace(/^(Bump|Crash)! The glass at (\d+) %$/, (_, what, n) => `${what === 'Bump' ? 'Rumms' : 'Unfall'}! Das Glas noch bei ${n} %`);
+  dynamic = dynamic.replace(/^(\d+) of (\d+) parcels delivered · insulin (?:after (\d+:\d\d)|not delivered)( \(warm, \+45 s\))?$/, (_, a, b, at, warm) => `${a} von ${b} Paketen abgegeben · Insulin ${at ? `nach ${at}` : 'nicht abgegeben'}${warm ? ' (warm, +45 s)' : ''}`);
+  dynamic = dynamic.replace(/^(\d+) bumps? · (\d+) crash(?:es)? · (?:(\d+) broken \(\+(\d+) s\)|the glass arrived whole)$/, (_, b, c, k, s) => `${b} ${b === '1' ? 'Rumms' : 'Rummse'} · ${c} ${c === '1' ? 'Unfall' : 'Unfälle'} · ${k ? `${k} kaputt (+${s} s)` : 'das Glas kam ganz an'}`);
   dynamic = dynamic.replace(/^The delegation is boarding … (\d+) s$/, 'Die Delegation steigt ein … $1 s').replace(/^The door opens … (\d+) s$/, 'Die Tür geht auf … $1 s');
   dynamic = dynamic.replace(/^Cohesion (\d+) % · composure (\d+) · (\d+) crashes · (\d+) gates rushed$/, 'Zusammenhalt $1 % · Fassung $2 · $3 Unfälle · $4 Schleusen zu schnell');
   dynamic = dynamic.replace(/^(\d+) marchers · chant (\d+) % · on the route (\d+) % · goodwill (\d+)$/, '$1 Leute · Sprechchor $2 % · auf der Route $3 % · Wohlwollen $4');
@@ -1567,6 +1593,17 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
   dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
   dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
+  // the postman's round (js/missions-data-post.js)
+  {
+    const kmDe = (d) => d.replace(/^(\d+)\.(\d) km$/, '$1,$2 km');
+    dynamic = dynamic
+      .replace(/^Emptied (\d+\/\d+) · (\d+) letters(?: · next (.+))?$/, (_, n, l, d) => `Geleert ${n} · ${l} Briefe${d ? ` · nächster ${kmDe(d)}` : ''}`)
+      .replace(/^Emptied (\d+\/\d+)$/, 'Geleert $1')
+      .replace(/^Emptying … (\d+) %$/, 'Leeren … $1 %')
+      .replace(/^(\d+) box(?:es)? left out \(\+(\d+) s\)$/, (_, n, s) => `${n} ${plural(n, 'Briefkasten', 'Briefkästen')} ausgelassen (+${s} s)`)
+      .replace(/^To the post office · (.+)$/, (_, d) => `Zur Poststelle · ${kmDe(d)}`)
+      .replace(/^(\d+) of (\d+) post boxes emptied · (\d+) letters(?: · (\d+) left out \(\+(\d+) s\))?$/, (_, a, b, l, c, d) => `${a} von ${b} Briefkästen geleert · ${l} Briefe${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
+  }
   dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
   dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');

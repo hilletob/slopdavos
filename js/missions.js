@@ -40,6 +40,8 @@ import { RADAR_FEATURES } from './missions-radar.js';
 import { WINTERROAD_FEATURES } from './missions-winterroad.js';
 import { PLOUGH_FEATURES } from './missions-plough.js';
 import { SNOWFARM_FEATURES } from './missions-snowfarm.js';
+import { PHARMACY_FEATURES } from './missions-pharmacy.js';
+import { POST_FEATURES } from './missions-post.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -1231,3 +1233,5 @@ Object.assign(FEATURES, WINTERROAD_FEATURES); // winter driving: summer tyres fr
 Object.assign(FEATURES, PLOUGH_FEATURES); // the snow plough clears the road over the Wolfgang (js/missions-plough.js)
 Object.assign(FEATURES, SNOWFARM_FEATURES); // Snowfarming: the old snow spread on the Loipe with a lorry, then groomed with the snowcat (js/missions-snowfarm.js)
 Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the Rinerhorn (js/missions-paraglide.js)
+Object.assign(FEATURES, PHARMACY_FEATURES); // the medicine round by cargo bike from the Amavita Apotheke Flüela (js/missions-pharmacy.js)
+Object.assign(FEATURES, POST_FEATURES); // the postman empties the post boxes from Davos Dorf to Platz in the yellow van (js/missions-post.js)

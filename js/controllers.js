@@ -3001,7 +3001,7 @@ class ThirdPersonControllerManager {
 
   updateHelicopter(dt, elapsed) {
     const h = this.entities.helicopter;
-    const maxHorizSpeed = 52.0;
+    const maxHorizSpeed = 250 / 3.6; // 250 km/h, the Rega H145's top speed in the game
     const maxVertSpeed = 16.0;
 
     let fwdInput = 0;

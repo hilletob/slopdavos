@@ -500,6 +500,14 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       }
       break;
     }
+    case 'postbox': { // a post box on its pillar: the body with its round roof, the slot (js/missions-data-post.js)
+      ctx.fillRect(-g * 0.1, g * 0.2, g * 0.2, g * 0.8); // the pillar
+      ctx.beginPath(); ctx.moveTo(-g * 0.6, g * 0.3); ctx.lineTo(-g * 0.6, -g * 0.45); ctx.arc(0, -g * 0.45, g * 0.6, Math.PI, 0); ctx.lineTo(g * 0.6, g * 0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = def.colour || '#f5b800';
+      ctx.fillRect(-g * 0.38, -g * 0.5, g * 0.76, g * 0.12); // the slot
+      ctx.fillRect(-g * 0.4, -g * 0.15, g * 0.8, g * 0.05); // the door's seam
+      break;
+    }
     default:
       ctx.beginPath(); ctx.arc(0, 0, g * 0.5, 0, Math.PI * 2); ctx.fill();
   }
