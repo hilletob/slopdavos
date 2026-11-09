@@ -1326,9 +1326,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
   // the free flight's landing (js/paraglide-free.js) and its list (js/leaderboard-overview.js)
   dynamic = dynamic.replace(/^([\d.]+ (?:m|km)) from the launch( · personal best!)?( · rank (\d+) of (\d+))?$/, (_, d, best, _r, rank, of) => `${d} vom Startpunkt${best ? ' · persönlicher Rekord!' : ''}${rank ? ` · Rang ${rank} von ${of}` : ''}`);
-  // the WEF week (js/missions-data-wef.js)
-  dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
-  dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
   // the medicine round by cargo bike (js/missions-data-pharmacy.js, js/missions-pharmacy.js)
   dynamic = dynamic.replace(/^Insulin cold for (\d+:\d\d) · (.+) to (.+)$/, (_, c, d, w) => `Insulin noch ${c} kalt · ${d.replace('.', ',')} bis ${w}`).replace(/^The insulin is warm \(\+45 s\) · (.+) to (.+)$/, (_, d, w) => `Das Insulin ist warm (+45 s) · ${d.replace('.', ',')} bis ${w}`);
   dynamic = dynamic.replace(/^Delivered (\d+\/\d+) · next (.+), ([\d,.]+ (?:m|km))(?: · fragile (\d+) %)?$/, (_, n, where, d, f) => `Abgegeben ${n} · nächste: ${where}, ${d.replace('.', ',')}${f ? ` · zerbrechlich ${f} %` : ''}`);
@@ -1337,6 +1334,9 @@ function translate(value) {
   dynamic = dynamic.replace(/^(Bump|Crash)! The glass at (\d+) %$/, (_, what, n) => `${what === 'Bump' ? 'Rumms' : 'Unfall'}! Das Glas noch bei ${n} %`);
   dynamic = dynamic.replace(/^(\d+) of (\d+) parcels delivered · insulin (?:after (\d+:\d\d)|not delivered)( \(warm, \+45 s\))?$/, (_, a, b, at, warm) => `${a} von ${b} Paketen abgegeben · Insulin ${at ? `nach ${at}` : 'nicht abgegeben'}${warm ? ' (warm, +45 s)' : ''}`);
   dynamic = dynamic.replace(/^(\d+) bumps? · (\d+) crash(?:es)? · (?:(\d+) broken \(\+(\d+) s\)|the glass arrived whole)$/, (_, b, c, k, s) => `${b} ${b === '1' ? 'Rumms' : 'Rummse'} · ${c} ${c === '1' ? 'Unfall' : 'Unfälle'} · ${k ? `${k} kaputt (+${s} s)` : 'das Glas kam ganz an'}`);
+  // the WEF week (js/missions-data-wef.js)
+  dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
+  dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
   dynamic = dynamic.replace(/^The delegation is boarding … (\d+) s$/, 'Die Delegation steigt ein … $1 s').replace(/^The door opens … (\d+) s$/, 'Die Tür geht auf … $1 s');
   dynamic = dynamic.replace(/^Cohesion (\d+) % · composure (\d+) · (\d+) crashes · (\d+) gates rushed$/, 'Zusammenhalt $1 % · Fassung $2 · $3 Unfälle · $4 Schleusen zu schnell');
   dynamic = dynamic.replace(/^(\d+) marchers · chant (\d+) % · on the route (\d+) % · goodwill (\d+)$/, '$1 Leute · Sprechchor $2 % · auf der Route $3 % · Wohlwollen $4');
@@ -1590,9 +1590,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${plural(n, 'parkiertes Auto', 'parkierte Autos')} getroffen (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
   dynamic = dynamic.replace(/^(\d+) bed patch(?:es)? trodden \(\+([\d.]+) s\)$/, (_, n, a) => `${n} ${plural(n, 'Beet', 'Beete')} zertrampelt (+${a} s)`);
   dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
-  dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
-  dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
-  dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
   // the postman's round (js/missions-data-post.js)
   {
     const kmDe = (d) => d.replace(/^(\d+)\.(\d) km$/, '$1,$2 km');
@@ -1604,6 +1601,9 @@ function translate(value) {
       .replace(/^To the post office · (.+)$/, (_, d) => `Zur Poststelle · ${kmDe(d)}`)
       .replace(/^(\d+) of (\d+) post boxes emptied · (\d+) letters(?: · (\d+) left out \(\+(\d+) s\))?$/, (_, a, b, l, c, d) => `${a} von ${b} Briefkästen geleert · ${l} Briefe${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
   }
+  dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
+  dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
+  dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
   dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
   dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
