@@ -164,6 +164,8 @@ test('the rope park and the Seehofseeli translate names, intros and generated te
   assert.equal(t('1 fall · 0 forgotten · soft landing'), '1 Sturz · 0 vergessen · weiche Landung');
   assert.equal(t('You 2 : 1 Locals · 2:05'), 'Du 2 : 1 Einheimische · 2:05');
   assert.equal(t('Won 5 : 2 · your goals: 3'), 'Gewonnen 5 : 2 · deine Tore: 3');
+  assert.equal(t('Won 5 : 2 · your goals: 3 · assists: 1'), 'Gewonnen 5 : 2 · deine Tore: 3 · Assists: 1');
+  assert.equal(t('Body check: the puck is loose!'), 'Bodycheck: Der Puck ist frei!');
   assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
 });
 

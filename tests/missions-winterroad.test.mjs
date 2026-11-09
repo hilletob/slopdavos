@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  WINTERROAD_MISSIONS, SUMMER_TYRES_MISSION, SNOW_CHAINS_MISSION, FLUELA, CLAVADEL, FLUELA_S, CLAVADEL_S, FLUELA_ROAD, PLACES, PULLOVER,
+  WINTERROAD_MISSIONS, SUMMER_TYRES_MISSION, SNOW_CHAINS_MISSION, FLUELA, FLUELA_TOP, CLAVADEL, FLUELA_S, CLAVADEL_S, FLUELA_ROAD, PLACES, PULLOVER,
   TYRES, CHAINS, SPIN, STUCK_S, BANK_PENALTY_MS, createTraction, stepTraction, slopePull, createDrive, stepDrive, createChains, stepChains, chainSpot,
   needleAt, stepChainStrain, profileTime, chainWays, projectNear, kmh
 } from '../js/missions-data-winterroad.js';
@@ -42,10 +42,19 @@ test('the Flüelapassstrasse from the Gasthaus zum Tschuggen to the Hospiz: one 
   assert.ok(h0 > 1920 && h0 < 1960, `Tschuggen ${h0.toFixed(0)} m`);
   assert.ok(h1 > 2370 && h1 < 2395, `the pass ${h1.toFixed(0)} m`);
   assert.ok(FLUELA_S.waegerhus < FLUELA_S.waegerhuetta && FLUELA_S.waegerhuetta < FLUELA_S.end);
-  // the van starts on the road, on its right half, facing along it
+  // the mission drives the top of it: from the Wägerhütta (2.5 km, ~2210 m) to the pass
+  const T = FLUELA_TOP.pts, m = T.length / 2;
+  assert.ok(Math.hypot(T[0] - PLACES.waegerhuetta.x, T[1] - PLACES.waegerhuetta.z) < 60, 'starts by the Wägerhütta (the hut stands back from the road)');
+  assert.ok(Math.hypot(T[m * 2 - 2] - PLACES.hospiz.x, T[m * 2 - 1] - PLACES.hospiz.z) < 30, 'ends at the Hospiz');
+  assert.ok(FLUELA_TOP.length > 2300 && FLUELA_TOP.length < 2600, `${FLUELA_TOP.length.toFixed(0)} m`);
+  assert.ok(FLUELA_TOP.length < FLUELA.length / 2);
+  const t0 = groundHeight(T[0], T[1]) + 1558;
+  assert.ok(t0 > 2190 && t0 < 2230, `Wägerhütta ${t0.toFixed(0)} m`);
+  // the van starts on the road, on its right half, facing along it, at the Wägerhütta
   const s = SUMMER_TYRES_MISSION.start, p = projectNear(FLUELA, s.x, s.z);
   assert.ok(p.d < 0 && p.d > -FLUELA_ROAD.half, `${p.d.toFixed(1)} m`);
   assert.ok(Math.abs(Math.atan2(p.tx, p.tz) - s.heading) < 0.05);
+  assert.ok(Math.abs(p.s - FLUELA_S.waegerhuetta) < 20);
 });
 
 test('Islen to Frauenkirch: the Clavadelerstrasse up over Clavadel, the Sertigerstrasse down, all roads for cars', async () => {
@@ -66,7 +75,17 @@ test('Islen to Frauenkirch: the Clavadelerstrasse up over Clavadel, the Sertiger
 });
 
 test('summer tyres: a full throttle from a standstill on 10 % spins and gets nowhere, a gentle foot climbs', () => {
-  const T = TYRES.summer, grade = 0.1;
+  // the Flüela's ploughed snow grips a little more than the road to Islen, but nowhere near the chains
+  assert.equal(SUMMER_TYRES_MISSION.tyres, 'ploughed');
+  assert.equal(SNOW_CHAINS_MISSION.tyres, 'summer');
+  const P = TYRES.ploughed.drive, S = TYRES.summer.drive;
+  assert.ok(P.grip > S.grip && P.grip < S.grip * 1.25 && P.brake > S.brake && TYRES.ploughed.traction > TYRES.summer.traction);
+  assert.ok(TYRES.chains.drive.grip > 1.6 * P.grip && TYRES.ploughed.traction < TYRES.chains.traction);
+  for (const T of [TYRES.summer, TYRES.ploughed]) spinsAndClimbs(T);
+});
+
+function spinsAndClimbs(T) {
+  const grade = 0.1;
   const full = createTraction();
   for (let i = 0; i < 90; i++) stepTraction(full, { throttle: 1, speed: 0, grade }, T, DT);
   assert.ok(full.spin > 0.9, `spin ${full.spin.toFixed(2)}`);
@@ -93,8 +112,11 @@ test('summer tyres: a full throttle from a standstill on 10 % spins and gets now
   assert.ok(moving.force > slopePull(0.08), `${moving.force.toFixed(2)}`);
   // a bend eats into the traction: the same foot spins with the tyres holding sideways
   const bend = createTraction();
-  for (let i = 0; i < 60; i++) stepTraction(bend, { throttle: 0.44, speed: 3, grade: 0, lateral: 2.0 }, T, DT);
-  assert.ok(bend.spin > 0.2);
+  for (let i = 0; i < 60; i++) stepTraction(bend, { throttle: 0.44, speed: 3, grade: 0, lateral: 0.8 * T.drive.grip }, T, DT);
+  assert.ok(bend.spin > 0.2, `bend spin ${bend.spin.toFixed(2)}`);
+}
+
+test('snow chains: they hold full throttle on the slope', () => {
   // the chains hold full throttle on the slope
   const chains = createTraction();
   for (let i = 0; i < 90; i++) stepTraction(chains, { throttle: 1, speed: 0, grade: 0.12 }, TYRES.chains, DT);
@@ -104,7 +126,7 @@ test('summer tyres: a full throttle from a standstill on 10 % spins and gets now
 
 test('the drive: the snowbank costs 5 s once, off the road ends it, stuck for 40 s ends it', () => {
   const st = SUMMER_TYRES_MISSION.createState();
-  const on = (s, d, over = {}) => { const p = routePoint(FLUELA, s, d); return frame({ x: p.x, z: p.z, ...over }); };
+  const on = (s, d, over = {}) => { const p = routePoint(FLUELA_TOP, s, d); return frame({ x: p.x, z: p.z, ...over }); };
   for (let s = 0; s < 200; s += 2) SUMMER_TYRES_MISSION.update(on(s, -2, { speed: 8 }), st);
   assert.ok(Math.abs(st.drive.best - 198) < 3);
   for (let i = 0; i < 10; i++) SUMMER_TYRES_MISSION.update(on(200, -7.5, { speed: 8 }), st);
@@ -115,7 +137,7 @@ test('the drive: the snowbank costs 5 s once, off the road ends it, stuck for 40
   assert.equal(st.drive.banks, 2);
   assert.equal(st.drive.crashes, 0);
   let v = SUMMER_TYRES_MISSION.objectives[0].check(on(204, -2, { speed: 4 }), st);
-  assert.match(v.text, /^1\.0 km to the Wägerhus · 14 km\/h · 2 times in the snowbank$/);
+  assert.match(v.text, /^2\.3 km to the Flüela Hospiz · 14 km\/h · 2 times in the snowbank$/);
   assert.equal(v.fail, undefined);
   SUMMER_TYRES_MISSION.update(on(206, -16, { speed: 8 }), st);
   v = SUMMER_TYRES_MISSION.objectives[0].check(on(206, -16), st);
@@ -135,17 +157,18 @@ test('the drive: the snowbank costs 5 s once, off the road ends it, stuck for 40
   assert.ok(dr.best > FLUELA.length - 5);
 });
 
-test('a bot drives the Flüela: three splits, done at the Hospiz', () => {
+test('a bot drives the Flüela: from the Wägerhütta, through the hairpins, done at the Hospiz', () => {
   const m = SUMMER_TYRES_MISSION, st = m.createState();
   let idx = 0;
-  for (let s = 0; s <= FLUELA.length + 2 && idx < 3; s += 2) {
-    const p = routePoint(FLUELA, Math.min(s, FLUELA.length), -2), ctx = frame({ x: p.x, z: p.z, speed: 10 });
+  assert.equal(m.objectives.length, 2);
+  for (let s = 0; s <= FLUELA_TOP.length + 2 && idx < 2; s += 2) {
+    const p = routePoint(FLUELA_TOP, Math.min(s, FLUELA_TOP.length), -2), ctx = frame({ x: p.x, z: p.z, speed: 10 });
     m.update(ctx, st);
     const v = m.objectives[idx].check(ctx, st);
     assert.equal(v.fail, undefined);
     if (v.done) idx++;
   }
-  assert.equal(idx, 3);
+  assert.equal(idx, 2);
   assert.match(m.summary(st)[0], /^Wheelspin 0 s · 0 times in the snowbank · 0 crashes$/);
 });
 
@@ -258,7 +281,7 @@ test('a bot does the snow chains mission: pull over, chains on, back in, over Cl
 
 test('the medals: the clean runs (a speed profile on the real terrain) inside gold, with room', async () => {
   const { groundHeight } = await import('../js/terrain.js');
-  const a = profileTime(FLUELA, groundHeight, TYRES.summer, { vmax: 16.7 });
+  const a = profileTime(FLUELA_TOP, groundHeight, TYRES[SUMMER_TYRES_MISSION.tyres], { vmax: 16.7 });
   assert.ok(a.ms < SUMMER_TYRES_MISSION.medals.gold && a.ms > SUMMER_TYRES_MISSION.medals.gold * 0.8, `Flüela clean ${(a.ms / 1000).toFixed(0)} s`);
   // the steepest of the climb: within what the summer tyres put down (no part of it needs chains)
   const steep = Math.max(...a.grade);

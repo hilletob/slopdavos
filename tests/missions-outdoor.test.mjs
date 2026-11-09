@@ -3,7 +3,8 @@ import test from 'node:test';
 import {
   OUTDOOR_MISSIONS, SEILPARK_MISSION, POND_MISSION,
   ROPE, ROPE_KINDS, ROPE_LADDER, ROPE_LEGS, ROPE_STATIONS, createRopeGame, stepRope, ropeClean, ropePose, stepBalance,
-  POND, POND_RING, POND_POSTS, createPondGame, startPondGame, stepPond, containPond, inPond, pondBankPoints, pondScore
+  POND, POND_RING, POND_POSTS, createPondGame, startPondGame, stepPond, containPond, inPond, pondBankPoints, pondScore,
+  pondAim, pondShotSpeed, keeperReach
 } from '../js/missions-data-outdoor.js';
 import { SKATE_PARAMS, createSkater, stepSkater } from '../js/missions-data-ice.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -383,6 +384,73 @@ test('pond hockey: Space asks a mate for the puck, pokes at the carrier, passes 
   assert.equal(k.puck.holder === 0, false);
   assert.ok(k.events.some((e) => e.kind === 'pass'));
   assert.equal(k.shots, 0);
+});
+
+test('pond hockey: a wound-up shot flies harder, the keeper reaches less far for it, a near miss is helped in', () => {
+  assert.ok(pondShotSpeed(0) < POND.shotSpeed && pondShotSpeed(1) > POND.shotSpeed);
+  assert.equal(pondShotSpeed(0.5), POND.shotSpeed);
+  assert.ok(keeperReach(pondShotSpeed(1)) < keeperReach(pondShotSpeed(0.3)));
+  assert.ok(keeperReach(pondShotSpeed(1)) >= POND.pickupFast);
+  // a shot aimed half a metre past the post goes in (into the near corner); two metres past, it does not
+  const g = started();
+  for (const p of g.players) if (p.i) { p.x = 712; p.z = -1400; }
+  Object.assign(g.players[0], { x: 741, z: POND.goalZ });
+  const past = (m) => Math.atan2(POND.goalE - 741, POND.postHalf + m);
+  const near = pondAim(g, past(0.5)), far = pondAim(g, past(2));
+  assert.equal(near.kind, 'shot');
+  assert.ok(near.onGoal, 'helped into the mouth');
+  assert.ok(!far.onGoal);
+  g.puck.holder = 0;
+  stepPond(g, DT, standing(g, { x: 741, z: POND.goalZ, aim: past(0.5), press: true, power: 1 }));
+  assert.ok(Math.hypot(g.puck.vx, g.puck.vz) > POND.shotSpeed, 'the full wind-up');
+  for (let i = 0; i < 60 && g.phase === 'play'; i++) stepPond(g, DT, standing(g, { x: 741, z: POND.goalZ }));
+  assert.equal(g.us, 1);
+});
+
+test('pond hockey: skating hard into the carrier can knock him off the puck; a stroll cannot', () => {
+  let knocked = 0, slow = 0;
+  for (let s = 1; s <= 20; s++) {
+    for (const v of [5.4, 2]) {
+      const g = started(s);
+      for (const p of g.players) if (p.i && p.i !== 4) { p.x = 712; p.z = -1400; }
+      Object.assign(g.players[4], { x: 725.8, z: POND.goalZ, heading: -Math.PI / 2, immune: 0 });
+      g.puck.holder = 4;
+      stepPond(g, DT, standing(g, { x: 725, z: POND.goalZ, speed: v }));
+      const hit = g.events.some((e) => e.kind === 'check');
+      if (hit && v > 5) { knocked++; assert.notEqual(g.puck.holder, 4); assert.ok(g.players[4].stun > 0); assert.ok(g.bump.slow < 1); }
+      if (hit && v < 5) slow++;
+    }
+  }
+  assert.ok(knocked >= 4 && knocked <= 16, `${knocked} of 20 checks`);
+  assert.equal(slow, 0);
+});
+
+test('pond hockey: a pass that sets up a mate\'s goal is your assist; the bodies shove you, not through you', () => {
+  const g = started(4);
+  for (const i of [3, 4, 5]) Object.assign(g.players[i], { x: 712, z: -1400 });
+  Object.assign(g.players[1], { x: 740, z: -1411, heading: Math.PI / 2, speed: 0 });
+  Object.assign(g.players[0], { x: 735, z: POND.goalZ });
+  g.puck.holder = 0;
+  const aim = Math.atan2(740 - 735, -1411 - POND.goalZ);
+  assert.equal(pondAim(g, aim).kind, 'pass');
+  const goals = [];
+  stepPond(g, DT, standing(g, { x: 735, z: POND.goalZ, aim, press: true }));
+  for (let i = 0; i < 300 && g.phase === 'play'; i++) {
+    stepPond(g, DT, standing(g, { x: 735, z: POND.goalZ }));
+    goals.push(...g.events.filter((e) => e.kind === 'goal'));
+    g.events.length = 0;
+  }
+  assert.equal(g.us, 1);
+  assert.equal(goals[0].scorer, 1);
+  assert.equal(goals[0].assist, 0);
+  assert.equal(g.myAssists, 1);
+  assert.equal(POND_MISSION.summary({ game: g })[0], 'Won 1 : 0 · your goals: 0 · assists: 1');
+  // a local standing in the player's way is pushed off, and the player gets a share of the shove
+  const b = started();
+  Object.assign(b.players[3], { x: 725.5, z: POND.goalZ });
+  stepPond(b, DT, standing(b, { x: 725, z: POND.goalZ }));
+  assert.ok(Math.hypot(b.players[3].x - 725, b.players[3].z - POND.goalZ) > 0.6);
+  assert.ok(b.bump.x < 0, 'the player is shoved back west');
 });
 
 test('pond hockey: the objectives go from the centre spot to the final whistle', () => {

@@ -3,11 +3,11 @@ import { groundHeight } from './terrain.js';
 import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { t } from './i18n.js';
 import { createSkater } from './missions-data-ice.js';
-import { ICE_FEATURES, buildIceHud, edge, meter, poseSkater, touchLabel } from './missions-ice.js';
+import { buildIceHud, edge, meter, poseSkater, touchLabel } from './missions-ice.js';
 import { cheerArms } from './missions-sport.js';
 import {
   ROPE, ROPE_KINDS, ROPE_LADDER, ROPE_LEGS, ROPE_STATIONS, ropeAloft, ropePose, stepRope,
-  POND, POND_POSTS, POND_RING, containPond, inPond, pondBankPoints, pondLine, startPondGame, stepPond
+  POND, POND_POSTS, POND_RING, containPond, inPond, pondAim, pondBankPoints, pondLine, startPondGame, stepPond
 } from './missions-data-outdoor.js';
 
 // js/missions-outdoor.js
@@ -18,7 +18,8 @@ import {
 //                the course's (the skater's pose of js/missions-ice.js, without the blades).
 //   pondHockey — the Seehof Seeli frozen over: the pond's real outline as ice, snow banks, lanterns, boots and jackets for
 //                goal posts, the spectators and five skating locals (js/pedestrians.js, mixed hair by rollHairstyle). The
-//                skater, the HUD, the shooting camera are js/missions-ice.js's (`skates`, its hockey camera).
+//                skater and the HUD are js/missions-ice.js's (`skates`); the camera, the wind-up and the puck's ring and
+//                streak are this file's.
 // Each is merged geometry on one shared-per-run vertex-colour material, built on entry; everything goes with the run's
 // group and its cleanups (MissionRun.dispose).
 
@@ -514,6 +515,10 @@ function buildPond(run, iceY, material) {
   run.group.add(spot);
 }
 
+const CHARGE_S = 0.7; // s of holding Space to the full slapper (it goes by itself a little after)
+const SKATER_CROUCH = (v) => 0.42 + 0.16 * clamp(v / 5, 0, 1);
+const _side = new THREE.Vector3();
+
 const pondHockey = {
   setup(run) {
     const iceY = pondIceY();
@@ -536,7 +541,10 @@ const pondHockey = {
       const roll = ((i + 1) * 0.6180339) % 1, female = i % 3 === 1;
       return new PersonRig({ seed: (i * 0.391 + 0.11) % 1, female, girth: 0.95 + (i % 4) * 0.05, scale: 0.94 + (i % 3) * 0.05, ...rollHairstyle(roll, female) });
     };
-    const P = run.pond = { iceY, crowd, skaters: [1, 2, 3, 4, 5].map((i) => ({ i, rig: rig(i) })), watchers: watchers.map((w, i) => ({ ...w, rig: rig(i + 6) })), cheer: 0, bigAt: 0, flashAt: 0 };
+    const P = run.pond = {
+      iceY, crowd, skaters: [1, 2, 3, 4, 5].map((i) => ({ i, rig: rig(i) })), watchers: watchers.map((w, i) => ({ ...w, rig: rig(i + 6) })),
+      cheer: 0, cheerTeam: -1, bigAt: 0, flashAt: 0, shake: 0, charge: null, vis: { x: POND.centre.x, z: POND.centre.z }
+    };
     // sticks and bibs (the team colours); one mesh each, on shared geometry and materials
     const stickGeo = new THREE.BoxGeometry(0.03, 0.03, 1).translate(0, 0, 0.5);
     const stickMat = new THREE.MeshStandardMaterial({ color: 0x31261b, roughness: 0.7 });
@@ -544,22 +552,55 @@ const pondHockey = {
     const bibMats = TEAM_COLOUR.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
     P.sticks = [0, 1, 2, 3, 4, 5].map(() => { const m = new THREE.Mesh(stickGeo, stickMat); m.frustumCulled = false; run.group.add(m); return m; });
     P.bibs = [0, 1, 2, 3, 4, 5].map((i) => { const m = new THREE.Mesh(bibGeo, bibMats[i < 3 ? 0 : 1]); m.frustumCulled = false; run.group.add(m); return m; });
-    P.puck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 12), new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.5 }));
+    // the puck (a touch over size, it is all there is to follow), a pale ring round it while it is anybody's, a streak
+    // behind it when it flies
+    P.puck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 14), new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.5 }));
     P.puck.frustumCulled = false;
     run.group.add(P.puck);
-    P.aim = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.01, 1).translate(0, 0, 0.5), new THREE.MeshBasicMaterial({ color: 0xff3a3a, transparent: true, opacity: 0.55, depthWrite: false }));
+    P.halo = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.24, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.6, depthWrite: false }));
+    P.halo.frustumCulled = false;
+    run.group.add(P.halo);
+    P.trail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.01, 1).translate(0, 0, 0.5), new THREE.MeshBasicMaterial({ color: 0xe8f2ff, transparent: true, opacity: 0.35, depthWrite: false }));
+    P.trail.frustumCulled = false;
+    run.group.add(P.trail);
+    P.aimMat = new THREE.MeshBasicMaterial({ color: 0xff3a3a, transparent: true, opacity: 0.55, depthWrite: false });
+    P.aim = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.01, 1).translate(0, 0, 0.5), P.aimMat);
     P.aim.frustumCulled = false;
     run.group.add(P.aim);
-    // HUD: the score over the skates' panel, the flash
+    // HUD: the score over the skates' panel, the wind-up, the flash
     const ui = ice.ui;
     ui.line = el('div', 'ice-tally');
-    ui.hud.append(ui.line, ui.flash);
-    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'shoot / poke'], [['Drag'], 'aim']]);
+    const mt = meter();
+    mt.zone.style.left = '85%'; mt.zone.style.right = '0';
+    ui.power = el('div', 'ice-row');
+    ui.power.append(el('span', null, 'Shot'), mt.m);
+    ui.power.style.visibility = 'hidden';
+    ui.powerMeter = mt;
+    ui.hud.append(ui.line, ui.power, ui.flash);
+    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'pass / shoot (hold: harder) / poke'], [['Drag'], 'aim']]);
     // a click (not a drag) on the view does what Space does
     let down = null;
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (e.pointerType !== 'touch' && e.button === 0) down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
     run.listen(canvas, 'pointerup', (e) => { if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && performance.now() - down.t < 300) run._clickShot = true; down = null; });
+    // the player's skater: js/missions-ice.js `skates` asks this pose first. Its stroke, a little more upright than the
+    // penalty shot's crouch (so that the pond is seen over the shoulders), lower on a wind-up; arms up after a goal
+    P.cheerPh = 0;
+    ice.poseOverride = (dt, p) => {
+      const sk = ice.skater, v = sk.speed, g = run.state?.game;
+      const period = ice.P.period * (0.6 + 0.4 * Math.min(1, v / 6));
+      ice.phase = (sk.side > 0 ? 0 : Math.PI) + Math.PI * clamp(sk.t / period, 0, 1);
+      const effort = clamp(v / 3, 0, 1) * (sk.t < period * 1.6 ? 1 : 0.35);
+      ice.push = (ice.push ?? 0) + (effort - (ice.push ?? 0)) * Math.min(1, dt * 5);
+      const party = P.cheer > 0 && P.cheerTeam === 0;
+      const windup = P.charge !== null ? clamp(P.charge / CHARGE_S, 0, 1) : 0;
+      const swing = g ? g.players[0].swing : 0;
+      const r = poseSkater(p.rig, p.position.x, p.position.y, p.position.z, p.heading, {
+        crouch: party ? 0.3 : SKATER_CROUCH(v) + 0.15 * windup + 0.1 * swing, phase: ice.phase, push: party ? 0 : ice.push, lean: sk.lean, arms: 'stick'
+      });
+      if (party) { cheerArms(p.rig, (P.cheerPh += dt * 6), 1); ice.hands = null; } else ice.hands = r.hands;
+      return r;
+    };
     void cm;
   },
   reset(run) {
@@ -580,6 +621,7 @@ const pondHockey = {
     run.ice.ui.big.classList.remove('is-on');
     run.ice.ui.flash.textContent = '';
     run.pond.cheer = 0;
+    run.pond.charge = null;
     pondHockey.draw(run, 0);
   },
   teardown(run) { run.hooks.cameraSystem.orbitYawOffset = 0; },
@@ -587,10 +629,32 @@ const pondHockey = {
   update(run, ctx, dt, cm) {
     const g = run.state.game, p = cm.entities.person, P = run.pond;
     if (run.index >= 1) startPondGame(g);
-    const pressed = edge(run, cm, 'up') || run._clickShot;
+    // Space: with the puck it winds up (a tap: a pass or a wrist shot, held: harder, up to the slapper) and lets go on the
+    // release; without it, it pokes or calls for the pass at once
+    const down = edge(run, cm, 'up'), held = !!cm.keys.up;
+    let press = false, power = 0.5;
+    if (run._clickShot) press = true;
     run._clickShot = false;
-    const inp = { x: p.position.x, z: p.position.z, heading: p.heading, speed: run.ice.skater.speed, aim: pondHockey.aim(run, p), press: pressed };
-    if (run.phase === 'running') stepPond(g, dt, inp);
+    if (g.puck.holder === 0 && g.phase === 'play') {
+      if (down) P.charge = 0;
+      if (P.charge !== null) {
+        if (held && P.charge < CHARGE_S + 0.25) P.charge += dt;
+        else { press = true; power = 0.3 + 0.7 * clamp(P.charge / CHARGE_S, 0, 1); P.charge = null; }
+      }
+    } else {
+      P.charge = null;
+      if (down) press = true;
+    }
+    const inp = { x: p.position.x, z: p.position.z, heading: p.heading, speed: run.ice.skater.speed, aim: pondHockey.aim(run, p), press, power };
+    if (run.phase === 'running') {
+      stepPond(g, dt, inp);
+      // (the bodies round the player shove him; a check or a collision costs speed)
+      if (g.bump.x || g.bump.z || g.bump.slow < 1) {
+        p.position.x += g.bump.x; p.position.z += g.bump.z;
+        run.ice.skater.speed *= g.bump.slow;
+        run.ice.contain(p, run.ice.skater);
+      }
+    }
     for (const e of g.events) pondHockey.event(run, e, cm);
     g.events.length = 0;
     run.ice.frozen = g.phase === 'faceoff';
@@ -598,6 +662,15 @@ const pondHockey = {
     if (run.ice.bigAt && performance.now() - run.ice.bigAt > 1600) { run.ice.ui.big.classList.remove('is-on'); run.ice.bigAt = 0; }
     if (P.flashAt && performance.now() - P.flashAt > 1800) { run.ice.ui.flash.textContent = ''; P.flashAt = 0; }
     setText(run.ice.ui.line, g.phase === 'wait' ? 'Skate to the centre spot' : pondLine(g));
+    // the wind-up meter
+    const ui = run.ice.ui, charging = P.charge !== null;
+    const vis = charging ? 'visible' : 'hidden';
+    if (ui.power.style.visibility !== vis) ui.power.style.visibility = vis;
+    if (charging) {
+      const n = clamp(P.charge / CHARGE_S, 0, 1);
+      ui.powerMeter.needle.style.left = `${n * 100}%`;
+      ui.powerMeter.fill.style.width = `${n * 100}%`;
+    }
   },
   say(run, text, kind) {
     const ui = run.ice.ui;
@@ -613,27 +686,38 @@ const pondHockey = {
     run.ice.bigAt = performance.now();
   },
   event(run, e, cm) {
+    const P = run.pond;
     if (e.kind === 'faceoff') {
       // to the face-off (a short skate within the run: the watchdog's "teleport" is told)
       const p = cm.entities.person;
-      p.position.set(e.x, run.pond.iceY, e.z);
+      p.position.set(e.x, P.iceY, e.z);
       p.heading = e.heading;
       run.ice.skater = createSkater(e.heading);
       run.lastPos.copy(p.position);
       run.hooks.cameraSystem.orbitYawOffset = 0;
       run.iceCam = null;
+      P.charge = null;
       pondHockey.shout(run, 'FACE-OFF', '#ffffff');
     } else if (e.kind === 'drop') { run.audio?.thump?.(); run.ice.ui.big.classList.remove('is-on'); }
-    else if (e.kind === 'shot') run.audio?.thump?.();
+    else if (e.kind === 'shot') { run.audio?.thump?.(); if (e.i === 0 && e.power > 0.85) P.shake = 0.12; }
     else if (e.kind === 'steal' && e.human) pondHockey.say(run, 'Puck stolen!', 'is-good');
+    else if (e.kind === 'steal' && e.victim === 0) pondHockey.say(run, 'Poked off your stick', 'is-bad');
     else if (e.kind === 'poke') pondHockey.say(run, 'Poked at nothing', 'is-bad');
-    else if (e.kind === 'block') pondHockey.say(run, e.team === 0 ? 'Blocked by your team' : 'Blocked!', e.team === 0 ? 'is-good' : 'is-bad');
-    else if (e.kind === 'sudden') pondHockey.shout(run, 'Next goal wins', '#ffc83d');
+    else if (e.kind === 'check') { run.audio?.thump?.(); P.shake = 0.3; pondHockey.say(run, e.puck ? 'Body check: the puck is loose!' : 'Body check!', 'is-good'); }
+    else if (e.kind === 'bounce') { P.shake = 0.15; pondHockey.say(run, 'He stood his ground', 'is-bad'); }
+    else if (e.kind === 'turnover') pondHockey.say(run, 'Intercepted', 'is-bad');
+    else if (e.kind === 'block') {
+      if (e.save) pondHockey.say(run, e.team === 0 ? 'Saved by your keeper' : 'Saved!', e.team === 0 ? 'is-good' : 'is-bad');
+      else pondHockey.say(run, e.team === 0 ? 'Blocked by your team' : 'Blocked!', e.team === 0 ? 'is-good' : 'is-bad');
+      if (e.i > 0) g0(run).players[e.i].swing = 0.8;
+    } else if (e.kind === 'sudden') pondHockey.shout(run, 'Next goal wins', '#ffc83d');
     else if (e.kind === 'goal') {
       run.audio?.boom?.(30, 0.3);
-      run.pond.cheer = 2.4;
+      P.cheer = 2.4; P.cheerTeam = e.team; P.shake = e.team === 0 ? 0.25 : 0;
       pondHockey.shout(run, e.team === 0 ? 'GOAL!' : 'Locals score', e.team === 0 ? '#ffc83d' : '#ff7a6b');
-      if (e.team === 0 && e.scorer === 0) pondHockey.say(run, 'Your goal!', 'is-gold');
+      if (e.team === 0 && e.scorer === 0) pondHockey.say(run, e.assist > 0 ? 'Your goal, off the pass!' : 'Your goal!', 'is-gold');
+      else if (e.team === 0 && e.assist === 0) pondHockey.say(run, 'Your assist!', 'is-gold');
+      else if (e.team === 0) pondHockey.say(run, 'Your mate scores', 'is-good');
     }
   },
   /** The five locals and the watchers into the crowd, the puck on the ice, sticks and bibs */
@@ -642,12 +726,19 @@ const pondHockey = {
     if (!g) return;
     const y = P.iceY;
     const c = P.crowd;
+    const party = g.phase === 'goal' && P.cheer > 0 ? P.cheerTeam : -1;
     c.begin();
     for (const s of P.skaters) {
       const pl = g.players[s.i];
-      const r = poseSkater(s.rig, pl.x, y, pl.z, pl.heading, { crouch: 0.62 + 0.18 * clamp(pl.speed / 5, 0, 1), phase: pl.gait * 2.4, push: clamp(pl.speed / 3, 0, 1), lean: 0, arms: 'stick' });
+      // (a checked local staggers, low and wobbling)
+      const st = clamp(pl.stun / 0.5, 0, 1);
+      const r = poseSkater(s.rig, pl.x, y, pl.z, pl.heading, {
+        crouch: SKATER_CROUCH(pl.speed) + 0.25 * st, phase: pl.gait * 2.4, push: clamp(pl.speed / 3, 0, 1) * (1 - st),
+        lean: st * 0.35 * Math.sin(pl.stun * 17), lunge: 0.35 * Math.sin(pl.pokeT * Math.PI), arms: 'stick'
+      });
+      if (pl.team === party) cheerArms(s.rig, (pl.gait += dt * 6), 1);
       c.add(s.rig, 0);
-      pondHockey.stick(run, s.i, r.hands, pl, g);
+      pondHockey.stick(run, s.i, pl.team === party ? null : r.hands, pl, g);
       pondHockey.bib(P.bibs[s.i], s.rig);
     }
     for (const w of P.watchers) {
@@ -656,14 +747,52 @@ const pondHockey = {
       c.add(w.rig, 0);
     }
     c.end();
-    P.puck.position.set(g.puck.x, y + 0.02, g.puck.z);
+    // the puck: on the blade it follows the carrier's hands (a caught pass slides on to the stick instead of jumping)
+    const pk = g.puck, v = P.vis;
+    if (pk.holder >= 0) { const k = Math.min(1, dt * 22); v.x += (pk.x - v.x) * k; v.z += (pk.z - v.z) * k; } else { v.x = pk.x; v.z = pk.z; }
+    P.puck.position.set(v.x, y + 0.02, v.z);
+    const loose = pk.holder < 0 && g.phase === 'play';
+    P.halo.visible = loose;
+    if (loose) {
+      P.halo.position.set(v.x, y + 0.008, v.z);
+      P.halo.scale.setScalar(1 + 0.18 * Math.sin(performance.now() * 0.009));
+    }
+    const sp = Math.hypot(pk.vx, pk.vz);
+    P.trail.visible = pk.holder < 0 && sp > 5;
+    if (P.trail.visible) {
+      _a.set(v.x, y + 0.015, v.z);
+      _b.set(v.x - (pk.vx / sp) * Math.min(2.2, sp * 0.11), y + 0.015, v.z - (pk.vz / sp) * Math.min(2.2, sp * 0.11));
+      stretch(P.trail, _a, _b);
+      P.trail.material.opacity = 0.12 + 0.3 * clamp((sp - 5) / 12, 0, 1);
+    }
   },
-  stick(run, i, hands, pl, g) {
+  /**
+   * A stick from the hands to its blade: on the puck while he has it; else down ahead on the forehand, reaching out on a
+   * poke, up behind him on a wind-up (`windup` 0..1), up through the follow-through after a shot or a pass. No hands
+   * (the arms up in a goal's celebration): held up over the head.
+   */
+  stick(run, i, hands, pl, g, windup = 0) {
     const st = run.pond.sticks[i], y = run.pond.iceY;
-    const carrying = g.puck.holder === i;
     const fx = Math.sin(pl.heading), fz = Math.cos(pl.heading);
+    if (!hands) {
+      _a.set(pl.x - fz * 0.2, y + 1.95, pl.z + fx * 0.2);
+      _b.set(pl.x + fz * 0.6 + fx * 0.2, y + 2.85, pl.z - fx * 0.6 + fz * 0.2);
+      stretch(st, _a, _b);
+      return;
+    }
     _a.copy(hands[0]).lerp(hands[1], 0.5);
-    _b.set(carrying ? g.puck.x : pl.x + fx * 1.1 + fz * 0.3, y + 0.03, carrying ? g.puck.z : pl.z + fz * 1.1 - fx * 0.3);
+    _side.set(fz, 0, -fx); // (the forehand side: the skater's left)
+    const carrying = g.puck.holder === i;
+    if (windup > 0) {
+      _b.set(pl.x + fx * (0.4 - 1.0 * windup) + _side.x * 0.75, y + 0.03 + 1.1 * windup * windup, pl.z + fz * (0.4 - 1.0 * windup) + _side.z * 0.75);
+    } else if (carrying) {
+      const v = i === 0 ? run.pond.vis : g.puck;
+      _b.set(v.x, y + 0.03, v.z);
+    } else {
+      const s = pl.swing, k = Math.sin(pl.pokeT * Math.PI);
+      const ahead = 1.1 + 0.5 * s + 0.55 * k, side = 0.3 - 0.45 * s - 0.2 * k;
+      _b.set(pl.x + fx * ahead + _side.x * side, y + 0.03 + 0.75 * s * s, pl.z + fz * ahead + _side.z * side);
+    }
     stretch(st, _a, _b);
   },
   bib(mesh, rig) {
@@ -672,27 +801,63 @@ const pondHockey = {
     mesh.position.copy(_a);
     mesh.quaternion.set(a[o], a[o + 1], a[o + 2], a[o + 3]);
   },
+  /**
+   * The camera: behind and over the player along his view (heading + drag), higher and further back than the penalty
+   * shot's, so that the mates and the locals round him are in the picture; it leans towards the puck when somebody else
+   * has it, towards the goal when it goes in, and shakes a little on a check
+   */
+  camera(run, ctx, dt, cm) {
+    if (run.phase === 'intro') return;
+    const p = cm.entities.person, cam = ctx.camera, P = run.pond, g = run.state?.game;
+    const yaw = pondHockey.aim(run, p);
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), y = P.iceY;
+    let lx = p.position.x + fx * 8, lz = p.position.z + fz * 8;
+    if (g && g.puck.holder !== 0 && (g.phase === 'play' || g.phase === 'goal')) {
+      const w = g.phase === 'goal' ? 0.5 : 0.3;
+      lx += (g.puck.x - lx) * w; lz += (g.puck.z - lz) * w;
+    }
+    // (a little to his forehand side: the puck on his blade is not hidden behind him)
+    const want = { x: p.position.x - fx * 5.6 + fz * 0.7, y: y + 3.3, z: p.position.z - fz * 5.6 - fx * 0.7, lx, ly: y + 0.3, lz };
+    const c = run.iceCam || (run.iceCam = { ...want });
+    const k = Math.min(1, dt * 5);
+    for (const key of Object.keys(want)) c[key] += (want[key] - c[key]) * k;
+    P.shake = Math.max(0, P.shake - dt);
+    const s = P.shake * 0.35;
+    cam.position.set(c.x + (Math.random() - 0.5) * s, c.y + (Math.random() - 0.5) * s, c.z + (Math.random() - 0.5) * s);
+    cam.lookAt(c.lx, c.ly, c.lz);
+    cam.updateMatrixWorld();
+  },
   after(run, ctx, dt, cm) {
     const P = run.pond, g = run.state?.game;
     if (!g) return;
-    ICE_FEATURES.hockey.camera(run, ctx, dt, cm);
+    pondHockey.camera(run, ctx, dt, cm);
     pondHockey.draw(run, dt);
     const p = cm.entities.person;
-    if (run.ice.hands) {
-      const me = g.players[0];
-      me.x = p.position.x; me.z = p.position.z; me.heading = p.heading;
-      pondHockey.stick(run, 0, run.ice.hands, me, g);
-      pondHockey.bib(P.bibs[0], p.rig);
-    }
+    const me = g.players[0];
+    me.x = p.position.x; me.z = p.position.z; me.heading = p.heading;
+    const windup = P.charge !== null ? clamp(P.charge / CHARGE_S, 0, 1) : 0;
+    pondHockey.stick(run, 0, run.ice.hands, me, g, windup);
+    pondHockey.bib(P.bibs[0], p.rig);
+    // the aim line: where the puck goes if you let it go now. Red: a shot; gold once it is on target; blue: a pass
     const aimOn = g.puck.holder === 0 && g.phase === 'play';
     P.aim.visible = aimOn;
     if (aimOn) {
-      const a = pondHockey.aim(run, p);
-      _a.set(g.puck.x, P.iceY + 0.02, g.puck.z);
-      _b.set(g.puck.x + Math.sin(a) * 9, P.iceY + 0.02, g.puck.z + Math.cos(a) * 9);
+      const a = pondAim(g, pondHockey.aim(run, p));
+      _a.set(P.vis.x, P.iceY + 0.02, P.vis.z);
+      if (a.kind === 'pass') {
+        const m = g.players[a.to];
+        _b.set(m.x, P.iceY + 0.02, m.z);
+        P.aimMat.color.setHex(0x2f7bff);
+      } else {
+        const L = 7 + 5 * windup;
+        _b.set(P.vis.x + Math.sin(a.heading) * L, P.iceY + 0.02, P.vis.z + Math.cos(a.heading) * L);
+        P.aimMat.color.setHex(a.onGoal ? 0xffb000 : 0xff3a3a);
+      }
+      P.aimMat.opacity = 0.65 + 0.3 * windup;
       stretch(P.aim, _a, _b);
     }
   }
 };
+const g0 = (run) => run.state.game;
 
 export const OUTDOOR_FEATURES = { ropePark, pondHockey };

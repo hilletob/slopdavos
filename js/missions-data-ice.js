@@ -234,17 +234,24 @@ export const RINK = {
 export const HOCKEY = {
   goalX: 26, // the goal line, 4 m from the end boards
   postY: 0.915, // half the goal's mouth (1.83 m)
+  barZ: 1.22, // the crossbar's height
+  netDepth: 1.0, // m behind the goal line
   puckR: 0.038,
-  goalieX: 25.15, // where the goalie stands, out of his crease
+  goalieX: 25.15, // where the goalie stands once the skater is close (just out of his crease)
+  goalieOut: 24.3, // ... and where he comes out to cut the angle while the skater is far
   goalieReach: 0.38, // m either side of his centre: pads, body, glove and blocker
   goalieTrack: 2.4, // m/s across while he follows the puck
   goalieDive: 3.3, // m/s across once the shot is away
+  goalieCheat: 0.16, // m: how far he may lean to the side he guesses (a new guess each penalty)
   reaction: [0.12, 0.22], // s before he moves on a shot
   poke: 1.9, // m: a skater this close to him loses the puck to his poke check
-  shotSpeed: 27, // m/s
+  shotSpeed: 27, // m/s (a shot given as a bare heading)
+  shotMin: 24, shotMax: 36, // m/s: the quick wrist shot (a tap) .. the full wind-up (Space held `charge` s)
+  charge: 0.6,
+  puckDecel: 1.4, // m/s² while the puck slides on its own
   timeLimit: 15, // s per penalty
   attempts: 5,
-  resultSeconds: 2.2
+  resultSeconds: 2.6
 };
 // (the rink's local frame: y = across, positive to the right of a skater facing +x)
 const RV = { x: -RINK.uz, z: RINK.ux }; // the +y direction in the world... (to the skater's right? see rinkLocal)
@@ -276,7 +283,12 @@ export function clampToRink(p, margin = 0.5, R = RINK) {
 }
 
 export function createPenaltyGame(seed = 7) {
-  const g = { attempt: 0, goals: 0, results: [], phase: 'skate', t: 0, maxX: 0, puck: null, goalie: { y: 0, vy: 0, dive: 0, react: 0, target: 0, saved: false }, rand: seededRandom(seed), resultT: 0, result: null };
+  const g = {
+    attempt: 0, goals: 0, results: [], phase: 'skate', t: 0, maxX: 0, puck: null,
+    goalie: { x: HOCKEY.goalieOut, y: 0, vy: 0, dive: 0, react: 0, target: 0, saved: false, cheat: 0, poke: 0, caught: false },
+    rand: seededRandom(seed), resultT: 0, result: null, handle: 0, handleAmp: 0,
+    fx: { boards: 0, net: 0, post: 0, save: 0 } // (counters: the runtime's sounds and the net's bulge follow them)
+  };
   resetAttempt(g);
   return g;
 }
@@ -285,10 +297,14 @@ function resetAttempt(g) {
   g.phase = 'skate';
   g.t = 0;
   g.maxX = 0;
-  g.puck = { x: 0.9, y: 0.25, vx: 0, vy: 0 };
-  Object.assign(g.goalie, { y: 0, vy: 0, react: 0, target: 0, saved: false, dive: 0 });
+  g.puck = { x: -0.65, y: 0.25, z: 0, vx: 0, vy: 0, vz: 0, lift: 0, inNet: false }; // (on the blade of a skater on the centre spot)
+  // the goalie's guess for this one: he leans a little to one side (or none)
+  const r = g.rand();
+  const cheat = r < 0.35 ? -HOCKEY.goalieCheat : r > 0.65 ? HOCKEY.goalieCheat : 0;
+  Object.assign(g.goalie, { x: HOCKEY.goalieOut, y: cheat * 0.5, vy: 0, react: 0, target: 0, saved: false, dive: 0, cheat, poke: 0, caught: false });
   g.result = null;
   g.resultT = 0;
+  g.shotFrom = null;
 }
 
 /** Where a puck from (x, y) heading `a` (local) crosses the line at `lineX`: its y, or null when it doesn't go there */
@@ -297,6 +313,9 @@ export function crossingY(x, y, a, lineX) {
   if (c <= 1e-3 || lineX <= x) return null;
   return y + Math.tan(a) * (lineX - x);
 }
+
+/** The shot's speed (m/s) for a wind-up of 0..1 */
+export const shotSpeedFor = (power) => HOCKEY.shotMin + (HOCKEY.shotMax - HOCKEY.shotMin) * clamp(power, 0, 1);
 
 function endAttempt(g, result) {
   g.phase = 'result';
@@ -307,73 +326,104 @@ function endAttempt(g, result) {
 }
 
 /**
- * One step of a penalty. `carrier`: the skater { x, y, heading (local) } while the puck is on the stick; `shot`: the
- * aim (a local heading) when the skater shoots this frame, else null. Returns 'next' when the next penalty is to be
- * lined up (the caller puts the skater back on the centre spot), 'done' after the last one.
+ * One step of a penalty. `carrier`: the skater { x, y, heading (local), speed? } while the puck is on the stick; `shot`:
+ * when the skater shoots this frame, the aim (a local heading) or { a, power 0..1 } (the wind-up: harder and higher),
+ * else null. Returns 'next' when the next penalty is to be lined up (the caller puts the skater back on the centre
+ * spot), 'done' after the last one.
  */
 export function stepPenalty(g, dt, carrier, shot = null) {
   const H = HOCKEY, gl = g.goalie;
   if (g.phase === 'done') return null;
   if (g.phase === 'result') {
     g.resultT += dt;
+    slidePuck(g, dt);
     if (g.resultT >= H.resultSeconds) {
       g.attempt++;
       if (g.attempt >= H.attempts) { g.phase = 'done'; return 'done'; }
       resetAttempt(g);
       return 'next';
     }
-    stepGoalie(g, dt, g.puck.x, g.puck.y, H.goalieTrack);
+    if (!gl.caught && g.result !== 'goal') stepGoalie(g, dt, g.puck.x, g.puck.y, H.goalieTrack);
+    gl.dive = Math.max(0, gl.dive - dt * (g.result === 'goal' ? 0.6 : 1.5));
+    gl.poke = Math.max(0, gl.poke - dt * 2.5);
     return null;
   }
   g.t += dt;
   if (g.phase === 'skate') {
-    // the puck on the blade: in front of the skater, a little to his right
+    // the puck on the blade: in front of the skater, a little to his right, handled from side to side while he skates
+    const v = carrier.speed || 0;
+    g.handleAmp += ((v > 1 ? Math.min(1, v / 5) : 0) - g.handleAmp) * Math.min(1, dt * 4);
+    g.handle += dt * Math.PI * 2 * 1.4;
+    const side = Math.sin(g.handle) * 0.12 * g.handleAmp, fwd = Math.cos(g.handle * 2) * 0.05 * g.handleAmp;
     const c = Math.cos(carrier.heading), s = Math.sin(carrier.heading);
-    g.puck.x = carrier.x + c * 0.85 - s * 0.25;
-    g.puck.y = carrier.y + s * 0.85 + c * 0.25;
+    g.puck.x = carrier.x + c * (0.85 + fwd) - s * (0.25 + side);
+    g.puck.y = carrier.y + s * (0.85 + fwd) + c * (0.25 + side);
     g.maxX = Math.max(g.maxX, g.puck.x);
     stepGoalie(g, dt, g.puck.x, g.puck.y, H.goalieTrack);
-    if (Math.hypot(g.puck.x - H.goalieX, g.puck.y - gl.y) < H.poke || g.puck.x > H.goalieX - 0.3) { endAttempt(g, 'poke'); return null; }
+    if (Math.hypot(g.puck.x - gl.x, g.puck.y - gl.y) < H.poke || g.puck.x > gl.x - 0.3) {
+      // his poke check: the stick shoots out and the puck slides away up the ice
+      gl.poke = 1;
+      g.puck.vx = -6 - g.rand() * 2; g.puck.vy = (g.puck.y - gl.y) * 2 + (g.rand() - 0.5) * 2;
+      endAttempt(g, 'poke');
+      return null;
+    }
     if (g.puck.x < g.maxX - 1.5) { endAttempt(g, 'back'); return null; }
     if (g.t > H.timeLimit) { endAttempt(g, 'time'); return null; }
     if (shot !== null && shot !== undefined) {
+      const a = typeof shot === 'number' ? shot : shot.a;
+      const power = typeof shot === 'number' ? null : clamp(shot.power || 0, 0, 1);
+      const speed = power === null ? H.shotSpeed : shotSpeedFor(power);
       g.phase = 'shot';
-      g.puck.vx = Math.cos(shot) * H.shotSpeed;
-      g.puck.vy = Math.sin(shot) * H.shotSpeed;
+      g.puck.vx = Math.cos(a) * speed;
+      g.puck.vy = Math.sin(a) * speed;
+      // (the height it has at the goal line: a wrist shot a little off the ice, the full wind-up up under the bar)
+      g.puck.lift = power === null ? 0.25 : 0.12 + 0.68 * power;
       gl.react = H.reaction[0] + g.rand() * (H.reaction[1] - H.reaction[0]);
-      const cy = crossingY(g.puck.x, g.puck.y, shot, H.goalieX);
+      const cy = crossingY(g.puck.x, g.puck.y, a, gl.x);
       gl.target = cy === null ? gl.y : clamp(cy, -1.6, 1.6);
-      g.shotFrom = { x: g.puck.x, y: g.puck.y, a: shot };
+      g.shotFrom = { x: g.puck.x, y: g.puck.y, a, power: power ?? 0.3, speed };
     }
     return null;
   }
   // the shot: the puck flies, the goalie dives after his reaction; met at his line, or past the goal line
-  const steps = 4, h = dt / steps;
+  const steps = 4, h = dt / steps, from = g.shotFrom;
   for (let k = 0; k < steps; k++) {
     gl.react -= h;
     if (gl.react <= 0) {
       const d = gl.target - gl.y;
       const v = Math.sign(d) * Math.min(Math.abs(d) / h, H.goalieDive);
       gl.y += v * h;
-      gl.dive = Math.max(gl.dive, Math.min(1, Math.abs(gl.target) / 0.8));
+      gl.dive = Math.max(gl.dive, Math.min(1, Math.abs(gl.target - gl.y + v * h) / 0.8 + 0.35));
     }
     const px = g.puck.x, py = g.puck.y;
     const nx = px + g.puck.vx * h, ny = py + g.puck.vy * h;
-    if (px < H.goalieX && nx >= H.goalieX) {
-      const f = (H.goalieX - px) / (nx - px), y = py + (ny - py) * f;
+    // (the puck rises on its way: the lift reached at the goal line)
+    const f = clamp((nx - from.x) / Math.max(0.5, H.goalX - from.x), 0, 1.2);
+    g.puck.z = g.puck.lift * Math.max(0, f * (2 - f));
+    if (px < gl.x && nx >= gl.x) {
+      const fy = (gl.x - px) / (nx - px), y = py + (ny - py) * fy;
       if (Math.abs(y - gl.y) <= H.goalieReach + H.puckR) {
-        g.puck.x = H.goalieX - 0.05; g.puck.y = y;
-        g.puck.vx = -g.puck.vx * 0.25; g.puck.vy = (y - gl.y) * 6;
+        g.puck.x = gl.x - 0.05; g.puck.y = y;
         gl.saved = true;
+        g.fx.save++;
+        // high on his glove side (his left: +y as he faces the shooter) he catches it; else it rebounds off him
+        if (g.puck.z > 0.45 && y - gl.y > 0.08) { gl.caught = true; g.puck.vx = g.puck.vy = g.puck.vz = 0; }
+        else { g.puck.vx = -Math.abs(g.puck.vx) * 0.22; g.puck.vy = (y - gl.y) * 6; g.puck.vz = g.puck.z > 0.2 ? 1.2 : 0; }
         endAttempt(g, 'save');
         return null;
       }
     }
     if (px < H.goalX && nx >= H.goalX) {
-      const f = (H.goalX - px) / (nx - px), y = py + (ny - py) * f;
-      g.puck.x = nx; g.puck.y = ny;
-      endAttempt(g, Math.abs(y) <= H.postY - H.puckR ? 'goal' : Math.abs(y) <= H.postY + H.puckR ? 'post' : 'wide');
-      if (g.result === 'goal') { g.puck.vx *= 0.15; g.puck.vy *= 0.15; }
+      const fy = (H.goalX - px) / (nx - px), y = py + (ny - py) * fy;
+      const res = Math.abs(y) <= H.postY - H.puckR ? 'goal' : Math.abs(y) <= H.postY + H.puckR ? 'post' : 'wide';
+      endAttempt(g, res);
+      if (res === 'goal') { g.puck.inNet = true; g.puck.x = nx; g.puck.y = ny; }
+      else if (res === 'post') {
+        // off the post: back out, away from the goal's middle
+        g.fx.post++;
+        g.puck.x = H.goalX - 0.06; g.puck.y = y;
+        g.puck.vx = -Math.abs(g.puck.vx) * 0.2; g.puck.vy = Math.sign(y) * (1.5 + Math.abs(g.puck.vy) * 0.2);
+      } else { g.puck.x = nx; g.puck.y = ny; }
       return null;
     }
     g.puck.x = nx; g.puck.y = ny;
@@ -382,11 +432,56 @@ export function stepPenalty(g, dt, carrier, shot = null) {
   return null;
 }
 
+/** The puck on its own after the shot (or the poke): it drops to the ice, slides, stops in the net, comes off the boards */
+function slidePuck(g, dt) {
+  const P = g.puck, H = HOCKEY, gl = g.goalie;
+  if (gl.caught) { P.x = gl.x - 0.12; P.y = gl.y + 0.48; P.z = 0.9; return; } // (in his glove)
+  const steps = 3, h = dt / steps;
+  for (let k = 0; k < steps; k++) {
+    if (P.z > 0 || P.vz > 0) {
+      P.vz -= 9.81 * h; P.z += P.vz * h;
+      if (P.z <= 0) { P.z = 0; P.vz = Math.abs(P.vz) > 0.8 ? -P.vz * 0.3 : 0; }
+    } else {
+      const v = Math.hypot(P.vx, P.vy);
+      if (v > 0) { const nv = Math.max(0, v - H.puckDecel * h * (P.inNet ? 8 : 1)); P.vx *= nv / v; P.vy *= nv / v; }
+    }
+    P.x += P.vx * h; P.y += P.vy * h;
+    if (P.inNet) {
+      // the net: the back 1 m behind the line, the sides at the posts; it takes the pace out of the puck
+      const back = H.goalX + H.netDepth - 0.08, side = H.postY - H.puckR - 0.02;
+      if (P.x > back) { P.x = back; P.vx = -Math.abs(P.vx) * 0.12; P.vy *= 0.3; P.vz = Math.min(P.vz, 0); g.fx.net++; }
+      if (Math.abs(P.y) > side) { P.y = Math.sign(P.y) * side; P.vy = -P.vy * 0.2; }
+      if (P.x < H.goalX + 0.1) { P.x = H.goalX + 0.1; P.vx = Math.abs(P.vx) * 0.2; }
+      P.z = Math.min(P.z, H.barZ - 0.1);
+      continue;
+    }
+    // the goal from outside: the posts, the net's sides and back
+    if (P.x > H.goalX - 0.04 && P.x < H.goalX + H.netDepth + 0.04 && Math.abs(P.y) < H.postY + 0.04 && P.z < H.barZ) {
+      const dIn = { front: P.x - (H.goalX - 0.04), back: H.goalX + H.netDepth + 0.04 - P.x, side: H.postY + 0.04 - Math.abs(P.y) };
+      if (dIn.side <= dIn.front && dIn.side <= dIn.back) { P.y = Math.sign(P.y) * (H.postY + 0.04); P.vy = -P.vy * 0.4; }
+      else if (dIn.back < dIn.front) { P.x = H.goalX + H.netDepth + 0.04; P.vx = Math.abs(P.vx) * 0.3; }
+      else { P.x = H.goalX - 0.04; P.vx = -Math.abs(P.vx) * 0.4; }
+    }
+    // the boards
+    const q = { x: P.x, y: P.y };
+    if (clampToRink(q, H.puckR)) {
+      const nx = q.x - P.x, ny = q.y - P.y, d = Math.hypot(nx, ny) || 1;
+      const ux = nx / d, uy = ny / d, vn = P.vx * ux + P.vy * uy;
+      if (vn < 0) { P.vx -= 1.6 * vn * ux; P.vy -= 1.6 * vn * uy; if (vn < -1) g.fx.boards++; }
+      P.x = q.x; P.y = q.y;
+    }
+  }
+}
+
 function stepGoalie(g, dt, px, py, speed) {
   const gl = g.goalie, H = HOCKEY;
-  // on the line from the puck to the middle of the goal, at his depth
+  // out to cut the angle while the skater is far, back towards his crease as he comes in
+  const far = clamp((H.goalX - px - 5) / 7, 0, 1);
+  const wantX = H.goalieX + (H.goalieOut - H.goalieX) * far;
+  gl.x += clamp(wantX - gl.x, -1.6 * dt, 1.6 * dt);
+  // on the line from the puck to the middle of the goal, at his depth, leaning to the side he guesses
   const depth = Math.max(0.4, H.goalX - px);
-  const want = clamp(py * (H.goalX - H.goalieX) / depth, -0.75, 0.75);
+  const want = clamp(py * (H.goalX - gl.x) / depth + gl.cheat, -0.75, 0.75);
   const d = want - gl.y;
   gl.vy = Math.sign(d) * Math.min(Math.abs(d) * 8, speed);
   gl.y += gl.vy * dt;
@@ -401,7 +496,7 @@ const HOCKEY_START = rinkWorld(-1.5, 0);
 export const HOCKEY_PENALTY_MISSION = {
   id: 'hockey-penalty',
   title: 'Penalty shoot-out in the Eisstadion',
-  intro: 'The HCD\'s home ice in the Eisstadion Davos: five penalties against the goalie. Skate at him with the puck (W, A/D to steer, S to stop), aim with your direction — the red mark on the goal line shows where the shot goes — and shoot with Space (the Shoot button). Get close, but not too close: he pokes the puck off a skater within two metres. Medals by goals.',
+  intro: 'The HCD\'s home ice in the Eisstadion Davos: five penalties against the goalie. Skate at him with the puck (W, A/D to steer, S to stop), aim with your direction — the red mark on the goal line shows where the shot goes — and shoot with Space (the Shoot button): a tap is a quick wrist shot, hold it for a harder, higher one. He comes out to cut the angle and backs in as you close in, and he guesses a side now and then. Get close, but not too close: he pokes the puck off a skater within two metres. Medals by goals.',
   mode: 'person',
   season: null,
   time: 'golden',

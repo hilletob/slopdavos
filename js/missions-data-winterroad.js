@@ -7,8 +7,9 @@ import { makeRoute, routePoint } from './missions-data-work.js';
 // (tests/missions-winterroad.test.mjs drives them with synthetic frames and a speed-profile bot on the real terrain).
 //
 //   summer-tyres-flueela  An early winter: the first snow lies on the Flüelapassstrasse and the van still wears its
-//                         summer tyres. From the Gasthaus zum Tschuggen (~1940 m) up to the Flüela Hospiz on the
-//                         Passhöhe (2383 m), 5.9 km at 8-10 %: little grip in the bends, long braking, the rear wheels
+//                         summer tyres. From the Wägerhütta (~2210 m) up to the Flüela Hospiz on the Passhöhe
+//                         (2383 m), the top 2.5 km at 7-10 % with the hairpins: little grip in the bends (a little more
+//                         than on Clavadel's unploughed road, TYRES.ploughed), long braking, the rear wheels
 //                         spin when the throttle asks for more than the snow gives (worst when starting on the
 //                         slope). Off the road and into the snowbank costs time; off it altogether, or stuck for good,
 //                         ends the run.
@@ -139,6 +140,13 @@ export const TYRES = {
     label: 'Summer tyres',
     drive: { speed: 19, reverseSpeed: 4, acceleration: 2.6, powerSpeed: 0, rolling: 0.22, drag: 0.0012, coast: 0.45, brake: 1.9, wheelbase: 2.46, grip: 2.5, cornering: 2.7 },
     traction: 2.0, kinetic: 0.66, dig: 0.2, spinGrip: 0.45, engine: { low: 3.6, power: 26 }
+  },
+  // the same summer tyres on the Flüela's snow, which the plough has been through and packed: a little more grip than
+  // on the untouched road to Islen (+15 % sideways and on the brakes, a less sudden spin), still well short of chains
+  ploughed: {
+    label: 'Summer tyres',
+    drive: { speed: 19, reverseSpeed: 4, acceleration: 2.6, powerSpeed: 0, rolling: 0.22, drag: 0.0012, coast: 0.45, brake: 2.3, wheelbase: 2.46, grip: 2.9, cornering: 3.1 },
+    traction: 2.3, kinetic: 0.7, dig: 0.2, spinGrip: 0.38, engine: { low: 3.6, power: 26 }
   },
   chains: {
     label: 'Snow chains',
@@ -325,8 +333,9 @@ const placeName = { waegerhus: 'the Wägerhus', waegerhuetta: 'the Wägerhütta'
 export const SPIN_HINT = 'Wheels spinning: ease off the throttle (tap W)';
 export const BANK_HINT = 'In the snowbank: back onto the road';
 
-/** The drive to a point of the route: done past its arc length; the HUD's distance, the speed, the hints */
-function driveTo(id, title, route, road, place, sEnd, { chains = false } = {}) {
+/** The drive to a point of the route: done past its arc length; the HUD's distance (to `place` at the arc length `to`,
+ *  for a split short of it), the speed, the hints */
+function driveTo(id, title, route, road, place, sEnd, { chains = false, to = sEnd } = {}) {
   return {
     id, title,
     check(ctx, state) {
@@ -334,7 +343,7 @@ function driveTo(id, title, route, road, place, sEnd, { chains = false } = {}) {
       if (dr.lost) return { done: false, fail: chains ? 'Off the road: the van slid off the Clavadelerstrasse into the snow-covered meadow.' : 'Off the road: the van slid off the Flüelapassstrasse and down the slope.', text: '', progress: null, target: null, hint: null };
       if (dr.stuck) return { done: false, fail: `Stuck: the van has not got any further up the road for ${STUCK_S} s.`, text: '', progress: null, target: null, hint: null };
       if (chains && state.chains?.snapped) return { done: false, fail: 'A chain snapped: snow chains are good for 50 km/h at most.', text: '', progress: null, target: null, hint: null };
-      const left = Math.max(0, sEnd - dr.best);
+      const left = Math.max(0, to - dr.best);
       const v = Math.round(kmh(Math.abs(ctx.speed || 0)));
       let text = `${fmtDist(left)} to ${placeName[place]} · ${v} km/h`;
       if (dr.banks) text += ` · ${dr.banks} ${dr.banks === 1 ? 'time' : 'times'} in the snowbank`;
@@ -348,32 +357,36 @@ function driveTo(id, title, route, road, place, sEnd, { chains = false } = {}) {
 const startOn = (route, s, d = -2.2) => { const p = routePoint(route, s, d); return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), heading: +p.heading.toFixed(4) }; };
 
 export const FLUELA_S = { waegerhus: at(FLUELA, PLACES.waegerhus), waegerhuetta: at(FLUELA, PLACES.waegerhuetta), end: FLUELA.length };
+// The mission's part of it: from the Wägerhütta to the pass (~2.5 km, 2209 → 2383 m), the split past the two hairpins
+// halfway up (radius ~18 m at 1.29 km, ~29 m at 1.43 km)
+export const FLUELA_TOP = makeRoute(clipPolyline(FLUELA.pts, FLUELA_S.waegerhuetta, FLUELA.length));
+export const FLUELA_HAIRPINS = 1480;
 
-// (the clean run, tests/missions-winterroad.test.mjs profileTime: ~8:15 for the 5.9 km at a perfect foot and under
-// 60 km/h; a player spins now and then, and the bends cost more than the profile's: gold 9:00, silver +40 %, bronze
-// double)
+// (the clean run, tests/missions-winterroad.test.mjs profileTime: ~3:21 for the 2.5 km at a perfect foot and under
+// 60 km/h on the ploughed snow; a player spins now and then, and the bends cost more than the profile's: gold 3:50,
+// silver +40 %, bronze double)
 export const SUMMER_TYRES_MISSION = {
   id: 'summer-tyres-flueela',
   title: 'Summer tyres on the Flüela',
-  intro: 'An early winter has come overnight: 20 cm of fresh snow on the Flüelapassstrasse, the plough has been through once, and your van still wears its summer tyres. Drive the 5.9 km from the Gasthaus zum Tschuggen up to the Flüela Hospiz on the pass, 2383 m. The tyres hardly grip: brake early and gently, take the bends slowly, and ease into the throttle; too much and the rear wheels spin, worst of all from a standstill on the slope. Into the snowbank costs 5 s; off the road, or stuck for good, and the climb is over.',
+  intro: 'An early winter has come overnight: 20 cm of fresh snow on the Flüelapassstrasse, the plough has been through once, and your van still wears its summer tyres. Drive the last 2.5 km from the Wägerhütta up through the hairpins to the Flüela Hospiz on the pass, 2383 m. The tyres hardly grip: brake early and gently, take the bends slowly, and ease into the throttle; too much and the rear wheels spin, worst of all from a standstill on the slope. Into the snowbank costs 5 s; off the road, or stuck for good, and the climb is over.',
   mode: 'car',
   season: 'winter',
   time: 'golden',
   features: ['winterDrive'],
-  tyres: 'summer',
+  tyres: 'ploughed',
   route: 'fluela',
   props: [],
   colour: '#7fa7c9',
   icon: 'snowtyre',
-  bonusMs: 540000,
-  medals: { gold: 540000, silver: 756000, bronze: 1080000 },
+  bonusMs: 230000,
+  medals: { gold: 230000, silver: 322000, bronze: 460000 },
   finish: 'At the Hospiz the engine ticks as it cools. Winter tyres before the drive down, though.',
-  start: startOn(FLUELA, 4),
-  pin: startOn(FLUELA, 4, -7),
+  start: startOn(FLUELA_TOP, 4),
+  pin: startOn(FLUELA_TOP, 4, -7),
   createState() { return { drive: createDrive(), traction: createTraction(), penaltyMs: 0 }; },
   update(ctx, state) {
     if (ctx.mode !== 'car') return;
-    const ev = stepDrive(state.drive, FLUELA, FLUELA_ROAD, ctx, state);
+    const ev = stepDrive(state.drive, FLUELA_TOP, FLUELA_ROAD, ctx, state);
     if (ev) state.event = ev;
   },
   summary(state) {
@@ -381,9 +394,8 @@ export const SUMMER_TYRES_MISSION = {
     return [`Wheelspin ${Math.round(tr.spinTime)} s · ${d.banks} ${d.banks === 1 ? 'time' : 'times'} in the snowbank · ${d.crashes} ${d.crashes === 1 ? 'crash' : 'crashes'}`];
   },
   objectives: [
-    driveTo('waegerhus', 'Up to the Wägerhus', FLUELA, FLUELA_ROAD, 'waegerhus', FLUELA_S.waegerhus),
-    driveTo('waegerhuetta', 'Up to the Wägerhütta', FLUELA, FLUELA_ROAD, 'waegerhuetta', FLUELA_S.waegerhuetta),
-    driveTo('hospiz', 'Up to the Flüela Hospiz', FLUELA, FLUELA_ROAD, 'hospiz', FLUELA_S.end)
+    driveTo('hairpins', 'Up through the hairpins', FLUELA_TOP, FLUELA_ROAD, 'hospiz', FLUELA_HAIRPINS, { to: FLUELA_TOP.length }),
+    driveTo('hospiz', 'Up to the Flüela Hospiz', FLUELA_TOP, FLUELA_ROAD, 'hospiz', FLUELA_TOP.length)
   ]
 };
 

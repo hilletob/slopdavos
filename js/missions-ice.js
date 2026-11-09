@@ -15,8 +15,10 @@ import {
 //                the pelvis low, the back near flat, the legs pushing out in turn, the arms swinging), blades under the
 //                boots; a rhythm bar for the strokes (the touch screens' action button becomes "Push")
 //   speedTrack — the 400 m track's inner kerb blocks, the lane cones and the start/finish line (one instanced mesh)
-//   hockey     — a rink inside the Eisstadion (ice with its markings, boards, both goals, the stands up to the roof),
-//                a goalie, the puck and the stick; Space (the "Shoot" button) shoots where the skater looks
+//   hockey     — a rink inside the Eisstadion (ice with its markings, boards, both goals with their netting, the
+//                goal lamp, the stands up to the roof), a jointed goalie posed from the game (stance, butterfly, glove,
+//                poke check), the puck and the stick; Space (the "Shoot" button) shoots where the skater looks — a tap
+//                a wrist shot, held a wind-up; the camera follows the shot, the net bulges, horn and crowd on a goal
 //   curling    — a sheet on the Eisbahn's hard court, eight stones, the aim line; the person delivers from the hack and
 //                sweeps behind the stone; its own camera
 // Everything is built when the mission starts and goes with the run (its group, its DOM, the controllers' hooks).
@@ -390,35 +392,232 @@ function rinkTexture() {
   return tex;
 }
 
-function buildGoal(mat, netMat) {
-  const g = new THREE.Group();
-  const post = new THREE.CylinderGeometry(0.03, 0.03, 1.22, 8);
-  for (const y of [-HOCKEY.postY, HOCKEY.postY]) { const p = new THREE.Mesh(post, mat); p.position.set(0, 0.61, y); g.add(p); }
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.83, 8).rotateX(Math.PI / 2), mat); bar.position.set(0, 1.22, 0); g.add(bar);
-  // the net: back, top, sides (a box open at the front)
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(1.83, 1.0).rotateY(Math.PI / 2), netMat); back.position.set(1.0, 0.5, 0); g.add(back);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.83).rotateX(-Math.PI / 2), netMat); top.position.set(0.5, 1.1, 0); top.rotation.z = -0.2; g.add(top);
-  for (const y of [-HOCKEY.postY, HOCKEY.postY]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.22), netMat); s.position.set(0.5, 0.61, y); g.add(s); }
+// The netting: white cords on clear (diagonal: the diamonds of a hockey net), tiled at `NET_CELL` m
+const NET_CELL = 0.11;
+function netTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.strokeStyle = 'rgba(255, 255, 255, 0.95)'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(64, 64); g.moveTo(64, 0); g.lineTo(0, 64); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const scaleUV = (geo, su, sv) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); return geo; };
+
+/** A goal (local: x back into the net, z across; the goal line at x = 0): the red frame, the white base, the net — its
+ *  back a finer grid that bulges where the puck hits it (userData.back, its rest positions in userData.backRest) */
+function buildGoal(mat, netMat, baseMat) {
+  const H = HOCKEY, g = new THREE.Group();
+  const post = new THREE.CylinderGeometry(0.03, 0.03, H.barZ, 8);
+  for (const y of [-H.postY, H.postY]) { const p = new THREE.Mesh(post, mat); p.position.set(0, H.barZ / 2, y); p.castShadow = true; g.add(p); }
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2 * H.postY + 0.06, 8).rotateX(Math.PI / 2), mat); bar.position.set(0, H.barZ, 0); g.add(bar);
+  // the base frame on the ice: round the back of the net
+  const D = H.netDepth;
+  const baseBack = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2 * H.postY, 6).rotateX(Math.PI / 2), baseMat); baseBack.position.set(D, 0.025, 0); g.add(baseBack);
+  for (const y of [-H.postY, H.postY]) { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, D, 6).rotateZ(Math.PI / 2), baseMat); s.position.set(D / 2, 0.025, y); g.add(s); }
+  // the back of the net (bulges), the top (from the bar down to the back), the sides
+  const backH = 0.95;
+  const backGeo = scaleUV(new THREE.PlaneGeometry(2 * H.postY, backH, 10, 6), (2 * H.postY) / NET_CELL, backH / NET_CELL).rotateY(Math.PI / 2);
+  const back = new THREE.Mesh(backGeo, netMat); back.position.set(D, backH / 2, 0); g.add(back);
+  const topL = Math.hypot(D, H.barZ - backH);
+  const top = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(topL, 2 * H.postY), topL / NET_CELL, (2 * H.postY) / NET_CELL).rotateX(-Math.PI / 2), netMat);
+  top.position.set(D / 2, (H.barZ + backH) / 2, 0); top.rotation.z = -Math.atan2(H.barZ - backH, D); g.add(top);
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(D, 0); sh.lineTo(D, backH); sh.lineTo(0, H.barZ); sh.closePath();
+  const sideGeo = scaleUV(new THREE.ShapeGeometry(sh), 1 / NET_CELL, 1 / NET_CELL);
+  for (const y of [-H.postY, H.postY]) { const s = new THREE.Mesh(sideGeo, netMat); s.position.set(0, 0, y); g.add(s); }
+  g.userData.back = back;
+  g.userData.backRest = Float32Array.from(backGeo.attributes.position.array);
   return g;
 }
 
+// --- The goalie: a jointed figure in the HCD's blue and yellow, posed every frame from the game's state ---------------
+// (local: +x towards the shooter, +y up, +z his right — the rink's -y)
+const _ga = new THREE.Vector3(), _gx = new THREE.Vector3(), _gy = new THREE.Vector3(), _gz = new THREE.Vector3(), _gm = new THREE.Matrix4();
+const FWD = new THREE.Vector3(1, 0, 0);
+/** Puts `mesh` (its length along its y, 1 m unless `fixed`) from a to b, its x turned towards `face` */
+function placeBetween(mesh, a, b, face = FWD, fixed = false) {
+  _gy.subVectors(b, a);
+  const len = _gy.length() || 1e-4;
+  _gy.multiplyScalar(1 / len);
+  _gx.copy(face).addScaledVector(_gy, -face.dot(_gy));
+  if (_gx.lengthSq() < 1e-6) _gx.set(0, 0, 1).cross(_gy);
+  _gx.normalize();
+  _gz.crossVectors(_gx, _gy);
+  _gm.makeBasis(_gx, _gy, _gz);
+  mesh.quaternion.setFromRotationMatrix(_gm);
+  if (fixed) mesh.position.copy(a);
+  else { mesh.position.copy(a).add(b).multiplyScalar(0.5); mesh.scale.set(1, len, 1); }
+}
+
 function buildGoalie() {
-  const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.7 });
-  const red = new THREE.MeshStandardMaterial({ color: 0xc8202a, roughness: 0.7 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.5 });
-  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
-  // (local: +x towards the shooter, +z the goalie's left... built facing -x of the rink, see place)
-  const pad = new THREE.BoxGeometry(0.28, 0.82, 0.3);
-  add(pad, white, 0.05, 0.42, 0.24); add(pad, white, 0.05, 0.42, -0.24);
-  add(new THREE.BoxGeometry(0.42, 0.62, 0.62), red, -0.05, 1.05, 0); // the jersey
-  add(new THREE.BoxGeometry(0.16, 0.42, 0.2), red, 0.05, 1.05, 0.42); add(new THREE.BoxGeometry(0.16, 0.42, 0.2), red, 0.05, 1.05, -0.42); // the arms
-  add(new THREE.BoxGeometry(0.22, 0.3, 0.06), white, 0.18, 0.9, -0.55); // the blocker
-  add(new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), white, 0.18, 0.95, 0.56); // the catcher
-  add(new THREE.SphereGeometry(0.15, 14, 10), white, 0.02, 1.48, 0); // the mask
-  add(new THREE.BoxGeometry(0.02, 0.14, 0.2), dark, 0.16, 1.45, 0); // its cage
-  add(new THREE.BoxGeometry(0.06, 0.06, 0.95), dark, 0.32, 0.04, -0.15); // the stick's paddle
-  return g;
+  const root = new THREE.Group();
+  root.name = 'Goalie';
+  const M = (color, roughness = 0.6) => new THREE.MeshStandardMaterial({ color, roughness });
+  const jersey = M(0x1d3f8f), yellow = M(0xf2c400), white = M(0xf3f4f6, 0.45), pants = M(0x1a2238), dark = M(0x15171c, 0.4);
+  const add = (geo, mat, shadow = false, parent = root) => { const m = new THREE.Mesh(geo, mat); m.castShadow = shadow; parent.add(m); return m; };
+  const gk = { root };
+  const pad = new THREE.BoxGeometry(0.16, 1, 0.28), thigh = new THREE.CylinderGeometry(0.1, 0.085, 1, 8), skate = new THREE.BoxGeometry(0.3, 0.08, 0.1);
+  gk.pads = [add(pad, white, true), add(pad, white, true)];
+  gk.thighs = [add(thigh, pants), add(thigh, pants)];
+  gk.skates = [add(skate, dark), add(skate, dark)];
+  // the torso: a fixed group (chest protector under the jersey, its yellow band, the shoulder pads), the head on it
+  gk.torso = new THREE.Group(); root.add(gk.torso);
+  add(new THREE.BoxGeometry(0.34, 0.5, 0.54).translate(0, 0.25, 0), jersey, true, gk.torso);
+  add(new THREE.BoxGeometry(0.35, 0.08, 0.55).translate(0, 0.1, 0), yellow, false, gk.torso);
+  add(new THREE.BoxGeometry(0.36, 0.13, 0.68).translate(0, 0.47, 0), jersey, false, gk.torso);
+  add(new THREE.SphereGeometry(0.135, 14, 10).translate(0.02, 0.66, 0), white, true, gk.torso); // the mask
+  add(new THREE.SphereGeometry(0.115, 10, 8, Math.PI / 2, Math.PI, Math.PI * 0.3, Math.PI * 0.45).translate(0.08, 0.64, 0), dark, false, gk.torso); // its cage
+  const arm = new THREE.CylinderGeometry(0.075, 0.065, 1, 8);
+  gk.upper = [add(arm, jersey), add(arm, jersey)];
+  gk.fore = [add(arm, jersey), add(arm, jersey)];
+  // the catcher (his left hand: -z) and the blocker with the stick (his right: +z)
+  gk.glove = add(new THREE.CylinderGeometry(0.16, 0.13, 0.09, 14).rotateZ(Math.PI / 2), white, true);
+  gk.blocker = add(new THREE.BoxGeometry(0.05, 0.36, 0.22), white, true);
+  gk.shaft = add(new THREE.BoxGeometry(0.03, 1, 0.03), dark);
+  gk.paddle = add(new THREE.BoxGeometry(0.035, 1, 0.085), yellow);
+  gk.blade = add(new THREE.BoxGeometry(0.02, 1, 0.09), dark);
+  gk.s = { down: 0, reach: 0, rz: 0, ry: 0.8, glove: 0, poke: 0, sag: 0, t: 0, lean: 0 };
+  return gk;
+}
+
+const _across = new THREE.Vector3(), _hipC = new THREE.Vector3(), _up = new THREE.Vector3(), _neck = new THREE.Vector3(), _sh2 = new THREE.Vector3(), _hand = new THREE.Vector3(), _elb = new THREE.Vector3();
+const _hip2 = new THREE.Vector3(), _knee = new THREE.Vector3(), _foot = new THREE.Vector3(), _top = new THREE.Vector3(), _heel = new THREE.Vector3(), _toe = new THREE.Vector3(), _pd = new THREE.Vector3();
+const lerp = (a, b, f) => a + (b - a) * f;
+const approach = (v, to, rate, dt) => v + clamp(to - v, -rate * dt, rate * dt);
+
+/** Poses the goalie for this frame: the stance, the butterfly, the reach for a shot, the glove with the puck, the poke */
+function poseGoalie(gk, g, dt) {
+  const gl = g.goalie, P = g.puck, s = gk.s;
+  s.t += dt;
+  // where the puck is from him (local: z his right = the rink's -y), how high
+  const relZ = -(P.y - gl.y), relY = P.z;
+  let down = 0, reach = 0, glove = 0, poke = gl.poke, sag = 0;
+  const near = clamp(1 - (gl.x - P.x - 2) / 6, 0, 1); // (lower as the skater closes in)
+  if (g.phase === 'skate') down = 0.12 * near;
+  else if (g.phase === 'shot') {
+    if (gl.react <= 0) { down = relY < 0.5 ? 1 : 0.55; reach = 1; }
+  } else if (g.phase === 'result') {
+    if (g.result === 'save') { down = gl.caught ? 0.25 : Math.max(gl.dive, 0.3); reach = gl.caught ? 0 : 0.6; glove = gl.caught ? 1 : 0; }
+    else if (g.result === 'goal') { down = Math.max(gl.dive, g.resultT < 0.5 ? 0.7 : 0); reach = g.resultT < 0.6 ? 0.6 : 0; sag = g.resultT > 0.5 ? 1 : 0; } // (a late drop, then he sags)
+    else if (g.result === 'post' || g.result === 'wide') { down = gl.dive * 0.8; reach = 0.4; }
+  }
+  s.down = approach(s.down, down, down > s.down ? 9 : 1.6, dt);
+  s.reach = approach(s.reach, reach, reach > s.reach ? 10 : 2, dt);
+  s.glove = approach(s.glove, glove, 6, dt);
+  s.poke = approach(s.poke, poke, poke > s.poke ? 14 : 3, dt);
+  s.sag = approach(s.sag, sag, 1.5, dt);
+  if (g.phase === 'shot' || (g.phase === 'result' && (g.result !== 'goal' || g.resultT < 0.15))) { s.rz = lerp(s.rz, clamp(relZ, -0.85, 0.85), Math.min(1, dt * 14)); s.ry = lerp(s.ry, clamp(relY, 0.15, 1.15), Math.min(1, dt * 14)); }
+  s.lean = lerp(s.lean, clamp(-gl.vy * 0.08, -0.15, 0.15) + (g.phase === 'skate' ? 0 : s.rz * 0.35 * s.reach), Math.min(1, dt * 8));
+  const D = s.down, bob = Math.sin(s.t * 2.1) * 0.012 * (1 - D);
+  // hips and legs: the stance (knees in, feet wide) or the butterfly (knees on the ice, pads flat out to the sides)
+  _hipC.set(-0.03 + 0.06 * D, lerp(0.64, 0.34, D) - 0.05 * s.sag + bob, 0);
+  for (let i = 0; i < 2; i++) {
+    const side = i ? 1 : -1;
+    // (the pad on the side of the shot stretches further out)
+    const stretch = s.reach * Math.max(0, side * s.rz) * D * 0.25;
+    _hip2.set(_hipC.x, _hipC.y - 0.04, side * 0.12);
+    _knee.set(lerp(0.17, 0.12, D), lerp(0.47, 0.1, D), side * lerp(0.12, 0.09, D));
+    _foot.set(lerp(0.05, -0.02, D), lerp(0.05, 0.11, D), side * (lerp(0.32, 0.9, D) + stretch));
+    _top.set(_knee.x + 0.02, _knee.y + 0.15 * (1 - D), _knee.z - side * 0.08 * D);
+    placeBetween(gk.pads[i], _top, _foot);
+    placeBetween(gk.thighs[i], _hip2, _knee);
+    gk.skates[i].position.set(_foot.x + 0.04, 0.04 + 0.05 * D, _foot.z + side * 0.06 * D);
+    gk.skates[i].rotation.set(D * side * 1.2, 0, 0);
+  }
+  // the torso: forward over his knees, leaning into the save, slumping after a goal
+  _up.set(0.32 + 0.1 * D - 0.15 * s.sag, 1, s.lean).normalize();
+  _pd.set(1, -0.25 - 0.4 * s.sag, 0); // (his chest faces the shooter, the head a little down)
+  placeBetween(gk.torso, _hipC, _ga.copy(_hipC).add(_up), _pd, true);
+  _neck.copy(_hipC).addScaledVector(_up, 0.5);
+  _across.set(0, 0, 1).applyQuaternion(gk.torso.quaternion); // (the torso's own across)
+  // the hands: at rest out in front of him; one reaching for the shot; the glove up with the puck in it; the poke
+  for (let i = 0; i < 2; i++) {
+    const side = i ? 1 : -1; // 0: the glove (left, -z), 1: the blocker (right, +z)
+    _sh2.copy(_neck).addScaledVector(_across, side * 0.27).addScaledVector(_up, -0.04);
+    _hand.set(_hipC.x + 0.3, _hipC.y + (i ? 0.06 : 0.14), side * 0.42);
+    const mine = (s.rz < 0) === (side < 0);
+    if (mine && s.reach > 0) {
+      const f = s.reach * (s.ry > 0.35 || Math.abs(s.rz) < 0.3 ? 1 : 0.45);
+      _hand.x = lerp(_hand.x, 0.36, f);
+      _hand.y = lerp(_hand.y, s.ry, f);
+      _hand.z = lerp(_hand.z, s.rz + side * 0.06, f);
+    }
+    if (!i && s.glove > 0) _hand.lerp(_ga.set(0.12, 0.98, -0.5), s.glove);
+    if (i && s.poke > 0) { _hand.x += 0.45 * s.poke; _hand.y -= 0.18 * s.poke; _hand.z -= 0.12 * s.poke; }
+    _elb.copy(_sh2).add(_hand).multiplyScalar(0.5);
+    _elb.y -= 0.08; _elb.z += side * 0.08; _elb.x -= 0.04;
+    placeBetween(gk.upper[i], _sh2, _elb);
+    placeBetween(gk.fore[i], _elb, _hand);
+    if (i) { gk.blocker.position.copy(_hand); gk.blocker.position.z += 0.06; gk.blocker.rotation.set(0, 0, 0); }
+    else { gk.glove.position.copy(_hand); gk.glove.position.z -= 0.04; gk.glove.rotation.set(0, 0, -0.3 * s.glove); }
+  }
+  // the stick: from the blocker down to its blade across the ice in front of the pads (out at the puck in the poke)
+  _heel.set(lerp(0.42, 0.48, D) + 1.1 * s.poke, 0.04, lerp(0.1, 0.18, D) - 0.15 * s.poke);
+  _toe.copy(_heel).add(_ga.set(-0.04, 0, -0.42));
+  placeBetween(gk.shaft, gk.blocker.position, _heel);
+  _top.copy(_heel).lerp(gk.blocker.position, 0.55);
+  placeBetween(gk.paddle, _heel, _top);
+  placeBetween(gk.blade, _heel, _toe);
+}
+
+// --- The sounds: built on the city's audio context (silent while the sound is off) -----------------------------------
+const noiseCache = new WeakMap();
+function noiseBuf(ctx) {
+  let b = noiseCache.get(ctx);
+  if (!b) {
+    const n = Math.floor(ctx.sampleRate * 3);
+    b = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    noiseCache.set(ctx, b);
+  }
+  return b;
+}
+/** One of the rink's sounds: 'shot' (k: the power), 'save', 'glove', 'post', 'boards', 'net', 'horn', 'cheer', 'ooh' */
+function rinkSound(run, kind, k = 1) {
+  const A = run.audio;
+  if (!A?.live) return;
+  const ctx = A.audio.context, out = A.audio.mix, now = ctx.currentTime;
+  const noise = (dur, type, freq, q, gain, attack = 0.002, at = now, rate = 1) => {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf(ctx); src.playbackRate.value = rate;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const e = ctx.createGain(); e.gain.setValueAtTime(0.0001, at); e.gain.exponentialRampToValueAtTime(gain, at + attack); e.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(e).connect(out);
+    src.start(at, Math.max(0, Math.random() * (2.9 - dur * rate))); src.stop(at + dur + 0.05);
+    return { f, e };
+  };
+  const tone = (freq, dur, gain, type = 'sine', at = now, attack = 0.003) => {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq;
+    const e = ctx.createGain(); e.gain.setValueAtTime(0.0001, at); e.gain.exponentialRampToValueAtTime(gain, at + attack); e.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(e).connect(out); o.start(at); o.stop(at + dur + 0.05);
+    return { o, e };
+  };
+  if (kind === 'shot') { noise(0.06, 'bandpass', 2400, 0.8, 0.5 + 0.4 * k); noise(0.12, 'lowpass', 500, 0.7, 0.35 + 0.3 * k); }
+  else if (kind === 'save') { noise(0.16, 'lowpass', 380, 0.9, 0.55); tone(90, 0.12, 0.25); }
+  else if (kind === 'glove') { noise(0.09, 'lowpass', 900, 1.2, 0.45); }
+  else if (kind === 'post') { tone(1870, 0.7, 0.18); tone(2960, 0.45, 0.1); tone(4310, 0.25, 0.05); noise(0.03, 'highpass', 3000, 0.7, 0.2); }
+  else if (kind === 'boards') { noise(0.22, 'lowpass', 420, 1.1, 0.35 * k); tone(70, 0.18, 0.2 * k); }
+  else if (kind === 'net') { noise(0.25, 'bandpass', 900, 0.6, 0.12); }
+  else if (kind === 'horn') {
+    // the goal horn: a low, brassy chord, twice
+    for (const [at, dur] of [[0, 1.0], [1.15, 1.4]]) for (const f of [174.6, 220, 261.6]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100;
+      const e = ctx.createGain(); e.gain.setValueAtTime(0.0001, now + at); e.gain.exponentialRampToValueAtTime(0.07, now + at + 0.05); e.gain.setValueAtTime(0.07, now + at + dur - 0.15); e.gain.exponentialRampToValueAtTime(0.0001, now + at + dur);
+      o.connect(lp).connect(e).connect(out); o.start(now + at); o.stop(now + at + dur + 0.05);
+    }
+  } else if (kind === 'cheer') {
+    const a = noise(3.2, 'bandpass', 1100, 0.45, 0.32, 0.35);
+    a.f.frequency.setValueAtTime(800, now); a.f.frequency.linearRampToValueAtTime(1300, now + 0.6);
+    noise(2.6, 'bandpass', 2600, 0.7, 0.1, 0.3, now + 0.1, 1.3);
+  } else if (kind === 'ooh') {
+    const a = noise(1.3, 'bandpass', 420, 1.6, 0.16, 0.25);
+    a.f.frequency.setValueAtTime(380, now); a.f.frequency.linearRampToValueAtTime(560, now + 0.5);
+  }
 }
 
 /** The stands: a bowl from behind the boards up to the arena's outer wall under the eaves (rows in HCD blue and
@@ -486,14 +685,28 @@ const hockey = {
       return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colour, roughness: 0.6, side: THREE.DoubleSide, emissive: colour, emissiveIntensity: 0.25, ...opts }));
     };
     root.add(wall(0, 0.2, 0xf2c400), wall(0.2, 1.1, 0xf4f6f8), wall(1.1, 2.9, 0xcfe6ff, { transparent: true, opacity: 0.16, depthWrite: false, emissiveIntensity: 0 }));
-    // the goals at both ends (the one shot at: +x)
+    // the goals at both ends (the one shot at: +x), a netting of cords
     const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.4 });
-    const net = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });
-    const goal = buildGoal(red, net);
+    const base = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 });
+    const netTex = netTexture();
+    const net = new THREE.MeshStandardMaterial({ color: 0xffffff, map: netTex, emissive: 0xffffff, emissiveMap: netTex, emissiveIntensity: 0.25, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.9 });
+    const goal = buildGoal(red, net, base);
     goal.position.set(HOCKEY.goalX, 0, 0);
-    const goal2 = buildGoal(red, net);
+    const goal2 = buildGoal(red, net, base);
     goal2.position.set(-HOCKEY.goalX, 0, 0); goal2.rotation.y = Math.PI;
     root.add(goal, goal2);
+    run.goalNet = { back: goal.userData.back, rest: goal.userData.backRest, t: -1, y: 0, z: 0.5, amp: 0 };
+    // the goal judge's red lamp over the glass behind the goal, its glow (on for a goal)
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0x5a1010 });
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.3, 14), lampMat);
+    lamp.position.set(RINK.halfL + 0.3, 3.1, 0);
+    const lampBase = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.4), new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.6 }));
+    lampBase.position.set(RINK.halfL + 0.3, 2.9, 0);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 10), new THREE.MeshBasicMaterial({ color: 0xff1a08, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.position.copy(lamp.position);
+    glow.visible = false;
+    root.add(lamp, lampBase, glow);
+    run.goalLight = { lampMat, glow, on: 0 };
     // (the root in the rink's frame: local x along u, local z = rink y)
     root.position.set(RINK.x, y, RINK.z);
     root.rotation.y = Math.atan2(RINK.ux, RINK.uz) - Math.PI / 2;
@@ -501,11 +714,17 @@ const hockey = {
     // the stands up to the arena's wall under the eaves
     const floor = Math.min(...EISSTADION.outline.map((p) => groundHeight(p.x, p.z)));
     run.group.add(buildStands(y + 1.15, floor + EISSTADION.eaves - 0.6));
-    // the goalie, the puck, the stick
-    run.goalie = buildGoalie();
+    // the goalie (facing up the ice: the rink's frame turned round), the puck and its streak, the stick
+    run.gk = buildGoalie();
+    run.gk.root.rotation.y = root.rotation.y + Math.PI;
+    run.goalie = run.gk.root;
     run.group.add(run.goalie);
     run.puck = new THREE.Mesh(new THREE.CylinderGeometry(HOCKEY.puckR, HOCKEY.puckR, 0.025, 16), new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.5 }));
+    run.puck.castShadow = true;
     run.group.add(run.puck);
+    run.puckStreak = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 1).translate(0, 0, -0.5), new THREE.MeshBasicMaterial({ color: 0x0c0c0e, transparent: true, opacity: 0.28, depthWrite: false }));
+    run.puckStreak.visible = false;
+    run.group.add(run.puckStreak);
     run.stick = new THREE.Group();
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 1.0).translate(0, 0, 0.5), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.5 }));
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.015).translate(0.1, 0, 0), new THREE.MeshStandardMaterial({ color: 0xf2c400, roughness: 0.5 }));
@@ -515,13 +734,18 @@ const hockey = {
     // the aim: a red mark on the goal line where the shot would go
     run.aimMark = new THREE.Mesh(new THREE.CircleGeometry(0.14, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.85, depthWrite: false }));
     run.group.add(run.aimMark);
-    // HUD: the tally ●○, the result
+    // HUD: the tally ●○, on target or not, the shot's wind-up
     const ui = run.ice.ui;
     ui.tally = el('div', 'ice-tally');
     ui.aimText = el('span');
     const row = el('div', 'ice-row'); row.append(ui.tally, ui.aimText);
-    ui.hud.append(row, ui.flash);
-    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'shoot'], [['Drag'], 'aim']]);
+    ui.power = meter();
+    ui.power.zone.style.left = '0'; ui.power.zone.style.right = '0'; ui.power.zone.style.background = 'linear-gradient(90deg, rgba(80,220,140,0.25), rgba(255,200,61,0.55))';
+    ui.powerRow = el('div', 'ice-row');
+    ui.powerRow.append(el('span', null, 'Wind-up'), ui.power.m);
+    ui.powerRow.style.display = 'none';
+    ui.hud.append(row, ui.powerRow, ui.flash);
+    run.hints([[['W'], 'skate'], [['A', 'D'], 'steer'], [['S'], 'stop'], [['Space'], 'shoot (hold: harder)'], [['Drag'], 'aim']]);
     // a click (not a drag) on the view shoots too
     let down = null;
     const canvas = document.getElementById('canvas-container');
@@ -534,7 +758,26 @@ const hockey = {
     run.hooks.cameraSystem.orbitYawOffset = 0;
     run._clickShot = false;
     run._edge_up = true;
-    hockey.render(run);
+    run.charge = null;
+    run.swing = null;
+    run.fxSeen = null;
+    run.ice.frozen = false;
+    // on the centre spot facing the goal (the start's teleport looks for a free spot and may land by the boards)
+    hockey.lineUp(run);
+    hockey.render(run, 0);
+  },
+  /** The skater back on the centre spot, the puck on his blade, facing the goal */
+  lineUp(run) {
+    const cm = run.hooks.controllerManager, p = cm.entities.person;
+    const w = rinkWorld(-1.5, 0);
+    p.position.set(w.x, rinkIceY(), w.z);
+    p.heading = rinkHeadingWorld(0);
+    p.speed = 0;
+    run.ice.skater = createSkater(p.heading);
+    run.lastPos.copy(p.position);
+    run.hooks.cameraSystem.orbitYawOffset = 0;
+    run.hooks.cameraSystem.resetForTeleport?.();
+    run.iceCam = null;
   },
   teardown(run) { run.hooks.cameraSystem.orbitYawOffset = 0; },
   aim(run, p) {
@@ -545,91 +788,197 @@ const hockey = {
   update(run, ctx, dt, cm) {
     const g = run.state.game, p = cm.entities.person;
     const l = rinkLocal(p.position.x, p.position.z);
-    const carrier = { x: l.x, y: l.y, heading: rinkHeadingLocal(p.heading) };
+    const carrier = { x: l.x, y: l.y, heading: rinkHeadingLocal(p.heading), speed: run.charge !== null ? 0 : run.ice.skater.speed };
     const aim = hockey.aim(run, p);
     let shot = null;
-    const pressed = edge(run, cm, 'up') || run._clickShot;
+    // Space (the Shoot button): a tap is a quick wrist shot; held, the wind-up builds (harder, higher), let go to shoot
+    const pressed = edge(run, cm, 'up'), held = !!cm.keys.up;
+    const click = run._clickShot;
     run._clickShot = false;
-    if (run.phase === 'running' && g.phase === 'skate' && pressed) { shot = aim; run.audio?.thump?.(); }
+    if (run.phase === 'running' && g.phase === 'skate') {
+      if (pressed && run.charge === null) run.charge = 0;
+      if (run.charge !== null) {
+        run.charge += dt / HOCKEY.charge;
+        if (!held || run.charge >= 1.5) { shot = { a: aim, power: clamp((run.charge - 0.15) / 0.85, 0, 1) }; run.charge = null; }
+      } else if (click) shot = { a: aim, power: 0.35 };
+    } else run.charge = null;
+    if (shot) { run.swing = { t: 0, power: shot.power, a: aim }; rinkSound(run, 'shot', shot.power); }
     if (run.phase === 'running' || run.phase === 'ready') {
       const before = g.phase;
       const r = run.phase === 'running' ? stepPenalty(g, dt, carrier, shot) : null;
-      if (before !== 'result' && g.phase === 'result') hockey.announce(run, g.result);
+      if (before !== 'result' && g.phase === 'result') hockey.announce(run, g);
+      hockey.sounds(run, g);
       if (r === 'next') {
         // back to the centre spot for the next one
-        const w = rinkWorld(-1.5, 0);
-        p.position.set(w.x, rinkIceY(), w.z);
-        p.heading = rinkHeadingWorld(0);
-        run.ice.skater = createSkater(p.heading);
-        run.lastPos.copy(p.position);
-        run.hooks.cameraSystem.orbitYawOffset = 0;
-        run.hooks.cameraSystem.resetForTeleport?.();
+        hockey.lineUp(run);
         run.ice.ui.flash.textContent = '';
-        run.iceCam = null;
+        run.swing = null;
       }
     }
+    // after the shot (or the poke) the skater glides to a stop; never into the goal or through the goalie
+    run.ice.frozen = g.phase === 'result' || g.phase === 'done';
+    hockey.keepOut(run, p);
+    // the wind-up's bar
+    const ui = run.ice.ui;
+    const showPower = run.charge === null ? 'none' : '';
+    if (ui.powerRow.style.display !== showPower) ui.powerRow.style.display = showPower;
+    if (run.charge !== null) { const f = clamp((run.charge - 0.15) / 0.85, 0, 1); ui.power.fill.style.width = `${f * 100}%`; }
     // the aim mark on the goal line
     const cy = g.phase === 'skate' ? crossingY(g.puck.x, g.puck.y, aim, HOCKEY.goalX) : null;
     run.aimMark.visible = cy !== null && Math.abs(cy) < 3 && run.phase !== 'intro';
     if (run.aimMark.visible) { const w = rinkWorld(HOCKEY.goalX - 0.02, cy); run.aimMark.position.set(w.x, rinkIceY() + 0.02, w.z); }
     const inGoal = cy !== null && Math.abs(cy) < HOCKEY.postY - HOCKEY.puckR;
     const t = cy === null ? '' : inGoal ? 'on target' : 'off target';
-    if (run.ice.ui.aimText.textContent !== t) { run.ice.ui.aimText.textContent = t; run.ice.ui.aimText.style.color = inGoal ? '#5be08c' : '#ff7a6b'; }
-    hockey.render(run);
-    if (run.ice.bigAt && performance.now() - run.ice.bigAt > 1600) { run.ice.ui.big.classList.remove('is-on'); run.ice.bigAt = 0; }
+    if (ui.aimText.textContent !== t) { ui.aimText.textContent = t; ui.aimText.style.color = inGoal ? '#5be08c' : '#ff7a6b'; }
+    hockey.render(run, dt);
+    if (run.ice.bigAt && performance.now() - run.ice.bigAt > 1900) { ui.big.classList.remove('is-on'); run.ice.bigAt = 0; }
   },
-  // the camera: over the skater's shoulder, high enough to see the goalie over him, along the view (heading + drag)
-  camera(run, ctx, dt, cm) {
+  /** Keeps the skater out of the goal's frame and off the goalie (a slide into them stops there) */
+  keepOut(run, p) {
+    const g = run.state.game, H = HOCKEY, l = rinkLocal(p.position.x, p.position.z), sk = run.ice.skater;
+    let hit = false;
+    if (l.x > H.goalX - 0.35 && l.x < H.goalX + H.netDepth + 0.35 && Math.abs(l.y) < H.postY + 0.35) {
+      const front = l.x - (H.goalX - 0.35), back = H.goalX + H.netDepth + 0.35 - l.x, side = H.postY + 0.35 - Math.abs(l.y);
+      if (side < front && side < back) l.y = Math.sign(l.y) * (H.postY + 0.35); else if (back < front) l.x = H.goalX + H.netDepth + 0.35; else l.x = H.goalX - 0.35;
+      hit = true;
+    }
+    const dx = l.x - g.goalie.x, dy = l.y - g.goalie.y, d = Math.hypot(dx, dy);
+    if (d < 0.75 && d > 1e-4) { l.x = g.goalie.x + (dx / d) * 0.75; l.y = g.goalie.y + (dy / d) * 0.75; hit = true; }
+    if (!hit) return;
+    const w = rinkWorld(l.x, l.y);
+    p.position.x = w.x; p.position.z = w.z;
+    sk.speed *= 0.5;
+  },
+  /** The game's events (its fx counters) as sounds and the net's bulge */
+  sounds(run, g) {
+    const seen = run.fxSeen || (run.fxSeen = { ...g.fx });
+    if (g.fx.boards > seen.boards) rinkSound(run, 'boards', clamp(Math.hypot(g.puck.vx, g.puck.vy) / 10, 0.3, 1));
+    if (g.fx.post > seen.post) rinkSound(run, 'post');
+    if (g.fx.save > seen.save) rinkSound(run, g.goalie.caught ? 'glove' : 'save');
+    if (g.fx.net > seen.net && g.result === 'goal') {
+      rinkSound(run, 'net');
+      const n = run.goalNet;
+      if (n.t < 0 || n.t > 0.3) { n.t = 0; n.y = g.puck.y; n.z = Math.max(0.12, g.puck.z + 0.05); n.amp = clamp(Math.hypot(g.shotFrom?.speed || 25) / 30, 0.5, 1.2); }
+    }
+    Object.assign(seen, g.fx);
+  },
+  /** The camera: over the skater's shoulder, high enough to see the goalie over him, along the view (heading + drag).
+   *  `focus` (optional, the penalty's shot and its result): { x, y, z } turned towards by `w` 0..1, moved in by `push` */
+  camera(run, ctx, dt, cm, focus = null) {
     if (run.phase === 'intro') return;
     const p = cm.entities.person, cs = run.hooks.cameraSystem, cam = ctx.camera;
     const yaw = p.heading + clamp(cs.orbitYawOffset || 0, -0.6, 0.6);
     const fx = Math.sin(yaw), fz = Math.cos(yaw), y = run.ice.surf(); // (rinkIceY, or the pond's: js/missions-outdoor.js)
     const want = { x: p.position.x - fx * 4.6 - fz * 0.5, y: y + 2.7, z: p.position.z - fz * 4.6 + fx * 0.5, lx: p.position.x + fx * 9, ly: y + 0.6, lz: p.position.z + fz * 9 };
+    if (focus) {
+      const w = focus.w, m = focus.push || 0;
+      want.lx += (focus.x - want.lx) * w; want.ly += (focus.y - want.ly) * w; want.lz += (focus.z - want.lz) * w;
+      want.x += (focus.x - want.x) * m; want.y += 0.9 * m; want.z += (focus.z - want.z) * m; // (in and up, over the skater)
+    }
     const c = run.iceCam || (run.iceCam = { ...want });
-    const k = Math.min(1, dt * 6);
+    const k = Math.min(1, dt * (focus ? 4 : 6));
     for (const key of Object.keys(want)) c[key] += (want[key] - c[key]) * k;
     cam.position.set(c.x, c.y, c.z);
     cam.lookAt(c.lx, c.ly, c.lz);
     cam.updateMatrixWorld();
   },
-  announce(run, result) {
-    const ui = run.ice.ui;
-    ui.big.textContent = result === 'goal' ? 'GOAL!' : result === 'save' ? 'SAVE' : result === 'post' ? 'POST!' : 'MISS';
+  announce(run, g) {
+    const ui = run.ice.ui, result = g.result;
+    ui.big.textContent = result === 'goal' ? 'GOAL!' : result === 'save' ? (g.goalie.caught ? 'GLOVE SAVE' : 'SAVE') : result === 'post' ? 'POST!' : result === 'poke' ? 'POKE CHECK' : 'MISS';
     ui.big.style.color = result === 'goal' ? '#ffc83d' : '#ffffff';
     ui.big.classList.add('is-on');
     run.ice.bigAt = performance.now();
     ui.flash.textContent = PENALTY_RESULT_TEXT[result] || '';
     ui.flash.className = `ice-flash ${result === 'goal' ? 'is-gold' : 'is-bad'}`;
-    if (result === 'goal') run.audio?.boom?.(30, 0.35);
+    if (result === 'goal') { rinkSound(run, 'horn'); rinkSound(run, 'cheer'); run.goalLight.on = HOCKEY.resultSeconds; }
+    else if (result === 'save' || result === 'post') rinkSound(run, 'ooh');
   },
-  render(run) {
+  render(run, dt = 0) {
     const g = run.state?.game;
     if (!g) return;
     const y = rinkIceY();
-    // the goalie: across his line, crouched, diving to the side he goes
+    // the goalie: out on his line, posed (stance, butterfly, the reach, the glove, the poke)
     const gl = g.goalie;
-    const w = rinkWorld(HOCKEY.goalieX, gl.y);
+    const w = rinkWorld(gl.x, gl.y);
     run.goalie.position.set(w.x, y, w.z);
-    run.goalie.rotation.set(0, rinkHeadingWorld(Math.PI) - Math.PI / 2, 0, 'YXZ');
-    const dir = Math.sign(gl.target - gl.y) || Math.sign(gl.y) || 1;
-    run.goalie.rotation.x = gl.dive * 0.9 * -dir;
+    poseGoalie(run.gk, g, Math.min(dt, 0.05));
+    // the puck: on the ice or up in the air, spinning while it slides; a faint streak behind a shot
     const pw = rinkWorld(g.puck.x, g.puck.y);
-    run.puck.position.set(pw.x, y + 0.0125, pw.z);
+    run.puck.position.set(pw.x, y + 0.0125 + (g.puck.z || 0), pw.z);
+    const v = g.phase === 'skate' ? 0 : Math.hypot(g.puck.vx, g.puck.vy);
+    run.puck.rotation.y += v * dt * 2;
+    run.puck.rotation.x = g.phase === 'shot' ? 0.25 : g.goalie.caught ? 1.2 : 0;
+    run.puckStreak.visible = g.phase === 'shot';
+    if (run.puckStreak.visible) {
+      const dx = rinkWorld(g.puck.x + g.puck.vx, g.puck.y + g.puck.vy);
+      run.puckStreak.position.copy(run.puck.position);
+      run.puckStreak.rotation.set(0, Math.atan2(dx.x - pw.x, dx.z - pw.z), 0);
+      run.puckStreak.scale.set(1, 1, Math.min(1.6, v * 0.05));
+    }
+    // the back of the net bulging out where the puck hit it, swinging back
+    const n = run.goalNet;
+    if (n.t >= 0) {
+      n.t += dt;
+      const pos = n.back.geometry.attributes.position, rest = n.rest;
+      const done = n.t > 1.4;
+      const wave = done ? 0 : n.amp * 0.22 * Math.exp(-n.t * 3.2) * Math.cos(n.t * 13) * Math.min(1, n.t * 30);
+      for (let i = 0; i < pos.count; i++) {
+        const z = rest[i * 3 + 2], yy = rest[i * 3 + 1] + 0.475; // (the plane's own: z across = rink y, y about its middle)
+        const d2 = (z - n.y) ** 2 + (yy - n.z) ** 2;
+        pos.setX(i, rest[i * 3] + wave * Math.exp(-d2 / 0.12));
+      }
+      pos.needsUpdate = true;
+      if (done) n.t = -1;
+    }
+    // the goal lamp: turning red after a goal
+    const L = run.goalLight;
+    if (L.on > 0) {
+      L.on -= dt;
+      const pulse = 0.55 + 0.45 * Math.abs(Math.sin(L.on * 7));
+      L.lampMat.color.setRGB(1, 0.12 * pulse, 0.08 * pulse);
+      L.glow.visible = true;
+      L.glow.material.opacity = 0.4 * pulse;
+      L.glow.scale.setScalar(0.8 + 0.4 * pulse);
+      if (L.on <= 0) { L.lampMat.color.setHex(0x5a1010); L.glow.visible = false; }
+    }
     // the tally
     const tally = Array.from({ length: HOCKEY.attempts }, (_, i) => (i < g.results.length ? (g.results[i] === 'goal' ? '●' : '✕') : '○')).join(' ');
     if (run.ice.ui.tally.textContent !== tally) run.ice.ui.tally.textContent = tally;
   },
   after(run, ctx, dt, cm) {
-    hockey.camera(run, ctx, dt, cm);
-    // the stick: from the skater's hands to the puck (or ahead on the ice once it is away)
-    const p = cm.entities.person, g = run.state.game;
+    const p = cm.entities.person, g = run.state.game, y = rinkIceY();
+    // the camera follows the shot: towards the puck while it flies, the goal mouth (and in) after a goal, the goalie
+    // after a save
+    let focus = null;
+    if (g.phase === 'shot') { const pw = rinkWorld(g.puck.x, g.puck.y); focus = { x: pw.x, y: y + 0.5, z: pw.z, w: 0.45 }; }
+    else if (g.phase === 'result' && g.result !== 'back' && g.result !== 'time') {
+      const f = clamp(g.resultT / 0.8, 0, 1);
+      if (g.result === 'goal') { const gw = rinkWorld(HOCKEY.goalX + 0.4, 0); focus = { x: gw.x, y: y + 0.6, z: gw.z, w: 0.75 * f, push: 0.3 * f }; }
+      else if (g.result === 'save' || g.result === 'post') { const gw = rinkWorld(g.goalie.x, g.goalie.y); focus = { x: gw.x, y: y + 0.7, z: gw.z, w: 0.6 * f, push: 0.15 * f }; }
+      else { const pw = rinkWorld(g.puck.x, g.puck.y); focus = { x: pw.x, y: y + 0.4, z: pw.z, w: 0.35 * f }; }
+    }
+    hockey.camera(run, ctx, dt, cm, focus);
+    // the stick: from the skater's hands to the puck; back and up in the wind-up; through and up after the shot; ahead
+    // on the ice otherwise
     const hands = run.ice.hands;
     if (!hands) return;
     const h = hands[0].clone().lerp(hands[1], 0.5);
-    let tx, tz;
-    if (g.phase === 'skate') { const pw = rinkWorld(g.puck.x, g.puck.y); tx = pw.x; tz = pw.z; }
-    else { tx = p.position.x + Math.sin(p.heading) * 1.1 - Math.cos(p.heading) * 0.3; tz = p.position.z + Math.cos(p.heading) * 1.1 + Math.sin(p.heading) * 0.3; }
-    const ty = rinkIceY() + 0.04;
+    const fx = Math.sin(p.heading), fz = Math.cos(p.heading), rx = -fz, rz = fx; // (forward, right)
+    let tx, ty = y + 0.04, tz;
+    const pw = rinkWorld(g.puck.x, g.puck.y);
+    const sw = run.swing;
+    if (sw) sw.t += dt;
+    if (g.phase === 'skate' && run.charge !== null) {
+      const c = clamp(run.charge, 0, 1), e = c * (2 - c);
+      tx = pw.x - fx * 0.9 * e + rx * 0.35 * e; tz = pw.z - fz * 0.9 * e + rz * 0.35 * e; ty += 0.95 * e;
+    } else if (g.phase === 'skate') { tx = pw.x - fx * 0.04; tz = pw.z - fz * 0.04; }
+    else if (sw && sw.t < 0.6) {
+      // the follow-through: the blade sweeps out along the shot and comes up, higher the harder it was
+      const aw = rinkHeadingWorld(sw.a), ax = Math.sin(aw), az = Math.cos(aw);
+      const f = clamp(sw.t / 0.14, 0, 1), e = f * (2 - f);
+      const sx = p.position.x + fx * 0.85 + rx * 0.25, sz = p.position.z + fz * 0.85 + rz * 0.25;
+      tx = sx + ax * 0.8 * e - rx * 0.3 * e; tz = sz + az * 0.8 * e - rz * 0.3 * e; ty += (0.25 + 0.75 * sw.power) * e;
+    } else { tx = p.position.x + fx * 1.1 - Math.cos(p.heading) * 0.3; tz = p.position.z + fz * 1.1 + Math.sin(p.heading) * 0.3; }
     run.stick.position.copy(h);
     run.stick.lookAt(tx, ty, tz);
     run.stick.scale.set(1, 1, Math.hypot(tx - h.x, ty - h.y, tz - h.z));

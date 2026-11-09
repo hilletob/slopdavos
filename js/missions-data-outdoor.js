@@ -293,7 +293,10 @@ export const POND = {
   capS: 300, // (sudden death has to end some time)
   faceoffS: 1.6,
   goalS: 2.4,
-  shotSpeed: 15,
+  shotSpeed: 15, // (a wrist shot; js/missions-outdoor.js winds them up between shotMin and shotMax)
+  shotMin: 11,
+  shotMax: 19,
+  aimAssist: 1.2, // m past a post the human's shot is still pulled into the mouth
   passSpeed: 10.5,
   friction: 1.5,
   pickupSlow: 1.15, // m: a loose puck slower than fastPuck is picked up this close
@@ -304,12 +307,18 @@ export const POND = {
   aiSpeed: [5.05, 4.75], // m/s: the player's mates, the locals (the player's skater reaches ~5.6)
   carrySlow: 0.85,
   spread: [0.75, 0.95], // m off the goal's middle a shot of theirs may aim
-  stealRate: [0.55, 0.65], // /s a defender in reach takes the puck
+  stealRate: [0.55, 0.65], // /s a defender in reach takes the puck (in pokes: one every pokeEvery s)
+  pokeEvery: 0.55,
   stealReach: 1.35,
   stealImmune: 0.9, // s after a takeaway
   humanStealReach: 2.0,
   humanStealChance: 0.75,
   humanStealCooldown: 0.6,
+  checkSpeed: 4.4, // m/s: skating into a local this fast may knock him over (and the puck off his stick)
+  checkChance: 0.4,
+  checkReach: 1.1,
+  stunS: 0.9,
+  body: 0.95, // m between two skaters' middles
   medals: { gold: 3, silver: 2, bronze: 1 },
   start: { x: 712, z: -1419 },
   pin: { x: 691, z: -1421 },
@@ -373,10 +382,11 @@ const FACEOFF_SPOTS = [
 ];
 
 export function createPondGame(seed = 3) {
-  const players = FACEOFF_SPOTS.map((s, i) => ({ i, team: i < 3 ? 0 : 1, x: s.x, z: s.z, heading: i < 3 ? Math.PI / 2 : -Math.PI / 2, speed: 0, immune: 0, gait: i * 1.3 }));
+  const players = FACEOFF_SPOTS.map((s, i) => ({ i, team: i < 3 ? 0 : 1, x: s.x, z: s.z, heading: i < 3 ? Math.PI / 2 : -Math.PI / 2, speed: 0, immune: 0, gait: i * 1.3, stun: 0, swing: 0, poke: 0, pokeT: 0 }));
   return {
-    rand: seededRandom(seed), players, puck: { x: POND.centre.x, z: POND.centre.z, vx: 0, vz: 0, holder: -1, owner: -1, ownerT: 0, passTo: -1 },
-    phase: 'wait', t: 0, clock: 0, us: 0, them: 0, myGoals: 0, sudden: false, shots: 0, cooldown: 0, hold: 0, events: []
+    rand: seededRandom(seed), players, puck: { x: POND.centre.x, z: POND.centre.z, vx: 0, vz: 0, holder: -1, owner: -1, ownerT: 0, passTo: -1, passer: -1, assist: -1 },
+    phase: 'wait', t: 0, clock: 0, us: 0, them: 0, myGoals: 0, myAssists: 0, assistBy: -1, sudden: false, shots: 0, cooldown: 0, hold: 0, dangle: 0,
+    bump: { x: 0, z: 0, slow: 1 }, events: []
   };
 }
 
@@ -385,38 +395,86 @@ function toFaceoff(g) {
   g.phase = 'faceoff'; g.t = 0;
   for (const p of g.players) {
     const s = FACEOFF_SPOTS[p.i];
-    p.x = s.x; p.z = s.z; p.speed = 0; p.heading = p.team ? -Math.PI / 2 : Math.PI / 2; p.immune = 0;
+    p.x = s.x; p.z = s.z; p.speed = 0; p.heading = p.team ? -Math.PI / 2 : Math.PI / 2; p.immune = 0; p.stun = 0; p.swing = 0; p.pokeT = 0;
   }
-  Object.assign(g.puck, { x: POND.centre.x, z: POND.centre.z, vx: 0, vz: 0, holder: -1, owner: -1, ownerT: 0, passTo: -1 });
+  Object.assign(g.puck, { x: POND.centre.x, z: POND.centre.z, vx: 0, vz: 0, holder: -1, owner: -1, ownerT: 0, passTo: -1, passer: -1, assist: -1 });
+  g.assistBy = -1;
   g.events.push({ kind: 'faceoff', x: FACEOFF_SPOTS[0].x, z: FACEOFF_SPOTS[0].z, heading: Math.PI / 2 });
 }
 export function startPondGame(g) { if (g.phase === 'wait') toFaceoff(g); return g; }
 export const pondScore = (g) => Math.max(0, g.us - g.them);
 export const pondWon = (g) => g.us > g.them;
 
+/** Where a carrier holds the puck: ahead on the forehand, swept side to side (`dangle`, a stickhandler's rhythm) */
+function carrySpot(g, h, out = {}) {
+  const c = Math.sin(h.heading), s = Math.cos(h.heading);
+  const side = 0.25 + 0.14 * Math.sin(g.dangle * 7.5);
+  out.x = h.x + c * POND.carry + s * side; out.z = h.z + s * POND.carry - c * side;
+  return out;
+}
 function release(g, holderIndex, heading, speed, passTo = -1) {
-  const pk = g.puck;
+  const pk = g.puck, h = g.players[holderIndex];
+  carrySpot(g, h, pk); // (from the blade, wherever the last frame left the puck)
+  containPond(pk, 0.5);
   pk.holder = -1; pk.owner = holderIndex; pk.ownerT = 0.35; pk.passTo = passTo;
+  pk.passer = passTo >= 0 ? holderIndex : -1; pk.assist = passTo >= 0 ? -1 : g.assistBy; // (who set the shooter up)
   pk.vx = Math.sin(heading) * speed; pk.vz = Math.cos(heading) * speed;
   g.hold = 0;
+  h.swing = 1; // (the follow-through)
 }
-function knockLoose(g, victim) {
-  const pk = g.puck, a = g.rand() * Math.PI * 2;
-  pk.holder = -1; pk.owner = victim.i; pk.ownerT = 0.45; pk.passTo = -1;
+/** The puck knocked off a carrier's blade: `dir` the way it goes (a check: along the hitter), else anywhere */
+function knockLoose(g, victim, dir = null) {
+  const pk = g.puck, a = dir ?? g.rand() * Math.PI * 2;
+  pk.holder = -1; pk.owner = victim.i; pk.ownerT = 0.45; pk.passTo = -1; pk.passer = -1; pk.assist = -1;
   pk.vx = Math.sin(a) * 3.5; pk.vz = Math.cos(a) * 3.5;
   victim.immune = 0;
 }
-function shotBy(g, p, aimZ) {
+/** A shot's speed from the wind-up (0: a flick, 1: the full slapper; the default the old fixed wrister) */
+export const pondShotSpeed = (power = 0.5) => POND.shotMin + (POND.shotMax - POND.shotMin) * clamp(power, 0, 1);
+function shotBy(g, p, aimZ, power = 0.5) {
   const goalX = p.team ? POND.goalW : POND.goalE;
-  release(g, p.i, Math.atan2(goalX - p.x, aimZ - p.z), POND.shotSpeed);
+  release(g, p.i, Math.atan2(goalX - p.x, aimZ - p.z), pondShotSpeed(power));
   g.shots++;
-  g.events.push({ kind: 'shot', team: p.team });
+  g.events.push({ kind: 'shot', team: p.team, i: p.i });
 }
 function passBy(g, p, to) {
   const m = g.players[to];
-  const lead = 0.35;
-  release(g, p.i, Math.atan2(m.x + Math.sin(m.heading) * m.speed * lead - p.x, m.z + Math.cos(m.heading) * m.speed * lead - p.z), POND.passSpeed, to);
-  g.events.push({ kind: 'pass', team: p.team });
+  const d = dist(p, m);
+  const speed = clamp(6.5 + d * 0.45, POND.passSpeed * 0.75, POND.passSpeed * 1.25);
+  const lead = clamp(d / speed, 0.15, 0.6); // (to where the mate will be when it gets there)
+  release(g, p.i, Math.atan2(m.x + Math.sin(m.heading) * m.speed * lead - p.x, m.z + Math.cos(m.heading) * m.speed * lead - p.z), speed, to);
+  g.events.push({ kind: 'pass', team: p.team, from: p.i, to });
+}
+/**
+ * The human's shot, with a little help: a shot that would pass the mouth by up to `aimAssist` m goes into its corner
+ * instead (the corner of the mouth nearest the aim, so picking a side past the keeper still matters)
+ */
+function humanShotHeading(me, aim) {
+  const P = POND, sx = Math.sin(aim);
+  if (sx < 0.25 || P.goalE - me.x < 1) return aim;
+  const zHit = me.z + (Math.cos(aim) * (P.goalE - me.x)) / sx;
+  const off = zHit - P.goalZ;
+  if (Math.abs(off) > P.postHalf + P.aimAssist) return aim;
+  const tz = P.goalZ + clamp(off, -P.postHalf + 0.2, P.postHalf - 0.2);
+  return Math.atan2(P.goalE - me.x, tz - me.z);
+}
+/**
+ * Where the human's puck goes if he lets it go now, looking along `aim`: at a mate he looks at (and not at the goal) a
+ * pass { kind: 'pass', to }; anything else a shot { kind: 'shot', heading, onGoal } (the runtime draws the aim line by it)
+ */
+export function pondAim(g, aim) {
+  const P = POND, me = g.players[0];
+  const toGoal = Math.atan2(P.goalE - me.x, P.goalZ - me.z);
+  const goalCone = Math.abs(wrapAngle(aim - toGoal)) < 0.5 && P.goalE - me.x > 1;
+  let mate = null, md = 0.55;
+  for (const i of [1, 2]) {
+    const m = g.players[i], a = Math.abs(wrapAngle(Math.atan2(m.x - me.x, m.z - me.z) - aim));
+    if (a < md && dist(m, me) > 1.5) { md = a; mate = m; }
+  }
+  if (mate && !goalCone) return { kind: 'pass', to: mate.i, heading: aim, onGoal: false };
+  const heading = humanShotHeading(me, aim), sx = Math.sin(heading);
+  const onGoal = sx > 0.05 && P.goalE > me.x && Math.abs(me.z + (Math.cos(heading) * (P.goalE - me.x)) / sx - P.goalZ) < P.postHalf;
+  return { kind: 'shot', to: -1, heading, onGoal };
 }
 function moveAi(g, p, tx, tz, v, dt) {
   const d = Math.hypot(tx - p.x, tz - p.z);
@@ -428,7 +486,21 @@ function moveAi(g, p, tx, tz, v, dt) {
   p.gait += p.speed * dt * 1.15;
   containPond(p);
 }
+/** A checked player slides on along his heading, slowing, and does nothing else until he is up again */
+function glide(p, dt) {
+  p.speed = Math.max(0, p.speed - 6 * dt);
+  p.x += Math.sin(p.heading) * p.speed * dt;
+  p.z += Math.cos(p.heading) * p.speed * dt;
+  containPond(p);
+}
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+/** How far c stands off the segment a→b */
+function offLane(a, b, c) {
+  const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1;
+  const t = clamp(((c.x - a.x) * dx + (c.z - a.z) * dz) / L2, 0, 1);
+  return Math.hypot(a.x + dx * t - c.x, a.z + dz * t - c.z);
+}
+const laneOpen = (a, b, foes, w = 1.2) => foes.every((f) => offLane(a, b, f) > w);
 
 /** The goal keeper's spot: on the line from the puck to the middle of his goal, just out from the boots */
 function keeperSpot(team, pk) {
@@ -436,23 +508,34 @@ function keeperSpot(team, pk) {
   const dx = pk.x - gx, dz = pk.z - POND.goalZ, L = Math.max(1, Math.hypot(dx, dz));
   return { x: gx + dir * Math.max(0.8, 1.6 * Math.abs(dx) / L), z: POND.goalZ + (dz / L) * 1.6 };
 }
+const keeperOf = (g, team) => g.players[team ? 5 : 2];
+/** How far a keeper reaches for a shot: a soft one he gets to, a hard one only straight at him */
+export const keeperReach = (speed) => POND.pickupFast + 0.3 * clamp((POND.shotMax - speed) / (POND.shotMax - POND.shotMin), 0, 1);
 
 function stepAi(g, dt, pressCall) {
-  const P = POND, pk = g.puck, pl = g.players;
+  const P = POND, pk = g.puck, pl = g.players, me = pl[0];
   const holder = pk.holder >= 0 ? pl[pk.holder] : null;
   for (const team of [0, 1]) {
     const mates = pl.filter((p) => p.team === team && p.i !== 0);
-    const keeper = team ? pl[5] : pl[2];
-    const field = mates.filter((p) => p !== keeper);
+    const keeper = keeperOf(g, team);
+    const field = mates.filter((p) => p !== keeper && p.stun <= 0);
     const v = P.aiSpeed[team];
     const foes = pl.filter((p) => p.team !== team);
-    // the chaser: the field player nearest the puck (the keeper too once it lies near his goal and nobody else is closer)
-    let chaser = field.slice().sort((a, b) => dist(a, pk) - dist(b, pk))[0];
-    if (dist(keeper, pk) < 6 && dist(keeper, pk) < dist(chaser, pk) && !(holder && holder.team === team)) chaser = keeper;
+    const ownGoalX = team ? P.goalE : P.goalW;
+    // the chaser: the field player nearest the puck (the keeper too once it lies near his goal and nobody else is closer);
+    // on the player's side nobody runs into him: when he is the nearer, the mate keeps his position
+    let chaser = field.slice().sort((a, b) => dist(a, pk) - dist(b, pk))[0] || null;
+    if (team === 0 && chaser && dist(me, pk) < dist(chaser, pk) - 0.5) chaser = null;
+    if (dist(keeper, pk) < 6 && (!chaser || dist(keeper, pk) < dist(chaser, pk)) && !(holder && holder.team === team) && !(team === 0 && dist(me, pk) < dist(keeper, pk))) chaser = keeper;
     const own = holder && holder.team === team;
+    // (the man to mark: the free attacker nearest our goal, not the carrier)
+    const free = foes.filter((f) => f !== holder && f !== keeperOf(g, 1 - team)).sort((a, b) => Math.abs(a.x - ownGoalX) - Math.abs(b.x - ownGoalX))[0];
     for (const p of mates) {
+      p.swing = Math.max(0, p.swing - dt * 3.5);
+      p.pokeT = Math.max(0, p.pokeT - dt * 4);
+      if (p.stun > 0) { glide(p, dt); continue; }
       if (holder === p) {
-        // with the puck: at the goal, round whoever stands in the way; shoot from close, pass under pressure
+        // with the puck: at the goal, round whoever stands in the way; shoot from close, pass to whoever is open and better placed
         const goalX = team ? P.goalW : P.goalE;
         const near = foes.slice().sort((a, b) => dist(a, p) - dist(b, p))[0];
         g.hold += dt;
@@ -460,24 +543,37 @@ function stepAi(g, dt, pressCall) {
         let tz = P.goalZ;
         if (near && dist(near, p) < 4) tz += (p.z >= near.z ? 1 : -1) * 3;
         moveAi(g, p, goalX, tz, v * P.carrySlow, dt);
-        const mate = mates.find((m) => m !== p && m !== keeper) || (team === 0 ? pl[0] : null);
-        const friend = team === 0 && g.rand() < 0.5 ? pl[0] : mate;
+        const friends = [...mates.filter((m) => m !== p && m !== keeper && m.stun <= 0), ...(team === 0 ? [me] : [])];
+        const open = friends.filter((m) => dist(m, p) > 2.5 && laneOpen(p, m, foes) && Math.abs(goalX - m.x) < toGoal - 3);
+        const pressed = near && dist(near, p) < 2.6;
         if (toGoal < 10.5 && g.hold > 0.45) {
-          shotBy(g, p, P.goalZ + (g.rand() * 2 - 1) * P.spread[team]);
+          // at the far corner from the keeper, mostly
+          const k = keeperOf(g, 1 - team), side = k.z > P.goalZ ? -1 : 1;
+          const aimZ = g.rand() < 0.6 ? P.goalZ + side * P.spread[team] * (0.4 + 0.6 * g.rand()) : P.goalZ + (g.rand() * 2 - 1) * P.spread[team];
+          shotBy(g, p, aimZ, 0.3 + 0.5 * g.rand());
         } else if (pressCall && team === 0) {
           passBy(g, p, 0);
-        } else if (friend && friend !== p && near && dist(near, p) < 2.6 && g.hold > 0.3 && g.rand() < 1.3 * dt) {
-          passBy(g, p, friend.i);
+        } else if (g.hold > 0.35 && open.length && g.rand() < (pressed ? 2.2 : 0.5) * dt) {
+          passBy(g, p, open[Math.floor(g.rand() * open.length)].i);
+        } else if (pressed && g.hold > 0.3 && friends.length && g.rand() < 0.8 * dt) {
+          const f = friends[Math.floor(g.rand() * friends.length)];
+          if (f !== p) passBy(g, p, f.i);
         }
         continue;
       }
       if (p === chaser && !own) {
-        moveAi(g, p, pk.x, pk.z, v, dt);
-        // the takeaway
-        if (holder && holder.team !== team && dist(p, holder) < P.stealReach && holder.immune <= 0 && g.rand() < P.stealRate[team] * dt) {
-          knockLoose(g, holder);
-          p.immune = P.stealImmune;
-          g.events.push({ kind: 'steal', team });
+        moveAi(g, p, holder ? holder.x + Math.sin(holder.heading) * 0.5 : pk.x, holder ? holder.z + Math.cos(holder.heading) * 0.5 : pk.z, v, dt);
+        // the takeaway: a poke at the puck every so often, which the carrier sees coming and may skate past
+        p.poke = Math.max(0, p.poke - dt);
+        if (holder && holder.team !== team && p.poke <= 0 && dist(p, holder) < P.stealReach) {
+          p.poke = P.pokeEvery * (0.8 + 0.4 * g.rand());
+          p.pokeT = 1;
+          const fast = holder.i === 0 && holder.speed > 4.2 ? 0.7 : 1;
+          if (holder.immune <= 0 && g.rand() < P.stealRate[team] * P.pokeEvery * fast) {
+            knockLoose(g, holder);
+            p.immune = P.stealImmune;
+            g.events.push({ kind: 'steal', team, victim: holder.i });
+          }
         }
         continue;
       }
@@ -486,37 +582,52 @@ function stepAi(g, dt, pressCall) {
         moveAi(g, p, s.x, s.z, v, dt);
         continue;
       }
+      if (!own && holder && free) {
+        // defending: goal side of the free attacker, between him and our goal
+        const dx = ownGoalX - free.x, dz = P.goalZ - free.z, L = Math.hypot(dx, dz) || 1;
+        moveAi(g, p, free.x + (dx / L) * 1.8, free.z + (dz / L) * 1.8, v, dt);
+        continue;
+      }
       // the other field player: open, ahead of the puck, on the far side from it
       const dir = team ? -1 : 1;
       const tx = clamp(pk.x + dir * 7, 709, 745), tz = P.goalZ + (pk.z > P.goalZ ? -7 : 7);
       moveAi(g, p, tx, tz, v * 0.9, dt);
     }
   }
-  // (nobody skates through anybody: the AI players are pushed apart)
+  // (nobody skates through anybody: the AI players are pushed apart, and the human gets his share of the shove)
+  const R = P.body;
   for (let a = 1; a < pl.length; a++) for (let b = 0; b < a; b++) {
     const A = pl[a], B = pl[b];
     const d = dist(A, B);
-    if (d > 0.01 && d < 0.95) {
-      const k = (0.95 - d) / d;
-      A.x += (A.x - B.x) * k * 0.5; A.z += (A.z - B.z) * k * 0.5;
-      if (b !== 0) { B.x += (B.x - A.x) * k * 0.5; B.z += (B.z - A.z) * k * 0.5; }
+    if (d > 0.01 && d < R) {
+      const ux = (A.x - B.x) / d, uz = (A.z - B.z) / d, o = R - d;
+      if (b === 0) {
+        A.x += ux * o * 0.7; A.z += uz * o * 0.7;
+        g.bump.x -= ux * o * 0.3; g.bump.z -= uz * o * 0.3;
+        // (skating into somebody costs speed)
+        const into = Math.sin(B.heading) * ux + Math.cos(B.heading) * uz;
+        if (into > 0.3) g.bump.slow = Math.min(g.bump.slow, 1 - 0.8 * dt);
+      } else {
+        A.x += ux * o * 0.5; A.z += uz * o * 0.5; B.x -= ux * o * 0.5; B.z -= uz * o * 0.5;
+      }
     }
   }
 }
 
 function scoreGoal(g, team, scorer) {
-  if (team === 0) { g.us++; if (scorer === 0) g.myGoals++; } else g.them++;
+  const pk = g.puck;
+  const assist = pk.assist >= 0 && pk.assist !== scorer && g.players[pk.assist].team === team ? pk.assist : -1;
+  if (team === 0) { g.us++; if (scorer === 0) g.myGoals++; if (assist === 0) g.myAssists++; } else g.them++;
   g.phase = 'goal'; g.t = 0;
-  g.puck.vx *= 0.1; g.puck.vz *= 0.1; g.puck.holder = -1;
-  g.events.push({ kind: 'goal', team, scorer });
+  pk.vx *= 0.1; pk.vz *= 0.1; pk.holder = -1;
+  g.events.push({ kind: 'goal', team, scorer, assist });
 }
 function stepPuck(g, dt) {
   const P = POND, pk = g.puck, pl = g.players;
   pk.ownerT = Math.max(0, pk.ownerT - dt);
   if (pk.holder >= 0) {
-    const h = pl[pk.holder];
-    const c = Math.sin(h.heading), s = Math.cos(h.heading);
-    pk.x = h.x + c * P.carry + s * 0.25; pk.z = h.z + s * P.carry - c * 0.25;
+    g.dangle += dt * (0.6 + 0.4 * clamp(pl[pk.holder].speed / 4, 0, 1));
+    carrySpot(g, pl[pk.holder], pk);
     pk.vx = pk.vz = 0;
     return;
   }
@@ -537,33 +648,71 @@ function stepPuck(g, dt) {
   }
   const sp = Math.hypot(pk.vx, pk.vz);
   if (sp > 0) { const n = Math.max(0, sp - P.friction * dt) / sp; pk.vx *= n; pk.vz *= n; }
-  // who gets it: anyone close to a slow puck; a fast one only the other team's body in its way, or whoever it was passed to
+  if (g.phase !== 'play') return;
+  // who gets it: anyone close to a slow puck; a fast one only the other team's body in its way (the keeper reaches
+  // further for a soft one), or whoever it was passed to
   const fast = sp > P.fastPuck;
+  const ownerTeam = pk.owner >= 0 ? pl[pk.owner].team : -1;
   let best = null, bd = Infinity;
   for (const p of pl) {
     if (p.i === pk.owner && pk.ownerT > 0) continue;
-    const ownerTeam = pk.owner >= 0 ? pl[pk.owner].team : -1;
+    if (p.stun > 0) continue;
     if (fast && p.team === ownerTeam && p.i !== pk.passTo) continue;
-    const r = fast && p.i !== pk.passTo ? P.pickupFast : P.pickupSlow;
+    const keeper = fast && p.team !== ownerTeam && p === keeperOf(g, p.team);
+    const r = fast && p.i !== pk.passTo ? (keeper ? keeperReach(sp) : P.pickupFast) : P.pickupSlow;
     const d = dist(p, pk);
     if (d < r && d < bd) { bd = d; best = p; }
   }
   if (best) {
-    if (fast && best.team !== (pk.owner >= 0 ? pl[pk.owner].team : -1)) g.events.push({ kind: 'block', team: best.team });
+    if (fast && best.team !== ownerTeam) g.events.push({ kind: 'block', team: best.team, save: best === keeperOf(g, best.team), i: best.i });
+    else if (best.i !== pk.passTo && best.team !== ownerTeam && ownerTeam >= 0 && pk.owner === 0) g.events.push({ kind: 'turnover', i: best.i });
+    if (best.i === 0 && pk.passTo === 0) g.events.push({ kind: 'received' });
     pk.holder = best.i; pk.owner = best.i; pk.passTo = -1; pk.vx = pk.vz = 0; g.hold = 0;
+    g.assistBy = pk.passer >= 0 && pk.passer !== best.i && pl[pk.passer].team === best.team ? pk.passer : -1;
     best.immune = Math.max(best.immune, 0.35);
+  }
+}
+
+/** The human's body check: skating hard into the local with the puck may knock him over, and the puck off his blade */
+function humanCheck(g, me) {
+  const P = POND, pk = g.puck;
+  if (me.speed < P.checkSpeed) return;
+  for (const p of g.players) {
+    if (p.team === 0 || p.stun > 0 || pk.holder !== p.i || dist(p, me) > P.checkReach) continue;
+    const a = Math.abs(wrapAngle(Math.atan2(p.x - me.x, p.z - me.z) - me.heading));
+    if (a > 0.9) continue;
+    if (g.cooldown > 0) return;
+    g.cooldown = P.humanStealCooldown;
+    if (g.rand() > P.checkChance) {
+      // (he stood his ground: you bounce off him)
+      g.bump.slow = Math.min(g.bump.slow, 0.6);
+      g.events.push({ kind: 'bounce', i: p.i });
+      return;
+    }
+    const had = pk.holder === p.i;
+    p.stun = P.stunS; p.heading = me.heading + (g.rand() - 0.5) * 0.6; p.speed = Math.min(4, me.speed * 0.8);
+    if (had) { knockLoose(g, p, me.heading + (g.rand() - 0.5) * 0.8); pk.ownerT = 0.6; }
+    g.bump.slow = Math.min(g.bump.slow, 0.6);
+    g.events.push({ kind: 'check', i: p.i, puck: had });
+    return;
   }
 }
 
 /**
  * One step of the game. `inp`: { x, z, heading, speed (the human's skater), aim (world heading he looks along), press (the
- * key went down this frame) }. Events land in g.events: faceoff, drop, shot, pass, steal, block, goal, over.
+ * key went down this frame, or a wound-up shot is let go), power (0..1: how long it was wound up; 0.5 if left out) }.
+ * Events land in g.events: faceoff, drop, shot, pass, steal, block, turnover, received, check, poke, goal, sudden, over.
+ * g.bump: the shove the human got from the bodies round him this step ({ x, z } m, `slow` a factor on his speed),
+ * for the runtime to apply.
  */
 export function stepPond(g, dt, inp) {
   const P = POND, pk = g.puck, me = g.players[0];
   me.x = inp.x; me.z = inp.z; me.heading = inp.heading; me.speed = inp.speed || 0;
+  g.bump.x = 0; g.bump.z = 0; g.bump.slow = 1;
   g.cooldown = Math.max(0, g.cooldown - dt);
-  for (const p of g.players) p.immune = Math.max(0, p.immune - dt);
+  me.swing = Math.max(0, me.swing - dt * 3.5);
+  me.pokeT = Math.max(0, me.pokeT - dt * 4);
+  for (const p of g.players) { p.immune = Math.max(0, p.immune - dt); p.stun = Math.max(0, p.stun - dt); }
   if (g.phase === 'wait' || g.phase === 'done') return g;
   g.t += dt;
   if (g.phase === 'faceoff') {
@@ -589,28 +738,27 @@ export function stepPond(g, dt, inp) {
   let call = false;
   if (inp.press) {
     if (pk.holder === 0) {
-      // the puck goes where you look: at a mate you look at it is a pass; anything else a shot
-      const toGoal = Math.atan2(P.goalE - me.x, P.goalZ - me.z);
-      const goalCone = Math.abs(wrapAngle(inp.aim - toGoal)) < 0.5;
-      let mate = null, md = 0.45;
-      for (const i of [1, 2]) {
-        const m = g.players[i], a = Math.abs(wrapAngle(Math.atan2(m.x - me.x, m.z - me.z) - inp.aim));
-        if (a < md) { md = a; mate = m; }
-      }
-      if (mate && !goalCone) passBy(g, me, mate.i);
-      else { release(g, 0, inp.aim, P.shotSpeed); g.shots++; g.events.push({ kind: 'shot', team: 0 }); }
+      const a = pondAim(g, inp.aim);
+      if (a.kind === 'pass') passBy(g, me, a.to);
+      else { release(g, 0, a.heading, pondShotSpeed(inp.power ?? 0.5)); g.shots++; g.events.push({ kind: 'shot', team: 0, i: 0, power: inp.power ?? 0.5 }); }
     } else if (pk.holder > 0 && g.players[pk.holder].team === 0) {
       call = true;
-    } else if (pk.holder > 0 && g.cooldown <= 0) {
-      const h = g.players[pk.holder];
+    } else if (g.cooldown <= 0) {
+      // the poke check: at the carrier within reach, else at a loose puck in reach (it is swept to you)
       g.cooldown = P.humanStealCooldown;
-      if (dist(me, h) < P.humanStealReach && g.rand() < P.humanStealChance) {
-        knockLoose(g, h);
+      me.pokeT = 1;
+      const h = pk.holder > 0 ? g.players[pk.holder] : null;
+      if (h && dist(me, h) < P.humanStealReach && g.rand() < P.humanStealChance) {
+        knockLoose(g, h, Math.atan2(me.x - h.x, me.z - h.z));
         me.immune = P.stealImmune;
+        pk.ownerT = 0.25;
         g.events.push({ kind: 'steal', team: 0, human: true });
+      } else if (!h && pk.holder < 0 && dist(me, pk) < P.humanStealReach) {
+        pk.vx = (me.x - pk.x) * 3; pk.vz = (me.z - pk.z) * 3; pk.ownerT = 0; pk.owner = -1;
       } else g.events.push({ kind: 'poke' });
     }
   }
+  humanCheck(g, me);
   stepAi(g, dt, call);
   stepPuck(g, dt);
   return g;
@@ -625,7 +773,7 @@ export function pondLine(g) {
 export const POND_MISSION = {
   id: 'seehofseeli-hockey',
   title: 'Hockey on the Seehofseeli',
-  intro: `Dusk on the Seehof Seeli, the little pond by the Hotel Seehof in Davos Dorf. The locals are short of a player: three on three, boots and jackets for goal posts, no goalies, first to ${POND.firstTo} or ${POND.clockS / 60} minutes. Skate with W, A/D and S. Space with the puck shoots where you look, or passes if you are looking at a mate. Space without it pokes at the carrier, or calls for the pass from a mate who has it. You attack the east goal. The bigger the lead at the end, the better the medal.`,
+  intro: `Dusk on the Seehof Seeli, the little pond by the Hotel Seehof in Davos Dorf. The locals are short of a player: three on three, boots and jackets for goal posts, no goalies, first to ${POND.firstTo} or ${POND.clockS / 60} minutes. Skate with W, A/D and S. Space with the puck shoots where you look, or passes if you are looking at a mate; hold it to wind up a harder shot. Space without it pokes at the carrier, or calls for the pass from a mate who has it, and a fast skate into the carrier may knock him off the puck. You attack the east goal. The bigger the lead at the end, the better the medal.`,
   mode: 'person',
   season: 'winter',
   time: 'twilight',
@@ -645,7 +793,7 @@ export const POND_MISSION = {
   update() {},
   summary(state) {
     const g = state.game;
-    return [`${pondWon(g) ? 'Won' : g.us === g.them ? 'Drawn' : 'Lost'} ${g.us} : ${g.them} · your goals: ${g.myGoals}`];
+    return [`${pondWon(g) ? 'Won' : g.us === g.them ? 'Drawn' : 'Lost'} ${g.us} : ${g.them} · your goals: ${g.myGoals}${g.myAssists ? ` · assists: ${g.myAssists}` : ''}`];
   },
   objectives: [
     {
@@ -661,7 +809,7 @@ export const POND_MISSION = {
       title: `First to ${POND.firstTo}`,
       check(ctx, state) {
         const g = state.game;
-        const hint = g.puck.holder === 0 ? 'Space: shoot or pass' : g.puck.holder > 0 && g.players[g.puck.holder].team === 0 ? 'Space: call for the puck' : g.puck.holder > 0 ? 'Space: poke check' : 'Get to the puck';
+        const hint = g.puck.holder === 0 ? 'Space: shoot or pass (hold: harder)' : g.puck.holder > 0 && g.players[g.puck.holder].team === 0 ? 'Space: call for the puck' : g.puck.holder > 0 ? 'Space: poke check' : 'Get to the puck';
         return { done: g.phase === 'done', progress: null, text: pondLine(g), target: null, hint };
       }
     }

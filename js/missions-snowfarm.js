@@ -31,6 +31,25 @@ const mat = (color, o = {}) => new THREE.MeshStandardNodeMaterial({ color, rough
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);
 const S = SNOWFARM;
+// (the easing: smoothstep, and smoothstep over [a, b])
+const ease = (t) => { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+const easeIn = (a, b, x) => ease((x - a) / (b - a));
+// (the flying snow's ends, reused: lump() reads them only)
+const _a = { x: 0, y: 0, z: 0 }, _b = { x: 0, y: 0, z: 0 }, _v = new THREE.Vector3();
+/** A damped spring towards `target`: o[key] and o[key + 'V'] moved by dt (k the stiffness, z the damping ratio) */
+function spring(o, key, target, k, z, dt) {
+  const vk = key + 'V', c = 2 * z * Math.sqrt(k);
+  // (two half steps: a stiff spring stays stable at 30 fps)
+  for (let i = 0; i < 2; i++) {
+    const h = dt / 2;
+    o[vk] += (k * (target - o[key]) - c * o[vk]) * h;
+    o[key] += o[vk] * h;
+  }
+}
+/** A puff of snow dust at (x, y, z): it swells, drifts and thins out (the batch's 'smoke' kind, no gravity) */
+function dust(pb, x, y, z, vx, vz, { size = 0.6, grow = 2.6, life = 1.6, alpha = 0.32, k = 0.9 } = {}) {
+  pb.spawn({ x, y, z, vx: vx + (Math.random() - 0.5) * 0.8, vy: 0.35 + Math.random() * 0.5, vz: vz + (Math.random() - 0.5) * 0.8, drag: 1.4, life: life * (0.8 + Math.random() * 0.4), size0: size, size1: size + grow, alpha, r: k, g: k, b: k + 0.03, kind: 'smoke' });
+}
 
 // --- Models: boxes and cylinders in one geometry, coloured by vertex -------------------------------------------------
 class Parts {
@@ -116,7 +135,8 @@ function buildFarmTipper() {
   // the tail lights and the underrun bar
   for (const x of [1.05, -1.05]) C.box(0.35, 0.16, 0.06, 0x9e1a14, x, 0.98, -4.2);
   C.box(2.3, 0.14, 0.1, dark, 0, 0.62, -4.15);
-  g.add(C.mesh(material, 'TipperBody'));
+  const body = C.mesh(material, 'TipperBody');
+  g.add(body);
   // the bed tips about its hinge at the tail
   const bed = new THREE.Group();
   bed.position.set(0, TIPPER.hinge.y, TIPPER.hinge.z);
@@ -178,6 +198,9 @@ function buildFarmTipper() {
   }
   return {
     group: g, wheels, bed, gate, heap, heapMid: mid, ram, beacon,
+    // (on the springs: the body, the bed, the ram and the beacon sit lower under the load and bounce, the wheels do not)
+    sprung: [body, bed, ram, beacon].map((o) => ({ o, y: o.position.y })),
+    anim: { bed: 0, bedV: 0, gate: 0, gateV: 0, sq: 0, sqV: 0, fill: 0, acc: 0, speed: 0, raised: false },
     drive: { speed: S.truck.speed, reverseSpeed: 3.2, acceleration: 1.6, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.45, grip: 6.5, cornering: 4.6 },
     dims: { halfW: S.truck.halfW, halfL: S.truck.halfL, top: 3.85, mass: 18000 }, chase: [14, 4.8], label: 'Tipper'
   };
@@ -230,12 +253,16 @@ function buildLoader() {
   for (const x of [1.25, -1.25]) K.box(0.07, 1.0, 1.15, dark, x, -0.5, 0.5);
   K.box(2.5, 0.06, 0.12, steel, 0, -0.98, 1.12); // the cutting edge
   bucket.add(K.mesh(material, 'LoaderBucket'));
-  const scoop = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.15, 0.55, 0.55).translate(0, -0.85, 0.55), mat(0xd6d3cc, { roughness: 0.95 }));
+  // (the bucket's load: a dome on the floor, scaled with how full the bucket is)
+  const scoop = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.15, 0.6, 0.55), mat(0xd6d3cc, { roughness: 0.95 }));
+  scoop.position.set(0, -0.9, 0.55);
+  scoop.castShadow = true;
   scoop.visible = false;
   bucket.add(scoop);
   arm.add(bucket);
   g.add(arm);
-  return { group: g, arm, bucket, scoop, wheels, beacon };
+  g.rotation.order = 'YXZ'; // (the heading, then the body's pitch on its tyres)
+  return { group: g, arm, bucket, scoop, wheels, beacon, pitch: 0, pitchV: 0, vel: 0 };
 }
 
 // --- The depot: the heap, its wood chips, the fleece and the tyres on it -----------------------------------------------------
@@ -309,6 +336,12 @@ class LoopMesh {
     const { cols, rows } = grid, n = cols * rows;
     const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
     this.base = new Float32Array(n);
+    // (the old snow's lumps: a factor on its depth that swells and dips over a metre or two, a little grain on top)
+    this.lump = new Float32Array(n);
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const k = j * cols + i;
+      this.lump[k] = 0.92 + 0.17 * Math.sin(i * 0.71 + 1.7 * Math.sin(j * 0.83)) + 0.12 * Math.sin(i * 0.29 - j * 1.13 + 2.1) + 0.12 * (hash(k) - 0.5);
+    }
     const pt = {};
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
       const k = j * cols + i, w = routePoint(route, (i + 0.5) * grid.cell, (j + 0.5) * grid.cellD - S.half, pt);
@@ -336,11 +369,16 @@ class LoopMesh {
   refresh() { this.grid.dirty = null; this.range(0, this.grid.cols - 1, 0, this.grid.rows - 1); this.mesh.geometry.computeVertexNormals(); this.normalsDirty = false; }
   range(i0, i1, j0, j1) {
     const g = this.grid, geo = this.mesh.geometry, pos = geo.attributes.position.array, col = geo.attributes.color.array;
-    for (let j = Math.max(0, j0); j <= Math.min(g.rows - 1, j1); j++) for (let ii = i0; ii <= i1; ii++) {
-      const i = ((ii % g.cols) + g.cols) % g.cols, k = j * g.cols + i, h = g.h[k];
-      const groomed = g.groomed[k] && h >= S.groomDepth * 0.5;
+    const C = g.cols, R = g.rows, gh = g.h;
+    for (let j = Math.max(0, j0); j <= Math.min(R - 1, j1); j++) for (let ii = i0; ii <= i1; ii++) {
+      const i = ((ii % C) + C) % C, k = j * C + i;
+      const groomed = g.groomed[k] && gh[k] >= S.groomDepth * 0.5;
+      // (the old snow as you see it: the cell's depth blurred with its four neighbours, so that the windrow is a rounded
+      // ridge with soft shoulders, not a box of spikes; lumpy in swells a few cells long, not cell by cell)
+      const iL = (i + C - 1) % C, iR = (i + 1) % C, jD = j > 0 ? j - 1 : j, jU = j < R - 1 ? j + 1 : j;
+      const h = groomed ? gh[k] : 0.4 * gh[k] + 0.15 * (gh[j * C + iL] + gh[j * C + iR] + gh[jD * C + i] + gh[jU * C + i]);
       // (no snow: under the grass; the old snow lumpy, the groomed even)
-      pos[k * 3 + 1] = this.base[k] + (h <= 0.004 ? -0.3 : groomed ? h : h * (0.65 + 0.7 * hash(k)));
+      pos[k * 3 + 1] = this.base[k] + (h <= 0.004 ? -0.3 : groomed ? h : h * this.lump[k]);
       if (groomed) _c.copy(GROOMED).multiplyScalar(j % 2 ? 1 : 0.9 + 0.02 * g.dir[k]);
       else if (h <= 0.004) _c.copy(GRASS);
       else {
@@ -411,7 +449,7 @@ const snowfarm = {
     run.group.add(loader.group);
     run.work = {
       route, grid, mesh, depot, loader, toast: createToast(run), pose: {}, catPose: {}, shareT: 0, spillAcc: 0, dumpAcc: 0,
-      cycle: 0, keyHold: false, touchHold: false, wasEmpty: false, wasFull: false, saved: null
+      cycle: 0, dumped: 0, dustAcc: 0, keyHold: false, touchHold: false, wasEmpty: false, wasFull: false, saved: null
     };
     // the hold: the bed up (the big touch button, the gamepad's A, the key bar's Space); the jump button goes meanwhile
     run.button('up', null);
@@ -437,9 +475,15 @@ const snowfarm = {
     car.speed = 0; car.vx = 0; car.vz = 0; car.angularVel = 0;
     snowfarm.parkCat(run, cm);
     w.keyHold = w.touchHold = false;
-    w.cycle = 0; w.wasEmpty = false; w.wasFull = false; w.shareT = 0;
+    w.cycle = 0; w.wasEmpty = false; w.wasFull = false; w.shareT = 0; w.dumped = 0;
     const v = run.vehicle;
-    if (v?.bed) { v.bed.rotation.x = 0; v.gate.rotation.x = 0; v.heap.scale.set(1, 0.01, 1); v.heap.position.z = v.heapMid; }
+    if (v?.bed) {
+      v.bed.rotation.x = 0; v.gate.rotation.x = 0; v.heap.scale.set(1, 0.01, 1); v.heap.position.z = v.heapMid;
+      Object.assign(v.anim, { bed: 0, bedV: 0, gate: 0, gateV: 0, sq: 0, sqV: 0, fill: 0, acc: 0, speed: 0, raised: false });
+      for (const s of v.sprung) s.o.position.y = s.y;
+    }
+    Object.assign(w.loader, { pitch: 0, pitchV: 0, vel: 0 });
+    w.lx = w.lz = undefined;
     snowfarm.poseLoader(run, 0, null);
     w.toast.hide();
   },
@@ -496,42 +540,110 @@ const snowfarm = {
     }
     if (cat) { const me = cm.getActiveEntity().position; st.catDist = Math.hypot(me.x - cat.position.x, me.z - cat.position.z); }
     // the tipper: the bed and its load, the gate, the ram, the beacon
-    if (v?.bed) {
-      v.bed.rotation.x = -st.raise * 0.5;
-      v.gate.rotation.x = clamp((st.raise - 0.25) / 0.5, 0, 1) * 0.85;
-      const f = st.load / S.capacity;
-      v.heap.scale.y = Math.max(0.01, f);
-      v.heap.visible = f > 0.002;
-      v.heap.position.z = v.heapMid - (st.raise > S.runFrom ? (1 - f) * 1.4 : 0);
-      // (the ram from the chassis to the bed's front: its length as the bed rises)
-      const a = st.raise * 0.5, fz = TIPPER.hinge.z + Math.cos(a) * (TIPPER.bed.l + 0.12) - v.ram.position.z, fy = TIPPER.hinge.y + Math.sin(a) * (TIPPER.bed.l + 0.12) - v.ram.position.y;
-      v.ram.scale.y = Math.max(0.3, Math.hypot(fz, fy));
-      v.ram.rotation.x = Math.atan2(fz, fy);
-      v.beacon.material.emissiveIntensity = ctx.mode === 'car' ? 0.5 + 0.7 * Math.max(0, Math.sin(performance.now() / 110)) : 0.15;
-    }
+    if (v?.bed) snowfarm.animateTipper(run, v, car, ctx, dt);
     snowfarm.poseLoader(run, dt, car);
     w.mesh.update(dt);
     w.toast.update(dt);
     run.workParticles?.update(dt, ctx.camera);
   },
-  /** The snow running out over the tailgate: lumps from the bed's tail to the ground behind */
-  spill(run, car, out, dt) {
-    const w = run.work, pb = particles(run), h = car.heading, sx = Math.sin(h), sz = Math.cos(h);
-    w.spillAcc += Math.min(60, (out / Math.max(dt, 1e-3)) * 7) * dt;
-    while (w.spillAcc >= 1) {
-      w.spillAcc--;
-      const side = (Math.random() - 0.5) * 2;
-      const a = { x: car.position.x - sx * 4.3 + sz * side, y: car.position.y + 1.6 + Math.random() * 0.5, z: car.position.z - sz * 4.3 - sx * side };
-      const back = 0.6 + Math.random() * 1.0;
-      const b = { x: a.x - sx * back + sz * side * 0.15, y: surfaceHeight(a.x, a.z) + 0.25, z: a.z - sz * back - sx * side * 0.15 };
-      lump(pb, a, b, 0.45 + Math.random() * 0.15, { size: 0.32, grow: 0.35, r: 0.86, g: 0.85, bl: 0.82 });
+  /**
+   * The tipper's moving parts over the logic's state (only the look: st.raise and st.load stay the logic's): the bed
+   * eased up and down on its rams with a jolt at the stops, the tailgate swinging free from its top hinge (gravity, the
+   * truck's pull and braking, the snow pushing it out; it clacks against the bed), the body squatting on its springs
+   * under the load and bouncing as each bucket lands, the load in the bed growing bucket by bucket and sliding back as
+   * the bed empties
+   */
+  animateTipper(run, v, car, ctx, dt) {
+    const w = run.work, st = run.state, A = v.anim;
+    const step = Math.min(dt, 1 / 20);
+    if (step > 0) {
+      // the bed: eased towards the rams' angle, a little overshoot at the top stop, a bounce when it lands on the chassis
+      const prevBed = A.bed;
+      spring(A, 'bed', ease(st.raise) * 0.5, 160, 0.55, step);
+      if (A.bed < 0) { if (A.bedV < -0.15) A.sqV -= Math.min(0.5, -A.bedV * 0.6); A.bed = 0; A.bedV = -A.bedV * 0.2; } // (down on the chassis: the springs take it)
+      if (st.raise >= 1 && !A.raised) A.bedV += 0.09; // (the rams at their stop: a jolt)
+      A.raised = st.raise >= 1;
+      // the truck's pull along: how hard it speeds up or brakes, smoothed
+      const sp = car.speed || 0;
+      A.acc += (clamp((sp - A.speed) / step, -8, 8) - A.acc) * Math.min(1, step * 6);
+      A.speed = sp;
+      // the tailgate: its swing out of the vertical (+ out behind); a physical pendulum from its top hinge
+      const latched = A.bed < 0.035 && st.raise < 0.05;
+      if (latched) { A.gate = -A.bed; A.gateV = 0; }
+      else {
+        const push = st.spreading ? 4 + 2.5 * Math.random() : 0; // (the snow running out shoves it some 20-30° open, unevenly)
+        const tq = -12.8 * Math.sin(A.gate) + A.acc * 1.6 + push - 1.1 * A.gateV - (A.bed - prevBed) / step * 2.5;
+        A.gateV += tq * step;
+        A.gate += A.gateV * step;
+        if (A.gate < -A.bed) { A.gate = -A.bed; if (A.gateV < 0) A.gateV = -A.gateV * 0.35; } // (against the bed's tail: clack)
+        if (A.gate > 0.9) { A.gate = 0.9; A.gateV = Math.min(0, A.gateV); }
+      }
+      // the load as you see it: while the loader works it grows with each bucket landing in the bed, else it follows the load
+      const target = st.loading ? Math.min(S.capacity, w.dumped) : st.load;
+      A.fill += (target - A.fill) * (1 - Math.exp(-step * (st.loading ? 3.5 : 8)));
+      // the springs: lower under the load, a little lift as the bed's weight goes to the back
+      spring(A, 'sq', -0.11 * (A.fill / S.capacity) - 0.02 * ease(st.raise), 70, 0.22, step);
+      A.sq = clamp(A.sq, -0.3, 0.12);
+    }
+    for (const s of v.sprung) s.o.position.y = s.y + A.sq;
+    v.bed.rotation.x = -A.bed;
+    v.gate.rotation.x = A.bed + A.gate; // (relative to the bed: it hangs, plus its swing)
+    const f = A.fill / S.capacity;
+    v.heap.scale.y = Math.max(0.01, f);
+    v.heap.visible = f > 0.002;
+    // (the load slides back to the tail as the bed empties, more the higher the bed: no jump where the snow starts running)
+    v.heap.position.z = v.heapMid - easeIn(0.25, 0.85, A.bed / 0.5) * (1 - f) * 1.6;
+    {
+      // (the ram from the chassis to the bed's front: its length as the bed rises)
+      const a = A.bed, fz = TIPPER.hinge.z + Math.cos(a) * (TIPPER.bed.l + 0.12) - v.ram.position.z, fy = v.bed.position.y + Math.sin(a) * (TIPPER.bed.l + 0.12) - v.ram.position.y;
+      v.ram.scale.y = Math.max(0.3, Math.hypot(fz, fy));
+      v.ram.rotation.x = Math.atan2(fz, fy);
+      v.beacon.material.emissiveIntensity = ctx.mode === 'car' ? 0.5 + 0.7 * Math.max(0, Math.sin(performance.now() / 110)) : 0.15;
     }
   },
-  /** The wheel loader: a cycle (scoop at the face, back off and turn, tip into the bed, back) while it fills the truck */
+  /**
+   * The snow running out under the swung-open tailgate: lumps that leave the tail with the truck's own speed and a
+   * little push back, so they land under the tail where the windrow grows (not thrown backwards), a stream that starts
+   * thin as the bed passes the point where the snow slides; and the dust they kick up where they land
+   */
+  spill(run, car, out, dt) {
+    const w = run.work, st = run.state, pb = particles(run), h = car.heading, sx = Math.sin(h), sz = Math.cos(h);
+    const A = run.vehicle?.anim, sp = car.speed || 0, vx = sx * sp, vz = sz * sp;
+    const onset = easeIn(S.runFrom, S.runFrom + 0.3, st.raise); // (the stream swells as the bed goes on up)
+    const gap = A ? clamp(A.bed + A.gate, 0.15, 0.9) * 0.8 : 0.5; // (the opening under the gate)
+    const groundY = surfaceHeight(car.position.x - sx * 5, car.position.z - sz * 5);
+    w.spillAcc += Math.min(70, (out / Math.max(dt, 1e-3)) * 8) * onset * dt;
+    while (w.spillAcc >= 1) {
+      w.spillAcc--;
+      const side = (Math.random() - 0.5) * 2.1;
+      _a.x = car.position.x - sx * 4.35 + sz * side; _a.z = car.position.z - sz * 4.35 - sx * side;
+      _a.y = car.position.y + 1.2 + (A?.sq || 0) + Math.random() * gap;
+      const T = 0.32 + Math.random() * 0.14, back = 0.3 + Math.random() * 0.9;
+      _b.x = _a.x + vx * T - sx * back + sz * side * 0.12; _b.z = _a.z + vz * T - sz * back - sx * side * 0.12;
+      _b.y = groundY + 0.15 + Math.random() * 0.2;
+      const k = 0.8 + Math.random() * 0.1, chip = Math.random() < 0.08; // (now and then a lump with the wood chips in it)
+      lump(pb, _a, _b, T, { size: 0.3 + Math.random() * 0.25, grow: 0.3, r: chip ? 0.62 : k, g: chip ? 0.53 : k - 0.01, bl: chip ? 0.43 : k - 0.03 });
+    }
+    // (the dust where it lands, drifting a little after the truck)
+    w.dustAcc += 11 * onset * dt;
+    while (w.dustAcc >= 1) {
+      w.dustAcc--;
+      const side = (Math.random() - 0.5) * 2.4, back = 4.8 + Math.random() * 1.2;
+      dust(pb, car.position.x - sx * back + sz * side, groundY + 0.3, car.position.z - sz * back - sx * side, vx * 0.25, vz * 0.25, { size: 0.7, grow: 2.4, life: 1.5, alpha: 0.3 });
+    }
+  },
+  /**
+   * The wheel loader: a cycle (into the face, the bucket filling and curling, back off and turn, the arms up, tip into
+   * the bed and shake it out, back) while it fills the truck. Every move eased in and out, no jumps between the
+   * phases; the bucket's load grows as it bites and pours out as it tips; the machine pitches on its tyres as it
+   * speeds up and brakes and noses into the heap; snow dust where the bucket bites and where its load lands
+   */
   poseLoader(run, dt, car) {
     const w = run.work, L = w.loader, st = run.state;
     const period = S.loadS / 4; // (four buckets a load)
+    const c0 = w.cycle;
     if (st?.loading || w.cycle > 0) {
+      if (w.cycle === 0 && st?.loading) w.dumped = st.load; // (a cycle starts: the load counted from what is in the bed)
       w.cycle += dt / period;
       if (w.cycle >= 1) w.cycle = st?.loading ? w.cycle - 1 : 0;
     }
@@ -540,37 +652,70 @@ const snowfarm = {
     const H = S.loader;
     const bed = car && st?.onPad ? bedCentre(car.position.x, car.position.z, car.heading) : { x: S.pad.x, z: S.pad.z };
     const T = { x: bed.x + S.truck.halfW + 3.1, z: bed.z };
-    // u: 0 at the face, 1 at the truck; the arm's lift and the bucket's tilt along the cycle
-    let u, lift, tilt, full;
-    if (c < 0.25) { u = 0; lift = 0; tilt = c < 0.15 ? 0 : -0.5 * ((c - 0.15) / 0.1); full = c > 0.15; } // (into the face, the bucket curls)
-    else if (c < 0.5) { u = (c - 0.25) / 0.25; lift = u; tilt = -0.5; full = true; } // (to the truck, the arms going up)
-    else if (c < 0.65) { u = 1; lift = 1; tilt = -0.5 + 1.5 * ((c - 0.5) / 0.15); full = c < 0.57; } // (tipping it out)
-    else { u = 1 - (c - 0.65) / 0.35; lift = u; tilt = u > 0.5 ? 1 : 0; full = false; } // (back to the face)
-    const e = u * u * (3 - 2 * u);
-    const nudge = c < 0.15 ? Math.sin((c / 0.15) * Math.PI) * 0.8 : 0;
+    // u: 0 at the face, 1 at the truck (eased); the arms' lift, the bucket's tilt (− curled, + tipped), its fill
+    const e = c < 0.25 ? 0 : c < 0.5 ? ease((c - 0.25) / 0.25) : c < 0.65 ? 1 : 1 - ease((c - 0.65) / 0.35);
+    const lift = c < 0.16 ? 0 : c < 0.25 ? 0.1 * easeIn(0.16, 0.25, c) : c < 0.5 ? 0.1 + 0.9 * easeIn(0.25, 0.48, c) : c < 0.65 ? 1 : 1 - easeIn(0.68, 0.97, c);
+    let tilt = c < 0.16 ? 0 : c < 0.25 ? -0.5 * easeIn(0.16, 0.25, c) : c < 0.5 ? -0.5 : c < 0.65 ? -0.5 + 1.5 * easeIn(0.5, 0.62, c) : 1 - easeIn(0.66, 0.86, c);
+    if (c > 0.6 && c < 0.7) tilt += Math.sin(((c - 0.6) / 0.1) * Math.PI) * 0.07 * Math.sin(((c - 0.6) / 0.1) * Math.PI * 8); // (shaken out)
+    const fill = c < 0.05 ? 0 : c < 0.5 ? easeIn(0.05, 0.17, c) : 1 - easeIn(0.53, 0.63, c);
+    // into the face (an eased push and back out), the nose dipping as it bites
+    const nudge = c < 0.16 ? 0.9 * easeIn(0, 0.13, c) : c < 0.25 ? 0.9 * (1 - easeIn(0.16, 0.25, c)) : 0;
     const x = H.x + (T.x - H.x) * e + nudge, z = H.z + (T.z - H.z) * e + Math.sin(e * Math.PI) * 5;
     const heading = H.heading + Math.PI * e; // (it turns round through the north on the way: a V)
+    // (rolling: the wheels turn with the way, forwards or backwards as it goes; the speed along for the pitch)
+    const dx = x - (w.lx ?? x), dz = z - (w.lz ?? z);
+    const along = dx * Math.sin(heading) + dz * Math.cos(heading);
+    if (dt > 0) {
+      for (const wh of L.wheels) wh.rotation.x += along / 0.78;
+      const vel = along / dt, acc = clamp((vel - L.vel) / dt, -6, 6);
+      L.vel = vel;
+      // the body on its tyres: squats back as it pulls away, dives as it brakes, noses down into the heap and with the
+      // full bucket held high
+      const bite = c > 0.08 && c < 0.17 ? 0.025 : 0;
+      spring(L, 'pitch', clamp(-acc * 0.012, -0.05, 0.05) + bite + 0.015 * lift * fill, 90, 0.35, Math.min(dt, 1 / 20));
+    }
+    w.lx = x; w.lz = z;
     L.group.position.set(x, surfaceHeight(x, z), z);
-    L.group.rotation.set(0, heading, 0);
+    L.group.rotation.set(L.pitch, heading, 0, 'YXZ');
     L.arm.rotation.x = -lift * 0.75;
-    L.bucket.rotation.x = lift * 0.75 + tilt; // (the bucket kept level as the arms rise, then tipped)
-    L.scoop.visible = full;
-    if (dt > 0 && c >= 0.5 && c < 0.6 && st?.loading) {
-      // the bucket's load falls into the bed
-      const pb = particles(run);
-      w.dumpAcc += 30 * dt;
-      const tip = { x: x + Math.sin(heading) * 2.9, z: z + Math.cos(heading) * 2.9 };
-      while (w.dumpAcc >= 1) {
-        w.dumpAcc--;
-        const a = { x: tip.x + (Math.random() - 0.5) * 2, y: surfaceHeight(x, z) + 4.2, z: tip.z + (Math.random() - 0.5) * 0.6 };
-        lump(pb, a, { x: bed.x + (Math.random() - 0.5) * 1.8, y: surfaceHeight(bed.x, bed.z) + 1.6 + (st.load / S.capacity) * 1.2, z: bed.z + (Math.random() - 0.5) * 3 }, 0.5, { size: 0.4, grow: 0.3, r: 0.86, g: 0.85, bl: 0.82 });
+    L.bucket.rotation.x = lift * 0.75 + tilt; // (the bucket kept level as the arms rise, curled, then tipped)
+    L.scoop.visible = fill > 0.02;
+    if (L.scoop.visible) {
+      L.scoop.scale.set(0.55 + 0.45 * fill, fill, 0.6 + 0.4 * fill);
+      L.scoop.position.z = 0.55 + (c > 0.5 ? (1 - fill) * 0.35 : 0); // (pouring over the cutting edge)
+    }
+    if (dt <= 0) return;
+    const pb = (c > 0.06 && c < 0.17) || (c > 0.52 && c < 0.66) ? particles(run) : null;
+    if (pb && c < 0.2) {
+      // the bucket biting into the face: a puff of the old snow
+      w.dustAcc += 9 * dt;
+      while (w.dustAcc >= 1) {
+        w.dustAcc--;
+        const r = 3.4 + Math.random() * 0.6, s = (Math.random() - 0.5) * 2.4;
+        dust(pb, x + Math.sin(heading) * r + Math.cos(heading) * s, surfaceHeight(x, z) + 0.4 + Math.random() * 0.6, z + Math.cos(heading) * r - Math.sin(heading) * s, 0, 0, { size: 0.5, grow: 2, life: 1.3, alpha: 0.35 });
       }
     }
-    // (rolling: the wheels turn with the way)
-    const moved = dt > 0 ? Math.hypot(x - (w.lx ?? x), z - (w.lz ?? z)) : 0;
-    const sign = c > 0.25 && c < 0.5 ? -1 : 1;
-    for (const wh of L.wheels) wh.rotation.x += (sign * moved) / 0.78;
-    w.lx = x; w.lz = z;
+    if (pb && c > 0.5 && st?.loading) {
+      // the bucket's load pours over its edge into the bed: from the cutting edge where it is now; the truck dips
+      if (c0 < 0.55 && c >= 0.55 && run.vehicle?.anim) run.vehicle.anim.sqV -= 0.35;
+      w.dumped += (S.capacity / 4) * (dt / period) / 0.1 * (c < 0.63 ? 1 : 0); // (a quarter of the bed over 0.53-0.63)
+      L.group.updateMatrixWorld(true);
+      L.bucket.localToWorld(_v.set(0, -0.95, 1.1));
+      const lipX = _v.x, lipY = _v.y, lipZ = _v.z;
+      const pour = c < 0.63 ? Math.sin(easeIn(0.52, 0.63, c) * Math.PI) : 0; // (a trickle, the rush, a trickle)
+      const by = (car?.position.y ?? surfaceHeight(bed.x, bed.z)) + 1.5 + (st.load / S.capacity) * 1.1;
+      w.dumpAcc += 110 * pour * dt;
+      while (w.dumpAcc >= 1) {
+        w.dumpAcc--;
+        _a.x = lipX + Math.cos(heading) * (Math.random() - 0.5) * 2.2; _a.y = lipY - Math.random() * 0.3; _a.z = lipZ - Math.sin(heading) * (Math.random() - 0.5) * 2.2;
+        _b.x = bed.x + (Math.random() - 0.5) * 1.9; _b.y = by; _b.z = bed.z + (Math.random() - 0.5) * 3.2;
+        const drop = Math.max(0.3, _a.y - _b.y);
+        const k = 0.8 + Math.random() * 0.1;
+        lump(pb, _a, _b, Math.sqrt((2 * drop) / 9.81) + 0.1, { size: 0.25 + Math.random() * 0.25, grow: 0.25, r: k, g: k - 0.01, bl: k - 0.03 });
+      }
+      w.dustAcc += 14 * pour * dt;
+      while (w.dustAcc >= 1) { w.dustAcc--; dust(pb, bed.x + (Math.random() - 0.5) * 2, by + 0.3, bed.z + (Math.random() - 0.5) * 3.5, 0, 0, { size: 0.8, grow: 2.6, life: 1.6, alpha: 0.28 }); }
+    }
     L.beacon.material.emissiveIntensity = st?.loading ? 0.5 + 0.7 * Math.max(0, Math.sin(performance.now() / 120)) : 0.15;
   }
 };

@@ -70,6 +70,7 @@ import { streetCorners, cornersIn, convexPlanes, inCornerCut } from './street-co
 import { freezeWater, snowyStreet } from './season.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { GOLF } from './golf-data.js';
+import { SKI_PISTES } from './ski-pistes-data.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree, plantedAt } from './trees.js';
 import { QUALITY, REGION_ALL } from './quality.js';
@@ -945,15 +946,16 @@ async function buildBerlinCityGrid(scene) {
     for (let i = 0; i < a.ring.length; i += 2) { x0 = Math.min(x0, a.ring[i]); x1 = Math.max(x1, a.ring[i]); z0 = Math.min(z0, a.ring[i + 1]); z1 = Math.max(z1, a.ring[i + 1]); }
     return { ring: a.ring, x0, x1, z0, z1 };
   });
-  const onPlayArea = (x, z) => playAreas.some(({ ring, x0, x1, z0, z1 }) => {
-    if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+  // (even-odd over a flat [x, z, x, z, …] ring)
+  const inRing = (ring, x, z) => {
     let inside = false;
     for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
       const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
       if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
     }
     return inside;
-  });
+  };
+  const onPlayArea = (x, z) => playAreas.some(({ ring, x0, x1, z0, z1 }) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && inRing(ring, x, z));
   // The funiculars' (js/bergbahnen-data.js) cuttings through the forest: nothing within FUNICULAR_CLEAR of the track
   // (the cars are ~3 m wide, and the passing loop is two tracks side by side)
   const FUNICULAR_CLEAR = 5, funicularCells = new Map();
@@ -978,8 +980,43 @@ async function buildBerlinCityGrid(scene) {
     }
     return false;
   };
+  // The groomed ski runs (js/ski-pistes-data.js): nothing on the run, across its whole width and PISTE_CLEAR m past
+  // either edge (a crown's spread), nor inside the mapped piste areas. The swissTLM3D woods' outlines run across many
+  // runs, so the Davos Vertical, say, went down through the spruces. (The freeride Skirouten keep their trees.)
+  const PISTE_CLEAR = 3, PISTE_CELL = 32, pisteCells = new Map();
+  const pisteCell = (key, entry) => { let list = pisteCells.get(key); if (!list) pisteCells.set(key, list = []); list.push(entry); };
+  for (const run of SKI_PISTES?.runs || []) {
+    if (!run.groomed) continue;
+    const half = run.w / 2 + PISTE_CLEAR, pts = run.pts;
+    for (let i = 2; i < pts.length; i += 2) {
+      const seg = [pts[i - 2], pts[i - 1], pts[i], pts[i + 1], half];
+      // (every cell the segment's padded bounds touch: the runs' points lie up to ~600 m apart)
+      const gx0 = Math.floor((Math.min(seg[0], seg[2]) - half) / PISTE_CELL), gx1 = Math.floor((Math.max(seg[0], seg[2]) + half) / PISTE_CELL);
+      const gz0 = Math.floor((Math.min(seg[1], seg[3]) - half) / PISTE_CELL), gz1 = Math.floor((Math.max(seg[1], seg[3]) + half) / PISTE_CELL);
+      for (let gx = gx0; gx <= gx1; gx++) for (let gz = gz0; gz <= gz1; gz++) pisteCell(gx * 100000 + gz, seg);
+    }
+  }
+  for (const area of SKI_PISTES?.areas || []) {
+    if (!area.groomed) continue;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < area.ring.length; i += 2) { x0 = Math.min(x0, area.ring[i]); x1 = Math.max(x1, area.ring[i]); z0 = Math.min(z0, area.ring[i + 1]); z1 = Math.max(z1, area.ring[i + 1]); }
+    for (let gx = Math.floor(x0 / PISTE_CELL); gx <= Math.floor(x1 / PISTE_CELL); gx++) for (let gz = Math.floor(z0 / PISTE_CELL); gz <= Math.floor(z1 / PISTE_CELL); gz++) pisteCell(gx * 100000 + gz, area);
+  }
+  const onPiste = (x, z) => {
+    const list = pisteCells.get(Math.floor(x / PISTE_CELL) * 100000 + Math.floor(z / PISTE_CELL));
+    if (list) for (const p of list) {
+      if (p.ring) {
+        if (inRing(p.ring, x, z) && !(p.holes || []).some((h) => inRing(h, x, z))) return true;
+        continue;
+      }
+      const [ax, az, bx, bz, half] = p, ux = bx - ax, uz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1)));
+      if ((x - ax - ux * t) ** 2 + (z - az - uz * t) ** 2 < half * half) return true;
+    }
+    return false;
+  };
   const clearSite = (x, z, margin) => {
-    if (waterAt(x, z) || onPlayArea(x, z) || onFunicular(x, z)) return false;
+    if (waterAt(x, z) || onPlayArea(x, z) || onFunicular(x, z) || onPiste(x, z)) return false;
     // (nearestRoads allocates its answer: asked only where some road comes that close at all)
     if (roadCloserThan(x, z, 12, margin) && nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
     const block = blockAt(x, z);

@@ -191,12 +191,14 @@ test('the rink: frames, headings and the boards', () => {
 });
 
 /** One penalty: skate straight from (0, y0) to x = shootX, aim at `aimY` on the goal line */
-function penalty(g, { y0 = 0, shootX = 21, aimY = 0.7, speed = 7 } = {}) {
+function penalty(g, { y0 = 0, shootX = 21, aimY = 0.7, speed = 7, power, stopAfter } = {}) {
   const c = { x: -1.5, y: y0, heading: 0 }, dt = 1 / 60;
   let shot = false;
   for (let k = 0; k < 2000; k++) {
+    if (stopAfter && g.phase === stopAfter) return null;
     if (!shot && g.phase === 'skate' && g.puck.x >= shootX) {
-      I.step(g, dt, c, Math.atan2(aimY - g.puck.y, HOCKEY.goalX - g.puck.x));
+      const a = Math.atan2(aimY - g.puck.y, HOCKEY.goalX - g.puck.x);
+      I.step(g, dt, c, power === undefined ? a : { a, power });
       shot = true;
       continue;
     }
@@ -210,7 +212,8 @@ const I = { step: stepPenalty };
 
 test('penalties: close shots into the corners beat the goalie, shots at him or from far are saved', () => {
   const tally = (opts) => { const out = {}; for (let s = 1; s <= 20; s++) { const g = createPenaltyGame(s); penalty(g, opts); out[g.results[0]] = (out[g.results[0]] || 0) + 1; } return out; };
-  assert.equal(tally({ shootX: 21.5, aimY: 0.75 }).goal, 20, 'from 5 m into the corner');
+  assert.ok(tally({ shootX: 21.5, aimY: 0.75 }).goal >= 17, 'from 5 m into the corner (unless he guessed that side)');
+  assert.equal(tally({ shootX: 21.5, aimY: 0.85 }).goal, 20, 'from 5 m tight inside the post');
   assert.equal(tally({ shootX: 21.5, aimY: 0 }).save, 20, 'straight at the goalie');
   assert.equal(tally({ shootX: 12, aimY: 0.75 }).save, 20, 'from 14 m he has time');
   assert.equal(tally({ shootX: 21.5, aimY: 1.4 }).wide, 20, 'wide of the post');
@@ -227,6 +230,34 @@ test('penalties: close shots into the corners beat the goalie, shots at him or f
   c.x = 2;
   stepPenalty(g, 0.1, c, null);
   assert.equal(g.results[0], 'back');
+});
+
+test('penalties: the wind-up, the goalie out to cut the angle, the puck in the net, the poke check', () => {
+  const tally = (opts) => { const out = {}; for (let s = 1; s <= 40; s++) { const g = createPenaltyGame(s); penalty(g, opts); out[g.results[0]] = (out[g.results[0]] || 0) + 1; } return out; };
+  // from 9 m a wrist shot is saved, the full wind-up into the corner beats him often
+  const wrist = tally({ shootX: 17, aimY: 0.85, power: 0 }).goal || 0, slap = tally({ shootX: 17, aimY: 0.85, power: 1 }).goal || 0;
+  assert.ok(slap > wrist + 10, `the wind-up pays from range (${wrist} vs ${slap} of 40)`);
+  // he stands out of his crease while the skater is far, back on his line once he is close
+  const g = createPenaltyGame(5);
+  stepPenalty(g, 1 / 60, { x: 0, y: 0, heading: 0 }, null);
+  near(g.goalie.x, HOCKEY.goalieOut, 0.05);
+  for (let k = 0; k < 120; k++) stepPenalty(g, 1 / 60, { x: 20, y: 0, heading: 0 }, null);
+  near(g.goalie.x, HOCKEY.goalieX, 0.05);
+  // a goal: the puck ends up inside the net, at rest
+  const h = createPenaltyGame(2);
+  penalty(h, { shootX: 21.5, aimY: 0.85, power: 0.5, stopAfter: 'result' });
+  assert.equal(h.results[0], 'goal');
+  for (let k = 0; k < 90; k++) stepPenalty(h, 1 / 60, null, null);
+  assert.ok(h.puck.x > HOCKEY.goalX && h.puck.x < HOCKEY.goalX + HOCKEY.netDepth && Math.abs(h.puck.y) < HOCKEY.postY, 'in the net');
+  assert.ok(Math.hypot(h.puck.vx, h.puck.vy) < 0.5, 'at rest');
+  assert.ok(h.fx.net > 0, 'it hit the back of the net');
+  // the poke check sends the puck back up the ice
+  const p = createPenaltyGame(3);
+  penalty(p, { shootX: 99, stopAfter: 'result' });
+  assert.equal(p.results[0], 'poke');
+  const x0 = p.puck.x;
+  for (let k = 0; k < 30; k++) stepPenalty(p, 1 / 60, null, null);
+  assert.ok(p.puck.x < x0 - 1, 'the puck slides away from him');
 });
 
 test('the shoot-out: five penalties, the goals counted, the objectives step on, the medal by goals', () => {
