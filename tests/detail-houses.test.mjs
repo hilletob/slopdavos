@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { DETAIL_HOUSES, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from '../js/detail-houses-data.js';
+import { DETAIL_HOUSES, fenceRuns, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from '../js/detail-houses-data.js';
 import { lv95ToWorld } from '../js/davos-frame.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 
@@ -92,4 +92,21 @@ test('Dischmastrasse 19: the facade atlas holds every bake at one scale, small e
   while (p < file.length && !(file[p] === 0xff && file[p + 1] >= 0xc0 && file[p + 1] <= 0xc2)) p += 2 + file.readUInt16BE(p + 2);
   assert.equal(file.readUInt16BE(p + 5), layout.size);
   assert.equal(file.readUInt16BE(p + 7), layout.size);
+});
+
+test('Dischmastrasse 19: a gate in the street fence where the shovelling path meets the street (the player walks out)', () => {
+  const house = DETAIL_HOUSES.find((h) => h.id === 'dischmastrasse-19');
+  const runs = fenceRuns(house);
+  assert.equal(runs.length, house.fence.length + 1);
+  // (the path south of the house, local z 6.3–9.5: no run of the fence crosses it at the street)
+  const [[ax, az], [bx, bz]] = house.fence[0];
+  for (let z = 6.5; z <= 9.3; z += 0.2) {
+    const x = ax + ((bx - ax) * (z - az)) / (bz - az);
+    for (const [[px, pz], [qx, qz]] of runs) {
+      const lo = Math.min(pz, qz), hi = Math.max(pz, qz);
+      if (z < lo || z > hi || Math.abs(qz - pz) < 1e-6) continue;
+      const fx = px + ((qx - px) * (z - pz)) / (qz - pz);
+      assert.ok(Math.abs(fx - x) > 0.3, `fence at z ${z.toFixed(1)}`);
+    }
+  }
 });

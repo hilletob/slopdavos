@@ -20,6 +20,9 @@ export const DETAIL_HOUSES = [
     // south of the house between the Dischmastrasse and its straight eastern boundary): the street side from the
     // north corner to the point, back up the eastern boundary (with its bend) and along the north boundary
     fence: [[[-8.24, -9.18], [-6.83, 30.76]], [[-6.83, 30.76], [13.34, 7.52]], [[13.34, 7.52], [11.11, -9.35]], [[11.11, -9.35], [-8.24, -9.18]]],
+    // The garden gate in the street fence where the access path south of the house meets the Dischmastrasse (the path
+    // of the snow-shovelling mission, js/missions-data-work.js: local z 6.3–9.5): [segment, from, to] metres along it
+    gates: [[0, 15.5, 18.7]],
     // The swissBUILDINGS3D building it replaces: everything whose surveyed centre lies within r of (x, z)
     exclude: { x: 789.4, z: -1049.9, r: 6 },
     // The house as measured on the owner's 3D scan ("Grialetsch", Scaniverse/LiDAR, 2026-10-31) and built from those
@@ -113,6 +116,21 @@ export function facadeUV(layout, bake, key, a, y) {
 }
 
 // The local frame of a house: centre, length along the ridge, depth across it, rotation about y
+/** The fence's runs with the gates left open: [[ax, az], [bx, bz]] in the house's local frame */
+export function fenceRuns(house) {
+  const out = [];
+  house.fence.forEach(([[ax, az], [bx, bz]], k) => {
+    const len = Math.hypot(bx - ax, bz - az), at = (t) => [ax + ((bx - ax) * t) / len, az + ((bz - az) * t) / len];
+    let t0 = 0;
+    for (const [, g0, g1] of (house.gates || []).filter((g) => g[0] === k).sort((p, q) => p[1] - q[1])) {
+      if (g0 > t0) out.push([at(t0), at(g0)]);
+      t0 = Math.max(t0, g1);
+    }
+    if (t0 < len) out.push([at(t0), [bx, bz]]);
+  });
+  return out;
+}
+
 export function frame(house) {
   const f = house.footprint;
   const a = f[house.ridgeFrom], d = f[house.ridgeTo];

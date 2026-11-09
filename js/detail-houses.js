@@ -6,7 +6,7 @@ import { snowyRoof } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
-import { DETAIL_HOUSES, facadeLayout, facadeUV, frame, scanRoofY, toWorld } from './detail-houses-data.js';
+import { DETAIL_HOUSES, facadeLayout, facadeUV, fenceRuns, frame, scanRoofY, toWorld } from './detail-houses-data.js';
 
 // Hand-built houses standing in for their swissBUILDINGS3D volumes (which are left out of the streamed tiles:
 // js/swissbuildings3d.js excludeBuildings). The first: Dischmastrasse 19 in Davos Dorf, a larch chalet in Strickbau on
@@ -411,7 +411,7 @@ export function glassMaterial() {
 // --- Picket fence (Staketenzaun): pickets every 11.5 cm and two rails along each segment, following the ground ---------
 function buildFence(group, M, house, fr, baseY) {
   const pickets = [], rails = [];
-  for (const [[ax, az], [bx, bz]] of house.fence) {
+  for (const [[ax, az], [bx, bz]] of fenceRuns(house)) {
     const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len;
     const yaw = Math.atan2(ux, uz); // the segment's direction, about y (a box's depth (z) along it)
     for (let t = 0; t <= len; t += 0.115) pickets.push({ x: ax + ux * t, z: az + uz * t, yaw });
@@ -504,7 +504,7 @@ export function buildDetailHouses(scene) {
     box(m.landing, m.landing.y + 1);
     box(m.stair, m.landing.y);
     // (a slanting segment in pieces of ~0.5 m: one axis-aligned box over the whole of it would fill the garden)
-    for (const [[ax, az], [bx, bz]] of house.fence) {
+    for (const [[ax, az], [bx, bz]] of fenceRuns(house)) {
       const n = Math.max(1, Math.ceil(Math.min(Math.abs(bx - ax), Math.abs(bz - az)) / 0.5));
       for (let i = 0; i < n; i++) {
         const x0 = ax + ((bx - ax) * i) / n, x1 = ax + ((bx - ax) * (i + 1)) / n, z0 = az + ((bz - az) * i) / n, z1 = az + ((bz - az) * (i + 1)) / n;
