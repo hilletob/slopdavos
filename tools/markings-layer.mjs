@@ -17,6 +17,7 @@ import { PARKING_DATA } from '../js/parking-data.js';
 import { TRAFFIC_SIGNS } from '../js/traffic-signs-data.js';
 import { pointInRing } from '../js/ground-geometry.js';
 import { pavedSurfaces } from './markings-paved.mjs';
+import { onTrackBed, rowOnTracks } from './markings-rails.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONF = JSON.parse(fs.readFileSync(path.join(DIR, 'data', 'ground-overrides.json'), 'utf8')).markings;
@@ -123,10 +124,19 @@ for (const k of idx) {
 
 // --- The parking bays in the paint (the car parks OSM lacks): rows over all the cells, each given to the cell that owns
 // its middle, with the separators the parked cars hide put back; which bays hold a car, from the photo
+// (the rails and sleepers of the RhB are no paint: off the track bed, cached cells too, tools/markings-rails.mjs)
+let nRail = 0;
+for (const r of results) {
+  const n = r.lines.length + r.fills.length;
+  r.lines = r.lines.filter((l) => !onTrackBed(l.pts));
+  r.fills = r.fills.filter((f) => !onTrackBed(f.ring));
+  nRail += n - r.lines.length - r.fills.length;
+}
+log(`${nRail} strokes and fills on the track bed dropped`);
 const buildings = DAVOS_DATA.buildings.map((b) => ({ ring: b.ring, bb: bboxOf(b.ring) }));
 const blocked = (x, z) => buildings.some(({ ring, bb }) => x >= bb[0] && x <= bb[2] && z >= bb[1] && z <= bb[3] && pointInRing(ring, x, z));
 const mapped = PARKING_DATA.map((l) => l.ring); // (their bays are js/parking.js's: detected or laid out)
-const rows = rowsOfBays(results.flatMap((r) => r.lines), { blocked }).filter((row) => !rowIn(row, mapped));
+const rows = rowsOfBays(results.flatMap((r) => r.lines), { blocked }).filter((row) => !rowIn(row, mapped) && !rowOnTracks(row));
 const quad = (b) => {
   const ux = Math.sin(b.angle), uz = Math.cos(b.angle), vx = -uz, vz = ux, out = [];
   for (const [a, c] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) out.push(b.x + ux * a * b.l / 2 + vx * c * b.w / 2, b.z + uz * a * b.l / 2 + vz * c * b.w / 2);
