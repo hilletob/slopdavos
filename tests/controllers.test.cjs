@@ -42,6 +42,8 @@ function keyboardHarness(nyc = {}) {
       './tsl-materials.js': {},
       './actor-models.js': {},
       './pedestrians.js': {},
+      './person-models.js': {},
+      './person-clips.js': { loadPersonClips: () => new Promise(() => {}) },
       './vehicle-lights.js': {},
       './quality.js': { QUALITY: { clusteredLighting: true } },
       './ground-beams.js': {},

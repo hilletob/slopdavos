@@ -135,6 +135,12 @@ The VBD bus model `assets/models/citaro-530.glb` is “Low Poly Mercedes-Benz Ci
 recoloured in the VBD livery at runtime. The app loads `assets/models/citaro-530-lite.glb`, the same model with its
 tyres replaced by plain cylinders (`node tools/build-citaro-lite.mjs`).
 
+The people's motion-captured stances (`assets/models/person-clips.bin`: idling, talking, listening, writing a ticket)
+and the optional police figure (`assets/models/rocketbox-police-m01.glb`, `?qset=playerModel:police-m01`) come from the
+Microsoft Rocketbox Avatar Library (https://github.com/microsoft/Microsoft-Rocketbox), MIT License, © Microsoft
+(`assets/models/LICENSE-rocketbox.txt`), retargeted to the game's 15-bone skeleton by `tools/build-person-clips.mjs`
+and `tools/build-rocketbox.mjs`.
+
 The code is available under the [MIT License](LICENSE), like the upstream projects
 ([colorfield/slop-zurich](https://github.com/colorfield/slop-zurich), [mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork)).
 

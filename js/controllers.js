@@ -20,6 +20,8 @@ import {
   H145
 } from './actor-models.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
+import { loadPersonModel } from './person-models.js';
+import { loadPersonClips } from './person-clips.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { QUALITY } from './quality.js';
 import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
@@ -925,6 +927,7 @@ class ThirdPersonControllerManager {
       ent.indicator = null;
     } else if (mode === 'cyclist' || mode === 'cargobike') {
       ent.leanAngle = ent.leanPivot.rotation.z = 0;
+      ent.footDown = 0;
       if (ent.frontSteerPivot) ent.frontSteerPivot.rotation.y = 0;
       if (ent.handlebarPivot) ent.handlebarPivot.rotation.y = 0;
       if (ent.bikeFrame) ent.bikeFrame.steerAngle = 0;
@@ -1025,7 +1028,7 @@ class ThirdPersonControllerManager {
 
     this.scene.add(root);
 
-    return {
+    const ent = {
       type: 'person',
       label: 'Pedestrian',
       mesh: root,
@@ -1039,6 +1042,19 @@ class ThirdPersonControllerManager {
       chaseDistance: 5.2,
       chaseHeight: 2.0
     };
+
+    // Motion-captured stances while the player stands (js/person-clips.js)
+    loadPersonClips().then((lib) => rig.setClips(lib.idle(false))).catch((e) => console.warn(e));
+    // ?qset=playerModel:police-m01: a converted Rocketbox figure in the player's place once it has loaded (the same rig)
+    if (QUALITY.playerModel) {
+      loadPersonModel(QUALITY.playerModel).then((model) => {
+        const old = ent.crowd;
+        ent.crowd = new PersonCrowd(1, { farDistance: Infinity, dress: { model } });
+        ent.crowd.meshes.forEach((m) => this.scene.add(m));
+        old.meshes.forEach((m) => { this.scene.remove(m); m.material.dispose(); }); // (the lofted body's geometry is shared)
+      }).catch((e) => console.warn('[person-models]', e));
+    }
+    return ent;
   }
 
   // =========================================================================
@@ -2468,7 +2484,9 @@ class ThirdPersonControllerManager {
 
     for (const mode of ['cyclist', 'cargobike']) {
       const bike = this.entities[mode];
-      bike.riderRig.ride(bike.leanPivot, bike.pedalPhase, bike.bikeFrame);
+      const footDown = this.activeMode === mode ? bike.footDown || 0 : 0;
+      const look = Math.sin((bike.lookTime || 0) * 0.45) * 0.55 * Math.min(1, (bike.lookTime || 0) / 2) * footDown;
+      bike.riderRig.ride(bike.leanPivot, bike.pedalPhase, { ...bike.bikeFrame, footDown, footSide: 1, look });
       // (the GTA mode: a parked bike has no rider)
       const ridden = !bike.hidden && !(this.gtaParkedLook && this.activeMode !== mode);
       bike.helmet.visible = ridden;
@@ -2947,7 +2965,11 @@ class ThirdPersonControllerManager {
 
     const targetLean = -turnInput * Math.min(1.0, Math.abs(b.speed) / 9.0) * 0.34;
     b.leanAngle += (targetLean - b.leanAngle) * Math.min(1, dt * 9);
-    b.leanPivot.rotation.z = b.leanAngle;
+    // Stopped: the rider puts the left foot down and the bike tips onto it (js/pedestrians.js PersonRig.ride footDown)
+    const stopped = Math.abs(b.speed) < 0.35 && throttle <= 0 ? 1 : 0;
+    b.footDown = (b.footDown || 0) + (stopped - (b.footDown || 0)) * (1 - Math.exp(-dt / 0.22));
+    b.lookTime = stopped ? (b.lookTime || 0) + dt : 0;
+    b.leanPivot.rotation.z = b.leanAngle - b.footDown * (mode === 'cargobike' ? 0.07 : 0.14);
 
     const distance = b.speed * dt;
     const rearRadius = b.rearWheelRadius || (mode === 'cargobike' ? 0.332 : 0.35);

@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { buildRoadNetwork } from './road-network.js';
 import { createPedestrianSystem } from './pedestrian-system.js';
+import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
 import { createObstacleGrid } from './obstacle-grid.js';
 import { signalPhase, walkSignal } from './city-config.js';
@@ -25,7 +26,7 @@ import {
   createLoftedBusMaterial
 } from './actor-models.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { attribute, mix, step, vec3 } from 'three/tsl';
+import { attribute, cos, mix, positionGeometry, positionLocal, sin, step, vec3 } from 'three/tsl';
 import { inService } from './hijack.js';
 import { GEO } from './nyc-geodata.js';
 
@@ -370,47 +371,71 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     limb([-0.22, 1.02, 0.4], [0.22, 1.02, 0.4], 0.017, DARK),
     limb([0, 1.0, -0.38], [0, 1.0, -0.18], 0.05, DARK)
   ]);
-  const riderGeo = mergeGeometries([
-    paintGeo(new THREE.CapsuleGeometry(0.11, 0.3, 4, 8).rotateX(0.59).translate(0, 1.21, -0.14), ...WHITE),
-    limb([0.18, 1.4, 0], [0.22, 1.02, 0.4], 0.035, WHITE),
-    limb([-0.18, 1.4, 0], [-0.22, 1.02, 0.4], 0.035, WHITE),
-    limb([0.1, 1.0, -0.28], [0.12, 0.78, 0.0], 0.065, NAVY),
-    limb([-0.1, 1.0, -0.28], [-0.12, 0.78, 0.0], 0.065, NAVY),
-    limb([0.12, 0.78, 0.0], [0.1, 0.38, -0.15], 0.05, NAVY),
-    limb([-0.12, 0.78, 0.0], [-0.1, 0.38, -0.15], 0.05, NAVY)
-  ]);
-  const skinGeo = mergeGeometries([
-    paintGeo(new THREE.SphereGeometry(0.105, 10, 8).translate(0, 1.58, 0.1), ...SKIN),
-    paintGeo(new THREE.SphereGeometry(0.04, 6, 6).translate(0.22, 1.02, 0.4), ...SKIN),
-    paintGeo(new THREE.SphereGeometry(0.04, 6, 6).translate(-0.22, 1.02, 0.4), ...SKIN)
-  ]);
-  // One draw per bike set: frame, rider and skin in one geometry, `tintSel` picking the per-bike tint (1: the frame's,
-  // 2: the jacket's, 0: none). The bikes in view are packed to the front each frame, in two sets: those near the camera
-  // cast shadows, the distant ones don't (their shadows would be under a pixel, and every cascade drew all of them)
+  // One draw per bike set, `tintSel` picking the per-bike tint (1: the frame's, 0: none). The bikes in view are packed to
+  // the front each frame, in two sets: those near the camera cast shadows, the distant ones don't (their shadows would
+  // be under a pixel, and every cascade drew all of them). The riders are the city's skinned people (riderCrowd below).
   const BIKE_SHADOW_DISTANCE = 90;
   const withTintSel = (g, sel) => {
     g.setAttribute('tintSel', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(sel), 1));
     return g;
   };
-  const cyclistGeo = mergeGeometries([withTintSel(bikeGeo, 1), withTintSel(riderGeo, 2), withTintSel(skinGeo, 0)]);
+  // Cranks & pedals at the bottom bracket, turned per bike by its pedal phase (instanced crankAngle, the angle
+  // PersonRig.ride puts the feet at): `crank` x 0 still, 1 an arm (turns about the bracket), 2 a pedal (its centre, y
+  // its offset from the bracket, goes round, the pedal itself stays level); the left arm points down at angle 0
+  const BRACKET = new THREE.Vector3(0, 0.34, -0.145), CRANK = 0.17;
+  const ALU = [0.62, 0.64, 0.67];
+  const withCrank = (g, type, offset = 0) => {
+    const n = g.attributes.position.count, c = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { c[i * 2] = type; c[i * 2 + 1] = offset; }
+    g.setAttribute('crank', new THREE.BufferAttribute(c, 2));
+    return g;
+  };
+  const crankGeo = mergeGeometries([1, -1].map((side) => [
+    withCrank(limb([side * 0.07, BRACKET.y, BRACKET.z], [side * 0.07, BRACKET.y - side * CRANK, BRACKET.z], 0.012, ALU), 1),
+    withCrank(paintGeo(new THREE.BoxGeometry(0.075, 0.016, 0.05).translate(side * 0.1, BRACKET.y - side * CRANK, BRACKET.z), ...DARK), 2, -side * CRANK)
+  ]).flat().concat([withCrank(paintGeo(new THREE.TorusGeometry(0.09, 0.008, 4, 16).rotateY(Math.PI / 2).translate(-0.05, BRACKET.y, BRACKET.z), ...ALU), 0)])
+    .map((g) => withTintSel(g, 0)));
+  const cyclistGeo = mergeGeometries([withCrank(withTintSel(bikeGeo, 1), 0), crankGeo]);
+  {
+    // (one vertex buffer for the part: x tintSel, y the crank's kind, z a pedal's offset; WebGPU binds 8 at most)
+    const t = cyclistGeo.attributes.tintSel, c = cyclistGeo.attributes.crank, n = t.count, part = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { part[i * 3] = t.getX(i); part[i * 3 + 1] = c.getX(i); part[i * 3 + 2] = c.getY(i); }
+    cyclistGeo.deleteAttribute('tintSel');
+    cyclistGeo.deleteAttribute('crank');
+    cyclistGeo.deleteAttribute('uv');
+    cyclistGeo.setAttribute('bikePart', new THREE.BufferAttribute(part, 3));
+  }
   cyclistGeo.computeBoundingSphere();
   const bikeMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.55, metalness: 0.15 });
   {
-    const sel = attribute('tintSel', 'float');
-    const tint = mix(attribute('bikeTint', 'vec3'), attribute('jacketTint', 'vec3'), step(1.5, sel));
-    bikeMat.colorNode = attribute('color', 'vec3').mul(mix(vec3(1), tint, step(0.5, sel)));
+    const part = attribute('bikePart', 'vec3');
+    const sel = part.x;
+    const tint = attribute('bikeTint', 'vec4');
+    bikeMat.colorNode = attribute('color', 'vec3').mul(mix(vec3(1), tint.xyz, step(0.5, sel)));
+    const crank = part.yz;
+    const angle = tint.w;
+    const c = cos(angle), sn = sin(angle);
+    // (the material's position comes after the instancing: the crank's travel in the bike's own y & z, turned into the
+    // instance's frame by its up & forward axes)
+    const p = positionGeometry;
+    const dy = p.y.sub(BRACKET.y), dz = p.z.sub(BRACKET.z);
+    const armMove = vec3(0, dy.mul(c).sub(dz.mul(sn)).sub(dy), dy.mul(sn).add(dz.mul(c)).sub(dz));
+    const pedalMove = vec3(0, crank.y.mul(c).sub(crank.y), crank.y.mul(sn));
+    const move = mix(armMove.mul(step(0.5, crank.x)), pedalMove, step(1.5, crank.x));
+    bikeMat.positionNode = positionLocal.add(attribute('bikeUp', 'vec3').mul(move.y)).add(attribute('bikeFwd', 'vec3').mul(move.z));
   }
   const bikePalette = [0x15181c, 0x2b2f36, 0x6e1f24, 0x1d3b6c, 0xb9c0c8, 0x2f5d3a].map((c) => new THREE.Color(c));
-  const jacketPalette = [0xd4442f, 0x1d3b6c, 0x2b2f36, 0x3b7a57, 0xe7b52b, 0x7a4a8a, 0xc7ccd4, 0x0f1114].map((c) => new THREE.Color(c));
   const bikeSets = [true, false].map((shadow) => {
     const g = new THREE.BufferGeometry();
     for (const [name, attr] of Object.entries(cyclistGeo.attributes)) g.setAttribute(name, attr);
     g.setIndex(cyclistGeo.index);
     g.boundingSphere = cyclistGeo.boundingSphere;
-    const frame = new THREE.InstancedBufferAttribute(new Float32Array(NUM_BIKES * 3), 3);
-    const jacket = new THREE.InstancedBufferAttribute(new Float32Array(NUM_BIKES * 3), 3);
+    // per bike: the frame's tint & the crank's angle; its up & forward axes in one interleaved buffer
+    const frame = new THREE.InstancedBufferAttribute(new Float32Array(NUM_BIKES * 4), 4);
     g.setAttribute('bikeTint', frame);
-    g.setAttribute('jacketTint', jacket);
+    const axes = new THREE.InstancedInterleavedBuffer(new Float32Array(NUM_BIKES * 6), 6);
+    g.setAttribute('bikeUp', new THREE.InterleavedBufferAttribute(axes, 3, 0));
+    g.setAttribute('bikeFwd', new THREE.InterleavedBufferAttribute(axes, 3, 3));
     const mesh = new THREE.InstancedMesh(g, bikeMat, NUM_BIKES);
     mesh.name = shadow ? 'Bikes near' : 'Bikes far';
     mesh.setMatrixAt(0, zero);
@@ -418,15 +443,33 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     mesh.frustumCulled = false;
     mesh.castShadow = shadow;
     group.add(mesh);
-    return { mesh, frame, jacket, n: 0 };
+    return { mesh, frame, axes, n: 0 };
   });
+  // The riders: one instanced, skinned draw per level of detail (PersonCrowd), posed on their bikes by PersonRig.ride.
+  // A Dutch bike's frame in its own space (bikeGeo): saddle, bars and bottom bracket
+  const riderCrowd = new PersonCrowd(NUM_BIKES, { farDistance: 40 });
+  for (const m of riderCrowd.meshes) group.add(m);
+  const BIKE_FRAME = { seat: new THREE.Vector3(0, 1.02, -0.28), bars: new THREE.Vector3(0, 1.0, 0.38), gripHalf: 0.21, bracket: new THREE.Vector3(0, 0.34, -0.145), crankLength: 0.17, lean: 0.24 };
+  const riderPose = { ...BIKE_FRAME, footDown: 0, footSide: 1, look: 0 };
+  const riderHash = (i, salt) => {
+    const v = Math.sin(i * 91.3458 + salt * 47.853) * 23421.631;
+    return v - Math.floor(v);
+  };
   const bikes = [];
   for (let i = 0; i < NUM_BIKES; i++) {
     const bike = createVehicle(false, 0.9, 0.3, 0.55, BIKE_DRIVER, 4.5 + (i % 5) * 0.65);
     bike.bike = true;
     bike.slot = i;
     bike.frameTint = bikePalette[(i * 7) % bikePalette.length];
-    bike.jacketTint = jacketPalette[(i * 5) % jacketPalette.length];
+    // the rider: one of the city's people (js/pedestrians.js), pedalling with the bike's travel, a foot down at a stop
+    const female = riderHash(i, 1) < 0.42;
+    bike.rider = new PersonRig({
+      seed: i * 2.414 + 0.71, female, scale: (female ? 0.93 : 0.98) + riderHash(i, 4) * 0.08,
+      girth: 0.88 + riderHash(i, 5) * 0.18, ...rollHairstyle(riderHash(i, 2), female)
+    });
+    bike.pedal = riderHash(i, 6) * Math.PI * 2;
+    bike.footDown = 0;
+    bike.footSide = riderHash(i, 7) < 0.6 ? 1 : -1;
     bikes.push(bike);
   }
   // Cars, buses and bikes interleaved in proportion: the lanes around the focus are filled in this order (update), and
@@ -1756,18 +1799,30 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     }
   }
 
-  function renderBike(b) {
+  function renderBike(b, dt) {
     elevate(b, 0.55);
+    // pedalling with the travel (~3.2 wheel turns a crank turn), freewheeling while braking; a foot down when stopped
+    const travel = Math.hypot(b.x - b.prevX, b.z - b.prevZ);
+    if (b.acc > -0.4 && travel < 1) b.pedal += travel / 0.36 / 3.2;
+    const stopped = b.speed < 0.35 ? 1 : 0;
+    b.footDown += (stopped - b.footDown) * (1 - Math.exp(-dt / 0.3));
     if (hasView && !visible(b.x, b.z, 6, b.y)) return;
     dummy.position.set(b.x, b.y, b.z);
-    dummy.rotation.set(b.pitch + b.slope, b.yaw + b.yawOffset, b.roll, 'YXZ');
+    dummy.rotation.set(b.pitch + b.slope, b.yaw + b.yawOffset, b.roll - b.footSide * 0.14 * b.footDown, 'YXZ');
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
-    const set = bikeSets[Math.hypot(b.x - camX, b.y - camY, b.z - camZ) < BIKE_SHADOW_DISTANCE ? 0 : 1];
+    const distance = Math.hypot(b.x - camX, b.y - camY, b.z - camZ);
+    const set = bikeSets[distance < BIKE_SHADOW_DISTANCE ? 0 : 1];
     const k = set.n++;
     set.mesh.setMatrixAt(k, dummy.matrix);
-    set.frame.setXYZ(k, b.frameTint.r, b.frameTint.g, b.frameTint.b);
-    set.jacket.setXYZ(k, b.jacketTint.r, b.jacketTint.g, b.jacketTint.b);
+    set.frame.setXYZW(k, b.frameTint.r, b.frameTint.g, b.frameTint.b, b.pedal % (Math.PI * 2));
+    const e = dummy.matrix.elements;
+    set.axes.array.set([e[4], e[5], e[6], e[8], e[9], e[10]], k * 6);
+    riderPose.footDown = b.footDown;
+    riderPose.footSide = b.footSide;
+    riderPose.look = Math.sin(clock * 0.45 + b.slot) * 0.5 * b.footDown;
+    b.rider.ride(dummy, b.pedal, riderPose);
+    riderCrowd.add(b.rider, distance);
   }
 
   function renderBus(b) {
@@ -2034,6 +2089,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     policeDrawn = 0;
     visibleBuses = 0;
     for (const set of bikeSets) set.n = 0;
+    riderCrowd.begin();
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
       if (!v.edge) continue;
@@ -2057,17 +2113,20 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
         continue;
       }
       if (v.bus) renderBus(v);
-      else if (v.bike) renderBike(v);
+      else if (v.bike) renderBike(v, dt);
       else renderCar(v);
     }
     const hideEmpty = ++updates > 2;
-    for (const { mesh, frame, jacket, n } of bikeSets) {
+    riderCrowd.end();
+    for (const { mesh, frame, axes, n } of bikeSets) {
       mesh.visible = n > 0 || !hideEmpty;
       if (n === 0) continue;
       mesh.count = n;
       flagRange(mesh.instanceMatrix, n);
       flagRange(frame, n);
-      flagRange(jacket, n);
+      axes.clearUpdateRanges();
+      axes.addUpdateRange(0, n * 6);
+      axes.needsUpdate = true;
     }
     for (const m of bodyMeshes) {
       const n = m.count;

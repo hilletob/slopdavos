@@ -22,6 +22,8 @@ import {
   step,
   smoothstep,
   textureLoad,
+  texture,
+  uv,
   ivec2
 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -905,6 +907,7 @@ const qrot = (q, v) => v.add(cross(q.xyz, cross(q.xyz, v).add(v.mul(q.w))).mul(2
  * (hex lists, each optional), casual: true for no tailored jackets.
  */
 function createPersonMaterial(pose, dress = {}) {
+  if (dress.model) return createModelPersonMaterial(pose, dress.model);
   const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
   const base = int(instanceIndex).mul(STRIDE);
   const info = pose.element(base.add(STRIDE - 1)); // seed, female, girth, hair + 2 * hairstyle
@@ -1066,6 +1069,31 @@ function createPersonMaterial(pose, dress = {}) {
   return mat;
 }
 
+/**
+ * Material for a crowd of a converted model (js/person-models.js: a Rocketbox figure in this skeleton's bind pose, its
+ * skin attribute (bone a, bone b, weight of b, part) like the lofted body's): the same two-bone skinning, without the
+ * build, female & hair morphs, coloured from the model's atlas instead of the seed's wardrobe.
+ */
+function createModelPersonMaterial(pose, model) {
+  const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.8 });
+  const base = int(instanceIndex).mul(STRIDE);
+  mat.positionNode = Fn(() => {
+    const skin = attribute('skin', 'vec4');
+    const p = attribute('position', 'vec3');
+    const n = attribute('normal', 'vec3');
+    const ia = base.add(int(skin.x).mul(2));
+    const ib = base.add(int(skin.y).mul(2));
+    const qa = pose.element(ia);
+    const ta = pose.element(ia.add(1));
+    const qb = pose.element(ib);
+    const tb = pose.element(ib.add(1));
+    normalLocal.assign(normalize(mix(qrot(qa, n), qrot(qb, n), skin.z)));
+    return mix(qrot(qa, p).mul(ta.w).add(ta.xyz), qrot(qb, p).mul(tb.w).add(tb.xyz), skin.z);
+  })();
+  mat.colorNode = texture(model.map, uv()).rgb;
+  return mat;
+}
+
 // ============================================================================
 // 4. CROWD: ONE INSTANCED, SKINNED DRAW PER LEVEL OF DETAIL
 // ============================================================================
@@ -1073,13 +1101,16 @@ class PersonCrowd {
   /**
    * @param {number} maxCount - most people drawn at once
    * @param {{ farDistance?: number, castShadow?: boolean, dress?: object }} options - beyond farDistance (m) people use
-   *   the far LOD; dress: this crowd's wardrobe (createPersonMaterial)
+   *   the far LOD; dress: this crowd's wardrobe (createPersonMaterial), or { model } (js/person-models.js loadPersonModel):
+   *   a converted figure for everyone in it, near & far
    */
   constructor(maxCount, { farDistance = 34, castShadow = true, dress } = {}) {
     this.farDistance = farDistance;
     this.lods = [1, 0].map((detail) => {
       const pose = poseBuffer(maxCount * STRIDE);
-      const mesh = new THREE.Mesh(buildPersonGeometry(detail), createPersonMaterial(pose, dress));
+      // (a converted model, dress.model: the same geometry near & far)
+      const geometry = dress?.model ? dress.model.geometry : buildPersonGeometry(detail);
+      const mesh = new THREE.Mesh(geometry, createPersonMaterial(pose, dress));
       mesh.name = detail ? 'PeopleNear' : 'PeopleFar';
       mesh.count = 1; // one (degenerate) person until the first frame, so the pipelines compile up front
       mesh.frustumCulled = false;
@@ -1181,6 +1212,38 @@ const _by = new THREE.Vector3();
 const _bz = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _rootPos = new THREE.Vector3();
+const _qYaw = new THREE.Quaternion();
+const _qBody = new THREE.Quaternion();
+const _groundFoot = new THREE.Vector3();
+
+// Motion-captured clips (PersonRig.setClips; js/person-clips.js: { fps, frames, duration, data: per frame 15
+// quaternions x 32767, then the hips' centre in mm, int16}): the bones' parents to chain the joints from the pelvis,
+// the crossfade from one clip to the next (s)
+const CLIP_PARENT = [-1, 0, 1, 1, 3, 1, 5, 0, 7, 8, 9, 0, 11, 12, 13];
+const CLIP_FADE = 0.6;
+const CLIP_STRIDE = BONE_COUNT * 4 + 3;
+const _clipQ = Array.from({ length: BONE_COUNT }, () => new THREE.Quaternion());
+const _clipQB = Array.from({ length: BONE_COUNT }, () => new THREE.Quaternion());
+const _clipJ = Array.from({ length: BONE_COUNT }, () => new THREE.Vector3());
+const _clipH = new THREE.Vector3();
+const _clipHB = new THREE.Vector3();
+const frac = (v) => v - Math.floor(v);
+
+// A clip's pose at its time: bone rotations in the bind frame (facing +Z), the hips' centre over the ground (m)
+function sampleClip({ clip, t }, outQ, outH) {
+  const f = Math.min(Math.max(t, 0) * clip.fps, clip.frames - 1.001);
+  const i = Math.floor(f), u = f - i;
+  const d = clip.data, o0 = i * CLIP_STRIDE, o1 = o0 + CLIP_STRIDE;
+  for (let b = 0; b < BONE_COUNT; b++) {
+    const k0 = o0 + b * 4, k1 = o1 + b * 4;
+    outQ[b].set(
+      d[k0] + (d[k1] - d[k0]) * u, d[k0 + 1] + (d[k1 + 1] - d[k0 + 1]) * u,
+      d[k0 + 2] + (d[k1 + 2] - d[k0 + 2]) * u, d[k0 + 3] + (d[k1 + 3] - d[k0 + 3]) * u
+    ).normalize();
+  }
+  const h0 = o0 + BONE_COUNT * 4, h1 = o1 + BONE_COUNT * 4;
+  outH.set(d[h0] + (d[h1] - d[h0]) * u, d[h0 + 1] + (d[h1 + 1] - d[h0 + 1]) * u, d[h0 + 2] + (d[h1 + 2] - d[h0 + 2]) * u).multiplyScalar(0.001);
+}
 const AX = new THREE.Vector3(1, 0, 0);
 const AY = new THREE.Vector3(0, 1, 0);
 const AZ = new THREE.Vector3(0, 0, 1);
@@ -1234,6 +1297,10 @@ class PersonRig {
     this.diveGround = 0;
     this.time = seed * 7.3;
     this.feet = [makeFoot(1), makeFoot(-1)];
+    this.clips = null; // (setClips)
+    this.clipA = this.clipB = null;
+    this.clipW = 0;
+    this.clipFade = 1;
     this.pose = new Float32Array(STRIDE * 4);
     this.pose.set([seed, this.female, girth, Math.min(1, Math.max(0, hair)) + hairstyle * 2], (STRIDE - 1) * 4);
   }
@@ -1304,6 +1371,7 @@ class PersonRig {
     dt = Math.min(Math.max(dt, 1e-4), 0.1);
     const s = this.s;
     this.time += dt;
+    this.advanceClips(dt);
 
     if (diveTime >= 0) {
       if (!this.diving) this.diveGround = ground(owner, this.x, this.z);
@@ -1716,13 +1784,89 @@ class PersonRig {
       qY(_q2, footYaw).multiply(qX(_q, foot.pitch + foot.toe));
       this.writeBone(LIMB.toe[i], _q2, _v);
     }
+    if (this.clipW > 0.001 && this.clipA) this.applyClip();
   }
 
   /**
-   * Riding a bicycle: `root` (Object3D) is the bike frame (pose in its parent's space, e.g. the scene), `crank` the
-   * pedal crank angle. Seat, bars and bottom bracket in the frame's space (metres, +Z forward).
+   * Motion-captured clips (js/person-clips.js) this person shows while standing: one after another (a random one next,
+   * crossfaded), blended in as the walk stops and out as it starts again. null: none (the procedural stance).
    */
-  ride(root, crank, { seat, bars, gripHalf = 0.22, bracket, crankLength = 0.17, pedalHalf = 0.1, steerPivot, steerAngle = 0, lean = 0.42 }) {
+  setClips(clips) {
+    this.clips = clips && clips.length ? clips : null;
+  }
+
+  // The clips' time & weights, every update: the weight follows standing (no gait, not in the air or a dive)
+  advanceClips(dt) {
+    const target = this.clips && !this.diving && this.air <= 0.001 ? Math.max(0, 1 - this.gait * 4) : 0;
+    this.clipW += (target - this.clipW) * (1 - Math.exp(-dt / 0.22));
+    if (target === 0 && this.clipW < 0.001) {
+      this.clipA = this.clipB = null; // (a fresh clip the next time it stands)
+      return;
+    }
+    if (!this.clips) return;
+    const pick = () => this.clips[Math.floor(frac(Math.sin(this.time * 12.9898 + this.seed * 78.233) * 43758.5453) * this.clips.length)];
+    if (!this.clipA || !this.clips.includes(this.clipA.clip)) {
+      const clip = pick();
+      // (a random moment of a clip that starts while it stands already, its start when it comes to a stop)
+      const t = this.clipW > 0.5 ? 0 : frac(this.seed * 3.17 + this.time * 0.11) * clip.duration * 0.7;
+      this.clipB = this.clipA && this.clipW > 0.001 ? this.clipA : null;
+      this.clipA = { clip, t };
+      this.clipFade = this.clipB ? 0 : 1;
+    }
+    const a = this.clipA;
+    a.t += dt;
+    if (this.clipB) this.clipB.t = Math.min(this.clipB.t + dt, this.clipB.clip.duration);
+    this.clipFade = Math.min(1, this.clipFade + dt / CLIP_FADE);
+    if (a.t > a.clip.duration - CLIP_FADE) {
+      this.clipB = a;
+      this.clipA = { clip: pick(), t: 0 };
+      this.clipFade = 0;
+    }
+  }
+
+  /**
+   * After solve(): the clips' pose over the procedural one by clipW. Each bone turns towards the clip's rotation (about
+   * the person's yaw), the pelvis towards the clip's hips over the ground between the feet, and the joints chain from
+   * the pelvis with this person's own bind joints & scale.
+   */
+  applyClip() {
+    const w = this.clipW, s = this.s, a = this.pose, j = this.bind;
+    sampleClip(this.clipA, _clipQ, _clipH);
+    if (this.clipB && this.clipFade < 1) {
+      sampleClip(this.clipB, _clipQB, _clipHB);
+      for (let b = 0; b < BONE_COUNT; b++) _clipQ[b].copy(_clipQB[b]).slerp(_clipQ[b], this.clipFade);
+      _clipH.lerpVectors(_clipHB, _clipH, this.clipFade);
+    }
+    qY(_qa, this.yaw);
+    // the procedural pelvis joint, the clip's
+    _qPelvis.set(a[0], a[1], a[2], a[3]);
+    _pelvis.copy(j[BONE.PELVIS]).applyQuaternion(_qPelvis).multiplyScalar(s).add(_v.set(a[4], a[5], a[6]));
+    const groundY = (this.feet[0].py + this.feet[1].py) * 0.5;
+    for (let b = 0; b < BONE_COUNT; b++) _clipQ[b].premultiply(_qa);
+    _v.copy(_clipH).multiplyScalar(s).applyQuaternion(_qa).add(_v2.set(this.x, groundY, this.z));
+    _v2.set(0, PELVIS_Y - HIP_Y, 0).multiplyScalar(s).applyQuaternion(_clipQ[BONE.PELVIS]).add(_v);
+    _pelvis.lerp(_v2, w);
+    for (let b = 0; b < BONE_COUNT; b++) {
+      const o = b * 8;
+      _clipQB[b].set(a[o], a[o + 1], a[o + 2], a[o + 3]).slerp(_clipQ[b], w);
+    }
+    _clipJ[0].copy(_pelvis);
+    this.writeBone(0, _clipQB[0], _pelvis);
+    for (let b = 1; b < BONE_COUNT; b++) {
+      const p = CLIP_PARENT[b];
+      _clipJ[b].copy(j[b]).sub(j[p]).multiplyScalar(s).applyQuaternion(_clipQB[p]).add(_clipJ[p]);
+      this.writeBone(b, _clipQB[b], _clipJ[b]);
+    }
+  }
+
+  /**
+   * Riding a bicycle: `root` (Object3D) is the bike frame (pose in its parent's space, e.g. the scene; its origin on the
+   * ground between the wheels), `crank` the pedal crank angle. Seat, bars and bottom bracket in the frame's space
+   * (metres, +Z forward). `footDown` (0..1): stopped, one foot on the ground beside the bike (`footSide` 1: the left,
+   * -1: the right; the caller tips the bike towards it), sitting up and forward off the saddle as far as that leg needs;
+   * `look`: the head turned (radians, left positive).
+   */
+  ride(root, crank, { seat, bars, gripHalf = 0.22, bracket, crankLength = 0.17, pedalHalf = 0.1, steerPivot, steerAngle = 0, lean = 0.42, footDown = 0, footSide = 1, look = 0 }) {
     const s = this.s;
     const j = this.bind;
     this.gait = 0;
@@ -1730,24 +1874,36 @@ class PersonRig {
     root.updateWorldMatrix(true, false);
     root.matrixWorld.decompose(_rootPos, _qRoot, _v);
     const toWorld = (local) => local.applyQuaternion(_qRoot).add(_rootPos);
+    _fwd.set(0, 0, 1).applyQuaternion(_qRoot);
+    this.yaw = Math.atan2(_fwd.x, _fwd.z);
+    const fd = Math.min(1, Math.max(0, footDown));
+    const down = fd > 0 ? (footSide > 0 ? 0 : 1) : -1; // (the leg on the ground)
 
-    // Pelvis on the saddle, leaning forward; chest further forward, head up looking ahead
-    qX(_qPelvis, lean).premultiply(_qRoot);
-    _pelvis.set(0, seat.y + 0.055 * s, seat.z + 0.03);
+    // Pelvis on the saddle, leaning forward; chest further forward, head up looking ahead. With a foot down the body
+    // sits up over the tipped bike (turning with its heading only) and slides forward & down off the saddle
+    qY(_qYaw, this.yaw);
+    _qBody.copy(_qRoot).slerp(_qYaw, 0.85 * fd);
+    qX(_qPelvis, lean * (1 - 0.55 * fd)).premultiply(_qBody);
+    _pelvis.set(0, seat.y + 0.055 * s, seat.z + 0.03 + 0.07 * fd);
     toWorld(_pelvis);
+    if (down >= 0) {
+      // the foot's spot: beside the bike on the ground under its frame's origin, a little ahead of the saddle
+      _groundFoot.set(footSide * 0.27 * s, ANKLE_H * s, seat.z + 0.16).applyQuaternion(_qYaw).add(_rootPos);
+      _hip.copy(j[LIMB.thigh[down]]).sub(j[BONE.PELVIS]).multiplyScalar(s).applyQuaternion(_qPelvis).add(_pelvis);
+      const short = _hip.distanceTo(_groundFoot) - 0.985 * (THIGH + SHIN) * s;
+      _pelvis.y -= (Math.min(0.16, Math.max(0, short)) + 0.015) * fd;
+    }
     this.writeBone(BONE.PELVIS, _qPelvis, _pelvis);
     _qChest.copy(_qPelvis).multiply(qX(_q, 0.2));
     _chest.copy(j[BONE.CHEST]).sub(j[BONE.PELVIS]).multiplyScalar(s).applyQuaternion(_qPelvis).add(_pelvis);
     this.writeBone(BONE.CHEST, _qChest, _chest);
-    _qa.copy(_qRoot).multiply(qX(_q, -0.12));
+    _qa.copy(_qBody).multiply(qY(_q, look)).multiply(qX(_q, -0.12 * (1 - fd)));
     _v.copy(j[BONE.HEAD]).sub(j[BONE.CHEST]).multiplyScalar(s).applyQuaternion(_qChest).add(_chest);
     this.writeBone(BONE.HEAD, _qa, _v);
     this.headPosition = (this.headPosition || new THREE.Vector3()).copy(_v);
     this.headQuaternion = (this.headQuaternion || new THREE.Quaternion()).copy(_qa);
 
     // Hands on the grips (two-bone arm IK, elbows out & down), feet on the pedals (leg IK, knees over the feet)
-    _fwd.set(0, 0, 1).applyQuaternion(_qRoot);
-    this.yaw = Math.atan2(_fwd.x, _fwd.z);
     for (let i = 0; i < 2; i++) {
       const side = SIDES[i];
       _shoulder.copy(j[LIMB.upperArm[i]]).sub(j[BONE.CHEST]).multiplyScalar(s).applyQuaternion(_qChest).add(_chest);
@@ -1790,9 +1946,13 @@ class PersonRig {
       _v2.set(0, TOE_JOINT.y * s - 0.012, TOE_JOINT.z * s * 0.85).applyQuaternion(_q2);
       const ankleTarget = _target.copy(pedal).sub(_v2);
       toWorld(ankleTarget);
+      _qa.copy(_qRoot).multiply(_q2);
+      if (i === down) { // (the foot on the ground, flat, along the heading)
+        ankleTarget.lerp(_groundFoot, fd);
+        _qa.slerp(_qYaw, fd);
+      }
       _hip.copy(j[LIMB.thigh[i]]).sub(j[BONE.PELVIS]).multiplyScalar(s).applyQuaternion(_qPelvis).add(_pelvis);
       const ankle = this.solveLeg(i, _hip, ankleTarget, this.yaw);
-      _qa.copy(_qRoot).multiply(_q2);
       this.writeBone(LIMB.foot[i], _qa, ankle);
       _v.copy(j[LIMB.toe[i]]).sub(j[LIMB.foot[i]]).multiplyScalar(s).applyQuaternion(_qa).add(ankle);
       this.writeBone(LIMB.toe[i], _qa, _v);

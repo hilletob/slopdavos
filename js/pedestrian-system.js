@@ -2,6 +2,7 @@ import { blockAt } from './city-config.js';
 import { surfaceHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import { createPedestrianRoutes } from './pedestrian-routes.js';
 import { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION, rollHairstyle } from './pedestrians.js';
+import { loadPersonClips } from './person-clips.js';
 import { QUALITY } from './quality.js';
 
 // Local pedestrian population: connected walks, curb queues, conversations and player avoidance.
@@ -37,6 +38,9 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
   // One instanced draw per level of detail; every pedestrian has a PersonRig that plants its footsteps on the
   // sidewalk (no sliding), with their own build, height, sex, hair, clothes and gait
   const pedCrowd = new PersonCrowd(NUM_PEDS);
+  // Motion-captured stances (js/person-clips.js) for whoever stands: idling at a curb or a stop, talking & listening
+  let clips = null;
+  loadPersonClips().then((lib) => { clips = lib; }).catch((e) => console.warn(e));
   const hash = (i, salt) => {
     const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
     return v - Math.floor(v);
@@ -582,6 +586,11 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
       : Math.abs(sideStep) > 0.01 ? Math.atan2(p.uz * Math.sign(sideStep), -p.ux * Math.sign(sideStep))
       : Math.atan2(p.ux * p.dir, p.uz * p.dir);
     p.surfaceY = surfaceHeight(p.x, p.z, p.surfaceY);
+    if (clips) {
+      const f = p.rig.female;
+      const want = partner ? (p.conversation.a === p ? clips.talk(f) : clips.listen(f)) : clips.idle(f);
+      if (p.rig.clips !== want) p.rig.setClips(want);
+    }
     p.rig.update(dt, p.x, p.z, heading, pedGround, p, 0, draw, diving ? diveTime : -1);
     if (!draw) return;
     pedCrowd.add(p.rig, Math.hypot(p.x - focusX, p.z - focusZ));

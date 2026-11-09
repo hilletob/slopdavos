@@ -21,7 +21,7 @@ for (const [hasView, inView, draw] of [[true, false, false], [true, true, true],
     const ped = { x: 10, z: 20, ux: 0, uz: 1, dir: 1, dodge: 0, dodgeTarget: 0, diveStart: -Infinity,
       rig: { update(...values) { args = values; } } };
     const renderPed = productionFunction('renderPed', {
-      hasView, visible: () => inView, pedGround: () => 0, focusX: 0, focusZ: 0, clock: 0, PEDESTRIAN_DIVE_DURATION: 2.5,
+      hasView, visible: () => inView, pedGround: () => 0, focusX: 0, focusZ: 0, clock: 0, PEDESTRIAN_DIVE_DURATION: 2.5, clips: null,
       pedCrowd: { add(rig) { assert.equal(rig, ped.rig); drawn++; } }
     });
     renderPed(ped, 1 / 60);
@@ -41,7 +41,7 @@ test('hidden pedestrians finish their dive without drawing or changing the escap
     diveStart: 9.5, diveHeading: Math.PI / 2, rig: { update(...values) { args = values; } } };
   const context = {
     hasView: true, visible: () => false, pedGround: () => 0, focusX: 0, focusZ: 0,
-    clock: 10, PEDESTRIAN_DIVE_DURATION: 2.5,
+    clock: 10, PEDESTRIAN_DIVE_DURATION: 2.5, clips: null,
     pedCrowd: { add() { assert.fail('hidden pedestrians must not be drawn'); } }
   };
   const renderPed = productionFunction('renderPed', context);
@@ -54,6 +54,23 @@ test('hidden pedestrians finish their dive without drawing or changing the escap
   assert.equal(args[3], 0);
   assert.equal(args[7], false);
   assert.equal(args[8], -1);
+});
+
+test('standing pedestrians get the idle clips, a conversation talks and listens (js/person-clips.js)', () => {
+  const sets = { idle: [['idle-m'], ['idle-f']], talk: [['talk-m'], ['talk-f']], listen: [['listen-m'], ['listen-f']] };
+  const clips = { idle: (f) => sets.idle[f], talk: (f) => sets.talk[f], listen: (f) => sets.listen[f] };
+  const person = (female) => ({ x: 0, z: 0, ux: 0, uz: 1, dir: 1, dodge: 0, dodgeTarget: 0, diveStart: -Infinity,
+    rig: { female, clips: null, setClips(c) { this.clips = c; }, update() {} } });
+  const a = person(0), b = person(1), c = person(1);
+  a.conversation = b.conversation = { a, b };
+  const renderPed = productionFunction('renderPed', {
+    hasView: false, visible: () => true, pedGround: () => 0, focusX: 0, focusZ: 0, clock: 0, PEDESTRIAN_DIVE_DURATION: 2.5,
+    clips, pedCrowd: { add() {} }
+  });
+  for (const p of [a, b, c]) renderPed(p, 1 / 60);
+  assert.equal(a.rig.clips, sets.talk[0]);
+  assert.equal(b.rig.clips, sets.listen[1]);
+  assert.equal(c.rig.clips, sets.idle[1]);
 });
 
 function sparkHarness(updates = 3) {

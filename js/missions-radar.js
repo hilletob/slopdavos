@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { surfaceHeight } from './terrain.js';
 import { t } from './i18n.js';
+import { loadPersonClips } from './person-clips.js';
 import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-models.js';
 import {
   RADAR, FINES, LASER_SPOT, TRIPOD, AIM_HEADING, STOP_S, ROAD_LENGTH, STREAM, roadFrame, brakeSpeed, chooseDriver, laserTarget, createStream, stepStream
@@ -479,6 +480,9 @@ const radarCheck = {
       input: { measure: false, stop: false, fine: null }, pan: {}, signT: 0, lastPhase: 'idle', personHidden: null, fov: null
     };
     R.obstacles = [];
+    // the officer's stances: writing the ticket at the stopped car (js/person-clips.js), idling otherwise
+    loadPersonClips().then((lib) => { R.clips = { note: [lib.byName.get('m_documents_note')], idle: lib.idle(false) }; }).catch((e) => console.warn(e));
+    run.cleanups.push(() => { if (R.rig && R.clips) R.rig.setClips(R.clips.idle); });
     R.stream = createStream(1 + Math.random() * 1e6);
     R.streamCars = buildStreamCars(run);
     R.tripod = buildTripod();
@@ -589,6 +593,12 @@ const radarCheck = {
     const stopPhase = check.stop?.phase || null;
     if (stopPhase === 'stopped' && R.lastStop !== 'stopped' && R.laserOn) setLaser(run, false);
     R.lastStop = stopPhase;
+    const rig = cm.entities.person?.rig;
+    if (rig && R.clips) {
+      const want = check.stop?.atCar ? R.clips.note : R.clips.idle;
+      if (rig.clips !== want) rig.setClips(want);
+      R.rig = rig;
+    }
     R.input.measure = R.input.stop = false;
     R.input.fine = null;
     // the stop sign in the raised hand
