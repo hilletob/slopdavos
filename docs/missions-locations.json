@@ -32,6 +32,48 @@
     "N": 1185440
    },
    "quelle": "js/missions-data.js (teleport promenade)"
+  },
+  {
+   "id": "jetpack-schatzalp",
+   "status": "neu",
+   "name": "Jetpack-Demo: vom Kongress auf die Schatzalp",
+   "kurz": "WEF-Woche: Ein Zürcher Start-up führt sein Jetpack vor, der Testpilot steckt am Wolfgang im Stau. Vom Kurpark durch neun Lichttore über Davos Platz (Kirchner Museum, Eisstadion, tief über die Natureisbahn, Kirchturm St. Johann), Tankstopp bei der Boxencrew an der Promenade, dann der Schatzalpbahn entlang hinauf und auf der Terrasse des Berghotels Schatzalp landen. Zeitwertung, Tank begrenzt, Strafzeit für zu schnelles Aufsetzen und Wände.",
+   "saison": "winter",
+   "fahrzeug": "Jetpack (zu Fuss)",
+   "anreise": "Start im Kurpark beim Kongresszentrum",
+   "ort": {
+    "name": "Kurpark, beim Kongresszentrum",
+    "x": 54,
+    "z": -474,
+    "lv95": {
+     "E": 2782554,
+     "N": 1185974
+    }
+   },
+   "punkte": [
+    {
+     "name": "Tankstopp: Boxencrew an der Promenade (unterhalb Schatzalpbahn-Talstation)",
+     "x": -570,
+     "z": -85,
+     "lv95": {
+      "E": 2781930,
+      "N": 1185585
+     }
+    },
+    {
+     "name": "Ziel: Terrasse Berghotel Schatzalp",
+     "x": -1190,
+     "z": -568.5,
+     "lv95": {
+      "E": 2781310,
+      "N": 1186068
+     }
+    }
+   ],
+   "quelle": "js/missions-data-jetpack.js (START, PAD, TERRACE, GATES) · OSM w116881156 Kurpark, w116881075 St. Johann, w123384643 Schatzalpbahn Talstation, w425943705 Berghotel Schatzalp · Höhen aus dem Geländemodell (js/terrain.js)",
+   "unsicherheit": "niedrig",
+   "unsicherheitNotiz": "Start und Tankplatz sind die flachsten gebäudefreien Stellen laut js/davos-geodata.js; die Terrasse ist der ebene Geländestreifen vor der Südfassade des Hotels. Die Tore und die Geschichte sind erfunden.",
+   "nr": 1
   }
  ],
  "missions": [

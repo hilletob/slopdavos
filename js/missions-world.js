@@ -508,6 +508,14 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.fillRect(-g * 0.4, -g * 0.15, g * 0.8, g * 0.05); // the door's seam
       break;
     }
+    case 'jetpack': { // the two tanks side by side, a flame under each (js/missions-data-jetpack.js)
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(s * g * 0.34, -g * 0.5, g * 0.26, Math.PI, 0); ctx.lineTo(s * g * 0.34 + g * 0.26, g * 0.15); ctx.lineTo(s * g * 0.34 - g * 0.26, g * 0.15); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(s * g * 0.34 - g * 0.2, g * 0.28); ctx.lineTo(s * g * 0.34 + g * 0.2, g * 0.28); ctx.lineTo(s * g * 0.34, g * 0.95); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillRect(-g * 0.12, -g * 0.3, g * 0.24, g * 0.2); // the frame between them
+      break;
+    }
     default:
       ctx.beginPath(); ctx.arc(0, 0, g * 0.5, 0, Math.PI * 2); ctx.fill();
   }

@@ -176,7 +176,7 @@ const _pel = new THREE.Vector3(), _ch = new THREE.Vector3(), _v = new THREE.Vect
  * little, the legs out in front (down for the landing, `legsDown` 0-1), the hands up at the brake handles (pulled down by `brakes`
  * [left, right], 0-1). Returns the pelvis' and the head's joints (the harness and the helmet follow them).
  */
-function poseHarness(rig, C, Q, yaw, brakes, legsDown, out) {
+export function poseHarness(rig, C, Q, yaw, brakes, legsDown, out) {
   const s = rig.s, j = rig.bind;
   rig.x = C.x; rig.z = C.z; rig.yaw = yaw; rig.placed = true; rig.gait = 0; rig.run = 0; rig.speed = 0;
   _pel.set(0, -0.42 - 0.12 * legsDown, -0.04).applyQuaternion(Q).add(C);
@@ -212,7 +212,7 @@ function poseHarness(rig, C, Q, yaw, brakes, legsDown, out) {
   }
 }
 const _boneQ = new THREE.Quaternion();
-function bonePoint(rig, bone, out, up = 0, q = null) {
+export function bonePoint(rig, bone, out, up = 0, q = null) {
   const a = rig.pose, o = bone * 8;
   _boneQ.set(a[o], a[o + 1], a[o + 2], a[o + 3]);
   if (q) q.copy(_boneQ);
