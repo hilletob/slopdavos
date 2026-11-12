@@ -6,6 +6,8 @@ import { snowyRoof } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { glassMaterial } from './detail-houses.js';
+import { SIMPLE_SKINS } from './landmark-buildings.js';
+import { QUALITY } from './quality.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
 import { toWorld } from './detail-houses-data.js';
 import { PFADIHEIM, PFADIHEIM_DOOR, PFADIHEIM_START, pfadiheimFrame } from './pfadiheim-data.js';
@@ -48,7 +50,20 @@ function cladding(light, dark, seamDepth = 0.45) {
   const floorSeam = float(0).add(smoothstep(0.035, 0.0, abs(U.y.sub(4.3)))).add(smoothstep(0.035, 0.0, abs(U.y.sub(7.4))));
   return tone.mul(float(1).sub(joint.mul(seamDepth))).mul(float(1).sub(floorSeam.clamp(0, 1).mul(0.5)));
 }
+// The mobile profile (js/quality.js simpleMaterials): every skin in its mean colour, no boards, grain or slats; the
+// plain ones, the roof and the lamps share the landmarks' three shaders (js/landmark-buildings.js SIMPLE_SKINS: the
+// twelve skins with their own node graphs were twelve pipelines in Safari's GPU process for one house)
+function simpleMaterials() {
+  const { plain, snowRoof, glow } = SIMPLE_SKINS;
+  return {
+    larch: plain([0.47, 0.2, 0.072], 0.88), greyLarch: plain([0.43, 0.39, 0.34], 0.92), concrete: plain([0.37, 0.37, 0.355], 0.95),
+    white: plain([0.78, 0.78, 0.76], 0.55), dark: plain([0.05, 0.055, 0.06], 0.6), timber: plain([0.16, 0.067, 0.024], 0.85),
+    roof: snowRoof([0.055, 0.057, 0.06], 0.6, 0.3), metal: plain([0.5, 0.52, 0.53], 0.4, 0.7), red: plain([0.5, 0.023, 0.027], 0.55),
+    lamp: glow([0.8, 0.8, 0.78], 0.4, 0, [1.0, 0.78, 0.5], 2.2), glass: glassMaterial()
+  };
+}
 function materials() {
+  if (QUALITY.simpleMaterials) return simpleMaterials();
   const std = (props, colorNode) => { const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0, ...props }); if (colorNode) m.colorNode = colorNode; return m; };
   const weather = mx_noise_float(positionWorld.mul(0.4)).mul(0.5).add(0.5);
   const M = {};

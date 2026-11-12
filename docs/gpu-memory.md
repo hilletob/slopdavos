@@ -10,7 +10,8 @@ when adding to the game. `releaseCpu` runs on both profiles, `flatDraws` and `dr
 
 Every 5 s (`releaseStatic` in `js/main.js`) the CPU arrays of every geometry already drawn under the roots named in
 `STATIC_ROOTS` (`BerlinMitteCityGrid`, `BerlinStreetDetails`, `surroundings`, `Ski pistes`, `Loipen`, `WinterHikes`,
-`Golf Club Davos`, `Streams`, `Parking`, `DavosTrains`, `Bergbahnen`, `ShadowProxy`, `RoadMarkings`, `WorldCells`, and the
+`Golf Club Davos`, `Streams`, `Parking`, `DavosTrains`, `Bergbahnen`, `ShadowProxy`, `RoadMarkings`, `WorldCells`,
+`VectorGround`, `VectorGroundMarkings`, and the
 swissBUILDINGS3D group once the shop signs have settled) are swapped for empty arrays. The GPU buffer, the attribute's
 count, item size and type stay.
 
@@ -51,6 +52,19 @@ Each new TSL node graph or set of defines is a pipeline of its own. Different un
 material are free, different node graphs are not. On a phone, reuse materials rather than build one per object, and
 watch for transparent or double-sided variants that quietly make a second pipeline. `dropShaderModules` frees the
 module once its pipeline exists, so this cost is paid once per variant, but it is paid.
+
+A colour written into the node graph as a literal (`m.colorNode = vec3(0.4, 0.1, 0.06)`) is such a variant: twelve
+skins of one building were twelve pipelines. Colours, strengths and measures belong in uniforms (`material.color`,
+`material.emissive` read through `materialColor` / `materialEmissive`, or `uniform()`), so that skins of one kind
+generate the same shader text and share its program: `SIMPLE_SKINS` in `js/landmark-buildings.js` (plain, snowRoof,
+glow, windowed) is what the landmarks and the Pfadiheim use on the phone.
+
+## Draws and what a frame holds
+
+What a frame draws is what Safari's GPU process holds while the frame is in flight. Scenery spread over the valley in
+one merged mesh is drawn whole whenever any corner of it is in view (the lift terminals are merged by 1.5 km squares
+for that reason); many tiny meshes cost a draw each (the roofs of the buildings swisstopo lacks: one tone and 3 km
+cells on the phone). The road paint is streamed within 260 m on the phone, three transparent draws a cell.
 
 ## Build garbage stays until the heap doubles
 

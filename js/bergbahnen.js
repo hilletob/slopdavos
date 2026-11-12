@@ -754,19 +754,28 @@ function buildRopeways(group) {
     sets.push({ mesh, entries });
   }
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), short = new THREE.Vector3(1, 0.35, 1), probe = {};
-  let time = 0;
-  return (dt) => {
+  // Every cabin and chair of the valley is placed along its rope: the biggest item of a frame's JavaScript when all of
+  // them moved every frame. Those within NEAR_UPDATE of `focus` (the camera) do; the others every fourth frame, a
+  // quarter of them at a time: a chair a kilometre off moves well under half a metre in between.
+  const NEAR_UPDATE = 900;
+  let time = 0, tick = 0;
+  return (dt, focus = null) => {
     time += dt;
+    const all = !focus || tick < 4, turn = tick++ & 3;
     for (const run of movers) run.update(dt);
     for (const { mesh, entries } of sets) {
+      let moved = false;
       entries.forEach((en, i) => {
+        if (!all && (i & 3) !== turn && Math.abs(en.px - focus.x) + Math.abs(en.pz - focus.z) > NEAR_UPDATE) return;
+        moved = true;
         if (en.line) at(en.line, en.s(), probe); else en.place(probe);
+        en.px = probe.x; en.pz = probe.z;
         // Hanging plumb, turned along the rope; a tramway cabin swings with its acceleration, the others gently
         const swing = en.sway ? Math.max(-0.08, Math.min(0.08, en.sway() * 0.06)) + Math.sin(time * 0.9 + (en.phase ?? i)) * 0.006 : Math.sin(time * 1.3 + i * 1.7) * 0.02;
         e.set(swing + (en.kick?.() || 0), Math.atan2(probe.dx, probe.dz), 0);
         mesh.setMatrixAt(i, m.compose(pos.set(probe.x, probe.y, probe.z), q.setFromEuler(e), en.tbar && probe.down ? short : one));
       });
-      mesh.instanceMatrix.needsUpdate = true;
+      if (moved) mesh.instanceMatrix.needsUpdate = true;
     }
   };
 }
@@ -883,18 +892,29 @@ function chairliftTerminal({ node, next, gauge, seats, drive, shared }) {
   geometry.translate(node.x, node.ground, node.z);
   return geometry;
 }
-// One mesh for all the lifts' terminals and stations (the chair lifts' and the others', below): one draw, the vehicles'
+// The lifts' terminals and stations (the chair lifts' and the others', below) merged by 1.5 km squares, in the vehicles'
 // material
 function buildTerminals(group, terminals) {
   // (where one lift ends and the next begins, Carjöler Rank: one middle station, the hoods back to back, one hut)
   terminals.forEach((t, i) => { t.shared = terminals.slice(0, i).some((o) => Math.hypot(o.node.x - t.node.x, o.node.z - t.node.z) < 3); });
   const geometries = [...terminals.map(chairliftTerminal), ...LIFT_TERMINALS.map(liftTerminal).filter(Boolean)];
   if (!geometries.length) return;
-  const mesh = new THREE.Mesh(mergeGeometries(geometries, false), vehicleMaterial());
+  // (a mesh per 1.5 km square: all of them in one were 26 000 triangles drawn whenever any terminal of the valley was
+  // in view; the squares out of view are culled)
+  const cells = new Map();
+  for (const g of geometries) {
+    g.computeBoundingBox();
+    const b = g.boundingBox, key = `${Math.floor((b.min.x + b.max.x) / 3000)}/${Math.floor((b.min.z + b.max.z) / 3000)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(g);
+  }
+  for (const list of cells.values()) {
+    const mesh = new THREE.Mesh(mergeGeometries(list, false), vehicleMaterial());
+    mesh.name = 'Lift terminals';
+    mesh.castShadow = mesh.receiveShadow = true;
+    group.add(mesh);
+  }
   geometries.forEach((g) => g.dispose());
-  mesh.name = 'Lift terminals';
-  mesh.castShadow = mesh.receiveShadow = true;
-  group.add(mesh);
 }
 
 // --- The other lifts' terminals: T-bars, drag lifts, gondolas and aerial tramways -----------------------------------------------
@@ -1273,5 +1293,5 @@ export function buildBergbahnen(scene) {
   scene.add(group);
   group.userData.stats = { funiculars: BERGBAHNEN.funiculars.length, ropeways: BERGBAHNEN.ropeways.length };
   group.userData.funiculars = updateFuniculars.lines.map((l) => ({ label: l.f.label, run: l.run, length: l.paths[0].len - l.trainLength - 0.6 }));
-  return { group, update(dt) { dt = Math.min(dt, 0.1); updateFuniculars(dt); updateRopeways(dt); } };
+  return { group, update(dt, focus = null) { dt = Math.min(dt, 0.1); updateFuniculars(dt); updateRopeways(dt, focus); } };
 }

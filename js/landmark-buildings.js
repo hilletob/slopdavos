@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, float, floor, fract, hash, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
+import { abs, float, floor, fract, hash, materialColor, materialEmissive, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, texture, time, uniform, uv, vec3 } from 'three/tsl';
 import { groundHeight, addRaisedSidewalk, TERRAIN } from './terrain.js';
 import { snowyRoof, winter } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
@@ -37,54 +37,80 @@ excludeBuildings(LANDMARK_EXCLUSIONS);
 // --- Materials (linear colours) ----------------------------------------------------------------------------------------------
 // The mobile profile (js/quality.js simpleMaterials): every skin in its mean colour, the windowed ones with a plain lit
 // band per floor at night, the roofs white in winter; no boards, mullions, noise or per-window hashes (a third of the
-// WGSL: ~8-9 KB each instead of ~22-26 KB, after an iPhone's GPU process died while compiling them)
+// WGSL: ~8-9 KB each instead of ~22-26 KB, after an iPhone's GPU process died while compiling them).
+// Skins of one kind share one shader: a colour written into the node graph as a literal makes a program of its own
+// (two shader modules and a pipeline in Safari's GPU process, docs/gpu-memory.md), so the colours, the glow's strength
+// and the window bands' measures are the material's own uniforms (material.color, material.emissive, uniform()) and
+// the graphs are the same: SIMPLE_SKINS, also for js/pfadiheim.js.
+const linear = (rgb) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2]);
+const nightGlow = () => smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow);
+export const SIMPLE_SKINS = {
+  /** A plain colour ([r, g, b] linear): the stock standard shader, one program for all of them */
+  plain(rgb, roughness, metalness = 0, extra = {}) {
+    return new THREE.MeshStandardNodeMaterial({ color: linear(rgb), roughness, metalness, ...extra });
+  },
+  /** A roof: white on what faces up in winter */
+  snowRoof(rgb, roughness, metalness = 0) {
+    const m = SIMPLE_SKINS.plain(rgb, roughness, metalness);
+    m.colorNode = mix(materialColor, vec3(0.84, 0.86, 0.9), smoothstep(0.35, 0.6, normalWorld.y).mul(winter));
+    return m;
+  },
+  /** Glass or a lamp: glowing (`emissive` [r, g, b], times `strength`) from dusk on */
+  glow(rgb, roughness, metalness, emissive, strength) {
+    const m = SIMPLE_SKINS.plain(rgb, roughness, metalness);
+    m.emissive = linear(emissive).multiplyScalar(strength);
+    m.emissiveNode = materialEmissive.mul(nightGlow());
+    return m;
+  },
+  /** A wall with a lit band per floor (`h` m high, the band from `lo` to `hi` of it), windows only where v >= 0 */
+  windowed(rgb, h, lo, hi, roughness, strength) {
+    const V = uv().y, f = fract(V.div(uniform(h)));
+    const b = step(0, V).mul(step(uniform(lo), f)).mul(step(f, uniform(hi)));
+    const m = SIMPLE_SKINS.plain(rgb, roughness);
+    m.colorNode = mix(materialColor, vec3(0.03, 0.035, 0.04), b);
+    m.emissive = linear([1.0, 0.66, 0.36]).multiplyScalar(strength);
+    m.emissiveNode = materialEmissive.mul(b).mul(nightGlow());
+    return m;
+  }
+};
 function simpleMaterials() {
   const V = uv().y;
   const iGlow = cityUniforms.uInteriorGlow;
   const glow = smoothstep(0.7, 1.45, iGlow);
   const warm = vec3(1.0, 0.66, 0.36);
-  // a lit band per floor (`h` m), windows only on walls whose v is >= 0 (as above)
-  const band = (h, lo, hi) => step(0, V).mul(step(lo, fract(V.div(h)))).mul(step(fract(V.div(h)), hi));
   const snowRoof = (c) => mix(c, vec3(0.84, 0.86, 0.9), smoothstep(0.35, 0.6, normalWorld.y).mul(winter));
   const make = (c, roughness, metalness = 0, extra = {}) => {
     const m = new THREE.MeshStandardNodeMaterial({ roughness, metalness, ...extra });
     m.colorNode = c;
     return m;
   };
+  const { plain, snowRoof: roof, glow: lit, windowed } = SIMPLE_SKINS;
   const M = {};
-  const windowed = (c, h, lo, hi, roughness, strength) => {
-    const b = band(h, lo, hi);
-    const m = make(mix(c, vec3(0.03, 0.035, 0.04), b), roughness);
-    m.emissiveNode = warm.mul(b).mul(glow.mul(strength));
-    return m;
-  };
-  M.larch = windowed(vec3(0.3, 0.16, 0.07), 3.8, 0.35, 0.75, 0.82, 0.6);
-  M.concrete = windowed(vec3(0.23, 0.225, 0.21), 3.8, 0.38, 0.79, 0.9, 0.5);
-  M.darkwood = windowed(vec3(0.06, 0.034, 0.02), 3.6, 0.31, 0.71, 0.8, 0.5);
-  M.plaster = windowed(vec3(0.65, 0.65, 0.63), 2.9, 0.29, 0.81, 0.9, 0.4);
-  M.glass = make(vec3(0.24, 0.28, 0.31), 0.08, 0.85);
-  M.glass.emissiveNode = vec3(1.0, 0.8, 0.58).mul(glow.mul(0.45));
-  M.roofSolar = make(snowRoof(vec3(0.1, 0.1, 0.11)), 0.6, 0.2);
-  M.roofGravel = make(snowRoof(vec3(0.27, 0.26, 0.25)), 0.92);
-  M.stadiumRoof = make(snowRoof(vec3(0.12, 0.105, 0.097)), 0.75, 0.05);
-  M.copper = make(vec3(0.42, 0.17, 0.08), 0.5, 0.6);
-  M.arenaTrim = make(vec3(0.025, 0.024, 0.023), 0.6, 0.3);
+  M.larch = windowed([0.3, 0.16, 0.07], 3.8, 0.35, 0.75, 0.82, 0.6);
+  M.concrete = windowed([0.23, 0.225, 0.21], 3.8, 0.38, 0.79, 0.9, 0.5);
+  M.darkwood = windowed([0.06, 0.034, 0.02], 3.6, 0.31, 0.71, 0.8, 0.5);
+  M.plaster = windowed([0.65, 0.65, 0.63], 2.9, 0.29, 0.81, 0.9, 0.4);
+  M.glass = lit([0.24, 0.28, 0.31], 0.08, 0.85, [1.0, 0.8, 0.58], 0.45);
+  M.roofSolar = roof([0.1, 0.1, 0.11], 0.6, 0.2);
+  M.roofGravel = roof([0.27, 0.26, 0.25], 0.92);
+  M.stadiumRoof = roof([0.12, 0.105, 0.097], 0.75, 0.05);
+  M.copper = plain([0.42, 0.17, 0.08], 0.5, 0.6);
+  M.arenaTrim = plain([0.025, 0.024, 0.023], 0.6, 0.3);
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
-  M.parsenn = windowed(vec3(0.71, 0.71, 0.69), 3.2, 0.24, 0.72, 0.85, 0.4);
+  M.parsenn = windowed([0.71, 0.71, 0.69], 3.2, 0.24, 0.72, 0.85, 0.4);
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
     const map = parsennAtlas();
     m.colorNode = texture(map, uv()).rgb;
     M.parsennSigns = m;
   }
-  M.slide = make(vec3(0.4, 0.42, 0.43), 0.3, 0.05);
+  M.slide = plain([0.4, 0.42, 0.43], 0.3, 0.05);
   M.water = make(vec3(0.04, 0.26, 0.32), 0.04, 0.3);
   M.water.emissiveNode = vec3(0.05, 0.4, 0.55).mul(smoothstep(0.6, 1.3, iGlow).mul(0.8));
   M.ice = make(vec3(0.3, 0.37, 0.42), 0.2, 0.3, { transparent: true });
   M.ice.opacityNode = winter;
   M.ice.depthWrite = true;
-  M.arenaGlass = make(vec3(0.15, 0.17, 0.19), 0.08, 0.85);
-  M.arenaGlass.emissiveNode = vec3(1.0, 0.8, 0.58).mul(glow.mul(0.45));
+  M.arenaGlass = lit([0.15, 0.17, 0.19], 0.08, 0.85, [1.0, 0.8, 0.58], 0.45);
   // (the stations' and the arcades' walls carry their kind in v's offset, see materials(): a lit band per row of windows
   // in each, none on the plain walls, v < −500)
   const lane = (v, lo, hi) => step(lo, v).mul(step(v, hi));
@@ -108,9 +134,9 @@ function simpleMaterials() {
     const sh = step(1500, V), v = V.sub(sh.mul(2000)), open = step(-500, v);
     M.arcade = banded(vec3(0.74, 0.72, 0.69), lane(v, 0.15, 3.35).add(lane(v, 4.0, 6.3)).mul(sh).mul(open), 0.88, 0.35);
   }
-  M.brick = make(vec3(0.36, 0.11, 0.065), 0.9);
-  M.redSquare = make(vec3(0.46, 0.15, 0.1), 0.8);
-  M.canopy = make(vec3(0.46, 0.47, 0.48), 0.55, 0.3);
+  M.brick = plain([0.36, 0.11, 0.065], 0.9);
+  M.redSquare = plain([0.46, 0.15, 0.1], 0.8);
+  M.canopy = plain([0.46, 0.47, 0.48], 0.55, 0.3);
   M.platform = make(snowRoof(mix(mix(vec3(0.1, 0.1, 0.102), vec3(0.42, 0.41, 0.39), step(4000, V)), vec3(0.8, 0.8, 0.78), step(5500, V))), 0.9);
   return M;
 }

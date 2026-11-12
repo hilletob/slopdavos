@@ -531,7 +531,7 @@ async function initApp() {
   // repacked), the moving vehicles, the signs (rebuilt by shops.refine) or the rail crossings (lamp attributes); the
   // buildings once the shop signs have been moved onto their facades (a raycast).
   const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
-    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells', 'VectorGround']);
+    'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells', 'VectorGround', 'VectorGroundMarkings']);
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
   if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries ${QUALITY.flatDraws ? 'with byte normals' : 'compacted'}: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
   let releasedMB = 0;
@@ -1275,7 +1275,7 @@ async function initApp() {
     gamepadControls.update(dt);
     // The trains first: in the rhb mode the player rides in one, and the controllers follow its cab this frame
     rhb.update(dt, { player: controllerManager.getActiveEntity().position });
-    bergbahnen.update(dt);
+    bergbahnen.update(dt, cameraSystem.camera.position); // (the cabins far from the camera move every fourth frame)
     vbd.update(dt, { player: controllerManager.getActiveEntity().position, barriers: levelCrossings.bodies, camera: cameraSystem.camera.position, traffic: trafficSystem });
     levelCrossings.update(dt);
     controllerManager.update(dt, elapsed);

@@ -48,6 +48,7 @@ import { berlinPoints, berlinBounds, berlinPolygonGeometry, nearestBerlinRoad, b
 import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
 import { UNSURVEYED_BUILDINGS } from './unsurveyed-buildings-data.js';
 import { surfaceHeight } from './terrain.js';
+import { QUALITY } from './quality.js';
 
 // js/buildings.js
 // Generates dense, architecturally varied Manhattan city blocks across the entire island
@@ -2012,6 +2013,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     // pools. Thin, oriented facade boxes preserve courtyard openings and the
     // angled street walls of Mitte without Manhattan's synthetic block layouts.
     const roofBuckets = [[], [], []];
+    // (on a phone the few roofs left here, of the buildings swisstopo lacks, in one tone and in cells of 3 km: the three
+    // tones in 750 m cells were 367 meshes of a few triangles each, 60 draws a frame and three pipelines)
+    const fewRoofs = bag && QUALITY.mobile;
     const roofMaterials = [0x655c51, 0x857369, 0x676b68].map(c => {
       const m = new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.9 });
       m.colorNode = color(c).mul(mx_noise_float(positionWorld.xz.mul(0.9)).mul(0.12).add(0.94));
@@ -2118,7 +2122,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         // a ground overlay and drape them onto the terrain. The walls are lifted by the ground at their middles, so
         // the roof by the mean of the ground along the outline.
         roof.translate(0, poly.reduce((sum, q) => sum + surfaceHeight(q.x, q.z), 0) / poly.length, 0);
-        roofBuckets[Math.floor(tone * 3)].push(roof);
+        roofBuckets[fewRoofs ? 0 : Math.floor(tone * 3)].push(roof);
       }
       if (drawn && !pitched && !holes.length && !source.part && height > 12 && rand() < 0.34) {
         detail.hvacUnits.push({ x: cx, z: cz, y: height, w: 2.2, h: 0.85, d: 3.0, ry: 0 });
@@ -2127,7 +2131,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }
     for (let materialIndex = 0; materialIndex < roofBuckets.length; materialIndex++) {
       let firstMesh;
-      for (const cell of berlinGeometryGroups(roofBuckets[materialIndex])) for (let i = 0; i < cell.length; i += 250) {
+      for (const cell of berlinGeometryGroups(roofBuckets[materialIndex], fewRoofs ? 3000 : undefined)) for (let i = 0; i < cell.length; i += 250) {
         const pieces = cell.slice(i, i + 250).map(g => {
           if (!g.index) return g;
           const expanded = g.toNonIndexed(); g.dispose(); return expanded;

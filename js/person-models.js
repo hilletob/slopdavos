@@ -5,6 +5,7 @@
 // dress: { model } (PersonCrowd) draws one, posed by the same PersonRig as everyone else.
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { QUALITY } from './quality.js';
 
 const cache = new Map();
 
@@ -15,7 +16,7 @@ const cache = new Map();
 export function loadPersonModel(name) {
   if (!cache.has(name)) {
     const url = new URL(`../assets/models/rocketbox-${name}.glb`, import.meta.url);
-    cache.set(name, new GLTFLoader().loadAsync(url.href).then((gltf) => {
+    cache.set(name, new GLTFLoader().loadAsync(url.href).then(async (gltf) => {
       let mesh = null;
       gltf.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
       if (!mesh) throw new Error(`[person-models] no mesh in ${url.pathname}`);
@@ -27,6 +28,16 @@ export function loadPersonModel(name) {
       const map = mesh.material.map;
       map.colorSpace = THREE.SRGBColorSpace;
       map.anisotropy = 4;
+      // (the mobile profile: the 1024 px colour atlas at half its side, 1.4 MB on the GPU with its mipmaps instead of
+      // 5.6 MB; the alpha stays straight, so the hair's cut-out edges keep their colour)
+      const image = map.image, side = Math.max(256, Math.round((image?.width || 0) * Math.max(0.5, QUALITY.atlasScale)));
+      if (QUALITY.atlasScale < 1 && image && side < image.width && typeof createImageBitmap === 'function') {
+        try {
+          map.image = await createImageBitmap(image, { resizeWidth: side, resizeHeight: Math.round(image.height * side / image.width), resizeQuality: 'medium', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+          map.needsUpdate = true;
+          image.close?.();
+        } catch { /* (the full atlas then) */ }
+      }
       const alphaTest = mesh.material.alphaTest || 0;
       mesh.material.dispose();
       const extras = gltf.asset?.extras || {};

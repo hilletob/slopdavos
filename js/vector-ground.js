@@ -214,8 +214,11 @@ const ANY = Object.freeze({ all: false, owns: () => true }); // (a cell's paint 
  * Streams the traced paint (js/ground-markings-data.js cells, data/ground-markings/) round the camera: a cell's file is
  * fetched and built when its square comes within `radius`, a couple at a time, nearest first, and dropped beyond
  * radius + 150 m. Returns { update(position), group, stats }.
+ * (On a phone 260 m: three transparent draws a cell, and at its resolution a 15 cm line is gone long before; at 380 m
+ * the cells were ~50 draws a frame and 8 MB of vertices. The group is one of js/main.js's STATIC_ROOTS: a cell's
+ * arrays leave JavaScript once drawn, nothing reads them again.)
  */
-export function streamGroundMarkings(scene, { radius = QUALITY.mobile ? 380 : 750 } = {}) {
+export function streamGroundMarkings(scene, { radius = QUALITY.mobile ? 260 : 750 } = {}) {
   const group = new THREE.Group();
   group.name = 'VectorGroundMarkings';
   group.userData.terrain = 'absolute';
