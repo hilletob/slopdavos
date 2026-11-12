@@ -14,8 +14,8 @@ import { groundHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
 import { t } from './i18n.js';
 import { ParticleBatch } from './missions-fx.js';
-import { poseHarness, bonePoint } from './missions-paraglide.js';
-import { JP, GATES, PAD, START, stepJet, gatePoint, coursePoints } from './missions-data-jetpack.js';
+import { poseHarness, bonePoint, walkerShadow, saveWalker, restoreWalker } from './missions-paraglide.js';
+import { JP, GATES, PAD, START, stepJet, gatePoint, coursePoints, jetWorld } from './missions-data-jetpack.js';
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -181,7 +181,6 @@ const BONE = { PELVIS: 0, CHEST: 1 };
 const PELVIS_STAND = 0.96; // (js/pedestrians.js PELVIS_Y: the pelvis over the soles, standing)
 const HANDS = [0.86, 0.86]; // (js/missions-paraglide.js poseHarness: the arms forward and down, at the grips)
 const _C = new THREE.Vector3(), _Q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _p = new THREE.Vector3(), _qq = new THREE.Quaternion(), _n = new THREE.Vector3();
-const jpShadow = (p) => (p._jpShadow ??= p.mesh?.children.find((c) => c.renderOrder === 998) || null);
 
 const jetpack = {
   // (the game's key hints give way to the flight's own; a touch screen keeps its stick, the steering)
@@ -190,18 +189,12 @@ const jetpack = {
     ensureStyle();
     const cm = run.hooks.controllerManager, person = cm.entities.person;
     const jp = run.jp = {
-      ...buildPack(), ...buildGates(run), roar: new Roar(run.hooks.audio), time: 0, hudT: 0, flashT: 0, lean: 0, roll: 0, steamAcc: 0, shownGate: -1,
+      ...buildPack(), ...buildGates(run), roar: new Roar(run.hooks.audio), time: 0, hudT: 0, flashT: 0, lean: 0, roll: 0, steamAcc: 0,
       pose: { head: new THREE.Vector3(), headQ: new THREE.Quaternion(), pelvis: new THREE.Vector3(), pelvisQ: new THREE.Quaternion() },
-      saved: { label: person.label, chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight, target: person.cameraTargetOffset.y }
+      saved: saveWalker(person)
     };
     // the ground under the pilot: the terrain, or the roof below; the walls of the houses (the controllers' floor plans)
-    jp.groundAt = (x, z, y) => {
-      const g = groundHeight(x, z);
-      if (y === Infinity) return g;
-      const b = cm.insideBuilding?.(x, z, null);
-      return b && b.maxY > g && y >= b.maxY - 1.2 ? b.maxY : g;
-    };
-    jp.solidAt = (x, y, z) => !!cm.insideBuilding?.(x, z, y + 1.2);
+    Object.assign(jp, jetWorld(groundHeight, (x, z, y) => cm.insideBuilding?.(x, z, y) || null));
     run.group.add(jp.pack);
     // the pit crew's drums and flag at the pad and at the start
     run.group.add(buildPit(PAD.x + PAD.r + 1.5, PAD.z + 1, 0.6), buildPit(START.x + 5, START.z + 4, 2.2));
@@ -235,23 +228,12 @@ const jetpack = {
     run.cleanups.push(() => {
       hud.remove();
       jp.roar.stop();
-      delete person.topSpeedKmh;
-      person.label = jp.saved.label;
-      const label = document.getElementById('hud-active-mode');
-      if (label) label.textContent = jp.saved.label;
-      cm.personDriver = null;
-      cm.personPoser = null;
-      const p = cm.entities.person;
-      p.rig.placed = false;
-      p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
-      p.speed = 0;
-      p.chaseDistance = jp.saved.chaseDistance; p.chaseHeight = jp.saved.chaseHeight; p.cameraTargetOffset.y = jp.saved.target;
-      if (jpShadow(p)) jpShadow(p).visible = true;
+      restoreWalker(cm, person, jp.saved);
     });
   },
   reset(run) {
     const jp = run.jp, cs = run.hooks.cameraSystem;
-    jp.lean = jp.roll = 0; jp.flashT = 0; jp.shownGate = -1;
+    jp.lean = jp.roll = 0; jp.flashT = 0;
     jp.ui.flash.textContent = '';
     const person = run.hooks.controllerManager.entities.person;
     person.rig.placed = false;
@@ -278,7 +260,8 @@ const jetpack = {
     p.chaseDistance += ((air ? 7.5 + f.speed * 0.12 : 7) * narrow - p.chaseDistance) * ease;
     p.chaseHeight += (2.6 - p.chaseHeight) * ease;
     p.cameraTargetOffset.y += (-0.9 - p.cameraTargetOffset.y) * ease;
-    if (jpShadow(p)) jpShadow(p).visible = !air || f.agl < 1.5;
+    const shadow = walkerShadow(p);
+    if (shadow) shadow.visible = !air || f.agl < 1.5;
   },
   event(run, f, e) {
     const jp = run.jp;

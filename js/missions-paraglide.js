@@ -365,8 +365,30 @@ class Vario {
 const _C = new THREE.Vector3(), _Q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _qq = new THREE.Quaternion();
 const _cc = { x: 0, z: 0 };
 
-/** The walker's soft contact shadow (js/controllers.js: the plane under its feet) */
-const pgShadow = (p) => (p._pgShadow ??= p.mesh?.children.find((c) => c.renderOrder === 998) || null);
+/** The walker's soft contact shadow (js/controllers.js: the plane under its feet), looked up again when the figure's
+ *  mesh was rebuilt */
+export function walkerShadow(p) {
+  if (p._walkerShadow?.parent !== p.mesh || !p._walkerShadow) p._walkerShadow = p.mesh?.children.find((c) => c.renderOrder === 998) || null;
+  return p._walkerShadow;
+}
+/** What a flight changes on the walker (the paraglider's, the jetpack's), to put back after it */
+export const saveWalker = (person) => ({ label: person.label, topSpeedKmh: person.topSpeedKmh, chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight, target: person.cameraTargetOffset.y });
+/** The walker back on its own feet after a flight: the speed cluster, the drivers, the chase camera, the shadow */
+export function restoreWalker(cm, person, saved) {
+  if (saved.topSpeedKmh === undefined) delete person.topSpeedKmh; else person.topSpeedKmh = saved.topSpeedKmh;
+  person.label = saved.label;
+  const hudLabel = document.getElementById('hud-active-mode');
+  if (hudLabel) hudLabel.textContent = saved.label;
+  cm.personDriver = null;
+  cm.personPoser = null;
+  const p = cm.entities.person;
+  p.rig.placed = false;
+  p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
+  p.speed = 0;
+  p.chaseDistance = saved.chaseDistance; p.chaseHeight = saved.chaseHeight; p.cameraTargetOffset.y = saved.target;
+  const shadow = walkerShadow(p);
+  if (shadow) shadow.visible = true;
+}
 
 /** The thermals the flight flies in (the free flight's: the time of day's), and those whose clouds stand */
 const flightThermals = (run) => run.thermals || THERMALS;
@@ -381,7 +403,7 @@ const paraglider = {
     const pg = run.pg = {
       wing: buildWing(), ...buildHarness(), clouds: [], time: 0, hudT: 0, pose: { head: new THREE.Vector3(), headQ: new THREE.Quaternion(), pelvis: new THREE.Vector3(), pelvisQ: new THREE.Quaternion() },
       socks: [], wind: { x: 0, z: 0, speed: 0, toward: 0 }, pitch: 0, roll: 0, deflate: 0, legs: 0, brakes: [0, 0], vario: new Vario(run.hooks.audio), flashT: 0,
-      saved: { label: person.label, chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight, target: person.cameraTargetOffset.y }
+      saved: saveWalker(person)
     };
     run.group.add(pg.wing, pg.harness, pg.helmet);
     // the speed cluster at the bottom right: a paraglider, its speed over the ground (js/main.js reads person.speed)
@@ -447,18 +469,7 @@ const paraglider = {
       hud.remove();
       ins.remove();
       pg.vario.dispose();
-      delete person.topSpeedKmh;
-      person.label = pg.saved.label;
-      const hudLabel = document.getElementById('hud-active-mode');
-      if (hudLabel) hudLabel.textContent = pg.saved.label;
-      cm.personDriver = null;
-      cm.personPoser = null;
-      const p = cm.entities.person;
-      p.rig.placed = false;
-      p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
-      p.speed = 0;
-      p.chaseDistance = pg.saved.chaseDistance; p.chaseHeight = pg.saved.chaseHeight; p.cameraTargetOffset.y = pg.saved.target;
-      if (pgShadow(p)) pgShadow(p).visible = true;
+      restoreWalker(cm, person, pg.saved);
     });
   },
   reset(run) {
@@ -493,7 +504,8 @@ const paraglider = {
     p.chaseHeight += ((air ? 3.4 : ground ? 5.5 : 4) - p.chaseHeight) * ease;
     p.cameraTargetOffset.y += ((air ? 2.6 : ground ? 1.2 : 2.2) - p.cameraTargetOffset.y) * ease;
     // (the contact shadow under the feet stays on the ground)
-    if (pgShadow(p)) pgShadow(p).visible = !air;
+    const shadow = walkerShadow(p);
+    if (shadow) shadow.visible = !air;
   },
   phaseChange(run, f) {
     if (f.phase === 'air') { paraglider.flash(run, 'Airborne!'); touchLabel(run, 'Flare'); }

@@ -18,7 +18,6 @@
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
-export const H0 = 1558; // m a.s.l. of y = 0
 
 export const JP = {
   step: 1 / 60, // s per sub-step
@@ -39,6 +38,9 @@ export const JP = {
   leanMax: 0.52, leanBack: 0.3, leanTau: 0.25, // rad the body leans, and how fast
   ceiling: 280, // m over the ground: above it the thrust no longer climbs
   walk: 2.4, // m/s on the ground
+  stepDown: 0.6, // m: a drop deeper than this under the walker's feet (a roof's edge) is no step: the pilot is in the air
+  roofReach: 1.2, // m: a roof this little above the feet is still the ground below them (a fast fall's sub-step)
+  walkReach: 25, // m: a dry pilot this close to a pad walks over to it
   // the tank (in percent): what a second in the air costs
   burnHover: 0.75, burnClimb: 0.6, burnLean: 0.18, burnSink: 0.36,
   refuel: 30, // percent a second on a pad
@@ -96,14 +98,34 @@ export function courseLength() {
 export function createJet(start = START) {
   return {
     phase: 'ground', // ground | air | crashed
-    x: start.x, y: null, z: start.z, heading: start.heading, vx: 0, vy: 0, vz: 0, lean: 0, turn: 0, thrust: 0, speed: 0, agl: 0, ground: 0,
-    fuel: 100, gate: 0, gateY: null, refuelled: false, refuelling: false, onPad: false, landed: false, dry: false,
+    x: start.x, y: null, z: start.z, heading: start.heading, vx: 0, vy: 0, vz: 0, lean: 0, turn: 0, thrust: 0, speed: 0, agl: 0, ground: null,
+    fuel: 100, gate: 0, gateY: null, gateOf: -1, refuelled: false, refuelling: false, onPad: false, landed: false, dry: false,
     airtime: 0, t: 0, acc: 0, burned: 0, tumbles: 0, bumps: 0, penaltyMs: 0, landing: null, events: []
   };
 }
 
-const onSpot = (f, spot) => Math.hypot(f.x - spot.x, f.z - spot.z) <= spot.r;
+const onSpot = (f, spot, reach = 0) => Math.hypot(f.x - spot.x, f.z - spot.z) <= spot.r + reach;
 const START_PAD = { x: START.x, z: START.z, r: 6 };
+/** A dry pilot on the ground who can still walk to a full tank (a pad), or onto the terrace at the end of the flight */
+const inWalkReach = (f) => onSpot(f, PAD, JP.walkReach) || onSpot(f, START_PAD, JP.walkReach) || (f.gate >= GATES.length && onSpot(f, TERRACE, JP.walkReach));
+
+/**
+ * The world the flight flies in, from the terrain and the houses: `terrainAt(x, z)` the terrain's height,
+ * `buildingAt(x, z, y)` the house ({ maxY }: its roof) whose floor plan (x, z) lies in and which reaches above the height
+ * y (null: at any height). Returns stepJet's { groundAt, solidAt }: a house is a wall up to its roof, and its roof is the
+ * ground for a pilot above it.
+ */
+export function jetWorld(terrainAt, buildingAt) {
+  return {
+    groundAt(x, z, y) {
+      const g = terrainAt(x, z);
+      if (y === Infinity) return g;
+      const b = buildingAt(x, z, null);
+      return b && b.maxY > g && y >= b.maxY - JP.roofReach ? b.maxY : g;
+    },
+    solidAt: (x, y, z) => !!buildingAt(x, z, y)
+  };
+}
 
 /**
  * One frame of the flight. `input`: { pitch (-1..1, + forward), turn (-1..1, + left), up (0-1, climb), down (0-1, sink) },
@@ -111,7 +133,8 @@ const START_PAD = { x: START.x, z: START.z, r: 6 };
  * runtime adds the roofs below the pilot), `solidAt(x, y, z)` whether a wall stands there (the runtime: the houses).
  */
 export function stepJet(f, input, dt, groundAt, solidAt = null) {
-  if (f.y === null) { f.y = f.ground = groundAt(f.x, f.z, Infinity); }
+  if (f.y === null) f.y = groundAt(f.x, f.z, Infinity);
+  if (f.ground === null) f.ground = groundAt(f.x, f.z, f.y);
   if (f.phase === 'crashed') return f;
   f.acc += Math.min(dt, 0.25);
   while (f.acc >= JP.step) {
@@ -120,6 +143,11 @@ export function stepJet(f, input, dt, groundAt, solidAt = null) {
     if (f.phase === 'crashed') { f.acc = 0; break; }
   }
   return f;
+}
+
+function liftOff(f) {
+  f.phase = 'air'; f.landed = false; f.onPad = f.refuelling = false;
+  f.events.push('liftoff');
 }
 
 function sub(f, input, h, groundAt, solidAt) {
@@ -133,21 +161,28 @@ function sub(f, input, h, groundAt, solidAt) {
     const v = pitch * JP.walk;
     const nx = f.x + Math.sin(f.heading) * v * h, nz = f.z + Math.cos(f.heading) * v * h;
     if (!solidAt || !solidAt(nx, f.y + 0.3, nz)) { f.x = nx; f.z = nz; }
-    f.y = f.ground = groundAt(f.x, f.z, f.y + 0.5);
+    const under = groundAt(f.x, f.z, f.y + 0.5);
+    if (under < f.y - JP.stepDown) {
+      // over a roof's edge: no step down, the pilot is in the air (the pack's computer catches the fall; a dry tank drops)
+      f.ground = under; f.agl = f.y - under; f.vy = 0; f.speed = Math.abs(v);
+      liftOff(f);
+      return;
+    }
+    f.y = f.ground = under;
     f.vx = f.vz = f.vy = 0; f.speed = Math.abs(v); f.agl = 0; f.thrust = 0;
     f.lean += (0 - f.lean) * Math.min(1, h / JP.leanTau);
     f.onPad = onSpot(f, PAD) || onSpot(f, START_PAD);
     f.refuelling = f.onPad && f.fuel < 100;
     if (f.refuelling) f.fuel = Math.min(100, f.fuel + JP.refuel * h);
     if (f.fuel >= 100 && f.gate >= TOWN_GATES && onSpot(f, PAD) && !f.refuelled) { f.refuelled = true; f.events.push('refuelled'); }
-    f.dry = f.fuel <= 0 && !f.onPad && !onTerrace(f);
-    if (up > 0 && f.fuel > 0) { f.phase = 'air'; f.vy = 1.5; f.y += 0.02; f.landed = false; f.events.push('liftoff'); }
+    // (a dry tank ends the demo only where no pad is within a walk)
+    f.dry = f.fuel <= 0 && !inWalkReach(f);
+    if (up > 0 && f.fuel > 0) { f.vy = 1.5; f.y += 0.02; liftOff(f); }
     return;
   }
   // --- in the air ---
   const powered = f.fuel > 0;
-  const ground0 = groundAt(f.x, f.z, f.y);
-  const agl0 = f.y - ground0;
+  const agl0 = f.y - f.ground; // (the ground under the pilot: the last sub-step's)
   // the nose, slower at speed
   const hs0 = Math.hypot(f.vx, f.vz);
   f.heading = wrap(f.heading + turn * (JP.yaw + (JP.yawFast - JP.yaw) * clamp(hs0 / 26, 0, 1)) * h);
@@ -196,12 +231,12 @@ function sub(f, input, h, groundAt, solidAt) {
   // the gates, in their order (the climb's only with the full tank)
   const gate = GATES[f.gate];
   if (gate && (gate.leg === 0 || f.refuelled)) {
-    const gy = f.gateY = groundAt(gate.x, gate.z, Infinity) + gate.agl;
-    if (Math.hypot(f.x - gate.x, f.y + 1 - gy, f.z - gate.z) <= JP.gateR) { f.gate++; f.events.push('gate'); }
+    if (f.gateOf !== f.gate) { f.gateOf = f.gate; f.gateY = groundAt(gate.x, gate.z, Infinity) + gate.agl; }
+    if (Math.hypot(f.x - gate.x, f.y + 1 - f.gateY, f.z - gate.z) <= JP.gateR) { f.gate++; f.events.push('gate'); }
   }
-  // the ground
-  if (f.y <= ground && f.vy <= 0) {
-    const sink = -f.vy, speed = f.speed;
+  // the ground: sinking onto it, or flown into a slope that rises faster than the flight climbs
+  if (f.y < ground || (f.y === ground && f.vy <= 0)) {
+    const sink = Math.max(0, -f.vy), speed = f.speed;
     f.y = ground; f.agl = 0;
     f.landing = { sink, speed, tumble: speed > JP.tumbleSpeed, crash: sink > JP.crashSink };
     if (f.landing.crash) { f.phase = 'crashed'; f.events.push('crash'); f.vx = f.vy = f.vz = 0; f.speed = 0; f.thrust = 0; return; }
@@ -211,7 +246,6 @@ function sub(f, input, h, groundAt, solidAt) {
   }
 }
 
-export const inAir = (f) => f.phase === 'air';
 export const onTerrace = (f) => f.phase === 'ground' && f.gate >= GATES.length && onSpot(f, TERRACE);
 
 // --- A pilot for the tests: gate after gate, the pad, the terrace --------------------------------------------------------
@@ -310,13 +344,15 @@ export const JETPACK_MISSION = {
       allowModes: ['person'],
       check(ctx, state) {
         const f = state.flight, d = Math.hypot(f.x - PAD.x, f.z - PAD.z);
+        // (the pit crew's pad only: the drums at the start fill the tank too, but the climb's gates open here)
+        const onPad = f.phase === 'ground' && onSpot(f, PAD);
         return {
           done: f.refuelled, fail: failOf(f),
-          progress: f.refuelling || (f.onPad && f.phase === 'ground') ? f.fuel / 100 : null,
-          text: f.refuelling ? `Refuelling … ${Math.round(f.fuel)} %` : `${fmtDist(d)} to ${PAD.name} · tank ${Math.round(f.fuel)} %`,
+          progress: onPad ? f.fuel / 100 : null,
+          text: onPad && f.refuelling ? `Refuelling … ${Math.round(f.fuel)} %` : `${fmtDist(d)} to ${PAD.name} · tank ${Math.round(f.fuel)} %`,
           // (standing on the pad: its column of light out of the way of the pilot and the crew's drums)
-          target: f.phase === 'ground' && f.onPad ? null : { x: PAD.x, z: PAD.z, r: PAD.r, style: 'pad' },
-          hint: f.phase === 'ground' && !f.onPad ? 'Not on the pad: Space, and hop over' : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
+          target: onPad ? null : { x: PAD.x, z: PAD.z, r: PAD.r, style: 'pad' },
+          hint: f.phase === 'ground' && !onPad ? (f.fuel <= 0 ? 'The tank is dry: walk over to the pit crew' : 'Not on the pad: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
         };
       }
     },
@@ -346,7 +382,7 @@ export const JETPACK_MISSION = {
           progress: null,
           text: `${fmtDist(d)} to the terrace · tank ${Math.round(f.fuel)} %`,
           target: { x: TERRACE.x, z: TERRACE.z, r: TERRACE.r, style: 'pad' },
-          hint: f.phase === 'ground' ? 'Not on the terrace: Space, and hop over' : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
+          hint: f.phase === 'ground' ? (f.fuel <= 0 ? 'The tank is dry: walk onto the terrace' : 'Not on the terrace: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
         };
       }
     }

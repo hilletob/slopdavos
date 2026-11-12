@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  JETPACK_MISSION, JETPACK_MISSIONS, JP, START, PAD, TERRACE, GATES, TOWN_GATES, H0, createJet, stepJet, botInput, gatePoint, coursePoints, courseLength, onTerrace, inAir
+  JETPACK_MISSION, JETPACK_MISSIONS, JP, START, PAD, TERRACE, GATES, TOWN_GATES, createJet, stepJet, botInput, gatePoint, coursePoints, courseLength, onTerrace, jetWorld
 } from '../js/missions-data-jetpack.js';
+import { FRAME } from '../js/davos-frame.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { missionMedals, missionPin } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
@@ -51,7 +52,7 @@ test('the start, the pad and the terrace are level, open ground at the right hei
   const house = (x, z) => DAVOS_DATA.buildings.find((b) => inRing(b.ring, x, z));
   const relief = (s, r) => { let lo = Infinity, hi = -Infinity; for (let a = 0; a < 6.3; a += 0.5) for (const k of [0, 0.5, 1]) { const h = groundHeight(s.x + Math.sin(a) * r * k, s.z + Math.cos(a) * r * k); lo = Math.min(lo, h); hi = Math.max(hi, h); } return hi - lo; };
   for (const [s, r, lo, hi] of [[START, 6, 1535, 1545], [PAD, PAD.r, 1550, 1562], [TERRACE, 5, 1860, 1866]]) {
-    const h = groundHeight(s.x, s.z) + H0;
+    const h = groundHeight(s.x, s.z) + FRAME.H0;
     assert.ok(h > lo && h < hi, `${s.name}: ${h} m`);
     assert.ok(relief(s, r) < 1.5, `${s.name}: relief ${relief(s, r)}`);
     for (let a = 0; a < 6.3; a += 0.4) assert.ok(!house(s.x + Math.sin(a) * r * 0.8, s.z + Math.cos(a) * r * 0.8), `${s.name}: a house on it`);
@@ -171,7 +172,7 @@ test('the gates count in their order only, and the climb\'s gates only with the 
 
 test('the bot flies the whole demo on the real terrain: every gate, the pit stop, the terrace; the medals leave room', async () => {
   const { f, time, log, legFuel } = await flyCourse();
-  assert.ok(onTerrace(f) && !inAir(f), `ended ${f.phase} at gate ${f.gate} after ${time} s`);
+  assert.ok(onTerrace(f) && f.phase === 'ground', `ended ${f.phase} at gate ${f.gate} after ${time} s`);
   assert.equal(log.filter((e) => e === 'gate').length, GATES.length);
   assert.ok(log.includes('refuelled'));
   assert.equal(f.penaltyMs, 0, 'a clean flight');
@@ -186,4 +187,109 @@ test('the bot flies the whole demo on the real terrain: every gate, the pit stop
   assert.ok(onTerrace(slow.f), `the slow bot ended ${slow.f.phase} at gate ${slow.f.gate}, tank ${slow.f.fuel}`);
   assert.ok(slow.time * 1000 < medals.bronze, `the slow bot: ${slow.time} s`);
   assert.match(JETPACK_MISSION.summary({ flight: f })[0], /^\d:\d\d in the air · \d+ % of a tank burned · a clean flight: no penalties$/);
+});
+
+test('a slope rising faster than the flight climbs is a touch-down, never a flight through the mountain', () => {
+  // (a 100 % slope up along +z, the pilot flat out with a light climb)
+  const slope = (x, z) => Math.max(0, z);
+  const f = hover(6, { vz: 26 });
+  let lowest = Infinity;
+  for (let i = 0; i < 240 && f.phase === 'air'; i++) {
+    stepJet(f, { pitch: 1, up: 0.25 }, 1 / 60, slope);
+    lowest = Math.min(lowest, f.y - slope(f.x, f.z));
+  }
+  assert.equal(f.phase, 'ground', 'the slope catches the flight');
+  assert.ok(lowest >= 0, `never under the terrain: ${lowest}`);
+  assert.ok(f.landing.tumble && !f.landing.crash && f.landing.sink === 0 && f.tumbles === 1, 'into the slope at speed: a tumble');
+  // slowly up to the same slope: a landing without a penalty, and Space lifts off again
+  const slow = hover(1, { z: -3 });
+  for (let i = 0; i < 600 && slow.phase === 'air'; i++) stepJet(slow, { pitch: 0.3 }, 1 / 60, slope);
+  assert.ok(slow.phase === 'ground' && !slow.landing.tumble && slow.penaltyMs === 0);
+  stepJet(slow, { up: 1 }, 1 / 60, slope);
+  assert.equal(slow.phase, 'air');
+});
+
+test('a house is a wall up to its roof and ground above it; over the roof\'s edge on foot the pilot is in the air', () => {
+  // a 20 m house over z = 30 … 60
+  const house = { maxY: 20 };
+  const world = jetWorld(() => 0, (x, z, y) => (z >= 30 && z <= 60 && (y === null || y < house.maxY) ? house : null));
+  const step = (f, input, n, until = () => false) => { for (let i = 0; i < n && !until(f); i++) stepJet(f, input, 1 / 60, world.groundAt, world.solidAt); return f; };
+  // level, the feet a metre under the roof's edge: a wall, not a landing on the roof
+  const low = step(hover(19, { vz: 20 }), { pitch: 1 }, 240);
+  assert.ok(low.phase === 'air' && low.z < 30 && low.bumps >= 1 && low.tumbles === 0, `phase ${low.phase}, z ${low.z}, y ${low.y}`);
+  assert.ok(Math.abs(low.y - 19) < 0.1, 'not lifted onto the roof');
+  // level, a metre over the roof: across it, no landing
+  const over = step(hover(21, { vz: 20 }), { pitch: 1 }, 240);
+  assert.ok(over.phase === 'air' && over.z > 60 && over.bumps === 0 && over.tumbles === 0);
+  // down onto the roof: the ground to land on
+  const roof = step(hover(26, { z: 45 }), { down: 1 }, 1200, (f) => f.phase !== 'air');
+  assert.ok(roof.phase === 'ground' && roof.y === 20);
+  // on foot over the edge: no jump down to the street, the pack catches the pilot at the roof's height
+  roof.heading = 0;
+  step(roof, { pitch: 1 }, 1200, (f) => f.phase === 'air');
+  assert.ok(roof.phase === 'air' && roof.z > 60 && roof.z < 60.2, `off the edge at z ${roof.z}`);
+  assert.ok(Math.abs(roof.y - 20) < 0.01 && Math.abs(roof.agl - 20) < 0.01, `still at the roof's height: ${roof.y}`);
+  step(roof, {}, 120);
+  assert.ok(roof.phase === 'air' && Math.abs(roof.y - 20) < 0.5, 'hovering beside the house');
+  // with a dry tank the same step is a fall
+  const dry = Object.assign(createJet({ x: 0, z: 59.9, heading: 0 }), { y: 20, fuel: 0 });
+  step(dry, { pitch: 1 }, 600, (f) => f.phase === 'crashed');
+  assert.equal(dry.phase, 'crashed');
+  // on the street the house is in the way
+  const street = step(createJet({ x: 0, z: 25, heading: 0 }), { pitch: 1 }, 600);
+  assert.ok(street.phase === 'ground' && street.z < 30 && street.y === 0);
+});
+
+test('only the pit crew\'s pad counts for the full tank; a dry pilot near a pad walks over to it', () => {
+  const [, refuel, , land] = JETPACK_MISSION.objectives;
+  // back at the start after the town's gates: its drums fill the tank, but the step still points at the pad
+  const home = Object.assign(createJet(), { fuel: 40, gate: TOWN_GATES });
+  for (let i = 0; i < 30; i++) stepJet(home, {}, 1 / 60, flat(0));
+  assert.ok(home.refuelling && home.fuel > 50);
+  let c = refuel.check({}, { flight: home });
+  assert.ok(!c.done && c.progress === null && c.target && c.target.x === PAD.x);
+  assert.match(c.text, /to the pit crew on the Promenade · tank \d+ %$/);
+  assert.equal(c.hint, 'Not on the pad: Space, and hop over');
+  for (let i = 0; i < 300; i++) stepJet(home, {}, 1 / 60, flat(0));
+  assert.ok(home.fuel === 100 && !home.refuelled && !refuel.check({}, { flight: home }).done);
+  // lifting off in the middle of a fill: no longer refuelling
+  const off = Object.assign(createJet({ ...PAD, heading: 0 }), { fuel: 40, gate: TOWN_GATES });
+  stepJet(off, {}, 0.1, flat(0));
+  c = refuel.check({}, { flight: off });
+  assert.ok(off.refuelling && c.target === null && c.progress > 0.4);
+  assert.match(c.text, /^Refuelling … \d+ %$/);
+  stepJet(off, { up: 1 }, 0.1, flat(0));
+  assert.ok(off.phase === 'air' && !off.refuelling && !off.onPad);
+  // dry, a metre outside the pad: no failure, a walk onto it and the tank fills
+  const near = Object.assign(createJet({ x: PAD.x, z: PAD.z - PAD.r - 1, heading: 0 }), { fuel: 0, gate: TOWN_GATES });
+  stepJet(near, {}, 0.1, flat(0));
+  c = refuel.check({}, { flight: near });
+  assert.ok(!near.dry && c.fail === null);
+  assert.equal(c.hint, 'The tank is dry: walk over to the pit crew');
+  for (let i = 0; i < 600 && !near.refuelled; i++) stepJet(near, { pitch: 1 }, 1 / 60, flat(0));
+  assert.ok(near.refuelled && refuel.check({}, { flight: near }).done);
+  // dry beyond the walk: the demo is over
+  const far = Object.assign(createJet({ x: PAD.x, z: PAD.z - PAD.r - JP.walkReach - 2, heading: 0 }), { fuel: 0, gate: TOWN_GATES });
+  stepJet(far, {}, 0.1, flat(0));
+  assert.ok(far.dry && /pit crew/.test(refuel.check({}, { flight: far }).fail));
+  // dry beside the terrace at the end: the last steps on foot
+  const end = Object.assign(createJet({ x: TERRACE.x + TERRACE.r + 2, z: TERRACE.z, heading: -Math.PI / 2 }), { fuel: 0, gate: GATES.length, refuelled: true });
+  stepJet(end, {}, 0.1, flat(0));
+  c = land.check({}, { flight: end });
+  assert.ok(!end.dry && !c.done && c.fail === null);
+  assert.equal(c.hint, 'The tank is dry: walk onto the terrace');
+  for (let i = 0; i < 300 && !onTerrace(end); i++) stepJet(end, { pitch: 1 }, 1 / 60, flat(0));
+  assert.ok(land.check({}, { flight: end }).done);
+});
+
+test('the flight samples the ground once a sub-step, a gate\'s height once a gate', () => {
+  let calls = 0, gateCalls = 0;
+  const ground = (x, z, y) => { calls++; if (y === Infinity) gateCalls++; return 0; };
+  const f = hover(50);
+  stepJet(f, {}, 1 / 60, ground); // (the first step: the ground under the pilot too)
+  calls = gateCalls = 0;
+  for (let i = 0; i < 120; i++) stepJet(f, { pitch: 1 }, 1 / 60, ground);
+  assert.equal(gateCalls, 0, 'the gate\'s height is kept');
+  assert.ok(calls <= 121, `${calls} ground samples in 120 sub-steps`);
+  assert.equal(f.gateY, GATES[0].agl);
 });

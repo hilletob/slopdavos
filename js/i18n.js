@@ -1169,6 +1169,7 @@ const pairs = [
   ['Fly the gates over the town', 'Die Tore über dem Ort durchfliegen'], ['Land at the pit crew for a full tank', 'Bei der Boxencrew landen und volltanken'], ['Climb along the Schatzalpbahn', 'Der Schatzalpbahn entlang hinaufsteigen'],
   ['Land on the terrace of the Berghotel Schatzalp', 'Auf der Terrasse des Berghotels Schatzalp landen'], ['Space: lift off', 'Leertaste: abheben'], ['The tank is nearly dry!', 'Der Tank ist fast leer!'],
   ['Not on the pad: Space, and hop over', 'Nicht auf dem Platz: Leertaste, und hinüberhüpfen'], ['Not on the terrace: Space, and hop over', 'Nicht auf der Terrasse: Leertaste, und hinüberhüpfen'],
+  ['The tank is dry: walk over to the pit crew', 'Der Tank ist leer: zu Fuss zur Boxencrew'], ['The tank is dry: walk onto the terrace', 'Der Tank ist leer: zu Fuss auf die Terrasse'],
   ['Slow down for the landing: S', 'Für die Landung abbremsen: S'], ['The tank ran dry in the air and the jetpack came down like a stone. The investors look away.', 'Der Tank war in der Luft leer, und das Jetpack fiel wie ein Stein. Die Investoren schauen weg.'],
   ['The tank is dry, and the pit crew is somewhere else. The demo ends on foot.', 'Der Tank ist leer, und die Boxencrew steht woanders. Die Demo endet zu Fuss.'], ['Too fast: a tumble! +10 s', 'Zu schnell: Purzelbaum! +10 s'],
   ['A wall! +3 s', 'Eine Wand! +3 s'], ['Tank full: go!', 'Tank voll: los!'], ['The tank is dry!', 'Der Tank ist leer!'], ['Jetpack', 'Jetpack'], ['Tank', 'Tank'], ['Gates', 'Tore'], ['Penalty', 'Strafzeit'],
