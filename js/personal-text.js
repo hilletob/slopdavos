@@ -10,7 +10,8 @@ import { readCharacter } from './player-character.js';
 // in the account menu, and loaded only then (js/missions.js imports it on demand). Nothing here stands in the game's way:
 // the dialog shows the mission's own text, and the personal one takes its place when it arrives in time.
 //
-// The browser sends the mission's texts and numbers, this visit (how long, how the player got about, which missions) and
+// The browser sends the mission's texts and numbers, this visit (how long, how the player got about, which missions, the
+// game's time of day and season) and
 // the character the player wrote for themselves (js/player-character.js); the player's name, the game as a whole and the
 // writer's notes about the player are read by the function from the database. The text comes back in the language asked
 // for, so it is kept out of the translation (js/i18n.js: .ai-text).
@@ -40,14 +41,17 @@ export function noteMission(id, outcome, ms = null, medal = null) {
   if (events.length > EVENTS_MAX) events.shift();
 }
 
-/** This visit for the request: minutes played, the ways of travel by time, the missions so far */
-export function sessionFacts({ session = currentSession(), now = Date.now(), log = events, touch = !!globalThis.document?.body?.classList?.contains('touch-enabled') } = {}) {
+/** This visit for the request: minutes played, the ways of travel by time, the missions so far, and the game's own
+ *  time (`clock`: { minute of the day, season, day }, js/game-clock.js: the texts speak of that, not of the wall clock) */
+export function sessionFacts({ session = currentSession(), clock = null, log = events, touch = !!globalThis.document?.body?.classList?.contains('touch-enabled') } = {}) {
   const modes = Object.entries(session?.modes || {})
     .map(([kind, m]) => ({ kind, minutes: Math.round(m.ms / 6000) / 10, km: Math.round(m.m / 100) / 10 }))
     .sort((a, b) => b.minutes - a.minutes).slice(0, 6);
   return {
     minutes: Math.round((session?.playMs || 0) / 60000),
-    hour: new Date(now).getHours(),
+    minute: Number.isFinite(clock?.minute) ? Math.floor(clock.minute) : null,
+    season: clock?.season === 'winter' || clock?.season === 'summer' ? clock.season : null,
+    day: Number.isFinite(clock?.day) ? clock.day : null,
     touch,
     modes,
     events: log.slice(-EVENTS_MAX)
@@ -97,10 +101,10 @@ async function sessionToken() {
 /**
  * The text for `def` at `moment` ('intro' | 'finish'), or null: switched off, signed out, over the day's allowance, the
  * function out of reach, or an answer it would not pass on. `title`, `briefing`, `summary`, `figure`: the mission's own
- * texts and the figure's label as the page shows them; `entry`: the player's progress entry of the mission; `result`:
+ * texts and the figure's label as the page shows them; `clock`: the game's time; `entry`: the player's progress entry of the mission; `result`:
  * MissionRun.result at the end.
  */
-export async function personalText({ def, title = def.title, briefing, summary = [], moment, entry = null, result = null, figure = '', lang = pageLanguage() },
+export async function personalText({ def, title = def.title, briefing, summary = [], moment, entry = null, result = null, figure = '', clock = null, lang = pageLanguage() },
   { fetcher = fetch, storage = globalThis.localStorage, cache = globalThis.sessionStorage, token = sessionToken, session = sessionFacts } = {}) {
   if (!aiTextOn(storage) || !briefing) return null;
   const character = readCharacter(storage);
@@ -112,7 +116,7 @@ export async function personalText({ def, title = def.title, briefing, summary =
     const response = await fetcher(`${SUPABASE_URL}/functions/v1/mission-text`, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${access}`, 'content-type': 'application/json' },
-      body: JSON.stringify(requestBody({ def, title, briefing, summary, moment, lang, entry, result, character, figure, session: session() })),
+      body: JSON.stringify(requestBody({ def, title, briefing, summary, moment, lang, entry, result, character, figure, session: session({ clock }) })),
       signal: AbortSignal.timeout(TIMEOUT)
     });
     if (!response.ok) return null;

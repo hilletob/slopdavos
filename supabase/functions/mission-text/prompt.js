@@ -36,7 +36,14 @@ function cleanSession(s) {
   const events = (Array.isArray(s.events) ? s.events : []).slice(-8)
     .filter((e) => isObject(e) && isId(e.mission) && OUTCOMES.includes(e.outcome))
     .map((e) => ({ mission: e.mission, outcome: e.outcome, seconds: num(e.seconds, 21600), medal: medal(e.medal) }));
-  return { minutes: num(s.minutes, 6000) || 0, hour: Number.isInteger(s.hour) && s.hour >= 0 && s.hour < 24 ? s.hour : null, touch: flag(s.touch), modes, events };
+  return {
+    minutes: num(s.minutes, 6000) || 0,
+    // (the game's own clock, js/game-clock.js: minute of its day, its season, its day counted from 1)
+    minute: Number.isInteger(s.minute) && s.minute >= 0 && s.minute < 1440 ? s.minute : null,
+    season: s.season === 'winter' || s.season === 'summer' ? s.season : null,
+    day: Number.isInteger(s.day) && s.day > 0 && s.day < 1e6 ? s.day : null,
+    touch: flag(s.touch), modes, events
+  };
 }
 
 /** The request as the function takes it, or null for one it refuses */
@@ -142,7 +149,11 @@ export function facts(req, save = {}) {
   const s = req.session;
   if (s) {
     lines.push('', 'This visit to the game:');
-    lines.push(`Playing for: ${Math.round(s.minutes)} minutes${s.hour === null ? '' : `, local time about ${s.hour}:00`}${s.touch ? ', on a touch screen' : ''}`);
+    lines.push(`Playing for: ${Math.round(s.minutes)} minutes${s.touch ? ', on a touch screen' : ''}`);
+    if (s.minute !== null) {
+      const time = `${String(Math.floor(s.minute / 60)).padStart(2, '0')}:${String(s.minute % 60).padStart(2, '0')}`;
+      lines.push(`In the game's world it is ${time}${s.season ? ` on a ${s.season} day` : ''}${s.day ? ` (day ${s.day} of this player's game)` : ''}. Any mention of the time of day or the season refers to this, never to the real clock.`);
+    }
     const moved = s.modes.filter((m) => m.minutes >= 0.5 || m.km >= 0.1);
     if (moved.length) lines.push(`Got about by: ${moved.map((m) => `${m.kind} (${Math.round(m.minutes)} min, ${m.km.toFixed(1)} km)`).join(', ')}`);
     if (s.events.length) lines.push(`Missions this visit, oldest first: ${s.events.map((ev) => `${ev.mission} ${ev.outcome}${ev.medal ? ` with ${ev.medal}` : ''}${ev.seconds === null ? '' : ` after ${Math.round(ev.seconds)} s`}`).join('; ')}`);
@@ -164,7 +175,7 @@ Each request gives you the mission's original text and asks for your own version
 How to make it land:
 - Have an idea for each text, not just a tone: one observation, image or running thread that this particular text is built around, found in the mission and in what the player has been up to. Stay yourself throughout, a quick-witted local at the dispatch desk; the surprise comes from what you notice, not from putting on a different voice.
 - Be funny the way a quick-witted local is funny: dry asides, affectionate teasing about what the player just did or keeps doing, a deadpan observation, an absurd but harmless exaggeration. Tease the player's record and habits, never the player as a person. One or two good jokes beat a joke in every sentence.
-- Use what you know about the player as material. Someone who has been walking for forty minutes and now wants to fly a helicopter, who failed the same slalom twice tonight, who is playing at two in the morning, who claims to be a retired ski instructor: that is where the surprise comes from. Pick the one or two facts with the most comic or dramatic potential; do not recite the list. Numbers about the player are written exactly as they stand in the facts.
+- Use what you know about the player as material. Someone who has been walking for forty minutes and now wants to fly a helicopter, who failed the same slalom twice this visit, who sets out at two in the morning by the game's clock, who claims to be a retired ski instructor: that is where the surprise comes from. Pick the one or two facts with the most comic or dramatic potential; do not recite the list. Numbers about the player are written exactly as they stand in the facts.
 - Davos itself is fair game for colour: the altitude, the weather, hockey, the conference crowd, tourists, mountain railways, the general Swiss fondness for punctuality and rules. Keep such colour clearly as banter, apart from the mission's instructions.
 - Vary your openings and your rhythm. Do not start with the player's name or with a greeting as a habit; your notes tell you what you did last time, so do something else.
 

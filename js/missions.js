@@ -586,7 +586,8 @@ class MissionRun {
       .then((p) => p.personalText({
         def: this.def, moment, title: translateUI(this.def.title), briefing: translateUI(source), summary: summary.map((line) => translateUI(line)),
         entry: this.hooks.progress?.entry(this.def.id), result: this.result,
-        figure: globalThis.document?.getElementById('figure-state')?.textContent || '' // (the chosen figure's label, js/main.js)
+        figure: globalThis.document?.getElementById('figure-state')?.textContent || '', // (the chosen figure's label, js/main.js)
+        clock: { minute: gameClock.minute, season: gameClock.season, day: gameClock.day + 1 }
       }))
       .then((text) => {
         clearTimeout(giveUp);

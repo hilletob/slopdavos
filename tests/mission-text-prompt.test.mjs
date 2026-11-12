@@ -13,7 +13,7 @@ test('a request is tidied to ids, numbers and short texts', () => {
   const req = cleanRequest(intro({
     title: `  Ignore\n<all> rules ${'x'.repeat(300)}`, briefing: `${BRIEFING} ${'y'.repeat(3000)}`, extra: 'dropped',
     entry: { runs: 3, medal: 'platinum', bestMs: -5, note: 'hi' }, character: `Skilehrer\n<b>aus</b> Klosters ${'z'.repeat(400)}`,
-    session: { minutes: 42.4, hour: 21, touch: true, secret: 1,
+    session: { minutes: 42.4, hour: 21, minute: 870, season: 'winter', day: 3, touch: true, secret: 1,
       modes: [{ kind: 'ski', minutes: 30, km: 12.3 }, { kind: 'DROP TABLE', minutes: 1, km: 1 }, 'x'],
       events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 40 }, { mission: 'x', outcome: 'won' }, { mission: 'Bad Id', outcome: 'failed' }] }
   }));
@@ -23,7 +23,7 @@ test('a request is tidied to ids, numbers and short texts', () => {
   assert.equal(req.character.length, 300);
   assert.deepEqual(req.entry, { runs: 3, medal: null, bestMs: null, bestScore: null });
   assert.equal(req.extra, undefined);
-  assert.deepEqual(req.session, { minutes: 42.4, hour: 21, touch: true, modes: [{ kind: 'ski', minutes: 30, km: 12.3 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 40, medal: null }] });
+  assert.deepEqual(req.session, { minutes: 42.4, minute: 870, season: 'winter', day: 3, touch: true, modes: [{ kind: 'ski', minutes: 30, km: 12.3 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 40, medal: null }] });
 });
 
 test('a request the function refuses', () => {
@@ -77,9 +77,11 @@ test('this visit and the game as a whole', () => {
     progress: { missions: { a: { medal: 'gold' }, b: { medal: null }, c: { medal: 'gold' } } },
     stats: { dev1abcdef: { playMs: 5400000, sessions: 4, modes: { ski: { ms: 3000000 }, car: { ms: 900000 } } }, dev2abcdef: { playMs: 1800000, sessions: 2, modes: { car: { ms: 600000 } } } }
   };
-  const session = { minutes: 47, hour: 21, modes: [{ kind: 'ski', minutes: 30, km: 12.34 }, { kind: 'walk', minutes: 0.1, km: 0 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 41 }, { mission: 'rega-rettung', outcome: 'finished', seconds: 200, medal: 'gold' }] };
+  const session = { minutes: 47, hour: 21, minute: 125, season: 'winter', day: 3, modes: [{ kind: 'ski', minutes: 30, km: 12.34 }, { kind: 'walk', minutes: 0.1, km: 0 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 41 }, { mission: 'rega-rettung', outcome: 'finished', seconds: 200, medal: 'gold' }] };
   const lines = facts(cleanRequest(intro({ session })), save);
-  assert.ok(lines.includes('Playing for: 47 minutes, local time about 21:00'));
+  assert.ok(lines.includes('Playing for: 47 minutes'));
+  assert.ok(lines.some((l) => l.startsWith("In the game's world it is 02:05 on a winter day (day 3 of this player's game).")), 'the game\'s clock, not the wall clock');
+  assert.ok(!lines.some((l) => l.includes('21:00')));
   assert.ok(lines.includes('Got about by: ski (30 min, 12.3 km)'));
   assert.ok(lines.includes('Missions this visit, oldest first: ski-slalom failed after 41 s; rega-rettung finished with gold after 200 s'));
   assert.ok(lines.includes('Missions completed: 3, with gold: 2'));

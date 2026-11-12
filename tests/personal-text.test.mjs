@@ -15,7 +15,7 @@ const briefing = 'Steer with A/D, W to tuck, S to brake.';
 const entry = { runs: 3, medal: 'bronze', bestMs: 85450, at: 1 };
 const signedIn = (more = {}) => memory({ 'slopdavos-session': '{}', ...more });
 const ok = (text) => async () => ({ ok: true, json: async () => ({ text }) });
-const noSession = () => ({ minutes: 0, hour: 12, touch: false, modes: [], events: [] });
+const noSession = () => ({ minutes: 0, minute: null, season: null, day: null, touch: false, modes: [], events: [] });
 
 test('only for a signed-in player who has not switched it off', () => {
   assert.equal(aiTextOn(memory()), false);
@@ -42,7 +42,7 @@ test('the request carries the token, the texts, the character and this visit, as
   let seen = null;
   const fetcher = async (url, init) => { seen = { url, init }; return { ok: true, json: async () => ({ text: 'Dritter Anlauf.' }) }; };
   const storage = signedIn({ [CHARACTER_KEY]: JSON.stringify('Pensionierter Skilehrer aus Klosters') });
-  const session = () => ({ minutes: 47, hour: 21, touch: false, modes: [{ kind: 'ski', minutes: 30, km: 12.3 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 41, medal: null }] });
+  const session = () => ({ minutes: 47, minute: 870, season: 'winter', day: 3, touch: false, modes: [{ kind: 'ski', minutes: 30, km: 12.3 }], events: [{ mission: 'ski-slalom', outcome: 'failed', seconds: 41, medal: null }] });
   const text = await personalText({ def, title: 'Slalom auf der Davos Vertical', briefing, moment: 'intro', entry, figure: 'Kapuzenpulli', lang: 'de' }, { fetcher, storage, cache: memory(), token: async () => 'tok', session });
   assert.equal(text, 'Dritter Anlauf.');
   assert.match(seen.url, /\/functions\/v1\/mission-text$/);
@@ -94,9 +94,11 @@ test('anything that goes wrong is no text', async () => {
 test('this visit: the ways of travel by time and the last missions', () => {
   for (let i = 0; i < 10; i++) noteMission(`mission-${i}`, i % 2 ? 'finished' : 'failed', 41500, i % 2 ? 'gold' : null);
   const visit = { startedAt: 0, playMs: 47 * 60000, modes: { walk: { ms: 120000, m: 150 }, ski: { ms: 1800000, m: 12340 } } };
-  const s = sessionFacts({ session: visit, now: new Date(2026, 10, 12, 21, 30).getTime(), touch: true });
+  const s = sessionFacts({ session: visit, clock: { minute: 870.6, season: 'winter', day: 3 }, touch: true });
   assert.equal(s.minutes, 47);
-  assert.equal(s.hour, 21);
+  assert.equal(s.minute, 870, 'the game\'s clock');
+  assert.equal(s.season, 'winter');
+  assert.equal(s.hour, undefined, 'the wall clock is not sent');
   assert.equal(s.touch, true);
   assert.deepEqual(s.modes, [{ kind: 'ski', minutes: 30, km: 12.3 }, { kind: 'walk', minutes: 2, km: 0.2 }]);
   assert.equal(s.events.length, 8);
