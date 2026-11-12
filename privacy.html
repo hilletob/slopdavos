@@ -32,11 +32,14 @@
   <p>Auf der Startseite zeigen wir <strong>Summen über alle Konten</strong>: gespielte Stunden, zurückgelegte Kilometer (auch je Fortbewegungsart), geschaffte Missionen, Medaillen und die Zahl der Konten. Darin fliessen deine Spielstatistik und dein Spielstand mit ein, aber nichts davon lässt sich dir zuordnen. Wer ohne Konto spielt, zählt nicht mit.</p>
   <h2>Rennen mit anderen</h2>
   <p>Fährst du ein Rennen mit anderen (Link mit Raumcode), sehen die anderen im selben Raum deinen Namen im Rennen und laufend die Position und Bewegung deines Fahrzeugs, solange du im Raum bist. Das läuft live über Supabase und wird nicht gespeichert. Als Gast wählst du den Namen selbst; er bleibt auf deinem Gerät gespeichert. Mit Konto ist es dein Pseudonym. Rennzeiten von angemeldeten Spielerinnen und Spielern kommen wie sonst in die Bestenliste.</p>
-  <p>Die übrigen Daten nutzen wir nur für deine Anmeldung und damit dein Spiel auf deinen Geräten weiterläuft. Wir geben sie nicht weiter und zeigen sie niemandem an. Es gibt keine Werbung und keine Analyse-Tools.</p>
+  <h2>Persönliche Missionstexte</h2>
+  <p>Bist du angemeldet, schreibt eine KI die Texte der Missionen für dich. Dafür gehen bei jedem solchen Text an <strong>Anthropic</strong> (Claude): dein Pseudonym, dein Spielstand und deine Spielstatistik, was du im laufenden Besuch gespielt hast (Dauer, Fortbewegungsarten, Missionen und ihr Ausgang, Tageszeit), der Text der Mission und, wenn du einen eingetragen hast, der Charakter, den du unter «Deine Figur» beschreibst. Deine E-Mail-Adresse und deine Konto-Kennung gehen nicht mit. Damit der nächste Text an den letzten anknüpft, speichern wir pro Konto ein paar Zeilen Notizen der KI über deine Spielweise; sie werden mit dem Konto gelöscht. Unter «Konto» → «Persönliche Texte» schaltest du das aus; dann geht nichts davon an Anthropic.</p>
+  <p>Die übrigen Daten nutzen wir nur für deine Anmeldung und damit dein Spiel auf deinen Geräten weiterläuft. Abgesehen von den persönlichen Missionstexten geben wir sie nicht weiter und zeigen sie niemandem an. Es gibt keine Werbung und keine Analyse-Tools.</p>
   <h2>Dienste</h2>
   <ul>
     <li><strong>Supabase</strong> betreibt Anmeldung, Datenbank und die Verbindung bei Rennen und verschickt die Anmelde-Codes per E-Mail. Die Datenbank liegt in der EU. Rufst du die Startseite auf (für die Summen), öffnest du eine Bestenliste oder fährst du ein Rennen, erhält Supabase dabei technisch bedingt deine IP-Adresse, auch ohne Konto.</li>
     <li><strong>Google</strong> bzw. <strong>Apple</strong> wickelt die Anmeldung ab, wenn du sie wählst.</li>
+    <li><strong>Anthropic</strong> schreibt die persönlichen Missionstexte, wenn du angemeldet bist und sie nicht ausgeschaltet hast (siehe oben).</li>
     <li><strong>GitHub Pages</strong> liefert die Seiten, Bilder und Videos aus. Im Spiel kommen von <strong>jsDelivr</strong> Programmbibliotheken und von <strong>Google Fonts</strong> die Schriften; die Startseite lädt ihre Schrift vom eigenen Server. Dabei erhalten diese Dienste technisch bedingt deine IP-Adresse, auch ohne Konto.</li>
   </ul>
   <p>Diese Anbieter können Daten ausserhalb der Schweiz und der EU verarbeiten, insbesondere in den USA.</p>
@@ -62,11 +65,14 @@
     <p>The front page shows <strong>totals over all accounts</strong>: hours played, kilometres travelled (also by way of travel), missions completed, medals and the number of accounts. Your play statistics and your save count towards them, but nothing in them can be traced back to you. Players without an account are not counted.</p>
     <h2>Racing with others</h2>
     <p>When you race with others (a link with a room code), the others in the same room see your name in the race and, continuously, the position and movement of your vehicle for as long as you are in the room. This runs live over Supabase and is not stored. As a guest you choose the name yourself; it is kept on your device. With an account it is your pseudonym. Race times of signed-in players go on the leaderboard as usual.</p>
-    <p>We use the rest of this data only to sign you in and to let your game continue across your devices. We do not pass it on or show it to anyone. There are no ads and no analytics tools.</p>
+    <h2>Personal mission texts</h2>
+    <p>When you are signed in, an AI writes the missions' texts for you. For each such text the following goes to <strong>Anthropic</strong> (Claude): your pseudonym, your progress and your play statistics, what you have played during the current visit (duration, ways of travel, missions and how they ended, time of day), the mission's text and, if you have entered one, the character you describe under “Your figure”. Your email address and your account id are not sent. So that the next text can build on the last, we keep a few lines of the AI's notes about how you play per account; they are deleted with the account. You switch this off under “Account” → “Personal texts”; then none of it goes to Anthropic.</p>
+    <p>We use the rest of this data only to sign you in and to let your game continue across your devices. Apart from the personal mission texts we do not pass it on or show it to anyone. There are no ads and no analytics tools.</p>
     <h2>Services</h2>
     <ul>
       <li><strong>Supabase</strong> runs the sign-in, the database and the connection during races, and sends the sign-in codes by email. The database is located in the EU. When you open the front page (for the totals), open a leaderboard or join a race, Supabase receives your IP address for technical reasons, even without an account.</li>
       <li><strong>Google</strong> or <strong>Apple</strong> handles the sign-in if you choose it.</li>
+      <li><strong>Anthropic</strong> writes the personal mission texts when you are signed in and have not switched them off (see above).</li>
       <li><strong>GitHub Pages</strong> serves the pages, images and videos. In the game, <strong>jsDelivr</strong> serves code libraries and <strong>Google Fonts</strong> the fonts; the front page loads its font from our own server. For technical reasons these services receive your IP address, even without an account.</li>
     </ul>
     <p>These providers may process data outside Switzerland and the EU, in particular in the USA.</p>

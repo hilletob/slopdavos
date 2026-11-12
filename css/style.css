@@ -1939,6 +1939,34 @@ body.touch-enabled .pop-item { min-height: 44px; }
   color: var(--text-2);
 }
 
+/* A mission's text written for this player (js/personal-text.js): marked at its left edge */
+.mission-dialog-personal {
+  padding-left: 10px;
+  border-left: 3px solid var(--taxi);
+  color: var(--text);
+  animation: personal-in 0.35s ease-out;
+}
+@keyframes personal-in { from { opacity: 0; } to { opacity: 1; } }
+/* While it is being written: a spinner where the text will stand, with room for a few lines so the dialog jumps less */
+.mission-dialog-writing { display: flex; align-items: center; gap: 10px; min-height: 5.5em; color: var(--text-3); }
+.mission-dialog-spinner {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18); border-top-color: var(--taxi);
+  animation: personal-spin 0.8s linear infinite;
+}
+@keyframes personal-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mission-dialog-spinner { animation-duration: 2.4s; } }
+@media (prefers-reduced-motion: reduce) { .mission-dialog-personal { animation: none; } }
+
+/* What the player says about themselves (js/player-character.js), under the figures */
+.figure-character { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: 12.5px; color: var(--text-2); }
+.figure-character textarea {
+  width: 100%; min-height: 64px; resize: vertical; padding: 9px 10px; font: inherit; font-size: 16px; line-height: 1.35;
+  color: var(--text); background: var(--hover); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 8px;
+}
+.figure-character-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.figure-character-state { font-size: 12px; color: var(--text-3); }
+
 .mission-board { display: flex; flex-direction: column; gap: 6px; }
 .mission-board-title { margin: 4px 0 0; font-size: 13px; font-weight: 700; }
 .mission-board-note { margin: 0; font-size: 12px; color: var(--text-3); }

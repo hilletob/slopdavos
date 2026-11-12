@@ -9,7 +9,7 @@ import { STATS_KEY } from './play-stats.js';
 
 export const PROGRESS_KEY = 'slopdavos-progress';
 export const BEST_KEY = 'slopdavos-mission-best';
-export const WORLD_KEYS = { player: 'slopdavos-player-state', gta: 'slopdavos-gta', clock: 'slopdavos-clock', figure: 'slopdavos-figure' };
+export const WORLD_KEYS = { player: 'slopdavos-player-state', gta: 'slopdavos-gta', clock: 'slopdavos-clock', figure: 'slopdavos-figure', character: 'slopdavos-character' };
 export const WORLD_AT_KEY = 'slopdavos-world-at';
 export const OWNER_KEY = 'slopdavos-account-owner';
 

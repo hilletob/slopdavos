@@ -61,6 +61,21 @@ export async function startAccount({ save, leaving, missionActive, pause, progre
     location.replace(location.pathname + location.search);
   };
 
+  /** The missions' texts written for the player (js/personal-text.js): on unless switched off here */
+  const aiTextItem = () => {
+    const key = 'slopdavos-ai-text';
+    const on = () => { try { return localStorage.getItem(key) !== 'off'; } catch { return false; } };
+    const label = () => `Personal texts: ${on() ? 'on' : 'off'}`;
+    const b = item(label(), (name) => {
+      try { if (on()) localStorage.setItem(key, 'off'); else localStorage.removeItem(key); } catch { /* (private mode) */ }
+      name.textContent = label();
+      b.setAttribute('aria-pressed', String(on()));
+    });
+    b.setAttribute('aria-pressed', String(on()));
+    b.title = 'The missions\' texts written for you by an AI. For it your leaderboard name, your progress, how you play and the character you describe go to Anthropic.';
+    return b;
+  };
+
   const tagged = (provider, b) => { b.dataset.provider = provider; b.hidden = true; return b; };
   const renderGuest = () => {
     button.setAttribute('aria-pressed', 'false'); // (the toolbar's button says "Sign in", css/style.css)
@@ -134,7 +149,7 @@ export async function startAccount({ save, leaving, missionActive, pause, progre
     who.className = 'pop-sub account-who player-name';
     who.textContent = user.email || '';
     let confirming = false;
-    list.replaceChildren(who, nameForm(), item('Sign out', async () => {
+    list.replaceChildren(who, nameForm(), aiTextItem(), item('Sign out', async () => {
       try {
         await sync?.flush().catch(() => {});
         await signOut();

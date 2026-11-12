@@ -832,7 +832,19 @@ async function initApp() {
     figureGrid?.append(button);
   }
   showFigure(chosenFigure());
-  document.getElementById('btn-figure-menu')?.addEventListener('click', () => { closePopovers(); figureDialog.showModal(); });
+  // The player's character in their own words (js/player-character.js, loaded with the dialog): kept as it is typed
+  const characterField = document.getElementById('figure-character');
+  const characterState = document.getElementById('figure-character-state');
+  let characterStore = null;
+  const loadCharacter = () => (characterStore ||= import('./player-character.js').then((c) => { characterField.value = c.readCharacter(); return c; }));
+  characterField?.addEventListener('input', () => { if (characterState) setLocalizedText(characterState, ''); });
+  characterField?.addEventListener('change', () => loadCharacter().then((c) => {
+    characterField.value = c.rememberCharacter(characterField.value);
+    if (characterState) setLocalizedText(characterState, 'Saved.');
+    window.dispatchEvent(new CustomEvent('slopdavos:save-now')); // (signed in: into the cloud save now)
+  }).catch(() => {}));
+  characterField?.addEventListener('keydown', (e) => e.stopPropagation()); // (typing here drives nothing in the game)
+  document.getElementById('btn-figure-menu')?.addEventListener('click', () => { closePopovers(); if (characterField) loadCharacter().catch(() => {}); figureDialog.showModal(); });
   figureDialog?.addEventListener('click', (e) => {
     if (e.target !== figureDialog) return;
     const r = figureDialog.getBoundingClientRect();

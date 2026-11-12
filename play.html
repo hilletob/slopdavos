@@ -430,6 +430,15 @@
     </div>
     <p class="figure-note">On foot, on the bicycle and on the cargo bike.</p>
     <div id="figure-grid" class="figure-grid" role="radiogroup" aria-labelledby="figure-title"></div>
+    <!-- What the player says about themselves (js/player-character.js): the missions' texts are written for that character -->
+    <label class="figure-character">
+      <span>Your character, in your own words</span>
+      <textarea id="figure-character" class="player-name" maxlength="300" rows="3" autocomplete="off" aria-describedby="figure-character-note"></textarea>
+    </label>
+    <div class="figure-character-row">
+      <p id="figure-character-note" class="figure-note">Signed in, the missions' texts are written for this character by an AI (Anthropic).</p>
+      <span id="figure-character-state" class="figure-character-state" role="status"></span>
+    </div>
   </dialog>
 
   <dialog id="credits-dialog" class="panel mission-dialog credits-dialog" aria-labelledby="credits-title">

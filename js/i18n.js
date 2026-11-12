@@ -60,6 +60,11 @@ const pairs = [
   ['This device holds the save of another account.', 'Auf diesem Gerät liegt der Spielstand eines anderen Kontos.'],
   ['Continue with this account (the other save leaves this device)', 'Mit diesem Konto weiterspielen (der andere Spielstand verlässt das Gerät)'],
   ['Cancel and sign out', 'Abbrechen und abmelden'], ['or', 'oder'],
+  ['Personal texts: on', 'Persönliche Texte: an'], ['Personal texts: off', 'Persönliche Texte: aus'],
+  ['The missions\' texts written for you by an AI. For it your leaderboard name, your progress, how you play and the character you describe go to Anthropic.', 'Die Texte der Missionen, von einer KI für dich geschrieben. Dafür gehen dein Name in den Bestenlisten, dein Spielstand, deine Spielweise und der Charakter, den du beschreibst, an Anthropic.'],
+  ['Writing your briefing…', 'Dein Briefing wird geschrieben…'], ['Writing a few words on your run…', 'Ein paar Worte zu deinem Lauf werden geschrieben…'],
+  ['Your character, in your own words', 'Dein Charakter, in deinen Worten'], ['Saved.', 'Gespeichert.'],
+  ['Signed in, the missions\' texts are written for this character by an AI (Anthropic).', 'Bist du angemeldet, schreibt eine KI (Anthropic) die Texte der Missionen für diesen Charakter.'],
   ['Name on the leaderboards', 'Name in den Bestenlisten'], ['Save name', 'Name speichern'], ['Name saved.', 'Name gespeichert.'], ['That name is taken.', 'Dieser Name ist vergeben.'],
   ['Use 3 to 20 letters, digits, spaces, - or _. Some words are not allowed.', 'Erlaubt sind 3 bis 20 Buchstaben, Ziffern, Leerzeichen, - oder _. Manche Wörter sind gesperrt.'],
   ['The name could not be saved. Please try again.', 'Der Name konnte nicht gespeichert werden. Bitte versuche es erneut.'],
@@ -1691,7 +1696,7 @@ function translate(value) {
 }
 
 function updateText(node) {
-  if (!node.parentElement || node.parentElement.closest('script, style, svg, .language-switch, .player-name')) return;
+  if (!node.parentElement || node.parentElement.closest('script, style, svg, .language-switch, .player-name, .ai-text')) return;
   const current = node.nodeValue;
   let original = sourceText.get(node);
   if (original === undefined || current !== translatedText.get(node)) {
@@ -1704,7 +1709,7 @@ function updateText(node) {
 }
 
 function updateAttributes(element) {
-  if (element.closest('.language-switch, .player-name')) return;
+  if (element.closest('.language-switch, .player-name, .ai-text')) return;
   let originals = sourceAttributes.get(element);
   let rendered = translatedAttributes.get(element);
   if (!originals) { originals = new Map(); sourceAttributes.set(element, originals); }
@@ -1722,7 +1727,7 @@ function updateAttributes(element) {
 function updateTree(root) {
   if (root.nodeType === Node.TEXT_NODE) { updateText(root); return; }
   if (root.nodeType !== Node.ELEMENT_NODE) return;
-  if (root.matches('script, style, svg, .language-switch, .player-name')) return;
+  if (root.matches('script, style, svg, .language-switch, .player-name, .ai-text')) return;
   updateAttributes(root);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {

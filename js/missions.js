@@ -58,6 +58,7 @@ import { JETPACK_FEATURES } from './missions-jetpack.js';
 // URL follows along (history.replaceState), so that a link or a reload comes back to the same mission.
 
 const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
+const PERSONAL_WAIT = 10000; // ms: how long a dialog waits for the text written for the player before it shows the mission's own
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
@@ -567,8 +568,45 @@ class MissionRun {
     o.hidden = false;
   }
 
+  /** The mission's text for this dialog. A signed-in player with the personal texts on (js/personal-text.js) sees a
+   *  spinner in its place until the text written for them arrives; the mission's own text `node` shows instead when
+   *  none comes (out of reach, over the allowance, or later than PERSONAL_WAIT). `source`: the text in English,
+   *  `summary`: the result's extra lines. */
+  personalise(node, moment, source, summary = []) {
+    let wanted = false;
+    try { wanted = signedIn() && !this.hooks.race && !!source && globalThis.localStorage?.getItem('slopdavos-ai-text') !== 'off'; } catch { /* (no storage) */ }
+    if (!wanted) return node;
+    const waiting = el('p', 'mission-dialog-text mission-dialog-writing');
+    waiting.setAttribute('role', 'status');
+    waiting.append(el('span', 'mission-dialog-spinner'), el('span', null, moment === 'intro' ? 'Writing your briefing…' : 'Writing a few words on your run…'));
+    let shown = waiting;
+    const show = (next) => { if (shown !== next && shown.isConnected) shown.replaceWith(next); shown = next; };
+    const giveUp = setTimeout(() => show(node), PERSONAL_WAIT);
+    import('./personal-text.js')
+      .then((p) => p.personalText({
+        def: this.def, moment, title: translateUI(this.def.title), briefing: translateUI(source), summary: summary.map((line) => translateUI(line)),
+        entry: this.hooks.progress?.entry(this.def.id), result: this.result,
+        figure: globalThis.document?.getElementById('figure-state')?.textContent || '' // (the chosen figure's label, js/main.js)
+      }))
+      .then((text) => {
+        clearTimeout(giveUp);
+        if (!text || shown !== waiting) { show(node); return; } // (no text, or the wait was given up: no swap under a reader's eyes)
+        const own = el('p', 'mission-dialog-text mission-dialog-personal ai-text', text);
+        show(own);
+        // (written in one language: the mission's own text is back when the player switches)
+        globalThis.addEventListener?.('languagechange', () => { if (shown === own) show(node); }, { once: true });
+      })
+      .catch(() => { clearTimeout(giveUp); show(node); });
+    return waiting;
+  }
+
+  /** This visit's missions, for the texts' writer (only a signed-in player has one) */
+  noteEnd(outcome, medal = null) {
+    if (signedIn()) import('./personal-text.js').then((p) => p.noteMission(this.def.id, outcome, this.elapsed, medal)).catch(() => {});
+  }
+
   showIntro() {
-    const nodes = [el('p', 'mission-dialog-text', this.def.intro)];
+    const nodes = [this.personalise(el('p', 'mission-dialog-text', this.def.intro), 'intro', this.def.intro)];
     // (a mission in someone's name shows their logo over the briefing: def.logo, e.g. the Pfadi Davos)
     if (this.def.logo) {
       const logo = el('img', 'mission-dialog-logo');
@@ -629,8 +667,9 @@ class MissionRun {
       splits.append(li);
     }
     nodes.push(splits);
-    for (const extra of this.def.summary?.(this.state) || []) nodes.push(el('p', 'mission-dialog-note', extra));
-    nodes.push(el('p', 'mission-dialog-text', this.def.finish), ...this.boardNode(true));
+    const extras = this.def.summary?.(this.state) || [];
+    for (const extra of extras) nodes.push(el('p', 'mission-dialog-note', extra));
+    nodes.push(this.personalise(el('p', 'mission-dialog-text', this.def.finish), 'finish', this.def.finish, extras), ...this.boardNode(true));
     this.dialog('Mission complete', this.def.title, nodes, [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
     if (award?.points) requestAnimationFrame(() => this.hooks.flashPoints?.(award.points, medalNode.querySelector('.mission-award-points')));
   }
@@ -794,6 +833,7 @@ class MissionRun {
       if (view.fail) {
         this.phase = 'failed';
         this.ui.panel.dataset.phase = 'failed';
+        this.noteEnd('failed');
         this.showStopped('Mission failed', view.fail);
         race?.reportAbort(this, view.fail);
       } else if (view.done) {
@@ -853,6 +893,7 @@ class MissionRun {
     this.phase = 'aborted';
     this.ui.panel.dataset.phase = 'aborted';
     this.syncOwnControls(false);
+    this.noteEnd('aborted');
     this.showStopped('Mission aborted', reason);
     this.hooks.race?.reportAbort(this, reason);
   }
@@ -876,6 +917,7 @@ class MissionRun {
     const licence = lic && this.hooks.progress?.grantLicence && lic.passed(this.state) ? this.hooks.progress.grantLicence(lic.id) : null;
     const award = this.hooks.progress ? this.hooks.progress.record(this.def, total, Date.now(), score) : null;
     this.result = { total, score, best, previous, improved, award, licence };
+    this.noteEnd('finished', award?.medal ?? null);
     this.submitRanking(total, score);
     this.renderBest();
     this.marker.visible = false;

@@ -119,6 +119,10 @@ export function totals(stats) {
  */
 let running = null; // (the counting of this page, for currentStats)
 
+/** This visit alone, since the page loaded: { startedAt, playMs, modes: { kind: { ms, m } } }, or null before the game
+ *  counts (js/personal-text.js tells the missions' writer how the player has been getting about) */
+export const currentSession = () => running?.session() ?? null;
+
 /** The counts now, all devices: fresh from the running game, else from storage */
 export const currentStats = (storage = localStorage) => running?.current() ?? readStats(storage);
 
@@ -131,6 +135,7 @@ export function createPlayStats({ storage = localStorage, now = Date.now, target
   let last = null; // (the player's position last frame, and its way of travel)
   let unsaved = 0;
   let written = false; // (this page has stored its counts once)
+  const visit = { startedAt: now(), playMs: 0, modes: {} }; // (this page's own share, never stored)
 
   /** Into storage: only this device's line, beside what the cloud brought for the others */
   const save = () => {
@@ -174,9 +179,14 @@ export function createPlayStats({ storage = localStorage, now = Date.now, target
       const m = (line.modes[kind] ??= { ms: 0, m: 0 });
       m.ms += ms;
       m.m += metres;
+      visit.playMs += ms;
+      const v = (visit.modes[kind] ??= { ms: 0, m: 0 });
+      v.ms += ms;
+      v.m += metres;
       if ((unsaved += ms) >= SAVE_EVERY) save();
     },
     save,
+    session() { return visit; },
     /** The counts now, all devices (js/play-stats-ui.js) */
     current() { save(); return stats; }
   });
