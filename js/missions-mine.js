@@ -29,6 +29,11 @@ import {
 
 const LIFT = 400; // m: the gallery floats this high above its portal
 const NEAR = 0.05; // m: the camera's near plane inside
+// The galleries drawn larger than the scan (the real ones are a metre wide, a man's height: on a screen, through a
+// camera, cramped): across and along by H, up by V. The game itself stays in the scan's metres — the floor, the ways,
+// the hunt's rails, the medals — and so the walk looks a little brisker; the people and the things in the gallery keep
+// their own size.
+const SCALE = { h: 1.45, v: 1.35 };
 const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _m = new THREE.Matrix4(), _c = new THREE.Color(), _s = new THREE.Vector3();
@@ -89,7 +94,7 @@ function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
     const dist = toP.length().max(0.05);
     const dirN = toP.div(dist);
     const cone = smoothstep(0.55, 0.92, dot(dirN, L.dir)).mul(1.1).add(0.08);
-    const att = float(1).div(dist.mul(dist).mul(0.22).add(1));
+    const att = float(1).div(dist.mul(dist).mul(0.13).add(1));
     // (both faces: the light from whichever side looks at the lamp)
     const facing = dot(normalWorld, dirN.negate()).abs().mul(0.7).add(0.3);
     let light = vec3(1.0, 0.8, 0.52).mul(cone.mul(att).mul(facing).mul(L.power));
@@ -108,7 +113,7 @@ function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
       const g1 = sin(q.x.mul(9.1).add(sin(q.y.mul(7.3)).mul(1.7))).mul(sin(q.z.mul(8.7).add(sin(q.x.mul(5.9)).mul(1.9)))).mul(sin(q.y.mul(10.3).add(q.z.mul(3.1))));
       const g2 = sin(q.x.mul(2.3).add(q.z.mul(1.7)).add(sin(q.y.mul(3.1)).mul(2.0))).mul(sin(q.y.mul(2.9).sub(q.x.mul(1.3))));
       const grain = g1.mul(0.16).add(g2.mul(0.18)).add(0.88);
-      col = attribute('color', 'vec3').mul(grain).mul(col.min(vec3(1.4))).mul(0.85).add(vec3(0.85, 0.9, 1.0).mul(day).mul(L.day));
+      col = attribute('color', 'vec3').mul(grain).mul(col.min(vec3(1.4))).mul(0.85).add(vec3(0.5, 0.56, 0.66).mul(day).mul(L.day));
     }
     if (tint) { const c = new THREE.Color(tint); col = col.mul(vec3(c.r, c.g, c.b)); }
     if (sparkle) {
@@ -550,6 +555,8 @@ const mineFeature = {
     const group = new THREE.Group();
     group.name = 'MineInterior';
     group.position.copy(origin);
+    group.scale.set(SCALE.h, SCALE.v, SCALE.h);
+    const keepSize = (o) => o.scale.set(1 / SCALE.h, 1 / SCALE.v, 1 / SCALE.h);
     const ore = M.kind === 'ore';
     group.add(buildGallery(a, L, { rails: ore }));
     let mine = null, veins = null, hunt = null, tools = null;
@@ -561,6 +568,7 @@ const mineFeature = {
       placeVeins(veins, mine);
       group.add(run.storage(veins));
       hunt = buildHunt(L);
+      keepSize(hunt);
       group.add(hunt);
       tools = buildTools(L);
       run.group.add(tools.hammer, tools.chisel);
@@ -577,6 +585,7 @@ const mineFeature = {
         const plaque = buildPlaque(L, t(st.title));
         plaque.position.set(p.x, f ? f.y : p.y, p.z);
         plaque.rotation.y = Math.atan2(-p.x, -p.z); // (towards the portal: the way one comes)
+        keepSize(plaque);
         group.add(plaque);
         if (lamps.length < LANTERNS) lamps.push(new THREE.Vector3(p.x, (f ? f.y : p.y) + 1.62, p.z));
       }
@@ -589,11 +598,12 @@ const mineFeature = {
       guide = createGuide(a, createMine(a, 1));
       const lit = new Map();
       miner = buildMiner((c) => { if (!lit.has(c)) lit.set(c, lampMaterial(L, { tint: c })); return lit.get(c); });
+      keepSize(miner);
       group.add(miner);
       lamps.unshift(new THREE.Vector3(guide.x, guide.y + 1, guide.z));
       lamps.length = Math.min(lamps.length, LANTERNS);
     }
-    lamps.forEach((p, i) => L.lanterns[i].value.copy(p).add(origin));
+    lamps.forEach((p, i) => L.lanterns[i].value.copy(p).multiply(_s.set(SCALE.h, SCALE.v, SCALE.h)).add(origin));
     run.group.add(group);
     group.updateMatrixWorld(true);
     const cm = run.hooks.controllerManager;
@@ -762,9 +772,10 @@ const mineFeature = {
     I.quake = Math.max(0, (I.quake || 0) - dt);
     const sh = I.shake * (Math.random() - 0.5) * 0.4 + Math.min(1, I.quake) * (Math.random() - 0.5) * 0.05;
     const f = I.a.floor.at(w.x, w.z);
-    const eyeH = clamp((f ? f.ceil : w.y + 2) - w.y - 0.18, 0.95, 1.55);
+    // (the eye in the scan's metres: 1.55 m drawn, under a low roof down to 0.95 m)
+    const eyeH = clamp((f ? f.ceil : w.y + 2) - w.y - 0.18 / SCALE.v, 0.95 / SCALE.v, 1.55 / SCALE.v);
     I.eyeH = I.eyeH == null ? eyeH : I.eyeH + (eyeH - I.eyeH) * Math.min(1, dt * 6);
-    const eye = _v.set(w.x, w.y + I.eyeH + Math.sin(I.bob) * 0.025, w.z).add(I.origin);
+    const eye = _v.set(w.x * SCALE.h, (w.y + I.eyeH) * SCALE.v + Math.sin(I.bob) * 0.025, w.z * SCALE.h).add(I.origin);
     cam.position.copy(eye);
     _e.set(-0.17 + sh, w.heading + Math.PI + sh * 0.5, 0);
     cam.quaternion.setFromEuler(_e);
