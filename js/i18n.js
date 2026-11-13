@@ -656,6 +656,24 @@ const pairs = [
   ['At the bar', 'An der Bar'],
   ['Order a Flämmli', 'Flämmli bestellen'],
   // Nageln in the Tijuana Bar, Barista at the Kafi Klatsch (js/missions-data-bars.js)
+  // A shift at the Turmhotel Victoria (js/missions-data-victoria.js, js/missions-victoria.js)
+  ['A shift at the Turmhotel Victoria', 'Eine Schicht im Turmhotel Victoria'], ['Go into the Turmhotel Victoria', 'Ins Turmhotel Victoria gehen'],
+  ['Turn round two rooms', 'Zwei Zimmer herrichten'], ['Cook the lunch service', 'Den Mittagsservice kochen'], ['Wash and mangle the linen', 'Die Wäsche waschen und mangeln'],
+  ['Taking the trolley …', 'Du holst den Putzwagen …'], ['Down to the kitchen …', 'Ab in die Küche …'], ['Down to the Lingerie …', 'Ab in die Lingerie …'],
+  ['1-7: chore · A/D: scrub', '1–7: Arbeit · A/D: putzen'], ['1-3: burner', '1–3: Herdplatte'],
+  ['Make the bed', 'Bett machen'], ['Fresh towels', 'Frische Tücher'], ['Scrub the bath', 'Wanne schrubben'], ['Polish the mirror', 'Spiegel polieren'],
+  ['Empty the bin', 'Abfall leeren'], ['Fill the minibar', 'Minibar auffüllen'], ['Chocolate on the pillow', 'Schöggeli aufs Kissen'],
+  ['Make the bed first', 'Zuerst das Bett machen'], ['The Gouvernante has a look …', 'Die Gouvernante schaut sich um …'],
+  ['Room 204', 'Zimmer 204'], ['The tower suite', 'Die Turmsuite'], ['The Müllers from Basel', 'Die Müllers aus Basel'], ['A Dutch family of five', 'Eine holländische Familie zu fünft'],
+  ['New ticket: put it on a free burner', 'Neuer Bon: Setz ihn auf eine freie Platte'], ['Plate each dish in the green', 'Richte jedes Gericht im grünen Bereich an'],
+  ['Waiting for the next ticket …', 'Warten auf den nächsten Bon …'], ['Put it on', 'Aufsetzen'],
+  ['Bed sheet', 'Leintuch'], ['Red napkin', 'Rote Serviette'], ['Pillowcase', 'Kissenanzug'], ['Bath towel', 'Badetuch'], ['Blue tablecloth', 'Blaues Tischtuch'],
+  ['Duvet cover', 'Duvetanzug'], ['A guest\'s red sock', 'Die rote Socke eines Gasts'], ['Chef\'s jacket', 'Kochjacke'], ['Green apron', 'Grüne Schürze'],
+  ['Bath robe', 'Bademantel'], ['Checked napkin', 'Karierte Serviette'],
+  ['◀ Whites', '◀ Weisses'], ['Colours ▶', 'Buntes ▶'],
+  ['The drum turns …', 'Die Trommel dreht …'], ['Keep the sheet straight: hold ◀ or ▶', 'Halte das Leintuch gerade: ◀ oder ▶ gedrückt halten'],
+  ['All through', 'Alles durch'], ['Next sheet …', 'Nächstes Leintuch …'],
+  ['Caught in the rollers!', 'In die Walze geraten!'], ['A crease or two', 'Ein, zwei Falten'], ['Creased all over', 'Voller Falten'],
   ['Nageln in the Tijuana Bar', 'Nageln in der Tijuana Bar'], ['Go into the Tijuana Bar', 'In die Tijuana Bar gehen'],
   ['Finding a place at the stump …', 'Du suchst dir einen Platz am Stock …'],
   ['Space or the buttons', 'Leertaste oder die Knöpfe'], ['Aim', 'Zielen'], ['Strike', 'Zuschlagen'], ['Big Hans', 'Der grosse Hans'],
@@ -1307,6 +1325,8 @@ const missionIntros = [
   ['The nine red Eternit lanes', 'Neun Minigolfbahnen beim Hotel Waldhuus. Mit A/D oder der Maus zielen, Space zum Aufladen halten und zum Schlagen loslassen. Auf dem Handy den Ball wie bei einer Schleuder zurückziehen. Maximal sieben Schläge pro Bahn; ein Ball im Graben kostet einen Schlag. 20 Schläge oder weniger ergeben Gold.'],
   ['The Green Wildman, the Irish pub', 'Darts im Green Wildman: 301 Double Out mit möglichst wenigen Pfeilen. Mit Maus oder W/A/S/D zielen, Space oder Maustaste zum Ausholen halten und im grünen Bereich loslassen. Auf dem Handy auf die Scheibe tippen und nach oben wischen. Der letzte Wurf muss ein Doppel oder Bullseye sein. Höchstens 45 Pfeile.'],
   ["The Schüssla in the Färich", '60 Sekunden in der Schüssla skaten. W gibt Tempo, A/D lenkt. Über die Kante springen: A/D dreht, Space hält einen Grab. Langsam am Rand entlang für einen Grind; mit A/D balancieren, mit Space zurück in die Bowl. Tricks in kurzer Folge bilden Combos; ein Sturz löscht die Combo.'],
+  ['A busy day at the Turmhotel Victoria', 'Viel los im Turmhotel Victoria in Davos Dorf, und das halbe Personal liegt mit Grippe im Bett. Geh durch den Personaleingang hinein und hilf aus, wo es dich braucht. Zuerst die Zimmer: Zwei Zimmer müssen bereit sein, bevor die Gäste zurückkommen. Wähl eine Arbeit (Tasten 1–7 oder antippen) und erledige sie mit abwechselnden Wischbewegungen (A und D, die Pfeiltasten oder die zwei Knöpfe); das Schöggeli kommt aufs Kissen, sobald das Bett gemacht ist. Dann die Küche am Mittag: Eine Herdtaste (1–3) setzt die nächste Bestellung auf, dieselbe Taste richtet sie an, im grünen Bereich und bevor sie anbrennt. Zuletzt die Lingerie im Keller: Sortier die Wäsche in Weisses (links) und Buntes (rechts), dann steuer fünf Leintücher gerade durch die grosse Mangel.'],
+  ['The shift is over. The Gouvernante nods once', 'Die Schicht ist vorbei. Die Gouvernante nickt einmal, und das zählt im Victoria wie eine Medaille.'],
   ['Rock’n’roll in the Tijuana Bar', 'Rock’n’Roll in der Tijuana Bar an der Talstrasse, und heute Abend kommt der Baumstamm hervor. Nageln ist das Beizenspiel aus den Alpen: Jeder hat seinen Nagel im Stock angeschlagen, pro Zug ein Schlag mit der schmalen Keilseite des Hammers, und wer ihn zuerst ganz versenkt, gewinnt. Geh hinein, dann drei Partien gegen die Leute an der Bar. Eine Taste (Leertaste, Enter oder Antippen): Halte den Hammer über deinem Nagel an und schlag zu, wenn die Kraft im grünen Bereich ist. Zu hart oder neben den Kopf, und der Nagel verbiegt sich, ein Fehlschlag geht ins Holz; beides kostet dich den Zug. Siege und wenige Schläge zahlen sich aus.'],
   ['Morning rush at the Kafi Klatsch', 'Morgenansturm im Kafi Klatsch an der Promenade (auf dem Schild steht Kaffeeklatsch). Geh hinein und stell dich hinter die Theke: Café crème, Schale, Espresso, Latte Macchiato, Cappuccino, Gast um Gast. Für jede Station eine Taste, und nur die aktuelle zählt (Knöpfe, Tasten 1–6 oder einfach die Leertaste): mahlen, tampen, Kaffee beziehen, Milch auf die richtige Temperatur schäumen, giessen, servieren, jedes Mal im grünen Bereich anhalten. Serviere, bevor der Gast aufgibt. Und hör zu: Die Stammgäste sagen dir ihre Bestellung einmal. Beim nächsten Mal heisst es nur noch «wie immer», und wer es sich gemerkt hat, verdient mehr.'],
   ['The stump goes back in the corner', 'Der Baumstamm kommt zurück in die Ecke, der Hammer hinter die Bar. Dein Nagel bleibt im Holz.'],
@@ -1321,6 +1341,7 @@ const missionIntros = [
 ];
 // Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
 const placeDe = new Map([
+  ['the Turmhotel Victoria', ['zum Turmhotel Victoria', 'ins Turmhotel Victoria']],
   ['the Tijuana Bar', ['zur Tijuana Bar', 'in die Tijuana Bar']], ['the Kafi Klatsch', ['zum Kafi Klatsch', 'ins Kafi Klatsch']],
   ['the Bahnhof Davos Dorf', ['zum Bahnhof Davos Dorf', '']], ['the Promenade gate', ['zur Schleuse Promenade', '']], ['the Scalettastrasse gate', ['zur Schleuse Scalettastrasse', '']], ['the Kurgartenstrasse gate', ['zur Schleuse Kurgartenstrasse', '']], ['the Talstrasse gate', ['zur Schleuse Talstrasse', '']], ['the Scalettastrasse', ['zur Scalettastrasse', '']], ['the Kongresszentrum', ['zum Kongresszentrum', '']], ['the rally point', ['zum Kundgebungsplatz', '']], ['the police liaison', ['zur Polizei-Verbindungsperson', '']],
   ['the flag', ['zum Fähnli', '']], ['the bench', ['zum Bänkli', '']], ['the Spital Davos', ['zum Spital Davos', '']],
@@ -1465,6 +1486,34 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
   dynamic = dynamic.replace(/^(\d+) of (\d+) shots down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Shots getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
   dynamic = dynamic.replace(/^(\d+) rounds of flaming shots$/, '$1 Runden Flaming Shots');
+  // A shift at the Turmhotel Victoria (js/missions-data-victoria.js, js/missions-victoria.js)
+  {
+    const de = (x) => enToDe.get(x) || x;
+    dynamic = dynamic.replace(/^(Room 204|The tower suite) · (\d+) s · (-?\d+) pts$/, (_, room, sec, pts) => `${de(room)} · ${sec} s · ${pts} Pkt.`);
+    dynamic = dynamic.replace(/^(.+) are back soon\. Pick a chore$/, (_, who) => `${de(who)} kommen bald zurück. Wähl eine Arbeit`);
+    dynamic = dynamic.replace(/^(.+): scrub left, right, left …$/, (_, c) => `${de(c)}: links, rechts, links wischen …`);
+    dynamic = dynamic.replace(new RegExp(`^(.+): done${POP}$`), (_, c, tail) => `${de(c)}: erledigt${tail}`);
+    dynamic = dynamic.replace(/^The guest is back: (\d+) (?:chore|chores) undone$/, (_, n) => `Der Gast ist zurück: ${n} ${n === '1' ? 'Arbeit' : 'Arbeiten'} nicht erledigt`);
+    dynamic = dynamic.replace(new RegExp(`^Spotless! (\\d+) s to spare${POP}$`), 'Blitzblank! $1 s übrig$2');
+    dynamic = dynamic.replace(/^(Room 204|The tower suite): (\d+) of (\d+) chores$/, (_, room, a, b) => `${de(room)}: ${a} von ${b} Arbeiten`);
+    dynamic = dynamic.replace(/^Lunch service · (\d+) of (\d+) dishes · (-?\d+) pts$/, 'Mittagsservice · $1 von $2 Gerichten · $3 Pkt.');
+    dynamic = dynamic.replace(/^(\d+) of (\d+) dishes · (-?\d+) pts$/, '$1 von $2 Gerichten · $3 Pkt.');
+    dynamic = dynamic.replace(/^Burner (\d)$/, 'Platte $1').replace(/^Table (\d+): (.+)$/, 'Tisch $1: $2');
+    dynamic = dynamic.replace(new RegExp(`^(.+): perfect!${POP}$`), '$1: perfekt!$2').replace(new RegExp(`^(.+): nicely done${POP}$`), '$1: schön gelungen$2');
+    dynamic = dynamic.replace(new RegExp(`^(.+): still raw!${POP}$`), '$1: noch roh!$2').replace(new RegExp(`^(.+): a touch underdone${POP}$`), '$1: etwas zu wenig gar$2');
+    dynamic = dynamic.replace(new RegExp(`^(.+): rather dark${POP}$`), '$1: ziemlich dunkel$2').replace(new RegExp(`^(.+): burnt!${POP}$`), '$1: angebrannt!$2');
+    dynamic = dynamic.replace(new RegExp(`^Service! A quick lunch${POP}$`), 'Service! Ein schneller Mittag$1');
+    dynamic = dynamic.replace(/^(\d+) of (\d+) dishes served · (\d+) perfect · (\d+) burnt$/, '$1 von $2 Gerichten serviert · $3 perfekt · $4 angebrannt');
+    dynamic = dynamic.replace(/^Sorting · item (\d+) of (\d+) · (-?\d+) pts$/, 'Sortieren · Stück $1 von $2 · $3 Pkt.').replace(/^Item (\d+) of (\d+) · (-?\d+) pts$/, 'Stück $1 von $2 · $3 Pkt.');
+    dynamic = dynamic.replace(/^The mangle · sheet (\d+) of (\d+) · (-?\d+) pts$/, 'Die Mangel · Leintuch $1 von $2 · $3 Pkt.').replace(/^Sheet (\d+) of (\d+) · (-?\d+) pts$/, 'Leintuch $1 von $2 · $3 Pkt.');
+    dynamic = dynamic.replace(new RegExp(`^Whites${POP}$`), 'Weisses$1').replace(new RegExp(`^Colours${POP}$`), 'Buntes$1');
+    dynamic = dynamic.replace(new RegExp(`^(.+) in the colours: it comes out grey${POP}$`), (_, it, tail) => `${de(it)} in der Buntwäsche: kommt grau heraus${tail}`);
+    dynamic = dynamic.replace(new RegExp(`^(.+) in the whites: pink sheets!${POP}$`), (_, it, tail) => `${de(it)} in der Weisswäsche: rosa Leintücher!${tail}`);
+    dynamic = dynamic.replace(new RegExp(`^(.+): on the floor${POP}$`), (_, it, tail) => `${de(it)}: auf dem Boden${tail}`);
+    dynamic = dynamic.replace(new RegExp(`^Crisp and smooth!${POP}$`), 'Glatt und frisch!$1').replace(new RegExp(`^Crisp, if pink${POP}$`), 'Glatt, wenn auch rosa$1');
+    dynamic = dynamic.replace(new RegExp(`^(A crease or two|Creased all over|Caught in the rollers!)${POP}$`), (_, w, tail) => `${de(w)}${tail}`);
+    dynamic = dynamic.replace(/^(\d+) of (\d+) sorted right · (\d+) of (\d+) sheets crisp( · pink sheets)?$/, (_, a, b, c, d, pink) => `${a} von ${b} richtig sortiert · ${c} von ${d} Leintüchern glatt${pink ? ' · rosa Leintücher' : ''}`);
+  }
   // Nageln, Barista (js/missions-data-bars.js)
   dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
   dynamic = dynamic.replace(/^Game (\d+) of (\d+) · round (\d+) · (\d+) won · (\d+) pts$/, 'Partie $1 von $2 · Runde $3 · $4 gewonnen · $5 Pkt.');

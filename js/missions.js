@@ -43,6 +43,7 @@ import { SNOWFARM_FEATURES } from './missions-snowfarm.js';
 import { PHARMACY_FEATURES } from './missions-pharmacy.js';
 import { POST_FEATURES } from './missions-post.js';
 import { JETPACK_FEATURES } from './missions-jetpack.js';
+import { VICTORIA_FEATURES } from './missions-victoria.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -1280,3 +1281,4 @@ Object.assign(FEATURES, PARAGLIDE_FEATURES); // the paraglider flight from the R
 Object.assign(FEATURES, PHARMACY_FEATURES); // the medicine round by cargo bike from the Amavita Apotheke Flüela (js/missions-pharmacy.js)
 Object.assign(FEATURES, POST_FEATURES); // the postman empties the post boxes from Davos Dorf to Platz in the yellow van (js/missions-post.js)
 Object.assign(FEATURES, JETPACK_FEATURES); // the jetpack demo from the Kongress to the Schatzalp (js/missions-jetpack.js)
+Object.assign(FEATURES, VICTORIA_FEATURES); // a shift at the Turmhotel Victoria (js/missions-victoria.js)

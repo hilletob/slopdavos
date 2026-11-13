@@ -467,6 +467,14 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.beginPath(); ctx.moveTo(0, g * 0.55); ctx.quadraticCurveTo(-g * 0.5, -g * 0.05, 0, -g * 0.5); ctx.quadraticCurveTo(g * 0.5, -g * 0.05, 0, g * 0.55); ctx.fill();
       break;
     }
+    case 'bed': { // a hotel bed: the headboard, the pillow, the turned-down duvet (js/missions-data-victoria.js)
+      ctx.fillRect(-g * 0.95, -g * 0.75, g * 0.2, g * 1.55);
+      ctx.fillRect(-g * 0.95, g * 0.35, g * 1.9, g * 0.22);
+      ctx.fillRect(g * 0.75, g * 0.35, g * 0.2, g * 0.45);
+      ctx.beginPath(); ctx.ellipse(-g * 0.42, -g * 0.02, g * 0.3, g * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-g * 0.05, g * 0.3); ctx.lineTo(-g * 0.05, -g * 0.12); ctx.quadraticCurveTo(g * 0.4, -g * 0.32, g * 0.95, -g * 0.15); ctx.lineTo(g * 0.95, g * 0.3); ctx.closePath(); ctx.fill();
+      break;
+    }
     case 'tent': { // a Spatz: the ridge tent with its door, a little fire beside it (js/missions-data-pfadi.js)
       ctx.beginPath(); ctx.moveTo(-g * 1.0, g * 0.75); ctx.lineTo(-g * 0.25, -g * 0.75); ctx.lineTo(g * 0.5, g * 0.75); ctx.closePath(); ctx.fill();
       ctx.fillStyle = def.colour;

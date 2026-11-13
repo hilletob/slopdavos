@@ -45,6 +45,34 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(buttons[0].pressed, 'true');
 });
 
+test('the Victoria shift translates its steps, rooms, pops and summaries', () => {
+  setLanguage('de');
+  assert.equal(t('A shift at the Turmhotel Victoria'), 'Eine Schicht im Turmhotel Victoria');
+  assert.match(t('A busy day at the Turmhotel Victoria in Davos Dorf, and half the staff is down with the flu.'), /^Viel los im Turmhotel Victoria/);
+  assert.equal(t('12 m to the Turmhotel Victoria'), '12 m bis zum Turmhotel Victoria');
+  assert.equal(t('Get out (F) and walk into the Turmhotel Victoria'), 'Steig aus (F) und geh ins Turmhotel Victoria');
+  assert.equal(t('Room 204 · 12 s · 180 pts'), 'Zimmer 204 · 12 s · 180 Pkt.');
+  assert.equal(t('The Müllers from Basel are back soon. Pick a chore'), 'Die Müllers aus Basel kommen bald zurück. Wähl eine Arbeit');
+  assert.equal(t('Fresh towels: done  +60'), 'Frische Tücher: erledigt  +60');
+  assert.equal(t('Make the bed: scrub left, right, left …'), 'Bett machen: links, rechts, links wischen …');
+  assert.equal(t('Spotless! 7 s to spare  +170'), 'Blitzblank! 7 s übrig  +170');
+  assert.equal(t('The guest is back: 2 chores undone'), 'Der Gast ist zurück: 2 Arbeiten nicht erledigt');
+  assert.equal(t('Lunch service · 2 of 8 dishes · 100 pts'), 'Mittagsservice · 2 von 8 Gerichten · 100 Pkt.');
+  assert.equal(t('Capuns: perfect!  +118'), 'Capuns: perfekt!  +118');
+  assert.equal(t('Rösti: burnt!  -40'), 'Rösti: angebrannt!  -40');
+  assert.equal(t('Table 5: Capuns'), 'Tisch 5: Capuns');
+  assert.equal(t('Burner 2'), 'Platte 2');
+  assert.equal(t('Sorting · item 1 of 12 · 248 pts'), 'Sortieren · Stück 1 von 12 · 248 Pkt.');
+  assert.equal(t('Red napkin in the whites: pink sheets!  -40'), 'Rote Serviette in der Weisswäsche: rosa Leintücher!  -40');
+  assert.equal(t('Bed sheet: on the floor  -10'), 'Leintuch: auf dem Boden  -10');
+  assert.equal(t('Caught in the rollers!  -40'), 'In die Walze geraten!  -40');
+  assert.equal(t('Whites  +28'), 'Weisses  +28');
+  assert.equal(t('The tower suite: 5 of 7 chores'), 'Die Turmsuite: 5 von 7 Arbeiten');
+  assert.equal(t('7 of 8 dishes served · 5 perfect · 1 burnt'), '7 von 8 Gerichten serviert · 5 perfekt · 1 angebrannt');
+  assert.equal(t('11 of 12 sorted right · 3 of 5 sheets crisp · pink sheets'), '11 von 12 richtig sortiert · 3 von 5 Leintüchern glatt · rosa Leintücher');
+  setLanguage('en');
+});
+
 test('the bar missions translate names, intros and generated texts', () => {
   setLanguage('de');
   assert.equal(t('Nageln in the Tijuana Bar'), 'Nageln in der Tijuana Bar');

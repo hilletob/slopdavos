@@ -3316,6 +3316,39 @@
    "unsicherheit": "mittel",
    "unsicherheitNotiz": "Die Linien sind auf dem Geländemodell berechnet (Aufstieg: schnellster Weg auf Fellen, max. 34°; Abfahrt: stets fallend, max. 38°), nicht die reale Spur; die Abfahrt folgt grob dem Chörbschhoraweg. Markierstangen und Fahnentore sind Spiel-Elemente.",
    "nr": 69
+  },
+  {
+   "id": "victoria-hotel",
+   "status": "neu",
+   "name": "Eine Schicht im Turmhotel Victoria",
+   "kurz": "Hinter den Kulissen des Turmhotels Victoria, drei Stationen nacheinander. 1) Zimmer: zwei Zimmer herrichten, bevor die Gäste zurückkommen; Arbeit wählen (1–7), dann mit abwechselnden Wischbewegungen (A/D) erledigen: Bett, Tücher, Bad, Spiegel, Abfall, Minibar, zuletzt das Schöggeli aufs Kissen. 2) Küche: Mittagsservice an drei Herdplatten (Rösti, Kalbsbratwurst, Gerstensuppe, Capuns, Älplermagronen), jedes Gericht im grünen Bereich anrichten, bevor es anbrennt. 3) Lingerie: Wäsche nach Weiss und Bunt sortieren (rote Serviette in der Weisswäsche = rosa Leintücher), dann fünf Leintücher gerade durch die grosse Mangel steuern. Wertung nach Punkten.",
+   "saison": "ganzjaehrig",
+   "fahrzeug": "zu Fuss",
+   "anreise": "Personaleingang des Turmhotels Victoria an der Alten Flüelastrasse, Davos Dorf",
+   "ort": {
+    "name": "Turmhotel Victoria, Personaleingang",
+    "x": 968.1,
+    "z": -1744.1,
+    "lv95": {
+     "E": 2783468,
+     "N": 1187244
+    }
+   },
+   "punkte": [
+    {
+     "name": "Hotelzimmer"
+    },
+    {
+     "name": "Hotelküche"
+    },
+    {
+     "name": "Lingerie mit Bügelmangel"
+    }
+   ],
+   "quelle": "Idee des Users 2026-11-13 · js/missions-data-victoria.js (VICTORIA) · Personaleingang: Südfassade des Gebäudes w117012157 (js/davos-geodata.js), Hotelpunkt OSM n623883946",
+   "unsicherheit": "mittel",
+   "unsicherheitNotiz": "Die Räume (Zimmer, Küche, Lingerie) sind frei erfundene Innenräume, die über dem Eingang schweben wie bei den Bar-Missionen; der Personaleingang ist geschätzt.",
+   "nr": 70
   }
  ]
 }
