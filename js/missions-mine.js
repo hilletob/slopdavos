@@ -1,61 +1,74 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, fract, max, normalWorld, positionLocal, positionWorld, sin, smoothstep, time, uniform, vec3, dot, floor, pow } from 'three/tsl';
+import { Fn, attribute, float, fract, max, normalWorld, positionLocal, positionWorld, sin, smoothstep, time, uniform, vec3, dot, floor, pow } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
-import { MINE, MINE_ADIT, DIRS, generateMine, createShift, stepShift, isCarved, cellCentre, mineSeedOfDay, shiftScore } from './missions-data-mine.js';
+import { parseAdit, aditUrl } from './silberberg-asset.js';
+import {
+  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore
+} from './missions-data-mine.js';
 
 // js/missions-mine.js
-// The Silberberg mine's runtime (js/missions-data-mine.js has its definition and the pure game; js/missions.js takes
-// MINE_FEATURES into its FEATURES):
-//   mine — the adit's portal in the world (timber frame, the dark opening, the spoil heap: built for the run only);
-//          walked into, the gallery is built as a group of its own 400 m above the portal (nothing of the town in
-//          view; the walker waits at the door, like js/missions-fun.js's interiors) and seen through the miner's
-//          eyes. Darkness: one material for the rock, the timbering and the rails that lights itself from the oil
-//          lamp on the miner's head (a warm cone from the camera, falling off with the distance) and the few
-//          lanterns hung at the drifts — no scene lights (they would recompile the town's shaders). The ore spots
-//          glitter where the lamp falls on them. The walls are a voxel mesh of the mine's cells, every corner nudged
-//          by a hash of its position (rough rock, no cracks). Web Audio: drips, the hammer on rock, the hunt's
-//          rumble, all through a short cave reverb. The touch screens get a held Strike button.
+// The Silberberg mine's runtime (js/missions-data-mine.js has its definitions and the pure game; js/missions.js takes
+// MINE_FEATURES into its FEATURES), for both its missions (def.mine.kind: 'ore' | 'tour'):
+//   mine — the adits' portals in the world (timber frame, the dark opening, the spoil heap: built for the run only);
+//          walked into (an objective with `inside: <adit>`), the gallery is built as a group of its own 400 m above its
+//          portal (nothing of the town in view; the walker waits at the door, like js/missions-fun.js's interiors) and
+//          seen through the miner's eyes. The galleries are the FHNW laser scans (assets/silberberg/*.bin, fetched when
+//          the mission is set up): one closed mesh, coloured by the scan, drawn from both sides, inside a black hull —
+//          and the camera's near plane drawn in to 5 cm while inside: no gap, no wall cut by the near plane, shows the
+//          world behind the rock. Darkness: one material that lights itself from the oil lamp on the miner's head (a
+//          warm cone from the camera) and a few lanterns — no scene lights (they would recompile the town's shaders);
+//          the portal's cut glows with daylight. The ore spots glitter where the lamp falls on them. Web Audio: drips,
+//          the hammer on rock, the hunt's rumble, all through a short cave reverb. The touch screens get a held Strike
+//          button (the ore), the tour a card at each station.
 // Everything goes with the run's group (js/missions.js disposes it).
 
 const LIFT = 400; // m: the gallery floats this high above its portal
+const NEAR = 0.05; // m: the camera's near plane inside
 const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _m = new THREE.Matrix4(), _c = new THREE.Color(), _s = new THREE.Vector3();
+const hash3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
 
-// --- The portal in the world ---------------------------------------------------------------------------------------------
-function buildPortal(group) {
-  const a = MINE_ADIT;
+// --- The scans --------------------------------------------------------------------------------------------------------------
+const adits = new Map(); // id → Promise<parsed adit>
+/** The parsed scan of an adit (fetched once a session) */
+export function loadAdit(id) {
+  if (!adits.has(id)) {
+    const p = fetch(aditUrl(id)).then((r) => { if (!r.ok) throw new Error(`${aditUrl(id)}: ${r.status}`); return r.arrayBuffer(); }).then(parseAdit);
+    p.catch(() => adits.delete(id));
+    adits.set(id, p);
+  }
+  return adits.get(id);
+}
+
+// --- The portals in the world ---------------------------------------------------------------------------------------------
+function buildPortal(group, a, name) {
   const g = new THREE.Group();
   g.name = 'MinePortal';
   const y = groundHeight(a.x, a.z);
   g.position.set(a.x, y, a.z);
-  g.rotation.y = a.heading;
+  g.rotation.y = a.heading; // (local +z: into the mountain)
   const wood = new THREE.MeshStandardNodeMaterial({ color: 0x5a3b22, roughness: 0.9 });
   const dark = new THREE.MeshBasicNodeMaterial({ color: 0x050403 });
   const rock = new THREE.MeshStandardNodeMaterial({ color: 0x7d746a, roughness: 1 });
-  // the opening: a black box into the slope, the frame round its mouth
-  const hole = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.3, 4), dark); hole.position.set(0, 1.0, 2.0);
-  const post = new THREE.BoxGeometry(0.24, 2.6, 0.24);
-  const l = new THREE.Mesh(post, wood); l.position.set(-1.12, 1.1, 0);
-  const r = new THREE.Mesh(post, wood); r.position.set(1.12, 1.1, 0);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.3, 0.3), wood); cap.position.set(0, 2.45, 0);
-  // the rock face round it (the black box stands 0.15 m proud of it: the opening), the spoil heap, the rails out
-  const face = new THREE.Mesh(new THREE.BoxGeometry(5.5, 3.6, 1.2), rock); face.position.set(0, 1.2, 1.0);
-  const heap = new THREE.Mesh(new THREE.SphereGeometry(2.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.4, 0.55, 1), rock); heap.position.set(3.2, -0.2, -2.4);
-  const rail = new THREE.BoxGeometry(0.05, 0.06, 4.5);
-  const iron = new THREE.MeshStandardNodeMaterial({ color: 0x3a3632, roughness: 0.5, metalness: 0.6 });
-  for (const x of [MINE.railX - 0.3, MINE.railX + 0.3]) { const m = new THREE.Mesh(rail, iron); m.position.set(x, 0.03, -1.8); g.add(m); }
-  hole.position.z = 0.15 + 2.0;
+  // the opening: a black box into the slope, the frame round its mouth, the rock face round it
+  const hole = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.0, 4), dark); hole.position.set(0, 0.9, 2.15);
+  const post = new THREE.BoxGeometry(0.22, 2.3, 0.22);
+  const l = new THREE.Mesh(post, wood); l.position.set(-0.86, 1.0, 0);
+  const r = new THREE.Mesh(post, wood); r.position.set(0.86, 1.0, 0);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 0.28), wood); cap.position.set(0, 2.2, 0);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(5.0, 3.4, 1.2), rock); face.position.set(0, 1.1, 1.0);
+  const heap = new THREE.Mesh(new THREE.SphereGeometry(2.2, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.4, 0.5, 1), rock); heap.position.set(3.0, -0.2, -2.4);
   g.add(face, hole, l, r, cap, heap);
   // the sign over the portal
   const c = document.createElement('canvas'); c.width = 512; c.height = 96;
   const x = c.getContext('2d');
   x.fillStyle = '#3b2716'; x.fillRect(0, 0, 512, 96);
-  x.fillStyle = '#f1e2c4'; x.font = '700 40px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Glück auf · Silberberg', 256, 50);
+  x.fillStyle = '#f1e2c4'; x.font = '700 38px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(`Glück auf · ${name}`, 256, 50);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.45, 0.06), new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.8 }));
-  sign.position.set(0, 2.95, -0.1); sign.rotation.y = Math.PI; // (it faces out of the mountain, towards -z)
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.43, 0.06), new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.8 }));
+  sign.position.set(0, 2.68, -0.1); sign.rotation.y = Math.PI; // (it faces out of the mountain, towards -z)
   g.add(sign);
   for (const m of g.children) m.castShadow = true;
   group.add(g);
@@ -64,22 +77,35 @@ function buildPortal(group) {
 
 // --- The lamp-lit material ---------------------------------------------------------------------------------------------
 const LANTERNS = 3;
-function lampMaterial(L, { sparkle = false } = {}) {
-  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: !sparkle });
+/** Lit by the lamp and the lanterns; `scan`: the colour and the daylight from the scan's attributes (not multiplied) */
+function lampMaterial(L, { sparkle = false, scan = false } = {}) {
+  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: !sparkle && !scan, side: scan ? THREE.DoubleSide : THREE.FrontSide });
   m.colorNode = Fn(() => {
     const toP = positionWorld.sub(L.pos);
     const dist = toP.length().max(0.05);
     const dirN = toP.div(dist);
-    const cone = smoothstep(0.6, 0.93, dot(dirN, L.dir)).mul(1.1).add(0.07);
-    const att = float(1).div(dist.mul(dist).mul(0.2).add(1));
-    const facing = max(dot(normalWorld, dirN.negate()), 0).mul(0.7).add(0.3);
+    const cone = smoothstep(0.55, 0.92, dot(dirN, L.dir)).mul(1.1).add(0.08);
+    const att = float(1).div(dist.mul(dist).mul(0.22).add(1));
+    // (both faces: the light from whichever side looks at the lamp)
+    const facing = dot(normalWorld, dirN.negate()).abs().mul(0.7).add(0.3);
     let light = vec3(1.0, 0.8, 0.52).mul(cone.mul(att).mul(facing).mul(L.power));
     for (let i = 0; i < LANTERNS; i++) {
       const d = positionWorld.distance(L.lanterns[i]);
-      light = light.add(vec3(1.0, 0.58, 0.24).mul(L.lanternPower).div(d.mul(d).mul(1.1).add(1)).mul(0.6));
+      light = light.add(vec3(1.0, 0.58, 0.24).mul(L.lanternPower).div(d.mul(d).mul(0.9).add(1)).mul(0.6));
     }
-    // (the vertex colours, or the instances' colours, multiply this: js node materials' diffuse colour)
+    // (the show mine's electric light on the tour: a dim, warm fill; none on the ore shift)
+    light = light.add(vec3(1.0, 0.86, 0.66).mul(L.ambient));
     let col = light.add(0.004);
+    if (scan) {
+      // the scan's colour, grained: two octaves of value noise on the rock (cm and dm), the light kept off the bloom
+      const day = attribute('day', 'float');
+      // (smooth: sums of sines across the three axes, not the voxels' cubes)
+      const q = positionWorld;
+      const g1 = sin(q.x.mul(9.1).add(sin(q.y.mul(7.3)).mul(1.7))).mul(sin(q.z.mul(8.7).add(sin(q.x.mul(5.9)).mul(1.9)))).mul(sin(q.y.mul(10.3).add(q.z.mul(3.1))));
+      const g2 = sin(q.x.mul(2.3).add(q.z.mul(1.7)).add(sin(q.y.mul(3.1)).mul(2.0))).mul(sin(q.y.mul(2.9).sub(q.x.mul(1.3))));
+      const grain = g1.mul(0.16).add(g2.mul(0.18)).add(0.88);
+      col = attribute('color', 'vec3').mul(grain).mul(col.min(vec3(1.4))).mul(0.85).add(vec3(0.85, 0.9, 1.0).mul(day).mul(L.day));
+    }
     if (sparkle) {
       // glitter: facets that catch the lamp in turn
       const h = fract(sin(dot(floor(positionLocal.mul(30)), vec3(12.9898, 78.233, 37.719)).add(time.mul(1.3))).mul(43758.5453));
@@ -87,94 +113,75 @@ function lampMaterial(L, { sparkle = false } = {}) {
     }
     return col;
   })();
+  void max;
   return m;
 }
 
-// --- The gallery: a voxel mesh of the mine's cells -------------------------------------------------------------------------
-const hash3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
-const jitter = (x, y, z, out) => {
-  const k = 0.14;
-  out.set((hash3(x, y, z) - 0.5) * k * 2, (hash3(z, x, y) - 0.5) * k * (y < 0.01 ? 0.2 : 1.4), (hash3(y, z, x) - 0.5) * k * 2);
-  return out;
-};
-
-function buildGallery(mine, L) {
-  const C = MINE.cell, H = MINE.height;
-  const pos = [], col = [], idx = [];
-  const rockA = new THREE.Color(0x6d655c), rockB = new THREE.Color(0x4f4840), floorC = new THREE.Color(0x4a3a2c), ore = new THREE.Color(0x5e5146);
-  const tint = new THREE.Color();
-  const J = new THREE.Vector3();
-  // a quad from corner p0 along u (nu steps) and v (nv steps)
-  const quad = (p0, u, v, nu, nv, base) => {
-    const start = pos.length / 3;
-    for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) {
-      const x = p0[0] + (u[0] * a) / nu + (v[0] * b) / nv, y = p0[1] + (u[1] * a) / nu + (v[1] * b) / nv, z = p0[2] + (u[2] * a) / nu + (v[2] * b) / nv;
-      jitter(Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100, J);
-      pos.push(x + J.x, y + J.y, z + J.z);
-      const n = hash3(x * 0.7, y * 1.3, z * 0.9);
-      tint.copy(base).lerp(base === floorC ? rockB : n > 0.85 ? ore : rockB, n * 0.6);
-      col.push(tint.r, tint.g, tint.b);
-    }
-    for (let a = 0; a < nu; a++) for (let b = 0; b < nv; b++) {
-      const i0 = start + a * (nv + 1) + b, i1 = i0 + nv + 1;
-      idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1);
-    }
-  };
-  const cells = [...mine.list, [0, -1]]; // (and the portal's step outside)
-  const carved = (i, k) => isCarved(mine, i, k) || (i === 0 && k === -1);
-  for (const [i, k] of cells) {
-    const x0 = i * C - C / 2, x1 = x0 + C, z0 = k * C, z1 = z0 + C;
-    // (the winding: the faces seen from inside the cell)
-    quad([x0, 0, z0], [0, 0, C], [C, 0, 0], 3, 3, floorC);
-    quad([x0, H, z0], [C, 0, 0], [0, 0, C], 3, 3, rockA);
-    DIRS.forEach(([di, dk], d) => {
-      if (carved(i + di, k + dk)) return;
-      if (i === 0 && k === -1 && d === 3) return; // (daylight there)
-      if (d === 0) quad([x1, 0, z0], [0, 0, C], [0, H, 0], 3, 3, rockA);
-      if (d === 2) quad([x0, 0, z1], [0, 0, -C], [0, H, 0], 3, 3, rockA);
-      if (d === 1) quad([x1, 0, z1], [-C, 0, 0], [0, H, 0], 3, 3, rockA);
-      if (d === 3) quad([x0, 0, z0], [C, 0, 0], [0, H, 0], 3, 3, rockA);
-    });
-  }
-  const rockGeo = new THREE.BufferGeometry();
-  rockGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  rockGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  rockGeo.setIndex(idx);
-  rockGeo.computeVertexNormals();
-  // the timbering (a set every cell along the galleries: two posts and a cap), the rails and sleepers
-  const parts = [];
-  const box = (w, h, d, x, y, z, colour) => {
-    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed().translate(x, y, z);
-    const n = g.attributes.position.count, c = new Float32Array(n * 3);
-    _c.set(colour);
-    for (let q = 0; q < n; q++) { const f = 0.85 + 0.3 * hash3(x + q, y, z); c[q * 3] = _c.r * f; c[q * 3 + 1] = _c.g * f; c[q * 3 + 2] = _c.b * f; }
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
-    g.deleteAttribute('uv');
-    parts.push(g);
-  };
-  const wood = 0x6b4a2c;
-  for (const [i, k] of mine.list) {
-    if (k < 1) continue;
-    const alongZ = carved(i, k + 1) || carved(i, k - 1), alongX = carved(i + 1, k) || carved(i - 1, k);
-    if (alongZ && alongX) continue; // (a junction: open)
-    const c = cellCentre(i, k);
-    const w = C / 2 - 0.16;
-    if (alongZ) { box(0.18, H - 0.1, 0.18, c.x - w, (H - 0.1) / 2, c.z, wood); box(0.18, H - 0.1, 0.18, c.x + w, (H - 0.1) / 2, c.z, wood); box(C - 0.1, 0.2, 0.2, c.x, H - 0.18, c.z, wood); }
-    else { box(0.18, H - 0.1, 0.18, c.x, (H - 0.1) / 2, c.z - w, wood); box(0.18, H - 0.1, 0.18, c.x, (H - 0.1) / 2, c.z + w, wood); box(0.2, 0.2, C - 0.1, c.x, H - 0.18, c.z, wood); }
-  }
-  const railLen = mine.mainCells * C + 1.2;
-  for (const dx of [-0.3, 0.3]) box(0.05, 0.07, railLen, MINE.railX + dx, 0.09, railLen / 2 - 1.2, 0x55504a);
-  for (let z = -1; z < mine.mainCells * C; z += 0.8) box(0.85, 0.06, 0.16, MINE.railX, 0.03, z, 0x3e2c1c);
-  const timberGeo = mergeGeometries(parts);
-  for (const p of parts) p.dispose();
-  timberGeo.computeVertexNormals();
-  const mat = lampMaterial(L);
+// --- The gallery: the scan's mesh, the rails, the black hull ----------------------------------------------------------------
+function buildGallery(a, L, { rails = true } = {}) {
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(rockGeo, mat), new THREE.Mesh(timberGeo, mat));
-  // daylight in the portal: a bright plane beyond the last step
-  const day = new THREE.Mesh(new THREE.PlaneGeometry(C + 0.4, H + 0.4), new THREE.MeshBasicNodeMaterial({ color: 0xdfe9f5 }));
-  day.position.set(0, H / 2, -C + 0.02);
-  g.add(day);
+  const n = a.header.mesh.vertices;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(a.positions, 3));
+  const col = new Float32Array(n * 3), day = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 3; k++) col[i * 3 + k] = Math.pow(a.colours[i * 4 + k] / 255, 2.2);
+    day[i] = a.colours[i * 4 + 3] / 255;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('day', new THREE.BufferAttribute(day, 1));
+  geo.setIndex(new THREE.BufferAttribute(a.index, 1));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  const rock = new THREE.Mesh(geo, lampMaterial(L, { scan: true }));
+  rock.name = 'MineRock';
+  g.add(rock);
+  // the hull: black all round, beyond the rock (whatever might show through the scan sees nothing)
+  const { min, max: mx } = a.header.mesh;
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(mx[0] - min[0] + 8, mx[1] - min[1] + 8, mx[2] - min[2] + 8), new THREE.MeshBasicNodeMaterial({ color: 0x000000, side: THREE.BackSide }));
+  hull.position.set((min[0] + mx[0]) / 2, (min[1] + mx[1]) / 2, (min[2] + mx[2]) / 2);
+  g.add(hull);
+  if (rails && a.header.rail.length > 1) {
+    const parts = [];
+    const box = (w, h, d, x, y, z, rotY, colour) => {
+      const b = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+      b.rotateY(rotY); b.translate(x, y, z);
+      const k = b.attributes.position.count, c = new Float32Array(k * 3);
+      _c.set(colour);
+      for (let q = 0; q < k; q++) { const f = 0.85 + 0.3 * hash3(x + q, y, z); c[q * 3] = _c.r * f; c[q * 3 + 1] = _c.g * f; c[q * 3 + 2] = _c.b * f; }
+      b.setAttribute('color', new THREE.BufferAttribute(c, 3));
+      b.deleteAttribute('uv');
+      parts.push(b);
+    };
+    const R = a.header.rail;
+    for (let i = 0; i + 1 < R.length; i++) {
+      const [x0, y0, z0] = R[i], [x1, y1, z1] = R[i + 1];
+      const len = Math.hypot(x1 - x0, z1 - z0), rot = Math.atan2(x1 - x0, z1 - z0);
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, tx = (x1 - x0) / len, tz = (z1 - z0) / len;
+      for (const s of [-0.28, 0.28]) box(0.05, 0.07, len + 0.04, cx + tz * s, cy + 0.17, cz - tx * s, rot, 0x6a645c);
+      box(0.75, 0.06, 0.16, cx, cy + 0.11, cz, rot, 0x4a3522);
+    }
+    const tg = mergeGeometries(parts);
+    for (const p of parts) p.dispose();
+    tg.computeVertexNormals();
+    g.add(new THREE.Mesh(tg, lampMaterial(L)));
+  }
+  return g;
+}
+
+/** A station's plaque: a small board on a post with its title, lit by the lamp */
+function buildPlaque(L, text) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+  const x = c.getContext('2d');
+  x.fillStyle = '#2e2014'; x.fillRect(0, 0, 256, 96);
+  x.fillStyle = '#f1e2c4'; x.font = '700 40px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 128, 50);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshBasicNodeMaterial({ map: tex });
+  const g = new THREE.Group();
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.19), m); board.position.y = 1.35;
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.19), m); back.position.y = 1.35; back.rotation.y = Math.PI;
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.1), new THREE.MeshBasicNodeMaterial({ color: 0xffb04a })); lamp.position.y = 1.62;
+  g.add(board, back, lamp);
   return g;
 }
 
@@ -366,7 +373,12 @@ body.mine-indoor .hud-bottom-center{visibility:hidden}
 .mine-strike{pointer-events:auto;border:0;border-radius:999px;padding:16px 26px;font:800 17px Inter,system-ui,sans-serif;color:#1b1206;background:linear-gradient(180deg,#ffd36b,#e09a2b);box-shadow:0 6px 18px rgba(224,154,43,.4);touch-action:none;user-select:none;-webkit-user-select:none}
 .mine-strike.is-on{transform:scale(.95);filter:brightness(1.15)}
 .mine-toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:41;pointer-events:none;font:800 24px/1.2 Inter,system-ui,sans-serif;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.8);opacity:0;transition:opacity .25s}
+.mine-station{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;width:min(460px,calc(100vw - 32px));box-sizing:border-box;pointer-events:none;background:rgba(14,10,6,.86);border:1px solid rgba(255,220,160,.25);border-radius:14px;padding:12px 16px;color:#f3e6cc;font:500 14px/1.45 Inter,system-ui,sans-serif;opacity:0;transition:opacity .4s}
+.mine-station b{display:block;font:800 17px/1.2 Georgia,serif;color:#ffd36b;margin-bottom:4px}
 `;
+
+/** The adit an objective wants the walker in (null: outside) */
+const wantedAdit = (run) => (run.phase === 'running' || run.phase === 'ready' ? run.def.objectives[run.index]?.inside ?? null : null);
 
 const mineFeature = {
   setup(run) {
@@ -374,7 +386,13 @@ const mineFeature = {
     s.textContent = STYLE;
     document.head.append(s);
     run.cleanups.push(() => s.remove());
-    buildPortal(run.group);
+    const kind = run.def.mine?.kind || 'ore';
+    const ids = kind === 'tour' ? ['dalvazzer', 'hilfsstollen'] : [run.def.mine?.adit || 'hilfsstollen'];
+    const parsed = {};
+    for (const id of ids) {
+      buildPortal(run.group, ADITS[id], id === 'dalvazzer' ? 'Dalvazzer' : 'Hilfsstollen');
+      loadAdit(id).then((a) => { parsed[id] = a; }, (e) => console.warn('[mine] scan', id, e));
+    }
     const hud = el('div'); hud.className = 'mine-hud'; hud.hidden = true;
     const card = el('div'); card.className = 'mine-card';
     const oil = el('span'); oil.className = 'mine-oil'; const oilFill = el('span'); oil.append(oilFill);
@@ -387,50 +405,69 @@ const mineFeature = {
     for (const t of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(strike, t, on(false));
     hud.append(card, strike);
     const toast = el('div'); toast.className = 'mine-toast';
-    document.body.append(hud, toast);
-    run.cleanups.push(() => { hud.remove(); toast.remove(); document.body.classList.remove('mine-indoor'); });
-    run.mine = { hud, oil, oilFill, basket, toast, toastT: 0, touchStrike: false, inside: null, audio: null };
+    const station = el('div'); station.className = 'mine-station';
+    document.body.append(hud, toast, station);
+    run.cleanups.push(() => { hud.remove(); toast.remove(); station.remove(); document.body.classList.remove('mine-indoor'); });
+    run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0 };
   },
   reset(run) {
     mineFeature.leave(run);
     run.mine.audio?.dispose(); run.mine.audio = new MineAudio(run.hooks.audio);
     run.mine.hud.hidden = true;
-    run.state.shift = null;
+    run.mine.lastIndex = 0;
+    run.mine.station.style.opacity = '0';
+    if (run.state) { run.state.shift = null; run.state.walk = null; run.state.points = null; }
   },
   teardown(run) {
     mineFeature.leave(run);
     run.mine.audio?.dispose();
   },
   /** Into the mountain: the gallery built, the walker parked at the door, the camera ours */
-  enter(run) {
-    const M = run.mine;
-    const seed = run.state.seed ?? (run.state.seed = Number(new URLSearchParams(location.search).get('seed')) || mineSeedOfDay());
-    const mine = generateMine(seed);
+  enter(run, id) {
+    const M = run.mine, a = M.parsed[id];
     const L = {
-      pos: uniform(new THREE.Vector3()), dir: uniform(new THREE.Vector3(0, 0, 1)), power: uniform(1),
+      pos: uniform(new THREE.Vector3()), dir: uniform(new THREE.Vector3(0, 0, 1)), power: uniform(1), day: uniform(1), ambient: uniform(M.kind === 'tour' ? 0.22 : 0),
       lanterns: Array.from({ length: LANTERNS }, () => uniform(new THREE.Vector3(0, -1e4, 0))), lanternPower: uniform(1)
     };
-    const origin = new THREE.Vector3(MINE_ADIT.x, groundHeight(MINE_ADIT.x, MINE_ADIT.z) + LIFT, MINE_ADIT.z);
+    const A = ADITS[id];
+    const origin = new THREE.Vector3(A.x, groundHeight(A.x, A.z) + LIFT, A.z);
     const group = new THREE.Group();
     group.name = 'MineInterior';
     group.position.copy(origin);
-    group.add(buildGallery(mine, L));
-    const veins = buildVeins(mine, L);
-    placeVeins(veins, mine);
-    group.add(run.storage(veins));
-    const hunt = buildHunt(L);
-    group.add(hunt);
-    const tools = buildTools(L);
-    run.group.add(tools.hammer, tools.chisel);
-    // the lanterns: at the mouths of the first drifts, on the wall beside the walkway
-    mine.branches.slice(0, LANTERNS).forEach((b, i) => {
-      const c = cellCentre(0, b.k0 - 1);
-      const p = new THREE.Vector3(c.x + MINE.cell / 2 - 0.22, 1.85, c.z).add(origin);
-      L.lanterns[i].value.copy(p);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), new THREE.MeshBasicNodeMaterial({ color: 0xffb04a }));
-      lamp.position.copy(p).sub(origin);
-      group.add(lamp);
-    });
+    const ore = M.kind === 'ore';
+    group.add(buildGallery(a, L, { rails: ore }));
+    let mine = null, veins = null, hunt = null, tools = null;
+    const lamps = [];
+    if (ore) {
+      const seed = run.state.seed ?? (run.state.seed = Number(new URLSearchParams(location.search).get('seed')) || mineSeedOfDay());
+      mine = createMine(a, seed);
+      veins = buildVeins(mine, L);
+      placeVeins(veins, mine);
+      group.add(run.storage(veins));
+      hunt = buildHunt(L);
+      group.add(hunt);
+      tools = buildTools(L);
+      run.group.add(tools.hammer, tools.chisel);
+      for (const s of [30, 110, 190]) { const p = railAt(mine.rail, s); lamps.push(new THREE.Vector3(p.x - p.tz * 0.5, p.y + 1.7, p.z + p.tx * 0.5)); }
+      run.state.shift = createShift(mine);
+    } else {
+      // the tour: a plaque with a lantern at each of this adit's stations
+      const pts = {};
+      for (const [key, st] of Object.entries(TOUR_STATIONS)) {
+        if (st.adit !== id) continue;
+        const p = stationPoint(a, st);
+        pts[key] = p;
+        const f = a.floor.at(p.x, p.z);
+        const plaque = buildPlaque(L, st.title);
+        plaque.position.set(p.x, f ? f.y : p.y, p.z);
+        plaque.rotation.y = Math.atan2(-p.x, -p.z); // (towards the portal: the way one comes)
+        group.add(plaque);
+        if (lamps.length < LANTERNS) lamps.push(new THREE.Vector3(p.x, (f ? f.y : p.y) + 1.62, p.z));
+      }
+      run.state.points = pts;
+      run.state.walk = { adit: id, ...createWalker(a) };
+    }
+    lamps.forEach((p, i) => L.lanterns[i].value.copy(p).add(origin));
     run.group.add(group);
     group.updateMatrixWorld(true);
     const cm = run.hooks.controllerManager;
@@ -440,39 +477,65 @@ const mineFeature = {
     document.body.classList.add('mine-indoor');
     const prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; }; // (the walker waits at the door)
-    M.inside = { group, mine, L, hunt, veins, tools, origin, fade, prevDriver, bob: 0, shake: 0, snow: run.scene.getObjectByName('snowfall') };
-    M.hud.hidden = false;
-    run.state.shift = createShift(mine);
+    M.inside = { id, a, group, mine, L, hunt, veins, tools, origin, fade, prevDriver, bob: 0, shake: 0, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
+    M.hud.hidden = !ore;
   },
   leave(run) {
     const M = run.mine, I = M?.inside;
     if (!I) return;
     I.group.removeFromParent();
-    I.tools.hammer.removeFromParent(); I.tools.chisel.removeFromParent();
-    const dispose = (root) => root.traverse((o) => { o.geometry?.dispose(); for (const m of [].concat(o.material || [])) m.dispose(); if (o.isInstancedMesh) o.dispose(); });
-    dispose(I.group); dispose(I.tools.hammer); dispose(I.tools.chisel);
+    const dispose = (root) => root.traverse((o) => { o.geometry?.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } if (o.isInstancedMesh) o.dispose(); });
+    dispose(I.group);
+    if (I.tools) { I.tools.hammer.removeFromParent(); I.tools.chisel.removeFromParent(); dispose(I.tools.hammer); dispose(I.tools.chisel); }
     I.fade.remove();
+    if (I.camera && I.prevNear != null) { I.camera.near = I.prevNear; I.camera.updateProjectionMatrix(); }
+    if (I.snow) I.snow.visible = true;
     document.body.classList.remove('mine-indoor');
     const cm = run.hooks.controllerManager;
     cm.personDriver = I.prevDriver ?? null;
     run.hooks.cameraSystem?.resetForTeleport?.();
     M.inside = null;
+    M.hud.hidden = true;
   },
   toast(run, text, colour = '#f3e6cc', secs = 1.6) {
     const M = run.mine;
     M.toast.textContent = text; M.toast.style.color = colour; M.toast.style.opacity = '1'; M.toastT = secs;
   },
+  showStation(run, key) {
+    const st = TOUR_STATIONS[key], M = run.mine;
+    if (!st) return;
+    M.station.replaceChildren(el('b', null, st.title), document.createTextNode(st.text));
+    M.station.style.opacity = '1';
+    M.stationT = 11;
+  },
   update(run, ctx, dt, cm) {
     const M = run.mine;
-    if (!M.inside && run.index >= 1 && !run.state.shift) mineFeature.enter(run);
+    // the stations passed: their cards
+    if (run.index !== M.lastIndex) {
+      const prev = run.def.objectives[M.lastIndex];
+      if (run.index > M.lastIndex && prev?.station) mineFeature.showStation(run, prev.station);
+      M.lastIndex = run.index;
+    }
+    if (M.stationT > 0 && (M.stationT -= dt) <= 0) M.station.style.opacity = '0';
     if (M.toastT > 0 && (M.toastT -= dt) <= 0) M.toast.style.opacity = '0';
-    const I = M.inside, g = run.state.shift;
-    if (!I || !g) return;
-    // the shift runs with the stopwatch (the first step through the door started it)
+    // in and out of the adits, as the objectives want
+    const want = wantedAdit(run);
+    if (M.inside && M.inside.id !== want && !(M.kind === 'ore' && run.state.shift?.over)) mineFeature.leave(run);
+    if (want && !M.inside && M.parsed[want] && !(M.kind === 'ore' && run.state.shift)) mineFeature.enter(run, want);
+    const I = M.inside;
+    if (!I) return;
     if (run.phase !== 'running' && run.phase !== 'ready') return;
     const k = cm.keys, num = (v) => (v === true ? 1 : Number(v) || 0);
     const input = { forward: num(k.forward), back: num(k.backward), turn: num(k.left) - num(k.right), strike: !!k.up || M.touchStrike };
     let left = Math.min(dt, 0.1);
+    if (M.kind === 'tour') {
+      const w = run.state.walk;
+      while (left > 1e-6) { const h = Math.min(1 / 60, left); stepWalk(w, I.a, input, h); left -= h; }
+      M.audio?.drip(dt);
+      return;
+    }
+    const g = run.state.shift;
+    if (!g) return;
     const events = [];
     while (left > 1e-6) { const h = Math.min(1 / 60, left); events.push(...stepShift(g, input, h)); left -= h; }
     for (const e of events) {
@@ -500,17 +563,21 @@ const mineFeature = {
     if (g.over) M.hud.hidden = true;
   },
   after(run, ctx, dt) {
-    const M = run.mine, I = M.inside, g = run.state.shift;
-    if (!I || !g || run.phase === 'aborted') return;
+    const M = run.mine, I = M.inside;
+    const w = M.kind === 'ore' ? run.state?.shift : run.state?.walk;
+    if (!I || !w || run.phase === 'aborted') return;
     const cam = ctx.camera;
-    // the miner's eyes: a little bob as it walks, the shake of a strike
-    const moving = Math.abs(run.hooks.controllerManager.keys.forward ? 1 : 0) || Math.abs(run.hooks.controllerManager.keys.backward ? 1 : 0);
-    I.bob += dt * (moving ? 8 : 0);
+    if (cam.near !== NEAR) { I.camera = cam; I.prevNear = cam.near; cam.near = NEAR; cam.updateProjectionMatrix(); }
+    // the miner's eyes: ducking under a low roof, a little bob as it walks, the shake of a strike
+    I.bob += dt * (Math.abs(w.moving || 0) > 0.05 ? 8 : 0);
     I.shake = Math.max(0, I.shake - dt);
     const sh = I.shake * (Math.random() - 0.5) * 0.4;
-    const eye = _v.set(g.x, 1.6 + Math.sin(I.bob) * 0.025, g.z).add(I.origin);
+    const f = I.a.floor.at(w.x, w.z);
+    const eyeH = clamp((f ? f.ceil : w.y + 2) - w.y - 0.18, 0.95, 1.55);
+    I.eyeH = I.eyeH == null ? eyeH : I.eyeH + (eyeH - I.eyeH) * Math.min(1, dt * 6);
+    const eye = _v.set(w.x, w.y + I.eyeH + Math.sin(I.bob) * 0.025, w.z).add(I.origin);
     cam.position.copy(eye);
-    _e.set(-0.1 + sh, g.heading + Math.PI + sh * 0.5, 0);
+    _e.set(-0.17 + sh, w.heading + Math.PI + sh * 0.5, 0);
     cam.quaternion.setFromEuler(_e);
     cam.updateMatrixWorld();
     if (I.snow) I.snow.visible = false;
@@ -520,11 +587,16 @@ const mineFeature = {
     L.dir.value.set(0, -0.12, -1).applyQuaternion(cam.quaternion).normalize();
     const t = performance.now() / 1000;
     const flicker = 0.93 + 0.05 * Math.sin(t * 13) * Math.sin(t * 7.3) + 0.02 * Math.sin(t * 31);
-    const low = g.lamp < MINE.lampLow ? (g.lamp / MINE.lampLow) * (0.75 + 0.25 * Math.sin(t * 23) * Math.sin(t * 9)) : 1;
-    L.power.value = g.over === 'dark' ? 0 : flicker * Math.max(0.15, low);
+    const lamp = M.kind === 'ore' ? w.lamp : MINE.lamp;
+    const low = lamp < MINE.lampLow ? (lamp / MINE.lampLow) * (0.75 + 0.25 * Math.sin(t * 23) * Math.sin(t * 9)) : 1;
+    L.power.value = w.over === 'dark' ? 0 : flicker * Math.max(0.15, low);
     L.lanternPower.value = 0.9 + 0.1 * Math.sin(t * 5.1);
+    if (M.kind !== 'ore') return;
+    const g = w;
     // the hunt on its rails, its heap
-    I.hunt.position.set(MINE.railX, 0, g.hunt.z);
+    const hp = railAt(I.mine.rail, g.hunt.s);
+    I.hunt.position.set(hp.x, hp.y, hp.z);
+    I.hunt.rotation.y = Math.atan2(hp.tx, hp.tz);
     const heap = I.hunt.userData.heap;
     const fill = clamp(g.hunt.kg / 120, 0, 1);
     heap.visible = fill > 0.01;
