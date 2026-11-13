@@ -3,6 +3,7 @@ import { Fn, attribute, float, fract, max, normalWorld, positionLocal, positionW
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { parseAdit, aditUrl } from './silberberg-asset.js';
+import { t } from './i18n.js';
 import {
   MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore
 } from './missions-data-mine.js';
@@ -174,7 +175,10 @@ function buildPlaque(L, text) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 96;
   const x = c.getContext('2d');
   x.fillStyle = '#2e2014'; x.fillRect(0, 0, 256, 96);
-  x.fillStyle = '#f1e2c4'; x.font = '700 40px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 128, 50);
+  x.fillStyle = '#f1e2c4'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  let px = 40;
+  do x.font = `700 ${px}px Georgia, serif`; while (x.measureText(text).width > 236 && --px > 16);
+  x.fillText(text, 128, 50);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const m = new THREE.MeshBasicNodeMaterial({ map: tex });
   const g = new THREE.Group();
@@ -426,7 +430,7 @@ const mineFeature = {
   enter(run, id) {
     const M = run.mine, a = M.parsed[id];
     const L = {
-      pos: uniform(new THREE.Vector3()), dir: uniform(new THREE.Vector3(0, 0, 1)), power: uniform(1), day: uniform(1), ambient: uniform(M.kind === 'tour' ? 0.22 : 0),
+      pos: uniform(new THREE.Vector3()), dir: uniform(new THREE.Vector3(0, 0, 1)), power: uniform(1), day: uniform(1), ambient: uniform(M.kind === 'tour' ? 0.5 : 0),
       lanterns: Array.from({ length: LANTERNS }, () => uniform(new THREE.Vector3(0, -1e4, 0))), lanternPower: uniform(1)
     };
     const A = ADITS[id];
@@ -458,7 +462,7 @@ const mineFeature = {
         const p = stationPoint(a, st);
         pts[key] = p;
         const f = a.floor.at(p.x, p.z);
-        const plaque = buildPlaque(L, st.title);
+        const plaque = buildPlaque(L, t(st.title));
         plaque.position.set(p.x, f ? f.y : p.y, p.z);
         plaque.rotation.y = Math.atan2(-p.x, -p.z); // (towards the portal: the way one comes)
         group.add(plaque);
@@ -504,7 +508,7 @@ const mineFeature = {
   showStation(run, key) {
     const st = TOUR_STATIONS[key], M = run.mine;
     if (!st) return;
-    M.station.replaceChildren(el('b', null, st.title), document.createTextNode(st.text));
+    M.station.replaceChildren(el('b', null, t(st.title)), document.createTextNode(t(st.text)));
     M.station.style.opacity = '1';
     M.stationT = 11;
   },

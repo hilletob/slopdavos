@@ -63,7 +63,7 @@ export const MINE = {
 // --- The adits in the world ----------------------------------------------------------------------------------------------
 // (origin: the portal station in the world frame, from the asset's header; out: the portal's outward direction, x/z)
 const adit = (id, origin, out, label) => {
-  const door = { x: origin[0] + out[0] * 2.8, z: origin[2] + out[1] * 2.8, r: 2.4 };
+  const door = { x: origin[0] + out[0] * 3.4, z: origin[2] + out[1] * 3.4, r: 1.8 }; // (a small ring, out in front: on the steep slope a big one would hide the portal)
   return { id, label, x: origin[0], z: origin[2], out, heading: Math.atan2(-out[0], -out[1]), door };
 };
 export const ADITS = {

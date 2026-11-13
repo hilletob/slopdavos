@@ -30,7 +30,7 @@ const toWorld = (E, N, H) => [E - 2782500, H - 1558, 1185500 - N];
 
 export const ADITS = {
   dalvazzer: {
-    cloud: 'Dalvazzerstollen', level: 3, vox: 0.2,
+    cloud: 'Dalvazzerstollen', level: 3, vox: 0.12,
     // (the walkway from the Pochhaus ends at the portal; the gallery runs north-east, the stope above and below it)
     portal: [2776582.426, 1174336.674, 1506.418], out: [-0.78, -0.62],
     outside: true, // (nothing of the mine beyond the portal's plane: all of it is the hillside)
@@ -47,7 +47,7 @@ export const ADITS = {
       [2776591.4, 1174337.6], [2776585.6, 1174331.0], [2776583.0, 1174332.0]],
     // the visitors' walkway: [u (m from the portal towards the far end), w (m to the left), floor y (m from the portal
     // station)] — read off the scan's floors: in at the portal's level, the stairs down at 7–9 m, the footbridge
-    walk: { half: 0.45, pts: [[-1, -0.3, -0.4], [6.5, -0.4, -0.6], [8.8, -0.4, -1.7], [20, -0.5, -1.7], [26, -0.6, -1.8], [31.5, 0.1, -1.8]] }
+    walk: { half: 0.4, shift: 1.0, pts: [[-1, -0.3, -0.4], [6.5, -0.4, -0.6], [8.8, -0.4, -1.7], [20, -0.5, -1.7], [26, -0.6, -1.8], [31.5, 0.1, -1.8]] }
   },
   hilfsstollen: {
     cloud: 'Hilfsstollen', level: 5, vox: 0.2,
@@ -474,7 +474,7 @@ async function main() {
 }
 
 // --- Walking: the floor grid from the portal; the rails ---------------------------------------------------------------
-function finish({ id, A, grid, mesh, floor, toLocal }) {
+function finish({ id, A, grid, air, mesh, floor, toLocal }) {
   const { NU, NW, V, u0, w0, y0, th } = grid;
   const { floorsOf, step } = floor;
   const [pE, pN, pH] = A.portal;
@@ -519,7 +519,42 @@ function finish({ id, A, grid, mesh, floor, toLocal }) {
     // a walkway laid by hand (a narrow footbridge over the open stope, stairs: too fine for the voxels): the cells
     // within `half` of its line, each on the scan's floor nearest the line's height there, or at that height
     FY.fill(-1);
-    const L = A.walk.pts;
+    // (the line through the middle of the air at the walker's head (the cleft leans: at the feet it lies elsewhere): densified every 0.4 m, each point moved
+    // across to the middle of the air there — at most `shift` m — and smoothed)
+    const hand = A.walk.pts;
+    const along = (u) => {
+      let i = 0;
+      while (i < hand.length - 2 && hand[i + 1][0] < u) i++;
+      const [au, aw, ay] = hand[i], [bu, bw, by] = hand[i + 1], t = Math.max(0, Math.min(1, (u - au) / (bu - au)));
+      return [aw + (bw - aw) * t, ay + (by - ay) * t];
+    };
+    const dense = [];
+    for (let u = hand[0][0]; u <= hand[hand.length - 1][0] + 1e-6; u += 0.4) {
+      const [w, y] = along(u);
+      const iu = Math.floor((u - u0) / V);
+      let sum = 0, n = 0;
+      for (const h of [1.2, 1.45, 1.7]) {
+        const iy = Math.floor((y + h - y0) / V);
+        if (iu < 0 || iu >= NU || iy < 0 || iy >= grid.NY) continue;
+        let iw = Math.floor((w - w0) / V);
+        // (the nearest air across, then its run's middle)
+        let k = 0;
+        while (k < 8 && !air[grid.I(iu, iw + k, iy)] && !air[grid.I(iu, iw - k, iy)]) k++;
+        if (k >= 8) continue;
+        iw = air[grid.I(iu, iw + k, iy)] ? iw + k : iw - k;
+        let lo = iw, hi = iw;
+        while (lo > 0 && air[grid.I(iu, lo - 1, iy)]) lo--;
+        while (hi < NW - 1 && air[grid.I(iu, hi + 1, iy)]) hi++;
+        sum += w0 + ((lo + hi) / 2 + 0.5) * V; n++;
+      }
+      const mid = n ? sum / n : w;
+      dense.push([u, w + Math.max(-A.walk.shift, Math.min(A.walk.shift, mid - w)), y]);
+    }
+    const L = dense.map((p, i) => {
+      let sw = 0, c = 0;
+      for (let j = Math.max(0, i - 3); j <= Math.min(dense.length - 1, i + 3); j++) { sw += dense[j][1]; c++; }
+      return [p[0], sw / c, p[2]];
+    });
     for (let iw = 0; iw < NW; iw++) for (let iu = 0; iu < NU; iu++) {
       const u = u0 + (iu + 0.5) * V, w = w0 + (iw + 0.5) * V;
       let best = Infinity, ty = 0;
@@ -534,7 +569,18 @@ function finish({ id, A, grid, mesh, floor, toLocal }) {
       const k = J(iu, iw), tf = (ty - y0) / V;
       let pick = null, pd = Infinity;
       for (const [f, top] of floors(iu, iw)) { const d = Math.abs(f - tf); if (d * V <= 0.5 && d < pd) { pd = d; pick = [f, top]; } }
-      FY[k] = pick ? pick[0] : Math.round(tf);
+      const fy = pick ? pick[0] : Math.round(tf);
+      // (walk.head: the head needs air round it too, 1.2–1.6 m up — off for the Dalvazzer: its low places would cut the way)
+      let clear = true;
+      for (const h of [1.25, 1.55]) {
+        const iy = fy + Math.round(h / V);
+        for (let dw = -1; dw <= 1 && clear; dw++) for (let du = -1; du <= 1 && clear; du++) {
+          const a = iu + du, b = iw + dw;
+          if (a < 0 || b < 0 || a >= NU || b >= NW || iy >= grid.NY || !air[grid.I(a, b, iy)]) clear = false;
+        }
+      }
+      if (!clear && A.walk.head) continue;
+      FY[k] = fy;
       TOP[k] = pick ? pick[1] : Math.round(tf) + Math.round(2 / V);
     }
   }
@@ -657,14 +703,24 @@ function finish({ id, A, grid, mesh, floor, toLocal }) {
     const [iu, iw] = colOf(E, N);
     let fy = (H - pH);
     let best = null, bd = Infinity;
-    for (let dw = -6; dw <= 6; dw++) for (let du = -6; du <= 6; du++) {
+    // (on the floor nearest it, within 2 m: a station by the wall is seen from the walkway)
+    const SR = Math.ceil(2 / V);
+    let sx = 0, sz = 0;
+    for (let dw = -SR; dw <= SR; dw++) for (let du = -SR; du <= SR; du++) {
       const k = J(iu + du, iw + dw);
       if (iu + du < 0 || iw + dw < 0 || iu + du >= NU || iw + dw >= NW || FLOOR[k] === -32768) continue;
       const d = du * du + dw * dw;
       if (d < bd) { bd = d; best = k; }
     }
-    if (best != null) fy = FLOOR[best] / 100;
-    stations[name] = [round2(E - pE), round2(fy), round2(-(N - pN))];
+    let x = E - pE, z = -(N - pN);
+    if (best != null) {
+      fy = FLOOR[best] / 100;
+      // (moved onto that floor when it is not right beneath)
+      const bu = best % NU, bw = Math.floor(best / NU);
+      if (bd > 4) { const u = u0 + (bu + 0.5) * V, w = w0 + (bw + 0.5) * V; x = u * grid.cu - w * grid.su; z = -(u * grid.su + w * grid.cu); }
+    }
+    void sx; void sz;
+    stations[name] = [round2(x), round2(fy), round2(z)];
   }
   // the portal: the floor at the start, its outward direction (world x/z)
   const ol = Math.hypot(A.out[0], A.out[1]);
