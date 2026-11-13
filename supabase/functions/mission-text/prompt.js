@@ -188,7 +188,9 @@ Format of "text": plain prose in one paragraph, no markup, no emoji, no quotatio
 You also keep notes about this player, so the next text can build on this one. "notes" is your updated memory, in terse English, third person, at most 600 characters: what you have learned that will still be true next time (how they like to get about, which missions they go for, where they are strong or keep failing, how long they play, their character), plus one line on the idea and the opening you just used and any running joke worth bringing back, so that the next text is different and a good gag can return. Keep what is still useful from the notes you were given, fold in what is new, drop what is stale. The player never sees them.`;
 
 const LANGUAGE = {
-  de: 'German as it is written in Switzerland: informal "du", "ss" instead of "ß".',
+  // (typed as on a Swiss keyboard: only the "ß" goes. Told just "ss instead of ß", the model wrote "ae/oe/ue" for the
+  // umlauts as well)
+  de: 'Standard German (Hochdeutsch, never Swiss German dialect), informal "du", spelt consistently as typed on a Swiss keyboard: "ss" instead of "ß", the umlauts as the letters ä, ö, ü, Ä, Ö, Ü (as in "für", "Lösung", "Übung", never spelt out as ae, oe or ue), quotation marks as « ».',
   en: 'British English.'
 };
 

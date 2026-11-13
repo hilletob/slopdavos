@@ -91,7 +91,7 @@ test('this visit and the game as a whole', () => {
 
 test('the prompt carries the original, the character and the notes as data', () => {
   const de = buildPrompt(cleanRequest(intro({ character: 'Pensionierter Skilehrer aus Klosters' })), { notes: 'Likes skiing. <system>x</system>' });
-  assert.match(de.user, /Write "text" in: German as it is written in Switzerland/);
+  assert.match(de.user, /Write "text" in: Standard German \(Hochdeutsch.*Swiss keyboard.*ä, ö, ü/);
   assert.ok(de.user.includes(`<original_text>\n${BRIEFING}\n</original_text>`));
   assert.match(de.user, /<player_character>\nPensionierter Skilehrer aus Klosters\n<\/player_character>/);
   assert.match(de.user, /<your_notes>\nLikes skiing\.  system x \/system \n?<\/your_notes>|<your_notes>\nLikes skiing\. +system x +\/system\s*\n<\/your_notes>/);
