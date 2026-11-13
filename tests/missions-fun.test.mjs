@@ -3,12 +3,12 @@ import test from 'node:test';
 import {
   FUN_MISSIONS, HEADBANG, HEADBANG_CHART, HEADBANG_LENGTH, HEADBANG_MAX, BEAT_S, HEADBANG_RHYTHM, HEADBANG_MISSION, createHeadbang, headbangTap, headbangAdvance, gradeOffset, headbangMultiplier, headbangMaxScore, rhythmSection, rhythmMedals, RHYTHM_MEDAL_SHARE,
   BOLGEN_MISSION, BOLGEN_RHYTHM, BOLGEN_SONG, BOLGEN_DOOR, BOX_DOOR, seededRandom,
-  FOOSBALL, FOOSBALL_RODS, PLAYER_RODS, createFoosball, foosballStep, foosballKick, foosballScore, autoRod, rodRange, manY,
+  FOOSBALL, FOOSBALL_RODS, FOOSBALL_TABLES, PLAYER_RODS, createFoosball, foosballStep, foosballKick, foosballScore, autoRod, rodRange, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, canPlace, createGondola, gondolaSpawn, gondolaMove, gondolaRotate, gondolaDrop, gondolaStep, gondolaDepart, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, rhbSpeedSections, rhbLimitAt, rhbRunTime, rhbTimetable, rhbStopScore, createRhbDrive, rhbDriveStep, rhbDriveScore
 } from '../js/missions-data-fun.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
-import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
+import { medalFor, recordCompletion, emptyProgress, missionPin, START_RADIUS } from '../js/missions-progress.js';
 import { BERGBAHNEN } from '../js/bergbahnen-data.js';
 import { lonLatToWorld } from '../js/davos-frame.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
@@ -30,7 +30,7 @@ test('the fun missions are registered, scored by points, their medals ascending'
       assert.equal(typeof view.text, 'string');
     }
   }
-  assert.deepEqual(FUN_MISSIONS.map((m) => m.id), ['headbang-box', 'foosball-la-onda', 'gondola-tetris', 'rhb-driver', 'apres-bolgenschanze']);
+  assert.deepEqual(FUN_MISSIONS.map((m) => m.id), ['headbang-box', 'foosball-la-onda', 'gondola-tetris', 'rhb-driver', 'apres-bolgenschanze', 'foosball-la-onda-mini']);
   // a score earns its medal (higher is better)
   const def = FUN_MISSIONS[2];
   assert.equal(medalFor(def.medals.gold, def.medals, true), 'gold');
@@ -264,9 +264,77 @@ test('table football: a kick sends the ball towards the opponent\'s goal; five g
 
 test('table football: the AI defends and scores against a player who does nothing', () => {
   const g = createFoosball(7);
-  for (let i = 0; i < 120 * 300 && !g.done; i++) foosballStep(g, 1 / 120, {});
+  for (let i = 0; i < 120 * 600 && !g.done; i++) foosballStep(g, 1 / 120, {});
   assert.ok(g.done, 'the match ends');
   assert.equal(g.winner, 'a');
+});
+
+// (a player who keeps the man nearest the ball under it, a quarter of a second late, and shoots when it lies at a foot)
+function playLikeAPerson(g, secs) {
+  let lag = 0, seen = { ...g.ball };
+  for (let i = 0; i < 120 * secs && !g.done; i++) {
+    if ((lag -= 1 / 120) <= 0) { lag = 0.25; seen = { ...g.ball }; }
+    const rod = g.rods[g.active];
+    let best = 0, bd = Infinity;
+    for (let k = 0; k < rod.men; k++) { const c = Math.max(-rod.range, Math.min(rod.range, seen.y - manY(rod, 0, k))); const d = Math.abs(c - (seen.y - manY(rod, 0, k))) + Math.abs(c - rod.off) * 0.3; if (d < bd) { bd = d; best = c; } }
+    // (shooting when the bar turns green: the ball in the foot's sweep)
+    const dx = g.ball.x - rod.x;
+    let near = false;
+    for (let k = 0; k < rod.men; k++) if (Math.abs(manY(rod, rod.off, k) - g.ball.y) < FOOSBALL.ball + FOOSBALL.man + FOOSBALL.sweepSide) near = true;
+    foosballStep(g, 1 / 120, { target: best, kick: g.ball.live && near && dx > -FOOSBALL.sweepBack && dx < FOOSBALL.sweepFront && i % 12 === 0 });
+  }
+}
+
+test('table football: the foot sweeps a little field, a shot goes for the goal, a slow ball stops at the active man', () => {
+  // a ball 4 cm in front of the man and 2 cm beside him: kicked all the same
+  const g = createFoosball(5);
+  g.serveIn = 99;
+  for (const r of g.rods) { r.aiDelay = 99; r.aiTarget = r.off; }
+  const rod = g.rods[5];
+  g.ball = { x: rod.x + 0.04, y: manY(rod, rod.off, 1) + 0.03, vx: 0, vy: 0, live: true };
+  foosballKick(g, 5);
+  const ev = foosballStep(g, 1 / 120, { rod: 5 });
+  assert.ok(ev.some((e) => e.type === 'hit' && e.kick), 'kicked');
+  // towards the middle of the goal: where it goes at the end of the table
+  const t = (FOOSBALL.length / 2 - g.ball.x) / g.ball.vx;
+  assert.ok(Math.abs(g.ball.y + g.ball.vy * t) < 0.15, `aimed at the goal: ${(g.ball.y + g.ball.vy * t).toFixed(3)}`);
+  // a slow ball into the active rod's man: it stays at his foot
+  const s = createFoosball(6);
+  s.serveIn = 99;
+  for (const r of s.rods) { r.aiDelay = 99; r.aiTarget = r.off; }
+  const mid = s.rods[3];
+  s.ball = { x: mid.x + 0.1, y: manY(mid, mid.off, 2), vx: -0.6, vy: 0, live: true };
+  for (let i = 0; i < 40; i++) foosballStep(s, 1 / 120, { rod: 3 });
+  assert.ok(Math.abs(s.ball.vx) < 0.1, `stopped: ${s.ball.vx.toFixed(2)} m/s`);
+  assert.ok(Math.abs(s.ball.x - mid.x) < 0.05, 'at the foot');
+});
+
+test('table football: a person who keeps up wins some matches on both tables, and loses some', () => {
+  for (const table of [FOOSBALL_TABLES.big, FOOSBALL_TABLES.mini]) {
+    let wins = 0, losses = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const g = createFoosball(seed * 101, table);
+      playLikeAPerson(g, 500);
+      if (g.winner === 'p') wins++; else if (g.winner === 'a') losses++;
+    }
+    assert.ok(wins >= 1 && losses >= 1, `${table.id}: ${wins} won, ${losses} lost`);
+  }
+});
+
+test('the small table: two rods a side inside a smaller field, its own mission at La Onda', () => {
+  const T = FOOSBALL_TABLES.mini;
+  assert.ok(T.length < FOOSBALL_TABLES.big.length && T.width < FOOSBALL_TABLES.big.width);
+  assert.deepEqual(T.rods.map((r) => r.team), ['p', 'a', 'p', 'a']);
+  const g = createFoosball(3, T);
+  assert.deepEqual(g.playerRods, [0, 2]);
+  for (const r of g.rods) for (const off of [-r.range, r.range]) for (let k = 0; k < r.men; k++) assert.ok(Math.abs(manY(r, off, k)) < T.width / 2);
+  const def = FUN_MISSIONS.find((m) => m.id === 'foosball-la-onda-mini');
+  assert.equal(def.table, 'mini');
+  assert.deepEqual(def.interior, FUN_MISSIONS[1].interior);
+  assert.match(def.objectives[1].check(frame(), { game: g }).hint, /1-2: rod/);
+  // its own pin, out of every other mission's start circle
+  const pin = missionPin(def);
+  for (const o of MISSIONS) if (o !== def) { const q = missionPin(o); assert.ok(Math.hypot(q.x - pin.x, q.z - pin.z) > 2 * START_RADIUS, `${o.id}`); }
 });
 
 test('gondola: the Jakobshornbahn is a big cabin; pieces turn about themselves and stay in the grid', () => {

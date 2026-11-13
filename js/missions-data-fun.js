@@ -296,8 +296,16 @@ export const FOOSBALL = {
   manRestitution: 0.55,
   friction: 0.32, // 1/s, the rolling ball's loss
   kickSpeed: 2.6, // m/s the ball leaves a kicking man
-  kickTime: 0.16, // s the foot sweeps through
-  kickCooldown: 0.32,
+  kickTime: 0.22, // s the foot sweeps through
+  kickCooldown: 0.26,
+  // the foot's sweep (m): what lies this far behind / in front of the rod and across from a man is kicked, touching or
+  // not — a real foot swings through a few centimetres of field, not a point
+  sweepBack: 0.022, sweepFront: 0.055, sweepSide: 0.016,
+  trap: 0.9, // m/s: a slower ball meets the player's man and stays at its foot (a ball under control;
+  // a table may say otherwise: the small one's quicker game traps less)
+  trapRestitution: 0.08,
+  aiSweep: 0.5, // La Onda's sweep, a share of the player's
+  aim: 0.7, // how much a shot bends towards the middle of the goal (the rest: where it met the foot, the rod's slide)
   rodSpeed: 1.8, // m/s the player's rod slides
   aiSpeed: 0.72,
   aiReaction: 0.12, // s
@@ -318,19 +326,39 @@ export const FOOSBALL_RODS = [
 ];
 export const PLAYER_RODS = FOOSBALL_RODS.map((r, i) => (r.team === 'p' ? i : -1)).filter((i) => i >= 0); // [0, 1, 3, 5]
 
+/**
+ * The tables: the big one (eight rods) and the small one beside it (two rods a team: a goal rod of two men, an attack
+ * of three; a shorter, narrower field, a quicker game).
+ */
+export const FOOSBALL_TABLES = {
+  big: { id: 'big', length: FOOSBALL.length, width: FOOSBALL.width, goal: FOOSBALL.goal, rods: FOOSBALL_RODS },
+  mini: {
+    id: 'mini', length: 0.78, width: 0.46, goal: 0.16, trap: 0.75,
+    rods: [
+      { x: -0.3, team: 'p', role: 'Defence', men: 2, spacing: 0.17 },
+      { x: -0.1, team: 'a', role: 'Attack', men: 3, spacing: 0.14 },
+      { x: 0.1, team: 'p', role: 'Attack', men: 3, spacing: 0.14 },
+      { x: 0.3, team: 'a', role: 'Defence', men: 2, spacing: 0.17 }
+    ]
+  }
+};
+const tableOf = (game) => game?.table || FOOSBALL_TABLES.big;
+
 /** How far a rod slides either way: its outer men stay off the cushions (the goalie in front of its goal) */
-export function rodRange(rod) {
-  if (rod.men === 1) return FOOSBALL.goal / 2 + 0.02;
-  return FOOSBALL.width / 2 - FOOSBALL.man - 0.008 - ((rod.men - 1) / 2) * rod.spacing;
+export function rodRange(rod, T = FOOSBALL_TABLES.big) {
+  if (rod.men === 1) return T.goal / 2 + 0.02;
+  return T.width / 2 - FOOSBALL.man - 0.008 - ((rod.men - 1) / 2) * rod.spacing;
 }
 /** The y of man k of a rod at offset `off` */
 export const manY = (rod, off, k) => off + (k - (rod.men - 1) / 2) * rod.spacing;
 
-export function createFoosball(seed = 7) {
+export function createFoosball(seed = 7, table = FOOSBALL_TABLES.big) {
+  const playerRods = table.rods.map((r, i) => (r.team === 'p' ? i : -1)).filter((i) => i >= 0);
   return {
-    rods: FOOSBALL_RODS.map((r) => ({ ...r, off: 0, vy: 0, kick: 0, cooldown: 0, range: rodRange(r), aiTarget: 0, aiDelay: 0 })),
+    table, playerRods,
+    rods: table.rods.map((r) => ({ ...r, off: 0, vy: 0, kick: 0, cooldown: 0, range: rodRange(r, table), aiTarget: 0, aiDelay: 0 })),
     ball: { x: 0, y: 0, vx: 0, vy: 0, live: false },
-    score: { p: 0, a: 0 }, t: 0, serveIn: 0.6, serveSide: 1, slow: 0, active: PLAYER_RODS[2], lastGoal: null,
+    score: { p: 0, a: 0 }, t: 0, serveIn: 0.6, serveSide: 1, slow: 0, active: playerRods[Math.min(2, playerRods.length - 1)], lastGoal: null,
     goals: [], done: false, winner: null, kicks: 0, rand: seededRandom(seed), events: []
   };
 }
@@ -338,7 +366,7 @@ export function createFoosball(seed = 7) {
 /** Puts the ball in play from the side of the midfield (as a real table's serving hole) */
 export function foosballServe(game, side = game.serveSide) {
   const r = game.rand;
-  game.ball = { x: (r() - 0.5) * 0.04, y: side * (FOOSBALL.width / 2 - 0.03), vx: (r() - 0.5) * 0.3, vy: -side * (0.55 + r() * 0.3), live: true };
+  game.ball = { x: (r() - 0.5) * 0.04, y: side * (tableOf(game).width / 2 - 0.03), vx: (r() - 0.5) * 0.3, vy: -side * (0.55 + r() * 0.3), live: true };
   game.serveSide = -side;
   game.slow = 0;
   game.events.push({ type: 'serve' });
@@ -346,9 +374,9 @@ export function foosballServe(game, side = game.serveSide) {
 
 /** The player's rod nearest the ball from behind (the one that can play it on), or the goalie */
 export function autoRod(game) {
-  const bx = game.ball.x;
-  let best = PLAYER_RODS[0], bd = Infinity;
-  for (const i of PLAYER_RODS) {
+  const bx = game.ball.x, own = game.playerRods || PLAYER_RODS;
+  let best = own[0], bd = Infinity;
+  for (const i of own) {
     const d = bx - game.rods[i].x;
     if (d < -0.045) continue; // the ball is behind this rod
     if (d < bd) { bd = d; best = i; }
@@ -376,7 +404,8 @@ function aiControl(game, dt) {
       rod.aiDelay = FOOSBALL.aiReaction;
       // where the ball crosses the rod (straight on, the cushions ignored), a little error
       const tx = Math.abs(b.vx) > 0.05 ? clamp((rod.x - b.x) / b.vx, 0, 0.35) : 0;
-      let y = clamp(b.y + b.vy * tx, -FOOSBALL.width / 2, FOOSBALL.width / 2) + (game.rand() - 0.5) * 0.03;
+      const W = tableOf(game).width / 2;
+      let y = clamp(b.y + b.vy * tx, -W, W) + (game.rand() - 0.5) * 0.03;
       // the man that gets there with the least sliding
       let target = 0, bd = Infinity;
       for (let k = 0; k < rod.men; k++) {
@@ -407,8 +436,9 @@ export function foosballStep(game, dt, input = {}) {
   if (game.done) return game.events;
   game.t += dt;
   // the player's rod
-  game.active = Number.isInteger(input.rod) && PLAYER_RODS.includes(input.rod) ? input.rod : autoRod(game);
-  for (const i of PLAYER_RODS) game.rods[i].vy = 0;
+  const own = game.playerRods || PLAYER_RODS;
+  game.active = Number.isInteger(input.rod) && own.includes(input.rod) ? input.rod : autoRod(game);
+  for (const i of own) game.rods[i].vy = 0;
   const mine = game.rods[game.active];
   if (Number.isFinite(input.target)) mine.vy = clamp((clamp(input.target, -mine.range, mine.range) - mine.off) / Math.max(dt, 1e-3), -FOOSBALL.rodSpeed * 1.6, FOOSBALL.rodSpeed * 1.6);
   else if (input.move) mine.vy = clamp(input.move, -1, 1) * FOOSBALL.rodSpeed;
@@ -429,7 +459,8 @@ export function foosballStep(game, dt, input = {}) {
   const speed = Math.hypot(b.vx, b.vy);
   const n = Math.max(1, Math.ceil((speed * dt) / 0.004));
   const h = dt / n;
-  const L = FOOSBALL.length / 2, W = FOOSBALL.width / 2, R = FOOSBALL.ball, G = FOOSBALL.goal / 2;
+  const T = tableOf(game);
+  const L = T.length / 2, W = T.width / 2, R = FOOSBALL.ball, G = T.goal / 2;
   for (let s = 0; s < n && b.live; s++) {
     b.x += b.vx * h;
     b.y += b.vy * h;
@@ -461,31 +492,49 @@ export function foosballStep(game, dt, input = {}) {
     for (let i = 0; i < game.rods.length; i++) {
       const rod = game.rods[i];
       const dx = b.x - rod.x;
+      const dir = rod.team === 'p' ? 1 : -1;
+      // a swinging foot: the ball anywhere in its sweep is kicked, touching or not (La Onda's regulars swing a
+      // narrower sweep: they have their reflexes)
+      if (rod.kick > 0) {
+        const fwd = dx * dir, sw = rod.team === 'p' ? 1 : FOOSBALL.aiSweep;
+        if (fwd > -FOOSBALL.sweepBack * sw && fwd < FOOSBALL.sweepFront * sw) {
+          let hit = -1, hd = Infinity;
+          for (let k = 0; k < rod.men; k++) { const d = Math.abs(b.y - manY(rod, rod.off, k)); if (d < R + FOOSBALL.man + FOOSBALL.sweepSide * sw && d < hd) { hd = d; hit = k; } }
+          if (hit >= 0) {
+            const my = manY(rod, rod.off, hit);
+            const v = FOOSBALL.kickSpeed * (0.85 + 0.3 * (rod.kick / FOOSBALL.kickTime));
+            // towards the other goal: bent towards its middle, off by where it met the foot and by the rod's slide
+            const reachX = (R + FOOSBALL.man) * dir;
+            b.x = rod.x + reachX;
+            const toGoal = L * dir - b.x;
+            const aimVy = (-b.y / Math.max(0.05, Math.abs(toGoal))) * v;
+            const side = clamp((b.y - my) / (R + FOOSBALL.man), -1, 1);
+            b.vx = dir * v * 0.95;
+            b.vy = clamp(aimVy * FOOSBALL.aim + side * v * 0.22 + rod.vy * 0.45, -v * 0.6, v * 0.6);
+            rod.kick = 0;
+            game.events.push({ type: 'hit', rod: i, kick: true, team: rod.team });
+            continue;
+          }
+        }
+      }
       if (Math.abs(dx) > R + FOOSBALL.man + 0.01) continue;
       for (let k = 0; k < rod.men; k++) {
         const my = manY(rod, rod.off, k), dy = b.y - my;
         const d = Math.hypot(dx, dy), reach = R + FOOSBALL.man;
         if (d >= reach) continue;
-        const nx = d > 1e-6 ? dx / d : (rod.team === 'p' ? 1 : -1), ny = d > 1e-6 ? dy / d : 0;
+        const nx = d > 1e-6 ? dx / d : dir, ny = d > 1e-6 ? dy / d : 0;
         b.x = rod.x + nx * reach;
         b.y = my + ny * reach;
-        const dir = rod.team === 'p' ? 1 : -1;
-        if (rod.kick > 0) {
-          // the foot swings through: the ball leaves towards the other goal, angled by where it met the foot
-          const v = FOOSBALL.kickSpeed * (0.85 + 0.3 * (rod.kick / FOOSBALL.kickTime));
-          b.vx = dir * v * 0.94;
-          b.vy = clamp(ny * v * 0.55 + rod.vy * 0.35, -v * 0.6, v * 0.6);
-          rod.kick = 0;
-          game.events.push({ type: 'hit', rod: i, kick: true, team: rod.team });
-        } else {
-          // a bounce off the man, which moves across with its rod
-          const rvx = b.vx, rvy = b.vy - rod.vy;
-          const vn = rvx * nx + rvy * ny;
-          if (vn < 0) {
-            b.vx = rvx - (1 + FOOSBALL.manRestitution) * vn * nx;
-            b.vy = rvy - (1 + FOOSBALL.manRestitution) * vn * ny + rod.vy;
-            game.events.push({ type: 'hit', rod: i, kick: false, team: rod.team });
-          }
+        // a bounce off the man, which moves across with its rod; the player's men stop a slow ball at their feet
+        const rvx = b.vx, rvy = b.vy - rod.vy;
+        const vn = rvx * nx + rvy * ny;
+        if (vn < 0) {
+          // (the rod in the player's hands: the others are only held)
+          const e = i === game.active && Math.hypot(rvx, rvy) < (T.trap ?? FOOSBALL.trap) ? FOOSBALL.trapRestitution : FOOSBALL.manRestitution;
+          b.vx = rvx - (1 + e) * vn * nx;
+          b.vy = rvy - (1 + e) * vn * ny + rod.vy;
+          if (e === FOOSBALL.trapRestitution) { b.vx *= 0.4; b.vy = rod.vy + (b.vy - rod.vy) * 0.4; }
+          game.events.push({ type: 'hit', rod: i, kick: false, team: rod.team });
         }
       }
     }
@@ -516,7 +565,7 @@ export const ONDA_DOOR = { x: -488.4, z: -306.5, r: 2.2 }; // the Bar La Onda: i
 export const FOOSBALL_MISSION = {
   id: 'foosball-la-onda',
   title: 'Table football at La Onda',
-  intro: 'The regulars at the Bar La Onda in Davos Platz challenge you to a game of table football (Töggeli). You play red from the left: W / S or the mouse slide the rod nearest the ball (1-4 pick a rod, Q back to automatic), Space or a click shoots. On a phone: drag on the table, tap SHOOT. First to five goals wins.',
+  intro: 'The regulars at the Bar La Onda in Davos Platz challenge you to a game of table football (Töggeli). You play red from the left: W / S or the mouse slide the rod nearest the ball (1-4 pick a rod, Q back to automatic), Space or a click shoots — when the bar under your rod turns green, the ball is at a foot. A slow ball stops at your man\'s foot: aim, then shoot. On a phone: drag on the table, tap SHOOT. First to five goals wins.',
   mode: 'person',
   season: null,
   time: 'evening',
@@ -549,7 +598,7 @@ export const FOOSBALL_MISSION = {
         return {
           done: g.done && g.winner === 'p', fail,
           progress: Math.max(g.score.p, g.score.a) / FOOSBALL.goalsToWin,
-          text: `You ${g.score.p} : ${g.score.a} La Onda · ${fmtClock(g.t)} · ${FOOSBALL_RODS[g.active].role}`,
+          text: `You ${g.score.p} : ${g.score.a} La Onda · ${fmtClock(g.t)} · ${g.rods[g.active].role}`,
           target: null,
           hint: 'W/S or mouse: slide · Space/click: shoot · 1-4: rod, Q: auto'
         };
@@ -1011,4 +1060,22 @@ export const RHB_MISSION = {
   objectives: RHB_DRIVE.stops.map(rhbStopObjective)
 };
 
-export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION, RHB_MISSION, BOLGEN_MISSION];
+// The small table beside the big one: two rods a team (a goal rod of two men, an attack of three), the same regulars
+export const FOOSBALL_MINI_MISSION = {
+  ...FOOSBALL_MISSION,
+  id: 'foosball-la-onda-mini',
+  title: 'The small table at La Onda',
+  intro: 'Beside the big table at the Bar La Onda stands a small one: two rods a side, a defence of two and an attack of three, a short field and a quick game. You play red from the left: W / S or the mouse slide your rod (1-2 pick one, Q back to automatic), Space or a click shoots when the bar under your rod turns green. First to five goals wins.',
+  table: 'mini',
+  // (its own pin: 20 m along the Obere Strasse from the big table's, the same door)
+  start: { x: FOOSBALL_MISSION.start.x + 18.4, z: FOOSBALL_MISSION.start.z - 7.8, heading: -2.0 },
+  medals: { gold: 450, silver: 300, bronze: 100 },
+  colour: '#ffb02e',
+  finish: 'Fast hands on the small table: the regulars want a rematch on the big one.',
+  objectives: [
+    FOOSBALL_MISSION.objectives[0],
+    { ...FOOSBALL_MISSION.objectives[1], check(ctx, state) { const v = FOOSBALL_MISSION.objectives[1].check(ctx, state); return { ...v, hint: v.hint && 'W/S or mouse: slide · Space/click: shoot · 1-2: rod, Q: auto' }; } }
+  ]
+};
+
+export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION, RHB_MISSION, BOLGEN_MISSION, FOOSBALL_MINI_MISSION];

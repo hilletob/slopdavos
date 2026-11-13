@@ -6,7 +6,7 @@ import { surfaceHeight } from './terrain.js';
 import { routePoint } from './rhb-route.js';
 import {
   rhythmSection, createHeadbang, headbangTap, headbangAdvance, headbangMultiplier,
-  FOOSBALL, FOOSBALL_RODS, PLAYER_RODS, createFoosball, foosballStep, manY,
+  FOOSBALL, FOOSBALL_TABLES, createFoosball, foosballStep, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, createGondola, gondolaMove, gondolaRotate, gondolaDrop, gondolaDepart, gondolaStep, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, createRhbDrive, rhbDriveStep, rhbLimitAt, rhbDriveScore
 } from './missions-data-fun.js';
@@ -975,9 +975,10 @@ function fieldTexture() {
   return t;
 }
 
-function buildBar(group, fb) {
+/** The bar with its table football (`T`: FOOSBALL_TABLES' big or small one) */
+function buildBar(group, fb, T = FOOSBALL_TABLES.big) {
   const W = 11, D = 9, H = 3.1, hw = W / 2, hd = D / 2;
-  const L = FOOSBALL.length, Wt = FOOSBALL.width;
+  const L = T.length, Wt = T.width, Gm = T.goal;
   const room = [
     [W, 0.1, D, 0, -0.05, 0, 0x4a2e1c],
     [W, H, 0.2, 0, H / 2, -hd - 0.1, 0x7a3326], [W, H, 0.2, 0, H / 2, hd + 0.1, 0x7a3326],
@@ -995,8 +996,8 @@ function buildBar(group, fb) {
     [L + 0.16, 0.22, Wt + 0.12, 0, TABLE_TOP - 0.12, 0, 0x2c3e66],
     ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz]) => [0.08, TABLE_TOP - 0.2, 0.08, sx * (L / 2 - 0.02), (TABLE_TOP - 0.2) / 2, sz * (Wt / 2 - 0.02), 0x1d2a48]),
     [L + 0.16, 0.14, 0.06, 0, TABLE_TOP + 0.06, -Wt / 2 - 0.03, 0x34497a], [L + 0.16, 0.14, 0.06, 0, TABLE_TOP + 0.06, Wt / 2 + 0.03, 0x34497a],
-    ...[-1, 1].flatMap((s) => [[0.08, 0.14, (Wt - FOOSBALL.goal) / 2, s * (L / 2 + 0.04), TABLE_TOP + 0.06, -(Wt + FOOSBALL.goal) / 4, 0x34497a], [0.08, 0.14, (Wt - FOOSBALL.goal) / 2, s * (L / 2 + 0.04), TABLE_TOP + 0.06, (Wt + FOOSBALL.goal) / 4, 0x34497a],
-      [0.1, 0.06, FOOSBALL.goal, s * (L / 2 + 0.05), TABLE_TOP - 0.02, 0, 0x0a0a0c]])
+    ...[-1, 1].flatMap((s) => [[0.08, 0.14, (Wt - Gm) / 2, s * (L / 2 + 0.04), TABLE_TOP + 0.06, -(Wt + Gm) / 4, 0x34497a], [0.08, 0.14, (Wt - Gm) / 2, s * (L / 2 + 0.04), TABLE_TOP + 0.06, (Wt + Gm) / 4, 0x34497a],
+      [0.1, 0.06, Gm, s * (L / 2 + 0.05), TABLE_TOP - 0.02, 0, 0x0a0a0c]])
   ];
   group.add(mesh(shadedBoxes(room)));
   // bottles on the shelves, glowing a little
@@ -1022,7 +1023,7 @@ function buildBar(group, fb) {
   field.position.y = TABLE_TOP;
   group.add(field);
   // the rods (steel, a handle on the owner's side) and the men (red: the player; blue: La Onda)
-  fb.rods = FOOSBALL_RODS.map((r) => {
+  fb.rods = T.rods.map((r) => {
     const own = r.team === 'p' ? 1 : -1; // the handle side: the player stands at +z
     const g = shade(new THREE.CylinderGeometry(0.008, 0.008, Wt + 0.5, 8).rotateX(Math.PI / 2).toNonIndexed(), 0xc8ccd2);
     const handle = shade(new THREE.CylinderGeometry(0.017, 0.017, 0.12, 10).rotateX(Math.PI / 2).translate(0, 0, own * (Wt / 2 + 0.28)).toNonIndexed(), 0x111114);
@@ -1036,7 +1037,7 @@ function buildBar(group, fb) {
     shade(new THREE.BoxGeometry(0.03, 0.05, 0.022).translate(0, -0.03, 0).toNonIndexed(), 0xffffff), // the shirt
     shade(new THREE.BoxGeometry(0.024, 0.03, 0.026).translate(0, -0.062, 0).toNonIndexed(), 0xdddddd) // the foot
   ]);
-  const total = (team) => FOOSBALL_RODS.filter((r) => r.team === team).reduce((a, r) => a + r.men, 0);
+  const total = (team) => T.rods.filter((r) => r.team === team).reduce((a, r) => a + r.men, 0);
   fb.men = {
     p: new THREE.InstancedMesh(man, new THREE.MeshBasicNodeMaterial({ vertexColors: true, color: 0xe0242e }), total('p')),
     a: new THREE.InstancedMesh(man, new THREE.MeshBasicNodeMaterial({ vertexColors: true, color: 0x2a6bff }), total('a'))
@@ -1102,18 +1103,19 @@ const FOOSBALL_FEATURE = {
     const { crowd, tint } = makeCrowd(12);
     fb.crowd = crowd;
     tint.value.setRGB(0.55, 0.45, 0.38);
-    fb.interior = new Interior(run, run.def.interior.door, (g) => { buildBar(g, parts); for (const m of crowd.meshes) g.add(m); });
+    const T = FOOSBALL_TABLES[run.def.table || 'big'];
+    fb.interior = new Interior(run, run.def.interior.door, (g) => { buildBar(g, parts, T); for (const m of crowd.meshes) g.add(m); });
     // the two players at the long sides of the table, a few regulars at the counter and a table
     const ground = () => 0;
     fb.people = [
-      { rig: guest(), x: 0, z: FOOSBALL.width / 2 + 0.45, yaw: Math.PI },
-      { rig: guest(), x: 0, z: -FOOSBALL.width / 2 - 0.45, yaw: 0 },
+      { rig: guest(), x: 0, z: T.width / 2 + 0.45, yaw: Math.PI },
+      { rig: guest(), x: 0, z: -T.width / 2 - 0.45, yaw: 0 },
       { rig: guest(), x: -3.2, z: -2.2, yaw: Math.PI }, { rig: guest(), x: -1.9, z: -2.15, yaw: Math.PI + 0.3 },
       { rig: guest(), x: 3.0, z: 2.9, yaw: 0.6 }, { rig: guest(), x: 2.4, z: -1.1, yaw: -0.5 }, { rig: guest(), x: -1.2, z: 1.5, yaw: 2.4 }
     ];
     for (const p of fb.people) p.rig.reset(p.x, p.z, p.yaw, ground);
     fb.ground = ground;
-    fb.game = createFoosball((Math.random() * 1e9) | 0);
+    fb.game = createFoosball((Math.random() * 1e9) | 0, T);
     fb.game.serveIn = 1.6;
     run.state.game = fb.game;
     run.state.inside = true;
@@ -1127,7 +1129,7 @@ const FOOSBALL_FEATURE = {
     if (k === 'KeyW' || k === 'ArrowUp') { take(); fb.keys.up = true; fb.pointerY = null; return; }
     if (k === 'KeyS' || k === 'ArrowDown') { take(); fb.keys.down = true; fb.pointerY = null; return; }
     if (k === 'Space' || (k === 'Enter' && run.phase !== 'intro')) { take(); if (!e.repeat) fb.kick = true; return; }
-    if (/^Digit[1-4]$/.test(k)) { take(); fb.rod = PLAYER_RODS[Number(k.slice(5)) - 1]; return; }
+    if (/^Digit[1-4]$/.test(k)) { take(); const own = fb.game?.playerRods || []; const i = Number(k.slice(5)) - 1; if (i < own.length) fb.rod = own[i]; return; }
     if (k === 'KeyQ' || k === 'Tab') { take(); fb.rod = null; return; }
     if (k === 'KeyA' || k === 'KeyD' || k === 'ArrowLeft' || k === 'ArrowRight') take(); // (the walker stays put)
   },
@@ -1146,7 +1148,7 @@ const FOOSBALL_FEATURE = {
     if (fb.pointerY != null && performance.now() - fb.pointerAt < 4000 && fb.screen) {
       const { top, bottom } = fb.screen;
       const u = (fb.pointerY - top) / (bottom - top || 1); // 0 at y = +W/2 (the far cushion), 1 at -W/2
-      const y = FOOSBALL.width / 2 - u * FOOSBALL.width;
+      const y = g.table.width / 2 - u * g.table.width;
       const rod = g.rods[fb.rod ?? g.active];
       // the man nearest the pointer goes there
       let best = 0, bd = Infinity;
@@ -1201,6 +1203,13 @@ const FOOSBALL_FEATURE = {
     p.ball.rotation.z -= (b.vx * dt) / FOOSBALL.ball; p.ball.rotation.x += (-b.vy * dt) / FOOSBALL.ball;
     const active = fb.rod ?? g.active;
     p.marker.position.x = g.rods[active].x;
+    // (the ball in the active rod's sweep: the marker turns green — now is the moment to shoot)
+    const ar = g.rods[active], fwd = b.x - ar.x;
+    let ready = b.live && fwd > -FOOSBALL.sweepBack && fwd < FOOSBALL.sweepFront;
+    if (ready) { ready = false; for (let k = 0; k < ar.men; k++) if (Math.abs(b.y - manY(ar, ar.off, k)) < FOOSBALL.ball + FOOSBALL.man + FOOSBALL.sweepSide) ready = true; }
+    p.marker.material.color.setHex(ready ? 0x5dff7a : 0xffe14f);
+    p.marker.material.opacity = ready ? 0.8 : 0.45;
+    p.marker.scale.x = ready ? 2.2 : 1;
     fb.auto.classList.toggle('is-on', fb.rod === null);
     // the people
     fb.crowd.begin();
@@ -1209,18 +1218,18 @@ const FOOSBALL_FEATURE = {
     // the camera: over the table, high enough that the whole field fits the screen's width (portrait phones)
     const cam = ctx.camera;
     const tanV = Math.tan((cam.fov * Math.PI) / 360);
-    const fit = Math.max((FOOSBALL.length + 0.3) / 2 / (tanV * cam.aspect), (FOOSBALL.width + 0.25) / 2 / tanV / 0.78);
+    const fit = Math.max((g.table.length + 0.3) / 2 / (tanV * cam.aspect), (g.table.width + 0.25) / 2 / tanV / 0.78);
     const d = Math.max(1.0, fit);
     fb.interior.camera(cam, { x: 0, y: TABLE_TOP + d * 0.93, z: d * 0.36 }, { x: 0, y: TABLE_TOP, z: 0.02 });
     // where the table's long sides are on screen (the pointer's scale)
     const o = fb.interior.origin;
-    const top = new THREE.Vector3(o.x + g.rods[active].x, o.y + TABLE_TOP, o.z - FOOSBALL.width / 2).project(cam);
-    const bottom = new THREE.Vector3(o.x + g.rods[active].x, o.y + TABLE_TOP, o.z + FOOSBALL.width / 2).project(cam);
+    const top = new THREE.Vector3(o.x + g.rods[active].x, o.y + TABLE_TOP, o.z - g.table.width / 2).project(cam);
+    const bottom = new THREE.Vector3(o.x + g.rods[active].x, o.y + TABLE_TOP, o.z + g.table.width / 2).project(cam);
     fb.screen = { top: (1 - top.y) / 2 * window.innerHeight, bottom: (1 - bottom.y) / 2 * window.innerHeight };
     // the HUD
     const s = `${g.score.p} : ${g.score.a}`;
     if (fb.score.textContent !== s) fb.score.textContent = s;
-    const line = `You (red) vs La Onda (blue) · ${FOOSBALL_RODS[active].role}${fb.rod === null ? ' (auto)' : ''}`;
+    const line = `You (red) vs La Onda (blue) · ${g.rods[active].role}${fb.rod === null ? ' (auto)' : ''}`;
     if (fb.sub.textContent !== line) fb.sub.textContent = line;
     if (run.phase === 'done' || run.phase === 'failed') fb.hud.hidden = true;
   }
