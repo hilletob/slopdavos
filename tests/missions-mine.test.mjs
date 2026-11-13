@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import test from 'node:test';
 import {
   MINE, MINE_MISSION, TOUR_MISSION, MINE_MISSIONS, ADITS, MINE_ADIT, MINE_DOOR, TOUR_STATIONS, createMine, createShift, stepShift,
-  createWalker, stepWalk, freeAt, railAt, botShiftInput, shiftScore, mineMaxScore, mineSeedOfDay, stationPoint, wayTo
+  createWalker, stepWalk, freeAt, railAt, botShiftInput, shiftScore, mineMaxScore, mineSeedOfDay, stationPoint, wayTo,
+  GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, createGuide, stepGuide, answerQuiz
 } from '../js/missions-data-mine.js';
 import { parseAdit, ADIT_IDS } from '../js/silberberg-asset.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -209,4 +210,57 @@ test('the tour: Dalvazzer to St Barbara and the stope, out, up to the Hilfsstoll
   w.heading += Math.PI;
   for (let t = 0; t < 15 && !w.out; t += DT) stepWalk(w, DALV, { forward: 1 }, DT);
   assert.ok(w.out, 'and out');
+});
+
+test('Jöri leads: ahead to the station, waiting for a visitor who lags, hurrying after one who runs ahead', () => {
+  const nav = createMine(HILFS, 1);
+  const goal = stationPoint(HILFS, TOUR_STATIONS.y1813);
+  const g = createGuide(HILFS, nav);
+  const w = createWalker(HILFS);
+  // the visitor stands still: he walks on, then waits and calls
+  let calls = 0;
+  for (let t = 0; t < 20; t += DT) if (stepGuide(g, w, HILFS, goal, DT) === 'call') calls++;
+  assert.ok(g.waiting, 'waiting for the visitor');
+  assert.ok(Math.hypot(g.x - w.x, g.z - w.z) > GUIDE.wait - 1 && Math.hypot(g.x - w.x, g.z - w.z) < GUIDE.wait + 2);
+  assert.equal(calls, 2, 'he calls, now and then');
+  // the visitor follows: he leads all the way and stops short of the station
+  for (let t = 0; t < 120; t += DT) {
+    const way = wayTo(nav, w, g);
+    if (way && way.dist > 2) { w.heading = Math.atan2(way.x - w.x, way.z - w.z); stepWalk(w, HILFS, { forward: 0.6 }, DT); }
+    stepGuide(g, w, HILFS, goal, DT);
+  }
+  const d = Math.hypot(g.x - goal.x, g.z - goal.z);
+  assert.ok(d < GUIDE.lead + 1, `at the station: ${d.toFixed(1)} m`);
+  assert.ok(HILFS.floor.at(g.x, g.z), 'on the floor');
+  // while he talks he stands, facing the visitor
+  const x = g.x;
+  stepGuide(g, w, HILFS, { x: 0, z: 0 }, 1, { hold: true });
+  assert.equal(g.x, x);
+});
+
+test("Jöri's script and questions: a line for every station, the questions wait, a wrong answer costs 15 s", () => {
+  for (const o of TOUR_MISSION.objectives) assert.ok(GUIDE_SCRIPT[o.id], `${o.id} has lines`);
+  for (const [id, q] of Object.entries(GUIDE_QUIZ)) {
+    assert.ok(q.answer >= 0 && q.answer < q.options.length);
+    assert.ok(Object.values(GUIDE_SCRIPT).some((s) => [...(s.arrive || []), ...(s.start || [])].some((l) => l.quiz === id)), `${id} is asked`);
+  }
+  const events = Object.values(GUIDE_SCRIPT).flatMap((s) => [...(s.arrive || []), ...(s.start || []), ...(s.greet || [])]).map((l) => l.event).filter(Boolean);
+  assert.deepEqual(events, ['rumble', 'draught', 'relight']);
+  const st = TOUR_MISSION.createState();
+  st.walk = { adit: 'dalvazzer', ...createWalker(DALV) };
+  st.points = { stope: stationPoint(DALV, TOUR_STATIONS.stope) };
+  Object.assign(st.walk, st.points.stope);
+  const stope = TOUR_MISSION.objectives.find((o) => o.id === 'stope');
+  assert.equal(answerQuiz(st, 0), null, 'nothing asked yet');
+  st.quiz.pending = 'silver';
+  const v = stope.check({}, st);
+  assert.equal(v.done, false, 'the station waits for the answer');
+  assert.match(v.hint, /1, 2 or 3/);
+  assert.deepEqual(answerQuiz(st, 0), { id: 'silver', right: false, say: GUIDE_QUIZ.silver.wrong });
+  assert.equal(st.penaltyMs, GUIDE.penaltyMs);
+  assert.equal(stope.check({}, st).done, true);
+  st.quiz.pending = 'people';
+  assert.equal(answerQuiz(st, GUIDE_QUIZ.people.answer).right, true);
+  assert.equal(st.penaltyMs, GUIDE.penaltyMs, 'a right answer costs nothing');
+  assert.deepEqual(TOUR_MISSION.summary(st), ["Jöri's questions: 1 of 2 right (+15 s)"]);
 });

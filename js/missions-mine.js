@@ -5,7 +5,8 @@ import { groundHeight } from './terrain.js';
 import { parseAdit, aditUrl } from './silberberg-asset.js';
 import { t } from './i18n.js';
 import {
-  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore
+  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore,
+  GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, GUIDE_CALLS, createGuide, stepGuide, answerQuiz
 } from './missions-data-mine.js';
 
 // js/missions-mine.js
@@ -21,7 +22,9 @@ import {
 //          warm cone from the camera) and a few lanterns — no scene lights (they would recompile the town's shaders);
 //          the portal's cut glows with daylight. The ore spots glitter where the lamp falls on them. Web Audio: drips,
 //          the hammer on rock, the hunt's rumble, all through a short cave reverb. The touch screens get a held Strike
-//          button (the ore), the tour a card at each station.
+//          button (the ore). On the tour Jöri leads: a miner of boxes with a lantern (the lamp-lit material inside,
+//          a plain one waiting outside at the next portal), his lines at the bottom of the screen, his two questions
+//          (keys 1–3 or tapped), the mountain's rumble in the stope, the draught that blows the visitor's lamp out.
 // Everything goes with the run's group (js/missions.js disposes it).
 
 const LIFT = 400; // m: the gallery floats this high above its portal
@@ -79,8 +82,8 @@ function buildPortal(group, a, name) {
 // --- The lamp-lit material ---------------------------------------------------------------------------------------------
 const LANTERNS = 3;
 /** Lit by the lamp and the lanterns; `scan`: the colour and the daylight from the scan's attributes (not multiplied) */
-function lampMaterial(L, { sparkle = false, scan = false } = {}) {
-  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: !sparkle && !scan, side: scan ? THREE.DoubleSide : THREE.FrontSide });
+function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
+  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: !sparkle && !scan && !tint, side: scan ? THREE.DoubleSide : THREE.FrontSide });
   m.colorNode = Fn(() => {
     const toP = positionWorld.sub(L.pos);
     const dist = toP.length().max(0.05);
@@ -107,6 +110,7 @@ function lampMaterial(L, { sparkle = false, scan = false } = {}) {
       const grain = g1.mul(0.16).add(g2.mul(0.18)).add(0.88);
       col = attribute('color', 'vec3').mul(grain).mul(col.min(vec3(1.4))).mul(0.85).add(vec3(0.85, 0.9, 1.0).mul(day).mul(L.day));
     }
+    if (tint) { const c = new THREE.Color(tint); col = col.mul(vec3(c.r, c.g, c.b)); }
     if (sparkle) {
       // glitter: facets that catch the lamp in turn
       const h = fract(sin(dot(floor(positionLocal.mul(30)), vec3(12.9898, 78.233, 37.719)).add(time.mul(1.3))).mul(43758.5453));
@@ -352,6 +356,32 @@ class MineAudio {
       src.connect(lp).connect(g).connect(this.bus); src.start(at, Math.random() * 0.8, 0.12);
     }
   }
+  /** The mountain settling: a low, long rumble and a few stones falling */
+  quake() {
+    if (!this.init()) return;
+    const ctx = this.audio.context, now = ctx.currentTime;
+    const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 90;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(1.2, now + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, now + 2.6);
+    src.connect(lp).connect(g).connect(this.bus); src.start(now); src.stop(now + 2.8);
+    for (let i = 0; i < 7; i++) {
+      const at = now + 0.6 + Math.random() * 1.8;
+      const s = ctx.createBufferSource(); s.buffer = this.noise;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 1800; bp.Q.value = 2;
+      const sg = ctx.createGain(); sg.gain.setValueAtTime(0.25, at); sg.gain.exponentialRampToValueAtTime(0.001, at + 0.07);
+      s.connect(bp).connect(sg).connect(this.bus); s.start(at, Math.random() * 0.5, 0.08);
+    }
+  }
+  /** The draught: a breath of air through the gallery */
+  whoosh() {
+    if (!this.init()) return;
+    const ctx = this.audio.context, now = ctx.currentTime;
+    const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+    bp.frequency.setValueAtTime(300, now); bp.frequency.exponentialRampToValueAtTime(1400, now + 0.7); bp.frequency.exponentialRampToValueAtTime(400, now + 1.6);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.6, now + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+    src.connect(bp).connect(g).connect(this.bus); src.start(now); src.stop(now + 2);
+  }
   roll(speed) {
     if (!this.out) return;
     this.rumble.gain.setTargetAtTime(Math.min(0.5, Math.abs(speed) * 0.25), this.audio.context.currentTime, 0.08);
@@ -361,6 +391,43 @@ class MineAudio {
     this.out?.disconnect();
     this.out = null;
   }
+}
+
+// --- Jöri, the guide -------------------------------------------------------------------------------------------------------
+/**
+ * A miner of boxes: black Bergkittel, leather apron, the Fahrhut, a lantern in his right hand. `mat(colour)` gives the
+ * materials (the lamp-lit one inside, a plain one outside). userData: legs, arms (to swing), lantern (its local point).
+ */
+function buildMiner(mat) {
+  const g = new THREE.Group();
+  g.name = 'Joeri';
+  const part = (w, h, d, x, y, z, colour, parent = g) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(colour)); m.position.set(x, y, z); parent.add(m); return m; };
+  const legs = [-0.1, 0.1].map((x) => {
+    const hip = new THREE.Group(); hip.position.set(x, 0.86, 0); g.add(hip);
+    part(0.13, 0.8, 0.14, 0, -0.42, 0, 0x2b2622, hip);
+    part(0.15, 0.08, 0.24, 0, -0.84, 0.04, 0x1a1512, hip);
+    return hip;
+  });
+  part(0.42, 0.62, 0.24, 0, 1.17, 0, 0x1c1a19); // the Bergkittel
+  part(0.36, 0.42, 0.04, 0, 0.88, -0.13, 0x5a3a20); // the Arschleder, behind
+  part(0.4, 0.06, 0.26, 0, 1.0, 0, 0x6b4a2c); // the belt
+  part(0.17, 0.08, 0.17, 0, 1.52, 0, 0xd9b08c); // the neck
+  part(0.22, 0.24, 0.22, 0, 1.66, 0, 0xd9b08c); // the head
+  part(0.24, 0.08, 0.04, 0, 1.6, 0.11, 0x6a5038); // the beard
+  part(0.3, 0.03, 0.3, 0, 1.79, 0, 0x151312); // the Fahrhut's brim
+  part(0.2, 0.17, 0.2, 0, 1.88, 0, 0x151312); // its crown
+  const arms = [-0.27, 0.27].map((x) => {
+    const sh = new THREE.Group(); sh.position.set(x, 1.42, 0); g.add(sh);
+    part(0.11, 0.6, 0.12, 0, -0.3, 0, 0x1c1a19, sh);
+    part(0.1, 0.1, 0.1, 0, -0.63, 0, 0xd9b08c, sh);
+    return sh;
+  });
+  // the lantern, in the right hand (a frog lamp: a squat body, the flame's glow)
+  const lamp = new THREE.Group(); lamp.position.set(0, -0.72, 0.06); arms[1].add(lamp);
+  part(0.12, 0.14, 0.12, 0, -0.06, 0, 0x5a4a30, lamp);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.07), new THREE.MeshBasicNodeMaterial({ color: 0xffc46a })); glow.position.set(0, -0.05, 0.05); lamp.add(glow);
+  g.userData = { legs, arms, lamp: glow };
+  return g;
 }
 
 // --- The feature -----------------------------------------------------------------------------------------------------------
@@ -379,6 +446,14 @@ body.mine-indoor .hud-bottom-center{visibility:hidden}
 .mine-toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:41;pointer-events:none;font:800 24px/1.2 Inter,system-ui,sans-serif;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.8);opacity:0;transition:opacity .25s}
 .mine-station{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;width:min(460px,calc(100vw - 32px));box-sizing:border-box;pointer-events:none;background:rgba(14,10,6,.86);border:1px solid rgba(255,220,160,.25);border-radius:14px;padding:12px 16px;color:#f3e6cc;font:500 14px/1.45 Inter,system-ui,sans-serif;opacity:0;transition:opacity .4s}
 .mine-station b{display:block;font:800 17px/1.2 Georgia,serif;color:#ffd36b;margin-bottom:4px}
+.mine-say{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;width:min(520px,calc(100vw - 32px));box-sizing:border-box;pointer-events:none;background:rgba(14,10,6,.86);border:1px solid rgba(255,200,120,.3);border-radius:14px;padding:11px 16px;color:#f3e6cc;font:500 15px/1.45 Inter,system-ui,sans-serif;opacity:0;transition:opacity .3s}
+.mine-say b{color:#ffc46a;font:800 15px Georgia,serif;margin-right:6px}
+.mine-quiz{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:42;width:min(520px,calc(100vw - 32px));box-sizing:border-box;background:rgba(14,10,6,.92);border:1px solid rgba(255,200,120,.45);border-radius:14px;padding:12px 16px;color:#f3e6cc;font:500 15px/1.45 Inter,system-ui,sans-serif}
+.mine-quiz[hidden]{display:none}
+.mine-quiz b{color:#ffc46a;font:800 15px Georgia,serif;margin-right:6px}
+.mine-quiz div{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.mine-quiz button{flex:1 1 120px;border:1px solid rgba(255,200,120,.5);background:rgba(255,196,106,.12);color:#ffe2b0;border-radius:10px;padding:9px 10px;font:700 14px Inter,system-ui,sans-serif;cursor:pointer}
+.mine-quiz button:hover{background:rgba(255,196,106,.25)}
 `;
 
 /** The adit an objective wants the walker in (null: outside) */
@@ -411,8 +486,42 @@ const mineFeature = {
     const toast = el('div'); toast.className = 'mine-toast';
     const station = el('div'); station.className = 'mine-station';
     document.body.append(hud, toast, station);
-    run.cleanups.push(() => { hud.remove(); toast.remove(); station.remove(); document.body.classList.remove('mine-indoor'); });
-    run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0 };
+    // the guide's words and questions
+    const say = el('div'); say.className = 'mine-say';
+    const quiz = el('div'); quiz.className = 'mine-quiz'; quiz.hidden = true;
+    document.body.append(say, quiz);
+    run.cleanups.push(() => { hud.remove(); toast.remove(); station.remove(); say.remove(); quiz.remove(); document.body.classList.remove('mine-indoor'); });
+    run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0,
+      say, quiz, queue: [], line: null, lineT: 0, greeted: false, outside: null };
+    if (kind === 'tour') {
+      // Jöri waiting outside, at the next portal (a plain material: the daylight lights him)
+      const plain = new Map();
+      const mat = (c) => { if (!plain.has(c)) plain.set(c, new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.85 })); return plain.get(c); };
+      const outside = buildMiner(mat);
+      for (const o of outside.children) o.castShadow = true;
+      outside.visible = false;
+      run.group.add(outside);
+      run.mine.outside = outside;
+      // the answers: 1–3 (before the game's own keys see them), or tapped
+      run.listen(window, 'keydown', (e) => {
+        if (!run.state?.quiz?.pending) return;
+        const n = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 }[e.code];
+        if (n == null) return;
+        e.preventDefault(); e.stopPropagation();
+        mineFeature.answer(run, n);
+      }, true);
+    }
+  },
+  /** The guide says a line (now, or after what he is saying) */
+  queue(run, lines) { if (lines?.length) run.mine.queue.push(...lines); },
+  answer(run, n) {
+    const M = run.mine;
+    const r = answerQuiz(run.state, n);
+    if (!r) return;
+    M.quiz.hidden = true;
+    M.audio?.answer?.(r.right);
+    M.line = null; M.lineT = 0;
+    M.queue.unshift({ text: r.say, right: r.right });
   },
   reset(run) {
     mineFeature.leave(run);
@@ -420,6 +529,9 @@ const mineFeature = {
     run.mine.hud.hidden = true;
     run.mine.lastIndex = 0;
     run.mine.station.style.opacity = '0';
+    Object.assign(run.mine, { queue: [], line: null, lineT: 0, greeted: false });
+    run.mine.say.style.opacity = '0';
+    run.mine.quiz.hidden = true;
     if (run.state) { run.state.shift = null; run.state.walk = null; run.state.points = null; }
   },
   teardown(run) {
@@ -471,6 +583,16 @@ const mineFeature = {
       run.state.points = pts;
       run.state.walk = { adit: id, ...createWalker(a) };
     }
+    // Jöri inside: lamp-lit, a few metres ahead (the first lantern is his)
+    let guide = null, miner = null;
+    if (!ore) {
+      guide = createGuide(a, createMine(a, 1));
+      const lit = new Map();
+      miner = buildMiner((c) => { if (!lit.has(c)) lit.set(c, lampMaterial(L, { tint: c })); return lit.get(c); });
+      group.add(miner);
+      lamps.unshift(new THREE.Vector3(guide.x, guide.y + 1, guide.z));
+      lamps.length = Math.min(lamps.length, LANTERNS);
+    }
     lamps.forEach((p, i) => L.lanterns[i].value.copy(p).add(origin));
     run.group.add(group);
     group.updateMatrixWorld(true);
@@ -481,12 +603,13 @@ const mineFeature = {
     document.body.classList.add('mine-indoor');
     const prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; }; // (the walker waits at the door)
-    M.inside = { id, a, group, mine, L, hunt, veins, tools, origin, fade, prevDriver, bob: 0, shake: 0, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
+    M.inside = { id, a, group, mine, L, hunt, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
     M.hud.hidden = !ore;
   },
   leave(run) {
     const M = run.mine, I = M?.inside;
     if (!I) return;
+    if (run.state?.quiz?.pending && run.phase === 'running') mineFeature.answer(run, -1); // (walked off without an answer)
     I.group.removeFromParent();
     const dispose = (root) => root.traverse((o) => { o.geometry?.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } if (o.isInstancedMesh) o.dispose(); });
     dispose(I.group);
@@ -505,21 +628,73 @@ const mineFeature = {
     const M = run.mine;
     M.toast.textContent = text; M.toast.style.color = colour; M.toast.style.opacity = '1'; M.toastT = secs;
   },
-  showStation(run, key) {
-    const st = TOUR_STATIONS[key], M = run.mine;
-    if (!st) return;
-    M.station.replaceChildren(el('b', null, t(st.title)), document.createTextNode(t(st.text)));
-    M.station.style.opacity = '1';
-    M.stationT = 11;
+  /** The guide's lines, one after the other; a question waits for its answer; the events with their lines */
+  talk(run, dt) {
+    const M = run.mine, I = M.inside;
+    if (M.lineT > 0) M.lineT -= dt;
+    if (M.line && M.lineT > 0) return;
+    if (run.state?.quiz?.pending) return; // (the question stays until answered)
+    if (M.line) { M.line = null; M.say.style.opacity = '0'; }
+    const next = M.queue.shift();
+    if (!next) return;
+    if (next.quiz) {
+      const q = GUIDE_QUIZ[next.quiz];
+      if (!run.state.quiz || run.state.quiz.answers[next.quiz] != null) return;
+      run.state.quiz.pending = next.quiz;
+      M.quiz.replaceChildren(el('b', null, `${GUIDE.name}:`), document.createTextNode(t(q.question)));
+      const row = el('div');
+      q.options.forEach((o, i) => {
+        const b = el('button', null, `${i + 1} · ${t(o)}`); b.type = 'button';
+        run.listen(b, 'click', (e) => { e.preventDefault(); mineFeature.answer(run, i); });
+        row.append(b);
+      });
+      M.quiz.append(row);
+      M.quiz.hidden = false;
+      M.say.style.opacity = '0';
+      return;
+    }
+    M.line = next;
+    M.lineT = GUIDE.lineS(next.text);
+    M.say.replaceChildren(el('b', null, `${GUIDE.name}:`), document.createTextNode(t(next.text)));
+    M.say.style.color = next.right === false ? '#ffb4a8' : '';
+    M.say.style.opacity = '1';
+    if (next.event === 'rumble') { M.audio?.quake(); if (I) I.quake = 2.6; }
+    if (next.event === 'draught') { M.audio?.whoosh(); if (I) I.dark = true; }
+    if (next.event === 'relight') { if (I) I.dark = false; M.audio?.strike?.('barren'); }
+  },
+  /** Jöri outside: at the portal the objective walks to, facing the visitor; he greets once */
+  guideOutside(run, ctx) {
+    const M = run.mine, o = M.outside;
+    if (!o) return;
+    const obj = run.def.objectives[run.index];
+    const id = obj?.id === 'dalvazzer' ? 'dalvazzer' : obj?.id === 'hilfsstollen' ? 'hilfsstollen' : null;
+    o.visible = !!id && !M.inside && (run.phase === 'running' || run.phase === 'ready');
+    if (!o.visible) return;
+    const A = ADITS[id];
+    // (beside the door, a step up the slope towards the portal)
+    const sx = A.door.x - A.out[1] * 1.6 - A.out[0] * 0.8, sz = A.door.z + A.out[0] * 1.6 - A.out[1] * 0.8;
+    o.position.set(sx, groundHeight(sx, sz), sz);
+    o.rotation.y = Math.atan2(ctx.x - sx, ctx.z - sz);
+    const t0 = performance.now() / 1000;
+    o.userData.arms[0].rotation.x = 0.1 * Math.sin(t0 * 1.3);
+    if (id === 'dalvazzer' && !M.greeted && Math.hypot(ctx.x - sx, ctx.z - sz) < 16) { M.greeted = true; mineFeature.queue(run, GUIDE_SCRIPT.dalvazzer.greet); }
   },
   update(run, ctx, dt, cm) {
     const M = run.mine;
-    // the stations passed: their cards
+    // the objectives done and begun: what Jöri says to them
     if (run.index !== M.lastIndex) {
-      const prev = run.def.objectives[M.lastIndex];
-      if (run.index > M.lastIndex && prev?.station) mineFeature.showStation(run, prev.station);
+      if (M.kind === 'tour' && run.index > M.lastIndex) {
+        // (what he meant to say setting off for a station already reached, he leaves unsaid)
+        M.queue = M.queue.filter((l) => !l.walk);
+        if (M.line?.walk) M.lineT = Math.min(M.lineT, 0.6);
+        for (let i = M.lastIndex; i < run.index; i++) mineFeature.queue(run, GUIDE_SCRIPT[run.def.objectives[i]?.id]?.arrive);
+        // (what he says setting off, he says walking)
+        mineFeature.queue(run, GUIDE_SCRIPT[run.def.objectives[run.index]?.id]?.start?.map((l) => ({ ...l, walk: true })));
+      }
       M.lastIndex = run.index;
     }
+    if (M.kind === 'tour') mineFeature.guideOutside(run, ctx);
+    mineFeature.talk(run, dt);
     if (M.stationT > 0 && (M.stationT -= dt) <= 0) M.station.style.opacity = '0';
     if (M.toastT > 0 && (M.toastT -= dt) <= 0) M.toast.style.opacity = '0';
     // in and out of the adits, as the objectives want
@@ -534,7 +709,16 @@ const mineFeature = {
     let left = Math.min(dt, 0.1);
     if (M.kind === 'tour') {
       const w = run.state.walk;
-      while (left > 1e-6) { const h = Math.min(1 / 60, left); stepWalk(w, I.a, input, h); left -= h; }
+      // (in the dark after the draught: not a step)
+      const still = I.dark ? { ...input, forward: 0, back: 0 } : input;
+      while (left > 1e-6) { const h = Math.min(1 / 60, left); stepWalk(w, I.a, still, h); left -= h; }
+      // Jöri: on to the objective's station (out to the portal on the way out), still while he talks or asks
+      const obj = run.def.objectives[run.index];
+      const goal = obj?.station ? run.state.points?.[obj.station] : obj?.id === 'out' ? { x: 0, z: 0 } : null;
+      const talking = !!(M.line && !M.line.walk) || !!run.state.quiz?.pending;
+      if (stepGuide(I.guide, w, I.a, goal, Math.min(dt, 0.1), { hold: talking }) === 'call' && !M.line && !M.queue.length) {
+        mineFeature.queue(run, [{ text: GUIDE_CALLS[Math.floor(Math.random() * GUIDE_CALLS.length)], walk: true }]);
+      }
       M.audio?.drip(dt);
       return;
     }
@@ -575,7 +759,8 @@ const mineFeature = {
     // the miner's eyes: ducking under a low roof, a little bob as it walks, the shake of a strike
     I.bob += dt * (Math.abs(w.moving || 0) > 0.05 ? 8 : 0);
     I.shake = Math.max(0, I.shake - dt);
-    const sh = I.shake * (Math.random() - 0.5) * 0.4;
+    I.quake = Math.max(0, (I.quake || 0) - dt);
+    const sh = I.shake * (Math.random() - 0.5) * 0.4 + Math.min(1, I.quake) * (Math.random() - 0.5) * 0.05;
     const f = I.a.floor.at(w.x, w.z);
     const eyeH = clamp((f ? f.ceil : w.y + 2) - w.y - 0.18, 0.95, 1.55);
     I.eyeH = I.eyeH == null ? eyeH : I.eyeH + (eyeH - I.eyeH) * Math.min(1, dt * 6);
@@ -593,9 +778,28 @@ const mineFeature = {
     const flicker = 0.93 + 0.05 * Math.sin(t * 13) * Math.sin(t * 7.3) + 0.02 * Math.sin(t * 31);
     const lamp = M.kind === 'ore' ? w.lamp : MINE.lamp;
     const low = lamp < MINE.lampLow ? (lamp / MINE.lampLow) * (0.75 + 0.25 * Math.sin(t * 23) * Math.sin(t * 9)) : 1;
-    L.power.value = w.over === 'dark' ? 0 : flicker * Math.max(0.15, low);
+    L.power.value = w.over === 'dark' || I.dark ? 0 : flicker * Math.max(0.15, low);
     L.lanternPower.value = 0.9 + 0.1 * Math.sin(t * 5.1);
-    if (M.kind !== 'ore') return;
+    if (M.kind !== 'ore') {
+      // Jöri: walking (legs and arms swinging), his lantern the first of the lanterns
+      const G = I.guide, m = I.miner;
+      if (G && m) {
+        I.gait = (I.gait || 0) + dt * (G.moving ? G.moving * 4.2 : 0);
+        const sw = G.moving ? Math.sin(I.gait) : 0;
+        m.position.set(G.x, G.y + (G.moving ? Math.abs(Math.cos(I.gait)) * 0.03 : 0), G.z);
+        m.rotation.y = G.heading;
+        m.userData.legs[0].rotation.x = sw * 0.5; m.userData.legs[1].rotation.x = -sw * 0.5;
+        m.userData.arms[0].rotation.x = -sw * 0.4; m.userData.arms[1].rotation.x = -0.35 + sw * 0.15;
+        m.updateMatrixWorld(true);
+        m.userData.lamp.getWorldPosition(L.lanterns[0].value);
+        L.lanterns[0].value.y += 0.05;
+        // (the lantern brighter than the plaques': it is what the visitor follows; in the draught's dark it is
+        // all there is, and dim)
+        L.lanternPower.value *= I.dark ? 0.55 : 1.25;
+        L.ambient.value = I.dark ? 0 : 0.5;
+      }
+      return;
+    }
     const g = w;
     // the hunt on its rails, its heap
     const hp = railAt(I.mine.rail, g.hunt.s);

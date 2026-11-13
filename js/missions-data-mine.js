@@ -568,42 +568,168 @@ export const MINE_MISSION = {
 };
 
 // --- The tour ----------------------------------------------------------------------------------------------------------------
-// (the stations: the asset's, by name; r: how near counts; card: what the guide says there)
+// Jöri, a miner of the Silberberg, leads it: he waits at the Dalvazzerstollen, walks ahead through the galleries with his
+// lantern, waits for the visitor, tells his story at every station (the lines below; the facts from silberberg-davos.ch
+// and the literature: the vein, the Pochhaus, the Hilfsstollen 1810–1828, Hitz's lease and bankruptcy, the ~200 people
+// of 1810, lead to 1848) and asks two questions — a wrong answer costs 15 s. In the stope the mountain rumbles, at the
+// crossing the draught blows the visitor's lamp out until Jöri lights it again.
+
+// (the stations: the asset's, by name; r: how near counts; title: the plaque's)
 export const TOUR_STATIONS = {
+  barbara: { adit: 'dalvazzer', station: 'barbara', r: 1.6, label: 'St Barbara', title: 'St Barbara' },
+  stope: { adit: 'dalvazzer', station: 'end', r: 2.0, label: 'the stope', title: 'The stope' },
+  y1813: { adit: 'hilfsstollen', station: 'y1813', r: 2.0, label: 'the year 1813', title: '1813' },
+  crossing: { adit: 'hilfsstollen', station: 'crossing', r: 2.4, label: 'the crossing', title: 'The crossing' },
+  y1818: { adit: 'hilfsstollen', station: 'y1818', r: 2.0, label: 'the year 1818', title: '1818' },
+  end: { adit: 'hilfsstollen', station: 'end', r: 2.4, label: 'the far end', title: 'The far end' }
+};
+
+export const GUIDE = {
+  name: 'Jöri',
+  speed: 1.5, hurry: 2.4, // m/s: leading; catching up when the visitor is ahead
+  lead: 2.2, // m: he stops this far short of a station (the visitor steps up to it)
+  wait: 7, // m: farther behind than this, he waits and calls
+  callEvery: 14, // s between his calls
+  penaltyMs: 15000, // a wrong answer
+  lineS: (text) => Math.max(3.2, Math.min(9, text.length * 0.065)) // s a line stays
+};
+
+/**
+ * What Jöri says: per objective, `start` (when the objective begins) and `arrive` (when it is done). A line is
+ * { text } or { text, event: 'rumble' | 'draught' | 'relight' } or { quiz } (the question waits for an answer).
+ */
+export const GUIDE_SCRIPT = {
+  dalvazzer: {
+    greet: [
+      { text: 'Glück auf! I am Jöri, miner here on the Silberberg. Today I show you our mine.' },
+      { text: 'Stay close to my lantern. Down there the mountain decides, not us.' }
+    ]
+  },
   barbara: {
-    adit: 'dalvazzer', station: 'barbara', r: 1.6, label: 'St Barbara',
-    title: 'St Barbara',
-    text: 'A figure of St Barbara, the patron saint of miners, watches over the Dalvazzerstollen. The miners greeted each other with “Glück auf!” — may the vein open up. Outside the portal stood the Pochhaus, where the ore was crushed and washed.'
+    start: [{ text: 'In we go. Mind your head: the Dalvazzer was cut for smaller men than you.' }],
+    arrive: [
+      { text: 'St Barbara keeps watch over us. A miner who forgets her greeting forgets his luck.' },
+      { text: 'Out by the portal stood the Pochhaus: there we crushed and washed the ore before it went down to Schmelzboden.' }
+    ]
   },
   stope: {
-    adit: 'dalvazzer', station: 'end', r: 2.0, label: 'the stope',
-    title: 'The stope',
-    text: 'Look up and down: the miners followed the steep vein, only a few centimetres thick, up and down through the dolomite and left this narrow cleft; below the footbridge the Dalvazzer shaft drops some 100 m. Galena (lead, hardly any silver despite the name) and sphalerite (zinc) sat in the vein.'
+    start: [{ text: 'Now over the footbridge. Do not look down. Or do, if you dare.' }],
+    arrive: [
+      { text: 'Here the vein ran, a few fingers thick, straight up and down through the dolomite. We followed it with hammer and chisel.' },
+      { text: 'Hear that?', event: 'rumble' },
+      { text: '… Only the mountain settling. It never sleeps. Below this bridge the shaft drops a hundred metres.' },
+      { quiz: 'silver' }
+    ]
+  },
+  out: {
+    start: [{ text: 'Back to the daylight now. Then up the hill to the Hilfsstollen. I know a shorter way: I will wait for you up there.' }]
+  },
+  hilfsstollen: {
+    arrive: [{ text: 'There you are! The Hilfsstollen, the “Langer Michael”: 356 metres into the mountain.' }]
   },
   y1813: {
-    adit: 'hilfsstollen', station: 'y1813', r: 2.0, label: 'the year 1813',
-    title: '1813',
-    text: 'A year chiselled into the rock: the surveyors marked how far the Hilfsstollen, the “Langer Michael”, had been driven. It was cut from 1810 to 1828, mostly through barren rock, to reach the vein from below.'
+    start: [{ text: 'We cut it from 1810 to 1828, mostly through barren rock, to reach the vein from below.' }],
+    arrive: [
+      { text: '1813, chiselled by the surveyor. Each year he marked how far we had come.' },
+      { text: 'A few centimetres a day. Hammer, chisel and black powder, and the smoke to breathe afterwards.' }
+    ]
   },
   crossing: {
-    adit: 'hilfsstollen', station: 'crossing', r: 2.4, label: 'the crossing',
-    title: 'The crossing',
-    text: 'Here drifts branch off the gallery. The Geomatik students of the FHNW set up their laser scanner at this crossing in 2023: the galleries you are walking through are their scan.'
+    start: [{ text: 'Keep up. And keep your lamp out of the draught.' }],
+    arrive: [
+      { text: 'Here the drifts branch off. Feel the air moving? That is the Wetterzug, the mountain breathing …' },
+      { text: 'Your flame!', event: 'draught' },
+      { text: 'Stand still. Do not take a step in the dark.' },
+      { text: 'There. Lit again.', event: 'relight' },
+      { text: 'A miner without a light is the worst that can happen down here. In 2023 the surveyors of the FHNW set up their laser scanner at this very crossing: every stone you see, they measured.' }
+    ]
   },
   y1818: {
-    adit: 'hilfsstollen', station: 'y1818', r: 2.0, label: 'the year 1818',
-    title: '1818',
-    text: 'Another year in the wall, some 60 metres further on. Around 1810 about 200 people worked for the mine, most of them from Davos and Klosters; the ore went down the Erzweg to the smelter at Schmelzboden.'
+    start: [{ text: 'On, deeper into the mountain.' }],
+    arrive: [
+      { text: '1818. That year Johannes Hitz leased the mine. Eleven years later he was bankrupt and left for America.' },
+      { quiz: 'people' }
+    ]
   },
   end: {
-    adit: 'hilfsstollen', station: 'end', r: 2.4, label: 'the far end',
-    title: 'The far end',
-    text: 'The end of the Hilfsstollen, 356 m of gallery behind you. Zinc mining stopped in 1847, lead in 1848; the old administration building at Schmelzboden is today the Bergbaumuseum Graubünden. Glück auf!'
+    start: [{ text: 'The last stretch. Not far now.' }]
   }
 };
 
+/** The questions: the right answer's index; what Jöri says to it */
+export const GUIDE_QUIZ = {
+  silver: {
+    question: 'Tell me: how much silver is there in our galena?',
+    options: ['A tenth of it', 'A few percent', 'Hardly any'],
+    answer: 2,
+    right: 'Right! Less than two hundredths of a percent. The name promised more than the mountain gave.',
+    wrong: 'No. Hardly any: less than two hundredths of a percent. The name promised more than the mountain gave.'
+  },
+  people: {
+    question: 'How many people worked for the mine around 1810, do you think?',
+    options: ['About 20', 'About 200', 'About 2000'],
+    answer: 1,
+    right: 'Right, about two hundred, most of them from Davos and Klosters.',
+    wrong: 'About two hundred, most of them from Davos and Klosters. A lot of mouths for a mountain this stingy.'
+  }
+};
+
+export const GUIDE_CALLS = ['Over here! Follow my lantern.', 'Do not wander off: the old drifts are not safe.', 'This way!'];
+
+/** An answer to the pending question: whether it was right (a wrong one adds the penalty); null when none is pending */
+export function answerQuiz(state, choice) {
+  const id = state.quiz?.pending;
+  if (!id) return null;
+  const q = GUIDE_QUIZ[id];
+  const right = choice === q.answer;
+  state.quiz.pending = null;
+  state.quiz.answers[id] = right;
+  if (!right) state.penaltyMs = (state.penaltyMs || 0) + GUIDE.penaltyMs;
+  return { id, right, say: right ? q.right : q.wrong };
+}
+
+/** A guide at (x, z) on an adit's floor */
+export function createGuide(a, nav, ahead = 4) {
+  const r = railOf(a);
+  const p = railAt(r, Math.min(r.length, ahead));
+  return { x: p.x, z: p.z, y: a.floor.at(p.x, p.z)?.y ?? p.y, heading: Math.atan2(p.tx, p.tz), moving: 0, waiting: false, callT: 0, nav, walked: 0, entered: false, out: false };
+}
+
+/**
+ * One step of the guide: towards `goal` (stopping GUIDE.lead short of it), waiting for the walker when it falls behind,
+ * hurrying when it is ahead; standing still (facing the walker) while `hold` (he talks). Returns 'call' when he calls.
+ */
+export function stepGuide(g, w, a, goal, dt, { hold = false } = {}) {
+  const G = GUIDE;
+  g.callT = Math.max(0, g.callT - dt);
+  g.moving = 0;
+  const toW = Math.hypot(w.x - g.x, w.z - g.z);
+  const face = (x, z) => { g.heading = Math.atan2(x - g.x, z - g.z); };
+  let out = null;
+  if (!goal || hold) { face(w.x, w.z); return out; }
+  const left = wayTo(g.nav, g, goal);
+  const mine = left ? left.dist : Infinity;
+  const theirs = wayTo(g.nav, w, goal)?.dist ?? Infinity;
+  g.waiting = toW > G.wait && theirs > mine;
+  if (g.waiting) {
+    face(w.x, w.z);
+    if (!g.callT) { g.callT = G.callEvery; out = 'call'; }
+    return out;
+  }
+  if (!left || mine <= G.lead) { face(w.x, w.z); return out; }
+  const v = theirs < mine - 1 ? G.hurry : G.speed;
+  // (walking as the visitor walks: along the rough walls, not through them)
+  g.heading = Math.atan2(left.x - g.x, left.z - g.z);
+  const x0 = g.x, z0 = g.z;
+  stepWalk(g, a, { forward: Math.min(1, v / MINE.walk) }, dt);
+  g.moving = Math.hypot(g.x - x0, g.z - z0) > 1e-4 ? v : 0;
+  return out;
+}
+
 /** A tour station's place (adit-local) from the parsed adit */
 export const stationPoint = (a, st) => { const [x, y, z] = a.header.stations[st.station]; return { x, y, z }; };
+
+const waitQuiz = (state) => (state.quiz?.pending ? { done: false, progress: null, text: `${GUIDE.name} is waiting for your answer`, target: null, hint: 'Answer Jöri: press 1, 2 or 3' } : null);
 
 const station = (key) => {
   const st = TOUR_STATIONS[key];
@@ -617,6 +743,8 @@ const station = (key) => {
       const w = state.walk;
       const p = state.points?.[key];
       if (!w || w.adit !== st.adit || !p) return { done: false, progress: null, text: 'Lighting the lamp …', target: null, hint: null };
+      const q = waitQuiz(state);
+      if (q) return q;
       const d = Math.hypot(w.x - p.x, w.z - p.z);
       return { done: d < st.r, progress: null, text: `${Math.max(0, Math.round(d))} m to ${st.label}`, target: null, hint: null };
     }
@@ -626,7 +754,7 @@ const station = (key) => {
 export const TOUR_MISSION = {
   id: 'silberberg-tour',
   title: 'Through the Silberberg mine',
-  intro: 'A guided walk through the Silberberg mine, its galleries as the FHNW surveyors laser-scanned them: into the Dalvazzerstollen to St Barbara and over the footbridge in its stope, back out and up the hill to the Hilfsstollen, along it past the years the miners carved into the rock to its far end. Your lamp shows the way; the HUD the distance to the next station. W/S walk, A/D turn.',
+  intro: 'A guided walk through the Silberberg mine with Jöri, a miner of the old days, through its galleries as the FHNW surveyors laser-scanned them: into the Dalvazzerstollen to St Barbara and over the footbridge in its stope, out and up the hill to the Hilfsstollen, past the years the miners carved into the rock to its far end. Follow his lantern and listen: he will ask you two questions (keys 1–3), and a wrong answer costs 15 seconds. W/S walk, A/D turn.',
   mode: 'person',
   season: null,
   time: 'golden',
@@ -636,10 +764,16 @@ export const TOUR_MISSION = {
   bonusMs: 6 * 60000,
   colour: '#a08a62',
   icon: 'mine',
-  finish: 'Glück auf! The Bergbaumuseum at Schmelzboden tells the rest of the story.',
+  finish: 'Glück auf! Jöri sends you back into the daylight. The Bergbaumuseum at Schmelzboden tells the rest of the story.',
   start: { x: ADITS.dalvazzer.door.x - 10, z: ADITS.dalvazzer.door.z + 6, heading: Math.PI * 0.6 },
   props: [],
-  createState() { return { walk: null, points: null }; },
+  createState() { return { walk: null, points: null, quiz: { pending: null, answers: {} }, penaltyMs: 0 }; },
+  summary(state) {
+    const a = Object.values(state.quiz?.answers || {});
+    if (!a.length) return [];
+    const right = a.filter(Boolean).length;
+    return [`Jöri's questions: ${right} of ${a.length} right${right < a.length ? ` (+${(a.length - right) * GUIDE.penaltyMs / 1000} s)` : ''}`];
+  },
   objectives: [
     walkTo(ADITS.dalvazzer.door, 'Go to the Dalvazzerstollen', 'the Dalvazzerstollen', 'dalvazzer'),
     station('barbara'),
@@ -652,6 +786,8 @@ export const TOUR_MISSION = {
       check(ctx, state) {
         const w = state.walk;
         if (!w) return { done: false, progress: null, text: '', target: null, hint: null };
+        const q = waitQuiz(state);
+        if (q && !w.out) return q;
         const d = Math.hypot(w.x, w.z);
         return { done: !!w.out, progress: null, text: `${Math.max(0, Math.round(d))} m to the portal`, target: null, hint: null };
       }
