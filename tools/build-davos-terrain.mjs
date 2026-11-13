@@ -101,6 +101,19 @@ for (let j = 0; j < rows; j++) {
     H[j * cols + i] = h;
   }
 }
+// (TERRAIN_STAGES=dir: the grid after each step as a terrain file, for tools/check-road-smoothness.mjs to tell which
+// step made a bump)
+const writeGrid = (file, src) => {
+  const heights = new Int16Array(cols * rows);
+  for (let k = 0; k < heights.length; k++) heights[k] = Math.round((src[k] - FRAME.H0) / scale);
+  const header = Buffer.alloc(24);
+  header.write('ZTR1', 0, 'ascii');
+  header.writeUInt16LE(cols, 4); header.writeUInt16LE(rows, 6);
+  header.writeFloatLE(cell, 8); header.writeFloatLE(minX, 12); header.writeFloatLE(minZ, 16); header.writeFloatLE(scale, 20);
+  fs.writeFileSync(file, Buffer.concat([header, Buffer.from(heights.buffer)]));
+};
+const stage = (name) => { if (process.env.TERRAIN_STAGES) writeGrid(path.join(process.env.TERRAIN_STAGES, `${name}.bin`), H); };
+stage('0-model');
 
 // --- Fill the open cuts to the underground ----------------------------------------------------------------------------------
 // Candidates: nodes within a few metres of a way in a tunnel or below ground, outside the rivers and the lake (the
@@ -172,6 +185,7 @@ for (let iter = 0; iter < 400; iter++) {
   }
 }
 log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits)`);
+stage('1-cuts');
 
 // --- A smooth bed for the rivers ------------------------------------------------------------------------------------------
 // The Landwasser and the Flüelabach (OSM waterway=river, drawn by js/streams.js on the ground) lie in a channel that the
@@ -248,6 +262,115 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
   }
   log(`river beds: ${rivers} river ways smoothed (Landwasser, Flüelabach), ${carved} grid nodes lowered`);
 }
+stage('2-rivers');
+
+// --- A smooth bed for the railway ----------------------------------------------------------------------------------------
+// Rails climb in even gradients, but the 8 m grid gives the RhB's tracks the bumps of the ground beside them. The line
+// through the valley (js/rhb-route.js: the tracks joined end to end, Wolfgang to Frauenkirch) takes one long profile: the
+// ground sampled every 4 m from the 2 m model, off the bridges and tunnels, Gaussian-averaged over ~±75 m. Every
+// metre-gauge track off the bridges and tunnels then takes that profile where it runs beside the line (the station
+// tracks), else its own smoothed profile; the ground is set to it within 8 m of the track (the grid nodes of the
+// triangles under it) and eased back to the terrain over the next 8 m. The drawn track, the trains and the overhead
+// line follow it (js/terrain.js). Laid before the streets: the grid nodes of the triangles under the track itself
+// (±TRACK m) are held there, the streets lay their beds around them (a level crossing takes the rails' height, a street
+// beside the line keeps its own beyond the ballast); the rest of the 8 m strip is the streets' where they want it. (A
+// node under both a track's and a carriageway's triangles stays the track's: given to the nearer centre line, the
+// streets gained a tenth of their rough metres and the tracks got five times as many.)
+const railHeld = new Uint8Array(cols * rows);
+{
+  const STEP = 4, SIGMA = 25, CORE = 8, EASE = 8, NEAR_LINE = 12, TRACK = 2;
+  const flatPts = (e) => e.geometry.flatMap((p) => { const w = lonLatToWorld(p.lon, p.lat); return [w.x, w.z]; });
+  const isOn = (v) => !!v && v !== 'no';
+  const railWays = osm.elements.filter((e) => e.type === 'way' && e.geometry && e.tags?.railway === 'narrow_gauge');
+  const railways = railWays.map((e) => ({ kind: 'narrow_gauge', pts: flatPts(e), tunnel: isOn(e.tags.tunnel), bridge: isOn(e.tags.bridge) }));
+  const stations = osm.elements.filter((e) => e.type === 'node' && /^(station|halt)$/.test(e.tags?.railway || ''))
+    .map((e) => ({ ...lonLatToWorld(e.lon, e.lat), name: e.tags.name || '', kind: e.tags.railway }));
+  const smooth = (samples) => samples.map((p, k) => {
+    // Gaussian average of the ground samples (bridges and tunnels left out: the valley under a span is not the bed)
+    let sum = 0, wsum = 0;
+    for (let m = Math.max(0, k - 3 * SIGMA / STEP | 0); m < Math.min(samples.length, k + 3 * SIGMA / STEP + 1); m++) {
+      if (!samples[m].ground) continue;
+      const d = (m - k) * STEP, w = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
+      sum += samples[m].h * w; wsum += w;
+    }
+    return wsum ? sum / wsum : p.h;
+  });
+  const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
+  // The line's profile
+  const line = buildLine(railways, stations, WORLD_BOUNDS);
+  const lineSamples = [];
+  if (line) for (let s = 0; s <= line.south.len; s += STEP) {
+    const p = routePoint(line.south, s), q = line.south.pts[Math.min(line.south.pts.length - 1, Math.round(s / 4))];
+    const h = groundAt(p.x, p.z);
+    lineSamples.push({ x: p.x, z: p.z, h, ground: Number.isFinite(h) && !p.tunnel && !q.bridge });
+  }
+  const lineProfile = smooth(lineSamples);
+  const LINE_CELL = 32, lineCells = new Map();
+  lineSamples.forEach((p, k) => {
+    const key = `${Math.floor(p.x / LINE_CELL)},${Math.floor(p.z / LINE_CELL)}`;
+    if (!lineCells.has(key)) lineCells.set(key, []);
+    lineCells.get(key).push(k);
+  });
+  const nearLine = (x, z) => {
+    let best = -1, bd = NEAR_LINE;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      for (const k of lineCells.get(`${Math.floor(x / LINE_CELL) + i},${Math.floor(z / LINE_CELL) + j}`) || []) {
+        const d = Math.hypot(lineSamples[k].x - x, lineSamples[k].z - z);
+        if (d < bd) { bd = d; best = k; }
+      }
+    }
+    return best;
+  };
+
+  const corridor = new Float64Array(cols * rows).fill(Infinity), target = new Float64Array(cols * rows);
+  let tracks = 0;
+  for (const e of railWays) {
+    const t = e.tags;
+    if (isOn(t.bridge) || isOn(t.tunnel) || (parseFloat(t.layer) || 0) < 0) continue;
+    const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / STEP));
+      for (let m = k === 1 ? 0 : 1; m <= n; m++) S.push({ x: a.x + ((b.x - a.x) * m) / n, z: a.z + ((b.z - a.z) * m) / n });
+    }
+    if (S.length < 2) continue;
+    for (const p of S) { p.h = groundAt(p.x, p.z); p.ground = Number.isFinite(p.h); }
+    if (!S.every((p) => p.ground)) continue;
+    const own = smooth(S);
+    const prof = S.map((p, k) => { const l = nearLine(p.x, p.z); return l >= 0 ? lineProfile[l] : own[k]; });
+    const reach = CORE + EASE;
+    for (let k = 1; k < S.length; k++) {
+      const a = S[k - 1], b = S[k], dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-9;
+      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x) - reach - minX) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(a.x, b.x) + reach - minX) / cell));
+      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z) - reach - minZ) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(a.z, b.z) + reach - minZ) / cell));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const x = minX + i * cell, z = minZ + j * cell, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
+        const d = Math.hypot(a.x + f * dx - x, a.z + f * dz - z), q = j * cols + i;
+        if (d < corridor[q]) { corridor[q] = d; target[q] = prof[k - 1] + (prof[k] - prof[k - 1]) * f; }
+      }
+    }
+    // (the nodes of the triangles under the track, every metre along it)
+    for (let k = 1; k < S.length; k++) {
+      const a = S[k - 1], b = S[k], L = Math.hypot(b.x - a.x, b.z - a.z) || 1e-9, ux = (b.x - a.x) / L, uz = (b.z - a.z) / L;
+      for (let f = 0; f < L; f += 1) for (let o = -TRACK; o <= TRACK + 1e-6; o += 1) {
+        const u = (a.x + ux * f - uz * o - minX) / cell, v = (a.z + uz * f + ux * o - minZ) / cell, i = Math.floor(u), j = Math.floor(v);
+        if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) continue;
+        const q = j * cols + i;
+        railHeld[q] = railHeld[q + cols + 1] = railHeld[u - i >= v - j ? q + 1 : q + cols] = 1;
+      }
+    }
+    tracks++;
+  }
+  let set = 0;
+  for (let q = 0; q < H.length; q++) {
+    const d = corridor[q];
+    if (d >= CORE + EASE) continue;
+    const u = Math.max(0, Math.min(1, (d - CORE) / EASE)), w = 1 - u * u * (3 - 2 * u);
+    H[q] += (target[q] - H[q]) * w;
+    set++;
+  }
+  log(`railway bed: the line ${line ? Math.round(line.south.len) : 0} m, ${tracks} tracks laid on it or smoothed, ${set} grid nodes set`);
+}
+stage('3-railway');
 
 // --- A smooth bed for the streets ----------------------------------------------------------------------------------------
 // The streets are draped on the 8 m grid (js/terrain.js drapeOverlay), so on a hillside a carriageway takes the tilt of
@@ -259,7 +382,8 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
 // junction agree). Every grid node of a triangle under the carriageway (plus BANK) is set to that profile, level across;
 // the nodes beyond are eased back to the terrain over EASE m (the embankment). Where streets meet, the nodes take the
 // targets of the streets near them weighted by closeness to their carriageways (a street's over a service way's).
-// Done before the railway bed (level crossings follow the rails) and never in the rivers or the lake. A node moves at most MAX_MOVE m, and at most MAX_CONFLICT m where it lies under
+// Done after the railway bed, whose nodes under the track it leaves as they are (level crossings follow the rails),
+// and never in the rivers or the lake. A node moves at most MAX_MOVE m, and at most MAX_CONFLICT m where it lies under
 // streets more than CONFLICT m apart in height (the hairpins stacked on a steep slope, where an 8 m cell spans two legs
 // of the road, keep some tilt rather than a cliff cut into the hill); the ground under a building rises by MAX_BUILDING m
 // and falls by MAX_BUILDING_CUT m at most (js/swissbuildings3d.js sinks a house's floor to the ground under it, but not
@@ -277,7 +401,7 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
 // surveyed road (medianly the streets end up where they lie: half of them within 0.3 m, none more than 3 m off).
 {
   const STEP = 2, SIGMA = 6, BANK = 1.5, EASE = 4, MAX_MOVE = 8, MAX_CONFLICT = 2.5, CONFLICT = 1.5, MAX_BUILDING = 2.5, MAX_BUILDING_CUT = 3;
-  const ROUNDS = 6, MAX_GIVE = 3, MAX_ROAD_FILL = 4;
+  const ROUNDS = 16, MAX_GIVE = 3, MAX_ROAD_FILL = 4;
   const KINDS = /^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street|service)$/;
   const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5 };
   const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
@@ -315,6 +439,7 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
   const H0 = Float64Array.from(H);
   // (per way the surveyed road height at its samples — the 2 m model does not change between the rounds)
   const surveyed = new Map();
+  const HELD = { rail: 1, water: 2, stacked: 3, house: 4, limit: 5, junction: 6 }, held = new Uint8Array(n);
   let ways = 0, set = 0, cut = 0, fillUp = 0, big = 0;
   for (let round = 0; round < ROUNDS; round++) {
     ways = 0;
@@ -417,10 +542,12 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
       ways++;
     }
     set = 0; cut = 0; fillUp = 0; big = 0;
+    held.fill(0);
     for (let q = 0; q < n; q++) {
       if (!(blend[q] > 0) || !(asum[q] > 0)) continue;
       const i = q % cols, j = (q - i) / cols;
-      if (inWater(minX + i * cell, minZ + j * cell)) continue;
+      if (railHeld[q]) { held[q] = HELD.rail; continue; }
+      if (inWater(minX + i * cell, minZ + j * cell)) { held[q] = HELD.water; continue; }
       const cap = chi[q] - clo[q] > CONFLICT ? MAX_CONFLICT : MAX_MOVE;
       const house = Math.max(underBuilding[q], 1e-3);
       // Under a carriageway the street's bed wins over the house over it, downward without reserve and upward to
@@ -431,110 +558,29 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
       const dh = Math.max(-down, Math.min(up, want - H0[q]));
       H[q] = H0[q] + dh; set++;
       if (dh < 0) cut -= dh; else fillUp += dh;
-      if (dh <= -down || dh >= up) big++;
+      if (dh <= -down || dh >= up) {
+        big++;
+        held[q] = cap === MAX_CONFLICT && (dh <= -cap || (dh >= cap && up === cap)) ? HELD.stacked : ccount[q] > 0 ? HELD.limit : underBuilding[q] > 0.05 ? HELD.house : HELD.limit;
+      }
+      if (!held[q] && chi[q] - clo[q] > CONFLICT) held[q] = HELD.junction;
     }
   }
+  // (TERRAIN_STAGES: why a node near a street is not where the streets want it, for tools/check-road-smoothness.mjs)
+  if (process.env.TERRAIN_STAGES) fs.writeFileSync(path.join(process.env.TERRAIN_STAGES, 'held.bin'), held);
   log(`street beds: ${ways} ways in ${ROUNDS} rounds, ${set} grid nodes set (mean cut ${(cut / set).toFixed(2)} m, fill ${(fillUp / set).toFixed(2)} m, ${big} held at their limit)`);
 }
-
-// --- A smooth bed for the railway ----------------------------------------------------------------------------------------
-// Rails climb in even gradients, but the 8 m grid gives the RhB's tracks the bumps of the ground beside them. The line
-// through the valley (js/rhb-route.js: the tracks joined end to end, Wolfgang to Frauenkirch) takes one long profile: the
-// ground sampled every 4 m from the 2 m model, off the bridges and tunnels, Gaussian-averaged over ~±75 m. Every
-// metre-gauge track off the bridges and tunnels then takes that profile where it runs beside the line (the station
-// tracks), else its own smoothed profile; the ground is set to it within 8 m of the track (the grid nodes of the
-// triangles under it) and eased back to the terrain over the next 8 m. The drawn track, the trains and the overhead
-// line follow it (js/terrain.js).
-{
-  const STEP = 4, SIGMA = 25, CORE = 8, EASE = 8, NEAR_LINE = 12;
-  const flatPts = (e) => e.geometry.flatMap((p) => { const w = lonLatToWorld(p.lon, p.lat); return [w.x, w.z]; });
-  const isOn = (v) => !!v && v !== 'no';
-  const railWays = osm.elements.filter((e) => e.type === 'way' && e.geometry && e.tags?.railway === 'narrow_gauge');
-  const railways = railWays.map((e) => ({ kind: 'narrow_gauge', pts: flatPts(e), tunnel: isOn(e.tags.tunnel), bridge: isOn(e.tags.bridge) }));
-  const stations = osm.elements.filter((e) => e.type === 'node' && /^(station|halt)$/.test(e.tags?.railway || ''))
-    .map((e) => ({ ...lonLatToWorld(e.lon, e.lat), name: e.tags.name || '', kind: e.tags.railway }));
-  const smooth = (samples) => samples.map((p, k) => {
-    // Gaussian average of the ground samples (bridges and tunnels left out: the valley under a span is not the bed)
-    let sum = 0, wsum = 0;
-    for (let m = Math.max(0, k - 3 * SIGMA / STEP | 0); m < Math.min(samples.length, k + 3 * SIGMA / STEP + 1); m++) {
-      if (!samples[m].ground) continue;
-      const d = (m - k) * STEP, w = Math.exp(-(d * d) / (2 * SIGMA * SIGMA));
-      sum += samples[m].h * w; wsum += w;
-    }
-    return wsum ? sum / wsum : p.h;
-  });
-  const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
-  // The line's profile
-  const line = buildLine(railways, stations, WORLD_BOUNDS);
-  const lineSamples = [];
-  if (line) for (let s = 0; s <= line.south.len; s += STEP) {
-    const p = routePoint(line.south, s), q = line.south.pts[Math.min(line.south.pts.length - 1, Math.round(s / 4))];
-    const h = groundAt(p.x, p.z);
-    lineSamples.push({ x: p.x, z: p.z, h, ground: Number.isFinite(h) && !p.tunnel && !q.bridge });
-  }
-  const lineProfile = smooth(lineSamples);
-  const LINE_CELL = 32, lineCells = new Map();
-  lineSamples.forEach((p, k) => {
-    const key = `${Math.floor(p.x / LINE_CELL)},${Math.floor(p.z / LINE_CELL)}`;
-    if (!lineCells.has(key)) lineCells.set(key, []);
-    lineCells.get(key).push(k);
-  });
-  const nearLine = (x, z) => {
-    let best = -1, bd = NEAR_LINE;
-    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      for (const k of lineCells.get(`${Math.floor(x / LINE_CELL) + i},${Math.floor(z / LINE_CELL) + j}`) || []) {
-        const d = Math.hypot(lineSamples[k].x - x, lineSamples[k].z - z);
-        if (d < bd) { bd = d; best = k; }
-      }
-    }
-    return best;
-  };
-
-  const corridor = new Float64Array(cols * rows).fill(Infinity), target = new Float64Array(cols * rows);
-  let tracks = 0;
-  for (const e of railWays) {
-    const t = e.tags;
-    if (isOn(t.bridge) || isOn(t.tunnel) || (parseFloat(t.layer) || 0) < 0) continue;
-    const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
-    for (let k = 1; k < pts.length; k++) {
-      const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / STEP));
-      for (let m = k === 1 ? 0 : 1; m <= n; m++) S.push({ x: a.x + ((b.x - a.x) * m) / n, z: a.z + ((b.z - a.z) * m) / n });
-    }
-    if (S.length < 2) continue;
-    for (const p of S) { p.h = groundAt(p.x, p.z); p.ground = Number.isFinite(p.h); }
-    if (!S.every((p) => p.ground)) continue;
-    const own = smooth(S);
-    const prof = S.map((p, k) => { const l = nearLine(p.x, p.z); return l >= 0 ? lineProfile[l] : own[k]; });
-    const reach = CORE + EASE;
-    for (let k = 1; k < S.length; k++) {
-      const a = S[k - 1], b = S[k], dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-9;
-      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x) - reach - minX) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(a.x, b.x) + reach - minX) / cell));
-      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z) - reach - minZ) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(a.z, b.z) + reach - minZ) / cell));
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const x = minX + i * cell, z = minZ + j * cell, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / L2));
-        const d = Math.hypot(a.x + f * dx - x, a.z + f * dz - z), q = j * cols + i;
-        if (d < corridor[q]) { corridor[q] = d; target[q] = prof[k - 1] + (prof[k] - prof[k - 1]) * f; }
-      }
-    }
-    tracks++;
-  }
-  let set = 0;
-  for (let q = 0; q < H.length; q++) {
-    const d = corridor[q];
-    if (d >= CORE + EASE) continue;
-    const u = Math.max(0, Math.min(1, (d - CORE) / EASE)), w = 1 - u * u * (3 - 2 * u);
-    H[q] += (target[q] - H[q]) * w;
-    set++;
-  }
-  log(`railway bed: the line ${line ? Math.round(line.south.len) : 0} m, ${tracks} tracks laid on it or smoothed, ${set} grid nodes set`);
-}
+stage('4-streets');
 
 // --- The trenches of the road underpasses -------------------------------------------------------------------------------
 // tools/underpass.mjs. The 2 m model keeps the ramps and bridges the tunnel itself with the yard above. Done last: the
 // pit filling and the railway bed have laid the ground over it. The road's height: the model along the ramps, a line
-// between the two mouths through the tunnel, smoothed; the nodes under the carriageway sink to it (and never rise).
+// between the two mouths through the tunnel, smoothed; the nodes under the carriageway sink to it (and never rise) —
+// but not a node nearer a main road (tertiary and up) than the underpass's own way (the Hofstrasse's ramp runs 8 m
+// beside the Tanzbühlstrasse, whose carriageway the trench pulled metres down with it: the main road keeps its bed,
+// the wall between the two is a steep bank of a cell; the side streets meeting the ramp go down with it).
 {
   const STEP = 2, SIGMA = 4, BANK = 1, APPROACH = 30, MOUTH = 6;
+  const isOnTag = (v) => !!v && v !== 'no';
   const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
   for (const u of findUnderpasses(osm)) {
     const nodes = u.way.nodes, S = [];
@@ -563,11 +609,35 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
     let set = 0;
     const done = new Set();
     const reach = u.half + BANK;
+    // (the other drivable ways near the trench, as segments, and the distance of a point to the nearest of them and to
+    // the trench's own line)
+    const R = APPROACH + u.len + 40, cx = (u.a.x + u.b.x) / 2, cz = (u.a.z + u.b.z) / 2, others = [];
+    for (const e of osm.elements) {
+      const t = e.tags || {};
+      if (e.type !== 'way' || !e.geometry || e === u.way || t.name === u.way.tags.name || !/^(motorway|trunk|primary|secondary|tertiary)(_link)?$/.test(t.highway || '')) continue;
+      if (isOnTag(t.bridge) || isOnTag(t.tunnel)) continue;
+      const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat));
+      for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - cx, pts[k].z - cz) < R || Math.hypot(pts[k - 1].x - cx, pts[k - 1].z - cz) < R) others.push([pts[k - 1], pts[k]]);
+    }
+    const segDist = (x, z, a, b) => {
+      const dx = b.x - a.x, dz = b.z - a.z, f = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz || 1e-9)));
+      return Math.hypot(a.x + f * dx - x, a.z + f * dz - z);
+    };
+    const nearerOther = (q) => {
+      const i = q % cols, x = minX + i * cell, z = minZ + ((q - i) / cols) * cell;
+      let own = Infinity, other = Infinity;
+      for (let k = 1; k < S.length; k++) own = Math.min(own, segDist(x, z, S[k - 1], S[k]));
+      for (const [a, b] of others) other = Math.min(other, segDist(x, z, a, b));
+      return other < own;
+    };
+    const kept = new Map();
     const sink = (x, z, target) => {
       const fu = (x - minX) / cell, fv = (z - minZ) / cell, i = Math.floor(fu), j = Math.floor(fv);
       if (i < 0 || j < 0 || i >= cols - 1 || j >= rows - 1) return;
       const k = j * cols + i;
       for (const q of [k, k + cols + 1, fu - i >= fv - j ? k + 1 : k + cols]) {
+        if (!kept.has(q)) kept.set(q, nearerOther(q));
+        if (kept.get(q)) continue;
         if (H[q] > target) { H[q] = target; if (!done.has(q)) { done.add(q); set++; } }
       }
     };
@@ -577,16 +647,10 @@ log(`filled ${filled.length} nodes of open cuts to the underground (${pits} pits
         sink(a.x + ux * f - uz * o, a.z + uz * f + ux * o, prof[k - 1] + ((prof[k] - prof[k - 1]) * f) / L);
       }
     }
-    log(`underpass ${u.way.tags.name || u.way.id}: floor ${floorA.toFixed(1)}-${floorB.toFixed(1)} m a.s.l., ${set} grid nodes sunk`);
+    log(`underpass ${u.way.tags.name || u.way.id}: floor ${floorA.toFixed(1)}-${floorB.toFixed(1)} m a.s.l., ${set} grid nodes sunk, ${[...kept.values()].filter(Boolean).length} left to the main roads beside`);
   }
 }
 
-const heights = new Int16Array(cols * rows);
-for (let k = 0; k < heights.length; k++) heights[k] = Math.round((H[k] - FRAME.H0) / scale);
-const header = Buffer.alloc(24);
-header.write('ZTR1', 0, 'ascii');
-header.writeUInt16LE(cols, 4); header.writeUInt16LE(rows, 6);
-header.writeFloatLE(cell, 8); header.writeFloatLE(minX, 12); header.writeFloatLE(minZ, 16); header.writeFloatLE(scale, 20);
-fs.writeFileSync(OUT, Buffer.concat([header, Buffer.from(heights.buffer)]));
+writeGrid(OUT, H);
 log(`wrote ${OUT}: ${cols}x${rows} @ ${cell} m, ${(fs.statSync(OUT).size / 1048576).toFixed(2)} MB, ` +
   `heights ${lo.toFixed(1)}..${hi.toFixed(1)} m a.s.l., ${missing} missing`);

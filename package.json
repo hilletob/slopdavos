@@ -8,6 +8,7 @@
     "data:osm": "bash tools/overpass.sh tools/data/cache/osm_davos.json tools/data/q_davos.overpassql",
     "data:areas": "bash tools/overpass.sh tools/data/cache/osm_davos_areas.json tools/data/q_davos_areas.overpassql",
     "data:terrain": "node tools/build-davos-terrain.mjs",
+    "check:roads": "node tools/check-road-smoothness.mjs",
     "data:decks": "node tools/fetch-bridge-decks.mjs",
     "data:geo": "node tools/build-davos-geodata.mjs",
     "data:surroundings": "node tools/build-davos-surroundings.mjs",
