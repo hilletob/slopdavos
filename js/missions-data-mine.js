@@ -10,11 +10,11 @@
 // stope, and the Hilfsstollen 53 m higher up, ~360 m of gallery with side drifts, a loop and a junction at its far end.
 //
 // Two missions:
-//   silberberg-mine — ore in the Hilfsstollen. Glittering spots in the walls are ore: galena (silver-grey), sphalerite
-//     (brown-yellow) — and barren rock that glitters much the same. Hold Strike at a spot to break ore into the basket
-//     (16 kg), the basket empties into the hunt (the mine cart) next to it; the hunt runs on rails along the main
-//     gallery, pushed from behind (it fills the gallery: nobody squeezes past it). Push it out to the portal to bring
-//     its ore to day: only ore that came out counts. The lamp's oil lasts 6 minutes. Points: kg × value × grade.
+//   silberberg-mine — ore in the Hilfsstollen. Veins in the walls (on the scan's rock itself): galena (silver-blue),
+//     sphalerite (honey-brown) and barren quartz (white, next to worthless). Hold Strike facing one to break ore into the
+//     basket (20 kg); the basket empties into an ore bin (four along the rails, each under a lantern: the haulers take
+//     them out). The lamp's oil lasts 6 minutes: walking out before it dies counts the basket too and adds a fifth.
+//     Points: kg × value × grade. (No hunt to push: in a gallery a metre wide it was more fight than game.)
 //   silberberg-tour — a guided walk: into the Dalvazzerstollen to St Barbara and the stope, out, up the hill to the
 //     Hilfsstollen and along it past the years carved in its walls to the far end. Timed.
 //
@@ -39,24 +39,23 @@ export function mineRandom(seed = 1) {
 
 export const MINE = {
   lamp: 360, // s of oil
-  lampLow: 40, // s left: the flame gutters
-  basket: 16, // kg
-  strikeS: 0.85, // s a strike of the hammer
+  lampLow: 45, // s left: the flame gutters
+  basket: 20, // kg: the Kratte on the back
+  strikeS: 0.7, // s a strike of the hammer
   chunk: 2.5, // kg a strike breaks loose
-  reach: 1.9, // m to a spot in the wall
+  reach: 1.75, // m from the miner to the ore in the wall (across the floor)
   walk: 2.5, back: 1.2, turn: 2.3, // m/s, rad/s
   radius: 0.1, // m: the miner's feet off the floor's edge (the floor of a narrow gallery is narrower still)
-  step: 0.5, // m: the highest step between two places on the floor
-  huntHalf: 0.75, huntWidth: 0.42, // m: the cart, along and across the rails (half its length, half its width)
-  load: 2.1, // m from the hunt: the basket empties into it
-  mouthS: 1.0, // m along the rails: the hunt at the portal, unloaded
-  huntStart: 3.6, // m along the rails: where the hunt waits at the start
+  step: 0.7, // m: the highest step between two places on the floor (the scan's floor has ledges of 60 cm: a miner climbs them)
+  bins: [6, 92, 178, 262], // m along the rails: the ore bins (the Füllorte: the haulers take what is in them out)
+  binReach: 1.9, // m from a bin: the basket empties into it
+  exitBonus: 0.2, // walking out before the lamp dies: a fifth more (and the basket counts)
   ores: {
-    galena: { name: 'galena', label: 'Galena', value: 12, colour: '#b9c2cc' },
-    sphalerite: { name: 'sphalerite', label: 'Sphalerite', value: 8, colour: '#b07a2a' },
-    barren: { name: 'barren', label: 'Barren rock', value: 1, colour: '#9a8f80' }
+    galena: { name: 'galena', label: 'Galena', value: 12, colour: '#c9d4e2' },
+    sphalerite: { name: 'sphalerite', label: 'Sphalerite', value: 8, colour: '#e0962e' },
+    barren: { name: 'barren', label: 'Barren rock', value: 1, colour: '#e8e2d4' }
   },
-  veins: { galena: 8, sphalerite: 9, barren: 8 },
+  veins: { galena: 8, sphalerite: 9, barren: 7 },
   veinGap: 6 // m between two spots at least
 };
 
@@ -165,54 +164,151 @@ const cellIndex = (graph, floor, x, z) => {
   return -1;
 };
 
+// --- The rock: rays against the scan's mesh -----------------------------------------------------------------------------
+/** The mesh's triangles in 2 m columns (x/z), built once per parsed adit */
+function rockGrid(a) {
+  if (a.rockGrid) return a.rockGrid;
+  const P = a.positions, I = a.index, C = 2;
+  const cols = new Map();
+  for (let t = 0; t < I.length; t += 3) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let k = 0; k < 3; k++) { const i = I[t + k] * 3; x0 = Math.min(x0, P[i]); x1 = Math.max(x1, P[i]); z0 = Math.min(z0, P[i + 2]); z1 = Math.max(z1, P[i + 2]); }
+    for (let cx = Math.floor(x0 / C); cx <= Math.floor(x1 / C); cx++) for (let cz = Math.floor(z0 / C); cz <= Math.floor(z1 / C); cz++) {
+      const key = cx * 100003 + cz;
+      let l = cols.get(key);
+      if (!l) cols.set(key, (l = []));
+      l.push(t);
+    }
+  }
+  return (a.rockGrid = { C, cols });
+}
+
+/**
+ * The rock a ray from (ox, oy, oz) along (dx, dy, dz) (unit) meets within `far` metres: { d, x, y, z, nx, ny, nz } (the
+ * normal towards the ray's origin) or null
+ */
+export function rayRock(a, ox, oy, oz, dx, dy, dz, far = 3) {
+  const { C, cols } = rockGrid(a);
+  const P = a.positions, I = a.index;
+  const seen = new Set();
+  let best = null;
+  const steps = Math.ceil(far / (C * 0.5)) + 1;
+  for (let k = 0; k <= steps; k++) {
+    const q = Math.min(far, k * C * 0.5);
+    const cx = Math.floor((ox + dx * q) / C), cz = Math.floor((oz + dz * q) / C);
+    for (let ax = -1; ax <= 1; ax++) for (let az = -1; az <= 1; az++) {
+      const l = cols.get((cx + ax) * 100003 + cz + az);
+      if (!l) continue;
+      for (const t of l) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        const i0 = I[t] * 3, i1 = I[t + 1] * 3, i2 = I[t + 2] * 3;
+        const e1x = P[i1] - P[i0], e1y = P[i1 + 1] - P[i0 + 1], e1z = P[i1 + 2] - P[i0 + 2];
+        const e2x = P[i2] - P[i0], e2y = P[i2 + 1] - P[i0 + 1], e2z = P[i2 + 2] - P[i0 + 2];
+        const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+        const det = e1x * px + e1y * py + e1z * pz;
+        if (Math.abs(det) < 1e-9) continue;
+        const inv = 1 / det;
+        const sx = ox - P[i0], sy = oy - P[i0 + 1], sz = oz - P[i0 + 2];
+        const u = (sx * px + sy * py + sz * pz) * inv;
+        if (u < 0 || u > 1) continue;
+        const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+        const v = (dx * qx + dy * qy + dz * qz) * inv;
+        if (v < 0 || u + v > 1) continue;
+        const d = (e2x * qx + e2y * qy + e2z * qz) * inv;
+        if (d <= 0.01 || d > far || (best && d >= best.d)) continue;
+        let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        nx /= nl; ny /= nl; nz /= nl;
+        if (nx * dx + ny * dy + nz * dz > 0) { nx = -nx; ny = -ny; nz = -nz; }
+        best = { d, x: ox + dx * d, y: oy + dy * d, z: oz + dz * d, nx, ny, nz };
+      }
+    }
+  }
+  return best;
+}
+
 /**
  * The mine of a seed on a parsed adit: the floor, the rails, the veins in the walls (deeper, richer: galena weighted by
- * the walk from the portal). { adit, floor, rail, graph, depth, veins, seed }
+ * the walk from the portal; each on the scan's rock itself, found by a ray from the floor beside it), the ore bins.
+ * { adit, floor, rail, graph, depth, veins, bins, seed }
  */
+const EYE = 1.15; // m: the miner's eye over the floor, in the scan's metres (js/missions-mine.js draws it higher)
+
 export function createMine(a, seed = 1, M = MINE) {
   const rand = mineRandom(seed);
   const floor = a.floor, rail = railOf(a);
   const graph = floorGraph(floor);
   const start = cellIndex(graph, floor, rail.pts[0].x, rail.pts[0].z);
   const depth = bfs(graph, [start]);
-  const cell = floor.cell;
   // the walls: the floor's cells beside the rock, facing into the gallery (the rock's side in u/w → x/z)
   const F = a.header.floor;
   const faces = [];
   graph.pts.forEach((p, i) => {
-    if (!Number.isFinite(depth[i]) || depth[i] * cell < 12) return;
+    if (!Number.isFinite(depth[i]) || depth[i] * floor.cell < 15) return;
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([du, dw], k) => {
       if (graph.nbr[i][k] >= 0) return;
-      // (only a straight stretch of wall: the cells beside along it are walls too)
       const ex = du * F.cos - dw * F.sin, ez = -(du * F.sin + dw * F.cos); // (towards the rock, x/z)
-      faces.push({ i, x: p.x + ex * cell * 0.75, z: p.z + ez * cell * 0.75, nx: -ex, nz: -ez, sx: p.x, sz: p.z, floor: p.y, ceil: p.ceil, depth: depth[i] * cell });
+      faces.push({ i, ex, ez, sx: p.x, sz: p.z, floor: p.y, ceil: p.ceil, depth: depth[i] * floor.cell });
     });
   });
   const veins = [];
-  const far = (f) => veins.every((v) => Math.hypot(v.x - f.x, v.z - f.z) >= M.veinGap);
+  const far = (f) => veins.every((v) => Math.hypot(v.sx - f.sx, v.sz - f.sz) >= M.veinGap);
   const pick = (weight) => {
-    const cand = faces.filter(far);
+    const cand = faces.filter((f) => !f.spent && far(f));
     let total = 0;
     for (const f of cand) total += weight(f);
     let r = rand() * total;
     for (const f of cand) { r -= weight(f); if (r <= 0) return f; }
-    return cand[cand.length - 1];
+    return cand[cand.length - 1] || null;
   };
   const add = (kind, weight) => {
-    const f = pick(weight);
-    if (!f) return;
-    const top = Math.min(1.7, f.ceil - f.floor - 0.35);
-    veins.push({
-      id: veins.length, kind, x: f.x, z: f.z, y: f.floor + 0.6 + rand() * Math.max(0.2, top - 0.6), nx: f.nx, nz: f.nz, sx: f.sx, sz: f.sz,
-      depth: f.depth,
-      grade: kind === 'barren' ? 1 : Math.round((0.6 + rand() * 0.4) * 100) / 100,
-      kg: kind === 'barren' ? 7.5 : 10 + Math.round(rand() * 3) * 2.5, mined: 0
-    });
+    // (a face whose rock a ray from the floor beside it meets within reach, at the height of a chest)
+    for (let tries = 0; tries < 12; tries++) {
+      const f = pick(weight);
+      if (!f) return;
+      const room = f.ceil - f.floor;
+      const h = clamp(0.7 + rand() * 0.6, 0.5, Math.max(0.5, room - 0.35));
+      const hit = rayRock(a, f.sx, f.floor + h, f.sz, f.ex, 0, f.ez, 1.4);
+      if (!hit || Math.abs(hit.ny) > 0.75) { f.spent = true; continue; } // (no wall there: the face is spent)
+      // (seen from where one stands before it, a step back into the gallery, at the eye's height: no rock between)
+      const hl = Math.hypot(hit.nx, hit.nz) || 1;
+      let stand = null;
+      for (const back of [0.9, 0.7, 0.5]) {
+        const sx = hit.x + (hit.nx / hl) * back, sz = hit.z + (hit.nz / hl) * back, sf = floor.at(sx, sz);
+        if (!sf || Math.abs(sf.y - f.floor) > 0.6) continue;
+        const ey = sf.y + EYE, dx = hit.x - sx, dy = hit.y - ey, dz = hit.z - sz, dl = Math.hypot(dx, dy, dz);
+        const see = rayRock(a, sx, ey, sz, dx / dl, dy / dl, dz / dl, dl + 0.2);
+        if (see && see.d > dl - 0.06) { stand = { x: sx, z: sz }; break; }
+      }
+      if (!stand) { f.spent = true; continue; }
+      veins.push({
+        id: veins.length, kind, x: hit.x, y: hit.y, z: hit.z, nx: hit.nx, ny: hit.ny, nz: hit.nz, sx: stand.x, sz: stand.z,
+        depth: f.depth,
+        grade: kind === 'barren' ? 1 : Math.round((0.6 + rand() * 0.4) * 100) / 100,
+        kg: kind === 'barren' ? 7.5 : 10 + Math.round(rand() * 3) * 2.5, mined: 0
+      });
+      return;
+    }
   };
   for (let n = 0; n < M.veins.galena; n++) add('galena', (f) => f.depth ** 1.6);
   for (let n = 0; n < M.veins.sphalerite; n++) add('sphalerite', (f) => f.depth);
   for (let n = 0; n < M.veins.barren; n++) add('barren', () => 1);
-  return { adit: a, floor, rail, graph, depth, veins, seed };
+  // the ore bins: against the nearer wall beside the rails, a lantern over each
+  const bins = M.bins.filter((s) => s < rail.length - 2).map((s, id) => {
+    const p = railAt(rail, s);
+    const fy = floor.at(p.x, p.z)?.y ?? p.y;
+    let best = null;
+    for (const side of [1, -1]) {
+      const nx = -p.tz * side, nz = p.tx * side;
+      const hit = rayRock(a, p.x, fy + 0.5, p.z, nx, 0, nz, 2.5);
+      if (hit && (!best || hit.d < best.hit.d)) best = { hit, nx, nz };
+    }
+    const off = best ? Math.max(0.25, best.hit.d - 0.32) : 0.5;
+    const nx = best ? best.nx : -p.tz, nz = best ? best.nz : p.tx;
+    return { id, s, x: p.x + nx * off, y: fy, z: p.z + nz * off, nx: -nx, nz: -nz, kg: 0, pts: 0 };
+  });
+  return { adit: a, floor, rail, graph, depth, veins, bins, seed };
 }
 
 // --- Walking --------------------------------------------------------------------------------------------------------------
@@ -226,14 +322,39 @@ export function createWalker(a) {
 /** The ceiling over the walker (for the eye: it ducks under a low roof) */
 export const ceilingAt = (floor, x, z) => floor.at(x, z)?.ceil ?? null;
 
+/** How far (m, up to `max`) the floor runs free from the walker along a heading */
+function freeRun(floor, w, heading, max) {
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  let y = w.y;
+  for (let d = 0.2; d <= max; d += 0.2) {
+    const x = w.x + fx * d, z = w.z + fz * d;
+    if (!freeAt(floor, x, z, MINE.radius, y)) return d - 0.2;
+    y = floor.at(x, z).y;
+  }
+  return max;
+}
+
 /**
  * One step of walking: input { forward, back (0..1), turn (-1..1, + left) }; `blocked(nx, nz, dx, dz)` may veto a
  * step (the hunt). Leaving through the portal (beyond its plane, having been in) sets w.out.
  */
-export function stepWalk(w, a, input, dt, { speed = 1, blocked = null } = {}) {
+export function stepWalk(w, a, input, dt, { speed = 1, blocked = null, assist = false } = {}) {
   const M = MINE;
   w.heading = wrapPi(w.heading + clamp(input.turn || 0, -1, 1) * M.turn * dt);
   const v = (clamp(input.forward || 0, 0, 1) * M.walk - clamp(input.back || 0, 0, 1) * M.back) * speed;
+  // (walking on without turning where the gallery bends: the eyes follow it round, not scraping along the rock)
+  const [pox, poz] = a.header.portal.out;
+  if (assist && v > 0 && !input.turn && w.x * pox + w.z * poz < -4) { // (not at the portal: there the floor ends in daylight)
+    const ahead = freeRun(a.floor, w, w.heading, 2.4);
+    if (ahead < 2.0) {
+      let best = 0, run = ahead;
+      for (const d of [0.2, -0.2, 0.4, -0.4, 0.6, -0.6, 0.8, -0.8]) {
+        const r = freeRun(a.floor, w, w.heading + d, 2.4);
+        if (r > run + 0.3) { run = r; best = d; }
+      }
+      if (best) w.heading = wrapPi(w.heading + Math.sign(best) * Math.min(Math.abs(best), 1.6 * dt));
+    }
+  }
   w.moving = v;
   if (v) {
     const fx = Math.sin(w.heading), fz = Math.cos(w.heading);
@@ -280,36 +401,56 @@ export function stepWalk(w, a, input, dt, { speed = 1, blocked = null } = {}) {
 }
 
 // --- The shift ---------------------------------------------------------------------------------------------------------
-/** A shift in the mine: the miner just inside the portal, the hunt on the rails ahead of it */
+/** A shift in the mine: the miner just inside the portal, the basket empty, the lamp full */
 export function createShift(mine, M = MINE) {
   const w = createWalker(mine.adit);
   return {
     mine, ...w,
     basket: { galena: 0, sphalerite: 0, barren: 0, kg: 0, pts: 0 },
-    hunt: { s: M.huntStart, kg: 0, pts: 0, moving: 0 },
     lamp: M.lamp,
-    delivered: 0, deliveredKg: 0, trips: 0,
-    ore: { galena: 0, sphalerite: 0, barren: 0 }, // kg brought out
-    mining: null, target: null, over: null, warned: false, fullWarnT: 0, swing: 0
+    delivered: 0, deliveredKg: 0, trips: 0, bonus: 0,
+    ore: { galena: 0, sphalerite: 0, barren: 0 }, // kg mined and brought to a bin (or carried out)
+    mining: null, target: null, bin: null, over: null, warned: false, fullWarnT: 0, swing: 0
   };
 }
 
-const huntFrame = (g, M) => {
-  const p = railAt(g.mine.rail, g.hunt.s);
-  return p;
-};
-/** Where (x, z) is against the hunt: { along (+ inwards), lat } */
-const relHunt = (g, x, z, M) => {
-  const h = huntFrame(g, M);
-  const dx = x - h.x, dz = z - h.z;
-  return { along: dx * h.tx + dz * h.tz, lat: -dx * h.tz + dz * h.tx, h };
-};
-const huntMax = (g, M) => g.mine.rail.length - M.huntHalf - 0.3;
+/** The ore of the basket counted (into a bin, or carried out): returns its kg and points */
+function bank(g) {
+  const b = g.basket, kg = b.kg, pts = b.pts;
+  for (const k of ['galena', 'sphalerite', 'barren']) { g.ore[k] += b[k]; b[k] = 0; }
+  g.delivered += pts; g.deliveredKg += kg;
+  b.kg = 0; b.pts = 0;
+  return { kg, pts };
+}
+
+/** The vein a miner at (x, z) facing `heading` can strike: in front, within reach, with ore left — or null */
+export function veinInReach(mine, x, z, heading, M = MINE) {
+  let best = null, bd = Infinity;
+  for (const vn of mine.veins) {
+    if (vn.kg - vn.mined <= 1e-6) continue;
+    const dx = vn.x - x, dz = vn.z - z, d = Math.hypot(dx, dz);
+    if (d > M.reach || d >= bd) continue;
+    if (Math.abs(wrapPi(Math.atan2(dx, dz) - heading)) > 1.05) continue;
+    bd = d; best = vn;
+  }
+  return best;
+}
+
+/** The nearest ore bin on foot: { bin, dist } (dist: metres of the walk) */
+export function nearestBin(mine, from) {
+  let best = null;
+  for (const b of mine.bins) {
+    const w = wayTo(mine, from, b);
+    const d = w ? Math.max(w.dist, Math.hypot(b.x - from.x, b.z - from.z)) : Infinity;
+    if (!best || d < best.dist) best = { bin: b, dist: d };
+  }
+  return best;
+}
 
 /**
- * One step of the shift. input: { forward (0..1), back (0..1), turn (-1..1, + left), strike (bool, held) }.
- * Returns the step's events: [{ type: 'strike' | 'ore' | 'empty' | 'full' | 'load' | 'deliver' | 'low' | 'dark' |
- * 'exit', ... }]
+ * One step of the shift. input: { forward (0..1), back (0..1), turn (-1..1, + left), strike (bool, held), assist (the
+ * player's: the way round the bends, stepWalk) }.
+ * Returns the step's events: [{ type: 'ore' | 'empty' | 'full' | 'dump' | 'low' | 'dark' | 'exit', ... }]
  */
 export function stepShift(g, input, dt, M = MINE) {
   const ev = [];
@@ -317,77 +458,34 @@ export function stepShift(g, input, dt, M = MINE) {
   const mine = g.mine;
   g.lamp -= dt;
   if (g.lamp <= M.lampLow && !g.warned) { g.warned = true; ev.push({ type: 'low' }); }
-  if (g.lamp <= 0) { g.lamp = 0; g.over = 'dark'; ev.push({ type: 'dark' }); return ev; }
+  if (g.lamp <= 0) {
+    g.lamp = 0; g.over = 'dark';
+    ev.push({ type: 'dark', kg: g.basket.kg });
+    return ev;
+  }
   g.swing += dt;
   g.fullWarnT = Math.max(0, g.fullWarnT - dt);
   const striking = !!input.strike;
-  g.hunt.moving = 0;
-  // the hunt: in the way, or pushed along its rails (from behind, along them)
-  const reach = M.huntHalf + M.radius;
-  const blocked = (nx, nz, dx, dz) => {
-    const r = relHunt(g, nx, nz, M);
-    if (Math.abs(r.lat) >= M.huntWidth + M.radius || Math.abs(r.along) >= reach) return false;
-    const push = dx * r.h.tx + dz * r.h.tz; // (the step along the rails)
-    const side = Math.sign(relHunt(g, g.x, g.z, M).along) || -1; // (which end of it the miner is at)
-    if (!push || Math.sign(push) === side) return true; // (sideways, or away from it while inside its box)
-    const want = clamp(g.hunt.s + (r.along - side * reach) * 1, 0, huntMax(g, M));
-    const moved = want - g.hunt.s;
-    if (Math.abs(moved) < Math.abs(push) * 0.5 && Math.abs(push) > 1e-4) return true; // (against the end of the rails)
-    g.hunt.s = want; g.hunt.moving += moved;
-    return false;
-  };
-  const pushing = Math.abs(relHunt(g, g.x + Math.sin(g.heading) * 0.4, g.z + Math.cos(g.heading) * 0.4, M).along) < reach + 0.1
-    && Math.abs(relHunt(g, g.x, g.z, M).lat) < M.huntWidth + M.radius;
-  const speed = (striking && g.target ? 0 : 1) * (g.basket.kg > M.basket * 0.5 ? 0.85 : 1) * (pushing ? (g.hunt.kg > 40 ? 0.6 : 0.8) : 1);
-  // pulling: at an end of the hunt, facing it, walking backwards — it follows (the way to get it out from its portal
-  // side, the gallery being too narrow to get round it)
-  const r0 = relHunt(g, g.x, g.z, M);
-  const facing = Math.cos(Math.atan2(r0.h.x - g.x, r0.h.z - g.z) - g.heading) > 0.5;
-  const pull = (input.back || 0) > 0 && !(input.forward > 0) && facing && Math.abs(r0.lat) < M.huntWidth + 0.5
-    && Math.abs(r0.along) < reach + 0.5 ? Math.sign(r0.along) : 0;
-  if (pull) {
-    // (the miner walks backwards along the rails, the hunt after it)
-    w_turn(g, input, dt, M);
-    const v = M.back * (input.back || 0) * (g.hunt.kg > 40 ? 0.75 : 0.9);
-    const want = clamp(g.hunt.s + pull * v * dt, 0, huntMax(g, M));
-    const at = railAt(mine.rail, want + pull * (reach + 0.05));
-    if (want !== g.hunt.s && freeAt(mine.floor, at.x, at.z, 0)) {
-      g.hunt.moving += want - g.hunt.s; g.hunt.s = want;
-      g.walked += Math.hypot(at.x - g.x, at.z - g.z);
-      g.x = at.x; g.z = at.z;
-      const f = mine.floor.at(g.x, g.z);
-      if (f) g.y += (f.y - g.y) * Math.min(1, dt * 12);
-    }
-    g.moving = -v;
-  } else stepWalk(g, mine.adit, input, dt, { speed, blocked });
-  if (g.out) { g.over = 'exit'; ev.push({ type: 'exit' }); return ev; }
-  // the hunt at the portal: its ore comes to day
-  if (g.hunt.s <= M.mouthS && g.hunt.kg > 0) {
-    const h = g.hunt;
-    ev.push({ type: 'deliver', kg: h.kg, pts: h.pts });
-    g.delivered += h.pts; g.deliveredKg += h.kg; g.trips++;
-    for (const k of Object.keys(g.ore)) { g.ore[k] += h[k] || 0; h[k] = 0; }
-    h.kg = 0; h.pts = 0;
+  const heavy = g.basket.kg > M.basket * 0.5 ? 0.85 : 1;
+  stepWalk(g, mine.adit, input, dt, { speed: (striking && g.target ? 0 : 1) * heavy, assist: !!input.assist });
+  if (g.out) {
+    // out on his own feet: the basket counts, and a fifth more for all of it
+    const b = bank(g);
+    g.bonus = Math.round(g.delivered * M.exitBonus);
+    g.over = 'exit';
+    ev.push({ type: 'exit', kg: b.kg, pts: b.pts, bonus: g.bonus });
+    return ev;
   }
-  // the basket into the hunt, next to it
-  const hp = huntFrame(g, M);
-  if (g.basket.kg > 0 && Math.hypot(g.x - hp.x, g.z - hp.z) < M.load) {
-    const b = g.basket, h = g.hunt;
-    ev.push({ type: 'load', kg: b.kg, pts: b.pts });
-    for (const k of ['galena', 'sphalerite', 'barren']) { h[k] = (h[k] || 0) + b[k]; b[k] = 0; }
-    h.kg += b.kg; h.pts += b.pts; b.kg = 0; b.pts = 0;
-  }
-  // the spot in reach: in front, the nearest with ore left
-  g.target = null;
-  let best = Infinity;
-  for (const vn of mine.veins) {
-    if (vn.kg - vn.mined <= 1e-6) continue;
-    const dx = vn.x - g.x, dz = vn.z - g.z, d = Math.hypot(dx, dz);
-    if (d > M.reach || d >= best) continue;
-    if (Math.abs(wrapPi(Math.atan2(dx, dz) - g.heading)) > 1.15) continue;
-    best = d; g.target = vn;
+  // a bin within reach: the basket empties into it
+  g.bin = null;
+  for (const b of mine.bins) if (Math.hypot(g.x - b.x, g.z - b.z) < M.binReach) g.bin = b;
+  if (g.bin && g.basket.kg > 0) {
+    const b = bank(g);
+    g.bin.kg += b.kg; g.bin.pts += b.pts; g.trips++;
+    ev.push({ type: 'dump', kg: b.kg, pts: b.pts, bin: g.bin.id });
   }
   // the hammer
+  g.target = veinInReach(mine, g.x, g.z, g.heading, M);
   if (striking && g.target) {
     if (g.basket.kg >= M.basket - 1e-6) {
       if (!g.fullWarnT) { ev.push({ type: 'full' }); g.fullWarnT = 2; }
@@ -405,17 +503,16 @@ export function stepShift(g, input, dt, M = MINE) {
         g.basket[vn.kind] += kg; g.basket.kg += kg; g.basket.pts += pts;
         ev.push({ type: 'ore', kind: vn.kind, kg, pts, vein: vn.id, left: vn.kg - vn.mined });
         if (vn.kg - vn.mined <= 1e-6) ev.push({ type: 'empty', vein: vn.id });
+        if (g.basket.kg >= M.basket - 1e-6) ev.push({ type: 'full' });
       }
     }
   } else g.mining = null;
   return ev;
 }
 
-function w_turn(w, input, dt, M) { w.heading = wrapPi(w.heading + clamp(input.turn || 0, -1, 1) * M.turn * dt); }
-
-export const shiftScore = (g) => Math.round(g?.delivered || 0);
-/** The most a mine holds (all its ore out) */
-export const mineMaxScore = (mine, M = MINE) => mine.veins.reduce((a, v) => a + v.kg * M.ores[v.kind].value * v.grade, 0);
+export const shiftScore = (g) => Math.round((g?.delivered || 0) + (g?.bonus || 0));
+/** The most a mine holds (all its ore out, and out in time) */
+export const mineMaxScore = (mine, M = MINE) => mine.veins.reduce((a, v) => a + v.kg * M.ores[v.kind].value * v.grade, 0) * (1 + M.exitBonus);
 
 // --- A bot (the medals' calibration, the tests) ------------------------------------------------------------------------
 /** The way over the floor towards (x, z): the next cell's centre, and the distance (m) — a BFS field per goal, cached */
@@ -433,7 +530,6 @@ export function wayTo(mine, from, to) {
   for (let k = 0; k < 4 && d[i] > 0; k++) {
     let next = i;
     for (const n of graph.nbr[i]) if (n >= 0 && d[n] < d[next]) next = n;
-    // (stay off the walls: prefer the neighbour of the same distance farther from the rock)
     i = next;
   }
   const p = graph.pts[i];
@@ -441,10 +537,10 @@ export function wayTo(mine, from, to) {
 }
 
 /**
- * A miner who knows the mine: the richest spot for the walk first, the basket to the hunt (pushed along deeper while
- * there is time), the hunt out before the oil runs low (`reserve` s), then out.
+ * A miner who knows the mine: the best spot for the walk first (its ore over the way there and on to a bin), a full
+ * basket to the nearest bin, out through the portal before the oil runs low (`reserve` s).
  */
-export function botShiftInput(g, M = MINE, { reserve = 20 } = {}) {
+export function botShiftInput(g, M = MINE, { reserve = 12 } = {}) {
   const mine = g.mine;
   const go = (to, slack = 0.3) => {
     const w = wayTo(mine, g, to);
@@ -454,56 +550,35 @@ export function botShiftInput(g, M = MINE, { reserve = 20 } = {}) {
     const d = Math.max(w.dist, Math.hypot(to.x - g.x, to.z - g.z));
     return { turn: clamp(err * 3, -1, 1), forward: Math.abs(err) < 0.7 && d > slack ? 1 : 0, d };
   };
-  const hp = railAt(mine.rail, g.hunt.s);
-  const me = railProject(mine.rail, g.x, g.z);
-  // time to bring the hunt out: to its far end, then pushed to the portal
-  const portalSide = me.s < g.hunt.s;
-  const toHunt = Math.abs(me.s - (g.hunt.s + (portalSide ? -1 : 1) * (M.huntHalf + 1))) / M.walk;
-  const pushOut = g.hunt.s / (portalSide ? M.back * 0.75 : M.walk * (g.hunt.kg > 40 ? 0.6 : 0.8)) + toHunt + 6;
-  const goingOut = g.lamp < pushOut + reserve || (g.lamp < pushOut + reserve + 25 && !g.basket.kg && g.hunt.kg);
-  if (goingOut) {
-    if (g.basket.kg) return { ...go(hp), strike: false };
-    if (!g.hunt.kg || g.hunt.s <= M.mouthS) return { ...go({ x: 0, z: 0 }, 0), strike: false };
-    const rel = relHunt(g, g.x, g.z, M);
-    // on its portal side: pulled out, walking backwards
-    if (rel.along < 0) {
-      if (rel.along < -(M.huntHalf + M.radius + 0.3)) return { ...go(railAt(mine.rail, g.hunt.s - M.huntHalf - M.radius - 0.15), 0.12), strike: false };
-      const err = wrapPi(Math.atan2(hp.x - g.x, hp.z - g.z) - g.heading);
-      return { turn: clamp(err * 3, -1, 1), forward: 0, back: Math.abs(err) < 0.6 ? 1 : 0, strike: false };
-    }
-    // behind the hunt (deeper), then along the rails to the portal
-    const behind = railAt(mine.rail, g.hunt.s + M.huntHalf + M.radius + 0.25);
-    if (rel.along < M.huntHalf + M.radius - 0.05 || Math.abs(rel.lat) > 0.45) return { ...go(behind, 0.15), strike: false };
-    const err = wrapPi(Math.atan2(-hp.tx, -hp.tz) - g.heading);
-    return { turn: clamp(err * 3, -1, 1), forward: Math.abs(err) < 0.4 ? 1 : 0, strike: false };
-  }
-  if (g.basket.kg >= M.basket - 0.1) return { ...go(hp), strike: false };
-  // the best spot: value over (the walk there and back to the hunt)
+  const portal = { x: 0, z: 0 };
+  const out = wayTo(mine, g, portal)?.dist ?? 0;
+  const leave = () => {
+    if (out > 1.5) return { ...go(portal, 0), strike: false };
+    // (at the portal: on out through it, into the daylight)
+    const [ox, oz] = mine.adit.header.portal.out;
+    const err = wrapPi(Math.atan2(ox, oz) - g.heading);
+    return { turn: clamp(err * 3, -1, 1), forward: Math.abs(err) < 0.8 ? 1 : 0, strike: false };
+  };
+  if (g.lamp < out / (M.walk * 0.85) + reserve) return leave();
+  if (g.basket.kg >= M.basket - 0.1) return { ...go(nearestBin(mine, g).bin, 0.5), strike: false };
+  const binDist = (v) => (v.binDist ??= nearestBin(mine, { x: v.sx, z: v.sz }).dist);
   let best = null, bestV = 0;
   for (const vn of mine.veins) {
     const left = vn.kg - vn.mined;
     if (left <= 1e-6 || vn.kind === 'barren') continue;
-    const there = Math.hypot(vn.x - g.x, vn.z - g.z) + Math.abs(vn.depth - me.s) * 0.5;
-    const back = Math.abs(railProject(mine.rail, vn.x, vn.z).s - g.hunt.s);
-    const val = (M.ores[vn.kind].value * vn.grade * Math.min(left, M.basket)) / ((there + back) / M.walk + (Math.min(left, M.basket) / M.chunk) * M.strikeS + 3);
+    const take = Math.min(left, M.basket - g.basket.kg);
+    if (take <= 0) continue;
+    const there = wayTo(mine, g, { x: vn.sx, z: vn.sz })?.dist ?? Infinity;
+    const val = (M.ores[vn.kind].value * vn.grade * take) / ((there + binDist(vn) * (take / M.basket)) / M.walk + (take / M.chunk) * M.strikeS + 2);
     if (val > bestV) { bestV = val; best = vn; }
   }
-  if (!best) return g.basket.kg ? { ...go(hp), strike: false } : { turn: 0, forward: 0, strike: false };
-  // the hunt along, deeper, while the miner is on its portal side and the spot lies well beyond it
-  const bestS = railProject(mine.rail, best.x, best.z).s;
-  const rel = relHunt(g, g.x, g.z, M);
-  if (bestS - g.hunt.s > 12 && rel.along < 0 && g.hunt.s < huntMax(g, M) - 1) {
-    if (rel.along < -(M.huntHalf + M.radius + 0.6) || Math.abs(rel.lat) > 0.3) return { ...go(railAt(mine.rail, g.hunt.s - M.huntHalf - M.radius - 0.2), 0.15), strike: false };
-    const err = wrapPi(Math.atan2(hp.tx, hp.tz) - g.heading);
-    return { turn: clamp(err * 3, -1, 1), forward: Math.abs(err) < 0.4 ? 1 : 0, strike: false };
-  }
-  // stand in front of it, facing it
-  // (the floor's cell beside it; near enough already: strike)
-  const near = Math.hypot(best.x - g.x, best.z - g.z) < M.reach - 0.4;
+  if (!best) return g.basket.kg ? { ...go(nearestBin(mine, g).bin, 0.5), strike: false } : leave();
+  // stand on the floor before it, facing it; within reach: strike
+  if (veinInReach(mine, g.x, g.z, g.heading, M) === best) return { turn: 0, forward: 0, strike: true };
   const m = go({ x: best.sx, z: best.sz }, 0.15);
-  if (!near && m.d > 0.3) return { ...m, strike: false };
+  if (m.d > 0.3) return { ...m, strike: false };
   const err = wrapPi(Math.atan2(best.x - g.x, best.z - g.z) - g.heading);
-  return { turn: clamp(err * 3, -1, 1), forward: 0, strike: Math.abs(err) < 0.5 };
+  return { turn: clamp(err * 3, -1, 1), forward: 0, strike: false };
 }
 
 // --- The missions --------------------------------------------------------------------------------------------------------
@@ -519,16 +594,17 @@ const walkTo = (spot, title, label, id = 'enter') => ({
 export const MINE_MISSION = {
   id: 'silberberg-mine',
   title: 'Ore in the Silberberg mine',
-  intro: 'The Silberberg above Schmelzboden was the richest lead and zinc mine of Switzerland. Take the oil lamp and the hammer into the Hilfsstollen, its galleries as the FHNW surveyors scanned them: find the glittering ore in the walls, galena (silver-grey) and sphalerite (brown-yellow) — the barren rock glitters too, but is next to worthless. Hold Strike (E / Space) to break it out, the basket (16 kg) empties into the hunt next to it. Push the hunt from behind along its rails out to the portal: only ore that comes to day counts. The oil lasts 6 minutes. W/S walk, A/D turn.',
+  intro: 'The Silberberg above Schmelzboden was the richest lead and zinc mine of Switzerland. Take the oil lamp and the hammer into the Hilfsstollen, its galleries as the FHNW surveyors scanned them. Ore glitters in the walls where your lamp falls: galena (silver-blue cubes) and sphalerite (honey-brown) — white quartz is barren rock, next to worthless. Face a vein and hold Strike (E / Space) to break it into your basket (20 kg). A full basket goes into one of the ore bins along the rails, each under a lantern. The oil lasts 6 minutes: walk out before it is gone, and what you carry counts, with a fifth more for everything. W/S walk, A/D turn.',
   mode: 'person',
   season: null, // all year round
   time: 'golden',
   features: ['mine'],
   mine: { kind: 'ore', adit: 'hilfsstollen' },
   scoreMode: true,
+  board: 'silberberg-mine-2', // (rebalanced 2026-11-13 without the hunt: a new list, supabase/migrations/20261113120000_silberberg_mine_2.sql)
   score: (state) => shiftScore(state.shift),
   // (calibrated with botShiftInput, a miner who knows where the ore is; a player has to find it first)
-  medals: { gold: 650, silver: 420, bronze: 220 },
+  medals: { gold: 1300, silver: 800, bronze: 400 },
   bonusMs: 6 * 60 * 1000,
   colour: '#8f7a5a',
   icon: 'mine',
@@ -542,23 +618,23 @@ export const MINE_MISSION = {
     if (!g) return [];
     const kg = (v) => `${Math.round(v * 10) / 10} kg`;
     return [
-      `Brought out: ${kg(g.ore.galena)} galena · ${kg(g.ore.sphalerite)} sphalerite · ${kg(g.ore.barren)} barren rock in ${g.trips} ${g.trips === 1 ? 'trip' : 'trips'}`,
-      g.over === 'dark' ? `The lamp went out${g.hunt.kg || g.basket.kg ? `: ${kg(g.hunt.kg + g.basket.kg)} of ore stayed inside` : ''}.` : `Out with ${fmtClock(g.lamp)} of oil left.`
+      `Mined: ${kg(g.ore.galena)} galena · ${kg(g.ore.sphalerite)} sphalerite · ${kg(g.ore.barren)} barren rock`,
+      g.over === 'dark' ? `The lamp went out inside${g.basket.kg ? `: ${kg(g.basket.kg)} in the basket stayed with you` : ''}.` : g.bonus ? `Out with ${fmtClock(g.lamp)} of oil left: +${g.bonus} pts` : `Out with ${fmtClock(g.lamp)} of oil left.`
     ];
   },
   objectives: [
     walkTo(MINE_DOOR, 'Go to the Hilfsstollen of the Silberberg', 'the adit'),
     {
       id: 'mine',
-      title: 'Mine the ore and bring it to day',
+      title: 'Mine the ore and get out before the lamp dies',
       allowModes: ['person'],
       inside: 'hilfsstollen',
       check(ctx, state) {
         const g = state.shift;
         if (!g) return { done: false, progress: 0, text: 'Lighting the lamp …', target: null, hint: null };
-        const text = `${shiftScore(g)} pts out · basket ${Math.round(g.basket.kg)}/${MINE.basket} kg · hunt ${Math.round(g.hunt.kg)} kg · lamp ${fmtClock(g.lamp)}`;
-        const hint = g.lamp < MINE.lampLow ? 'The lamp is running low: push the hunt out!'
-          : g.basket.kg >= MINE.basket - 1e-6 ? 'The basket is full: to the hunt'
+        const text = `${shiftScore(g)} pts · basket ${Math.round(g.basket.kg * 10) / 10}/${MINE.basket} kg · lamp ${fmtClock(g.lamp)}`;
+        const hint = g.lamp < MINE.lampLow ? 'The lamp is running low: get out!'
+          : g.basket.kg >= MINE.basket - 1e-6 ? 'The basket is full: to an ore bin (under a lantern)'
           : g.target ? 'Hold Strike (E / Space) to break the ore'
           : null;
         return { done: !!g.over, progress: g.lamp / MINE.lamp, text, target: null, hint };

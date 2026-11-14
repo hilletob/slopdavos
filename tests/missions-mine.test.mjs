@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import {
   MINE, MINE_MISSION, TOUR_MISSION, MINE_MISSIONS, ADITS, MINE_ADIT, MINE_DOOR, TOUR_STATIONS, createMine, createShift, stepShift,
-  createWalker, stepWalk, freeAt, railAt, botShiftInput, shiftScore, mineMaxScore, mineSeedOfDay, stationPoint, wayTo,
+  createWalker, stepWalk, freeAt, botShiftInput, shiftScore, mineMaxScore, mineSeedOfDay, stationPoint, wayTo, rayRock, nearestBin, veinInReach,
   GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, createGuide, stepGuide, answerQuiz
 } from '../js/missions-data-mine.js';
 import { parseAdit, ADIT_IDS } from '../js/silberberg-asset.js';
@@ -11,7 +11,7 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 
-// (js/missions-data-mine.js is three.js-free: the galleries of the FHNW scans, the hammer, the hunt and the lamp run on
+// (js/missions-data-mine.js is three.js-free: the galleries of the FHNW scans, the hammer, the ore bins and the lamp run on
 // plain steps here)
 
 const DT = 1 / 30;
@@ -57,7 +57,7 @@ test('the scans: closed galleries with a floor, rails from the portal through th
   assert.ok(len > 300 && len < 380, `the Hilfsstollen's rails: ${len} m`);
 });
 
-test('the mine of a seed: the same veins for the same seed, the three kinds on the walls, deeper is richer', () => {
+test('the mine of a seed: the same veins for the same seed, the three kinds on the rock itself, deeper is richer', () => {
   const a = createMine(HILFS, 77), b = createMine(HILFS, 77);
   assert.deepEqual(a.veins, b.veins);
   assert.notDeepEqual(a.veins, createMine(HILFS, 78).veins);
@@ -65,11 +65,19 @@ test('the mine of a seed: the same veins for the same seed, the three kinds on t
   assert.deepEqual(kinds, MINE.veins);
   for (const v of a.veins) {
     assert.ok(a.floor.at(v.sx, v.sz), 'a floor to stand on before it');
-    assert.ok(Math.hypot(v.x - v.sx, v.z - v.sz) < MINE.reach - 0.5, 'within reach from there');
-    assert.ok(v.depth >= 12, 'not at the portal');
+    assert.ok(Math.hypot(v.x - v.sx, v.z - v.sz) < MINE.reach - 0.3, 'within reach from there');
+    assert.ok(v.depth >= 15, 'not at the portal');
+    // on the wall: a ray back from the gallery meets the rock at the vein
+    const hit = rayRock(HILFS, v.x + v.nx * 0.5, v.y + v.ny * 0.5, v.z + v.nz * 0.5, -v.nx, -v.ny, -v.nz, 1);
+    assert.ok(hit && Math.abs(hit.d - 0.5) < 0.05, `vein ${v.id} on the rock: ${hit?.d}`);
+    const f = a.floor.at(v.sx, v.sz);
+    assert.ok(v.y > f.y + 0.4 && v.y < f.y + 1.9, 'at the height of a chest');
   }
   const mean = (k) => { const vs = a.veins.filter((v) => v.kind === k); return vs.reduce((s, v) => s + v.depth, 0) / vs.length; };
   assert.ok(mean('galena') > mean('barren'), 'galena lies deeper');
+  // the ore bins: on the floor along the gallery, out of the way
+  assert.equal(a.bins.length, MINE.bins.length);
+  for (const bin of a.bins) assert.ok(a.floor.at(bin.x, bin.z) || [0.2, 0.4].some((d) => a.floor.at(bin.x + bin.nx * d, bin.z + bin.nz * d)), `bin ${bin.id} by the floor`);
 });
 
 test('the miner walks on the floor: rock is rock, the narrow gallery is walkable to its far end', () => {
@@ -89,70 +97,67 @@ test('the miner walks on the floor: rock is rock, the narrow gallery is walkable
   assert.ok(w.entered && !w.out);
 });
 
-test('the hammer breaks ore into the basket, a full basket takes no more, the hunt takes the basket', () => {
+test('the hammer breaks ore into the basket, a full basket takes no more, an ore bin takes the basket', () => {
   const m = createMine(HILFS, 11);
   const g = createShift(m);
   const v = m.veins.find((q) => q.kind === 'galena');
   g.x = v.sx; g.z = v.sz; g.y = m.floor.at(v.sx, v.sz).y; g.heading = Math.atan2(v.x - g.x, v.z - g.z);
-  g.hunt.s = 200; // (out of the way)
+  assert.equal(veinInReach(m, g.x, g.z, g.heading), v, 'in reach, facing it');
+  assert.equal(veinInReach(m, g.x, g.z, g.heading + Math.PI), null, 'not with its back to it');
   const ev = run(g, { strike: true }, MINE.strikeS * 2 + 0.05);
   assert.equal(ev.filter((e) => e.type === 'ore').length, 2);
   assert.equal(g.basket.kg, MINE.chunk * 2);
   assert.ok(Math.abs(g.basket.pts - g.basket.kg * MINE.ores.galena.value * v.grade) < 1e-9);
   g.basket.kg = MINE.basket;
   assert.ok(run(g, { strike: true }, 1).some((e) => e.type === 'full'));
-  // next to the hunt: the basket empties into it
+  // at a bin: the basket empties into it, and counts
   g.basket = { galena: 5, sphalerite: 0, barren: 0, kg: 5, pts: 50 };
-  const h = railAt(m.rail, 40);
-  g.hunt.s = 40; g.x = h.x + h.tx * 1.2; g.z = h.z + h.tz * 1.2;
-  assert.ok(run(g, {}, DT).some((e) => e.type === 'load'));
-  assert.equal(g.hunt.kg, 5); assert.equal(g.basket.kg, 0);
+  const bin = m.bins[1];
+  g.x = bin.x + bin.nx * 0.6; g.z = bin.z + bin.nz * 0.6;
+  const d = run(g, {}, DT).find((e) => e.type === 'dump');
+  assert.ok(d && d.kg === 5);
+  assert.equal(bin.kg, 5); assert.equal(g.basket.kg, 0); assert.equal(shiftScore(g), 50); assert.equal(g.ore.galena, 5);
+  // the nearest bin on foot
+  assert.equal(nearestBin(m, { x: bin.x, z: bin.z }).bin, bin);
 });
 
-test('pushed from behind or pulled from its portal side, the hunt brings its ore to day; the lamp going out ends it', () => {
+test('walking out counts the basket and a fifth more; the lamp going out inside loses the basket', () => {
   const m = createMine(HILFS, 3);
-  for (const side of [1, -1]) {
-    const g = createShift(m);
-    Object.assign(g.hunt, { s: 14, kg: 10, pts: 100, galena: 10 });
-    g.entered = true;
-    const h = railAt(m.rail, 14 + side * (MINE.huntHalf + MINE.radius + 0.1));
-    g.x = h.x; g.z = h.z;
-    g.heading = side > 0 ? Math.atan2(-h.tx, -h.tz) : Math.atan2(h.tx, h.tz); // (facing the portal / the hunt)
-    // (the player steers along the gallery: facing the way out, or the hunt)
-    const ev = [];
-    for (let t = 0; t < 40 && !g.over && !ev.some((e) => e.type === 'deliver'); t += DT) {
-      const r = railAt(m.rail, g.hunt.s);
-      g.heading = side > 0 ? Math.atan2(r.x - r.tx * 3 - g.x, r.z - r.tz * 3 - g.z) : Math.atan2(r.x - g.x, r.z - g.z);
-      ev.push(...stepShift(g, side > 0 ? { forward: 1 } : { back: 1 }, DT));
-    }
-    const d = ev.find((e) => e.type === 'deliver');
-    assert.ok(d, side > 0 ? 'pushed out' : 'pulled out');
-    assert.equal(shiftScore(g), 100);
-    assert.equal(g.ore.galena, 10);
-  }
-  // the hunt is in the way: no walking through it
   const g = createShift(m);
-  const start = g.hunt.s;
-  g.heading = Math.atan2(railAt(m.rail, 10).x - g.x, railAt(m.rail, 10).z - g.z);
-  run(g, { forward: 1 }, 2);
-  assert.ok(g.hunt.s > start + 1, 'walking into it pushes it');
+  g.delivered = 100;
+  g.basket = { galena: 2.5, sphalerite: 0, barren: 0, kg: 2.5, pts: 30 };
+  // walking out of the portal, from a few metres in
+  const [ox, oz] = HILFS.header.portal.out;
+  run(g, { forward: 1 }, 4);
+  assert.ok(g.entered, 'in');
+  const ev = [];
+  for (let t = 0; t < 12 && !g.over; t += DT) {
+    const way = wayTo(m, g, { x: 0, z: 0 });
+    g.heading = way && way.dist > 1 ? Math.atan2(way.x - g.x, way.z - g.z) : Math.atan2(ox, oz);
+    ev.push(...stepShift(g, { forward: 1 }, DT));
+  }
+  const e = ev.find((q) => q.type === 'exit');
+  assert.ok(e, 'out');
+  assert.equal(g.over, 'exit');
+  assert.equal(shiftScore(g), Math.round(130 * (1 + MINE.exitBonus)));
   // the lamp
   const l = createShift(m);
+  l.delivered = 80; l.basket.kg = 10; l.basket.pts = 100;
   l.lamp = MINE.lampLow + 0.5;
   const ev2 = run(l, {}, 60);
-  assert.ok(ev2.some((e) => e.type === 'low'));
-  assert.ok(ev2.some((e) => e.type === 'dark'));
+  assert.ok(ev2.some((q) => q.type === 'low'));
+  assert.ok(ev2.some((q) => q.type === 'dark'));
   assert.equal(l.over, 'dark');
-  assert.equal(shiftScore(l), 0);
+  assert.equal(shiftScore(l), 80, 'the basket stays inside, no bonus');
 });
 
-test('a miner who knows the mine earns a medal on most days, never more than the mine holds', () => {
+test('a miner who knows the mine earns a medal on most days and walks out in time, never more than the mine holds', () => {
   const scores = [];
   for (let s = 1; s <= 7; s++) {
     const m = createMine(HILFS, s * 7919 + 20261101);
     const g = createShift(m);
     for (let t = 0; t < MINE.lamp + 5 && !g.over; t += DT) stepShift(g, botShiftInput(g), DT);
-    assert.ok(g.over);
+    assert.equal(g.over, 'exit', `seed ${s}: out in time`);
     assert.ok(shiftScore(g) <= mineMaxScore(m) + 1);
     scores.push(shiftScore(g));
   }
@@ -169,12 +174,13 @@ test('the ore mission: walk to the adit, then the shift; its summary', () => {
   assert.equal(mine.inside, 'hilfsstollen');
   assert.equal(mine.check({}, st).done, false);
   st.shift = createShift(createMine(HILFS, 2));
-  st.shift.delivered = 321.4; st.shift.over = 'exit'; st.shift.trips = 2;
+  st.shift.delivered = 321.4; st.shift.bonus = 64; st.shift.over = 'exit';
   const v = mine.check({}, st);
   assert.ok(v.done);
-  assert.match(v.text, /321 pts out/);
-  assert.equal(MINE_MISSION.score(st), 321);
-  assert.match(MINE_MISSION.summary(st)[0], /in 2 trips/);
+  assert.match(v.text, /^385 pts · basket 0\/20 kg/);
+  assert.equal(MINE_MISSION.score(st), 385);
+  assert.match(MINE_MISSION.summary(st)[0], /^Mined: /);
+  assert.match(MINE_MISSION.summary(st)[1], /\+64 pts$/);
 });
 
 test('the tour: Dalvazzer to St Barbara and the stope, out, up to the Hilfsstollen, its stations to the far end', () => {

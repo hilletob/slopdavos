@@ -41,6 +41,7 @@ export function makeFloor(header, cells, ys) {
   const F = header.floor;
   const map = new Map();
   for (let i = 0; i < cells.length; i++) map.set(cells[i], i);
+  despike(F, cells, ys, map);
   const cellOf = (x, z) => {
     const E = x, N = -z; // (east, north)
     const u = E * F.cos + N * F.sin, w = -E * F.sin + N * F.cos;
@@ -63,4 +64,32 @@ export function makeFloor(header, cells, ys) {
     return out;
   };
   return { at, cellOf, points, count: cells.length, cell: F.cell };
+}
+
+/**
+ * The floor's lumps flattened: a cell standing more than 30 cm above the median of its neighbours (a rock on the
+ * floor, a ledge the scan's floor caught) comes down to it — a walker who stepped onto one could not step off it again.
+ * (ys changed in place.)
+ */
+function despike(F, cells, ys, map) {
+  for (let pass = 0; pass < 2; pass++) {
+    const fix = [];
+    for (let i = 0; i < cells.length; i++) {
+      const k = cells[i], iu = k % F.nu, iw = (k - iu) / F.nu;
+      const n = [];
+      for (let dw = -1; dw <= 1; dw++) for (let du = -1; du <= 1; du++) {
+        if (!du && !dw) continue;
+        const u = iu + du, w = iw + dw;
+        if (u < 0 || w < 0 || u >= F.nu || w >= F.nw) continue;
+        const j = map.get(w * F.nu + u);
+        if (j != null) n.push(ys[j * 2]);
+      }
+      if (n.length < 3) continue;
+      n.sort((a, b) => a - b);
+      const med = n[n.length >> 1];
+      if (ys[i * 2] - med > 30) fix.push(i, med);
+    }
+    if (!fix.length) break;
+    for (let q = 0; q < fix.length; q += 2) ys[fix[q] * 2] = fix[q + 1];
+  }
 }

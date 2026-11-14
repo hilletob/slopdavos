@@ -543,6 +543,13 @@ const pairs = [
   ['Game shot! The regulars slide a pint of stout along the bar.', 'Spiel gewonnen! Die Stammgäste schieben dir ein Glas Stout über die Theke.'],
   ['Session over: the locals on the deck bang their boards on the coping.', 'Die Session ist vorbei. Die Skater klopfen mit ihren Boards auf die Kante.'],
   ['Mine the ore and bring it to day', 'Erz abbauen und ans Tageslicht bringen'],
+  ['Mine the ore and get out before the lamp dies', 'Erz abbauen und hinaus, bevor die Lampe erlischt'],
+  ['Hold Strike (E / Space) to break the ore', 'Zuschlagen (E / Space) halten, um das Erz herauszuschlagen'],
+  ['The lamp is running low: get out!', 'Das Öl geht zur Neige: hinaus!'],
+  ['The basket is full: to an ore bin (under a lantern)', 'Der Korb ist voll: zu einem Erzkasten (unter einer Laterne)'],
+  ['The basket is full: to an ore bin', 'Der Korb ist voll: zu einem Erzkasten'],
+  ['The lamp gutters: get out!', 'Die Lampe flackert: hinaus!'], ['The lamp has gone out', 'Die Lampe ist erloschen'],
+  ['Lamp', 'Lampe'],
   ['Headbang on the beat', 'Im Takt headbangen'], ['Win the match (first to 5)', 'Spiel gewinnen (zuerst 5 Tore)'],
   ['Pack the cabins (100 s)', 'Gondeln füllen (100 s)'],
   ['Choose your technique', 'Technik wählen'], ['On the start line', 'An die Startlinie'],
@@ -1302,7 +1309,7 @@ const missionIntros = [
   ['Beside the big table at the Bar La Onda', 'Neben dem grossen Kasten im La Onda steht ein kleiner: zwei Stangen pro Seite, eine Abwehr mit zwei und ein Sturm mit drei Männchen, ein kurzes Feld und ein schnelles Spiel. Du spielst Rot von links: W/S oder die Maus schieben deine Stange (1–2 wählt eine, Q zurück zur Automatik), Space oder Klick schiesst, wenn der Balken unter deiner Stange grün wird. Wer zuerst fünf Tore schiesst, gewinnt.'],
   ['Rush hour at the valley station', 'Die Jakobshorn-Gondel wie bei Tetris füllen. Mit ←/→ oder A/D verschieben, mit ↑/W drehen, mit S oder Space abwerfen und mit E oder Enter die Gondel losschicken. Volle Reihen bringen Bonuspunkte, Lücken kosten Punkte. Auf dem Handy wischen und tippen. 100 Sekunden.'],
   ['Take the Capricorn from Davos Wolfgang', 'Den RhB-Capricorn von Davos Wolfgang nach Davos Platz fahren. In Davos Dorf und Kongress/Eisstadion fahrplanmässig anhalten, mit der Zugspitze an der Markierung stoppen, die Türen 20 Sekunden offen lassen und Tempolimits beachten. W gibt Gas, S bremst.'],
-  ['The Silberberg above Schmelzboden', 'Im Hilfsstollen des Silberbergwerks, so wie ihn die FHNW gescannt hat, Bleiglanz und Zinkblende abbauen. Mit W/S gehen und A/D drehen. E oder Space halten, um Erz aus der Wand zu schlagen; der 16-kg-Korb entleert sich in den Hunt daneben. Den Hunt von hinten auf den Schienen zum Portal schieben (oder rückwärts gehend ziehen): Nur Erz draussen zählt. Die Öllampe brennt sechs Minuten.'],
+  ['The Silberberg above Schmelzboden', 'Im Hilfsstollen des Silberbergwerks, so wie ihn die FHNW gescannt hat, Erz abbauen. Wo deine Lampe hinfällt, glitzert es in den Wänden: Bleiglanz (silbrig-blaue Würfel) und Zinkblende (honigbraun); weisser Quarz ist taubes Gestein und fast nichts wert. Mit W/S gehen und A/D drehen. Vor einer Erzader E oder Space halten, um sie in den Korb (20 kg) zu schlagen. Einen vollen Korb in einen der Erzkästen an den Schienen leeren, jeder unter einer Laterne. Das Öl reicht sechs Minuten: Wer vorher hinausgeht, dem zählt auch der Korb, und alles gibt ein Fünftel mehr.'],
   ['A guided walk through the Silberberg mine', 'Führung durch das Silberbergwerk mit Jöri, einem Knappen aus alter Zeit, durch die Stollen, wie sie die FHNW per Laserscan erfasst hat: in den Dalvazzerstollen zur heiligen Barbara und über den Steg im Abbau, hinaus und den Hang hinauf zum Hilfsstollen, an den eingemeisselten Jahreszahlen vorbei bis an sein Ende. Folge seiner Lampe und hör ihm zu: Er stellt dir zwei Fragen (Tasten 1–3), eine falsche Antwort kostet 15 Sekunden. Mit W/S gehen und A/D drehen.'],
   ['The horn sledge race of the winter', 'Mit dem Hornschlitten vom Jatzmeder Richtung Glaris fahren: 2 km und 350 Höhenmeter. A/D lenken und lehnen, S bremst mit Fersen und Kette, W duckt dich oder stösst an. In engen Kurven kann der Schlitten kippen; jeder Sturz kostet fünf Sekunden.'],
   ['The night shift is calling', 'Die Dischma-Loipe in der Nachtschicht präparieren. Mit dem Pistenfahrzeug auf der Spur fahren und die Fräse mit F absenken, bis 90 % der Loipe bearbeitet sind.'],
@@ -1729,6 +1736,18 @@ function translate(value) {
   dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
   dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
   dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
+  // (the Silberberg's ore shift)
+  const oreDe = { galena: 'Bleiglanz', sphalerite: 'Zinkblende', 'barren rock': 'taubes Gestein', Galena: 'Bleiglanz', Sphalerite: 'Zinkblende', 'Barren rock': 'Taubes Gestein' };
+  const kgDe = (v) => v.replace('.', ',');
+  dynamic = dynamic.replace(/^Mined: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock$/, (_, a, b, c) => `Abgebaut: ${kgDe(a)} kg Bleiglanz · ${kgDe(b)} kg Zinkblende · ${kgDe(c)} kg taubes Gestein`);
+  dynamic = dynamic.replace(/^The lamp went out inside: ([\d.]+) kg in the basket stayed with you\.$/, (_, a) => `Die Lampe erlosch drinnen: ${kgDe(a)} kg im Korb blieben bei dir.`);
+  dynamic = dynamic.replace(/^The lamp went out inside\.$/, 'Die Lampe erlosch drinnen.');
+  dynamic = dynamic.replace(/^Out with (\d+:\d\d) of oil left: \+(\d+) pts$/, 'Draussen mit $1 Öl übrig: +$2 Pkt.');
+  dynamic = dynamic.replace(/^(\d+) pts · basket ([\d.]+)\/(\d+) kg · lamp (\d+:\d\d)$/, (_, p, b, m, l) => `${p} Pkt. · Korb ${kgDe(b)}/${m} kg · Lampe ${l}`);
+  dynamic = dynamic.replace(/^Basket ([\d.]+)\/(\d+) kg · ore bin (\d+) m · (\d+) pts$/, (_, b, m, d, p) => `Korb ${kgDe(b)}/${m} kg · Erzkasten ${d} m · ${p} Pkt.`);
+  dynamic = dynamic.replace(/^\+([\d.]+) kg (galena|sphalerite|barren rock)$/, (_, k, o) => `+${kgDe(k)} kg ${oreDe[o]}`);
+  dynamic = dynamic.replace(/^([\d.]+) kg into the ore bin: \+(\d+) pts$/, (_, k, p) => `${kgDe(k)} kg in den Erzkasten: +${p} Pkt.`);
+  dynamic = dynamic.replace(/^(Galena|Sphalerite|Barren rock) · ([\d.]+) kg · hold Strike$/, (_, o, k) => `${oreDe[o]} · ${kgDe(k)} kg · Zuschlagen halten`);
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
   dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');

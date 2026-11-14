@@ -12,14 +12,21 @@ const sql = readFileSync(new URL(file, dir), 'utf8');
 const boards = new Map([...sql.matchAll(/\('([\w-]+)', '([\w-]+)', (\d+), (\d+)\)/g)].map(([, id, mission, min, max]) => [id, { mission, kind: 'time', min: +min, max: +max }]));
 const allFile = readdirSync(dir).find((f) => f.endsWith('_all_leaderboards.sql'));
 const allSql = readFileSync(new URL(allFile, dir), 'utf8');
-for (const [, id, mission, kind, min, max, cap] of allSql.matchAll(/\('([\w-]+)', '([\w-]+)', '(time|score)', (\d+), (\d+), (\d+|null)\)/g)) {
-  boards.set(id, { mission, kind, min: +min, max: +max, cap: cap === 'null' ? null : +cap });
+// (the lists of the later migrations too, in their order: a mission rebalanced gets a new list, the old one closed)
+const later = readdirSync(dir).filter((f) => f.endsWith('.sql') && f > allFile).sort().map((f) => readFileSync(new URL(f, dir), 'utf8'));
+const closed = new Set();
+for (const text of [allSql, ...later]) {
+  for (const [, id, mission, kind, min, max, cap] of text.matchAll(/\('([\w-]+)', '([\w-]+)', '(time|score)', (\d+), (\d+), (\d+|null)\)/g)) {
+    boards.set(id, { mission, kind, min: +min, max: +max, cap: cap === 'null' ? null : +cap });
+  }
+  for (const [, id] of text.matchAll(/update public\.boards set ranked = false where id = '([\w-]+)'/g)) closed.add(id);
 }
 
 test('every list in the migrations belongs to a mission, with limits its medals fit inside', () => {
   assert.ok(MISSIONS.every((m) => m.board), 'every mission is ranked');
   const missions = new Map(MISSIONS.map((m) => [m.board, m]));
-  assert.deepEqual([...boards.keys()].filter((id) => !missions.has(id)), [], 'no list without its mission');
+  assert.deepEqual([...boards.keys()].filter((id) => !missions.has(id) && !closed.has(id)), [], 'no list without its mission (but the closed ones)');
+  for (const id of closed) assert.ok(boards.has(id) && !missions.has(id), `${id}: closed, no mission ranks on it`);
   // (a mission without a row gets its list when it is first started: supabase/migrations/*_boards_on_demand.sql)
   for (const m of MISSIONS.filter((m) => boards.has(m.board))) {
     const b = boards.get(m.board), medals = missionMedals(m);

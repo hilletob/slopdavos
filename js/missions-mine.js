@@ -5,7 +5,7 @@ import { groundHeight } from './terrain.js';
 import { parseAdit, aditUrl } from './silberberg-asset.js';
 import { t } from './i18n.js';
 import {
-  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore,
+  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore, nearestBin,
   GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, GUIDE_CALLS, createGuide, stepGuide, answerQuiz
 } from './missions-data-mine.js';
 
@@ -20,9 +20,10 @@ import {
 //          and the camera's near plane drawn in to 5 cm while inside: no gap, no wall cut by the near plane, shows the
 //          world behind the rock. Darkness: one material that lights itself from the oil lamp on the miner's head (a
 //          warm cone from the camera) and a few lanterns — no scene lights (they would recompile the town's shaders);
-//          the portal's cut glows with daylight. The ore spots glitter where the lamp falls on them. Web Audio: drips,
-//          the hammer on rock, the hunt's rumble, all through a short cave reverb. The touch screens get a held Strike
-//          button (the ore). On the tour Jöri leads: a miner of boxes with a lantern (the lamp-lit material inside,
+//          the portal's cut glows with daylight. The ore veins (bands of crystals on the scan's rock) glitter where the
+//          lamp falls on them and gleam faintly beyond it; the one in reach lights up, named under the cross-hair. The
+//          ore bins stand against the wall under their lanterns. Web Audio: drips, the hammer on rock, the ore tipped
+//          into a bin, all through a short cave reverb. The touch screens get a held Strike button (the ore). On the tour Jöri leads: a miner of boxes with a lantern (the lamp-lit material inside,
 //          a plain one waiting outside at the next portal), his lines at the bottom of the screen, his two questions
 //          (keys 1–3 or tapped), the mountain's rumble in the stope, the draught that blows the visitor's lamp out.
 // Everything goes with the run's group (js/missions.js disposes it).
@@ -31,7 +32,7 @@ const LIFT = 400; // m: the gallery floats this high above its portal
 const NEAR = 0.05; // m: the camera's near plane inside
 // The galleries drawn larger than the scan (the real ones are a metre wide, a man's height: on a screen, through a
 // camera, cramped): across and along by H, up by V. The game itself stays in the scan's metres — the floor, the ways,
-// the hunt's rails, the medals — and so the walk looks a little brisker; the people and the things in the gallery keep
+// the rails, the medals — and so the walk looks a little brisker; the people and the things in the gallery keep
 // their own size.
 const SCALE = { h: 1.45, v: 1.35 };
 const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
@@ -85,10 +86,10 @@ function buildPortal(group, a, name) {
 }
 
 // --- The lamp-lit material ---------------------------------------------------------------------------------------------
-const LANTERNS = 3;
+const LANTERNS = 4;
 /** Lit by the lamp and the lanterns; `scan`: the colour and the daylight from the scan's attributes (not multiplied) */
-function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
-  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: !sparkle && !scan && !tint, side: scan ? THREE.DoubleSide : THREE.FrontSide });
+function lampMaterial(L, { sparkle = false, scan = false, tint = null, vcol = null, glow = 0 } = {}) {
+  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: vcol ?? (!sparkle && !scan && !tint), side: scan ? THREE.DoubleSide : THREE.FrontSide });
   m.colorNode = Fn(() => {
     const toP = positionWorld.sub(L.pos);
     const dist = toP.length().max(0.05);
@@ -104,6 +105,8 @@ function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
     }
     // (the show mine's electric light on the tour: a dim, warm fill; none on the ore shift)
     light = light.add(vec3(1.0, 0.86, 0.66).mul(L.ambient));
+    // (the ore's own faint gleam: a glint to see in the dark, a little way off)
+    if (glow) light = light.add(float(glow).mul(L.power.min(1)));
     let col = light.add(0.004);
     if (scan) {
       // the scan's colour, grained: two octaves of value noise on the rock (cm and dm), the light kept off the bloom
@@ -118,8 +121,8 @@ function lampMaterial(L, { sparkle = false, scan = false, tint = null } = {}) {
     if (tint) { const c = new THREE.Color(tint); col = col.mul(vec3(c.r, c.g, c.b)); }
     if (sparkle) {
       // glitter: facets that catch the lamp in turn
-      const h = fract(sin(dot(floor(positionLocal.mul(30)), vec3(12.9898, 78.233, 37.719)).add(time.mul(1.3))).mul(43758.5453));
-      col = col.add(vec3(1.6).mul(pow(h, 18).mul(3).mul(light.length())));
+      const h = fract(sin(dot(floor(positionLocal.mul(40)), vec3(12.9898, 78.233, 37.719)).add(time.mul(1.7))).mul(43758.5453));
+      col = col.add(vec3(1.6).mul(pow(h, 14).mul(4).mul(light.length().add(0.25))));
     }
     return col;
   })();
@@ -198,73 +201,133 @@ function buildPlaque(L, text) {
   return g;
 }
 
-/** The ore spots: little clusters of crystals on the walls (one instanced mesh), coloured by their ore */
-function buildVeins(mine, L) {
-  const parts = [];
-  const rnd = (n) => hash3(n, n * 1.7, n * 2.3);
-  for (let n = 0; n < 9; n++) {
-    const g = new THREE.OctahedronGeometry(0.045 + rnd(n) * 0.06, 0); // (non-indexed already)
-    g.scale(1, 1, 0.5);
-    g.rotateZ(rnd(n + 3) * 3);
-    g.translate((rnd(n + 7) - 0.5) * 0.5, (rnd(n + 11) - 0.5) * 0.4, 0.02);
+/**
+ * The ore veins: a band of ore across the rock, its crystals catching the lamp — galena in silver-blue cubes,
+ * sphalerite in honey-brown points, barren quartz in white prisms (an instanced mesh per kind, vertex-coloured; the
+ * instance colour lights up the vein in reach). Built in a frame whose +z is the wall's normal.
+ */
+const VEIN_LOOK = {
+  galena: { matrix: 0x3a3b40, crystal: [0xc9d4e2, 0x8e9aab], shape: 'cube' },
+  sphalerite: { matrix: 0x3b2a18, crystal: [0xe9a23a, 0xa8641c], shape: 'point' },
+  barren: { matrix: 0x5a554d, crystal: [0xcfc8ba, 0xa9a294], shape: 'prism', count: 11 }
+};
+function veinGeometry(kind) {
+  const look = VEIN_LOOK[kind], parts = [];
+  const rnd = (n) => hash3(n * 1.3, n * 2.1 + kind.length, n * 0.7);
+  const paint = (g, colour, vary = 0.25) => {
+    g = g.index ? g.toNonIndexed() : g;
     g.deleteAttribute('uv');
+    const k = g.attributes.position.count, c = new Float32Array(k * 3);
+    _c.set(colour);
+    for (let q = 0; q < k; q += 3) { const f = 1 - vary / 2 + vary * hash3(q, k, colour); for (let r = 0; r < 3; r++) { c[(q + r) * 3] = _c.r * f; c[(q + r) * 3 + 1] = _c.g * f; c[(q + r) * 3 + 2] = _c.b * f; } }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     parts.push(g);
+  };
+  // the band: a flat lens of dark ore-bearing rock, slanted across the wall
+  const band = new THREE.SphereGeometry(0.5, 12, 6).scale(0.62, 0.2, 0.07).rotateZ(0.45);
+  paint(band, look.matrix, 0.3);
+  for (let n = 0; n < (look.count || 22); n++) {
+    const along = (rnd(n) - 0.5) * 0.56, across = (rnd(n + 40) - 0.5) * 0.16;
+    const x = along * Math.cos(0.45) - across * Math.sin(0.45), y = along * Math.sin(0.45) + across * Math.cos(0.45);
+    const sz = 0.03 + rnd(n + 80) * 0.04;
+    let g;
+    if (look.shape === 'cube') g = new THREE.BoxGeometry(sz, sz, sz).rotateX(rnd(n + 5) * 3).rotateY(rnd(n + 6) * 3);
+    else if (look.shape === 'point') g = new THREE.TetrahedronGeometry(sz * 0.9, 0).rotateX(rnd(n + 5) * 3).rotateZ(rnd(n + 6) * 3);
+    else g = new THREE.CylinderGeometry(sz * 0.3, sz * 0.38, sz * 2.4, 6).rotateX(Math.PI / 2 - 0.3 + rnd(n + 5) * 0.6).rotateZ(rnd(n + 6) * 3);
+    g.translate(x, y, 0.03 + sz * 0.3);
+    paint(g, look.crystal[n % 2], 0.35);
   }
   const geo = mergeGeometries(parts);
+  for (const p of parts) p.dispose();
   geo.computeVertexNormals();
-  const mesh = new THREE.InstancedMesh(geo, lampMaterial(L, { sparkle: true }), mine.veins.length);
-  mesh.frustumCulled = false;
-  mine.veins.forEach((v, i) => {
-    _c.set(MINE.ores[v.kind].colour);
-    mesh.setColorAt(i, _c);
-  });
-  mesh.name = 'MineVeins';
-  return mesh;
+  return geo;
 }
 
-function placeVeins(mesh, mine) {
-  mine.veins.forEach((v, i) => {
+function buildVeins(mine, L) {
+  const group = new THREE.Group();
+  group.name = 'MineVeins';
+  const meshes = {};
+  for (const kind of Object.keys(VEIN_LOOK)) {
+    const list = mine.veins.filter((v) => v.kind === kind);
+    if (!list.length) continue;
+    const mesh = new THREE.InstancedMesh(veinGeometry(kind), lampMaterial(L, { sparkle: true, vcol: true, glow: kind === 'barren' ? 0.03 : 0.09 }), list.length);
+    mesh.frustumCulled = false;
+    list.forEach((v, i) => { v.slot = i; mesh.setColorAt(i, _c.setRGB(1, 1, 1)); });
+    meshes[kind] = mesh;
+    group.add(mesh);
+  }
+  group.userData = { meshes, lit: null };
+  return group;
+}
+
+const _n = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1), _q2 = new THREE.Quaternion();
+function placeVeins(group, mine) {
+  const { meshes } = group.userData;
+  for (const v of mine.veins) {
+    const mesh = meshes[v.kind];
     const left = (v.kg - v.mined) / v.kg;
-    const s = left <= 1e-6 ? 0.0001 : 0.45 + 0.55 * left;
-    _q.setFromAxisAngle(_v.set(0, 1, 0), Math.atan2(v.nx, v.nz));
-    _m.compose(_s.set(v.x - v.nx * 0.03, v.y, v.z - v.nz * 0.03), _q, _v.set(s * 1.4, s * 1.2, s * 1.2));
-    mesh.setMatrixAt(i, _m);
-  });
-  mesh.instanceMatrix.needsUpdate = true;
+    const s = left <= 1e-6 ? 0.0001 : 0.55 + 0.45 * left;
+    _q.setFromUnitVectors(_z, _n.set(v.nx, v.ny, v.nz).normalize());
+    _q2.setFromAxisAngle(_z, (hash3(v.id, 3, 7) - 0.5) * 1.6);
+    _q.multiply(_q2);
+    _m.compose(_s.set(v.x + v.nx * 0.01, v.y + v.ny * 0.01, v.z + v.nz * 0.01), _q, _v.set(s, s, 1));
+    mesh.setMatrixAt(v.slot, _m);
+  }
+  for (const m of Object.values(meshes)) m.instanceMatrix.needsUpdate = true;
 }
 
-function buildHunt(L) {
+/** The vein in reach lit up (a slow pulse), the others plain */
+function lightVein(group, mine, vein, t) {
+  const { meshes } = group.userData;
+  const was = group.userData.lit;
+  if (was && was !== vein) { meshes[was.kind].setColorAt(was.slot, _c.setRGB(1, 1, 1)); meshes[was.kind].instanceColor.needsUpdate = true; }
+  group.userData.lit = vein;
+  if (!vein) return;
+  const f = 1.2 + 0.18 * Math.sin(t * 5);
+  meshes[vein.kind].setColorAt(vein.slot, _c.setRGB(f, f, f));
+  meshes[vein.kind].instanceColor.needsUpdate = true;
+}
+
+/** An ore bin: a timber box against the wall, its heap growing; a lantern on a post over it */
+function buildBin(L) {
   const parts = [];
   const box = (w, h, d, x, y, z, colour) => {
     const g = new THREE.BoxGeometry(w, h, d).toNonIndexed().translate(x, y, z);
     const n = g.attributes.position.count, c = new Float32Array(n * 3);
     _c.set(colour);
-    for (let q = 0; q < n; q++) { c[q * 3] = _c.r; c[q * 3 + 1] = _c.g; c[q * 3 + 2] = _c.b; }
+    for (let q = 0; q < n; q++) { const f = 0.85 + 0.3 * hash3(q, x, z); c[q * 3] = _c.r * f; c[q * 3 + 1] = _c.g * f; c[q * 3 + 2] = _c.b * f; }
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     g.deleteAttribute('uv');
     parts.push(g);
   };
-  const W = MINE.huntWidth * 2 - 0.06, Lh = MINE.huntHalf * 2 - 0.1;
-  box(W, 0.06, Lh, 0, 0.3, 0, 0x5a3e24); // the floor
-  for (const s of [1, -1]) { box(0.06, 0.55, Lh, s * W / 2, 0.6, 0, 0x6b4a2c); box(W, 0.55, 0.06, 0, 0.6, s * Lh / 2, 0x6b4a2c); }
-  for (const z of [-0.5, 0, 0.5]) box(W + 0.04, 0.05, 0.05, 0, 0.86, z * Lh * 0.9, 0x2e2b28); // (the iron bands)
-  for (const s of [1, -1]) for (const z of [-0.45, 0.45]) box(0.06, 0.24, 0.24, s * 0.3, 0.14, z, 0x2a2724);
+  const W = 0.95, D = 0.55, H = 0.62;
+  box(W, 0.05, D, 0, 0.05, 0, 0x5a3e24); // the floor
+  for (const s of [1, -1]) { box(0.05, H, D, s * W / 2, H / 2, 0, 0x6b4a2c); box(W, H, 0.05, 0, H / 2, s * D / 2, 0x6b4a2c); }
+  for (const y of [0.2, 0.5]) box(W + 0.04, 0.04, D + 0.04, 0, y, 0, 0x2e2b28); // (the iron bands)
+  box(0.07, 1.75, 0.07, W / 2 - 0.05, 0.875, -D / 2 + 0.05, 0x4a3522); // the post
+  box(0.07, 0.07, 0.5, W / 2 - 0.05, 1.72, -D / 2 + 0.3, 0x4a3522); // its arm, out over the gallery
   const geo = mergeGeometries(parts);
   for (const p of parts) p.dispose();
   geo.computeVertexNormals();
   const mat = lampMaterial(L);
   const g = new THREE.Group();
   g.add(new THREE.Mesh(geo, mat));
+  // the lantern: a squat frog lamp, its flame
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.14), new THREE.MeshBasicNodeMaterial({ color: 0xffc46a }));
+  lamp.position.set(W / 2 - 0.05, 1.55, -D / 2 + 0.5);
+  g.add(lamp);
   // the load: a heap that grows
-  const heapGeo = new THREE.SphereGeometry(0.5, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(W * 0.95, 1, Lh * 0.9).toNonIndexed();
+  const heapGeo = new THREE.SphereGeometry(0.5, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(W * 0.92, 1, D * 0.9).toNonIndexed();
   const n = heapGeo.attributes.position.count, c = new Float32Array(n * 3);
   for (let q = 0; q < n; q++) { const f = 0.7 + 0.5 * hash3(q, 1, 2); c[q * 3] = 0.42 * f; c[q * 3 + 1] = 0.4 * f; c[q * 3 + 2] = 0.38 * f; }
   heapGeo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  heapGeo.deleteAttribute('uv');
   heapGeo.computeVertexNormals();
   const heap = new THREE.Mesh(heapGeo, mat);
-  heap.position.y = 0.33;
+  heap.position.y = 0.08;
+  heap.visible = false;
   g.add(heap);
-  g.userData.heap = heap;
+  g.userData = { heap, lamp };
   return g;
 }
 
@@ -312,7 +375,7 @@ class MineAudio {
     const nb = Math.floor(ctx.sampleRate * 1.0), buf = ctx.createBuffer(1, nb, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < nb; i++) d[i] = Math.random() * 2 - 1;
     this.noise = buf;
-    // the mountain's hum, the hunt's rumble (looped noise, quiet until it rolls)
+    // the mountain's hum (looped noise), and a rumble kept quiet (the tour's)
     const hum = ctx.createBufferSource(); hum.buffer = buf; hum.loop = true;
     const hlp = ctx.createBiquadFilter(); hlp.type = 'lowpass'; hlp.frequency.value = 180;
     const hg = ctx.createGain(); hg.gain.value = 0.05;
@@ -448,6 +511,9 @@ body.mine-indoor .hud-bottom-center{visibility:hidden}
 .mine-oil.is-low>span{background:#ff4b3e}
 .mine-strike{pointer-events:auto;border:0;border-radius:999px;padding:16px 26px;font:800 17px Inter,system-ui,sans-serif;color:#1b1206;background:linear-gradient(180deg,#ffd36b,#e09a2b);box-shadow:0 6px 18px rgba(224,154,43,.4);touch-action:none;user-select:none;-webkit-user-select:none}
 .mine-strike.is-on{transform:scale(.95);filter:brightness(1.15)}
+.mine-target{position:fixed;left:50%;top:58%;transform:translateX(-50%);z-index:41;pointer-events:none;font:800 16px/1.2 Inter,system-ui,sans-serif;text-align:center;padding:6px 12px;border-radius:10px;background:rgba(14,10,6,.62);text-shadow:0 1px 4px rgba(0,0,0,.8);opacity:0;transition:opacity .15s}
+.mine-cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,236,200,.55);box-shadow:0 0 4px rgba(0,0,0,.8);z-index:40;pointer-events:none}
+.mine-cross[hidden]{display:none}
 .mine-toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:41;pointer-events:none;font:800 24px/1.2 Inter,system-ui,sans-serif;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.8);opacity:0;transition:opacity .25s}
 .mine-station{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;width:min(460px,calc(100vw - 32px));box-sizing:border-box;pointer-events:none;background:rgba(14,10,6,.86);border:1px solid rgba(255,220,160,.25);border-radius:14px;padding:12px 16px;color:#f3e6cc;font:500 14px/1.45 Inter,system-ui,sans-serif;opacity:0;transition:opacity .4s}
 .mine-station b{display:block;font:800 17px/1.2 Georgia,serif;color:#ffd36b;margin-bottom:4px}
@@ -489,6 +555,10 @@ const mineFeature = {
     for (const t of ['pointerup', 'pointercancel', 'pointerleave']) run.listen(strike, t, on(false));
     hud.append(card, strike);
     const toast = el('div'); toast.className = 'mine-toast';
+    const target = el('div'); target.className = 'mine-target';
+    const cross = el('div'); cross.className = 'mine-cross'; cross.hidden = true;
+    document.body.append(target, cross);
+    run.cleanups.push(() => { target.remove(); cross.remove(); });
     const station = el('div'); station.className = 'mine-station';
     document.body.append(hud, toast, station);
     // the guide's words and questions
@@ -496,7 +566,7 @@ const mineFeature = {
     const quiz = el('div'); quiz.className = 'mine-quiz'; quiz.hidden = true;
     document.body.append(say, quiz);
     run.cleanups.push(() => { hud.remove(); toast.remove(); station.remove(); say.remove(); quiz.remove(); document.body.classList.remove('mine-indoor'); });
-    run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0,
+    run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, target, cross, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0,
       say, quiz, queue: [], line: null, lineT: 0, greeted: false, outside: null };
     if (kind === 'tour') {
       // Jöri waiting outside, at the next portal (a plain material: the daylight lights him)
@@ -559,20 +629,28 @@ const mineFeature = {
     const keepSize = (o) => o.scale.set(1 / SCALE.h, 1 / SCALE.v, 1 / SCALE.h);
     const ore = M.kind === 'ore';
     group.add(buildGallery(a, L, { rails: ore }));
-    let mine = null, veins = null, hunt = null, tools = null;
+    let mine = null, veins = null, bins = null, tools = null;
     const lamps = [];
     if (ore) {
       const seed = run.state.seed ?? (run.state.seed = Number(new URLSearchParams(location.search).get('seed')) || mineSeedOfDay());
       mine = createMine(a, seed);
       veins = buildVeins(mine, L);
       placeVeins(veins, mine);
-      group.add(run.storage(veins));
-      hunt = buildHunt(L);
-      keepSize(hunt);
-      group.add(hunt);
+      group.add(veins);
+      // the ore bins, a lantern over each (the lanterns' light: the way-marks in the dark)
+      bins = mine.bins.map((b) => {
+        const m = buildBin(L);
+        keepSize(m);
+        m.position.set(b.x, b.y, b.z);
+        m.rotation.y = Math.atan2(b.nx, b.nz); // (local +z out into the gallery: the post at the wall, its arm over the way)
+        group.add(m);
+        group.updateMatrixWorld(true);
+        m.userData.lamp.getWorldPosition(_v);
+        lamps.push(_v.clone().sub(group.position).divide(_s.set(SCALE.h, SCALE.v, SCALE.h)));
+        return m;
+      });
       tools = buildTools(L);
       run.group.add(tools.hammer, tools.chisel);
-      for (const s of [30, 110, 190]) { const p = railAt(mine.rail, s); lamps.push(new THREE.Vector3(p.x - p.tz * 0.5, p.y + 1.7, p.z + p.tx * 0.5)); }
       run.state.shift = createShift(mine);
     } else {
       // the tour: a plaque with a lantern at each of this adit's stations
@@ -613,8 +691,9 @@ const mineFeature = {
     document.body.classList.add('mine-indoor');
     const prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; }; // (the walker waits at the door)
-    M.inside = { id, a, group, mine, L, hunt, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
+    M.inside = { id, a, group, mine, L, bins, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
     M.hud.hidden = !ore;
+    M.cross.hidden = !ore;
   },
   leave(run) {
     const M = run.mine, I = M?.inside;
@@ -633,6 +712,8 @@ const mineFeature = {
     run.hooks.cameraSystem?.resetForTeleport?.();
     M.inside = null;
     M.hud.hidden = true;
+    M.cross.hidden = true;
+    M.target.style.opacity = '0';
   },
   toast(run, text, colour = '#f3e6cc', secs = 1.6) {
     const M = run.mine;
@@ -715,13 +796,13 @@ const mineFeature = {
     if (!I) return;
     if (run.phase !== 'running' && run.phase !== 'ready') return;
     const k = cm.keys, num = (v) => (v === true ? 1 : Number(v) || 0);
-    const input = { forward: num(k.forward), back: num(k.backward), turn: num(k.left) - num(k.right), strike: !!k.up || M.touchStrike };
+    const input = { forward: num(k.forward), back: num(k.backward), turn: num(k.left) - num(k.right), strike: !!k.up || M.touchStrike, assist: true };
     let left = Math.min(dt, 0.1);
     if (M.kind === 'tour') {
       const w = run.state.walk;
       // (in the dark after the draught: not a step)
       const still = I.dark ? { ...input, forward: 0, back: 0 } : input;
-      while (left > 1e-6) { const h = Math.min(1 / 60, left); stepWalk(w, I.a, still, h); left -= h; }
+      while (left > 1e-6) { const h = Math.min(1 / 60, left); stepWalk(w, I.a, still, h, { assist: true }); left -= h; }
       // Jöri: on to the objective's station (out to the portal on the way out), still while he talks or asks
       const obj = run.def.objectives[run.index];
       const goal = obj?.station ? run.state.points?.[obj.station] : obj?.id === 'out' ? { x: 0, z: 0 } : null;
@@ -736,29 +817,36 @@ const mineFeature = {
     if (!g) return;
     const events = [];
     while (left > 1e-6) { const h = Math.min(1 / 60, left); events.push(...stepShift(g, input, h)); left -= h; }
+    const kgs = (v) => `${Math.round(v * 10) / 10} kg`;
     for (const e of events) {
       if (e.type === 'ore') {
         const o = MINE.ores[e.kind];
-        mineFeature.toast(run, `+${e.kg} kg ${o.label.toLowerCase()}`, e.kind === 'barren' ? '#bdb2a2' : o.colour, 1.3);
+        mineFeature.toast(run, t(`+${kgs(e.kg)} ${o.label.toLowerCase()}`), e.kind === 'barren' ? '#d8d0c0' : o.colour, 1.3);
         M.audio?.strike(e.kind);
         I.shake = 0.12;
         placeVeins(I.veins, I.mine);
       } else if (e.type === 'empty') placeVeins(I.veins, I.mine);
-      else if (e.type === 'full') mineFeature.toast(run, 'The basket is full', '#ffd36b');
-      else if (e.type === 'load') { mineFeature.toast(run, `${Math.round(e.kg * 10) / 10} kg into the hunt`, '#ffd36b'); M.audio?.load(); }
-      else if (e.type === 'deliver') { mineFeature.toast(run, `To day: +${Math.round(e.pts)} pts`, '#7dffb0', 2.2); run.hooks.flashPoints?.(Math.round(e.pts)); }
-      else if (e.type === 'low') mineFeature.toast(run, 'The lamp gutters: get out!', '#ff8f80', 2.4);
-      else if (e.type === 'dark') mineFeature.toast(run, 'The lamp has gone out', '#ff8f80', 3);
+      else if (e.type === 'full') mineFeature.toast(run, t('The basket is full: to an ore bin'), '#ffd36b', 1.8);
+      else if (e.type === 'dump') { mineFeature.toast(run, t(`${kgs(e.kg)} into the ore bin: +${Math.round(e.pts)} pts`), '#7dffb0', 2); M.audio?.load(); run.hooks.flashPoints?.(Math.round(e.pts)); }
+      else if (e.type === 'exit') { if (e.bonus) run.hooks.flashPoints?.(e.bonus); }
+      else if (e.type === 'low') mineFeature.toast(run, t('The lamp gutters: get out!'), '#ff8f80', 2.4);
+      else if (e.type === 'dark') mineFeature.toast(run, t('The lamp has gone out'), '#ff8f80', 3);
     }
     M.audio?.drip(dt);
-    M.audio?.roll(g.hunt.moving / Math.max(1e-3, dt));
-    // the HUD
+    // the HUD: the basket, the way to the nearest bin, the points; the vein in reach
     const frac = g.lamp / MINE.lamp;
     M.oilFill.style.width = `${(frac * 100).toFixed(1)}%`;
     M.oil.classList.toggle('is-low', g.lamp < MINE.lampLow);
-    const t = `Basket ${Math.round(g.basket.kg * 10) / 10}/${MINE.basket} kg · Hunt ${Math.round(g.hunt.kg)} kg · ${shiftScore(g)} pts out`;
-    if (M.basket.textContent !== t) M.basket.textContent = t;
-    if (g.over) M.hud.hidden = true;
+    M.binT = (M.binT || 0) - dt;
+    if (M.binT <= 0) { M.binT = 0.25; M.binDist = nearestBin(I.mine, g)?.dist; }
+    const hud = t(`Basket ${Math.round(g.basket.kg * 10) / 10}/${MINE.basket} kg · ore bin ${Math.round(M.binDist ?? 0)} m · ${shiftScore(g)} pts`);
+    if (M.basket.textContent !== hud) M.basket.textContent = hud;
+    const v = g.target;
+    const label = v && !g.over ? t(`${MINE.ores[v.kind].label} · ${kgs(v.kg - v.mined)} · hold Strike`) : '';
+    if (M.target.textContent !== label) M.target.textContent = label;
+    M.target.style.opacity = label ? '1' : '0';
+    if (v) M.target.style.color = v.kind === 'barren' ? '#e8e2d4' : MINE.ores[v.kind].colour;
+    if (g.over) { M.hud.hidden = true; M.cross.hidden = true; M.target.style.opacity = '0'; }
   },
   after(run, ctx, dt) {
     const M = run.mine, I = M.inside;
@@ -777,7 +865,11 @@ const mineFeature = {
     I.eyeH = I.eyeH == null ? eyeH : I.eyeH + (eyeH - I.eyeH) * Math.min(1, dt * 6);
     const eye = _v.set(w.x * SCALE.h, (w.y + I.eyeH) * SCALE.v + Math.sin(I.bob) * 0.025, w.z * SCALE.h).add(I.origin);
     cam.position.copy(eye);
-    _e.set(-0.17 + sh, w.heading + Math.PI + sh * 0.5, 0);
+    // (looking a little down; at the vein in reach, its eyes on it: close to the wall it would lie below the view)
+    const tv = M.kind === 'ore' && !w.over ? w.target : null;
+    const pitch = tv ? clamp(Math.atan2((tv.y - w.y - I.eyeH) * SCALE.v, Math.hypot(tv.x - w.x, tv.z - w.z) * SCALE.h), -0.75, 0.3) : -0.17;
+    I.pitch = I.pitch == null ? pitch : I.pitch + (pitch - I.pitch) * Math.min(1, dt * 4);
+    _e.set(I.pitch + sh, w.heading + Math.PI + sh * 0.5, 0);
     cam.quaternion.setFromEuler(_e);
     cam.updateMatrixWorld();
     if (I.snow) I.snow.visible = false;
@@ -812,15 +904,14 @@ const mineFeature = {
       return;
     }
     const g = w;
-    // the hunt on its rails, its heap
-    const hp = railAt(I.mine.rail, g.hunt.s);
-    I.hunt.position.set(hp.x, hp.y, hp.z);
-    I.hunt.rotation.y = Math.atan2(hp.tx, hp.tz);
-    const heap = I.hunt.userData.heap;
-    const fill = clamp(g.hunt.kg / 120, 0, 1);
-    heap.visible = fill > 0.01;
-    heap.scale.set(1, 0.15 + 0.85 * fill, 1);
-    heap.position.y = 0.33 + 0.25 * fill;
+    // the bins' heaps; the vein in reach lit up
+    I.mine.bins.forEach((b, i) => {
+      const heap = I.bins[i].userData.heap, fill = clamp(b.kg / 60, 0, 1);
+      heap.visible = fill > 0.01;
+      heap.scale.set(1, 0.2 + 0.8 * fill, 1);
+      heap.position.y = 0.08 + 0.42 * fill;
+    });
+    lightVein(I.veins, I.mine, g.over ? null : g.target, t);
     // the tools: the hammer swings at the chisel while striking
     const striking = g.mining && g.target;
     const ph = striking ? (g.mining.t / MINE.strikeS) : 1;
