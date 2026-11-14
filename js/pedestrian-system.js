@@ -4,6 +4,7 @@ import { createPedestrianRoutes } from './pedestrian-routes.js';
 import { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION, rollHairstyle } from './pedestrians.js';
 import { loadPersonClips } from './person-clips.js';
 import { QUALITY } from './quality.js';
+import { gwrCount } from './gwr.js';
 
 // Local pedestrian population: connected walks, curb queues, conversations and player avoidance.
 // Traffic supplies crossing permissions and view checks; this system owns the crowd and its animation.
@@ -122,7 +123,34 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
     trackLoad.clear();
     for (const p of peds) if (p.placed && p.route) trackLoad.set(p.route, (trackLoad.get(p.route) || 0) + 1);
   }
-  const trackFull = (route) => (trackLoad.get(route) || 0) >= Math.max(1, Math.floor(route.len / PED_SPACING));
+  // How many people a walking line takes: one every PED_SPACING m where it runs between houses, one every
+  // RURAL_SPACING m out of the villages (the Flüela and Landwasser roads, the side valleys), so that a pass road
+  // far from town has a hiker or two instead of the whole crowd walking its shoulders.
+  const RURAL_SPACING = 600;
+  const BUILT_SAMPLE = 40; // m between the points of a line tested for houses nearby
+  const BUILT_RADIUS = 60;
+  const BUILT_HOUSES = 3; // register entries within BUILT_RADIUS that make a point built-up
+  const trackCapacity = new WeakMap();
+  function capacity(route) {
+    let cap = trackCapacity.get(route);
+    if (cap !== undefined) return cap;
+    if (route.node) cap = Math.max(1, Math.floor(route.len / PED_SPACING)); // (crosswalks are in town anyway)
+    else {
+      const samples = Math.max(1, Math.round(route.len / BUILT_SAMPLE));
+      let built = 0;
+      for (let k = 0; k < samples; k++) {
+        const t = (k + 0.5) / samples * route.len;
+        if (gwrCount(route.ax + route.ux * t, route.az + route.uz * t, BUILT_RADIUS, BUILT_HOUSES) >= BUILT_HOUSES) built++;
+      }
+      const share = built / samples;
+      // (a fractional place is rounded up or down at random once per line, so short rural lines are mostly empty)
+      cap = Math.floor(route.len * share / PED_SPACING + route.len * (1 - share) / RURAL_SPACING + Math.random());
+      if (share > 0) cap = Math.max(1, cap);
+    }
+    trackCapacity.set(route, cap);
+    return cap;
+  }
+  const trackFull = (route) => (trackLoad.get(route) || 0) >= capacity(route);
 
   function crosswalkTrack(n) {
     const choices = pedRoutes.across(n);
@@ -625,7 +653,12 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
       const d = p.placed ? Math.hypot(p.x - focusX, p.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : PED_RADIUS) && !stuck(p)) continue;
       pedBudget--;
-      spawnPed(p, jump ? 0 : 60, jump ? NEAR_RADIUS : 280, !jump);
+      if (spawnPed(p, jump ? 0 : 60, jump ? NEAR_RADIUS : 280, !jump) || !p.placed || d <= PED_RADIUS) continue;
+      // no room on the walks around (out of the villages): rather than walk on far away, they wait unplaced
+      if (p.conversation) endConversation(p.conversation);
+      p.placed = false;
+      p.node = null;
+      p.route = p.nextRoute = null;
     }
     for (const p of peds) if (p.placed) avoidPlayer(p);
     meet(dt);

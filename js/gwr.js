@@ -65,6 +65,19 @@ function buildGrid(data) {
   return cells;
 }
 
+// How many register entries lie within `radius` of (x, z), counting up to `max`: is this built-up land?
+export function gwrCount(x, z, radius, max = Infinity) {
+  grid ??= buildGrid(GWR);
+  const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL), reach = Math.ceil(radius / CELL);
+  let count = 0;
+  for (let i = cx - reach; i <= cx + reach; i++) for (let j = cz - reach; j <= cz + reach; j++) {
+    for (const n of grid.get(`${i},${j}`) || []) {
+      if ((GWR.x[n] - x) ** 2 + (GWR.z[n] - z) ** 2 <= radius * radius && ++count >= max) return count;
+    }
+  }
+  return count;
+}
+
 // The index of the register entry nearest (x, z) within `radius`, or -1
 export function nearestGwr(x, z, radius = MATCH_RADIUS, data = GWR) {
   if (data === GWR) grid ??= buildGrid(GWR);
