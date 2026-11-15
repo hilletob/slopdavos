@@ -1015,8 +1015,11 @@ async function buildBerlinCityGrid(scene) {
     }
     return false;
   };
+  // The minigolf at the Hotel Waldhuus (js/missions-data-sport.js MINIGOLF_PATH: x 388–424, z −182…−165) stands on
+  // open meadow: no tree or shrub on its lanes, nor within 4 m round them
+  const onMinigolf = (x, z) => x > 384 && x < 428 && z > -186 && z < -161;
   const clearSite = (x, z, margin) => {
-    if (waterAt(x, z) || onPlayArea(x, z) || onFunicular(x, z) || onPiste(x, z)) return false;
+    if (waterAt(x, z) || onPlayArea(x, z) || onMinigolf(x, z) || onFunicular(x, z) || onPiste(x, z)) return false;
     // (nearestRoads allocates its answer: asked only where some road comes that close at all)
     if (roadCloserThan(x, z, 12, margin) && nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
     const block = blockAt(x, z);
@@ -1051,6 +1054,7 @@ async function buildBerlinCityGrid(scene) {
     tlmShrubs++;
   }
   for (const tree of BERLIN_DATA.trees || []) {
+    if (onMinigolf(tree.x, tree.z)) continue;
     const h = Math.abs(Math.sin(tree.x * 1.9 + tree.z * 8.1));
     parkTreeSites.push({ x: tree.x, z: tree.z, y: 0.09, scale: tree.h ? Math.max(0.45, Math.min(1.8, tree.h / 13)) : 0.66 + h * 0.62,
       species: inTown(tree.x, tree.z) && h < 0.22 ? broadleaf(tree.x, tree.z) : conifer(tree.x, tree.z, h, 0.25), yaw: h * Math.PI * 2 });
