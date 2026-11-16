@@ -1,14 +1,15 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { uniform } from 'three/tsl';
-import { surfaceHeight, groundHeight } from './terrain.js';
+import { surfaceHeight, groundHeight, sidewalkRise } from './terrain.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
+import { excludeBuildings } from './swissbuildings3d.js';
 import { poseSkierRig, skierCadence, SKIER_TECH } from './cross-country.js';
 import { poseSkater } from './missions-ice.js';
 import {
   XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, XC_PLAYER_BIB, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
   racerAt, aiSpeed, placeAt,
-  MINIGOLF, MINIGOLF_SITE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
+  MINIGOLF, MINIGOLF_SITE, MINIGOLF_EXCLUDE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
   BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA
 } from './missions-data-sport.js';
@@ -547,13 +548,16 @@ const xcRace = {
 // =====================================================================================================================
 const FELT = 0xb44a3c, BOARD_COL = 0xd9d4cc, DITCH = 0x4a3b2a; // (the red Eternit lanes, their concrete boards)
 
+/** The ground with the paving on it: the Arkadenplatz's red square stands 0.18 m over the terrain (js/terrain.js
+ *  sidewalkRise), and the ice laid on the terrain would sink under it */
+const pavedHeight = (x, z) => groundHeight(x, z) + sidewalkRise(x, z);
 /** A lane's height: level, just over the highest ground under it (the lanes stand on the path on low feet) */
 function holeBaseY(i, course) {
   const f = holeFrame(i, course), h = course.holes[i];
   let m = -Infinity;
-  for (const [x, y] of h.outline) { const p = holeToWorld(f, x, y); m = Math.max(m, groundHeight(p.x, p.z)); }
+  for (const [x, y] of h.outline) { const p = holeToWorld(f, x, y); m = Math.max(m, pavedHeight(p.x, p.z)); }
   const mid = holeToWorld(f, h.cup[0] / 2, h.cup[1] / 2);
-  return Math.max(m, groundHeight(mid.x, mid.z)) + 0.16;
+  return Math.max(m, pavedHeight(mid.x, mid.z)) + 0.16;
 }
 
 /** The light paved path under the lanes, draped over the terrain (the orthophoto's quads) */
@@ -564,7 +568,7 @@ function buildPath(course, look) {
     const [a, b, c, d] = q;
     const len = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(d[0] - a[0], d[1] - a[1]));
     const M = Math.max(2, Math.ceil(len / 1.5));
-    const P = (u, v) => { const x = (a[0] * (1 - u) + b[0] * u) * (1 - v) + (d[0] * (1 - u) + c[0] * u) * v, z = (a[1] * (1 - u) + b[1] * u) * (1 - v) + (d[1] * (1 - u) + c[1] * u) * v; return [x, groundHeight(x, z) + 0.035, z]; };
+    const P = (u, v) => { const x = (a[0] * (1 - u) + b[0] * u) * (1 - v) + (d[0] * (1 - u) + c[0] * u) * v, z = (a[1] * (1 - u) + b[1] * u) * (1 - v) + (d[1] * (1 - u) + c[1] * u) * v; return [x, pavedHeight(x, z) + 0.035, z]; };
     const lu = Math.hypot(b[0] - a[0], b[1] - a[1]) >= Math.hypot(d[0] - a[0], d[1] - a[1]);
     const nu = lu ? M : N, nv = lu ? N : M;
     for (let i = 0; i < nu; i++) for (let k = 0; k < nv; k++) {
@@ -865,7 +869,7 @@ const minigolf = {
     const w = holeToWorld(f, g.ball.moving ? bx - 0.6 : lx, g.ball.moving ? by - 0.8 : ly);
     if (!g.ball.moving) { p.position.x = w.x; p.position.z = w.z; }
     // (on the path beside the lane; on the lane where the target circle reaches out under the feet)
-    p.position.y = onLane(hole, lx, ly) ? mg.bases[g.hole] + holeHeight(hole, lx, ly).h : Math.max(groundHeight(p.position.x, p.position.z) + 0.035, mg.bases[g.hole] - 0.4);
+    p.position.y = onLane(hole, lx, ly) ? mg.bases[g.hole] + holeHeight(hole, lx, ly).h : Math.max(pavedHeight(p.position.x, p.position.z) + 0.035, mg.bases[g.hole] - 0.4);
     // facing the ball's line: the lane's heading turned by the aim, minus a quarter turn (the ball to the right)
     p.heading = f.heading + mg.aim - Math.PI / 2;
   },
@@ -975,6 +979,8 @@ const minigolf = {
 };
 return minigolf;
 }
+// (the building site's block over the lanes left out of swissBUILDINGS3D: registered at load, before the tiles bake)
+excludeBuildings(MINIGOLF_EXCLUDE);
 const minigolf = minigolfFeature(WALDHUUS_COURSE, {
   name: 'MinigolfWaldhuus', felt: FELT, feltRoughness: 0.95, board: BOARD_COL, post: 0xd43b2a, body: 0xa8a39a, path: 0xd8d2c6, pathAcross: 6,
   ball: () => mesh(new THREE.SphereGeometry(MINIGOLF.ballR, 16, 12), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.35 }), true),

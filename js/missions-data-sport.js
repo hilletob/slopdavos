@@ -620,6 +620,10 @@ export const strokeName = (strokes, par) => (strokes === 1 ? 'Hole in one!' : ['
 
 // The course's middle (the pin) and each lane's frame in the world
 export const MINIGOLF_SITE = { x: 406.0, z: -170.6 };
+// The swissBUILDINGS3D volumes standing over the lanes, left out of the baked tiles (js/missions-sport.js
+// excludeBuildings; { x, z, r } round each one's surveyed centre): tile 11/1750/1010 batch 13, OBJEKTART "Im Bau", a
+// building site's block from x 374 to 409 that swallowed the round island (hole 6) and the lanes beside it
+export const MINIGOLF_EXCLUDE = [{ x: 374.5, z: -162.4, r: 1.5 }];
 // A course is all a minigolf game needs: its physics, its lanes and the ground they stand on. The runtime
 // (js/missions-sport.js minigolfFeature) builds and plays whichever course the mission hands it — the felt at the
 // Waldhuus or the ice on the Arkadenplatz.
