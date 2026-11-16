@@ -117,6 +117,15 @@ function buildGates(run) {
   return { gates, beam };
 }
 
+/** How far the chase camera tilts up (rad) to keep the next gate in view: part of the gate's elevation, never down */
+function gateTilt(run, f) {
+  const g = GATES[f.gate];
+  if (!g || (g.leg > 0 && !f.refuelled)) return 0; // (the pad, the terrace: low ahead)
+  const d = Math.hypot(g.x - f.x, g.z - f.z);
+  if (d < 20) return 0; // (flying through: the ring fills the screen anyway)
+  return clamp(Math.atan2(run.jp.gates[f.gate].position.y - (f.y + 1.5), d) * 0.75, 0, 0.42);
+}
+
 /** The pit crew's corner of the pad: fuel drums, a can, a little flag on a pole */
 function buildPit(x, z, heading) {
   const g = new THREE.Group();
@@ -229,6 +238,7 @@ const jetpack = {
       hud.remove();
       jp.roar.stop();
       restoreWalker(cm, person, jp.saved);
+      person.slopePitch = 0;
     });
   },
   reset(run) {
@@ -237,7 +247,7 @@ const jetpack = {
     jp.ui.flash.textContent = '';
     const person = run.hooks.controllerManager.entities.person;
     person.rig.placed = false;
-    person.chaseDistance = 7; person.chaseHeight = 2.6; person.cameraTargetOffset.y = -0.9;
+    person.chaseDistance = 7; person.chaseHeight = 2.6; person.cameraTargetOffset.y = -0.9; person.slopePitch = 0;
     if (cs) { cs.orbitYawOffset = 0; cs.orbitPitchOffset = 0.12; cs.userOrbitTimer = 0; }
   },
   /** The controllers' personDriver: the flight stepped with the keys, the walker placed where it is */
@@ -260,6 +270,9 @@ const jetpack = {
     p.chaseDistance += ((air ? 7.5 + f.speed * 0.12 : 7) * narrow - p.chaseDistance) * ease;
     p.chaseHeight += (2.6 - p.chaseHeight) * ease;
     p.cameraTargetOffset.y += (-0.9 - p.cameraTargetOffset.y) * ease;
+    // (and up towards the next gate when it hangs high above: from the pad on the Arkadenplatz the Schatzalpbahn's first
+    // gate is 100 m up behind the houses of the Promenade; js/cameras.js slopePitch tilts the chase camera's frame)
+    p.slopePitch = (p.slopePitch || 0) + (-gateTilt(run, f) - (p.slopePitch || 0)) * Math.min(1, dt * 2);
     const shadow = walkerShadow(p);
     if (shadow) shadow.visible = !air || f.agl < 1.5;
   },
