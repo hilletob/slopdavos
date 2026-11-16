@@ -24,6 +24,7 @@ import { applyFigure, chosenFigure } from './player-figure.js';
 import { loadPersonClips } from './person-clips.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { QUALITY } from './quality.js';
+import { FRAME } from './davos-frame.js';
 import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { bryantParkLawn } from './landmarks.js';
@@ -78,6 +79,12 @@ const groundCollider = { type: 'ground' };
 // (exponent STEER_CURVE) keeps the first part of a key's or a gamepad's travel fine. The bird's-eye stick steering
 // (applyStickSteering) is a control loop of its own and is passed through as it is.
 const STEER_IN = 0.35, STEER_OUT = 0.1, STEER_CURVE = 1.5;
+
+// The helicopter's ceiling: 4000 m a.s.l. (over every summit of the map: the Schwarzhorn's 3146 m), and never less
+// than HELI_CLEAR m over the ground under it. A ceiling only over the ground below pressed it down by hundreds of metres
+// where the valley opens under it (from the Jakobshorn over the Landwasser to the Parsenn)
+const HELI_CEILING_Y = 4000 - FRAME.H0, HELI_CLEAR = 420;
+const heliCeiling = (ground) => Math.max(HELI_CEILING_Y, ground + HELI_CLEAR);
 
 const CAR_DRIVE = {
   speed: 36, reverseSpeed: 10.5, acceleration: 4.5,
@@ -906,7 +913,7 @@ class ThirdPersonControllerManager {
     if (!Number.isFinite(heading)) heading = ent.heading;
     const heli = this.activeMode === 'helicopter';
     const ground = surfaceHeight(x, z);
-    const altitude = heli ? Math.max(ground + 0.25, Math.min(ground + 420, savedAltitude ?? Math.max(ground + 92, ent.position.y))) : 0;
+    const altitude = heli ? Math.max(ground + 0.25, Math.min(heliCeiling(ground), savedAltitude ?? Math.max(ground + 92, ent.position.y))) : 0;
     const destination = this.findTeleportPosition(x, z, heading, altitude);
     if (destination) {
       ent.position.x = destination.x;
@@ -3129,12 +3136,18 @@ class ThirdPersonControllerManager {
     h.position.z += Math.cos(h.heading) * h.speed * dt;
     h.position.y += h.verticalSpeed * dt;
 
-    // Davos' relief (and the bridge decks) is the floor; the ceiling stays 420 m above it
+    // Davos' relief (and the bridge decks) is the floor; the ceiling a height over the sea (heliCeiling): no climb
+    // above it, and one that is above it anyway (a save from before) sinks back gently instead of dropping
     const floor = surfaceHeight(h.position.x, h.position.z) + 0.25;
     if (h.position.y < floor) {
       this.reportCollision(h, groundCollider, 'ground', h.position.x, floor, h.position.z, 0, 1, 0, -h.verticalSpeed);
     }
-    h.position.y = Math.max(floor, Math.min(floor + 420, h.position.y));
+    const ceiling = heliCeiling(floor);
+    if (h.position.y > ceiling) {
+      h.position.y = Math.max(ceiling, h.position.y - maxVertSpeed * dt);
+      h.verticalSpeed = Math.min(0, h.verticalSpeed);
+    }
+    h.position.y = Math.max(floor, h.position.y);
     this.resolveHorizontalCollision(h.position, 4.5, null, h);
 
     const targetPitch = (h.speed / maxHorizSpeed) * 0.24;

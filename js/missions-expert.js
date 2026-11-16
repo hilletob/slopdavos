@@ -5,7 +5,8 @@ import { setWorldCenter } from './quality.js';
 import { t } from './i18n.js';
 import {
   EYE, createEyeTest, eyeCustomer, eyeShown, eyeKernel, eyeLine, EYE_LINES, eyeSetDial, eyeSetStep, eyeFlip, eyeTake, eyeKeep, eyeScold, eyePrescribe, eyeStep, fmtDioptre,
-  SNOW, SLF, HARDNESS, GRAINS, DANGER, createSnowGame, snowTempAt, snowTest, snowWrite, snowGrain, snowTap, snowPick, snowDanger, snowClose, snowStep, seededRandom
+  SNOW, SLF, HARDNESS, GRAINS, DANGER, createSnowGame, snowTempAt, snowTest, snowWrite, snowGrain, snowTap, snowPick, snowDanger, snowClose, snowStep, seededRandom,
+  slfNote, slfTime, snowpackFromSlf
 } from './missions-data-expert.js';
 
 // js/missions-expert.js
@@ -14,7 +15,8 @@ import {
 //  - eyeTest: the phoropter on a canvas over the view. The Landolt chart is drawn once and blurred by averaging shifted copies
 //    of it over the lens error's ellipse (Safari's canvas has no ctx.filter), only when the lens changes.
 //  - snowProfile: the Parsennbahn cut from the SLF to the Weissfluhjoch, the measuring field's few merged props, the pit and
-//    the SLF-style profile sheet on a canvas.
+//    the SLF-style profile sheet on a canvas. The pit is today's on the Weissfluhjoch when the SLF's data come (js/slf-live.js,
+//    asked at the mission's start and not waited for), with a line under the board that names them and links www.slf.ch.
 // Everything is built on entry and goes with the run (the field in run.group, the DOM in run.cleanups, the off-screen canvases
 // emptied at teardown); the games run on the mission's frame time. The canvases' texts call t(): the DOM observer can't see them.
 
@@ -32,8 +34,11 @@ const STYLE = `
 .ex-box{display:flex;flex-direction:column;gap:6px;align-items:center;max-width:calc(100vw - 16px)}
 .ex-game canvas{border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);touch-action:none;max-width:calc(100vw - 16px);background:#222;user-select:none;-webkit-user-select:none}
 .ex-info{background:rgba(10,12,20,.8);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:5px 12px;font-size:13px;text-align:center;max-width:560px}
-.ex-cut{position:fixed;inset:0;z-index:47;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center;background:#0a1020;color:#eaf2ff;font:700 22px Inter,system-ui,sans-serif;transition:opacity .45s;opacity:0;pointer-events:none}
+.ex-cut{position:fixed;inset:0;z-index:47;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center;background:#0a1020;color:#eaf2ff;font:700 22px Inter,system-ui,sans-serif;transition:opacity .45s;opacity:0;pointer-events:none}
 .ex-cut.on{opacity:1}
+.ex-src{font-size:12px;color:#cfd6df;text-align:center;max-width:560px}
+.ex-src a{color:#9fd0ff;font-weight:700}
+.ex-cut .ex-src{display:block;margin-top:14px;font-size:14px;font-weight:600}
 body.ex-busy .gta-prompt,body.ex-busy .touch-use,body.ex-busy .mission-prompt,body.ex-busy #touch-controls{display:none!important}
 @media (max-width:640px){.ex-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}.ex-info{font-size:11px;padding:3px 8px}}
 @media (max-height:500px){.ex-game{padding-top:2px;z-index:46}.ex-info{display:none}}
@@ -548,8 +553,9 @@ function drawPit(c, g) {
     c.fillText(T.value == null ? '--.- °C' : `${T.value.toFixed(1)} °C`, x + 91, PIT.top + 36);
   } else if (g.stage === 'ct' || g.stage === 'pick') {
     // the 30 x 30 cm column, cut free in the wall, the shovel blade on top; once broken the block above the fracture slides
-    const weak = s.layers[s.weak], cx0 = x + 58, cw = 66, broke = g.ct.broke;
-    const yWeak = pitY(s, weak.top), slide = broke ? 11 : 0, bottomY = pitY(s, Math.max(0, weak.bottom - 30));
+    // (a column that will not break, CTN, is cut free to the ground)
+    const weak = s.layers[s.weak] ?? null, cx0 = x + 58, cw = 66, broke = g.ct.broke && !!weak;
+    const yWeak = weak ? pitY(s, weak.top) : 0, slide = broke ? 11 : 0, bottomY = weak ? pitY(s, Math.max(0, weak.bottom - 30)) : PIT.bottom;
     c.fillStyle = 'rgba(38,48,63,.8)'; c.fillRect(cx0 - 9, PIT.top, 9, bottomY - PIT.top); c.fillRect(cx0 + cw, PIT.top, 9, bottomY - PIT.top);
     c.fillStyle = '#d6322a'; c.fillRect(cx0 - 6 + slide, PIT.top - 6 + (g.ct.cool > 0 ? 3 : 0), cw + 12, 5);
     if (broke) {
@@ -570,7 +576,8 @@ function drawSheet(c, g) {
   const hy = (h) => py1 - (h / s.H) * (py1 - py0), hx = (hard) => px1 - ((hard + 1) / 5) * (px1 - px0), tx = (T) => px1 + (clamp(T, -20, 0) / 20) * (px1 - px0);
   c.fillStyle = '#fbfbf4'; c.beginPath(); c.roundRect(SH.x, SH.y, SH.w, SH.h, 8); c.fill();
   c.fillStyle = '#1c2a3a'; c.textAlign = 'left'; c.font = `800 12px ${FONT}`;
-  c.fillText(`${t('Snow profile')} · Weissfluhjoch 2536 m`, SH.x + 8, SH.y + 15, SH.w - 14);
+  const when = s.source?.kind === 'slf' ? ` · SLF ${slfTime(s.source.measured)}` : '';
+  c.fillText(`${t('Snow profile')} · Weissfluhjoch 2536 m${when}`, SH.x + 8, SH.y + 15, SH.w - 14);
   // the grid and the temperature axis along the top
   c.font = `600 9.5px ${FONT}`; c.textAlign = 'center'; c.strokeStyle = 'rgba(30,50,80,.16)'; c.lineWidth = 1;
   for (let T = -20; T <= 0; T += 5) { const x = tx(T); c.beginPath(); c.moveTo(x, py0); c.lineTo(x, py1); c.stroke(); c.fillStyle = '#b3261e'; c.fillText(T === 0 ? '0 °C' : `${T}`.replace('-', '−'), x, py0 - 5); }
@@ -686,7 +693,7 @@ function drawSnow(sp, g) {
     });
   } else if (g.stage === 'danger') {
     c.fillStyle = '#fff'; c.textAlign = 'left'; c.font = `600 12px ${FONT}`;
-    wrap(c, t('Breaks from the wrist: high. From the elbow: considerable. From the shoulder: moderate. 30 cm of fresh snow: one level more.'), x0, yP + 12, bw, 15);
+    wrap(c, t('Breaks from the wrist: high. From the elbow: considerable. From the shoulder: moderate. No break: low. 30 cm of fresh snow: one level more.'), x0, yP + 12, bw, 15);
     const w = (bw - 24) / 5;
     DANGER.forEach((d, i) => button(b, `danger${d.level}`, x0 + i * (w + 6), yP + 46, w, 92, `${d.level}`, { colour: d.colour, fg: d.level <= 3 ? '#111' : '#fff', size: 28, sub: t(d.name) }));
   } else if (g.stage === 'sheet') {
@@ -704,7 +711,8 @@ function drawSnow(sp, g) {
       c.fillStyle = got >= max * 0.75 ? '#7dff7d' : got >= max * 0.4 ? '#ffc83d' : '#ff6b6b'; c.fillRect(PIT.x + 10, y + 6, (PIT.w - 20) * (got / max), 6);
     });
     c.fillStyle = '#fff'; c.textAlign = 'left'; c.font = `700 13px ${FONT}`;
-    c.fillText(`${t('Danger level')}: ${t('yours')} ${g.record.danger} · ${t('profile')} ${s.danger} · CT${s.ct} · ${s.newSnow} cm ${t('fresh snow')}`, x0, yP + 16, bw);
+    const bulletin = s.bulletin != null ? ` · ${t('SLF bulletin')} ${s.bulletin}` : '';
+    c.fillText(`${t('Danger level')}: ${t('yours')} ${g.record.danger} · ${t('profile')} ${s.danger}${bulletin} · ${s.ct == null ? 'CTN' : `CT${s.ct}`} · ${s.newSnow} cm ${t('fresh snow')}`, x0, yP + 16, bw);
     c.font = `600 12px ${FONT}`; c.fillStyle = '#cfd6df';
     wrap(c, t('One pit is only one clue: the real bulletin weighs many profiles, the weather and the observers.'), x0, yP + 36, bw, 15);
     button(b, 'close', x0, yP + 74, bw, 66, t('Send it to the forecasters'), { colour: '#1a8f4a', size: 18, sub: 'Space' });
@@ -723,7 +731,12 @@ const SNOW_FEATURE = {
     document.body.append(cut);
     run.cleanups.push(() => cut.remove());
     run.group.add(buildField(), buildSign());
-    run.sp = { b, cut, cutT: -1, jumped: false };
+    // where the pit comes from, under the board: the SLF's data are CC BY 4.0, named and linked wherever they show
+    const src = el('div', 'ex-src');
+    src.hidden = true;
+    b.canvas.after(src);
+    run.sp = { b, cut, src, cutT: -1, jumped: false, live: undefined };
+    SNOW_FEATURE.ask(run);
     // the profile's keys in the key bar (js/actions.js), by the step at hand; the keys themselves are key() below's
     const at = (stage, sub) => () => { const g = run.sp.b.open ? run.state?.game : null; return !!g && g.stage === stage && (sub === undefined || (g.sub === 'hard') === sub); };
     run.actions([
@@ -738,10 +751,32 @@ const SNOW_FEATURE = {
       { kind: 'hint', kbd: ['Space'], label: 'Send it to the forecasters', when: at('sheet') }
     ]);
   },
+  /** Today's snow from the SLF, not waited for: by the time the player reaches the pit it is long there (undefined: asked, not
+   *  yet answered; null: none) */
+  ask(run) {
+    const sp = run.sp;
+    sp.live = undefined;
+    // (loaded on demand, like js/personal-text.js: only this mission talks to the SLF's function)
+    import('./slf-live.js').then(({ loadSlfSnow }) => loadSlfSnow()).catch(() => null).then((live) => { if (run.sp === sp) sp.live = live ?? null; });
+  },
+  /** The line that names the data, with the link to the SLF when they show (in the board, and on the ride up) */
+  note(run, into, snow) {
+    const { text, link } = slfNote(snow);
+    into.replaceChildren();
+    if (link) {
+      const a = el('a', null, 'Data: SLF');
+      a.href = link; a.target = '_blank'; a.rel = 'noopener';
+      into.append(a, ' · ');
+    }
+    into.append(el('span', null, text));
+    into.hidden = false;
+  },
   reset(run) {
     const sp = run.sp;
     run.state.game = null;
     run.state.arrived = false;
+    if (sp.live === null) SNOW_FEATURE.ask(run); // (a restart asks again when the first request came to nothing)
+    sp.src.hidden = true;
     sp.cutT = -1; sp.jumped = false;
     sp.cut.hidden = true; sp.cut.classList.remove('on');
     showBoard(run, sp.b, false);
@@ -795,6 +830,12 @@ const SNOW_FEATURE = {
         sp.cutT = 0;
         holdPlayer(run, true);
         sp.cut.textContent = 'Up with the Parsennbahn to the Weissfluhjoch, then on skis to the measuring field …';
+        // what the field will show today, when the SLF has answered by now
+        if (sp.live !== undefined) {
+          const line = el('span', 'ex-src');
+          SNOW_FEATURE.note(run, line, snowpackFromSlf(sp.live, 1));
+          sp.cut.append(line);
+        }
         sp.cut.hidden = false;
         requestAnimationFrame(() => sp.cut.classList.add('on'));
       }
@@ -809,7 +850,8 @@ const SNOW_FEATURE = {
       return;
     }
     if (!sp.b.open && id === 'profile' && live(run)) {
-      run.state.game = createSnowGame((Date.now() & 0xffff) + 1);
+      run.state.game = createSnowGame((Date.now() & 0xffff) + 1, sp.live ?? null);
+      SNOW_FEATURE.note(run, sp.src, run.state.game.snow);
       showBoard(run, sp.b, true);
     }
     const g = run.state.game;
@@ -824,6 +866,7 @@ const SNOW_FEATURE = {
       else if (e.kind === 'reading') blip(run, 'pock');
       else if (e.kind === 'tap') blip(run, 'thud');
       else if (e.kind === 'break') { popUp(sp.b, 'Crack!', true, 1.2); blip(run, 'scrape'); }
+      else if (e.kind === 'nobreak') { popUp(sp.b, 'No break: CTN', false, 1.6); blip(run, 'good'); sp.b.keyHold = false; }
       else if (e.kind === 'result') blip(run, e.total >= SNOW.medals.silver ? 'good' : 'bad');
     }
     g.events.length = 0;

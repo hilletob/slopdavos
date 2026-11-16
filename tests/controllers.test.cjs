@@ -1058,3 +1058,21 @@ test('a held turn key eases the steering in, a tap steers a little, and letting 
   controller.keys.right = 0.5;
   assert.ok(Math.abs(controller.turnInput(0.01) + 0.5 ** 1.5) < 1e-12, 'an analog stick is followed at once, through the curve');
 });
+
+test('the helicopter keeps its height over an opening valley: the ceiling is a height over the sea, not over the ground', () => {
+  const { controller } = keyboardHarness();
+  const h = {
+    position: { x: 0, y: 1000, z: 0 }, heading: 0, speed: 0, verticalSpeed: 0, pitchAngle: 0, rollAngle: 0,
+    tiltPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }
+  };
+  controller.entities = { helicopter: h };
+  controller.resolveHorizontalCollision = () => {};
+  // (the flat test world: the ground at 0, so 1000 m over it is far above the old 420 m over the ground)
+  for (let i = 0; i < 30; i++) controller.updateHelicopter(1 / 30, i / 30);
+  assert.ok(Math.abs(h.position.y - 1000) < 1e-9, `held at 1000 m, got ${h.position.y}`);
+  // above the ceiling (4000 m a.s.l.) it sinks back at the climb rate, no drop
+  const ceiling = 4000 - 406; // (the stub frame's H0)
+  h.position.y = ceiling + 100;
+  controller.updateHelicopter(0.1, 1);
+  assert.ok(h.position.y < ceiling + 100 && h.position.y > ceiling + 98, `sinks gently, got ${h.position.y - ceiling}`);
+});

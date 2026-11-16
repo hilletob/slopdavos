@@ -301,6 +301,9 @@ export const SNOW = {
   tap: { cooldown: 0.12, max: 30 }, // the compression test: 10 from the wrist, 10 from the elbow, 10 from the shoulder
   newSnowCm: 30, // this much fresh snow adds a danger level
   points: { hardness: 200, grain: 200, temp: 150, ct: 100, danger: 200, time: 150, dangerNear: 80, tempExact: 0.3, tempZero: 2, timeT: [80, 200] },
+  // a deeper pit than the training profile's 180 cm takes more readings: each one past these is given its time back, so a
+  // winter's real 3 m on the Weissfluhjoch is no worse for the time points than the training pit
+  readingsFree: 19, readingTime: 1.5, // readings, s each
   medals: { gold: 800, silver: 600, bronze: 350 }
 };
 
@@ -327,23 +330,154 @@ export function createSnowpack(seed = 7) {
   return snow;
 }
 
+// --- Today's snow from the SLF -----------------------------------------------------------------------------------------
+// The live data (supabase/functions/slf-snow/reduce.js reduceSlf, fetched by js/slf-live.js): the station WFJ2 beside the
+// measuring field (snow height, air, snow surface and the mast's sensors 0, 25, 50 and 100 cm above the ground), the field's
+// morning new snow board and the bulletin for Davos. What they fix in the pit: its depth, the new snow on top, the
+// temperatures, whether there is a persistent weak layer at all (only when the bulletin names the problem at 2536 m) and how
+// easily the column breaks (so that the game's rule of thumb lands on the bulletin's level). What they cannot know (where in
+// the old snow the layers lie, how hard each one is) comes from the seed, along the lines of a Davos winter: depth hoar at
+// the base after a cold, thin early winter, rounded old snow, the autumn's crust, a slab, the new snow.
+export const SLF_LIVE = {
+  minH: 50, // cm: less is no pit (in November the Weissfluhjoch often has a handful of centimetres)
+  maxH: 400, // cm (the field's deepest, February 1999: some 3.4 m)
+  staleHours: 36, // older readings are not today's snow
+  cover: 5, // cm of snow a mast sensor needs over it to measure the snow and not the air
+  settle: 0.8, // the three days' new snow settles as it lies: cm on the board to cm in the wall
+  link: 'https://www.slf.ch' // CC BY 4.0: the data are named with a link wherever they show
+};
+
+/** Whether the live data can make a pit: { ok, reason: 'slf' | 'none' | 'stale' | 'shallow', hs } */
+export function slfUsable(live) {
+  const hs = typeof live?.hs === 'number' && Number.isFinite(live.hs) ? live.hs : null;
+  if (hs == null) return { ok: false, reason: 'none', hs: null };
+  const measured = Date.parse(live.measured), fetched = Date.parse(live.fetched);
+  if (!Number.isFinite(measured) || (Number.isFinite(fetched) && fetched - measured > SLF_LIVE.staleHours * 3600000)) return { ok: false, reason: 'stale', hs };
+  if (hs < SLF_LIVE.minH) return { ok: false, reason: 'shallow', hs };
+  return { ok: true, reason: 'slf', hs };
+}
+
+const cold = (T) => Math.round(Math.min(0, T) * 10) / 10; // (snow is never warmer than 0 °C: a warmer reading is melting snow)
+const known = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * The pit from the SLF's data, or the training profile (createSnowpack) when they can't make one: too little snow, no or
+ * old data. Either way `source` says which: { kind: 'slf', measured, hs, level, problems, valid, newSnow24, newSnow72 } or
+ * { kind: 'training', reason, hs, measured }. On top of createSnowpack's fields: `temps` (the measured profile,
+ * [{ h: cm above the ground, T }], read by snowTempAt) and `bulletin` (the level the SLF gives Davos today, or null).
+ * `weak` is where the compression test breaks, -1 when it does not break at all (`ct` null).
+ */
+export function snowpackFromSlf(live, seed = 7) {
+  const use = slfUsable(live);
+  if (!use.ok) return { ...createSnowpack(seed), bulletin: null, source: { kind: 'training', reason: use.reason, hs: use.hs, measured: live?.measured ?? null } };
+  const rand = seededRandom(seed);
+  const span = (a, b) => a + rand() * (b - a);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+  const H = Math.round(Math.min(SLF_LIVE.maxH, use.hs));
+  const b = live.bulletin && typeof live.bulletin === 'object' ? live.bulletin : null;
+  const problems = (Array.isArray(b?.problems) ? b.problems : []).filter((p) => p && p.atField !== false).map((p) => p.type);
+  const pwl = problems.includes('persistent_weak_layers');
+  const slab = problems.includes('wind_slab') || problems.includes('new_snow');
+  const level = known(b?.level) ? clamp(Math.round(b.level), 1, 5) : null;
+  // a warm spell this week (air above 0 °C, or a snow surface at the melting point today) leaves a melt-freeze crust on top
+  const warm = (known(live.ta7max) && live.ta7max > 0) || (known(live.tss24max) && live.tss24max > -0.5);
+  // the new snow of the last three days, settled; less than a few centimetres is no layer of its own
+  const board = known(live.newSnow?.h72) ? Math.max(0, live.newSnow.h72) : 0;
+  let P = Math.round(Math.min(board * SLF_LIVE.settle, H * 0.4));
+  if (P < 3) P = 0;
+  // the old snow from the ground up. With a persistent weak layer it is either the depth hoar at the base (the classic of
+  // the inner Alps after a thin, cold early winter) or facets on the autumn's crust, half and half by the seed.
+  const onCrust = pwl && rand() < 0.5;
+  const old = [
+    { w: span(0.16, 0.26), hard: pwl && !onCrust ? pick([0, 1]) : pick([1, 2]), grain: 'DH', weak: pwl && !onCrust },
+    { w: span(0.3, 0.45), hard: pick([2, 3]), grain: 'RG', weak: false, main: true }
+  ];
+  if (onCrust || (!warm && rand() < 0.35)) old.push({ w: span(0.06, 0.1), hard: pick([3, 4]), grain: 'MF', weak: false });
+  if (onCrust) old.push({ w: span(0.06, 0.1), hard: pick([0, 1]), grain: pick(['FC', 'FC', 'DH']), weak: true });
+  // the slab: wind-packed rounded grains when the bulletin speaks of wind slabs or new snow, else settled old snow
+  old.push({ w: span(0.2, 0.35), hard: slab ? pick([2, 3]) : 2, grain: slab ? 'RG' : pick(['RG', 'DF']), weak: false });
+  if (warm && !onCrust) old.push({ w: span(0.05, 0.08), hard: pick([3, 4]), grain: 'MF', weak: false });
+  // the old snow's centimetres shared out by the weights, each at least 4, the rest to the rounded old snow
+  const O = H - P, sum = old.reduce((n, l) => n + l.w, 0);
+  for (const l of old) l.d = Math.max(4, Math.round((l.w / sum) * O));
+  old.find((l) => l.main).d += O - old.reduce((n, l) => n + l.d, 0);
+  const stack = P ? [...old, { d: P, hard: 0, grain: 'PP', weak: false }] : old;
+  const layers = [];
+  let h = 0;
+  for (const l of stack) { layers.unshift({ bottom: h, top: h + l.d, hard: l.hard, grain: l.grain, weak: l.weak }); h += l.d; }
+  // the compression test: chosen so that the rule of thumb (dangerFor) gives the bulletin's level. It breaks in the
+  // persistent weak layer when there is one; without one in the slab, under its top layer (the new snow's base, or under
+  // the wind slab or the crust); at level 1 not at all (CTN). Without a bulletin only a heavy new snow breaks.
+  const base = level == null ? (P >= 20 ? 3 : 1) : level - (P >= SNOW.newSnowCm ? 1 : 0);
+  const ct = base >= 4 ? Math.round(span(6, 10)) : base === 3 ? Math.round(span(11, 20)) : base === 2 ? Math.round(span(21, 28)) : null;
+  const weak = ct == null ? -1 : pwl ? layers.findIndex((l) => l.weak) : 1;
+  // the temperatures: the snow surface (infrared), the mast's sensors the snow has covered, the ground
+  const surface = known(live.tss) ? live.tss : known(live.ta) ? live.ta : -6;
+  const temps = [{ h: 0, T: cold(known(live.ts?.[0]) ? live.ts[0] : -0.4) }];
+  for (const s of [25, 50, 100]) if (s + SLF_LIVE.cover <= H && known(live.ts?.[s])) temps.push({ h: s, T: cold(live.ts[s]) });
+  temps.push({ h: H, T: cold(surface) });
+  const snow = {
+    H, layers, weak, ct, surfaceT: cold(surface), newSnow: P, seed, temps, bulletin: level,
+    source: {
+      kind: 'slf', measured: live.measured, hs: use.hs, level, problems,
+      valid: b?.valid ?? null, region: b?.name ?? null,
+      newSnow24: known(live.newSnow?.h24) ? live.newSnow.h24 : null, newSnow72: known(live.newSnow?.h72) ? live.newSnow.h72 : null
+    }
+  };
+  snow.danger = dangerFor(snow);
+  return snow;
+}
+
+/** The SLF's measuring time as the Swiss write it, in Davos' time: "16.11. 16:00" */
+export function slfTime(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(t)).map((p) => [p.type, p.value]));
+  return `${parts.day}.${parts.month}. ${parts.hour}:${parts.minute}`;
+}
+const fmtCm = (cm) => `${Math.round(cm * 10) / 10} cm`;
+
+/** The line under the profile board and on the ride up: where the pit comes from. { text, link } (link: the SLF's site, null
+ *  when no SLF data are shown) */
+export function slfNote(snow) {
+  const src = snow?.source;
+  if (src?.kind === 'slf') {
+    const level = src.level != null ? ` · bulletin level ${src.level}` : '';
+    return { text: `Weissfluhjoch ${slfTime(src.measured)} · ${fmtCm(src.hs)} of snow${level}`, link: SLF_LIVE.link };
+  }
+  if (src?.reason === 'shallow') return { text: `SLF: only ${fmtCm(src.hs)} on the Weissfluhjoch today: a training profile`, link: SLF_LIVE.link };
+  if (src?.reason === 'stale') return { text: 'SLF: no fresh reading from the Weissfluhjoch: a training profile', link: SLF_LIVE.link };
+  return { text: 'No SLF data today: a training profile', link: null };
+}
+
 /** The danger level this profile speaks for. (Very much the game's rule of thumb: the real bulletin weighs many profiles,
- *  the weather and the observers' reports for a whole region.) */
+ *  the weather and the observers' reports for a whole region.) A column that does not break (CTN) speaks for low. */
 export function dangerFor(snow) {
-  const base = snow.ct <= 10 ? 4 : snow.ct <= 20 ? 3 : 2;
+  const base = snow.ct == null ? 1 : snow.ct <= 10 ? 4 : snow.ct <= 20 ? 3 : 2;
   return clamp(base + (snow.newSnow >= SNOW.newSnowCm ? 1 : 0), 1, 5);
 }
 
 /** The temperature at a depth (cm under the surface), °C to a tenth: near 0 at the ground, curving to the cold surface */
 export function snowTempAt(snow, depth) {
+  if (snow.temps?.length >= 2) {
+    // the measured profile: straight between the readings (the mast's sensors, the surface, the ground)
+    const h = clamp(snow.H - depth, 0, snow.H), P = snow.temps;
+    let i = 1;
+    while (i < P.length - 1 && P[i].h < h) i++;
+    const a = P[i - 1], b = P[i], k = b.h > a.h ? clamp((h - a.h) / (b.h - a.h), 0, 1) : 1;
+    return Math.round((a.T + (b.T - a.T) * k) * 10) / 10;
+  }
   const k = clamp((snow.H - depth) / snow.H, 0, 1);
   return Math.round((-0.4 + (snow.surfaceT + 0.4) * k ** 1.3) * 10) / 10;
 }
 /** The depths of the readings: from the surface every 10 cm */
 export const snowDepths = (snow) => { const out = []; for (let d = 0; d <= snow.H; d += SNOW.tempStep) out.push(d); return out; };
 
-export function createSnowGame(seed = 7) {
-  const snow = createSnowpack(seed);
+/** `live`: the SLF's data (snowpackFromSlf; null when they did not come: the training profile with its hint); left out:
+ *  the training profile alone */
+export function createSnowGame(seed = 7, live) {
+  const snow = live === undefined ? createSnowpack(seed) : snowpackFromSlf(live, seed);
   return {
     snow, stage: 'dig', t: 0, done: false, dug: 0,
     layer: 0, sub: 'hard', tests: [], selected: null, busy: 0,
@@ -385,9 +519,13 @@ export function snowTap(g) {
   g.ct.cool = SNOW.tap.cooldown;
   g.ct.taps++;
   g.events.push({ kind: 'tap', n: g.ct.taps });
-  if (g.ct.taps >= g.snow.ct) {
+  if (g.snow.ct != null && g.ct.taps >= g.snow.ct) {
     g.ct.broke = true; g.record.ctTap = g.ct.taps; g.stage = 'pick';
     g.events.push({ kind: 'break', n: g.ct.taps });
+  } else if (g.snow.ct == null && g.ct.taps >= SNOW.tap.max) {
+    // thirty taps and the column stands: no fracture (CTN), nothing to mark
+    g.record.ctTap = null; g.record.ctLayer = -1; g.stage = 'danger';
+    g.events.push({ kind: 'nobreak' });
   }
   return true;
 }
@@ -462,13 +600,14 @@ export function snowScore(g) {
     return sum + clamp(1 - (e - P.tempExact) / (P.tempZero - P.tempExact), 0, 1);
   }, 0) / g.depths.length;
   const dangerOff = r.danger == null ? 9 : Math.abs(r.danger - snow.danger);
+  const spare = Math.max(0, g.depths.length - SNOW.readingsFree) * SNOW.readingTime;
   const parts = {
     hardness: Math.round((P.hardness * hard) / n),
     grain: Math.round((P.grain * grain) / n),
     temp: Math.round(P.temp * temps),
     ct: r.ctLayer === snow.weak ? P.ct : 0,
     danger: dangerOff === 0 ? P.danger : dangerOff === 1 ? P.dangerNear : 0,
-    time: Math.round(P.time * clamp((P.timeT[1] - g.t) / (P.timeT[1] - P.timeT[0]), 0, 1))
+    time: Math.round(P.time * clamp((P.timeT[1] + spare - g.t) / (P.timeT[1] - P.timeT[0]), 0, 1))
   };
   return { ...parts, total: parts.hardness + parts.grain + parts.temp + parts.ct + parts.danger + parts.time };
 }
@@ -480,7 +619,7 @@ export const SNOW_STAGE_TEXT = {
 export const SNOW_MISSION = {
   id: 'schneeprofil-slf',
   title: 'Snow profile for the SLF',
-  intro: 'At the SLF in Davos Dorf the avalanche forecasters want a fresh profile from the measuring field on the Weissfluhjoch, 2536 m. Fetch the kit at the institute, ride up, then do it as it is really done. Hold to dig to the ground. Layer by layer: try fist, four fingers, one finger, pencil, knife, and write down the largest that still goes in; look at the grain under the loupe. Hold the thermometer in the wall every 10 cm until it settles. Tap the compression test: where does it break? Then set the danger level for the bulletin. Your sheet is compared with the truth, and the quicker the better. About three minutes.',
+  intro: 'At the SLF in Davos Dorf the avalanche forecasters want a fresh profile from the measuring field on the Weissfluhjoch, 2536 m. Fetch the kit at the institute, ride up, then do it as it is really done. Hold to dig to the ground. Layer by layer: try fist, four fingers, one finger, pencil, knife, and write down the largest that still goes in; look at the grain under the loupe. Hold the thermometer in the wall every 10 cm until it settles. Tap the compression test: where does it break? Then set the danger level for the bulletin. Your sheet is compared with the truth, and the quicker the better. With enough snow the pit is today’s, from the SLF’s live data. About three minutes.',
   mode: 'person',
   season: 'winter',
   time: 'midday',

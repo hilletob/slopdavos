@@ -101,6 +101,14 @@ test('the expert missions translate names, intros, generated texts and every tex
   assert.equal(t('Compression test · 2:05'), 'Kompressionstest · 2:05');
   assert.match(t('Hardness 200 · grain 100 · temperature 150 · break 100 · danger 80 · time 20'), /^Härte 200 · Korn 100/);
   assert.equal(t('4 of 4 customers · 3 exact · 100 · 90'), '4 von 4 Kunden · 3 exakt · 100 · 90');
+  // the snow profile's source line (js/missions-data-expert.js slfNote), with and without the SLF's live data
+  assert.equal(t('SLF: only 14.8 cm on the Weissfluhjoch today: a training profile'), 'SLF: Heute nur 14.8 cm auf dem Weissfluhjoch: ein Übungsprofil');
+  assert.equal(t('Weissfluhjoch 10.02. 12:00 · 182.4 cm of snow · bulletin level 3'), 'Weissfluhjoch 10.02. 12:00 · 182.4 cm Schnee · Bulletin Stufe 3');
+  assert.equal(t('Weissfluhjoch 10.02. 12:00 · 182 cm of snow'), 'Weissfluhjoch 10.02. 12:00 · 182 cm Schnee');
+  assert.equal(t('No SLF data today: a training profile'), 'Heute keine SLF-Daten: ein Übungsprofil');
+  assert.equal(t('SLF: no fresh reading from the Weissfluhjoch: a training profile'), 'SLF: kein frischer Messwert vom Weissfluhjoch: ein Übungsprofil');
+  assert.equal(t('Data: SLF'), 'Daten: SLF');
+  assert.equal(t('No break: CTN'), 'Kein Bruch: CTN');
   // every literal the canvas draws goes through t(), and every one of them has its German
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../js/missions-expert.js', import.meta.url), 'utf8');
