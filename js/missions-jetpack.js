@@ -117,6 +117,9 @@ function buildGates(run) {
   return { gates, beam };
 }
 
+// The stick: seconds to full travel and back to the centre, and the response curve's exponent
+const STICK_IN = 0.45, STICK_OUT = 0.12, STICK_CURVE = 1.6;
+
 /** How far the chase camera tilts up (rad) to keep the next gate in view: part of the gate's elevation, never down */
 function gateTilt(run, f) {
   const g = GATES[f.gate];
@@ -248,6 +251,7 @@ const jetpack = {
     const person = run.hooks.controllerManager.entities.person;
     person.rig.placed = false;
     person.chaseDistance = 7; person.chaseHeight = 2.6; person.cameraTargetOffset.y = -0.9; person.slopePitch = 0;
+    jp.stick = { pitch: 0, turn: 0 };
     if (cs) { cs.orbitYawOffset = 0; cs.orbitPitchOffset = 0.12; cs.userOrbitTimer = 0; }
   },
   /** The controllers' personDriver: the flight stepped with the keys, the walker placed where it is */
@@ -255,7 +259,21 @@ const jetpack = {
     const p = cm.entities.person, f = run.state?.flight, jp = run.jp;
     if (!f || !live(run)) { p.speed = 0; return; }
     const k = cm.keys;
-    const input = { pitch: (+k.forward || 0) - (+k.backward || 0), turn: (+k.left || 0) - (+k.right || 0), up: +k.up || 0, down: +k.down || 0 };
+    // (the keys are on or off: the stick eases in, so that a tap is a small correction and a held key the full turn or
+    // lean after half a second; let go, it centres quickly; the response curve keeps the first part of the travel fine)
+    const st = jp.stick || (jp.stick = { pitch: 0, turn: 0 });
+    // (a gamepad's or the touch stick's travel comes as a number and is followed as it is: only the keys ease)
+    const analog = (a, b) => typeof k[a] === 'number' || typeof k[b] === 'number';
+    const stickTo = (cur, want, direct) => {
+      if (direct) return want;
+      const out = Math.abs(want) > Math.abs(cur) && Math.sign(want) !== -Math.sign(cur);
+      const rate = dt / (out ? STICK_IN : STICK_OUT);
+      return cur + clamp(want - cur, -rate, rate);
+    };
+    st.pitch = stickTo(st.pitch, clamp((+k.forward || 0) - (+k.backward || 0), -1, 1), analog('forward', 'backward'));
+    st.turn = stickTo(st.turn, clamp((+k.left || 0) - (+k.right || 0), -1, 1), analog('left', 'right'));
+    const curve = (v) => Math.sign(v) * Math.abs(v) ** STICK_CURVE;
+    const input = { pitch: curve(st.pitch), turn: curve(st.turn), up: +k.up || 0, down: +k.down || 0 };
     stepJet(f, input, dt, jp.groundAt, jp.solidAt);
     for (const e of f.events.splice(0)) jetpack.event(run, f, e);
     p.position.set(f.x, f.y, f.z);

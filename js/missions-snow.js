@@ -476,7 +476,7 @@ const mtbFeature = {
     // (from the steering input: js/controllers.js turns the bike at 2.15 rad/s at full lock, whatever the speed; the
     // input, unlike the heading's change per frame, does not jitter with the frame rate)
     const num = (k) => (k === true ? 1 : Number(k) || 0);
-    const turn = num(cm.keys.left) - num(cm.keys.right);
+    const turn = cm.steer ?? num(cm.keys.left) - num(cm.keys.right);
     const latG = Math.abs(v * turn * BIKE_TURN_RATE) / SNOW_GRAVITY;
     if (m.crashT > 0) {
       m.crashT -= dt;

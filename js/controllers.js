@@ -73,6 +73,12 @@ const SNOWCAT_START = { x: 900, z: -1062, heading: 1.889 };
 export const PLAYER_STARTS = { person: PERSON_START, cyclist: CYCLIST_START, car: CAR_HOME, helicopter: HELI_START, snowcat: SNOWCAT_START };
 const groundCollider = { type: 'ground' };
 
+// The turn input every driver reads (this.steer, -1..1, + left): the keys are on or off, so it eases in like a stick —
+// a tap a small correction, a held key full lock after STEER_IN s — and centres within STEER_OUT s; the response curve
+// (exponent STEER_CURVE) keeps the first part of a key's or a gamepad's travel fine. The bird's-eye stick steering
+// (applyStickSteering) is a control loop of its own and is passed through as it is.
+const STEER_IN = 0.35, STEER_OUT = 0.1, STEER_CURVE = 1.5;
+
 const CAR_DRIVE = {
   speed: 36, reverseSpeed: 10.5, acceleration: 4.5,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
@@ -549,6 +555,7 @@ class ThirdPersonControllerManager {
     this._gamepadKeys = {};
     this.directionalSteering = false;
     this._stickDirections = { touch: null, gamepad: null };
+    this.steer = 0; this._steerStick = 0;
 
     // (the van's indicators, the high beam, the groomer's beacon and tiller are actions of js/actions.js, bound in
     // js/main.js: the register's keyboard calls toggleIndicator / toggleHighBeam / toggleBeacon / toggleTiller)
@@ -730,6 +737,24 @@ class ThirdPersonControllerManager {
     this._touchKeys = {};
     this._gamepadKeys = {};
     for (const action of Object.keys(this.keys)) this.keys[action] = false;
+    this.steer = this._steerStick = 0;
+  }
+
+  // this.steer for this frame (see STEER_IN): the keys eased like a stick, a gamepad's or the touch stick's travel as it is;
+  // the driver of the mode (one a frame) calls it with the frame's dt and gets it back
+  turnInput(dt) {
+    const l = this.keys.left, r = this.keys.right;
+    const want = Math.max(-1, Math.min(1, (+l || 0) - (+r || 0)));
+    if (this.directionalSteering) return (this.steer = this._steerStick = want);
+    let cur = this._steerStick;
+    // (a stick's travel comes as a number; true is a key, false a key or a stick let go: both back to the centre)
+    if (typeof l !== 'number' && typeof r !== 'number') {
+      const out = Math.abs(want) > Math.abs(cur) && Math.sign(want) !== -Math.sign(cur);
+      const rate = Math.max(0, dt) / (out ? STEER_IN : STEER_OUT);
+      cur += Math.max(-rate, Math.min(rate, want - cur));
+    } else cur = want;
+    this._steerStick = cur;
+    return (this.steer = Math.sign(cur) * Math.abs(cur) ** STEER_CURVE);
   }
 
   // The RhB trains (js/rhb.js buildRhB): in the rhb mode the player drives one of them
@@ -2705,8 +2730,7 @@ class ThirdPersonControllerManager {
     if (this.keys.forward) targetSpeed = maxSpeed * this.keys.forward;
     else if (this.keys.backward) targetSpeed = -maxSpeed * 0.65 * this.keys.backward;
 
-    if (this.keys.left) p.heading += turnRate * dt * this.keys.left;
-    if (this.keys.right) p.heading -= turnRate * dt * this.keys.right;
+    p.heading += turnRate * dt * this.turnInput(dt);
 
     const accelerating = Math.abs(targetSpeed) > Math.abs(p.speed) && p.speed * targetSpeed >= 0;
     const acceleration = accelerating ? 5.5 * Math.abs(targetSpeed) / maxSpeed : 12;
@@ -2740,9 +2764,7 @@ class ThirdPersonControllerManager {
 
     const braking = c.speed * throttle < 0;
 
-    let steerInput = 0;
-    if (this.keys.left) steerInput = this.keys.left;
-    if (this.keys.right) steerInput = -this.keys.right;
+    const steerInput = this.turnInput(dt);
 
     const prevX = c.position.x;
     const prevZ = c.position.z;
@@ -2845,9 +2867,7 @@ class ThirdPersonControllerManager {
     let throttle = 0;
     if (this.keys.forward) throttle = this.keys.forward;
     else if (this.keys.backward) throttle = -this.keys.backward;
-    let steer = 0;
-    if (this.keys.left) steer = this.keys.left;
-    if (this.keys.right) steer = -this.keys.right;
+    const steer = this.turnInput(dt);
 
     // Grade along the heading (rise over run, positive uphill in the direction of travel)
     const sin = Math.sin(s.heading), cos = Math.cos(s.heading), y = s.position.y;
@@ -2945,9 +2965,7 @@ class ThirdPersonControllerManager {
 
     b.speed = driveSpeed(b.speed, throttle, dt, BICYCLE_DRIVE);
 
-    let turnInput = 0;
-    if (this.keys.left) turnInput = this.keys.left;
-    if (this.keys.right) turnInput = -this.keys.right;
+    const turnInput = this.turnInput(dt);
 
     if (Math.abs(b.speed) > 0.15) {
       const dirSign = b.speed >= 0 ? 1 : -1;
@@ -3008,9 +3026,7 @@ class ThirdPersonControllerManager {
     if (this.keys.forward) fwdInput = this.keys.forward;
     else if (this.keys.backward) fwdInput = -this.keys.backward;
 
-    let yawInput = 0;
-    if (this.keys.left) yawInput = this.keys.left;
-    if (this.keys.right) yawInput = -this.keys.right;
+    const yawInput = this.turnInput(dt);
 
     let vertInput = 0;
     if (this.keys.up) vertInput = this.keys.up;

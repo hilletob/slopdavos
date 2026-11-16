@@ -210,7 +210,8 @@ for (const mode of ['Person', 'Car', 'Cyclist', 'CargoBike', 'Helicopter']) {
         continue;
       }
       assert.ok(Math.abs(partial.speed - full.speed * 0.4) < 1e-10, 'movement should scale with joystick strength');
-      assert.ok(Math.abs(partial.heading - full.heading * 0.4) < 1e-10, 'turning should scale with joystick strength');
+      // (the turn follows the stick through the response curve, js/controllers.js STEER_CURVE: finer near the centre)
+      assert.ok(Math.abs(partial.heading - full.heading * 0.4 ** 1.5) < 1e-10, 'turning should follow the joystick through the response curve');
       if (mode === 'Helicopter') {
         assert.ok(Math.abs(partial.verticalSpeed - full.verticalSpeed * 0.4) < 1e-10);
       }
@@ -254,9 +255,12 @@ test('cargo bike wheels spin for their own radii and steering moves the fork, ba
   assert.ok(Math.abs(cargoBike.frontWheel.rotation.x - distance / cargoBike.frontWheelRadius) < 1e-10);
   assert.ok(Math.abs(cargoBike.rearWheel.rotation.x - distance / cargoBike.rearWheelRadius) < 1e-10);
   assert.ok(cargoBike.frontWheel.rotation.x > cargoBike.rearWheel.rotation.x, 'the smaller front wheel turns farther over the same distance');
-  assert.equal(cargoBike.frontSteerPivot.rotation.y, 0.34);
-  assert.equal(cargoBike.handlebarPivot.rotation.y, 0.34);
-  assert.equal(cargoBike.bikeFrame.steerAngle, 0.34);
+  // (a held key eases the steering in: after these 0.2 s part of the lock, the fork, bars and grips together)
+  const lock = 0.34 * controller.steer;
+  assert.ok(controller.steer > 0 && controller.steer < 1, 'a key held for a moment steers part of the way');
+  assert.equal(cargoBike.frontSteerPivot.rotation.y, lock);
+  assert.equal(cargoBike.handlebarPivot.rotation.y, lock);
+  assert.equal(cargoBike.bikeFrame.steerAngle, lock);
   assert.equal(cyclist.frontWheel.rotation.x, cyclistDistance / 0.35, 'switching bikes leaves the parked cyclist state intact');
 });
 
@@ -1000,4 +1004,20 @@ test('a player inside a building is set outside across the nearest wall, never i
   controller.setBuildingInteriors([{ ...squarePlan(0, 0, 10, 10), maxY: 12 }]);
   assert.equal(controller.insideBuilding(5, 5, 14), null);
   assert.ok(controller.insideBuilding(5, 5, 3));
+});
+
+test('a held turn key eases the steering in, a tap steers a little, and letting go centres it quickly', () => {
+  const { controller } = keyboardHarness();
+  controller.keys.left = true;
+  const tap = controller.turnInput(0.1);
+  assert.ok(tap > 0 && tap < 0.2, `a tap of 0.1 s is a small correction (${tap})`);
+  for (let i = 0; i < 10; i++) controller.turnInput(0.05);
+  assert.equal(controller.steer, 1, 'held for half a second it is full lock');
+  controller.keys.left = false;
+  controller.turnInput(0.05);
+  assert.ok(controller.steer > 0 && controller.steer < 0.5, 'let go, it heads back to the centre');
+  controller.turnInput(0.06);
+  assert.equal(controller.steer, 0, 'and is there within 0.1 s');
+  controller.keys.right = 0.5;
+  assert.ok(Math.abs(controller.turnInput(0.01) + 0.5 ** 1.5) < 1e-12, 'an analog stick is followed at once, through the curve');
 });

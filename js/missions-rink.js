@@ -222,8 +222,7 @@ function rinkFloor(x, z, iceY) {
 function hoseWalk(dt, cm) {
   const p = cm.entities.person, H = RINK.hose, k = cm.keys;
   const target = k.forward ? H.walk * k.forward : k.backward ? -H.back * k.backward : 0;
-  if (k.left) p.heading += H.turn * dt * k.left;
-  if (k.right) p.heading -= H.turn * dt * k.right;
+  p.heading += H.turn * dt * (cm.turnInput?.(dt) ?? (+k.left || 0) - (+k.right || 0));
   p.speed += clamp(target - p.speed, -6 * dt, 6 * dt);
   p.position.x += Math.sin(p.heading) * p.speed * dt;
   p.position.z += Math.cos(p.heading) * p.speed * dt;
