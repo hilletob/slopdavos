@@ -487,7 +487,9 @@ const paraglider = {
     if (!f || !live(run)) { p.speed = 0; return; }
     const k = cm.keys;
     const flare = k.up ? 1 : 0;
-    const input = { steer: (+k.left || 0) - (+k.right || 0), accel: flare ? 0 : +k.forward || 0, brake: Math.max(+k.backward || 0, flare), go: !!(k.forward || k.up) };
+    // (the brake lines: the controllers' eased stick, once a frame — a tap a gentle pull, held the full turn)
+    const steer = cm.turnInput ? cm.turnInput(dt) : (+k.left || 0) - (+k.right || 0);
+    const input = { steer, accel: flare ? 0 : +k.forward || 0, brake: Math.max(+k.backward || 0, flare), go: !!(k.forward || k.up) };
     const before = f.phase;
     stepFlight(f, input, dt, groundHeight, flightThermals(run));
     if (f.phase !== before) paraglider.phaseChange(run, f);

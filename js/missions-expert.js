@@ -34,7 +34,7 @@ const STYLE = `
 .ex-info{background:rgba(10,12,20,.8);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:5px 12px;font-size:13px;text-align:center;max-width:560px}
 .ex-cut{position:fixed;inset:0;z-index:47;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center;background:#0a1020;color:#eaf2ff;font:700 22px Inter,system-ui,sans-serif;transition:opacity .45s;opacity:0;pointer-events:none}
 .ex-cut.on{opacity:1}
-body.ex-busy .controls-hint,body.ex-busy .gta-prompt,body.ex-busy .touch-use,body.ex-busy .mission-prompt,body.ex-busy #touch-controls{display:none!important}
+body.ex-busy .gta-prompt,body.ex-busy .touch-use,body.ex-busy .mission-prompt,body.ex-busy #touch-controls{display:none!important}
 @media (max-width:640px){.ex-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}.ex-info{font-size:11px;padding:3px 8px}}
 @media (max-height:500px){.ex-game{padding-top:2px;z-index:46}.ex-info{display:none}}
 `;
@@ -94,7 +94,7 @@ function createBoard(run, onPress) {
   const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
   const iw = globalThis.innerWidth || W, ih = globalThis.innerHeight || H;
-  const room = ih <= 500 ? ih - 6 : ih - (iw <= 640 ? 210 : 250); // (a phone on its side: the canvas takes the whole height)
+  const room = ih <= 500 ? ih - 6 : ih - (iw <= 640 ? 210 : 280); // (a phone on its side: the canvas takes the whole height; on a desk the key bar under it)
   canvas.style.width = `${Math.max(240, Math.min(W, iw - 16, room * (W / H)))}px`;
   canvas.style.aspectRatio = `${W} / ${H}`;
   const c = canvas.getContext('2d');
@@ -309,6 +309,11 @@ const EYE_FEATURE = {
     addStyle(run);
     const b = createBoard(run, (id) => EYE_FEATURE.act(run, id));
     run.ey = { b, sharp: null, blur: null, blurC: null, blurKey: '', dpr: b.dpr, said: null, saidT: 0 };
+    // the phoropter's main keys in the key bar (js/actions.js, one row); the board's buttons carry all of them, the keys
+    // themselves are key() below's
+    const open = () => !!run.ey?.b.open;
+    run.actions([[['Q', 'E'], 'sphere or cylinder'], [['Space'], 'Flip'], [['1', '2'], 'lens 1 or 2'], [['Enter'], 'Write the prescription']]
+      .map(([kbd, label]) => ({ kind: 'hint', kbd, label, when: open })));
   },
   reset(run) {
     run.state.game = null;
@@ -719,6 +724,19 @@ const SNOW_FEATURE = {
     run.cleanups.push(() => cut.remove());
     run.group.add(buildField(), buildSign());
     run.sp = { b, cut, cutT: -1, jumped: false };
+    // the profile's keys in the key bar (js/actions.js), by the step at hand; the keys themselves are key() below's
+    const at = (stage, sub) => () => { const g = run.sp.b.open ? run.state?.game : null; return !!g && g.stage === stage && (sub === undefined || (g.sub === 'hard') === sub); };
+    run.actions([
+      { kind: 'hint', kbd: ['Space'], label: 'Hold to dig', when: at('dig') },
+      { kind: 'hint', kbd: [`1-${HARDNESS.length}`], label: 'a hand test', when: at('layers', true) },
+      { kind: 'hint', kbd: ['Space'], label: 'Write down', when: at('layers', true) },
+      { kind: 'hint', kbd: [`1-${GRAINS.length}`], label: 'the grain shape', when: at('layers', false) },
+      { kind: 'hint', kbd: ['Space'], label: 'Hold it in the wall', when: at('temp') },
+      { kind: 'hint', kbd: ['Space'], label: 'Tap!', when: at('ct') },
+      { kind: 'hint', kbd: ['1-6'], label: 'the weak layer', when: at('pick') },
+      { kind: 'hint', kbd: [`1-${DANGER.length}`], label: 'the danger level', when: at('danger') },
+      { kind: 'hint', kbd: ['Space'], label: 'Send it to the forecasters', when: at('sheet') }
+    ]);
   },
   reset(run) {
     const sp = run.sp;

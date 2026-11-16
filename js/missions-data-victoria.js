@@ -353,7 +353,7 @@ export const VICTORIA_MISSION = {
       check(ctx, state) {
         const g = state.hk;
         if (!g) return { done: false, progress: 0, text: 'Taking the trolley …', target: null, hint: null };
-        return { done: g.finished, progress: (g.results.length + (g.finished ? 0 : hkRoom(g).chores.length ? g.done.length / hkRoom(g).chores.length : 0)) / HOUSEKEEPING.rooms.length, text: `${hkRoom(g).name} · ${Math.ceil(g.left)} s · ${Math.round(g.score)} pts`, target: null, hint: '1-7: chore · A/D: scrub' };
+        return { done: g.finished, progress: (g.results.length + (g.finished ? 0 : hkRoom(g).chores.length ? g.done.length / hkRoom(g).chores.length : 0)) / HOUSEKEEPING.rooms.length, text: `${hkRoom(g).name} · ${Math.ceil(g.left)} s · ${Math.round(g.score)} pts`, target: null, hint: '1-7 or tap: pick a chore · then A, D, A …: scrub' };
       }
     },
     {
@@ -363,7 +363,7 @@ export const VICTORIA_MISSION = {
       check(ctx, state) {
         const g = state.kitchen;
         if (!g) return { done: false, progress: 0, text: 'Down to the kitchen …', target: null, hint: null };
-        return { done: g.finished, progress: g.served.length / KITCHEN_ORDERS.length, text: `${g.served.length} of ${KITCHEN_ORDERS.length} dishes · ${Math.round(g.score)} pts`, target: null, hint: '1-3: burner' };
+        return { done: g.finished, progress: g.served.length / KITCHEN_ORDERS.length, text: `${g.served.length} of ${KITCHEN_ORDERS.length} dishes · ${Math.round(g.score)} pts`, target: null, hint: '1-3 or tap: the ticket onto a burner · again in the green: plate it' };
       }
     },
     {
@@ -374,7 +374,7 @@ export const VICTORIA_MISSION = {
         const g = state.laundry;
         if (!g) return { done: false, progress: 0, text: 'Down to the Lingerie …', target: null, hint: null };
         const p = g.phase === 'sort' ? 0.4 * g.item / LINEN.length : 0.4 + 0.6 * g.sheet / LAUNDRY.sheets;
-        return { done: g.finished, progress: p, text: g.phase === 'sort' ? `Item ${g.item + 1} of ${LINEN.length} · ${Math.round(g.score)} pts` : `Sheet ${Math.min(g.sheet + 1, LAUNDRY.sheets)} of ${LAUNDRY.sheets} · ${Math.round(g.score)} pts`, target: null, hint: '←/→' };
+        return { done: g.finished, progress: p, text: g.phase === 'sort' ? `Item ${g.item + 1} of ${LINEN.length} · ${Math.round(g.score)} pts` : `Sheet ${Math.min(g.sheet + 1, LAUNDRY.sheets)} of ${LAUNDRY.sheets} · ${Math.round(g.score)} pts`, target: null, hint: g.phase === 'sort' ? 'A / ◀: whites · D / ▶: colours' : 'Hold A or D (◀ ▶): keep the sheet straight' };
       }
     }
   ]

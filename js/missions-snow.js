@@ -3,7 +3,7 @@ import { groundHeight } from './terrain.js';
 import { createRiderFigure } from './winter-sports.js';
 import {
   createRider, stepRider, riderSpeed, travelHeading, SKI_PARAMS, BOARD_PARAMS, SNOW_GRAVITY,
-  bigAirProfile, bigAirU, recordBigAirJump, BIG_AIR_JUMPS, MTB_CRASH_MS
+  bigAirProfile, bigAirU, recordBigAirJump, BIG_AIR_JUMPS, MTB_CRASH_MS, MTB_SKID
 } from './missions-data-snow.js';
 
 // js/missions-snow.js
@@ -73,6 +73,10 @@ function riderFeature(kind) {
       if (park) buildBigAir(run, park);
       // the grab on touch screens: the jump button, held (the joystick spins and flips in the air)
       if (board) run.button('up', 'Grab');
+      // the key bar: what the keys do on the skis or the board
+      run.hints(board
+        ? [[['A', 'D'], 'carve · in the air: spin'], [['W', 'S'], 'tuck, brake · in the air: flip'], [['Space'], 'in the air: grab']]
+        : [[['A', 'D'], 'steer'], [['W'], 'tuck'], [['S'], 'brake']]);
       // the rider moves the pedestrian (js/controllers.js personDriver) while the mission lasts
       cm.personDriver = (dt) => drive(run, dt, cm);
       run.cleanups.push(() => { if (cm.personDriver) cm.personDriver = null; });
@@ -123,12 +127,14 @@ function placeRider(run, x, z, heading) {
   poseFigure(run);
 }
 
-/** The controllers' input for the rider: steer A/D, tuck W, brake S; in the air spin A/D, flip W/S, grab Space */
-function riderInput(run, cm) {
+/** The controllers' input for the rider: steer A/D, tuck W, brake S; in the air spin A/D, flip W/S, grab Space (once a
+ *  frame: the steering is the controllers' eased stick, js/controllers.js turnInput; the spin takes the keys as they are) */
+function riderInput(run, cm, dt) {
   const k = cm.keys, s = run.snow;
   const num = (v) => (v === true ? 1 : Number(v) || 0);
   const left = num(k.left), right = num(k.right), fwd = num(k.forward), back = num(k.backward);
-  return { steer: left - right, tuck: fwd, brake: back, spin: left - right, flip: fwd - back, grab: !!k.up || s.touchGrab };
+  const steer = cm.turnInput ? cm.turnInput(dt) : left - right;
+  return { steer, tuck: fwd, brake: back, spin: left - right, flip: fwd - back, grab: !!k.up || s.touchGrab };
 }
 
 function drive(run, dt, cm) {
@@ -139,7 +145,7 @@ function drive(run, dt, cm) {
     // held in the start gate until the first input (the stopwatch starts with it)
     r.vx = r.vy = r.vz = 0;
   } else {
-    let input = riderInput(run, cm);
+    let input = riderInput(run, cm, dt);
     if (run.phase === 'done') input = { steer: 0, tuck: 0, brake: 0.7, spin: 0, flip: 0, grab: false };
     if (input.steer) s.steerSide = Math.sign(input.steer);
     let left = Math.min(dt, 0.1);
@@ -405,6 +411,23 @@ function updateBigAir(run, ctx, dt) {
 const BIKE_TURN_RATE = 2.15; // rad/s at full lock (js/controllers.js updateCyclist)
 const ARCH_COLOURS = { next: 0xff7a1a, ahead: 0xf2f2f0, done: 0x3fd66b };
 
+/** The tyres sliding over the dirt as the bike starts to wash out: a short rasp of filtered noise, lower than the horn
+ *  sledge's runner (on the city's audio system, js/missions-fx.js MissionAudio's context and mix; silent while the
+ *  sound is off) */
+function tyreSkid(run) {
+  const A = run.audio;
+  if (!A?.live) return;
+  const ctx = A.audio.context, now = ctx.currentTime, n = Math.floor(ctx.sampleRate * 0.5);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.8;
+  bp.frequency.setValueAtTime(1500, now); bp.frequency.exponentialRampToValueAtTime(650, now + 0.45);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.001, now); g.gain.exponentialRampToValueAtTime(0.4, now + 0.04); g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  src.connect(bp).connect(g).connect(A.audio.mix);
+  src.start(now);
+}
+
 function buildCheckpointArches(run, cps) {
   // two posts and a banner, 5 m wide, one instanced mesh
   const parts = [
@@ -444,10 +467,10 @@ function mergeBoxes(parts) {
 
 const mtbFeature = {
   setup(run) {
-    run.mtb = { ...buildCheckpointArches(run, run.def.createState().cps), wobble: 0, toast: createToast(run) };
+    run.mtb = { ...buildCheckpointArches(run, run.def.createState().cps), wobble: 0, warned: false, toast: createToast(run) };
   },
   reset(run) {
-    Object.assign(run.mtb, { shown: -1, wobble: 0, crashT: 0 });
+    Object.assign(run.mtb, { shown: -1, wobble: 0, crashT: 0, warned: false });
   },
   teardown(run) {
     const bike = run.hooks.controllerManager.entities.cyclist;
@@ -471,8 +494,9 @@ const mtbFeature = {
     const along = -SNOW_GRAVITY * Math.sin(Math.atan(grade)) * 0.85;
     const v = bike.speed || 0;
     bike.speed = v + along * dt * (v >= -0.1 ? 1 : 0.4) - Math.sign(v) * Math.min(Math.abs(v), 0.0035 * v * v * dt);
-    // the crash: a turn tighter than the tyres hold at this speed, held for a moment (the lateral acceleration over
-    // 1.7 g for 0.4 s: full lock above ~8 m/s; the bike's own steering turns as fast at any speed)
+    // the crash: a turn tighter than the tyres hold at this speed, held for a moment (js/missions-data-snow.js MTB_SKID:
+    // the lateral acceleration over 1.7 g for 0.6 s: full lock above ~8 m/s; the bike's own steering turns as fast at
+    // any speed)
     // (from the steering input: js/controllers.js turns the bike at 2.15 rad/s at full lock, whatever the speed; the
     // input, unlike the heading's change per frame, does not jitter with the frame rate)
     const num = (k) => (k === true ? 1 : Number(k) || 0);
@@ -487,10 +511,19 @@ const mtbFeature = {
       return;
     }
     st.crashT = 0;
-    m.wobble = latG > 1.7 ? m.wobble + dt : Math.max(0, m.wobble - dt * 2);
+    const K = MTB_SKID;
+    m.wobble = latG > K.g ? m.wobble + dt : Math.max(0, m.wobble - dt * K.recover);
     st.wobble = m.wobble;
-    if (m.wobble > 0.4) {
+    // the warning, once a skid: the tyres start to slide (the toast, their rasp on the dirt) — still time to ease off
+    // the turn and brake before it throws the rider off (as the horn sledge's lifting runner)
+    if (m.wobble > K.warnS && !m.warned) {
+      m.warned = true;
+      m.toast.show('Skidding: ease off, brake!', '', '#ffd27a', 1.2);
+      tyreSkid(run);
+    } else if (m.wobble <= 0) m.warned = false;
+    if (m.wobble > K.holdS) {
       m.wobble = 0;
+      m.warned = false;
       m.crashT = 1.6;
       st.crashes++;
       st.penaltyMs += MTB_CRASH_MS;

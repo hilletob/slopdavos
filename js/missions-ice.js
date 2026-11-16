@@ -258,8 +258,10 @@ const skates = {
     const p = cm.entities.person, ice = run.ice, sk = ice.skater, P = ice.P, k = cm.keys;
     if (run.ice.override) { run.ice.override(dt, p, cm); return; }
     const go = live(run) && !ice.frozen;
+    // (the lean: the controllers' eased stick, once a frame — a tapped key a small correction, held a full lean)
+    const steer = cm.turnInput ? cm.turnInput(dt) : (+k.left || 0) - (+k.right || 0);
     const input = go ? {
-      forward: +k.forward || 0, back: +k.backward || 0, steer: (+k.left || 0) - (+k.right || 0),
+      forward: +k.forward || 0, back: +k.backward || 0, steer,
       push: ice.pushEnabled && edge(run, cm, 'up')
     } : { forward: 0, back: 1, steer: 0, push: false };
     sk.heading = p.heading;

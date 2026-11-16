@@ -216,7 +216,7 @@ test('the Kapo variant: blue light, the car across the road, cones on foot, the 
   const cone = m.objectives[2];
   assert.deepEqual(cone.allowModes, ['car', 'person']);
   view = cone.check(frame({ mode: 'car', x: 0, z: 0 }), state);
-  assert.equal(view.hint, 'On foot [1]');
+  assert.equal(view.hint, 'Get out of the car [F]');
   const c = view.target;
   for (let i = 0; i < 3; i++) view = cone.check(frame({ mode: 'person', x: c.x + 1, z: c.z, dt: 1 }), state);
   assert.equal(view.done, true);

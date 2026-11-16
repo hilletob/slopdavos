@@ -104,6 +104,7 @@ const sunriseClock = {
       d.watch += dt;
       const from = d.from ?? (d.from = minute), t = Math.min(1, d.watch / DAWN.watch);
       minute = Math.max(from, from + (Math.max(rise, from) + DAWN.afterglow - from) * t);
+      run.state.watchK = t; // (the last objective's bar: how far the sunrise has come)
       if (t >= 1) run.state.watched = true;
     }
     minute = Math.max(dawnStart(), Math.min(rise + 40, minute));

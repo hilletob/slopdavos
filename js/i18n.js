@@ -15,9 +15,8 @@ const pairs = [
   ['Menu', 'Menü'], ['Language', 'Sprache'], ['Sound', 'Ton'], ['On', 'An'], ['Off', 'Aus'], ['Unavailable', 'Nicht verfügbar'],
   ['Clean view', 'Freie Sicht'], ['About', 'Über'],
   ['Missions: points and medals', 'Missionen: Punkte und Medaillen'],
-  ['Atmosphere & time of day', 'Atmosphäre und Tageszeit'],
   ['Golden Hour', 'Goldene Stunde'], ['Sunny Midday', 'Sonniger Mittag'], ['Midday', 'Mittag'],
-  ['Blue Hour', 'Blaue Stunde'], ['Night 23:00', 'Nacht 23:00'], ['Night', 'Nacht'],
+  ['Blue Hour', 'Blaue Stunde'], ['Night', 'Nacht'],
   ['Game time', 'Spielzeit'], ['Summer', 'Sommer'],
   ['Account', 'Konto'], ['Sign in with Google', 'Mit Google anmelden'], ['Sign out', 'Abmelden'],
   ['Finish the mission first.', 'Beende zuerst die Mission.'], ['Opening the sign-in…', 'Die Anmeldung wird geöffnet …'],
@@ -30,7 +29,6 @@ const pairs = [
   ['Deleting failed. Please try again.', 'Löschen hat nicht geklappt. Bitte versuche es erneut.'],
   ['Privacy', 'Datenschutz'],
   ['Sign in to keep your game on all your devices and join the leaderboards.', 'Melde dich an, damit dein Spiel auf all deinen Geräten weiterläuft und du in die Bestenlisten kommst.'],
-  ['Play as a guest', 'Als Gast spielen'],
   ['Try it for 5 minutes as a guest', '5 Minuten als Gast ausprobieren'], ['Sign in with Apple', 'Mit Apple anmelden'],
   ['Please sign in', 'Bitte melde dich an'],
   ['To keep playing, sign in. Your game goes on where you are, on all your devices.', 'Um weiterzuspielen, melde dich an. Dein Spiel geht dort weiter, wo du bist, auf all deinen Geräten.'],
@@ -43,7 +41,7 @@ const pairs = [
   ['Free play', 'Freies Spiel'], ['Longest free flight', 'Längster freier Flug'], ['No flights yet. Be the first.', 'Noch keine Flüge. Sei die erste Person.'],
   ['The furthest a paraglider got from where it took off, with the time in the air. Only a soft landing counts. With the licence: P on a slope.', 'Die grösste Distanz eines Gleitschirms vom Startpunkt, dazu die Zeit in der Luft. Es zählt nur eine weiche Landung. Mit dem Flugschein: P an einem Hang.'],
   ['No scores yet. Be the first.', 'Noch keine Punkte. Sei die erste Person.'],
-  ['The best score of every player, by day. The faster run wins a tie.', 'Der beste Punktestand jeder Person, bei Tag. Bei Gleichstand gewinnt der schnellere Lauf.'], ['How you compare', 'Dein Vergleich'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
+  ['The best score of every player, by day. The faster run wins a tie.', 'Der beste Punktestand jeder Person, bei Tag. Bei Gleichstand gewinnt der schnellere Lauf.'], ['Overall', 'Gesamt'], ['Mission points', 'Missionspunkte'],
   ['The points of your missions, from your cloud save. Every medal counts.', 'Die Punkte deiner Missionen aus deinem Online-Spielstand. Jede Medaille zählt.'],
   ['The best time of every player, by day.', 'Die beste Zeit jeder Person, bei Tag gefahren.'],
   ['No points on the list yet.', 'Noch keine Punkte auf der Liste.'], ['You are not on this list yet.', 'Du bist noch nicht auf dieser Liste.'],
@@ -93,9 +91,8 @@ const pairs = [
   ['Go into the Bäckerei Weber', 'Geh in die Bäckerei Weber'], ['Go into Gourmet Käch', 'Geh zu Gourmet Käch'],
   ['Walk to the Eichhörnliplatz', 'Geh zum Eichhörnliplatz'], ['Go into the Sporthalle Färbi', 'Geh in die Sporthalle Färbi'],
   ['Up the slide tower', 'Auf den Rutschbahnturm'], ['Go to the easel at the Kirchner Museum', 'Geh zur Staffelei beim Kirchner Museum'],
-  ['Go to the adit of the Silberberg', 'Geh zum Stollen am Silberberg'], ['Go into The Green Wildman', 'Geh in The Green Wildman'],
+  ['Go into The Green Wildman', 'Geh in The Green Wildman'],
   ['No shot fired', 'Kein Schuss abgegeben'], ['An empty basket', 'Ein leerer Korb'], ['no cast finished', 'kein Gips fertig'],
-  ['The lamp went out.', 'Die Lampe ging aus.'],
   ['Hide HUD', 'HUD ausblenden'], ['Show HUD', 'HUD einblenden'],
   ['Data & credits', 'Daten & Quellen'], ['Close', 'Schliessen'],
   ['Figure', 'Figur'], ['Your figure', 'Deine Figur'], ['On foot, on the bicycle and on the cargo bike.', 'Zu Fuss, auf dem Velo und auf dem Cargovelo.'],
@@ -166,7 +163,6 @@ const pairs = [
   ['Dischma valley', 'Dischmatal'], ['Auto-Director Aerial', 'Automatische Luftkamera'],
   ['Touch controls', 'Touch-Steuerung'], ['Movement joystick: drag up or down to move, left or right to turn', 'Joystick: nach oben oder unten zum Bewegen, nach links oder rechts zum Lenken ziehen'],
   ['Move & steer', 'Bewegen & lenken'], ['Drag to look · Pinch to zoom', 'Ziehen zum Umschauen · Zwei Finger zum Zoomen'],
-  ['Hold to perform an action', 'Gedrückt halten, um eine Aktion auszuführen'],
   ['Jump', 'Springen'], ['Descend', 'Sinken'],
   ['Full Davos Interactive Street Map', 'Interaktive Davos-Strassenkarte'],
   ['Davos Map', 'Davos-Karte'], ['You are on the Promenade', 'Du bist auf der Promenade'],
@@ -199,7 +195,7 @@ const pairs = [
   ['Grab', 'Greifen'], ['Pick', 'Pflücken'], ['Strike', 'Schlagen'], ['Kick', 'Abstossen'],
   ['Shovel', 'Schaufeln'], ['Double pole', 'Doppelstockschub'],
   ['Chase', 'Verfolgen'], ['Action', 'Action'], ['POV / Dash', 'Ich / Cockpit'], ['Director', 'Regie'],
-  ['Turn', 'Drehen'], ['Sprint', 'Sprinten'], ['Orbit', 'Umschauen'],
+  ['Turn', 'Drehen'], ['Orbit', 'Umschauen'],
   ['Steer', 'Lenken'], ['Boost', 'Beschleunigen'],
   ['Horn', 'Hupe'], ['Indicators', 'Blinker'], ['High beam', 'Fernlicht'],
   ['Pedal', 'Treten'], ['Lean', 'Neigen'],
@@ -234,7 +230,6 @@ const pairs = [
   ['cart', 'Golfwagen'],
   ['balance', 'balancieren'],
   ['clip', 'einhängen'],
-  ['shoot / poke', 'schiessen / stochern'],
   ['speed bar', 'Beschleuniger'],
   ['brakes', 'bremsen'],
   ['flare', 'ausflaren'],
@@ -257,9 +252,9 @@ const pairs = [
   ['no new points', 'keine neuen Punkte'],
   ['First best time', 'Erste Bestzeit'], ['First best score', 'Erster Bestwert'],
   ['The stopwatch starts with your first input after Start.', 'Die Stoppuhr startet mit deiner ersten Eingabe nach dem Start.'],
-  ['Start', 'Starten'], ['Restart', 'Neustarten'], ['Retry', 'Erneut versuchen'],
-  ['Continue', 'Weiter'], ['Quit', 'Beenden'], ['Cancel', 'Abbrechen'],
-  ['Resume', 'Fortsetzen'], ['Pause', 'Pause'], ['Failed', 'Gescheitert'],
+  ['Start', 'Starten'], ['Restart', 'Neustarten'],
+  ['Continue', 'Weiter'], ['Cancel', 'Abbrechen'],
+  ['Pause', 'Pause'],
   ['Gold', 'Gold'], ['Silver', 'Silber'], ['Bronze', 'Bronze'],
   ['Loading', 'Laden'], ['Ready', 'Bereit'], ['Complete', 'Abgeschlossen'],
   ['Speed skating: 2 × 400 m', 'Eisschnelllauf: 2 × 400 m'],
@@ -328,15 +323,69 @@ const pairs = [
   ['The site closes for the day: too slow.', 'Feierabend auf der Baustelle: zu langsam.'],
   ['Over the load: F takes it', 'Über der Last: F hängt sie an'],
   ['Swinging: meet the swing with a small move the same way', 'Die Last pendelt: Fahr dem Pendeln mit einer kleinen Bewegung nach'],
+  ['The hook swings: meet the swing with a small move the same way', 'Der Haken pendelt: Fahr dem Pendeln mit einer kleinen Bewegung nach'],
   ['Gusts: the load drifts', 'Böen: Die Last treibt ab'],
   ['A D slew · W S trolley · E lift · Q lower · F hook · V view', 'A D schwenken · W S Laufkatze · E heben · Q senken · F Haken · V Ansicht'],
-  ['Down: F lets it go', 'Sie steht: F hängt sie aus'],
-  ['Off the spot: lift it and try again', 'Neben der Markierung: Heb sie an und versuch es nochmals'],
-  ['Hooked: lift it clear', 'Angehängt: Heb sie frei'],
   ['Not on the marked spot', 'Nicht auf der Markierung'],
   ['Lower it onto the spot first', 'Setz sie zuerst auf der Markierung ab'],
   ['The hook is not over the load', 'Der Haken ist nicht über der Last'],
   ['Too hard!', 'Zu hart!'],
+  // the crane's step hints (js/missions-data-work.js CRANE_MOVES) and toasts
+  ['Hooked: hold E to lift it off the ground', 'Angehängt: E halten und sie vom Boden heben'],
+  ['Hold E: lift it clear above the terraces first', 'E halten: Heb sie zuerst über die Terrassen'],
+  ['Hold A: slew the jib round towards the yellow ring on the load', 'A halten: Schwenk den Ausleger zum gelben Ring bei der Last'],
+  ['Hold D: slew the jib round towards the yellow ring on the load', 'D halten: Schwenk den Ausleger zum gelben Ring bei der Last'],
+  ['Hold W: run the trolley out over the load', 'W halten: Fahr die Laufkatze hinaus über die Last'],
+  ['Hold S: run the trolley in over the load', 'S halten: Fahr die Laufkatze herein über die Last'],
+  ['Over the load: hold Q to lower the hook onto it', 'Über der Last: Q halten und den Haken auf sie absenken'],
+  ['The hook is too low: hold E to lift it a little', 'Der Haken ist zu tief: E halten und ihn etwas anheben'],
+  ['Let the hook settle over the load, then F takes it', 'Lass den Haken über der Last zur Ruhe kommen, dann hängt F sie an'],
+  ['Hold A: slew the jib round towards the yellow mark on the deck', 'A halten: Schwenk den Ausleger zur gelben Markierung auf dem Deck'],
+  ['Hold D: slew the jib round towards the yellow mark on the deck', 'D halten: Schwenk den Ausleger zur gelben Markierung auf dem Deck'],
+  ['Hold W: run the trolley out over the mark', 'W halten: Fahr die Laufkatze hinaus über die Markierung'],
+  ['Hold S: run the trolley in over the mark', 'S halten: Fahr die Laufkatze herein über die Markierung'],
+  ['Over the mark: hold Q to lower it gently', 'Über der Markierung: Q halten und sie sanft absenken'],
+  ['Down on the mark: F lets it go', 'Sie steht auf der Markierung: F hängt sie aus'],
+  ['Off the mark: hold E to lift it, then set it down inside the ring', 'Neben der Markierung: Mit E anheben, dann im Ring absetzen'],
+  ['Walk (W) to the ladder at the foot of the mast: you climb up into the cab by yourself', 'Geh (W) zur Leiter am Fuss des Turms: In die Kabine steigst du von selbst'],
+  ['Gusts: the load drifts. Hold it over the mark and lower it with Q in a lull', 'Böen: Die Last treibt ab. Halt sie über der Markierung und senk sie in einer Windpause mit Q ab'],
+  ['Up in the cab: the yellow ring in the yard marks the load to take', 'Oben in der Kabine: Der gelbe Ring auf dem Werkplatz zeigt die Last, die du anhängst'],
+  ['Hooked: E lifts it', 'Angehängt: E hebt sie an'],
+  ['Not on the marked spot: E lifts it again', 'Nicht auf der Markierung: E hebt sie wieder an'],
+  ['Lower it onto the spot first (Q)', 'Setz sie zuerst auf der Markierung ab (Q)'],
+  // the other work missions (js/missions-data-work.js, js/missions-work.js)
+  ['Refuse truck', 'Kehrichtwagen'],
+  ['On foot!', 'Zu Fuss!'],
+  ['You are burying a parked car: V turns the chute!', 'Du schüttest ein parkiertes Auto zu: V dreht den Auswurf!'],
+  ['Too fast: the auger chokes and leaves snow', 'Zu schnell: Die Fräse würgt ab und lässt Schnee liegen'],
+  ['Back onto the mower', 'Zurück auf den Mäher'],
+  ['Off the flower bed!', 'Runter vom Blumenbeet!'],
+  ['Stop with the tail at the bins', 'Mit dem Heck bei den Containern anhalten'],
+  ['Stand still while the press empties', 'Stillstehen, während die Presse leert'],
+  ['In flower: hold Space to pick', 'In Blüte: Space halten zum Pflücken'],
+  ['No flowers on this one: leave it', 'Keine Blüten an diesem Strauch: Lass ihn stehen'],
+  ['Picked in the reserve! +10 s', 'Im Schutzgebiet gepflückt! +10 s'],
+  ['Steinpilz (porcini)', 'Steinpilz'], ['Gallenröhrling (bitter bolete)', 'Gallenröhrling'], ['Eierschwamm (chanterelle)', 'Eierschwamm'],
+  ['Falscher Eierschwamm (false chanterelle)', 'Falscher Eierschwamm'], ['Fliegenpilz (fly agaric)', 'Fliegenpilz'],
+  ['Fat brown cap, white to yellowish pores underneath, a stout pale stem with a fine white net', 'Dicker brauner Hut, darunter weisse bis gelbliche Röhren, ein kräftiger heller Stiel mit feinem weissem Netz'],
+  ['Brown cap, pinkish pores underneath, a stem with a coarse dark net', 'Brauner Hut, darunter rosa Röhren, ein Stiel mit grobem dunklem Netz'],
+  ['Egg-yellow funnel, blunt forking ridges running down the stem, firm, smells of apricot', 'Eigelber Trichter, stumpfe gegabelte Leisten bis hinunter an den Stiel, fest, riecht nach Aprikose'],
+  ['Orange funnel with thin, crowded true gills, soft, hardly any smell', 'Oranger Trichter mit dünnen, dichten echten Lamellen, weich, kaum Geruch'],
+  ['Bright red cap with white flakes, white gills, a ring on the stem', 'Leuchtend roter Hut mit weissen Flocken, weisse Lamellen, ein Ring am Stiel'],
+  // the first missions (js/missions-data.js: Rega, avalanche blasting, the motorbike crash)
+  ['Set down on the pad (H), hold steady', 'Auf dem Landeplatz (H) aufsetzen, ruhig halten'],
+  ['Lower: under 3 m above the snow, hold steady', 'Tiefer: unter 3 m über dem Schnee, ruhig halten'],
+  ['Out of ammo', 'Keine Munition mehr'],
+  ['Touched down …', 'Aufgesetzt …'],
+  ['Set down: zero speed, steady', 'Aufsetzen: stillstehen, ruhig halten'],
+  ['Stay on the ground: the crew is with the patient', 'Bleib am Boden: Die Crew ist beim Patienten'],
+  ['Park across the marked zone, blue lights on, zero speed', 'Quer in der markierten Zone parken, Blaulicht an, stillstehen'],
+  ['Get out: F (on foot)', 'Aussteigen: F (zu Fuss)'],
+  ['Get out of the car [F]', 'Aus dem Auto steigen [F]'],
+  ['The Rega is inbound: keep the landing zone clear', 'Die Rega ist im Anflug: Halt den Landeplatz frei'],
+  ['The Rega is taking over the patient …', 'Die Rega übernimmt den Patienten …'],
+  ['The Rega is lifting off', 'Die Rega hebt ab'],
+  ['The Rega has left', 'Die Rega ist weggeflogen'],
   ['Lift', 'Heben'],
   ['Slew', 'Schwenken'], ['Trolley', 'Laufkatze'], ['Hook on / let go', 'Anhängen / Loslassen'],
   ['Lower', 'Senken'],
@@ -378,7 +427,39 @@ const pairs = [
   ['Horn sledge race at the Rinerhorn', 'Hornschlittenrennen am Rinerhorn'],
   ['Sommerrodelbahn on the Schatzalp', 'Sommerrodelbahn auf der Schatzalp'],
   ['The first hairpins', 'Die ersten Spitzkehren'], ['Through the tunnel', 'Durch den Tunnel'], ['Down to the foot of the lift', 'Hinunter zum Lift'],
-  ['Wall', 'Wand'], ['Up the wall!', 'Die Wand hoch!'], ['Boing! Over the wall', 'Boing! Über die Wand'], ['You rammed the family!', 'Du hast die Familie gerammt!'],
+  ['Wall', 'Wand'], ['Up the wall: brake, lean in!', 'Die Wand hoch: bremsen, in die Kurve lehnen!'],['Boing! Over the wall', 'Boing! Über die Wand'], ['You rammed the family!', 'Du hast die Familie gerammt!'],
+  // the horn sledge and the Sommerrodelbahn: toasts, hints, the key bar (js/missions-sledge.js, js/missions-data-sledge.js)
+  ['Into the net!', 'Ins Netz!'], ['Off the run!', 'Von der Bahn abgekommen!'], ['Tipped over!', 'Umgekippt!'], ['Caught by the net', 'Vom Netz aufgefangen'],
+  ['A runner lifts: ease off, brake!', 'Eine Kufe hebt ab: nachlassen, bremsen!'], ['Tipping! Ease off A/D and brake (S)', 'Du kippst! A/D loslassen und bremsen (S)'],
+  ['Deep snow: steer back onto the run', 'Tiefschnee: zurück auf die Bahn lenken'],
+  ['Brake (S) before a bend, then steer through it with A/D', 'Vor der Kurve bremsen (S), dann mit A/D hindurchlenken'],
+  ['Hairpins: brake early; S with A/D drags a heel round the tight ones', 'Haarnadelkurven: früh bremsen; S mit A/D zieht dich mit der Ferse um die engen'],
+  ['Duck low (W) on the straights, brake for the last bends', 'Auf den Geraden ducken (W), vor den letzten Kurven bremsen'],
+  ['steer · lean', 'lenken · lehnen'], ['brake (with A/D: tight turn)', 'bremsen (mit A/D: enge Kurve)'], ['duck · push off', 'ducken · anstossen'],
+  ['Hold S before a hairpin, let go out of it; lean in with A/D', 'Vor der Kehre S halten, aus ihr heraus loslassen; mit A/D hineinlehnen'],
+  ['Let it run on the straight, brake before the next bend', 'Auf der Geraden laufen lassen, vor der nächsten Kurve bremsen'],
+  ['Keep your distance to the family: brake (S) when you close in', 'Abstand zur Familie halten: bremsen (S), wenn du aufschliesst'],
+  ['push off', 'anstossen'], ['hold: brake', 'halten: bremsen'], ['lean into the bend', 'in die Kurve lehnen'],
+  // ski slalom, big air, the bike race (js/missions-snow.js, js/missions-data-snow.js)
+  ['Crash!', 'Sturz!'], ['Back up for the next jump …', 'Zurück nach oben zum nächsten Sprung …'], ['Missed the kicker: back to the top', 'Kicker verpasst: zurück nach oben'],
+  ['Stopped: back to the top', 'Stehen geblieben: zurück nach oben'], ['Missed the kicker', 'Kicker verpasst'], ['Back to the top', 'Zurück nach oben'],
+  ['Try again: this one does not count', 'Nochmals: Dieser zählt nicht'], ['Spin A/D · flip W/S · grab Space', 'Drehen A/D · Salto W/S · Grab Space'],
+  ['Down to the kicker: tuck (W) for speed', 'Hinunter zum Kicker: ducken (W) für Tempo'],
+  ['Shortcut: a checkpoint was missed', 'Abkürzung: Ein Checkpoint wurde ausgelassen'], ['Skidding! Ease off A/D and brake (S)', 'Du rutschst! A/D loslassen und bremsen (S)'],
+  ['Skidding: ease off, brake!', 'Du rutschst: nachlassen, bremsen!'],
+  ['Back on the bike', 'Zurück aufs Bike'], ['tuck', 'ducken'], ['carve · in the air: spin', 'carven · in der Luft: drehen'],
+  ['tuck, brake · in the air: flip', 'ducken, bremsen · in der Luft: Salto'], ['in the air: grab', 'in der Luft: Grab'],
+  // speed skating, the penalty shot, curling (js/missions-ice.js, js/missions-data-ice.js)
+  ['Push', 'Abstossen'], ['SAVE', 'GEHALTEN'], ['GLOVE SAVE', 'MIT DER FANGHAND'], ['POST!', 'PFOSTEN!'], ['POKE CHECK', 'POKE-CHECK'],
+  ['on target', 'aufs Tor'], ['off target', 'neben das Tor'], ['Curl ↻ right', 'Drall ↻ rechts'], ['Curl ↺ left', 'Drall ↺ links'],
+  ['Hogged: short of the hog line, removed', 'Vor der Hogline liegen geblieben: entfernt'], ['Out of play', 'Aus dem Spiel'], ['Short of the house', 'Vor dem Haus liegen geblieben'],
+  ['Wrong way: the race runs counter-clockwise', 'Falsche Richtung: Das Rennen läuft im Gegenuhrzeigersinn'], ['Off the ice: back onto the track', 'Neben dem Eis: zurück auf die Bahn'],
+  ['Saved by the goalie', 'Vom Goalie gehalten'], ['Poke check: the goalie took the puck', 'Poke-Check: Der Goalie hat dir den Puck abgenommen'],
+  ['The puck went backwards: no goal', 'Der Puck ging nach hinten: kein Tor'], ['Too slow: time is up', 'Zu langsam: Die Zeit ist um'],
+  ['Wide of the goal', 'Am Tor vorbei'], ['Off the post!', 'An den Pfosten!'], ['Shot!', 'Schuss!'], ['Sweep: hold Space', 'Wischen: Space halten'],
+  // fresh ice on the Seehofseeli, the splitboard tour: the key bar (js/missions-rink.js, js/missions-splitboard.js)
+  ['hold: spray', 'halten: spritzen'], ['walk backwards', 'rückwärts gehen'], ['Drive slowly over the grey ice, lane beside lane', 'Langsam über das graue Eis fahren, Bahn neben Bahn'],
+  ['hold: transceiver check', 'halten: LVS-Check'], ['kick turn', 'Spitzkehre'], ['back', 'zurück'], ['hold: next step', 'halten: nächster Schritt'], ['hold: probe · dig', 'halten: sondieren · schaufeln'],
   ['Too fast for this bend: brake (S) and lean!', 'Zu schnell für diese Kurve: bremse (S) und lehne dich hinein!'],
   ['A family ahead: do not ram them, brake (S)!', 'Vor dir fährt eine Familie: nicht auffahren, bremse (S)!'],
   ['Back on the sledge', 'Zurück auf den Schlitten'],
@@ -402,15 +483,15 @@ const pairs = [
   ['The sun over the ridges, the valleys still in shadow, and a very cold thermos.', 'Die Sonne über den Graten, die Täler noch im Schatten und eine sehr kalte Thermosflasche.'],
   ['Boots off at the Jöriseen: the water is as cold as it looks.', 'Schuhe aus an den Jöriseen: Das Wasser ist so kalt, wie es aussieht.'],
   // the paraglider flight from the Rinerhorn (js/missions-data-paraglide.js, js/missions-paraglide.js)
-  ['Paraglider flight from the Rinerhorn', 'Gleitschirmflug vom Rinerhorn'], ['Paragliding licence: the flight from the Rinerhorn', 'Flugschein: Gleitschirmflug vom Rinerhorn'],
+  ['Paragliding licence: the flight from the Rinerhorn', 'Flugschein: Gleitschirmflug vom Rinerhorn'],
   // the paragliding licence and the free flight (js/missions.js, js/paraglide-free.js)
   ['Paragliding licence', 'Flugschein'], ['Paragliding licence earned!', 'Flugschein erhalten!'], ['You hold the paragliding licence', 'Du hast den Flugschein'],
   ['P on any slope that falls away: the wing off your back, and fly.', 'P an jedem Hang, der abfällt: Schirm vom Rücken nehmen und fliegen.'],
   ['On a phone: the Fly button on a slope.', 'Auf dem Handy: der Knopf «Fliegen» an einem Hang.'],
   ['No licence yet: land softly on the field at Glaris.', 'Noch kein Flugschein: Lande sanft auf dem Landeplatz in Glaris.'],
   ['The licence exam: land softly on the field at Glaris.', 'Die Flugschein-Prüfung: Lande sanft auf dem Landeplatz in Glaris.'],
-  ['Licence', 'Flugschein'], ['Licence held', 'Flugschein vorhanden'],
-  ['Pack up', 'Einpacken'], ['Take off the wing', 'Schirm auspacken'], ['Pack up the wing', 'Schirm einpacken'],
+  ['Licence', 'Flugschein'],
+  ['Pack up', 'Einpacken'],
   ['W or Space: pull up the wing and run', 'W oder Leertaste: Schirm aufziehen und loslaufen'], ['P: pack it up again', 'P: wieder einpacken'],
   ['Too flat to take off: find a slope that falls away', 'Zu flach zum Starten: Such einen Hang, der abfällt'],
   ['Too steep to run here: find an open slope', 'Zu steil zum Anlaufen: Such einen freien Hang'],
@@ -476,7 +557,7 @@ const pairs = [
   ['Lay the stones in a ring', 'Steine im Kreis legen'], ['Tinder nest in the middle', 'Zundernest in die Mitte'], ['Kindling as a tipi', 'Anfeuerholz als Tipi'], ['Logs round it', 'Scheiter darum herum'],
   ['Dry twigs ✓', 'Dürre Zweige ✓'], ['Kindling ✓', 'Anfeuerholz ✓'], ['A log ✓', 'Ein Scheit ✓'], ['The Spatz stands!', 'Der Spatz steht!'], ['The fireplace is ready', 'Die Feuerstelle ist bereit'],
   ['Sparks in the tinder!', 'Funken im Zunder!'], ['Missed the steel', 'Am Stahl vorbei'], ['An ember in the tinder!', 'Eine Glut im Zunder!'], ['It catches!', 'Es brennt!'], ['Out of breath', 'Keine Luft mehr'],
-  ['FLINT AND STEEL', 'FEUERSTEIN UND STAHL'], ['BREATH', 'ATEM'], ['EMBER', 'GLUT'], ['Camp in the Mattawald', 'Lagerplatz im Mattawald'], ['Pfadi Davos logo', 'Logo der Pfadi Davos'],
+  ['FLINT AND STEEL', 'FEUERSTEIN UND STAHL'], ['BREATH', 'ATEM'], ['EMBER', 'GLUT'], ['Pfadi Davos logo', 'Logo der Pfadi Davos'],
   ['It is dark in the Mattawald, and the others have pitched their tents without you.', 'Im Mattawald ist es dunkel, und die anderen haben ihre Zelte ohne dich aufgestellt.'],
   ['The Spatz stands taut between the spruces of the Mattawald, the fire crackles, and the first cervelats are on their sticks. Allzeit bereit!', 'Der Spatz steht straff zwischen den Fichten des Mattawalds, das Feuer knistert, und die ersten Cervelats stecken an den Stecken. Allzeit bereit!'],
   // the police speed check on the Talstrasse (js/missions-data-radar.js, js/missions-radar.js; its texts with numbers come in German from there)
@@ -486,12 +567,13 @@ const pairs = [
   ['Drive to the speed check on the Talstrasse', 'Zur Geschwindigkeitskontrolle an der Talstrasse fahren'], ['Set up the laser on its tripod', 'Den Laser auf dem Stativ aufstellen'],
   ['Measure the oncoming cars, stop the speeders', 'Entgegenkommende Autos messen, Raser anhalten'],
   ['Parked on the verge …', 'Am Strassenrand geparkt …'], ['Park on the verge beside the Talstrasse', 'Am Rand der Talstrasse parkieren'],
-  ['Get out: F', 'Aussteigen: F'], ['Get out [F]', 'Aussteigen [F]'], ['Setting up the laser …', 'Der Laser wird aufgestellt …'], ['Walk to the marked spot beside the road', 'Geh zur markierten Stelle neben der Strasse'],
+  ['Get out: F', 'Aussteigen: F'], ['Setting up the laser …', 'Der Laser wird aufgestellt …'], ['Walk to the marked spot beside the road', 'Geh zur markierten Stelle neben der Strasse'],
   ['At the car: choose the fine (1-4) or let the driver go (0)', 'Beim Auto: Busse wählen (1-4) oder weiterfahren lassen (0)'], ['Walk to the stopped car', 'Geh zum angehaltenen Auto'],
   ['The car is pulling over …', 'Das Auto hält am Rand an …'], ['Time is up', 'Die Zeit ist um'],
   ['Measure with the laser (Q), stop speeders with the stop sign (E)', 'Mit dem Laser messen (Q), Raser mit der Kelle anhalten (E)'],
   ['Measure', 'Messen'], ['Stop sign', 'Kelle'], ['Laser', 'Laser'], ['Stopped', 'Angehalten'], ['Traffic stop', 'Verkehrskontrolle'], ['Reading', 'Messung'],
   ['limit', 'Limite'], ['tolerance', 'Toleranz'], ['No reading for this car', 'Für dieses Auto gibt es keine Messung'], ['Let go', 'Weiterfahren lassen'], ['no offence', 'keine Übertretung'], ['Report', 'Anzeige'],
+  ['Gamepad: ◀ ▶ choose · A confirm', 'Gamepad: ◀ ▶ wählen · A bestätigen'], ['Previous fine', 'Vorherige Busse'], ['Next fine', 'Nächste Busse'], ['Give the fine', 'Busse erteilen'],
   ['Ice minigolf on the Arkadenplatz', 'Eis-Minigolf auf dem Arkadenplatz'],
   ['Stick and puck back to the hut: a Punsch on the Arkadenplatz warms the fingers again.', 'Stock und Puck zurück in die Hütte: Ein Punsch auf dem Arkadenplatz wärmt die Finger wieder.'],
   ['Shoot', 'Schiessen'],
@@ -542,7 +624,6 @@ const pairs = [
   ['Putter and ball back to the reception: an ice cream from the kiosk is on the house.', 'Schläger und Ball zurück an die Rezeption. Ein Glacé vom Kiosk geht aufs Haus.'],
   ['Game shot! The regulars slide a pint of stout along the bar.', 'Spiel gewonnen! Die Stammgäste schieben dir ein Glas Stout über die Theke.'],
   ['Session over: the locals on the deck bang their boards on the coping.', 'Die Session ist vorbei. Die Skater klopfen mit ihren Boards auf die Kante.'],
-  ['Mine the ore and bring it to day', 'Erz abbauen und ans Tageslicht bringen'],
   ['Mine the ore and get out before the lamp dies', 'Erz abbauen und hinaus, bevor die Lampe erlischt'],
   ['Hold Strike (E / Space) to break the ore', 'Zuschlagen (E / Space) halten, um das Erz herauszuschlagen'],
   ['The lamp is running low: get out!', 'Das Öl geht zur Neige: hinaus!'],
@@ -584,7 +665,7 @@ const pairs = [
   ['Missed: the herd bolts up the slope', 'Daneben: Die Herde flieht den Hang hinauf'],
   ['Hit, but not clean: aim behind the shoulder', 'Getroffen, aber nicht sauber: hinter die Schulter zielen'],
   ['Walk, do not run', 'Gehen, nicht rennen'],
-  ['Z / right click: scope · Shift: hold breath · Space / click: fire', 'Z / Rechtsklick: Zielfernrohr · Shift: Atem anhalten · Space / Klick: schiessen'],
+  ['Turn to the herd, put the crosshair on an old buck, then Z for the scope · Q / E: zoom · Shift: hold breath · Space / click: fire', 'Dreh dich zur Herde, setz das Fadenkreuz auf einen alten Bock, dann Z fürs Zielfernrohr · Q / E: zoomen · Shift: Atem anhalten · Space / Klick: schiessen'],
   ['Warming up …', 'Aufwärmen …'],
   ['WASD: run · Space / click: swing · A/D at the swing: aim', 'WASD: laufen · Space / Klick: schlagen · A/D beim Schlag: zielen'],
   ['Sit down at the top …', 'Oben Platz nehmen …'],
@@ -597,7 +678,6 @@ const pairs = [
   ['Contour', 'Kontur'], ['Template', 'Vorlage'], ['Clear', 'Löschen'], ['Done', 'Fertig'],
   ['Download PNG', 'PNG herunterladen'], ['Your earlier pictures', 'Deine früheren Bilder'],
   ['Cart to the ball (C)', 'Golfwagen zum Ball (C)'],
-  ['W/S or 1-5 club · A/D or drag aim · Space: swing, power, strike · C cart', 'W/S oder 1–5: Schläger · A/D oder Ziehen: zielen · Space: Schwung, Kraft, Schlag · C: Golfwagen'],
   // the golf mission's HUD (js/missions-golf.js; the generated texts: golfDe below)
   ['Space / Swing: putt (A/D aim)', 'Space / Schwung: putten (A/D zielen)'],
   ['Stop the power at the red mark: press again (or let go)', 'Kraft bei der roten Marke stoppen: nochmals drücken (oder loslassen)'],
@@ -642,7 +722,7 @@ const pairs = [
   ['Summer tyres on the Flüela', 'Sommerpneus am Flüela'],
   ['An early winter has come overnight: 20 cm of fresh snow on the Flüelapassstrasse, the plough has been through once, and your van still wears its summer tyres. Drive the last 2.5 km from the Wägerhütta up through the hairpins to the Flüela Hospiz on the pass, 2383 m. The tyres hardly grip: brake early and gently, take the bends slowly, and ease into the throttle; too much and the rear wheels spin, worst of all from a standstill on the slope. Into the snowbank costs 5 s; off the road, or stuck for good, and the climb is over.', 'Der Winter ist über Nacht früh gekommen: 20 cm Neuschnee auf der Flüelapassstrasse, der Pflug ist einmal durch, und dein Bus hat noch die Sommerpneus drauf. Fahr die letzten 2,5 km von der Wägerhütta durch die Kehren hinauf zum Flüela Hospiz auf der Passhöhe, 2383 m. Die Pneus greifen kaum: früh und sanft bremsen, langsam in die Kurven und gefühlvoll Gas geben; zu viel, und die Hinterräder drehen durch, am schlimmsten beim Anfahren am Hang. Im Schneewall kostet es 5 s; neben der Strasse oder endgültig stecken geblieben, und die Fahrt ist vorbei.'],
   ['At the Hospiz the engine ticks as it cools. Winter tyres before the drive down, though.', 'Beim Hospiz tickt der Motor beim Abkühlen. Vor der Talfahrt aber bitte Winterpneus.'],
-  ['Up to the Wägerhus', 'Hinauf zum Wägerhus'], ['Up to the Wägerhütta', 'Hinauf zur Wägerhütta'], ['Up to the Flüela Hospiz', 'Hinauf zum Flüela Hospiz'], ['Up through the hairpins', 'Hinauf durch die Kehren'],
+  ['Up to the Flüela Hospiz', 'Hinauf zum Flüela Hospiz'], ['Up through the hairpins', 'Hinauf durch die Kehren'],
   ['Snow chains over Clavadel', 'Schneeketten über Clavadel'],
   ['Snow down to the valley floor, and your van on summer tyres has to get to Frauenkirch, the long way round over Clavadel. In Islen, past the KMA on the Clavadelerstrasse, pull over on the right and stop. Get out (F) and put the chains on the two rear wheels, the ones that drive: hold Space to lay the chain out, press Space when the needle is in the green to pull it over the tyre, then tap Space to tension it. Back behind the wheel, up to Clavadel and down the Sertigerstrasse to Frauenkirch. The chains grip, and they rattle, but they are good for 50 km/h at most: any faster and they strain until one snaps.', 'Schnee bis in den Talboden, und dein Bus auf Sommerpneus muss nach Frauenkirch, auf dem langen Weg über Clavadel. In Islen, nach der KMA an der Clavadelerstrasse, rechts ranfahren und anhalten. Steig aus (F) und montiere die Ketten an den zwei Hinterrädern, den angetriebenen: Space halten, um die Kette auszulegen, Space drücken, wenn die Nadel im Grünen ist, um sie über den Pneu zu ziehen, dann Space schnell antippen, um sie zu spannen. Zurück hinters Steuer, hinauf nach Clavadel und die Sertigerstrasse hinunter nach Frauenkirch. Die Ketten greifen, und sie rasseln, aber mehr als 50 km/h vertragen sie nicht: schneller, und sie werden überlastet, bis eine reisst.'],
   ['Frauenkirch: the chains come off again by the church, cold, wet and rattling.', 'Frauenkirch: Bei der Kirche kommen die Ketten wieder runter, kalt, nass und rasselnd.'],
@@ -667,7 +747,6 @@ const pairs = [
   ['A shift at the Turmhotel Victoria', 'Eine Schicht im Turmhotel Victoria'], ['Go into the Turmhotel Victoria', 'Ins Turmhotel Victoria gehen'],
   ['Turn round two rooms', 'Zwei Zimmer herrichten'], ['Cook the lunch service', 'Den Mittagsservice kochen'], ['Wash and mangle the linen', 'Die Wäsche waschen und mangeln'],
   ['Taking the trolley …', 'Du holst den Putzwagen …'], ['Down to the kitchen …', 'Ab in die Küche …'], ['Down to the Lingerie …', 'Ab in die Lingerie …'],
-  ['1-7: chore · A/D: scrub', '1–7: Arbeit · A/D: putzen'], ['1-3: burner', '1–3: Herdplatte'],
   ['Make the bed', 'Bett machen'], ['Fresh towels', 'Frische Tücher'], ['Scrub the bath', 'Wanne schrubben'], ['Polish the mirror', 'Spiegel polieren'],
   ['Empty the bin', 'Abfall leeren'], ['Fill the minibar', 'Minibar auffüllen'], ['Chocolate on the pillow', 'Schöggeli aufs Kissen'],
   ['Make the bed first', 'Zuerst das Bett machen'], ['The Gouvernante has a look …', 'Die Gouvernante schaut sich um …'],
@@ -763,7 +842,6 @@ const pairs = [
   ['Plop! The glass sticks to your palm', 'Plopp! Das Glas klebt an der Hand'], ['Out, and the glass sticks', 'Aus, und das Glas klebt'], ['Too soon: the glass won\'t stick', 'Zu früh: das Glas saugt sich nicht an'], ['Ouch, hot glass!', 'Autsch, heisses Glas!'],
   ['Too long: the shot glass cracks!', 'Zu lange: das Shotglas springt!'], ['Hopp! Down it goes', 'Hopp! Ex!'], ['All 3 down!', 'Alle 3 getrunken!'],
   ['Flämmli in the Rot Liechtli', 'Flämmli im Rot Liechtli'],
-  ['The red lamp turns gently. Take the Rufbus home: nobody is driving tonight.', 'Die rote Lampe dreht sich sanft. Nimm den Rufbus nach Hause: Heute Abend fährt niemand.'],
   ['The landlord called time', 'Der Wirt hat Feierabend gerufen'],
   ['Go into the Rot Liechtli', 'Ins Rot Liechtli gehen'],
   ['Finding a place at the bar …', 'Platz an der Bar suchen …'],
@@ -816,7 +894,8 @@ const pairs = [
   ['Stand on the rally point', 'Stell dich auf den Kundgebungsplatz'],
   ['Wait for the crowd', 'Warte auf die Menge'],
   ['Too fast: wait for the crowd', 'Zu schnell: Warte auf die Menge'],
-  ['Space on the beat: call, and the crowd answers', 'Space im Takt: Du rufst, die Menge antwortet'],
+  ['Space on the beat: call, and the crowd answers', 'Leertaste im Takt: Du rufst, die Menge antwortet'],
+  ['Answer the liaison: 1, 2 or 3', 'Antworte der Verbindungsperson: 1, 2 oder 3'], ['Answer', 'Antworten'],
   ['Get ready …', 'Bereit machen …'],
   ['Perfect!', 'Perfekt!'],
   ['Good', 'Gut'],
@@ -928,6 +1007,24 @@ const pairs = [
   ['MISS', 'DANEBEN'],
   ['OFF BEAT', 'NEBEN DEM TAKT'],
   ['Tilt', 'Neigung'], ['Auto rod', 'Automatische Stange'], ['GOAL!', 'TOR!'], ['Next', 'Nächste'],
+  // the fun, bar, sport and golf missions' HUDs and key bars (js/missions-fun.js, js/missions-bars.js, js/missions-sport.js, js/missions-golf.js)
+  ['SHOOT', 'SCHIESSEN'], ['La Onda scores', 'Tor für La Onda'],
+  ['Goalie', 'Torhüter'], ['Defence', 'Verteidigung'], ['Midfield', 'Mittelfeld'], ['Attack', 'Sturm'],
+  ['Rod up', 'Stange hoch'], ['Rod down', 'Stange runter'], ['slide the rod', 'Stange schieben'], ['pick a rod', 'Stange wählen'],
+  ['Send cabin', 'Gondel losschicken'], ['Move', 'Verschieben'], ['Move right', 'Nach rechts'], ['Drop', 'Abwerfen'],
+  ['Skier', 'Skifahrer'], ['Dog', 'Hund'], ['Couple', 'Paar'], ['Skier with skis', 'Skifahrer mit Ski'], ['Family with pram', 'Familie mit Kinderwagen'],
+  ['Group', 'Gruppe'], ['Tourists with luggage', 'Touristen mit Gepäck'], ['The cabin is leaving …', 'Die Gondel fährt ab …'],
+  ['Doors closed: depart', 'Türen zu: abfahren'], ['missed', 'verpasst'],
+  ['aim, then strike in the green', 'zielen, dann im Grünen zuschlagen'], ['a station · the usual: the drink', 'eine Station · «wie immer»: das Getränk'],
+  ['the station at work: stop in the green', 'die aktive Station: im Grünen stoppen'],
+  ['Classic', 'Klassisch'], ['START · FINISH', 'START · ZIEL'], ['GO!', 'LOS!'],
+  ['Power', 'Kraft'], ['Putt', 'Putten'], ['Overview', 'Übersicht'], ['In the ditch!', 'Im Graben!'],
+  ['+1 stroke, back to where it was hit', '+1 Schlag, zurück an die Stelle des Schlags'], ['1 stroke', '1 Schlag'],
+  ['The hill', 'Der Hügel'], ['The tube', 'Die Röhre'], ['The ramp', 'Die Rampe'], ['The loop', 'Der Looping'], ['The centre island', 'Die Mittelinsel'],
+  ['The round island', 'Die runde Insel'], ['Two posts', 'Zwei Pfosten'], ['The angle', 'Der Winkel'], ['The bridge', 'Die Brücke'],
+  ['Throw', 'Wurf'], ['BUST', 'ÜBERWORFEN'], ['Miss', 'Daneben'], ['game on', 'Spiel läuft'],
+  ['Drop in: W', 'Einfahren: W'], ['Bail', 'Sturz'], ['Bail!', 'Sturz!'], ['Time!', 'Zeit!'],
+  ['Cart', 'Golfwagen'],
   ['snow temperature', 'Schneetemperatur'],
   ['above', 'über'],
   ['below', 'unter'],
@@ -944,6 +1041,22 @@ const pairs = [
   ['Which wax for this snow?', 'Welches Wachs für diesen Schnee?'],
   ['Wax', 'Wachs'],
   ['Iron', 'Bügeln'],
+  // the resort jobs' controls in the register (js/missions-resort.js) and their hints
+  ['tip', 'Spitze'], ['Hand over the bar', 'Bügel übergeben'], ['pick the wax', 'Wachs wählen'], ['Previous wax', 'Voriges Wachs'], ['Next wax', 'Nächstes Wachs'],
+  ['Take this wax', 'Dieses Wachs nehmen'], ['move the tool', 'Werkzeug bewegen'], ['Tool back', 'Werkzeug zurück'], ['Tool on', 'Werkzeug vor'],
+  ['of the wax off', 'des Wachses abgezogen'], ['brushed', 'gebürstet'],
+  ['Wave left', 'Nach links winken'], ['Wave straight on', 'Geradeaus winken'], ['Wave right', 'Nach rechts winken'], ['Stop the car', 'Auto anhalten'],
+  ['Skiers crossing: stop the car (↓ / Space)', 'Skifahrer queren: Auto anhalten (↓ / Space)'], ['Wave the car to free bays: ← / ↑ / →', 'Wink das Auto zu freien Plätzen: ← / ↑ / →'],
+  // the Victoria's stations (js/missions-victoria.js, js/missions-data-victoria.js), the sunrise, the jetpack's landings, the waypoint
+  ['Next chore', 'Nächste Arbeit'], ['pick a chore', 'Arbeit wählen'], ['scrub, in turns', 'abwechselnd putzen'],
+  ['a burner: the ticket on, in the green the plate out', 'eine Platte: Bon drauf, im Grünen anrichten'], ['whites', 'Weisses'], ['colours', 'Buntes'],
+  ['held: keep the sheet straight', 'gehalten: Leintuch gerade halten'],
+  ['1-7 or tap: pick a chore · then A, D, A …: scrub', '1–7 oder antippen: Arbeit wählen · dann A, D, A …: putzen'],
+  ['1-3 or tap: the ticket onto a burner · again in the green: plate it', '1–3 oder antippen: Bon auf eine Platte · nochmals im Grünen: anrichten'],
+  ['A / ◀: whites · D / ▶: colours', 'A / ◀: Weisses · D / ▶: Buntes'], ['Hold A or D (◀ ▶): keep the sheet straight', 'A oder D (◀ ▶) halten: Leintuch gerade halten'],
+  ['Stay on the summit and wait: the sun comes up over the ridges', 'Bleib auf dem Gipfel und warte: Die Sonne geht über den Gräten auf'],
+  ['Over the pad: hold Q to sink and touch down', 'Über dem Landeplatz: Q halten zum Sinken und Aufsetzen'], ['Over the terrace: hold Q to sink and touch down', 'Über der Terrasse: Q halten zum Sinken und Aufsetzen'],
+  ['Clear the waypoint', 'Wegpunkt löschen'],
   // the rope park in the Färich, hockey on the Seehofseeli (js/missions-data-outdoor.js)
   ['Rope park in the Färich', 'Seilpark im Färich'], ['Walk to the first tree', 'Zum ersten Baum gehen'], ['Up the ladder', 'Die Leiter hinauf'],
   ['Wobbly bridge', 'Wackelbrücke'], ['Balance beam', 'Balancierbalken'], ['Tyre traverse', 'Pneu-Traverse'], ['The wild bridge', 'Die wilde Brücke'], ['Zipline finale', 'Zipline zum Schluss'],
@@ -1018,6 +1131,8 @@ const pairs = [
   ["Keep", "Behalten"],
   ["Eyes open, please!", "Augen auf, bitte!"],
   ["Write the prescription", "Rezept ausstellen"],
+  // (the phoropter's keys in the key bar)
+  ['sphere or cylinder', 'Sphäre oder Zylinder'], ['lens 1 or 2', 'Glas 1 oder 2'],
   ["Snow profile for the SLF", "Schneeprofil fürs SLF"],
   ["Fetch the kit at the SLF", "Hol die Ausrüstung beim SLF"],
   ["Up with the Parsennbahn", "Mit der Parsennbahn hinauf"],
@@ -1090,6 +1205,8 @@ const pairs = [
   ["fresh snow", "Neuschnee"],
   ["One pit is only one clue: the real bulletin weighs many profiles, the weather and the observers.", "Eine Grube ist nur ein Hinweis: Das echte Bulletin wägt viele Profile, das Wetter und die Beobachter ab."],
   ["Send it to the forecasters", "An die Lawinenwarner schicken"],
+  // (the profile's keys in the key bar)
+  ['a hand test', 'ein Handtest'], ['the grain shape', 'die Kornform'], ['the weak layer', 'die Schwachschicht'], ['the danger level', 'die Gefahrenstufe'],
   // the rural missions (js/missions-data-rural.js)
   ['Quad ride from Heldstab', 'Quadfahrt ab Heldstab'],
   ['Through Davos Dorf to the Bedraweg', 'Durch Davos Dorf zum Bedraweg'],
@@ -1130,8 +1247,38 @@ const pairs = [
   ["The hopper swallows the hotels' kitchen waste, the digester burps contentedly. Electricity and district heat by Thursday, and the flies stay at the plant.", 'Der Bunker schluckt die Küchenabfälle der Hotels, der Fermenter rülpst zufrieden. Bis Donnerstag gibt das Strom und Fernwärme, und die Fliegen bleiben bei der Anlage.'],
   ["Batch spoiled: the plastic went into the digester's hopper", 'Fuhre verdorben: Das Plastik ist im Annahmebunker gelandet'],
   ["A clean load from the hotels' kitchens: the plant manager nods", 'Eine saubere Ladung aus den Hotelküchen: Der Anlagenleiter nickt'],
+  // the local missions' games and their key bar (js/missions-local.js, js/missions-data-local.js), the Silberberg's and
+  // the gastro rooms' key bar (js/missions-mine.js, js/missions-gastro.js)
+  ['bars', 'Bars'], ['crates on the roof', 'Kisten auf dem Dach'], ['carrying a crate', 'du trägst eine Kiste'],
+  ['Take a crate from the back of the van', 'Nimm hinten im Bus eine Kiste'], ['Get on the bike (F) in front of the bakery', 'Steig vor der Bäckerei aufs Velo (F)'], ['F: get on the bike', 'F: aufs Velo'],
+  ['roll the dough down', 'den Teig nach unten rollen'], ['or tap steadily', 'oder gleichmässig tippen'], ['roll down', 'nach unten rollen'], ['fast', 'schnell'], ['slow', 'langsam'],
+  ['drag down over the dough at an even pace', 'zieh gleichmässig über den Teig nach unten'],
+  ['Perfect Gipfeli!', 'Perfektes Gipfeli!'], ['Nice and even', 'Schön gleichmässig'], ['Torn: too fast', 'Gerissen: zu schnell'], ['Too slow: it got sticky', 'Zu langsam: Es klebt'], ['Too fast: a bit loose', 'Zu schnell: etwas locker'],
+  ['scrape a plate', 'einen Teller abschaben'], ['or across the cheese', 'oder über den Käse wischen'], ['Swipe', 'Wischen'], ['plates', 'Teller'],
+  ['scrape when the cheese matches the order: swipe across it, or Space', 'schaben, wenn der Käse zur Bestellung passt: darüber wischen oder Leertaste'],
+  ['raw', 'roh'], ['soft', 'weich'], ['normal', 'normal'], ['between', 'dazwischen'], ['crispy', 'knusprig'], ['scorched', 'angebrannt'], ['burnt', 'verbrannt'], ['melt', 'Schmelze'],
+  ['Nobody waiting', 'Niemand wartet'], ['Burnt!', 'Verbrannt!'], ['Just right!', 'Genau richtig!'], ['Too runny', 'Zu flüssig'], ['Wanted extra crispy', 'Extra knusprig bestellt'], ['Wanted normal', 'Normal bestellt'],
+  ['Orders', 'Bestellungen'], ['Extra crispy', 'Extra knusprig'], ['Normal', 'Normal'], ['Waiting for guests …', 'Warten auf Gäste …'],
+  ['scope', 'Zielfernrohr'], ['Scope', 'Zielfernrohr'], ['Breath', 'Atem'], ['zoom', 'zoomen'], ['Wheel', 'Mausrad'], ['Right click', 'Rechtsklick'], ['hold: hold your breath', 'halten: Atem anhalten'],
+  ['fire', 'schiessen'], ['lower the scope', 'Zielfernrohr absetzen'], ['The herd bolts!', 'Die Herde flieht!'], ['horns', 'Hörner'], ['may be taken', 'darf erlegt werden'], ['protected', 'geschützt'],
+  ['vitals', 'Kammer'], ['wind', 'Wind'], ['Wind', 'Wind'], ['round', 'Schuss'], ['rounds', 'Schuss'], ['holding breath', 'Atem angehalten'], ['out of breath', 'ausser Atem'], ['herd', 'Herde'],
+  ['unease', 'Unruhe'], ['legal: old bucks', 'erlaubt: alte Böcke'], ['kid', 'Kitz'], ['nanny (female)', 'Geiss (weiblich)'], ['young buck', 'junger Bock'], ['old buck', 'alter Bock'],
+  ['Hold out a nut', 'Nuss hinhalten'], ['Nut', 'Nuss'], ['streak', 'Serie'], ['Scared it away!', 'Verscheucht!'], ['fed', 'gefüttert'],
+  ['holding out a nut: stand still', 'du hältst eine Nuss hin: still stehen'], ['hold E to hold out a nut', 'E halten: eine Nuss hinhalten'], ['Stand still, hold E (Nut)', 'Still stehen, E halten (Nuss)'],
+  ['Back to the lakeside path', 'Zurück auf den Seeweg'],
+  ['Hit the ball', 'Ball schlagen'], ['Hit', 'Schlagen'], ['run to the ball', 'zum Ball laufen'], ['held at the swing: aim left / right', 'beim Schlag gehalten: links / rechts zielen'],
+  ['Your point', 'Dein Punkt'], ["Coach's point", 'Punkt für den Trainer'], ['net', 'Netz'], ['out', 'Aus'], ['ace', 'Ass'], ['winner', 'Winner'], ['double fault', 'Doppelfehler'], ['Fault', 'Fehler'],
+  ['Space at the top!', 'Leertaste am höchsten Punkt!'], ['your serve: Space', 'dein Aufschlag: Leertaste'], ['coach serves', 'Trainer schlägt auf'], ['Coach', 'Trainer'], ['second serve', 'zweiter Aufschlag'],
+  ['lean into the bends', 'in die Kurven lehnen'], ['or the arrows', 'oder die Pfeiltasten'], ['get ready: A / D lean into the bends', 'mach dich bereit: A / D in die Kurven lehnen'],
+  ['Splash!', 'Platsch!'], ['on the slide', 'auf der Rutsche'], ['straight', 'gerade'], ['too high: braking!', 'zu hoch: bremst!'], ['too low: bumpy', 'zu tief: holprig'], ['ideal line', 'Ideallinie'],
+  ['paint on the canvas', 'auf die Leinwand malen'], ['colour, brush, Template, Done', 'Farbe, Pinsel, Vorlage, Fertig'], ["paint the view in Kirchner's colours", 'mal die Aussicht in Kirchners Farben'],
+  ['"Template" shows the posterised view', '«Vorlage» zeigt die vereinfachte Aussicht'], ['(a sketch: the view could not be read)', '(eine Skizze: Die Aussicht liess sich nicht lesen)'],
+  ['The view', 'Die Aussicht'], ['The view (your motif)', 'Die Aussicht (dein Motiv)'], ['Your painting', 'Dein Bild'],
+  ['Ultramarine', 'Ultramarin'], ['Cobalt', 'Kobaltblau'], ['Emerald', 'Smaragdgrün'], ['Vermilion', 'Zinnoberrot'], ['Pink', 'Rosa'], ['Black', 'Schwarz'],
+  ['answer Jöri', 'Jöri antworten'], ['hold at a lit vein: strike', 'an einer leuchtenden Ader halten: zuschlagen'],
+  ['the red button', 'der rote Knopf'], ['the red button (held: keep the key down)', 'der rote Knopf (Halten: Taste gedrückt halten)'], ['the toppings, in the order of the ticket', 'die Beläge, in der Reihenfolge des Bons'],
   // snowshoes on the Junkerboden, the plaster room of the Spital (js/missions-data-care.js)
-  ['Snowshoeing on the Junkerboden', 'Schneeschuhlaufen am Junkerboden'],
+  ['Snowshoeing on the Junkerboden','Schneeschuhlaufen am Junkerboden'],
   ['Back on the Junkerbodenstrasse: your track up the slope is the only one in the snow.', 'Zurück auf der Junkerbodenstrasse: Deine Spur am Hang ist die einzige im Schnee.'],
   ['Over the Junkerboden', 'Über den Junkerboden'],
   ['To the foot of the slope', 'Zum Fuss des Hangs'],
@@ -1199,6 +1346,9 @@ const pairs = [
   ['Back down', 'Wieder hinunter'],
   ['the plaster sets', 'der Gips bindet ab'],
   ['Signed', 'Unterschrieben'],
+  // (the plaster table's keys in the key bar)
+  ['the leg, then the length', 'erst das Bein, dann die Länge'], ['held: the bandage in the water', 'gehalten: die Binde im Wasser'],
+  ['the hand along the leg', 'die Hand dem Bein entlang'], ["the foot's angle", 'der Winkel des Fusses'], ['done', 'fertig'],
   ['gaps', 'Lücken'],
   ['lumps', 'Klumpen'],
   ['by Rega from', 'mit der Rega von'],
@@ -1253,6 +1403,23 @@ const pairs = [
   ['A wall! +3 s', 'Eine Wand! +3 s'], ['Tank full: go!', 'Tank voll: los!'], ['The tank is dry!', 'Der Tank ist leer!'], ['Jetpack', 'Jetpack'], ['Tank', 'Tank'], ['Gates', 'Tore'], ['Penalty', 'Strafzeit'],
   ['Sink', 'Sinken'], ['sink', 'sinken'], ['climb', 'steigen'], ['forward', 'vorwärts'], ['turn', 'drehen'], ['the spire of St. Johann', 'Kirchturm St. Johann'], ['Schatzalpbahn, the lower section', 'Schatzalpbahn, unterer Abschnitt'],
   ['Schatzalpbahn, the passing loop', 'Schatzalpbahn, Ausweiche'], ['Schatzalpbahn, below the hotel', 'Schatzalpbahn, unter dem Hotel'],
+  // avalanche blasting from the helicopter (js/missions-data-heliblast.js, js/missions-heliblast.js)
+  ['Avalanche blasting from the helicopter', 'Lawinensprengung aus dem Helikopter'],
+  ['January, seven in the morning, 60 cm of fresh snow overnight. The pistes stay closed until the slopes above them have been released. The blaster of the avalanche service sits at the open door, the charges in a box at his feet. Fly him to the four zones: two on the Jakobshorn, two on the Parsenn below the Weissfluhjoch. Over each yellow ring hover 15 to 45 m above the snow, as still as you can: a charge falls with the helicopter\'s speed, the white mark shows where it will land. G (or the button) throws it, then pull away: the fuse burns for six seconds. Do not hang low in the path when the slab goes. Eight charges for four zones; a miss costs 10 s.', 'Januar, sieben Uhr morgens, über Nacht 60 cm Neuschnee. Die Pisten bleiben zu, bis die Hänge darüber ausgelöst sind. Der Sprengmeister des Lawinendienstes sitzt an der offenen Tür, die Ladungen in einer Kiste zu seinen Füssen. Flieg ihn zu den vier Zonen: zwei am Jakobshorn, zwei auf der Parsenn unter dem Weissfluhjoch. Über jedem gelben Ring schwebst du 15 bis 45 m über dem Schnee, so ruhig wie möglich: Eine Ladung fällt mit dem Tempo des Helikopters, die weisse Markierung zeigt, wo sie landet. G (oder der Knopf) wirft sie, dann zieh weg: Die Zündschnur brennt sechs Sekunden. Häng nicht tief in der Sturzbahn, wenn das Schneebrett losgeht. Acht Ladungen für vier Zonen; ein Fehlwurf kostet 10 s.'],
+  ['All four zones have run. The patrol skis the debris, the ropes come down, and at half past eight the first gondola of the day leaves for the Jakobshorn.', 'Alle vier Zonen sind abgegangen. Der Pistendienst fährt die Lawinenkegel ab, die Absperrungen fallen, und um halb neun fährt die erste Gondel des Tages aufs Jakobshorn.'],
+  ['Zone 1: Jakobshorn, north flank', 'Zone 1: Jakobshorn, Nordflanke'], ['Zone 2: Jakobshorn, east flank above the Teufi', 'Zone 2: Jakobshorn, Ostflanke über dem Teufi'],
+  ['Zone 3: Dorftälli below the Weissfluhjoch', 'Zone 3: Dorftälli unter dem Weissfluhjoch'], ['Zone 4: Weissfluh, east flank', 'Zone 4: Weissfluh, Ostflanke'],
+  ['Jakobshorn, north flank', 'Jakobshorn, Nordflanke'], ['Jakobshorn, east flank above the Teufi', 'Jakobshorn, Ostflanke über dem Teufi'],
+  ['Dorftälli below the Weissfluhjoch', 'Dorftälli unter dem Weissfluhjoch'], ['Weissfluh, east flank', 'Weissfluh, Ostflanke'],
+  ['Drop charge', 'Ladung werfen'], ['Drop', 'Werfen'], ['G: drop the charge', 'G: Ladung werfen'], ['Away from the avalanche path!', 'Weg aus der Lawinenbahn!'], ['Watch it run', 'Schau, wie sie abgeht'],
+  ['Pull up and away from the charge!', 'Hoch und weg von der Ladung!'], ['Hold off: it goes any second', 'Abstand halten: Gleich knallt es'],
+  ['Fly to the yellow ring on the Jakobshorn', 'Flieg zum gelben Ring am Jakobshorn'], ['Across the valley to the Parsenn, below the Weissfluhjoch', 'Über das Tal zur Parsenn, unter das Weissfluhjoch'],
+  ['Too low: climb above 15 m', 'Zu tief: steig über 15 m'], ['Sink to 45 m over the snow', 'Sink auf 45 m über dem Schnee'], ['Over the ring: the white mark shows where it lands', 'Über den Ring: Die weisse Markierung zeigt, wo sie landet'],
+  ['One at a time: the charge is still burning', 'Eine nach der anderen: Die Ladung brennt noch'], ['No charges left', 'Keine Ladungen mehr'],
+  ['Too low to throw: climb above 15 m', 'Zu tief zum Werfen: steig über 15 m'], ['Too high to aim: sink below 45 m', 'Zu hoch zum Zielen: sink unter 45 m'],
+  ['Caught in the powder cloud: +20 s', 'In der Staubwolke erwischt: +20 s'],
+  ['The charge went off right under the helicopter. The crew is shaken, the flight is over.', 'Die Ladung ist direkt unter dem Helikopter explodiert. Die Crew ist durchgeschüttelt, der Flug ist vorbei.'],
+  ['Out of charges: the slopes stay closed today.', 'Keine Ladungen mehr: Die Hänge bleiben heute zu.'],
 ];
 
 const enToDe = new Map(pairs);
@@ -1311,12 +1478,12 @@ const missionIntros = [
   ['Take the Capricorn from Davos Wolfgang', 'Den RhB-Capricorn von Davos Wolfgang nach Davos Platz fahren. In Davos Dorf und Kongress/Eisstadion fahrplanmässig anhalten, mit der Zugspitze an der Markierung stoppen, die Türen 20 Sekunden offen lassen und Tempolimits beachten. W gibt Gas, S bremst.'],
   ['The Silberberg above Schmelzboden', 'Im Hilfsstollen des Silberbergwerks, so wie ihn die FHNW gescannt hat, Erz abbauen. Wo deine Lampe hinfällt, glitzert es in den Wänden: Bleiglanz (silbrig-blaue Würfel) und Zinkblende (honigbraun); weisser Quarz ist taubes Gestein und fast nichts wert. Mit W/S gehen und A/D drehen. Vor einer Erzader E oder Space halten, um sie in den Korb (20 kg) zu schlagen. Einen vollen Korb in einen der Erzkästen an den Schienen leeren, jeder unter einer Laterne. Das Öl reicht sechs Minuten: Wer vorher hinausgeht, dem zählt auch der Korb, und alles gibt ein Fünftel mehr.'],
   ['A guided walk through the Silberberg mine', 'Führung durch das Silberbergwerk mit Jöri, einem Knappen aus alter Zeit, durch die Stollen, wie sie die FHNW per Laserscan erfasst hat: in den Dalvazzerstollen zur heiligen Barbara und über den Steg im Abbau, hinaus und den Hang hinauf zum Hilfsstollen, an den eingemeisselten Jahreszahlen vorbei bis an sein Ende. Folge seiner Lampe und hör ihm zu: Er stellt dir zwei Fragen (Tasten 1–3), eine falsche Antwort kostet 15 Sekunden. Mit W/S gehen und A/D drehen.'],
-  ['The horn sledge race of the winter', 'Mit dem Hornschlitten vom Jatzmeder Richtung Glaris fahren: 2 km und 350 Höhenmeter. A/D lenken und lehnen, S bremst mit Fersen und Kette, W duckt dich oder stösst an. In engen Kurven kann der Schlitten kippen; jeder Sturz kostet fünf Sekunden.'],
+  ['The horn sledge race of the winter', 'Mit dem Hornschlitten vom Jatzmeder Richtung Glaris fahren: 2 km und 350 Höhenmeter. A/D lenken und lehnen, S bremst mit Fersen und Kette, W duckt dich oder stösst an. Brems vor der Kurve, nicht in ihr: Bist du zu schnell, hebt eine Kufe ab und die Neigungsanzeige wird rot. Dann A/D loslassen und bremsen, sonst kippt der Schlitten. Die Netze aussen in den Kurven fangen dich auf; jeder Sturz kostet fünf Sekunden.'],
   ['The night shift is calling', 'Die Dischma-Loipe in der Nachtschicht präparieren. Mit dem Pistenfahrzeug auf der Spur fahren und die Fräse mit F absenken, bis 90 % der Loipe bearbeitet sind.'],
   ['A skier lies injured', 'Ein Skifahrer auf der Jakobshorn-Standardpiste ist verletzt. Mit dem Rega-Helikopter hinfliegen, tief über ihm schweben oder neben ihm landen, bis er an Bord ist. Dann zum Landeplatz beim Spital zurückfliegen.'],
   ['After the fresh snow', 'Den Hang unter dem Salezer Horn mit dem Lawinenwerfer sichern. Ziehen dreht und hebt das Rohr; nach oben ziehen macht den Winkel steiler. Der weisse Ring zeigt den Auftreffpunkt. Mit Space oder Klick feuern. Zwölf Schuss für vier Zonen.'],
   ['Alert: motorbike crash', 'Motorradunfall an der Flüelapassstrasse. Mit der Rega hinfliegen, auf der markierten Wiese neben der Strasse landen, den Patienten versorgen und zum Spital bringen.'],
-  ['Dispatch to patrol Davos', 'Als Polizeipatrouille zum Motorradunfall an der Flüelapassstrasse fahren. Mit K Blaulicht einschalten und vor der Unfallstelle quer parken. Dann zu Fuss (1) je 50 m vor und hinter dem Unfall Kegel aufstellen und die Rega einweisen.'],
+  ['Dispatch to patrol Davos', 'Als Polizeipatrouille zum Motorradunfall an der Flüelapassstrasse fahren. Mit K Blaulicht einschalten und vor der Unfallstelle quer parken. Dann zu Fuss (mit F aussteigen) je 50 m vor und hinter dem Unfall Kegel aufstellen und die Rega einweisen.'],
   ['Thirty centimetres of fresh snow', 'Den Zugangsweg an der Dischmastrasse 19 freischaufeln. Space oder „Schaufeln“ halten und den Weg entlanggehen. Wenn der Schieber voll ist oder du loslässt, landet der Schnee auf einem Haufen im Garten. Mindestens 95 % des Weges räumen.'],
   ['A new wing for the Hotel Derby', 'Das Hotel Derby in Davos Dorf bekommt einen neuen Flügel, und der Kranführer ist krank. Geh durchs Baustellentor und steig auf den Turmkran. A und D schwenken, W und S fahren die Laufkatze, E oder Leertaste heben, Q senkt, F hängt die Last an oder aus, V wechselt die Ansicht. Die Last pendelt unter dem Haken: Bremst du zu hart, schwingt sie weiter. Fahr dem Pendeln deshalb mit einer kleinen Bewegung nach. Setz Beton, Armierung und den Jacuzzi fürs Dach sanft auf die markierten Stellen. Später kommt Wind auf.'],
   ['The drifts on the Bündastrasse', 'Die Schneewälle an der Bündastrasse müssen weg. Fahr die Schneefräse neben dem Kipper her, W und S halten das Tempo. Halte den Strahl auf der Ladebrücke: Was daneben landet, ist verloren. V dreht den Auswurf. Ist der Lastwagen voll, steig mit E hinüber, fahr durch Davos Dorf zur Schneedeponie am Davosersee, setz rückwärts mit dem Heck an die Markierung am Ufer und halte E zum Kippen. Schnelle Kurven werfen Schnee von der Ladung. Pass auf den See auf.'],
@@ -1371,7 +1538,7 @@ const GOLF_SCORE_DE = { 'Hole in one!': 'Hole-in-one!', 'Double bogey': 'Doppel-
 const golfPartDe = (p) => p.replace(/^(\d+) m (further|shorter|long|short|right|left)$/, (_, n, w) => `${n} m ${{ further: 'weiter', shorter: 'kürzer', long: 'zu lang', short: 'zu kurz', right: 'rechts', left: 'links' }[w]}`);
 const GOLF_CLUBS = '(Driver|3 Wood|7 Iron|Wedge|Putter)', GOLF_LIES = '(Tee|Fairway|Green|Rough|Bunker|Water|Out of bounds)';
 function golfDe(t) {
-  if (!/(?:Hole|Stroke|Pin|full (?:swing|stroke)|the pin needs|wind|Carry|Putt|Early|Late|Wind|Tip|Tapped|Picked|on a par| m · | m to the pin|%| −\d+ %)/.test(t)) return t;
+  if (!/(?:Hole|Stroke|Pin|full (?:swing|stroke)|the pin needs|wind|Carry|Putt|Early|Late|Wind|Tip|Tapped|Picked|on a par| m · | m to the pin|%| −\d+ %| \(\d\)$)/.test(t)) return t;
   return t
     .replace(/^Hole (\d+) · Par (\d) · (\d+) m · Stroke (\d+) · Total (.+)$/, 'Loch $1 · Par $2 · $3 m · Schlag $4 · Total $5')
     .replace(/^Hole (\d+) · Par (\d)( · \d+ m)?$/, 'Loch $1 · Par $2$3')
@@ -1413,7 +1580,6 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
-  dynamic = dynamic.replace(/^(\d+)\.(\d) km$/, '$1,$2 km'); // (a distance alone: js/play-stats-ui.js)
   // a helicopter flown back to its pad while the player was away (js/gta.js returnStrays)
   dynamic = dynamic.replace(/^The crew flew the (.+) back to (.+)$/, (_, what, where) => `Die Crew hat den ${what} zurück nach ${translate(where)} geflogen`);
   // the jetpack demo (js/missions-data-jetpack.js, js/missions-jetpack.js)
@@ -1421,15 +1587,27 @@ function translate(value) {
   dynamic = dynamic.replace(/^Gate (\d+\/\d+)$/, 'Tor $1').replace(/^Refuelling … (\d+) %$/, 'Tanken … $1 %');
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the pit crew on the Promenade · tank (\d+) %$/, '$1 bis zur Boxencrew an der Promenade · Tank $2 %').replace(/^([\d,.]+ (?:m|km)) to the terrace · tank (\d+) %$/, '$1 bis zur Terrasse · Tank $2 %');
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · (\d+) % of a tank burned · (?:(\d+) tumbles? · (\d+) walls? \(\+(\d+) s\)|a clean flight: no penalties)$/, (_, time, pct, tu, w, s) => `${time} in der Luft · ${pct} % einer Tankfüllung verbrannt · ${tu === undefined ? 'sauber geflogen: keine Strafzeit' : `${tu} ${tu === '1' ? 'Purzelbaum' : 'Purzelbäume'} · ${w} ${w === '1' ? 'Wand' : 'Wände'} (+${s} s)`}`);
+  // avalanche blasting from the helicopter (js/missions-data-heliblast.js)
+  {
+    const left = (n) => `${n === '1' ? 'noch 1 Ladung' : `noch ${n} Ladungen`}`;
+    const dirDe = { N: 'N', NE: 'NO', E: 'O', SE: 'SO', S: 'S', SW: 'SW', W: 'W', NW: 'NW' };
+    dynamic = dynamic
+      .replace(/^The slope is going · (\d+) charges? left$/, (_, n) => `Der Hang geht ab · ${left(n)}`)
+      .replace(/^Charge away · fuse (\d+) s · (\d+) charges? left$/, (_, f, n) => `Ladung unterwegs · Zündschnur ${f} s · ${left(n)}`)
+      .replace(/^Hover (\d+)–(\d+) m over the slope · now (\d+) m · (\d+) charges? left$/, (_, a, b, h, n) => `Schwebe ${a}–${b} m über dem Hang · jetzt ${h} m · ${left(n)}`)
+      .replace(/^([\d.]+ (?:m|km)) (N|NE|E|SE|S|SW|W|NW) · (Jakobshorn, north flank|Jakobshorn, east flank above the Teufi|Dorftälli below the Weissfluhjoch|Weissfluh, east flank)$/, (_, d, dir, where) => `${d} ${dirDe[dir]} · ${translate(where)}`)
+      .replace(/^Missed by (\d+) m: \+10 s$/, 'Daneben um $1 m: +10 s')
+      .replace(/^(\d+) charges? thrown · (\d+) zones? released · (\d+) missed · (\d+) in the powder cloud \((?:\+(\d+) s|no penalties)\)$/, (_, t, z, m, c, s) => `${t} ${t === '1' ? 'Ladung' : 'Ladungen'} geworfen · ${z} ${z === '1' ? 'Zone' : 'Zonen'} ausgelöst · ${m} daneben · ${c}-mal in der Staubwolke (${s ? `+${s} s` : 'keine Strafzeit'})`);
+  }
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
   // the free flight's landing (js/paraglide-free.js) and its list (js/leaderboard-overview.js)
   dynamic = dynamic.replace(/^([\d.]+ (?:m|km)) from the launch( · personal best!)?( · rank (\d+) of (\d+))?$/, (_, d, best, _r, rank, of) => `${d} vom Startpunkt${best ? ' · persönlicher Rekord!' : ''}${rank ? ` · Rang ${rank} von ${of}` : ''}`);
   // the medicine round by cargo bike (js/missions-data-pharmacy.js, js/missions-pharmacy.js)
-  dynamic = dynamic.replace(/^Insulin cold for (\d+:\d\d) · (.+) to (.+)$/, (_, c, d, w) => `Insulin noch ${c} kalt · ${d.replace('.', ',')} bis ${w}`).replace(/^The insulin is warm \(\+45 s\) · (.+) to (.+)$/, (_, d, w) => `Das Insulin ist warm (+45 s) · ${d.replace('.', ',')} bis ${w}`);
-  dynamic = dynamic.replace(/^Delivered (\d+\/\d+) · next (.+), ([\d,.]+ (?:m|km))(?: · fragile (\d+) %)?$/, (_, n, where, d, f) => `Abgegeben ${n} · nächste: ${where}, ${d.replace('.', ',')}${f ? ` · zerbrechlich ${f} %` : ''}`);
-  dynamic = dynamic.replace(/^Delivered (\d+\/\d+)$/, 'Abgegeben $1').replace(/^Crate empty · (.+) to the pharmacy$/, (_, d) => `Kiste leer · ${d.replace('.', ',')} bis zur Apotheke`).replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
+  dynamic = dynamic.replace(/^Insulin cold for (\d+:\d\d) · (.+) to (.+)$/, (_, c, d, w) => `Insulin noch ${c} kalt · ${d} bis ${w}`).replace(/^The insulin is warm \(\+45 s\) · (.+) to (.+)$/, (_, d, w) => `Das Insulin ist warm (+45 s) · ${d} bis ${w}`);
+  dynamic = dynamic.replace(/^Delivered (\d+\/\d+) · next (.+), ([\d,.]+ (?:m|km))(?: · fragile (\d+) %)?$/, (_, n, where, d, f) => `Abgegeben ${n} · nächste: ${where}, ${d}${f ? ` · zerbrechlich ${f} %` : ''}`);
+  dynamic = dynamic.replace(/^Delivered (\d+\/\d+)$/, 'Abgegeben $1').replace(/^Crate empty · (.+) to the pharmacy$/, (_, d) => `Kiste leer · ${d} bis zur Apotheke`).replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
   dynamic = dynamic.replace(/^Delivered: (.+)$/, (_, what) => `Abgegeben: ${translate(what)}`).replace(/^(.+) broken: \+30 s$/, (_, what) => `${translate(what)} kaputt: +30 s`);
   dynamic = dynamic.replace(/^(Bump|Crash)! The glass at (\d+) %$/, (_, what, n) => `${what === 'Bump' ? 'Rumms' : 'Unfall'}! Das Glas noch bei ${n} %`);
   dynamic = dynamic.replace(/^(\d+) of (\d+) parcels delivered · insulin (?:after (\d+:\d\d)|not delivered)( \(warm, \+45 s\))?$/, (_, a, b, at, warm) => `${a} von ${b} Paketen abgegeben · Insulin ${at ? `nach ${at}` : 'nicht abgegeben'}${warm ? ' (warm, +45 s)' : ''}`);
@@ -1448,12 +1626,34 @@ function translate(value) {
     const placeW = { 'the Wägerhus': 'zum Wägerhus', 'the Wägerhütta': 'zur Wägerhütta', 'the Flüela Hospiz': 'zum Flüela Hospiz', Islen: 'Islen', Clavadel: 'Clavadel', Frauenkirch: 'Frauenkirch' };
     const times = (n) => (n ? ` · ${n}-mal im Schneewall` : '');
     dynamic = dynamic
-      .replace(/^([\d.]+ (?:m|km)) to (the Wägerhus|the Wägerhütta|the Flüela Hospiz|Islen|Clavadel|Frauenkirch) · (\d+) km\/h(?: · (\d+) times? in the snowbank)?$/, (_, d, p, v, n) => `${d.replace('.', ',')} bis ${placeW[p]} · ${v} km/h${times(n)}`)
+      .replace(/^([\d.]+ (?:m|km)) to (the Wägerhus|the Wägerhütta|the Flüela Hospiz|Islen|Clavadel|Frauenkirch) · (\d+) km\/h(?: · (\d+) times? in the snowbank)?$/, (_, d, p, v, n) => `${d} bis ${placeW[p]} · ${v} km/h${times(n)}`)
       .replace(/^Chains on (\d) of 2 wheels(?: · go to the (left|right) rear wheel)?$/, (_, n, s) => `Ketten an ${n} von 2 Rädern${s ? ` · geh zum ${s === 'left' ? 'linken' : 'rechten'} Hinterrad` : ''}`)
       .replace(/^(Left|Right) rear wheel: (lay the chain out|pull it over the tyre|tension the chain)$/, (_, s, w) => `Hinterrad ${s === 'Left' ? 'links' : 'rechts'}: ${{ 'lay the chain out': 'Kette auslegen', 'pull it over the tyre': 'über den Pneu ziehen', 'tension the chain': 'Kette spannen' }[w]}`)
       .replace(/^Chains rattling at (\d+) km\/h: slow down below 50!$/, 'Die Ketten rasseln bei $1 km/h: unter 50 bremsen!')
       .replace(/^Wheelspin (\d+) s · (\d+) times? in the snowbank · (\d+) (crash|crashes)$/, (_, s, n, c, w) => `Durchdrehen ${s} s · ${n}-mal im Schneewall · ${c} ${w === 'crash' ? 'Unfall' : 'Unfälle'}`)
       .replace(/^(\d+) chains? slipped · top speed (\d+) km\/h · (\d+) times? in the snowbank$/, '$1-mal Kette abgerutscht · Höchsttempo $2 km/h · $3-mal im Schneewall');
+  }
+  // the local missions (js/missions-data-local.js, js/missions-local.js; before the generic rules below)
+  {
+    const whyDe = { 'too close': 'zu nah', 'you are running': 'du rennst', 'the wind carries your scent': 'der Wind trägt deine Witterung hin' };
+    const ibexDe = { kid: 'ein Kitz', 'nanny (female)': 'eine Geiss', 'young buck': 'ein junger Bock', 'old buck': 'ein alter Bock' };
+    dynamic = dynamic
+      .replace(/^The van is ([\d.]+ k?m) away: drive closer to (.+)$/, (_, d, where) => `Der Bus ist ${d} weg: fahr näher heran · ${where}`)
+      .replace(/^Fetch crates at the brewery door \((\d+\/\d+)\)$/, 'Hol Kisten an der Brauereitür ($1)')
+      .replace(/^Stow them in the back of the van \((\d+\/\d+)\)$/, 'Verstau sie hinten im Bus ($1)')
+      .replace(/^Carry the crate in · (.+)$/, (_, d) => `Trag die Kiste hinein · ${d}`)
+      .replace(/^(\d+:\d\d) · (?:(late!)|(\d+) min to 7:00) · ([\d.]+ k?m) to the (.+)$/, (_, clock, late, n, d, hotel) => `${clock} · ${late ? 'zu spät!' : `noch ${n} min bis 7:00`} · ${d} zum ${hotel}`)
+      .replace(/^([\d.]+ k?m) to (the bakery|the Eichhörnliplatz)$/, (_, d, w) => `${d} bis ${w === 'the bakery' ? 'zur Bäckerei' : 'zum Eichhörnliplatz'}`)
+      .replace(/^([\d.]+ k?m) to the stand · the herd is uneasy: (too close|you are running|the wind carries your scent)$/, (_, d, why) => `${d} bis zum Hochsitz · die Herde wird unruhig: ${whyDe[why]}`)
+      .replace(/^(\d+) rounds? · (-?\d+) pts · herd ([\d.]+ k?m)$/, (_, n, p, d) => `${n} Schuss · ${p} Pkt. · Herde ${d}`)
+      .replace(/^Not allowed: a (kid|nanny \(female\)|young buck|old buck)! Fine and penalty( \([+\-−]?\d+\))?$/, (_, a, pts) => `Nicht erlaubt: ${ibexDe[a]}! Busse und Strafpunkte${pts || ''}`)
+      .replace(/^Clean shot on the buck \((\d+) cm horns\) at (\d+) m( \([+\-−]?\d+\))?$/, 'Sauberer Schuss auf den Bock ($1 cm Hörner) auf $2 m$3')
+      .replace(/^(\d+) fed · (-?\d+) pts · (\d+:\d\d)(?: · streak (\d+))?$/, (_, n, p, c, s) => `${n} gefüttert · ${p} Pkt. · ${c}${s ? ` · Serie ${s}` : ''}`)
+      .replace(/^(\d+) km\/h · ([\d.]+ k?m) to the pool$/, (_, v, d) => `${v} km/h · noch ${d} bis zum Becken`)
+      .replace(/^(\d+:\d\d) left$/, 'noch $1')
+      .replace(/^(\d+) m to go$/, 'noch $1 m');
+    // (a shot of the ibex hunt in the end panel: its line and its points in brackets)
+    dynamic = dynamic.replace(/^(.+?) (\([+\-−]?\d+\))$/, (whole, head, pts) => (enToDe.has(head) ? `${enToDe.get(head)} ${pts}` : whole));
   }
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
@@ -1470,6 +1670,24 @@ function translate(value) {
   dynamic = dynamic.replace(/^Set down  \+(\d+)$/, 'Abgesetzt  +$1');
   dynamic = dynamic.replace(/^Hard landing  -(\d+)$/, 'Harte Landung  -$1');
   dynamic = dynamic.replace(/^Hit!  -(\d+)$/, 'Getroffen!  -$1');
+  dynamic = dynamic.replace(/^Next: the (concrete bucket|rebar bundle|hotel jacuzzi) in the yard$/, (_, l) => `Als Nächstes: ${craneLoadDe[l]} auf dem Werkplatz`);
+  // the other work missions' generated lines (js/missions-data-work.js, js/missions-work.js)
+  dynamic = dynamic.replace(/^Parked car hit! \+([\d.]+) s$/, 'Parkiertes Auto angefahren! +$1 s').replace(/^Flower bed! \+([\d.]+) s$/, 'Blumenbeet! +$1 s');
+  dynamic = dynamic.replace(/^Not in flower: bush damaged \+([\d.]+) s$/, 'Nicht in Blüte: Strauch beschädigt +$1 s').replace(/^Into the basket \((\d+\/\d+)\)$/, 'In den Korb ($1)');
+  dynamic = dynamic.replace(/^Picking … (\d+) %$/, 'Pflücken … $1 %').replace(/^Loading … (\d+) %$/, 'Laden … $1 %').replace(/^To the KMA · ([\d,.]+ (?:m|km))$/, 'Zur KMA · $1');
+  dynamic = dynamic.replace(/^(.+) · Space: into the basket$/, (whole, desc) => (enToDe.has(desc) ? `${enToDe.get(desc)} · Space: in den Korb` : whole));
+  if (/^\d+× /.test(dynamic)) dynamic = dynamic.split(' · ').map((p) => p.replace(/^(\d+)× (.+) ([+-]?\d+)$/, (whole, n, kind, pts) => (enToDe.has(kind) ? `${n}× ${enToDe.get(kind)} ${pts}` : whole))).join(' · ');
+  dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${n === '1' ? 'parkiertes Auto' : 'parkierte Autos'} angefahren (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
+  dynamic = dynamic.replace(/^Lawn mown (.+) of (.+) · beds trodden (\d+) \(\+([\d.]+) s\)$/, 'Rasen gemäht: $1 von $2 · Beete zertrampelt $3 (+$4 s)');
+  dynamic = dynamic.replace(/^(\d+) points? left out \(\+([\d.]+) s\)$/, (_, n, s) => `${n} ${n === '1' ? 'Sammelstelle' : 'Sammelstellen'} ausgelassen (+${s} s)`);
+  // the first missions (js/missions-data.js: the Dischma trail, Rega, avalanche blasting, the motorbike crash)
+  dynamic = dynamic.replace(/^Trail (\d+) % groomed · ([\d,.]+ (?:m|km)) of ([\d,.]+ (?:m|km))$/, 'Loipe $1 % präpariert · $2 von $3');
+  dynamic = dynamic.replace(/^(Landed|Rescue under way|Treating the patient|Vehicle in position|Placing the cone) … (\d+) s$/, (_, what, n) => `${{ Landed: 'Gelandet', 'Rescue under way': 'Rettung läuft', 'Treating the patient': 'Patient wird versorgt', 'Vehicle in position': 'Fahrzeug in Position', 'Placing the cone': 'Kegel wird aufgestellt' }[what]} … ${n} s`);
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) · hover low over the casualty \(< 3 m\) or land$/, '$1 · tief über dem Verletzten schweben (< 3 m) oder landen');
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the Spital Rega pad$/, '$1 bis zum Rega-Landeplatz beim Spital').replace(/^([\d,.]+ (?:m|km)) to the Flüelapassstrasse$/, '$1 bis zur Flüelapassstrasse');
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the landing zone \(meadow south of the road\)$/, '$1 bis zum Landeplatz (Wiese südlich der Strasse)');
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the marker, stand there for 2 s$/, '$1 bis zur Markierung, dort 2 s stehen bleiben');
+  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) · (\d+) rounds? left( · (\d+) missed)?$/, (_, d, n, m, k) => `${d} · noch ${n} Schuss${m ? ` · ${k} daneben` : ''}`);
   dynamic = dynamic.replace(/^(\d+) (?:hit|hits) · (\d+) hard (?:landing|landings)$/, (_, a, b) => `${a} Treffer · ${b} harte ${b === '1' ? 'Landung' : 'Landungen'}`);
   dynamic = dynamic.replace(/^Truck ([\d.]+) of (\d+) m³ · (\d+) % on the bed$/, 'Lastwagen $1 von $2 m³ · $3 % auf der Brücke');
   dynamic = dynamic.replace(/^([\d.]+) m³ on board$/, '$1 m³ geladen');
@@ -1484,6 +1702,18 @@ function translate(value) {
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish(?: · (.+))?$/, (_, d, rest) => `${d} bis zum Ziel${rest ? ` · ${tobogganDe(rest)}` : ''}`);
   dynamic = dynamic.replace(/^(\d+ (?:bump|bumps) · \d+ (?:ram|rams)) · top speed (\d+) km\/h$/, (_, c, v) => `${tobogganDe(c)} · Höchsttempo ${v} km/h`);
   dynamic = dynamic.replace(/^Over the wall! \+(\d+) s$/, 'Über die Wand! +$1 s');
+  // (the horn sledge, the bike race, the slalom: js/missions-data-sledge.js, js/missions-data-snow.js, js/missions-snow.js)
+  dynamic = dynamic.replace(/^(Into the net|Off the run|Tipped over)! \+(\d+) s$/, (_, w, n) => `${{ 'Into the net': 'Ins Netz', 'Off the run': 'Von der Bahn abgekommen', 'Tipped over': 'Umgekippt' }[w]}! +${n} s`);
+  dynamic = dynamic.replace(/^Checkpoint (\d+) missed: (?:back up to it|ride back to it)$/, 'Checkpoint $1 verpasst: zurück dorthin');
+  dynamic = dynamic.replace(/^Checkpoint (\d+\/\d+) · ([\d,.]+ (?:m|km)) · (\d+) (?:crash|crashes) \((\+[\d.]+ s)\)$/, (_, n, d, c, s) => `Checkpoint ${n} · ${d} · ${c} ${c === '1' ? 'Sturz' : 'Stürze'} (${s})`);
+  dynamic = dynamic.replace(/^Gate (\d+) missed$/, 'Tor $1 verpasst');
+  dynamic = dynamic.replace(/^Crash! \+(\d+) s$/, 'Sturz! +$1 s').replace(/^Too fast for that turn: \+(\d+) s$/, 'Zu schnell für diese Kurve: +$1 s');
+  dynamic = dynamic.replace(/^Disqualified: (\d+) gates missed\.$/, 'Disqualifiziert: $1 Tore verpasst.');
+  dynamic = dynamic.replace(/^Gate (\d+\/\d+) · (\d+) clean(?: · (\d+) missed \((\+[\d.]+ s)\))?$/, (_, g, c, m, s) => `Tor ${g} · ${c} sauber${m ? ` · ${m} verpasst (${s})` : ''}`);
+  // (curling, the penalty shot: js/missions-ice.js, js/missions-data-ice.js)
+  dynamic = dynamic.replace(/^Aim ([+−][\d.]+°)$/, 'Richtung $1');
+  dynamic = dynamic.replace(/^In the house: (\d+) points?$/, (_, n) => `Im Haus: ${n} ${n === '1' ? 'Punkt' : 'Punkte'}`);
+  dynamic = dynamic.replace(/^(GOAL!|Saved by the goalie|Poke check: the goalie took the puck|The puck went backwards: no goal|Too slow: time is up|Wide of the goal|Off the post!) · (\d+) goals?$/, (_, r, n) => `${translate(r)} · ${n} ${n === '1' ? 'Tor' : 'Tore'}`);
   const popped = /^(\S.*?)(  [+\-−]?\d+)$/.exec(dynamic);
   if (popped && enToDe.has(popped[1])) dynamic = enToDe.get(popped[1]) + popped[2];
   dynamic = dynamic.replace(new RegExp(`^Not yet: (.+) next${POP}$`), (_, top, tail) => `Noch nicht: zuerst ${enToDe.get(top) || top}${tail}`);
@@ -1503,6 +1733,7 @@ function translate(value) {
     dynamic = dynamic.replace(/^The guest is back: (\d+) (?:chore|chores) undone$/, (_, n) => `Der Gast ist zurück: ${n} ${n === '1' ? 'Arbeit' : 'Arbeiten'} nicht erledigt`);
     dynamic = dynamic.replace(new RegExp(`^Spotless! (\\d+) s to spare${POP}$`), 'Blitzblank! $1 s übrig$2');
     dynamic = dynamic.replace(/^(Room 204|The tower suite): (\d+) of (\d+) chores$/, (_, room, a, b) => `${de(room)}: ${a} von ${b} Arbeiten`);
+    dynamic = dynamic.replace(/^(Room 204|The tower suite): (\d+) of (\d+) chores · (Room 204|The tower suite): (\d+) of (\d+) chores$/, (_, r1, a1, b1, r2, a2, b2) => `${de(r1)}: ${a1} von ${b1} Arbeiten · ${de(r2)}: ${a2} von ${b2} Arbeiten`); // (the summary: both rooms)
     dynamic = dynamic.replace(/^Lunch service · (\d+) of (\d+) dishes · (-?\d+) pts$/, 'Mittagsservice · $1 von $2 Gerichten · $3 Pkt.');
     dynamic = dynamic.replace(/^(\d+) of (\d+) dishes · (-?\d+) pts$/, '$1 von $2 Gerichten · $3 Pkt.');
     dynamic = dynamic.replace(/^Burner (\d)$/, 'Platte $1').replace(/^Table (\d+): (.+)$/, 'Tisch $1: $2');
@@ -1520,6 +1751,40 @@ function translate(value) {
     dynamic = dynamic.replace(new RegExp(`^Crisp and smooth!${POP}$`), 'Glatt und frisch!$1').replace(new RegExp(`^Crisp, if pink${POP}$`), 'Glatt, wenn auch rosa$1');
     dynamic = dynamic.replace(new RegExp(`^(A crease or two|Creased all over|Caught in the rollers!)${POP}$`), (_, w, tail) => `${de(w)}${tail}`);
     dynamic = dynamic.replace(/^(\d+) of (\d+) sorted right · (\d+) of (\d+) sheets crisp( · pink sheets)?$/, (_, a, b, c, d, pink) => `${a} von ${b} richtig sortiert · ${c} von ${d} Leintüchern glatt${pink ? ' · rosa Leintücher' : ''}`);
+  }
+  // the fun and sport missions' HUDs (js/missions-fun.js, js/missions-sport.js, their data): the table football, the
+  // cabin, the RhB's cab, Davos Nordic, the minigolf, the darts, the bowl
+  {
+    const role = '(Goalie|Defence|Midfield|Attack)', nth = '(\\d+)(?:st|nd|rd|th)';
+    const dartDe = (l) => l.replace(/^Double (\d+)$/, 'Doppel $1').replace(/^Treble (\d+)$/, 'Triple $1').replace(/^Miss$/, 'Daneben');
+    dynamic = dynamic
+      .replace(new RegExp(`^You \\(red\\) vs La Onda \\(blue\\) · ${role}( \\(auto\\))?$`), (_, r, auto) => `Du (rot) gegen La Onda (blau) · ${enToDe.get(r)}${auto ? ' (automatisch)' : ''}`)
+      .replace(new RegExp(`^You (\\d+) : (\\d+) La Onda · (\\d+:\\d\\d) · ${role}$`), (_, a, b, c, r) => `Du ${a} : ${b} La Onda · ${c} · ${enToDe.get(r)}`)
+      .replace(/^(\d+) up · cabin (\d+): (\d+) aboard, (\d+) % · (\d+) s$/, '$1 oben · Gondel $2: $3 an Bord, $4 % · $5 s')
+      .replace(/^(\d+) pts · (\d+) up · cabin (\d+) (\d+) % · (\d+:\d\d)$/, '$1 Pkt. · $2 oben · Gondel $3: $4 % · $5')
+      .replace(/^Cabin (\d+): (\d+) passengers · (\d+) % full(?: · (\d+) full rows?)?(?: · (\d+) holes)? → ([+-]?\d+)$/, (_, c, n, f, rows, holes, p) => `Gondel ${c}: ${n} Fahrgäste · ${f} % voll${rows ? ` · ${rows} ${rows === '1' ? 'volle Reihe' : 'volle Reihen'}` : ''}${holes ? ` · ${holes} ${holes === '1' ? 'Loch' : 'Löcher'}` : ''} → ${p}`)
+      .replace(/^now (\d+:\d\d)$/, 'jetzt $1');
+    if (/^(?:Stop board|Doors|Score -?\d|\d+ km\/h in)/.test(dynamic)) {
+      dynamic = dynamic.replace(/Stop board (.+?): (-?\d+) m/, 'Haltetafel $1: $2 m').replace(/Doors open · (\d+) s/, 'Türen offen · $1 s')
+        .replace('Doors closed: depart', 'Türen zu: abfahren').replace(/(^| · )Score (-?\d+)$/, '$1Punkte $2');
+    }
+    dynamic = dynamic
+      .replace(new RegExp(`^([\\d.]+ k?m) of ([\\d.]+ km) · (?:Split (\\d+)|(Finish)) in ([\\d.]+ k?m) · (\\d+) km/h(?: · last split ${nth} (.+))?$`), (_, a, b, n, fin, c, v, p, gap) => `${a} von ${b} · ${fin ? 'Ziel' : `Zwischenzeit ${n}`} in ${c} · ${v} km/h${p ? ` · letzte Zwischenzeit ${p}. ${gap}` : ''}`)
+      .replace(/^Start in (\d+)( …)?$/, 'Los in $1$2')
+      .replace(/^Split (\d+) at (\d+\.\d) km$/, 'Zwischenzeit $1 bei $2 km')
+      .replace(/^Split (\d+) · (.+)$/, 'Zwischenzeit $1 · $2').replace(/^SPLIT (\d+)$/, 'ZWISCHENZEIT $1').replace(/^Bib (\d+)$/, 'Startnummer $1')
+      .replace(new RegExp(`^${nth} of (\\d+)$`), '$1. von $2').replace(new RegExp(`^${nth} place$`), '$1. Platz').replace(new RegExp(`^${nth}$`), '$1.');
+    if (/^[\d.]+ k?m: /.test(dynamic)) dynamic = dynamic.replace(/\((\d+)(?:st|nd|rd|th), /g, '($1., ');
+    dynamic = dynamic
+      .replace(/^(\d+) strokes$/, '$1 Schläge')
+      .replace(/^Game shot! (.+)$/, (_, l) => `Spiel gewonnen! ${dartDe(l)}`)
+      .replace(/^(Double \d+|Treble \d+|Bullseye|Bull 25) · (\d+)$/, (_, l, n) => `${dartDe(l)} · ${n}`)
+      .replace(/^back to (\d+)$/, 'zurück auf $1')
+      .replace(/^301 double out · (\d+) left$/, '301 Double Out · noch $1')
+      .replace(/^Dart (\d+) of (\d+) · turn (\d+), dart (\d+)$/, 'Pfeil $1 von $2 · Runde $3, Pfeil $4')
+      .replace(/^darts: (\d+)$/, 'Pfeile: $1')
+      .replace(/^Combo ×(\d+) · (\d+)$/, 'Kombo ×$1 · $2')
+      .replace(/^(.+): combo lost$/, (_, n) => `${enToDe.get(n) || n}: Kombo verloren`);
   }
   // Nageln, Barista (js/missions-data-bars.js)
   dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
@@ -1579,11 +1844,12 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) m to the next deck$/, '$1 m bis zur nächsten Plattform');
   dynamic = dynamic.replace(/^(\d+) m to the face-off$/, '$1 m bis zum Bully');
   // Pfadi Davos (js/missions-data-pfadi.js)
-  dynamic = dynamic.replace(/^([\d.]+) (m|km) to the camp in the Mattawald$/, (_, d, u) => `${d.replace('.', ',')} ${u} bis zum Lagerplatz im Mattawald`);
+  dynamic = dynamic.replace(/^([\d.]+) (m|km) to the camp in the Mattawald$/, (_, d, u) => `${d} ${u} bis zum Lagerplatz im Mattawald`);
   dynamic = dynamic.replace(/^Firewood (\d+\/\d+) · twigs (\d+\/\d+) · kindling (\d+\/\d+) · logs (\d+\/\d+)$/, 'Feuerholz $1 · Reisig $2 · Anfeuerholz $3 · Scheiter $4');
   dynamic = dynamic.replace(/^Hold Space: pick up (dry twigs|kindling|a log)$/, (_, w) => `Space halten: ${PFADI_WOOD_DE[w]} aufheben`);
   dynamic = dynamic.replace(/^Sparks in the tinder (\d\/\d)$/, 'Funken im Zunder $1').replace(/^Ember (\d+) %$/, 'Glut $1 %');
   dynamic = dynamic.replace(/^To the fireplace: (.+)$/, 'Zur Feuerstelle: $1').replace(/^To the tent spot: (.+)$/, 'Zum Zeltplatz: $1');
+  dynamic = dynamic.replace(/^To the next firewood: (.+)$/, 'Zum nächsten Feuerholz: $1');
   dynamic = dynamic.replace(/^(\d+) good strikes? · (\d+) missed the steel$/, (_, n, m) => `${n} ${n === '1' ? 'guter Schlag' : 'gute Schläge'} · ${m} am Stahl vorbei`);
   dynamic = dynamic.replace(/^(.+) \((\d\/\d)\)$/, (all, l, n) => (PFADI_STEPS_DE[l] ? `${PFADI_STEPS_DE[l]} (${n})` : all));
   // the splitboard tour on the Chörbschhorn (js/missions-data-splitboard.js)
@@ -1592,11 +1858,11 @@ function translate(value) {
   dynamic = dynamic.replace(/^(.+) \((\d\/\d)\)$/, (all, l, n) => (SPLIT_STEPS_DE[l] ? `${SPLIT_STEPS_DE[l]} (${n})` : all));
   dynamic = dynamic.replace(/^(\d+) kick turns? · (\d+) s slipping( · Reto dug out of an avalanche \(\+(\d+) s\))?$/, (_, n, t, r, p) => `${n} ${n === '1' ? 'Spitzkehre' : 'Spitzkehren'} · ${t} s gerutscht${r ? ` · Reto aus einer Lawine ausgegraben (+${p} s)` : ''}`);
   dynamic = dynamic.replace(/^(Send check: Reto searches, you send|Receive check: you search, Reto sends) \((\d\/\d)\)$/, (_, l, n) => `${l.startsWith('Send') ? 'Sendecheck: Reto sucht, du sendest' : 'Empfangscheck: du suchst, Reto sendet'} (${n})`);
-  dynamic = dynamic.replace(/^Reto is buried! Signal: ([\d.]+) m$/, (_, d) => `Reto ist verschüttet! Signal: ${d.replace('.', ',')} m`);
+  dynamic = dynamic.replace(/^Reto is buried! Signal: ([\d.]+) m$/, (_, d) => `Reto ist verschüttet! Signal: ${d} m`);
   dynamic = dynamic.replace(/^Wait for Reto: (\d+) m behind$/, 'Auf Reto warten: $1 m zurück').replace(/^Reto: (\d+) m behind$/, 'Reto: $1 m zurück');
   dynamic = dynamic.replace(/^(\d+) of (\d+) gates · (\d+) missed( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, '$1 von $2 Toren · $3 verpasst$4 · Höchsttempo $5 km/h');
   // the snow plough over the Wolfgang (js/missions-data-plough.js)
-  dynamic = dynamic.replace(/^To the (Passhöhe|Seegalerie): (.+) · lane cleared (.+) of (.+)$/, (_, w, d, a, b) => `Bis zur ${w}: ${d.replace('.', ',')} · Spur geräumt: ${a} von ${b}`);
+  dynamic = dynamic.replace(/^To the (Passhöhe|Seegalerie): (.+) · lane cleared (.+) of (.+)$/, (_, w, d, a, b) => `Bis zur ${w}: ${d} · Spur geräumt: ${a} von ${b}`);
   const ploughPlace = (n) => ({ 'the old Prättigauerstrasse': 'alte Prättigauerstrasse', 'the filling station': 'Tankstelle' }[n] || n);
   dynamic = dynamic.replace(/^(.+) ahead on your throw side: F lifts the blade past it$/, (_, n) => `Einmündung ${ploughPlace(n)} voraus auf der Wurfseite: F hebt die Pflugschar`);
   dynamic = dynamic.replace(/^You buried the mouth of (.+)!$/, (_, n) => `Einmündung ${ploughPlace(n)} zugeschüttet!`);
@@ -1722,13 +1988,12 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
   // the postman's round (js/missions-data-post.js)
   {
-    const kmDe = (d) => d.replace(/^(\d+)\.(\d) km$/, '$1,$2 km');
     dynamic = dynamic
-      .replace(/^Emptied (\d+\/\d+) · (\d+) letters(?: · next (.+))?$/, (_, n, l, d) => `Geleert ${n} · ${l} Briefe${d ? ` · nächster ${kmDe(d)}` : ''}`)
+      .replace(/^Emptied (\d+\/\d+) · (\d+) letters(?: · next (.+))?$/, (_, n, l, d) => `Geleert ${n} · ${l} Briefe${d ? ` · nächster ${d}` : ''}`)
       .replace(/^Emptied (\d+\/\d+)$/, 'Geleert $1')
       .replace(/^Emptying … (\d+) %$/, 'Leeren … $1 %')
       .replace(/^(\d+) box(?:es)? left out \(\+(\d+) s\)$/, (_, n, s) => `${n} ${plural(n, 'Briefkasten', 'Briefkästen')} ausgelassen (+${s} s)`)
-      .replace(/^To the post office · (.+)$/, (_, d) => `Zur Poststelle · ${kmDe(d)}`)
+      .replace(/^To the post office · (.+)$/, (_, d) => `Zur Poststelle · ${d}`)
       .replace(/^(\d+) of (\d+) post boxes emptied · (\d+) letters(?: · (\d+) left out \(\+(\d+) s\))?$/, (_, a, b, l, c, d) => `${a} von ${b} Briefkästen geleert · ${l} Briefe${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
   }
   dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
@@ -1738,16 +2003,15 @@ function translate(value) {
   dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
   // (the Silberberg's ore shift)
   const oreDe = { galena: 'Bleiglanz', sphalerite: 'Zinkblende', 'barren rock': 'taubes Gestein', Galena: 'Bleiglanz', Sphalerite: 'Zinkblende', 'Barren rock': 'Taubes Gestein' };
-  const kgDe = (v) => v.replace('.', ',');
-  dynamic = dynamic.replace(/^Mined: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock$/, (_, a, b, c) => `Abgebaut: ${kgDe(a)} kg Bleiglanz · ${kgDe(b)} kg Zinkblende · ${kgDe(c)} kg taubes Gestein`);
-  dynamic = dynamic.replace(/^The lamp went out inside: ([\d.]+) kg in the basket stayed with you\.$/, (_, a) => `Die Lampe erlosch drinnen: ${kgDe(a)} kg im Korb blieben bei dir.`);
+  dynamic = dynamic.replace(/^Mined: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock$/, (_, a, b, c) => `Abgebaut: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein`);
+  dynamic = dynamic.replace(/^The lamp went out inside: ([\d.]+) kg in the basket stayed with you\.$/, (_, a) => `Die Lampe erlosch drinnen: ${a} kg im Korb blieben bei dir.`);
   dynamic = dynamic.replace(/^The lamp went out inside\.$/, 'Die Lampe erlosch drinnen.');
   dynamic = dynamic.replace(/^Out with (\d+:\d\d) of oil left: \+(\d+) pts$/, 'Draussen mit $1 Öl übrig: +$2 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) pts · basket ([\d.]+)\/(\d+) kg · lamp (\d+:\d\d)$/, (_, p, b, m, l) => `${p} Pkt. · Korb ${kgDe(b)}/${m} kg · Lampe ${l}`);
-  dynamic = dynamic.replace(/^Basket ([\d.]+)\/(\d+) kg · ore bin (\d+) m · (\d+) pts$/, (_, b, m, d, p) => `Korb ${kgDe(b)}/${m} kg · Erzkasten ${d} m · ${p} Pkt.`);
-  dynamic = dynamic.replace(/^\+([\d.]+) kg (galena|sphalerite|barren rock)$/, (_, k, o) => `+${kgDe(k)} kg ${oreDe[o]}`);
-  dynamic = dynamic.replace(/^([\d.]+) kg into the ore bin: \+(\d+) pts$/, (_, k, p) => `${kgDe(k)} kg in den Erzkasten: +${p} Pkt.`);
-  dynamic = dynamic.replace(/^(Galena|Sphalerite|Barren rock) · ([\d.]+) kg · hold Strike$/, (_, o, k) => `${oreDe[o]} · ${kgDe(k)} kg · Zuschlagen halten`);
+  dynamic = dynamic.replace(/^(\d+) pts · basket ([\d.]+)\/(\d+) kg · lamp (\d+:\d\d)$/, (_, p, b, m, l) => `${p} Pkt. · Korb ${b}/${m} kg · Lampe ${l}`);
+  dynamic = dynamic.replace(/^Basket ([\d.]+)\/(\d+) kg · ore bin (\d+) m · (\d+) pts$/, (_, b, m, d, p) => `Korb ${b}/${m} kg · Erzkasten ${d} m · ${p} Pkt.`);
+  dynamic = dynamic.replace(/^\+([\d.]+) kg (galena|sphalerite|barren rock)$/, (_, k, o) => `+${k} kg ${oreDe[o]}`);
+  dynamic = dynamic.replace(/^([\d.]+) kg into the ore bin: \+(\d+) pts$/, (_, k, p) => `${k} kg in den Erzkasten: +${p} Pkt.`);
+  dynamic = dynamic.replace(/^(Galena|Sphalerite|Barren rock) · ([\d.]+) kg · hold Strike$/, (_, o, k) => `${oreDe[o]} · ${k} kg · Zuschlagen halten`);
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
   dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');
@@ -1792,7 +2056,7 @@ function translate(value) {
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)
   if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
     const gapUnits = { points: 'Punkte', pts: 'Pkt.', goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', 'WC pts': 'Weltcup-Punkte' };
-    const gapDe = (g) => g.replace(/^(-?\d+) (goals ahead|goals|skiers|points|WC pts|pts)$/, (_, n, u) => `${n} ${n === '1' ? gapUnits[u].replace('Tore', 'Tor') : gapUnits[u]}`).replace(/^(\d+)\.(\d) s$/, '$1,$2 s');
+    const gapDe = (g) => g.replace(/^(-?\d+) (goals ahead|goals|skiers|points|WC pts|pts)$/, (_, n, u) => `${n} ${n === '1' ? gapUnits[u].replace('Tore', 'Tor') : gapUnits[u]}`);
     dynamic = dynamic
       .replace(/^You lead by (.+) over place 2$/, (_, g) => `Du führst mit ${gapDe(g).replace(/ Punkte$/, ' Punkten').replace(/ Tore$/, ' Toren')} vor Platz 2`)
       .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')

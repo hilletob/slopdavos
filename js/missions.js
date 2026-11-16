@@ -1,12 +1,12 @@
 import * as THREE from 'three/webgpu';
 import { MISSIONS, getMission, SPITAL_PAD, LAUNCHER, formatTime, formatDistance, relativeBearing, bestTimeKey, readBestTimes, recordBestTime, simulateShot, inZone, scoreText } from './missions-data.js';
 import { createTargetMarker, createZoneRing, drapeRing, createAimMarker, createLauncher, createShell, createScriptedRega, createPoliceCar, PROP_BUILDERS, slopeQuaternion } from './missions-props.js';
-import { ParticleBatch, MissionAudio } from './missions-fx.js';
+import { ParticleBatch, MissionAudio, CameraShake, FX_SHARE } from './missions-fx.js';
 import { surfaceHeight, groundHeight, groundNormal } from './terrain.js';
 import { groomMap } from './groom-map.js';
 import { HELIPAD, buildHelipad } from './helipad.js';
 import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
-import { setWorldCenter } from './quality.js';
+import { setWorldCenter, QUALITY } from './quality.js';
 import { releaseRenderState } from './gpu-memory.js';
 import { MissionManager, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from './missions-manager.js';
 import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
@@ -44,6 +44,7 @@ import { PHARMACY_FEATURES } from './missions-pharmacy.js';
 import { POST_FEATURES } from './missions-post.js';
 import { JETPACK_FEATURES } from './missions-jetpack.js';
 import { VICTORIA_FEATURES } from './missions-victoria.js';
+import { HELIBLAST_FEATURES } from './missions-heliblast.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -1020,8 +1021,10 @@ const FEATURES = {
       run.shellMesh = createShell();
       run.aimMarker = createAimMarker();
       run.group.add(run.launcher, run.shellMesh, run.aimMarker);
-      run.particles = new ParticleBatch(run.scene);
+      // (room for the blast, the fracture line and the avalanche's core and powder cloud: ~600 at once on a desktop)
+      run.particles = new ParticleBatch(run.scene, { max: QUALITY.mobile ? 450 : 1000 });
       run.storage(run.particles.mesh);
+      run.shake = new CameraShake();
       // HUD: the crosshair with the elevation, the fire button on touch screens
       const cross = el('div', 'mission-crosshair');
       cross.append(el('span', 'mission-crosshair-ring'), el('span', 'mission-crosshair-dot'));
@@ -1062,8 +1065,8 @@ const FEATURES = {
       cs.orbitPitchOffset = 0.68 - (26 - 5) / 45; // 26° up the slope to start with
       Object.assign(run.shooter, { shots: 0, hits: 0, misses: 0, ammo: run.def.ammo, shell: null, lastShot: -1e9, firedOnce: false });
       run.shellMesh.visible = false;
-      run.particles.particles.length = 0;
-      run.particles.releases = [];
+      run.particles.clear();
+      run.shake.clear();
     },
     key(run, e) {
       if (e.code === 'Space' || e.code === 'KeyF' || (e.code === 'Enter' && run.phase !== 'intro')) {
@@ -1082,14 +1085,18 @@ const FEATURES = {
       const c = Math.cos(elev);
       return { muzzle, dir: { x: Math.sin(yaw) * c, y: Math.sin(elev), z: Math.cos(yaw) * c }, yaw, elev };
     },
-    // Over the shoulder, along the line of the tube: the crosshair in the middle of the screen is the launch line
-    after(run, ctx) {
+    // Over the shoulder, along the line of the tube: the crosshair in the middle of the screen is the launch line; the
+    // blasts' pressure waves shake it when they arrive
+    after(run, ctx, dt) {
+      // (the particles run on after the finish: the last avalanche rolls out under the dialog)
+      run.particles.update(dt, ctx.camera);
       const aim = run.lastAim;
       if (!aim || ctx.mode !== 'person' || run.phase === 'intro') return;
       const cam = ctx.camera, d = aim.dir, h = Math.hypot(d.x, d.z) || 1;
       cam.position.set(aim.muzzle.x - (d.x / h) * 4.2 - (d.z / h) * 0.9, aim.muzzle.y + 0.55 - d.y * 1.5, aim.muzzle.z - (d.z / h) * 4.2 + (d.x / h) * 0.9);
       cam.lookAt(aim.muzzle.x + d.x * 300, aim.muzzle.y + d.y * 300, aim.muzzle.z + d.z * 300);
       cam.updateMatrixWorld();
+      run.shake.apply(cam, dt);
     },
     fire(run) {
       if (run.phase === 'intro' || run.phase === 'done' || run.phase === 'failed' || run.phase === 'aborted') return;
@@ -1140,17 +1147,21 @@ const FEATURES = {
         }
         if (s.shell) run.shellMesh.position.set(sh.x, sh.y, sh.z);
       }
-      run.particles.update(dt, ctx.camera);
     },
+    // The shell goes off: the flash at once, the bang and the jolt of its pressure wave as late as the sound takes to
+    // come across; in the zone the slab breaks at its crown and runs down the fall line for several seconds, with
+    // the roar of the snow and a long, low tremor
     impact(run, x, y, z, ctx) {
-      const s = run.shooter;
-      run.particles.impact(x, y, z);
-      run.audio.boom(Math.hypot(x - ctx.x, y - ctx.y, z - ctx.z), 1);
+      const s = run.shooter, d = Math.hypot(x - ctx.x, y - ctx.y, z - ctx.z);
+      run.particles.blast(x, y, z, { scale: 1.15 });
+      run.audio.boom(d, 1);
+      run.shake.kick(CameraShake.strengthAt(d), { delay: d / 340, seconds: 0.9 });
       const zone = run.def.zones[s.hits];
       if (zone && inZone(zone, x, z)) {
         s.hits++;
-        run.particles.avalanche(x, z, { count: 160, seconds: 2.4, spread: zone.r + 6 });
-        setTimeout(() => { if (!run.disposed) run.audio.boom(Math.hypot(x - ctx.x, z - ctx.z), 0.5); }, 1200); // the slope's rumble
+        run.particles.avalanche(x, z, { count: Math.round(440 * FX_SHARE), seconds: 6.5, spread: zone.r + 6, run: 340, width: zone.r * 2 + 18, crack: true });
+        run.audio.rumble(d, { seconds: 8, delay: 0.5 });
+        run.shake.kick(CameraShake.strengthAt(d, 0.3), { delay: d / 340 + 0.8, seconds: 5 });
       } else s.misses++;
     }
   },
@@ -1282,3 +1293,4 @@ Object.assign(FEATURES, PHARMACY_FEATURES); // the medicine round by cargo bike 
 Object.assign(FEATURES, POST_FEATURES); // the postman empties the post boxes from Davos Dorf to Platz in the yellow van (js/missions-post.js)
 Object.assign(FEATURES, JETPACK_FEATURES); // the jetpack demo from the Kongress to the Schatzalp (js/missions-jetpack.js)
 Object.assign(FEATURES, VICTORIA_FEATURES); // a shift at the Turmhotel Victoria (js/missions-victoria.js)
+Object.assign(FEATURES, HELIBLAST_FEATURES); // hand charges thrown from the helicopter onto the avalanche slopes (js/missions-heliblast.js)

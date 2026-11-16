@@ -1006,6 +1006,43 @@ test('a player inside a building is set outside across the nearest wall, never i
   assert.ok(controller.insideBuilding(5, 5, 3));
 });
 
+// A yard walled in on all four sides by 0.44 m walls (no floor plan: it is not inside a building), with a gate of
+// `gate` metres in the south wall
+function walledYard(x0, z0, x1, z1, gate = 0) {
+  const wall = (minX, maxX, minZ, maxZ) => ({ minX, maxX, minZ, maxZ, minY: 0, maxY: 8 });
+  const mid = (x0 + x1) / 2;
+  const south = gate > 0
+    ? [wall(x0 - 0.22, mid - gate / 2, z0 - 0.22, z0 + 0.22), wall(mid + gate / 2, x1 + 0.22, z0 - 0.22, z0 + 0.22)]
+    : [wall(x0 - 0.22, x1 + 0.22, z0 - 0.22, z0 + 0.22)];
+  return [...south, wall(x0 - 0.22, x1 + 0.22, z1 - 0.22, z1 + 0.22), wall(x0 - 0.22, x0 + 0.22, z0, z1), wall(x1 - 0.22, x1 + 0.22, z0, z1)];
+}
+
+test('nobody arrives walled in: a closed yard is refused, one with a gate is not', () => {
+  for (const mode of ['person', 'cyclist', 'car']) {
+    const { controller, ent } = teleportHarness(mode, walledYard(0, 0, 12, 12));
+    assert.equal(controller.isSpotClear(mode, 6, 6), true, `${mode}: the yard itself is clear of the walls`);
+    assert.equal(controller.canWalkAway(6, 6, 0.4), false, 'but there is no way out of it');
+    assert.equal(controller.canWalkAway(30, 6, 0.4), true, 'outside there is');
+    const result = controller.teleportActiveTo(6, 6, 0);
+    const inYard = result.x > 0 && result.x < 12 && result.z > 0 && result.z < 12;
+    assert.ok(!inYard, `${mode} arrives outside the yard: ${result.x}, ${result.z}`);
+    assert.ok(Math.hypot(result.x - 6, result.z - 6) < 20, `${mode} arrives close by`);
+    assert.deepEqual([ent.position.x, ent.position.z], [result.x, result.z]);
+  }
+  // A 2 m gate lets the walker out (and the car, 1.86 m wide, too); a 0.6 m slot not
+  const { controller } = teleportHarness('person', walledYard(0, 0, 12, 12, 2));
+  assert.equal(controller.canWalkAway(6, 6, 0.4), true, 'through the gate');
+  assert.deepEqual({ ...controller.teleportActiveTo(6, 6, 0) }, { x: 6, z: 6 }, 'a yard with a gate is a fine arrival');
+  const narrow = teleportHarness('person', walledYard(0, 0, 12, 12, 0.6)).controller;
+  assert.equal(narrow.canWalkAway(6, 6, 0.4), false, 'not through a slot narrower than the body');
+  // A courtyard in a block's floor plan (its hole) is outside the building, yet closed: refused as well
+  const block = teleportHarness('person');
+  block.controller.setBuildingInteriors([squarePlan(0, 0, 30, 30, [[{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }]])]);
+  const out = block.controller.teleportActiveTo(15, 15, 0);
+  assert.equal(block.controller.insideBuilding(out.x, out.z), null);
+  assert.ok(out.x < 0 || out.x > 30 || out.z < 0 || out.z > 30, `out of the courtyard: ${out.x}, ${out.z}`);
+});
+
 test('a held turn key eases the steering in, a tap steers a little, and letting go centres it quickly', () => {
   const { controller } = keyboardHarness();
   controller.keys.left = true;

@@ -98,6 +98,25 @@ test('too tight a turn at speed tips the sledge over: a crash, then back on the 
   for (let t = 0; t < 1; t += DT) assert.notEqual(stepSledge(slow, { steer: 1 }, DT, (x, z) => 0, course), 'crash');
 });
 
+test('the tip builds up over a moment: a runner lifts (the warning), easing off sets the sledge down again', () => {
+  const course = createCourse([0, 0, 0, 3000]);
+  const h = slope(0.3);
+  const sl = createSledge(course, h, 0);
+  for (let t = 0; t < 12; t += DT) stepSledge(sl, { tuck: 1 }, DT, h, course);
+  assert.ok(riderSpeed(sl.rider) > 14);
+  // half a second at full lock: well over the limit, warned, but not over
+  for (let t = 0; t < 0.5; t += DT) assert.notEqual(stepSledge(sl, { steer: 1 }, DT, h, course), 'crash');
+  assert.ok(sl.tip > SLEDGE_TRACK.tipWarn && sl.tip < 1, `the runner lifts: ${sl.tip}`);
+  // the horns let go: down again within a third of a second
+  for (let t = 0; t < 0.35; t += DT) stepSledge(sl, {}, DT, h, course);
+  assert.equal(sl.tip, 0);
+  assert.equal(sl.crashes, 0);
+  // the warning shows as the hint
+  const m = HORN_SLEDGE_MISSION, st = m.createState();
+  st.tip = SLEDGE_TRACK.tipWarn + 0.1;
+  assert.match(m.objectives[0].check(frame({ x: st.cps[0].x, z: st.cps[0].z - 50 }), st).hint, /Ease off A\/D and brake \(S\)/);
+});
+
 test('the net on the outside of a bend stops a slow sledge and throws a fast one', () => {
   const pts = [0, 0, 0, 60];
   for (let a = 0; a <= Math.PI / 2 + 1e-9; a += Math.PI / 32) pts.push(20 - 20 * Math.cos(a), 60 + 20 * Math.sin(a));
@@ -251,6 +270,19 @@ test('on the rails: let go and it flies, the lever holds it, the lean helps roun
   assert.equal(crash.ev, 'bump');
   assert.equal(crash.sl.last, 'bump');
   assert.equal(crash.sl.v, 0);
+  // the warning (the toast, the wheels' grind: js/missions-sledge.js) comes while there is still time to brake and lean
+  {
+    const sl = createToboggan(30);
+    let t = 0, warnedAt = null, ev = null;
+    while (sl.s < 95 && !ev) {
+      sl.v = 13;
+      ev = stepToboggan(sl, {}, DT, bend);
+      t += DT;
+      if (warnedAt === null && sl.wall > TOBOGGAN.wallWarn) warnedAt = t;
+    }
+    assert.equal(ev, 'bump');
+    assert.ok(TOBOGGAN.wallWarn < 0.3 && warnedAt !== null && t - warnedAt > 0.3, `warned ${(t - (warnedAt ?? t)).toFixed(2)} s before the bump`);
+  }
   assert.ok(crash.sl.stopT > 0 && crash.sl.bumps === 1);
   const s0 = crash.sl.s;
   for (let t = 0; t < T.stopS - 0.1; t += DT) stepToboggan(crash.sl, {}, DT, bend);

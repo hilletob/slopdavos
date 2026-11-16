@@ -588,7 +588,7 @@ export const BIG_AIR_MISSION = {
       const k = BIG_AIR.kicker, last = state.jumps[state.jumps.length - 1];
       const lip = { x: k.x + Math.sin(k.heading) * BIG_AIR.kickerLength, z: k.z + Math.cos(k.heading) * BIG_AIR.kickerLength };
       const text = last ? `${last.name}: ${last.points} pts · total ${bigAirTotal(state)}` : `${fmtDist(Math.hypot(lip.x - ctx.x, lip.z - ctx.z))} to the kicker`;
-      const hint = state.airborne ? 'Spin A/D · flip W/S · grab Space' : state.note;
+      const hint = state.airborne ? 'Spin A/D · flip W/S · grab Space' : state.note || (ctx.mode === 'person' ? 'Down to the kicker: tuck (W) for speed' : null);
       return { done: state.jumps.length > i, progress: null, text, target: state.airborne ? null : { x: lip.x, z: lip.z }, hint };
     }
   }))
@@ -596,6 +596,13 @@ export const BIG_AIR_MISSION = {
 
 // The race: start on the Ischalp's meadow, checkpoints every ~110 m, the finish on Bolgen Plaza
 export const MTB_CRASH_MS = 5000;
+// The crash (js/missions-snow.js mtb): a turn tighter than the tyres hold at this speed, the lateral acceleration over
+// `g`, held for `holdS` (the skid builds up, `recover` per s back as it stays under), warned at `warnS` of it. Steering
+// now goes through the eased, curved stick (js/controllers.js turnInput: a held key at full lock after 0.35 s): with
+// 0.4 s and 2/s back, a keyboard rider braking for the bends to ~1.2 g (decisions at 10 Hz) still went down ten times a
+// run, a hairpin taken at full lock above ~8 m/s right away; at 0.6 s and 4/s it goes down only when it really is too
+// fast (no braking for the hairpins: still ~40), and there is half a second after the warning to ease off and brake
+export const MTB_SKID = { g: 1.7, holdS: 0.6, recover: 4, warnS: 0.15 };
 const MTB_BOLGEN_TRAIL_S = lineLength(MTB_TRAIL) - 580; // (where the Chüggelibahn ends and the Bolgen Trail begins)
 export const mtbCheckpoints = () => buildCheckpoints(MTB_TRAIL, 110, 60);
 
@@ -609,7 +616,7 @@ const mtbSection = (id, title, toS) => ({
     const n = state.cps.length;
     const skipped = state.skipped != null ? state.cps[state.skipped] : null;
     const text = skipped ? `Checkpoint ${skipped.i + 1} missed: ride back to it` : `Checkpoint ${Math.min(n, state.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}${state.crashes ? ` · ${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'} (+${(state.crashes * MTB_CRASH_MS) / 1000} s)` : ''}`;
-    const hint = skipped ? 'Shortcut: a checkpoint was missed' : state.crashT > 0 ? `Crash! +${MTB_CRASH_MS / 1000} s` : state.wobble > 0 ? 'Too fast for this turn: brake (S)!' : ctx.mode !== 'cyclist' ? 'Back on the bike' : null;
+    const hint = skipped ? 'Shortcut: a checkpoint was missed' : state.crashT > 0 ? `Crash! +${MTB_CRASH_MS / 1000} s` : state.wobble > 0 ? 'Skidding! Ease off A/D and brake (S)' : ctx.mode !== 'cyclist' ? 'Back on the bike' : null;
     return { done: state.next > last, progress: state.next / n, text, target: cp ? { x: cp.x, z: cp.z, r: 6, style: skipped ? 'hazard' : 'plain' } : null, hint };
   }
 });

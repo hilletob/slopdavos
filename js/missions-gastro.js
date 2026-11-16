@@ -60,7 +60,8 @@ const STYLE = `
 .gs-top kbd{font:700 10px Inter,system-ui,sans-serif;opacity:.6}
 .gs-heat{height:13px;margin-top:6px;border-radius:7px;background:rgba(255,255,255,.14);overflow:hidden}
 .gs-heat span{display:block;height:100%;transform-origin:left;background:linear-gradient(90deg,#3f8fd6,#f2b632 45%,#e8391f)}
-body.gs-indoor .gta-prompt,body.gs-indoor .touch-use,body.gs-indoor .mission-prompt,body.gs-indoor #touch-controls,body.gs-indoor .hud-bottom-center,body.gs-indoor .hud-bottom-left,body.gs-indoor .hud-bottom-right{display:none!important}
+body.gs-indoor .gta-prompt,body.gs-indoor .touch-use,body.gs-indoor .mission-prompt,body.gs-indoor #touch-controls,body.gs-indoor .hud-bottom-left,body.gs-indoor .hud-bottom-right{display:none!important}
+body.gs-indoor:not(.touch-enabled) .gs-hud{bottom:var(--keybar-clear,54px)}
 @media (hover:none){.gs-top kbd{display:none}}
 @media (max-width:520px){.gs-board{flex-direction:column;gap:6px}.gs-board canvas{width:clamp(84px,14vh,120px)}.gs-tops{width:100%;flex:none}.gs-top{font-size:10.5px}}
 `;
@@ -372,6 +373,8 @@ const shots = {
   setup(run) {
     run.sh = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a shot'), seq: 0, lift: 0, swayT: 0, shown: 0 };
     run.listen(run.sh.ui.act, 'pointerdown', (e) => { e.preventDefault(); shots.press(run); });
+    // the key bar at the bar (js/actions.js; the room's own controls replace the walker's): the big button's key
+    run.actions([{ kind: 'hint', kbd: ['Space', 'Enter'], label: 'the red button', when: () => !!run.sh.room }]);
   },
   reset(run) {
     const sh = run.sh;
@@ -545,6 +548,7 @@ const flaemmli = {
     // (js/missions.js hands the features only keydown: the held steps need the key coming up too)
     run.listen(window, 'keyup', (e) => { if (fl.room && (e.code === 'Space' || e.code === 'Enter')) { swallow(e); flaemmli.release(run); } }, { capture: true });
     run.listen(window, 'blur', () => flaemmli.release(run));
+    run.actions([{ kind: 'hint', kbd: ['Space', 'Enter'], label: 'the red button (held: keep the key down)', when: () => !!fl.room }]);
   },
   reset(run) {
     const fl = run.fl;
@@ -829,6 +833,7 @@ const pizzaRun = {
       room: null, crowd: null, carry: buildCarGear(run, run.hooks.controllerManager.entities.car), seq: 0, ticketKey: '',
       ui: { shopHud, pop, line, ticket, c: cv.getContext('2d'), driveHud, drivePop, dline, heatFill }
     };
+    run.actions([{ kind: 'hint', kbd: ['1–8'], label: 'the toppings, in the order of the ticket', when: () => !!run.pz.room }]);
   },
   reset(run) {
     const pz = run.pz;

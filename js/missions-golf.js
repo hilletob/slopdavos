@@ -848,7 +848,11 @@ const golf = {
     cart.type = 'button';
     run.listen(cart, 'pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); golf.cart(run); });
     foot.append(cart);
-    run.hints([[['W', 'S', '1-5'], 'club'], [['A', 'D', 'Drag'], 'aim'], [['Space'], 'swing'], [['C'], 'cart']]);
+    // the key bar; the cart (C, the HUD's button) also on the gamepad's d-pad right while the player walks to the ball
+    run.hints([[['W', 'S', '1-5'], 'club'], [['A', 'D', 'Drag'], 'aim'], [['Space'], 'swing']]);
+    run.actions([
+      { id: 'golf-cart', label: 'Cart', keys: ['KeyC'], keyboard: false, pad: 'right', touch: false, when: () => G.mode === 'walk' || G.mode === 'settled', run: () => golf.cart(run) }
+    ], { replace: false }); // (the hints above stay in the bar)
     const mid = el('div', 'golf-row');
     mid.append(clubs, info);
     const low = el('div', 'golf-row');

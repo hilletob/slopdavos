@@ -675,7 +675,9 @@ export const MARSHAL_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'The first cars are turning in …', target: null, hint: null };
-        return { done: g.done, progress: g.t / MARSHAL.length, text: `${Math.max(0, g.score)} pts · ${g.good + g.crooked} parked · ${fmtClock(MARSHAL.length - g.t)}`, target: null, hint: null };
+        return { done: g.done, progress: g.t / MARSHAL.length, text: `${Math.max(0, g.score)} pts · ${g.good + g.crooked} parked · ${fmtClock(MARSHAL.length - g.t)}`, target: null,
+          // (what to do now: the skiers first, then the car in hand, to a side whose arrows are green)
+          hint: g.cross.state !== 'idle' ? 'Skiers crossing: stop the car (↓ / Space)' : marshalActive(g) ? 'Wave the car to free bays: ← / ↑ / →' : null };
       }
     }
   ]

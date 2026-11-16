@@ -1110,6 +1110,59 @@ export function craneHookAction(c, site, st) {
   return 'released';
 }
 
+// The step hint: the one move to make next, in the order a crane driver makes them (the load lifted clear of the
+// terraces, the jib slewed round over the goal, the trolley run out or in, then down), with the key that makes it
+export const CRANE_MOVES = {
+  liftOff: 'Hooked: hold E to lift it off the ground',
+  liftClear: 'Hold E: lift it clear above the terraces first',
+  slewLoadLeft: 'Hold A: slew the jib round towards the yellow ring on the load',
+  slewLoadRight: 'Hold D: slew the jib round towards the yellow ring on the load',
+  trolleyLoadOut: 'Hold W: run the trolley out over the load',
+  trolleyLoadIn: 'Hold S: run the trolley in over the load',
+  lowerHook: 'Over the load: hold Q to lower the hook onto it',
+  raiseHook: 'The hook is too low: hold E to lift it a little',
+  take: 'Over the load: F takes it',
+  settle: 'Let the hook settle over the load, then F takes it',
+  slewPadLeft: 'Hold A: slew the jib round towards the yellow mark on the deck',
+  slewPadRight: 'Hold D: slew the jib round towards the yellow mark on the deck',
+  trolleyPadOut: 'Hold W: run the trolley out over the mark',
+  trolleyPadIn: 'Hold S: run the trolley in over the mark',
+  lowerLoad: 'Over the mark: hold Q to lower it gently',
+  release: 'Down on the mark: F lets it go',
+  offSpot: 'Off the mark: hold E to lift it, then set it down inside the ring'
+};
+/** craneNextMove's slack: how far off (m, at the trolley) the goal may be before the hint asks for a slew or the trolley */
+const CRANE_AIM = 1;
+/** The next move towards the load in the yard or its mark on the deck (a key of CRANE_MOVES), null with no load left */
+export function craneNextMove(c, site, st) {
+  const load = site.loads[st.index];
+  if (!load) return null;
+  if (st.carried && st.seated) {
+    if (!st.lifted) return 'liftOff';
+    const err = Math.hypot(st.lx - load.pad.x, st.lz - load.pad.z);
+    if (err <= CRANE.padR && Math.abs(st.ly - load.padY) <= 0.2) return 'release';
+    return err <= CRANE.padR * 2 ? 'offSpot' : 'liftClear'; // (set down on the way, in the yard or on another deck)
+  }
+  const goal = st.carried ? load.pad : load.yard;
+  const dx = goal.x - CRANE.tower.x, dz = goal.z - CRANE.tower.z;
+  let turn = (Math.atan2(dx, dz) - c.theta) % (Math.PI * 2);
+  if (turn > Math.PI) turn -= Math.PI * 2; else if (turn < -Math.PI) turn += Math.PI * 2;
+  const across = turn * Math.hypot(dx, dz), along = Math.hypot(dx, dz) - c.r;
+  const over = Math.abs(across) <= CRANE_AIM && Math.abs(along) <= CRANE_AIM;
+  // (a load low down and away from its mark: up over the terraces before it swings round)
+  if (st.carried && !over && Math.hypot(st.lx - goal.x, st.lz - goal.z) > CRANE.padR && st.ly < site.decks[site.decks.length - 1] + 1) return 'liftClear';
+  // (the slew's input is + to the left, A: the angle grows)
+  const side = st.carried ? 'Pad' : 'Load';
+  if (Math.abs(across) > CRANE_AIM) return `slew${side}${across > 0 ? 'Left' : 'Right'}`;
+  if (Math.abs(along) > CRANE_AIM) return `trolley${side}${along > 0 ? 'Out' : 'In'}`;
+  if (st.carried) return 'lowerLoad';
+  const hook = craneHook(c);
+  const above = hook.y - (load.restY + load.half.y * 2 + CRANE.sling);
+  if (above > CRANE.pickAbove) return 'lowerHook';
+  if (above < -CRANE.pickBelow) return 'raiseHook';
+  return Math.hypot(hook.x - load.yard.x, hook.z - load.yard.z) <= CRANE.pickReach ? 'take' : 'settle';
+}
+
 const num = (v) => v.toFixed(1);
 export const CRANE_MISSION = {
   id: 'derby-crane',
@@ -1140,7 +1193,7 @@ export const CRANE_MISSION = {
       title: 'Climb the crane',
       check(ctx, state) {
         const d = Math.hypot(ctx.x - CRANE.ladder.x, ctx.z - CRANE.ladder.z);
-        return { done: state.cab, progress: null, text: `${fmtDist(d)} to the crane ladder`, target: { x: CRANE.ladder.x, z: CRANE.ladder.z, r: CRANE.ladderR }, hint: null };
+        return { done: state.cab, progress: null, text: `${fmtDist(d)} to the crane ladder`, target: { x: CRANE.ladder.x, z: CRANE.ladder.z, r: CRANE.ladderR }, hint: 'Walk (W) to the ladder at the foot of the mast: you climb up into the cab by yourself' };
       }
     },
     ...CRANE_LOADS.map((load, i) => ({
@@ -1151,17 +1204,19 @@ export const CRANE_MISSION = {
         const v = state.view;
         const hits = state.hits ? ` · ${state.hits} ${state.hits === 1 ? 'hit' : 'hits'}` : '';
         let text = `Take the ${load.name}${hits}`, hint = null;
+        // (the hint: the next move with its key, js/missions-work.js towerCrane keeps state.view.move up to date)
+        const move = v?.move ? CRANE_MOVES[v.move] : null;
         if (state.carried && state.seated && state.lifted) {
           const err = Math.hypot(state.lx - load.pad.x, state.lz - load.pad.z);
           text = `${num(err)} m off the mark${hits}`;
-          hint = err <= CRANE.padR ? 'Down: F lets it go' : 'Off the spot: lift it and try again';
+          hint = move || (err <= CRANE.padR ? CRANE_MOVES.release : CRANE_MOVES.offSpot);
         } else if (v) {
           text = `${state.carried ? `Set the ${load.name} down` : `Take the ${load.name}`}: ${num(v.dist)} m off · ${num(Math.max(0, v.above))} m above · swing ${num(v.swing)} m${hits}`;
-          if (!state.carried && v.ready) hint = 'Over the load: F takes it';
-          else if (v.swing > 1.2) hint = 'Swinging: meet the swing with a small move the same way';
-          else if (v.wind > 0.12) hint = 'Gusts: the load drifts';
-          else hint = 'A D slew · W S trolley · E lift · Q lower · F hook · V view';
-        }
+          if (!state.carried && v.ready) hint = CRANE_MOVES.take;
+          else if (v.swing > 1.2 && !(state.carried && state.seated)) hint = state.carried ? 'Swinging: meet the swing with a small move the same way' : 'The hook swings: meet the swing with a small move the same way';
+          else if (v.move === 'lowerLoad' && v.wind > 0.12) hint = 'Gusts: the load drifts. Hold it over the mark and lower it with Q in a lull';
+          else hint = move || 'A D slew · W S trolley · E lift · Q lower · F hook · V view';
+        } else if (state.cab) hint = 'Up in the cab: the yellow ring in the yard marks the load to take';
         return { done: state.index > i, progress: state.carried ? 0.5 : 0, text, target: null, hint };
       }
     }))

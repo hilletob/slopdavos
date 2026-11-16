@@ -265,9 +265,9 @@ test('the medicine round\'s texts in German', async () => {
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title), ...PARCELS.map((p) => p.content)]) assert.notEqual(t(s), s, s);
   for (const s of ['Back onto the cargo bike', 'Stop at the door to hand the parcel over', 'Glass aboard: slow down over kerbs', 'Stop in front of the pharmacy', 'The insulin is warm: +45 s']) assert.notEqual(t(s), s, s);
   assert.equal(t('Insulin cold for 1:02 · 240 m to Mühlestrasse 10'), 'Insulin noch 1:02 kalt · 240 m bis Mühlestrasse 10');
-  assert.equal(t('The insulin is warm (+45 s) · 1.1 km to Mühlestrasse 10'), 'Das Insulin ist warm (+45 s) · 1,1 km bis Mühlestrasse 10');
+  assert.equal(t('The insulin is warm (+45 s) · 1.1 km to Mühlestrasse 10'), 'Das Insulin ist warm (+45 s) · 1.1 km bis Mühlestrasse 10');
   assert.equal(t('Delivered 2/6 · next Palüdastrasse 8, 240 m'), 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 240 m');
-  assert.equal(t('Delivered 2/6 · next Palüdastrasse 8, 1.2 km · fragile 62 %'), 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 1,2 km · zerbrechlich 62 %');
+  assert.equal(t('Delivered 2/6 · next Palüdastrasse 8, 1.2 km · fragile 62 %'), 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 1.2 km · zerbrechlich 62 %');
   assert.equal(t('Delivered 6/6'), 'Abgegeben 6/6');
   assert.equal(t('Crate empty · 120 m to the pharmacy'), 'Kiste leer · 120 m bis zur Apotheke');
   assert.equal(t('Handing over … 40 %'), 'Übergabe … 40 %');

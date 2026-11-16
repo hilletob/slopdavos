@@ -24,7 +24,7 @@ const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
 
 const STYLE = `
-.cr-hud{position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 20px))}
+.cr-hud{position:fixed;left:50%;bottom:var(--keybar-clear,54px);transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(460px,calc(100vw - 20px))}
 .cr-hud[hidden],.cr-game[hidden]{display:none!important}
 .cr-card{background:rgba(10,12,20,.8);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:8px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:13px;font-variant-numeric:tabular-nums;text-align:center}
 .cr-card b{font-size:18px}
@@ -41,7 +41,7 @@ body.touch-enabled .cr-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + v
 .cr-game{position:fixed;inset:0;z-index:38;display:flex;align-items:flex-start;justify-content:center;padding-top:196px;box-sizing:border-box;background:rgba(12,18,20,.88);font-family:Inter,system-ui,sans-serif;color:#fff}
 .cr-game-box{display:flex;flex-direction:column;gap:8px;align-items:center;max-width:calc(100vw - 16px)}
 .cr-game canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);touch-action:none;max-width:calc(100vw - 16px);background:#222}
-body.cr-busy .controls-hint,body.cr-busy .gta-prompt,body.cr-busy .touch-use,body.cr-busy .mission-prompt,body.cr-busy #touch-controls{display:none!important}
+body.cr-busy .gta-prompt,body.cr-busy .touch-use,body.cr-busy .mission-prompt,body.cr-busy #touch-controls{display:none!important}
 @media (max-width:640px){.cr-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}}
 @media (max-height:500px){.cr-game{padding-top:4px;z-index:46}.cr-game .cr-card{padding:2px 8px;font-size:11px}.cr-game-box{gap:3px}.cr-hud{bottom:4px;gap:3px}.cr-pop{font-size:16px;min-height:18px}}
 `;
@@ -356,7 +356,9 @@ const SNOWSHOES = {
     const dir = s.speed < 0 ? -1 : 1, here = groundHeight(p.position.x, p.position.z);
     const grade = (groundHeight(p.position.x + sinH * dir * 1.5, p.position.z + cosH * dir * 1.5) - here) / 1.5;
     const packed = onPackedLine(p.position.x, p.position.z);
-    const input = go ? { forward: +k.forward || 0, back: +k.backward || 0, steer: (+k.left || 0) - (+k.right || 0) } : { forward: 0, back: 0, steer: 0 };
+    // (the steer eased in like the game's own walk: cm.turnInput, once a frame from this driver)
+    const steer = cm.turnInput(dt);
+    const input = go ? { forward: +k.forward || 0, back: +k.backward || 0, steer } : { forward: 0, back: 0, steer: 0 };
     shoeStep(s, input, dt, { grade, packed });
     p.heading = s.heading;
     p.speed = s.speed;
@@ -537,6 +539,15 @@ const CAST_ROOM = {
       } else if (cx.finger != null) cx.finger = legU(p.x);
     });
     for (const ev of ['pointerup', 'pointercancel']) run.listen(canvas, ev, () => { cx.finger = null; cx.press = false; cx.last = null; });
+    // the table's keys in the key bar (js/actions.js), by the step at hand; the keys themselves are key() below's
+    const at = (...stages) => () => cx.open && run.phase === 'running' && stages.includes(run.state.room?.patient.stage);
+    run.actions([
+      { kind: 'hint', kbd: ['1', '2'], label: 'the leg, then the length', when: at('xray') },
+      { kind: 'hint', kbd: ['Space'], label: 'held: the bandage in the water', when: at('wet') },
+      { kind: 'hint', kbd: ['A', 'D'], label: 'the hand along the leg', when: at('pad', 'wrap', 'smooth') },
+      { kind: 'hint', kbd: ['A', 'D'], label: 'the foot\'s angle', when: at('angle') },
+      { kind: 'hint', kbd: ['Space'], label: 'done', when: at('angle', 'sign') }
+    ]);
     run.listen(window, 'keyup', (e) => {
       if (e.code === 'ArrowRight' || e.code === 'KeyD') cx.keys.right = false;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') cx.keys.left = false;

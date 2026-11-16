@@ -188,7 +188,7 @@ test('the texts have their German', async () => {
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
   for (const s of [...PFADI.tentSteps, ...PFADI.ringSteps]) assert.notEqual(t(`${s.label} (1/5)`), `${s.label} (1/5)`, s.label);
   assert.equal(t('Peg the edges (4/5)'), 'Ränder verhäringen (4/5)');
-  assert.equal(t('1.2 km to the camp in the Mattawald'), '1,2 km bis zum Lagerplatz im Mattawald');
+  assert.equal(t('1.2 km to the camp in the Mattawald'), '1.2 km bis zum Lagerplatz im Mattawald');
   assert.equal(t('Firewood 3/8 · twigs 1/3 · kindling 0/2 · logs 2/3'), 'Feuerholz 3/8 · Reisig 1/3 · Anfeuerholz 0/2 · Scheiter 2/3');
   assert.equal(t('Hold Space: pick up a log'), 'Space halten: ein Scheit aufheben');
   assert.equal(t('Sparks in the tinder 2/3'), 'Funken im Zunder 2/3');

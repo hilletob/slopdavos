@@ -501,10 +501,12 @@ function buildMiner(mat) {
 // --- The feature -----------------------------------------------------------------------------------------------------------
 const STYLE = `
 body.mine-indoor [data-touch-action="up"],body.mine-indoor .gta-prompt,body.mine-indoor .touch-use,body.mine-indoor .mission-prompt{display:none!important}
-body.mine-indoor .hud-bottom-center{visibility:hidden}
 @media (max-width:640px){body.mine-indoor .hud-bottom-right{visibility:hidden}}
 .mine-hud{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;display:flex;gap:10px;align-items:center;pointer-events:none;font:700 14px/1.2 Inter,system-ui,sans-serif;color:#f3e6cc;font-variant-numeric:tabular-nums}
 .mine-hud[hidden]{display:none}
+body:not(.touch-enabled) .mine-hud{bottom:var(--keybar-clear,54px)}
+body:not(.touch-enabled) .mine-strike{display:none}
+body:not(.touch-enabled) .mine-station,body:not(.touch-enabled) .mine-say,body:not(.touch-enabled) .mine-quiz{bottom:100px}
 .mine-card{display:flex;gap:12px;align-items:center;background:rgba(14,10,6,.78);border:1px solid rgba(255,220,160,.18);border-radius:12px;padding:7px 12px}
 .mine-oil{position:relative;width:90px;height:8px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden}
 .mine-oil>span{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#ff9b2e,#ffd36b);border-radius:4px}
@@ -568,6 +570,13 @@ const mineFeature = {
     run.cleanups.push(() => { hud.remove(); toast.remove(); station.remove(); say.remove(); quiz.remove(); document.body.classList.remove('mine-indoor'); });
     run.mine = { kind, parsed, hud, oil, oilFill, basket, toast, target, cross, toastT: 0, station, stationT: 0, touchStrike: false, inside: null, audio: null, lastIndex: 0,
       say, quiz, queue: [], line: null, lineT: 0, greeted: false, outside: null };
+    // the key bar inside (js/actions.js): the miner's walk and turn, the strike or Jöri's question, in place of the
+    // walker's hints (the touch screens: the stick, the Strike button, the answers tapped)
+    const inside = () => !!run.mine?.inside;
+    const hint = (kbd, label, when = inside) => ({ kind: 'hint', kbd, label, when });
+    run.actions(kind === 'tour'
+      ? [hint(['W', 'S'], 'walk'), hint(['A', 'D'], 'turn'), hint(['1', '2', '3'], 'answer Jöri', () => !!run.state?.quiz?.pending)]
+      : [hint(['W', 'S'], 'walk'), hint(['A', 'D'], 'turn'), hint(['Space'], 'hold at a lit vein: strike')], { replace: inside });
     if (kind === 'tour') {
       // Jöri waiting outside, at the next portal (a plain material: the daylight lights him)
       const plain = new Map();
@@ -594,6 +603,7 @@ const mineFeature = {
     const r = answerQuiz(run.state, n);
     if (!r) return;
     M.quiz.hidden = true;
+    run.hooks.actions?.notify(); // (the key bar: the answers go)
     M.audio?.answer?.(r.right);
     M.line = null; M.lineT = 0;
     M.queue.unshift({ text: r.say, right: r.right });
@@ -694,6 +704,7 @@ const mineFeature = {
     M.inside = { id, a, group, mine, L, bins, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
     M.hud.hidden = !ore;
     M.cross.hidden = !ore;
+    run.hooks.actions?.notify(); // (the key bar: the miner's keys)
   },
   leave(run) {
     const M = run.mine, I = M?.inside;
@@ -714,6 +725,7 @@ const mineFeature = {
     M.hud.hidden = true;
     M.cross.hidden = true;
     M.target.style.opacity = '0';
+    run.hooks.actions?.notify(); // (the key bar: the walker's again)
   },
   toast(run, text, colour = '#f3e6cc', secs = 1.6) {
     const M = run.mine;
@@ -741,6 +753,7 @@ const mineFeature = {
       });
       M.quiz.append(row);
       M.quiz.hidden = false;
+      run.hooks.actions?.notify(); // (the key bar: 1-3 answer)
       M.say.style.opacity = '0';
       return;
     }
@@ -796,7 +809,8 @@ const mineFeature = {
     if (!I) return;
     if (run.phase !== 'running' && run.phase !== 'ready') return;
     const k = cm.keys, num = (v) => (v === true ? 1 : Number(v) || 0);
-    const input = { forward: num(k.forward), back: num(k.backward), turn: num(k.left) - num(k.right), strike: !!k.up || M.touchStrike, assist: true };
+    // (the walker waits at the door: this is the frame's one driver, and the turn eases in like the game's steering)
+    const input = { forward: num(k.forward), back: num(k.backward), turn: cm.turnInput(dt), strike: !!k.up || M.touchStrike, assist: true };
     let left = Math.min(dt, 0.1);
     if (M.kind === 'tour') {
       const w = run.state.walk;

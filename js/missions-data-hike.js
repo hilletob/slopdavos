@@ -250,7 +250,7 @@ export const SCHWARZHORN_MISSION = {
   finish: 'The sun over the ridges, the valleys still in shadow, and a very cold thermos.',
   start: { x: SH_START[0], z: SH_START[1], heading: headingTo(SCHWARZHORN_ROUTE[0], SCHWARZHORN_ROUTE[3]) },
   props: [],
-  createState() { return { hike: createHike(SCHWARZHORN_ROUTE), watched: false }; },
+  createState() { return { hike: createHike(SCHWARZHORN_ROUTE), watched: false, watchK: 0 }; },
   score: (state) => hikeScore(state.hike),
   summary(state) {
     const h = state.hike, t = Math.round(h.arrivedAt ?? h.time);
@@ -263,7 +263,7 @@ export const SCHWARZHORN_MISSION = {
       title: 'Watch the sun come up',
       allowModes: ['person'],
       check(ctx, state) {
-        return { done: state.watched, progress: null, text: 'Turn to the east', target: null, hint: null };
+        return { done: state.watched, progress: state.watchK || 0, text: 'Turn to the east', target: null, hint: 'Stay on the summit and wait: the sun comes up over the ridges' };
       }
     }
   ]

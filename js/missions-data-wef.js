@@ -571,7 +571,7 @@ export function marchScore(st) {
 }
 
 const marchFail = (st) => (st.permit ? 'The liaison politely folds up your permit: the march ends here, and everybody goes for a coffee.' : st.dissolved ? 'The march has melted away into the Konditorei. The cake is said to be excellent.' : null);
-const marchHint = (st) => (st.action ? null : st.gap > MARCH.gapGood ? 'Too fast: wait for the crowd' : 'Space on the beat: call, and the crowd answers');
+const marchHint = (st) => (st.dialog ? 'Answer the liaison: 1, 2 or 3' : st.action ? null : st.gap > MARCH.gapGood ? 'Too fast: wait for the crowd' : 'Space on the beat: call, and the crowd answers');
 const marchText = (st, text) => {
   if (st.dialog) return 'The police liaison wants a word';
   if (st.action?.kind === 'stop') return `Everybody stands still … ${Math.ceil(st.action.left)} s`;

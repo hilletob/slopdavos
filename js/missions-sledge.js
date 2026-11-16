@@ -220,6 +220,23 @@ function buildHud(run, meterLabel = 'Tilt') {
   return { box, speed, fill, toast, toastT: 0 };
 }
 
+/** The scrape of the runner still on the snow as the other one lifts: a short hiss of filtered noise (on the city's
+ *  audio system, js/missions-fx.js MissionAudio's context and mix; silent while the sound is off). `pitch` lifts the
+ *  band: the Sommerrodelbahn's wheels grinding up its steel wall ring higher than a runner on snow */
+function runnerScrape(run, pitch = 1) {
+  const A = run.audio;
+  if (!A?.live) return;
+  const ctx = A.audio.context, now = ctx.currentTime, n = Math.floor(ctx.sampleRate * 0.45);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
+  bp.frequency.setValueAtTime(2600 * pitch, now); bp.frequency.exponentialRampToValueAtTime(1400 * pitch, now + 0.4);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.001, now); g.gain.exponentialRampToValueAtTime(0.35, now + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+  src.connect(bp).connect(g).connect(A.audio.mix);
+  src.start(now);
+}
+
 function showToast(hud, text, colour = '#ff8f80', seconds = 2) {
   hud.toast.textContent = text;
   hud.toast.style.color = colour;
@@ -241,9 +258,11 @@ const hornSledge = {
     for (const m of crowd.meshes) run.group.add(m);
     const partner = new PersonRig({ seed: 0.4142, female: true, hair: 0.8, girth: 0.98, scale: 0.96 });
     run.sl = {
-      course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1,
+      course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1, warned: false,
       saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
     };
+    // (the key bar says what the keys do on the sledge; the touch stick steers, brakes and ducks the same way)
+    run.hints([[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
     cm.personDriver = (dt) => hornSledge.drive(run, dt, cm);
     cm.personPoser = (dt, p) => hornSledge.pose(run, dt, p);
     run.cleanups.push(() => {
@@ -274,6 +293,7 @@ const hornSledge = {
     cm.personPoser = (dt, pp) => hornSledge.pose(run, dt, pp);
     cm.setEntityHidden?.('person', false);
     S.roll = 0;
+    S.warned = false;
     S.hud.toastT = 0;
     S.hud.toast.style.opacity = '0';
   },
@@ -282,10 +302,13 @@ const hornSledge = {
     cm.personDriver = null;
     cm.personPoser = null;
   },
-  input(run, cm) {
+  /** The frame's input (once a frame: the steering is the controllers' eased stick, js/controllers.js turnInput — a
+   *  tapped key pulls the horns a little, a held one fully after a moment, instead of full lock at once) */
+  input(run, cm, dt) {
     const k = cm.keys;
     const num = (v) => (v === true ? 1 : Number(v) || 0);
-    return { steer: num(k.left) - num(k.right), tuck: num(k.forward), brake: num(k.backward) };
+    const steer = cm.turnInput ? cm.turnInput(dt) : num(k.left) - num(k.right);
+    return { steer, tuck: num(k.forward), brake: num(k.backward) };
   },
   drive(run, dt, cm) {
     const S = run.sl, sl = S.sl, p = S.person;
@@ -295,7 +318,7 @@ const hornSledge = {
     if (!live) {
       r.vx = r.vy = r.vz = 0; // (held at the start until the first input: the stopwatch starts with it)
     } else {
-      let input = hornSledge.input(run, cm);
+      let input = hornSledge.input(run, cm, dt);
       if (run.phase === 'done') input = { steer: 0, tuck: 0, brake: 1 };
       if (input.steer) S.steerSide = Math.sign(input.steer);
       let left = Math.min(dt, 0.1);
@@ -322,6 +345,13 @@ const hornSledge = {
       st.crashes = sl.crashes; st.nets = sl.nets;
       if (run.phase === 'running') st.topSpeed = Math.max(st.topSpeed, p.speed);
     }
+    // the warning, once a lift: a runner leaves the snow (the toast, the scrape of the other one) — still time to ease
+    // off the horns and brake before it goes over
+    if (sl.crashT <= 0 && sl.tip > SLEDGE_TRACK.tipWarn && !S.warned) {
+      S.warned = true;
+      showToast(S.hud, 'A runner lifts: ease off, brake!', '#ffd27a', 1.2);
+      runnerScrape(run);
+    } else if (sl.tip < 0.05) S.warned = false;
   },
   event(run, ev) {
     const S = run.sl, st = run.state, sl = S.sl;
@@ -543,6 +573,7 @@ const tobogganRun = {
       tr, person, mine, family, crowd, sl: null, fam: null, hud: buildHud(run, 'Wall'), tilt: 0, shakeT: 0, warned: false,
       saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
     };
+    run.hints([[['W'], 'push off'], [['S'], 'hold: brake'], [['A', 'D'], 'lean into the bend']]);
     cm.personDriver = (dt) => tobogganRun.drive(run, dt, cm);
     cm.personPoser = (dt, p) => tobogganRun.pose(run, dt, p);
     // the phone's tilt leans too (iOS asks once, on the first touch; a desktop has none and nothing changes)
@@ -619,9 +650,13 @@ const tobogganRun = {
       st.familyGap = S.fam.gone ? Infinity : S.fam.s - sl.s;
       if (run.phase === 'running') st.topSpeed = Math.max(st.topSpeed, sl.v);
     }
-    // (the warning, once a climb)
-    if (sl.wall > 0.18 && !S.warned && sl.stopT <= 0) { S.warned = true; showToast(S.hud, 'Up the wall!', '#ffd27a', 1); }
-    else if (sl.wall < 0.05) S.warned = false;
+    // the warning, once a climb: the sledge rides up the outside wall (the toast, the wheels grinding on the steel) —
+    // still time to brake and lean into the bend before it goes over the top (as the horn sledge's lifting runner)
+    if (sl.wall > TOBOGGAN.wallWarn && !S.warned && sl.stopT <= 0) {
+      S.warned = true;
+      showToast(S.hud, 'Up the wall: brake, lean in!', '#ffd27a', 1.2);
+      runnerScrape(run, 1.35);
+    } else if (sl.wall < 0.05) S.warned = false;
   },
   event(run, ev) {
     const S = run.to, st = run.state, T = TOBOGGAN;

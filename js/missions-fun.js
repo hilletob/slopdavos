@@ -75,7 +75,7 @@ const STYLE = `
 .fun-rhb tr.is-next td{color:#ffe14f;font-weight:700}
 .fun-rhb tr.is-done td{opacity:.6}
 body.fun-indoor #touch-controls,body.fun-indoor .gta-prompt,body.fun-indoor .touch-use,body.fun-indoor .mission-prompt{display:none!important}
-body.fun-indoor .hud-bottom-center{visibility:hidden}
+body.fun-indoor:not(.touch-enabled) .fun-hud{bottom:var(--keybar-clear,54px)}
 @media (max-width:640px){body.fun-indoor .hud-bottom-right,body.fun-indoor .hud-bottom-left{visibility:hidden}}
 @media (max-width:640px){.fun-hud{bottom:10px}.fun-big{font-size:21px}.fun-btn{padding:16px 34px}.fun-rhb{left:8px;right:auto;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 150px);transform:scale(.88);transform-origin:top left}}
 `;
@@ -819,6 +819,7 @@ const HEADBANG_FEATURE = {
     hb.interior?.dispose(); hb.interior = null;
     hb.band?.dispose(); hb.band = hb.venue.band(run.hooks.audio, hb.rhythm);
     hb.hud.hidden = true;
+    hb.offKeys?.(); hb.offKeys = null;
     hb.rigs = []; hb.player = null; hb.lastJudge = null;
     run.state.game = null; run.state.inside = false;
   },
@@ -847,6 +848,11 @@ const HEADBANG_FEATURE = {
     for (const r of hb.rigs) r.rig.reset(r.x, r.z, r.yaw, ground(r.y));
     hb.ground = ground;
     hb.hud.hidden = false;
+    // the beat in the key bar and on the gamepad's A (the keys themselves: key() below; the touch screens tap the button)
+    hb.offKeys?.();
+    const hbJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const hbLayer = run.actions([{ id: 'beat', label: run.def.stepTitle, keys: ['Space', 'KeyJ', 'KeyK', 'Enter'], kbd: ['Space', 'J', 'K'], keyboard: false, pad: 'a', touch: false, run: () => HEADBANG_FEATURE.tap(run) }]);
+    hb.offKeys = () => { hbLayer(); hbJump(); };
     hb.t0 = performance.now() + 1400; // (the fade, a breath, then the count-in)
     run.state.game = createHeadbang(hb.rhythm);
     run.state.inside = true;
@@ -1093,6 +1099,7 @@ const FOOSBALL_FEATURE = {
     const fb = run.fb;
     fb.interior?.dispose(); fb.interior = null;
     fb.hud.hidden = true;
+    fb.offKeys?.(); fb.offKeys = null;
     fb.game = null; fb.rod = null; fb.kick = false; fb.pointerY = null;
     run.state.game = null; run.state.inside = false;
   },
@@ -1120,6 +1127,21 @@ const FOOSBALL_FEATURE = {
     run.state.game = fb.game;
     run.state.inside = true;
     fb.hud.hidden = false;
+    // the table's keys in the key bar, the gamepad's d-pad slides the rod, A shoots, X the auto rod (the keys themselves:
+    // key() below; the touch screens drag on the table and tap the buttons). The auto rod's Q stays out of the bar (it is
+    // in the step's hint): one row of keys under the HUD's buttons
+    const rods = fb.game.playerRods.length;
+    fb.offKeys?.();
+    const fbJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const fbLayer = run.actions([
+      { id: 'fb-up', kind: 'hold', label: 'Rod up', keys: ['KeyW'], keyboard: false, pad: 'up', touch: false, hint: false, run: (on) => { fb.keys.up = on; if (on) fb.pointerY = null; } },
+      { id: 'fb-down', kind: 'hold', label: 'Rod down', keys: ['KeyS'], keyboard: false, pad: 'down', touch: false, hint: false, run: (on) => { fb.keys.down = on; if (on) fb.pointerY = null; } },
+      { kind: 'hint', kbd: ['W', 'S', 'Mouse'], label: 'slide the rod' },
+      { id: 'fb-shoot', label: 'Shoot', keys: ['Space'], kbd: ['Space', 'Click'], keyboard: false, pad: 'a', touch: false, run: () => { fb.kick = true; } },
+      { kind: 'hint', kbd: [`1-${rods}`], label: 'pick a rod' },
+      { id: 'fb-auto', label: 'Auto rod', keys: ['KeyQ'], keyboard: false, pad: 'x', touch: false, hint: false, run: () => { fb.rod = fb.rod === null ? fb.game?.active ?? null : null; } }
+    ]);
+    fb.offKeys = () => { fbLayer(); fbJump(); };
   },
   key(run, e) {
     const fb = run.fb;
@@ -1364,6 +1386,7 @@ const GONDOLA_FEATURE = {
     gp.interior?.dispose(); gp.interior = null;
     gp.rigs = new Map();
     gp.hud.hidden = true;
+    gp.offKeys?.(); gp.offKeys = null;
     run.state.game = null;
   },
   teardown(run) { run.gp.interior?.dispose(); run.gp.interior = null; },
@@ -1386,6 +1409,19 @@ const GONDOLA_FEATURE = {
     gp.startIn = 1.2;
     run.state.game = gp.game;
     gp.hud.hidden = false;
+    // the stacking keys in the key bar and on the gamepad (d-pad: move, turn, drop; A: send the cabin); the keys
+    // themselves: key() below; the touch screens have the pad's buttons and the swipes
+    const act = (what) => () => GONDOLA_FEATURE.act(run, what);
+    gp.offKeys?.();
+    const gpJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const gpLayer = run.actions([
+      { id: 'gp-left', label: 'Move', keys: ['KeyA'], kbd: ['←', '→'], keyboard: false, pad: 'left', touch: false, run: act('left') },
+      { id: 'gp-right', label: 'Move right', keys: ['KeyD'], keyboard: false, pad: 'right', touch: false, hint: false, run: act('right') },
+      { id: 'gp-rotate', label: 'Turn', keys: ['KeyW'], kbd: ['↑'], keyboard: false, pad: 'up', touch: false, run: act('rotate') },
+      { id: 'gp-drop', label: 'Drop', keys: ['Space'], kbd: ['↓', 'Space'], keyboard: false, pad: 'down', touch: false, run: act('drop') },
+      { id: 'gp-send', label: 'Send cabin', keys: ['KeyE'], kbd: ['E'], keyboard: false, pad: 'a', touch: false, run: act('depart') }
+    ]);
+    gp.offKeys = () => { gpLayer(); gpJump(); };
   },
   act(run, what) {
     const g = run.state.game, gp = run.gp;

@@ -1016,8 +1016,13 @@ class ThirdPersonControllerManager {
       for (const c of this.nearColliders(p.x, p.z, reach)) {
         if (buildingContact(c, p.x, baseY, p.z, shape)) return false;
       }
-      return true;
+      // A spot clear of every wall can still be walled in (a closed courtyard, the slot between two neighbours): the
+      // player must be able to get away from it on the ground (the helicopter lifts out of anything)
+      return heli || this.canWalkAway(p.x, p.z, walkRadius, 40, trapped);
     };
+    // (a ground vehicle squeezes through what its width allows; the cells found walled in are shared by the candidates)
+    const walkRadius = heli ? 0 : shape.oriented ? Math.min(shape.hx, shape.hz) - 0.1 : radius - 0.08;
+    const trapped = new Set();
     const origin = clampPoint(x, z);
     if (clear(origin)) return origin;
     // Four-metre rings cover nearby streets and courtyards, with bounded work even for a click inside a large block.
@@ -1031,6 +1036,78 @@ class ThirdPersonControllerManager {
       }
     }
     return null;
+  }
+
+  // Can a body of `radius` get `range` metres away from (x, z) along the ground? A spot clear of every wall can still
+  // be walled in: a courtyard closed on all sides (a hole in a block's floor plan, which is not "inside"), the slot
+  // between two neighbours' walls, a yard boxed in by parapets and parked cars. A best-first flood over a half-metre
+  // grid, always widening from the cell farthest out: in the open it runs straight out in a few dozen steps, and only
+  // an enclosure gets filled (up to `limit` cells; more room than that is no trap). `trapped`: a Set of the grid cells
+  // already found walled in, shared by the candidates of one search so that a courtyard is filled only once
+  canWalkAway(x, z, radius, range = 40, trapped = null, limit = 12000) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
+    const STEP = 0.5;
+    const body = { oriented: false, radius, extX: radius, extZ: radius, bottom: 0, top: 1.9 };
+    const free = (px, pz) => {
+      if (this.isUnbridgedWater(px, pz)) return false;
+      const y = this.getGroundHeight(px, pz, 'person');
+      if (this.insideBuilding(px, pz, y)) return false;
+      for (const c of this.nearColliders(px, pz, radius + 0.5)) if (buildingContact(c, px, y, pz, body)) return false;
+      return true;
+    };
+    // (the cells on a world-aligned grid, so that the candidates of one search share them)
+    const key = (ix, iz) => (ix + 1e6) * 2e6 + (iz + 1e6);
+    const range2 = (range / STEP) ** 2;
+    const ox = x / STEP, oz = z / STEP;
+    const seen = new Set(), open = []; // (the cells looked at; those of them a body fits in)
+    const heap = []; // [d2, ix, iz], the farthest on top
+    const push = (ix, iz) => {
+      const k = key(ix, iz);
+      if (seen.has(k)) return;
+      seen.add(k);
+      if (!free(ix * STEP, iz * STEP)) return;
+      open.push(k);
+      const item = [(ix - ox) ** 2 + (iz - oz) ** 2, ix, iz];
+      let i = heap.push(item) - 1;
+      while (i > 0) {
+        const parent = (i - 1) >> 1;
+        if (heap[parent][0] >= item[0]) break;
+        heap[i] = heap[parent];
+        i = parent;
+      }
+      heap[i] = item;
+    };
+    const pop = () => {
+      const top = heap[0], last = heap.pop();
+      if (heap.length) {
+        let i = 0;
+        for (;;) {
+          const l = 2 * i + 1, r = l + 1;
+          let m = i, best = last[0];
+          if (l < heap.length && heap[l][0] > best) { m = l; best = heap[l][0]; }
+          if (r < heap.length && heap[r][0] > best) m = r;
+          if (m === i) break;
+          heap[i] = heap[m];
+          i = m;
+        }
+        heap[i] = last;
+      }
+      return top;
+    };
+    // Into the flood from the four grid points round (x, z)
+    const fx = Math.floor(ox), fz = Math.floor(oz);
+    for (const [ix, iz] of [[fx, fz], [fx + 1, fz], [fx, fz + 1], [fx + 1, fz + 1]]) {
+      if (trapped?.has(key(ix, iz))) return false;
+      push(ix, iz);
+    }
+    let cells = 0;
+    while (heap.length) {
+      const [d2, ix, iz] = pop();
+      if (d2 >= range2 || ++cells > limit) return true;
+      push(ix + 1, iz); push(ix - 1, iz); push(ix, iz + 1); push(ix, iz - 1);
+    }
+    if (trapped) for (const k of open) trapped.add(k);
+    return false;
   }
 
   // =========================================================================

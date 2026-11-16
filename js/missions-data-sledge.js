@@ -148,7 +148,13 @@ export const SLEDGE_TRACK = {
   netGap: 1.4, // m past the run's edge: the nets on the outside of the bends
   lostAt: 14, // m off the line: lost, back onto the run
   tipG: 0.8, // the lateral acceleration (in g) the sledge stands; beyond it, it starts to tip
-  tipRate: 5, // how fast it tips per g over (1 = over)
+  // (the tip builds up over a moment, not at once: a runner lifts, the two hang out over the high side, and easing off
+  // the horns or braking sets it down again. Full lock at speed (~1.15 g) holds ~1.4 s before it goes over, at 70 km/h
+  // ~1.1 s; the warning comes at tipWarn. It was 5 per g with 1.5/s back: with the keys at full lock the sledge went over
+  // within half a second of the bend, before the meter could tell, and a player on the keys tipped a dozen times a run)
+  tipRate: 2, // how fast it tips per g over (1 = over)
+  tipRecover: 3.5, // per s: how fast it settles back once under the limit
+  tipWarn: 0.2, // the tip at which the riders feel the runner lift (the HUD's warning, the hint)
   netCrash: 7, // m/s into a net: a crash (slower: it stops and bounces back)
   heelTurn: 0.75, // rad/s: steering with a heel dragged (S with A/D)
   crashS: 1.6 // s on the snow before the sledge is back on the run
@@ -203,7 +209,7 @@ export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK) {
   const speed = riderSpeed(r);
   sl.latG = r.airborne ? 0 : (r.omega * speed) / SNOW_GRAVITY;
   const over = Math.abs(sl.latG) - T.tipG;
-  sl.tip = over > 0 ? sl.tip + over * T.tipRate * dt : Math.max(0, sl.tip - dt * 1.5);
+  sl.tip = over > 0 ? sl.tip + over * T.tipRate * dt : Math.max(0, sl.tip - dt * T.tipRecover);
   sl.tipSide = Math.sign(sl.latG) || sl.tipSide || 1;
   if (sl.tip >= 1) return crash(sl, 'tip');
   // the nets on the outside of the bends
@@ -269,13 +275,14 @@ export function botInput(sl, course, { margin = 0.82, ahead = 2.4 } = {}) {
 export const HORN_SLEDGE_ID = 'horn-sledge-rinerhorn';
 export const hornCheckpoints = (course = createCourse()) => buildCheckpoints(course.pts, 160, 90);
 // (the race's three parts: the Jatzmeder's first bends, the hairpins in the forest, the last steep stretch to Glaris)
+// (each with the tip of the stretch while nothing else needs saying)
 const SECTIONS = [
-  { id: 'jatzmeder', title: 'Down from the Jatzmeder', toS: 640 },
-  { id: 'hairpins', title: 'The hairpins in the forest', toS: 1460 },
-  { id: 'finish', title: 'Down to the finish', toS: Infinity }
+  { id: 'jatzmeder', title: 'Down from the Jatzmeder', toS: 640, tip: 'Brake (S) before a bend, then steer through it with A/D' },
+  { id: 'hairpins', title: 'The hairpins in the forest', toS: 1460, tip: 'Hairpins: brake early; S with A/D drags a heel round the tight ones' },
+  { id: 'finish', title: 'Down to the finish', toS: Infinity, tip: 'Duck low (W) on the straights, brake for the last bends' }
 ];
 
-const sledgeSection = ({ id, title, toS }) => ({
+const sledgeSection = ({ id, title, toS, tip }) => ({
   id,
   title,
   check(ctx, state) {
@@ -286,9 +293,9 @@ const sledgeSection = ({ id, title, toS }) => ({
     const pen = state.crashes ? ` · ${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'} (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '';
     const text = skipped ? `Checkpoint ${skipped.i + 1} missed: back up to it` : `Checkpoint ${Math.min(n, state.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}${pen}`;
     const hint = state.crashT > 0 ? (state.why === 'net' ? `Into the net! +${SLEDGE_CRASH_MS / 1000} s` : state.why === 'lost' ? `Off the run! +${SLEDGE_CRASH_MS / 1000} s` : `Tipped over! +${SLEDGE_CRASH_MS / 1000} s`)
-      : state.tip > 0.25 ? 'Too fast for this bend: brake (S)!'
-      : state.off ? 'Deep snow: back onto the run'
-      : ctx.mode !== 'person' ? 'Back on the sledge' : null;
+      : state.tip > SLEDGE_TRACK.tipWarn ? 'Tipping! Ease off A/D and brake (S)'
+      : state.off ? 'Deep snow: steer back onto the run'
+      : ctx.mode !== 'person' ? 'Back on the sledge' : tip;
     return { done: state.next > last, progress: state.next / n, text, target: cp ? { x: cp.x, z: cp.z, r: 6, style: skipped ? 'hazard' : 'plain' } : null, hint };
   }
 });
@@ -296,13 +303,14 @@ const sledgeSection = ({ id, title, toS }) => ({
 export const HORN_SLEDGE_MISSION = {
   id: HORN_SLEDGE_ID,
   title: 'Horn sledge race at the Rinerhorn',
-  intro: 'The horn sledge race of the winter: two on an old Grisons horn sledge, down the Rinerhorn sled run from the Jatzmeder through the hairpins of the forest towards Glaris, 2 km and 350 m of drop. You sit in front and steer: A/D pull the horns and lean, S digs in the heels and the brake chain (with A/D: a heel dragged, the tight turn), W ducks low or pushes off. Too fast into a tight bend and the sledge tips over; the nets on the outside of the bends catch you. Each crash costs 5 s.',
+  intro: 'The horn sledge race of the winter: two on an old Grisons horn sledge, down the Rinerhorn sled run from the Jatzmeder through the hairpins of the forest towards Glaris, 2 km and 350 m of drop. You sit in front and steer: A/D pull the horns and lean, S digs in the heels and the brake chain (with A/D: a heel dragged, the tight turn), W ducks low or pushes off. Brake before the bends, not in them: too fast into a tight bend and a runner lifts (the tilt meter turns red); ease off the horns and brake, or the sledge tips over. The nets on the outside of the bends catch you. Each crash costs 5 s.',
   mode: 'person',
   season: 'winter',
   time: 'midday',
   features: ['hornSledge'],
   // (calibrated with botInput down the run: js/missions-data-sledge.js, tests/missions-sledge.test.mjs)
-  // (a careful clean bot run 2:20, a bold one 2:04 plus a tip-over; a human on the keys a little slower)
+  // (a careful clean bot run 2:20, a bold one ~1:55 clean since the tip builds up slower; a bot on the keys, full lock
+  // or nothing ten times a second, 2:25-2:40 with a tip-over or two)
   bonusMs: 140 * 1000,
   medals: { gold: 140000, silver: 170000, bronze: 215000 },
   colour: '#b5652b',
@@ -371,6 +379,7 @@ export const TOBOGGAN = {
   leanGain: 0.22, // leaning into the bend takes this share off the lateral g (leaning out adds it)
   wallRate: 6, wallDrag: 3, // how fast the sledge climbs (1/s), what the climb costs (m/s² at the top of the wall)
   bumpAt: 0.94, // this far up the wall: over it comes, the comic bump
+  wallWarn: 0.18, // this far up: the riders feel it climb (the HUD's warning toast and the wheels' grind)
   stopS: 1.8, bumpMs: 3000, // s standing with the sledge bumping back, and the time on top of that
   ramMs: 4000, ramClosing: 1.2, gap: 2.6, // the family: the penalty, the closing speed (m/s) that counts as a ram, sledge to sledge (m)
   family: { headStart: 95, speed: 7.5, bendG: 0.75, spacing: 3.2, sledges: 3, clearAt: 22, clearSpeed: 9 },
@@ -516,9 +525,9 @@ export function tiltLean(gamma, beta, angle = 0) {
 }
 
 const TOBOGGAN_SECTIONS = [
-  { id: 'top', title: 'The first hairpins', toS: 180 },
-  { id: 'tunnel', title: 'Through the tunnel', toS: 345 },
-  { id: 'foot', title: 'Down to the foot of the lift', toS: Infinity }
+  { id: 'top', title: 'The first hairpins', toS: 180, tip: 'Hold S before a hairpin, let go out of it; lean in with A/D' },
+  { id: 'tunnel', title: 'Through the tunnel', toS: 345, tip: 'Let it run on the straight, brake before the next bend' },
+  { id: 'foot', title: 'Down to the foot of the lift', toS: Infinity, tip: 'Keep your distance to the family: brake (S) when you close in' }
 ];
 const TOBOGGAN_LENGTH = 455.6;
 
@@ -529,7 +538,7 @@ const penaltyText = (state) => {
   return parts.length ? ` · ${parts.join(' · ')} (+${state.penaltyMs / 1000} s)` : '';
 };
 
-const tobogganSection = ({ id, title, toS }) => ({
+const tobogganSection = ({ id, title, toS, tip }) => ({
   id,
   title,
   check(ctx, state) {
@@ -537,7 +546,7 @@ const tobogganSection = ({ id, title, toS }) => ({
     const hint = state.stopT > 0 ? `Over the wall! +${TOBOGGAN.bumpMs / 1000} s`
       : state.wall > 0.08 ? 'Too fast for this bend: brake (S) and lean!'
       : state.familyGap < 16 ? 'A family ahead: do not ram them, brake (S)!'
-      : ctx.mode !== 'person' ? 'Back on the sledge' : null;
+      : ctx.mode !== 'person' ? 'Back on the sledge' : tip;
     return {
       done: state.s >= end,
       progress: clamp(state.s / state.length, 0, 1),

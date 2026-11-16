@@ -920,9 +920,20 @@ function placePerson(run, x, y, z, heading) {
   run.lastPos?.copy(p.position);
 }
 
+// the key bar of each stage (js/missions.js hints: the game's own hints step aside meanwhile)
+const STAGE_HINTS = {
+  check: [[['Space'], 'hold: transceiver check']],
+  skin: [[['W'], 'walk'], [['A', 'D'], 'turn'], [['Space'], 'kick turn'], [['S'], 'back']],
+  trans: [[['Space'], 'hold: next step']],
+  board: [[['A', 'D'], 'carve · in the air: spin'], [['W'], 'tuck'], [['S'], 'brake'], [['Space'], 'in the air: grab']],
+  rescue: [[['W'], 'walk'], [['A', 'D'], 'turn'], [['Space'], 'hold: probe · dig']]
+};
+
 function enterStage(run, now, cm) {
   const s = run.split, prev = s.stage;
   s.stage = now;
+  s.hintsOff?.();
+  s.hintsOff = STAGE_HINTS[now] ? run.hints(STAGE_HINTS[now]) : null;
   const sk = s.skinner, b = s.board;
   setRide(s, now === 'board');
   s.person.cameraTargetOffset.y = s.savedTargetY;
@@ -1106,11 +1117,13 @@ function drive(run, dt, cm) {
   const stg = s.stage || stage(run);
   const running = run.phase === 'running' || run.phase === 'done';
   const kickEdge = edge(run, cm, 'up');
+  // (the steering: the controllers' eased stick, once a frame; the spin in the air takes the keys as they are)
+  const turn = cm.turnInput ? cm.turnInput(dt) : num(k.left) - num(k.right);
   if (stg === 'board' && s.rider) {
     const r = s.rider;
     s.handoff = Math.max(0, s.handoff - dt * 2);
     if (running) {
-      let input = { steer: num(k.left) - num(k.right), tuck: num(k.forward), brake: num(k.backward), spin: num(k.left) - num(k.right), flip: num(k.forward) - num(k.backward), grab: !!k.up };
+      let input = { steer: turn, tuck: num(k.forward), brake: num(k.backward), spin: num(k.left) - num(k.right), flip: num(k.forward) - num(k.backward), grab: !!k.up };
       if (run.phase === 'done') input = { steer: 0, tuck: 0, brake: 0.8, spin: 0, flip: 0, grab: false };
       if (input.steer) s.steerSide = Math.sign(input.steer);
       let left = Math.min(dt, 0.1);
@@ -1131,7 +1144,7 @@ function drive(run, dt, cm) {
     const rescue = stg === 'rescue';
     const moving = (stg === 'skin' || rescue) && run.phase !== 'done' && live(run);
     const input = moving
-      ? { forward: num(k.forward), back: num(k.backward), steer: num(k.left) - num(k.right), kick: kickEdge && !rescue }
+      ? { forward: num(k.forward), back: num(k.backward), steer: turn, kick: kickEdge && !rescue }
       : { forward: 0, back: 0, steer: 0, kick: false };
     stepSkinner(sk, input, Math.min(dt, 0.1), groundHeight);
     if (st && moving) {

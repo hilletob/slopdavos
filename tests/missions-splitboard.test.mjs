@@ -259,7 +259,7 @@ test('German: the names, the intro, the steps and the running texts', async () =
   assert.equal(t('2 kick turns · 5 s slipping'), '2 Spitzkehren · 5 s gerutscht');
   assert.equal(t('2 kick turns · 5 s slipping · Reto dug out of an avalanche (+30 s)'), '2 Spitzkehren · 5 s gerutscht · Reto aus einer Lawine ausgegraben (+30 s)');
   assert.equal(t('Send check: Reto searches, you send (1/2)'), 'Sendecheck: Reto sucht, du sendest (1/2)');
-  assert.equal(t('Reto is buried! Signal: 23.4 m'), 'Reto ist verschüttet! Signal: 23,4 m');
+  assert.equal(t('Reto is buried! Signal: 23.4 m'), 'Reto ist verschüttet! Signal: 23.4 m');
   assert.equal(t('Wait for Reto: 85 m behind'), 'Auf Reto warten: 85 m zurück');
   assert.equal(t('Steep slope above 35°: avalanche danger – back to the track'), 'Steilhang über 35°: Lawinengefahr – zurück in die Spur');
   assert.equal(t('16 of 18 gates · 2 missed (+16 s) · top speed 80 km/h'), '16 von 18 Toren · 2 verpasst (+16 s) · Höchsttempo 80 km/h');

@@ -169,6 +169,15 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.match(t('A new wing for the Hotel Derby in Davos Dorf, and the crane driver is off sick.'), /Turmkran/);
   assert.equal(t('Set the hotel jacuzzi down: 3.2 m off · 1.0 m above · swing 0.4 m · 2 hits'), 'Hotel-Jacuzzi absetzen: 3.2 m daneben · 1.0 m darüber · Pendeln 0.4 m · 2 Treffer');
   assert.equal(t('45 m to the crane ladder'), '45 m bis zur Kranleiter');
+  assert.equal(t('Hold A: slew the jib round towards the yellow ring on the load'), 'A halten: Schwenk den Ausleger zum gelben Ring bei der Last');
+  assert.equal(t('Next: the rebar bundle in the yard'), 'Als Nächstes: Armierungsbund auf dem Werkplatz');
+  assert.equal(t('2× Fliegenpilz (fly agaric) -50 · 3× Steinpilz (porcini) +45'), '2× Fliegenpilz -50 · 3× Steinpilz +45');
+  assert.match(t('Bright red cap with white flakes, white gills, a ring on the stem · Space: into the basket'), /^Leuchtend roter Hut .* · Space: in den Korb$/);
+  assert.equal(t('1 parked car hit (+5 s) · cars buried for 3 s (+2 s)'), '1 parkiertes Auto angefahren (+5 s) · Autos 3 s lang zugeschüttet (+2 s)');
+  assert.equal(t('300 m · 1 round left · 2 missed'), '300 m · noch 1 Schuss · 2 daneben');
+  assert.equal(t('Rescue under way … 3 s'), 'Rettung läuft … 3 s');
+  assert.equal(t('Set down: zero speed, steady'), 'Aufsetzen: stillstehen, ruhig halten');
+  assert.equal(t('Get out of the car [F]'), 'Aus dem Auto steigen [F]');
   assert.equal(t('Carting the snow to the Davosersee'), 'Schnee abführen an den Davosersee');
   assert.match(t('The drifts on the Bündastrasse have to go.'), /Davosersee/);
   assert.equal(t('Truck 7.4 of 14 m³ · 96 % on the bed'), 'Lastwagen 7.4 von 14 m³ · 96 % auf der Brücke');
@@ -211,6 +220,11 @@ test('the WEF missions translate names, intros, generated texts and slogans', ()
   assert.equal(t('The delegation is boarding … 3 s'), 'Die Delegation steigt ein … 3 s');
   assert.equal(t('Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed'), 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
   assert.equal(t('DAVOS FOR THE DAVOSERS'), 'DAVOS DEN DAVOSERN');
+  // (the march's controls: the call, the liaison's answers in the key bar and the hint while the dialog is open)
+  assert.equal(t('Call'), 'Rufen');
+  assert.equal(t('Answer'), 'Antworten');
+  assert.equal(t('Answer the liaison: 1, 2 or 3'), 'Antworte der Verbindungsperson: 1, 2 oder 3');
+  assert.equal(t('Space on the beat: call, and the crowd answers'), 'Leertaste im Takt: Du rufst, die Menge antwortet');
 });
 
 test('the game\'s clock, the fast-forward and the missions\' windows speak German', () => {
@@ -251,7 +265,7 @@ test('the end panels: failed and aborted, the awards, the score units and the su
 
 test('the leaderboards\' comparison and the email sign-in read in German', () => {
   setLanguage('de');
-  assert.equal(t('Place 7 of 23 · 4.1 s behind place 6 · 01:09.1 behind the leader'), 'Platz 7 von 23 · 4,1 s hinter Platz 6 · 01:09.1 hinter der Spitze');
+  assert.equal(t('Place 7 of 23 · 4.1 s behind place 6 · 01:09.1 behind the leader'), 'Platz 7 von 23 · 4.1 s hinter Platz 6 · 01:09.1 hinter der Spitze');
   assert.equal(t('You lead by 750 points over place 2'), 'Du führst mit 750 Punkten vor Platz 2');
   assert.equal(t('Place 17 of 37 · 500 points behind place 16 · 15250 points behind the leader'), 'Platz 17 von 37 · 500 Punkte hinter Platz 16 · 15250 Punkte hinter der Spitze');
   assert.equal(t('Place 2 of 3'), 'Platz 2 von 3');
@@ -282,4 +296,171 @@ test('the jetpack demo speaks German', async () => {
     for (const s of ['Space: lift off', 'The tank is nearly dry!', 'Too fast: a tumble! +10 s', 'A wall! +3 s', 'Tank full: go!', 'Slow down for the landing: S', 'Gates', 'Penalty', 'Sink']) assert.notEqual(t(s), s, s);
     for (const o of JETPACK_MISSION.objectives) for (const fl of [Object.assign(createJet(), { phase: 'crashed' }), Object.assign(createJet(), { dry: true })]) assert.notEqual(t(o.check({}, { flight: fl }).fail), o.check({}, { flight: fl }).fail);
   } finally { setLanguage('de'); }
+});
+
+test('the avalanche blasting from the helicopter speaks German', async () => {
+  const { HELIBLAST_MISSION, ZONES, START, createBlastState } = await import('../js/missions-data-heliblast.js');
+  setLanguage('de');
+  const m = HELIBLAST_MISSION;
+  assert.equal(t(m.title), 'Lawinensprengung aus dem Helikopter');
+  assert.match(t(m.intro), /^Januar, sieben Uhr morgens/);
+  assert.match(t(m.finish), /erste Gondel/);
+  for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
+  // every text and hint a step can show, in each of its states
+  const s = createBlastState(), z = ZONES[0];
+  const seen = new Set();
+  const look = (ctx, st) => { const v = m.objectives[0].check(ctx, st); seen.add(v.text); if (v.hint) seen.add(v.hint); };
+  look({ x: START.x, z: START.z, y: 0, agl: 0 }, s);
+  for (const agl of [5, 30, 70]) look({ x: z.x, z: z.z, y: 0, agl }, s);
+  look({ x: z.x, z: z.z, y: 0, agl: 30 }, { ...s, aim: { inZone: true } });
+  look({ x: z.x, z: z.z, y: 20, agl: 20 }, { ...s, charges: 1, charge: { x: z.x, y: 0, z: z.z, fuse: 3 } });
+  look({ x: z.x + 500, z: z.z, y: 200, agl: 200 }, { ...s, charge: { x: z.x, y: 0, z: z.z, fuse: 3 } });
+  const path = [z.x, z.z, z.x, z.z + 300];
+  look({ x: z.x, z: z.z + 100, y: 0, agl: 20 }, { ...s, released: [1, null, null, null], paths: [path, null, null, null] });
+  look({ x: z.x + 900, z: z.z, y: 0, agl: 20 }, { ...s, released: [1, null, null, null], paths: [path, null, null, null] });
+  for (const note of ['Missed by 12 m: +10 s', 'Caught in the powder cloud: +20 s', 'One at a time: the charge is still burning', 'Too low to throw: climb above 15 m', 'Too high to aim: sink below 45 m', 'No charges left', 'Drop charge', 'Drop']) seen.add(note);
+  seen.add(m.objectives[2].check({ x: START.x, z: START.z, y: 0, agl: 0 }, s).text);
+  for (const text of seen) assert.notEqual(t(text), text, text);
+  assert.equal(t('3.1 km SE · Jakobshorn, north flank'), '3.1 km SO · Jakobshorn, Nordflanke');
+  assert.equal(t('Hover 15–45 m over the slope · now 30 m · 1 charge left'), 'Schwebe 15–45 m über dem Hang · jetzt 30 m · noch 1 Ladung');
+  assert.equal(t(m.summary({ ...s, thrown: 5, hits: 4, misses: 1, cloudHits: 1, penaltyMs: 30000 })[0]), '5 Ladungen geworfen · 4 Zonen ausgelöst · 1 daneben · 1-mal in der Staubwolke (+30 s)');
+  for (const fail of ['The charge went off right under the helicopter. The crew is shaken, the flight is over.', 'Out of charges: the slopes stay closed today.']) assert.notEqual(t(fail), fail);
+});
+
+test('the crane at the Hotel Derby: every step hint is translated', async () => {
+  setLanguage('de');
+  const { CRANE_MOVES } = await import('../js/missions-data-work.js');
+  for (const hint of Object.values(CRANE_MOVES)) assert.notEqual(t(hint), hint, `the crane's step hint: ${hint}`);
+});
+
+test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say their controls and next steps in German', async () => {
+  setLanguage('de');
+  const { RESORT_MISSIONS } = await import('../js/missions-data-resort.js');
+  const { VICTORIA_MISSIONS } = await import('../js/missions-data-victoria.js');
+  const { HIKE_MISSIONS } = await import('../js/missions-data-hike.js');
+  // the gamepad's actions of the resort jobs and the Victoria (js/missions-resort.js, js/missions-victoria.js)
+  for (const s of ['Hand over the bar', 'pick the wax', 'Previous wax', 'Next wax', 'Take this wax', 'move the tool', 'Tool back', 'Tool on', 'Wave left', 'Wave straight on', 'Wave right', 'Stop the car', 'Next chore', 'Clear the waypoint']) assert.notEqual(t(s), s, s);
+  assert.equal(t('Burner 3'), 'Platte 3');
+  // the hints that say what to do now
+  const marshal = RESORT_MISSIONS.find((m) => m.id === 'parking-marshal').objectives.find((o) => o.id === 'marshal');
+  const g = { score: 0, good: 0, crooked: 0, t: 10, done: false, cars: [], cross: { state: 'warn' } };
+  assert.equal(t(marshal.check({}, { game: g }).hint), 'Skifahrer queren: Auto anhalten (↓ / Space)');
+  assert.equal(t('Wave the car to free bays: ← / ↑ / →'), 'Wink das Auto zu freien Plätzen: ← / ↑ / →');
+  const laundry = VICTORIA_MISSIONS[0].objectives.find((o) => o.id === 'laundry');
+  assert.equal(t(laundry.check({}, { laundry: { phase: 'sort', item: 0, sheet: 0, score: 0, finished: false } }).hint), 'A / ◀: Weisses · D / ▶: Buntes');
+  assert.equal(t(laundry.check({}, { laundry: { phase: 'mangle', item: 0, sheet: 1, score: 0, finished: false } }).hint), 'A oder D (◀ ▶) halten: Leintuch gerade halten');
+  for (const id of ['housekeeping', 'kitchen']) {
+    const o = VICTORIA_MISSIONS[0].objectives.find((x) => x.id === id);
+    const state = id === 'housekeeping' ? { hk: { room: 0, done: [], results: [], left: 10, score: 0, finished: false } } : { kitchen: { served: [], score: 0, finished: false } };
+    const hint = o.check({}, state).hint;
+    assert.notEqual(t(hint), hint, hint);
+  }
+  assert.equal(t('Room 204: 6 of 6 chores · The tower suite: 5 of 7 chores'), 'Zimmer 204: 6 von 6 Arbeiten · Die Turmsuite: 5 von 7 Arbeiten');
+  const watch = HIKE_MISSIONS[0].objectives.at(-1).check({}, HIKE_MISSIONS[0].createState());
+  assert.notEqual(t(watch.hint), watch.hint);
+  assert.equal(t('To the next firewood: 14 m'), 'Zum nächsten Feuerholz: 14 m');
+  assert.equal(t('Over the terrace: hold Q to sink and touch down'), 'Über der Terrasse: Q halten zum Sinken und Aufsetzen');
+});
+
+test('the fun, bar, sport and golf missions translate their HUDs, key bars and running texts', async () => {
+  setLanguage('de');
+  const cases = {
+    'You (red) vs La Onda (blue) · Midfield (auto)': 'Du (rot) gegen La Onda (blau) · Mittelfeld (automatisch)',
+    'You 2 : 1 La Onda · 1:23 · Goalie': 'Du 2 : 1 La Onda · 1:23 · Torhüter',
+    '23 up · cabin 4: 7 aboard, 62 % · 37 s': '23 oben · Gondel 4: 7 an Bord, 62 % · 37 s',
+    '120 pts · 23 up · cabin 4 62 % · 1:12': '120 Pkt. · 23 oben · Gondel 4: 62 % · 1:12',
+    'Cabin 3: 9 passengers · 81 % full · 1 full row · 2 holes → +240': 'Gondel 3: 9 Fahrgäste · 81 % voll · 1 volle Reihe · 2 Löcher → +240',
+    'Stop board Dorf: 412 m · 40 km/h in 230 m · Score 340': 'Haltetafel Dorf: 412 m · 40 km/h in 230 m · Punkte 340',
+    'Doors open · 12 s · Score 90': 'Türen offen · 12 s · Punkte 90',
+    'now 3:12': 'jetzt 3:12',
+    '0 m of 4.3 km · Split 1 in 1.1 km · 12 km/h': '0 m von 4.3 km · Zwischenzeit 1 in 1.1 km · 12 km/h',
+    '1.2 km of 4.3 km · Finish in 3.1 km · 22 km/h · last split 3rd +4.2 s': '1.2 km von 4.3 km · Ziel in 3.1 km · 22 km/h · letzte Zwischenzeit 3. +4.2 s',
+    'Start in 3 …': 'Los in 3 …',
+    'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km',
+    '3rd of 8': '3. von 8',
+    '2nd place': '2. Platz',
+    'Hole 3/9 · The ramp · par 2': 'Loch 3/9 · Die Rampe · Par 2',
+    '4 strokes': '4 Schläge',
+    'Game shot! Double 16': 'Spiel gewonnen! Doppel 16',
+    'Dart 4 of 30 · turn 2, dart 1': 'Pfeil 4 von 30 · Runde 2, Pfeil 1',
+    '301 double out · 120 left': '301 Double Out · noch 120',
+    'Combo ×2 · 340': 'Kombo ×2 · 340',
+    'Bail: combo lost': 'Sturz: Kombo verloren',
+    '3 Wood (2)': 'Holz 3 (2)'
+  };
+  for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
+  // the HUDs' fixed words, the key bars' labels (run.actions, run.hints) and the pieces, roles and holes they name
+  const fun = await import('../js/missions-data-fun.js');
+  const sport = await import('../js/missions-data-sport.js');
+  const words = [
+    'SHOOT', 'La Onda scores', 'slide the rod', 'pick a rod', 'Send cabin', 'Move', 'Turn', 'Drop', 'The cabin is leaving …', 'Doors closed: depart', 'missed',
+    'aim, then strike in the green', 'a station · the usual: the drink', 'the station at work: stop in the green',
+    'Classic', 'GO!', 'Power', 'Putt', 'Overview', 'In the ditch!', 'Throw', 'BUST', 'Miss', 'game on', 'Drop in: W', 'Bail!', 'Time!', 'Cart',
+    ...Object.values(fun.GONDOLA_PIECES).map((p) => p.label).filter((l) => l !== 'Snowboarder'),
+    ...fun.FOOSBALL_RODS.map((r) => r.role), ...sport.MINIGOLF_HOLES.map((h) => h.name)
+  ];
+  for (const w of words) assert.notEqual(t(w), w, `"${w}" has its German`);
+  setLanguage('en');
+});
+
+test('the sledges, the snow, the ice, the Seehofseeli and the splitboard say their controls, warnings and next steps in German', async () => {
+  setLanguage('de');
+  const cases = {
+    'A runner lifts: ease off, brake!': 'Eine Kufe hebt ab: nachlassen, bremsen!',
+    'Tipping! Ease off A/D and brake (S)': 'Du kippst! A/D loslassen und bremsen (S)',
+    'Tipped over! +5 s': 'Umgekippt! +5 s',
+    'Checkpoint 3/13 · 84 m · 2 crashes (+10 s)': 'Checkpoint 3/13 · 84 m · 2 Stürze (+10 s)',
+    'Checkpoint 4 missed: back up to it': 'Checkpoint 4 verpasst: zurück dorthin',
+    'Gate 3/20 · 2 clean · 1 missed (+3 s)': 'Tor 3/20 · 2 sauber · 1 verpasst (+3 s)',
+    'Gate 7 missed': 'Tor 7 verpasst',
+    'Crash! +5 s': 'Sturz! +5 s',
+    'Aim −1.5°': 'Richtung −1.5°',
+    'In the house: 1 point': 'Im Haus: 1 Punkt',
+    'Saved by the goalie · 2 goals': 'Vom Goalie gehalten · 2 Tore'
+  };
+  for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
+  // the sections' tips (the objectives' hints while nothing else needs saying) and the key bars' labels
+  const { HORN_SLEDGE_MISSION, TOBOGGAN_MISSION } = await import('../js/missions-data-sledge.js');
+  const tips = [HORN_SLEDGE_MISSION, TOBOGGAN_MISSION].flatMap((m) => {
+    const st = m.createState(), s = m.start;
+    return m.objectives.map((o) => o.check({ mode: 'person', x: s.x, y: 0, z: s.z, heading: 0, speed: 0, dt: 0.1, t: 0 }, st).hint);
+  });
+  const words = [
+    ...tips, 'steer · lean', 'brake (with A/D: tight turn)', 'duck · push off', 'push off', 'hold: brake', 'lean into the bend',
+    'tuck', 'carve · in the air: spin', 'tuck, brake · in the air: flip', 'in the air: grab', 'Down to the kicker: tuck (W) for speed',
+    'Missed the kicker', 'Try again: this one does not count', 'Back up for the next jump …', 'Push', 'GLOVE SAVE', 'off target', 'Curl ↺ left',
+    'Hogged: short of the hog line, removed', 'Wrong way: the race runs counter-clockwise', 'Sweep: hold Space',
+    'hold: spray', 'walk backwards', 'hold: transceiver check', 'kick turn', 'hold: next step', 'hold: probe · dig'
+  ];
+  for (const w of words) assert.notEqual(t(w), w, `"${w}" has its German`);
+  setLanguage('en');
+});
+
+test('the local missions, the Silberberg and the gastro rooms say their keys, games and next steps in German', () => {
+  setLanguage('de');
+  assert.equal(t('Take a crate from the back of the van'), 'Nimm hinten im Bus eine Kiste');
+  assert.equal(t('Stow them in the back of the van (1/2)'), 'Verstau sie hinten im Bus (1/2)');
+  assert.equal(t('The van is 1.2 km away: drive closer to BOX Davos'), 'Der Bus ist 1.2 km weg: fahr näher heran · BOX Davos');
+  assert.equal(t('6:52 · 12 min to 7:00 · 1.3 km to the Hotel Montana'), '6:52 · noch 12 min bis 7:00 · 1.3 km zum Hotel Montana');
+  assert.equal(t('12 m to the bakery'), '12 m bis zur Bäckerei');
+  assert.equal(t('120 m to the stand · the herd is uneasy: too close'), '120 m bis zum Hochsitz · die Herde wird unruhig: zu nah');
+  assert.equal(t('3 rounds · 120 pts · herd 140 m'), '3 Schuss · 120 Pkt. · Herde 140 m');
+  assert.equal(t('Not allowed: a nanny (female)! Fine and penalty (-150)'), 'Nicht erlaubt: eine Geiss! Busse und Strafpunkte (-150)');
+  assert.equal(t('Missed: the herd bolts up the slope (-20)'), 'Daneben: Die Herde flieht den Hang hinauf (-20)');
+  assert.equal(t('4 fed · 120 pts · 2:10 · streak 3'), '4 gefüttert · 120 Pkt. · 2:10 · Serie 3');
+  assert.equal(t('42 km/h · 120 m to the pool'), '42 km/h · noch 120 m bis zum Becken');
+  assert.equal(t('2:10 left'), 'noch 2:10');
+  assert.equal(t('12 m to go'), 'noch 12 m');
+  // the key bar's lines (run.actions kind 'hint') and the games' canvas words
+  const words = [
+    'roll the dough down', 'or tap steadily', 'scrape a plate', 'or across the cheese', 'scope', 'hold: hold your breath', 'fire', 'lower the scope',
+    'Hold out a nut', 'Nut', 'Hit the ball', 'Hit', 'run to the ball', 'held at the swing: aim left / right', 'lean into the bends', 'or the arrows',
+    'paint on the canvas', 'colour, brush, Template, Done', 'answer Jöri', 'hold at a lit vein: strike', 'the red button',
+    'the red button (held: keep the key down)', 'the toppings, in the order of the ticket', 'Swipe', 'Wheel', 'Right click',
+    'Perfect Gipfeli!', 'Too fast: a bit loose', 'Orders', 'Extra crispy', 'Waiting for guests …', 'scorched', 'Wanted extra crispy',
+    'The herd bolts!', 'may be taken', 'legal: old bucks', 'Scared it away!', "Coach's point", 'double fault', 'your serve: Space',
+    'Splash!', 'too high: braking!', 'ideal line', "paint the view in Kirchner's colours", 'Vermilion', 'Back to the lakeside path'
+  ];
+  for (const w of words) assert.notEqual(t(w), w, `"${w}" has its German`);
+  setLanguage('en');
 });

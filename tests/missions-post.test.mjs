@@ -218,7 +218,7 @@ test('the postman\'s texts in German', async () => {
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);
   for (const s of ['Back into the van', 'Hold Space to empty the box', 'Stop by the post box', 'Stand still while the sacks go in', 'Empty', 'Post van',
     'The noon dispatch has left: the letters stay in Davos until tomorrow.']) assert.notEqual(t(s), s, s);
-  assert.equal(t('Emptied 3/8 · 204 letters · next 1.2 km'), 'Geleert 3/8 · 204 Briefe · nächster 1,2 km');
+  assert.equal(t('Emptied 3/8 · 204 letters · next 1.2 km'), 'Geleert 3/8 · 204 Briefe · nächster 1.2 km');
   assert.equal(t('Emptied 8/8 · 868 letters'), 'Geleert 8/8 · 868 Briefe');
   assert.equal(t('Emptied 4/8'), 'Geleert 4/8');
   assert.equal(t('Emptying … 40 %'), 'Leeren … 40 %');

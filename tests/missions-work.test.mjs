@@ -10,7 +10,7 @@ import {
   ROSES, ROSES_START, ALPINE_ROSES_MISSION, createRoseBushes, nearestBush, stepPicking,
   MUSHROOMS, MUSHROOM_KINDS, MUSHROOM_MISSION, createMushrooms, nearestMushroom, mushroomControl,
   CRANE, CRANE_WING, CRANE_HOTEL, CRANE_LOADS, CRANE_MISSION, createCraneSite, craneSurface, stepPendulum, swingOf, craneWind, createCrane, craneTrolley, stepCrane,
-  createCraneState, craneLoadHits, craneLanding, craneScore, stepCraneLoad, craneHookAction,
+  createCraneState, craneLoadHits, craneLanding, craneScore, stepCraneLoad, craneHookAction, craneNextMove, CRANE_MOVES, craneHook,
   LOADER, SNOW_ROUTE, TIP_SPOT, SNOW_HAUL_MISSION, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, truckPace, onBed, stepChute, shedInBend,
   tipPose, stepTip, snowScore, createSnowState, nextOnRoute, blowerHitsTruck, inRingXZ
 } from '../js/missions-data-work.js';
@@ -545,6 +545,30 @@ test('the crane mission: the walker reaches the ladder, the steps follow the loa
   assert.ok(m.objectives[1].check(frame({ t: CRANE.limitMs + 1 }), st).fail);
   assert.equal(m.objectives.length, 1 + CRANE_LOADS.length);
   assert.ok(m.summary(st).length === 2);
+});
+
+test('the crane: its step hints alone take a driver through all three loads', () => {
+  // a driver that does what the hint says and nothing else (the key at part throttle, a big swing waited out)
+  const site = createCraneSite(), st = createCraneState(), c = createCrane(site), dt = 1 / 30, seen = new Set();
+  st.cab = true;
+  const keys = { liftOff: { hoist: 1 }, liftClear: { hoist: 1 }, offSpot: { hoist: 1 }, raiseHook: { hoist: 0.5 }, lowerHook: { hoist: -1 }, lowerLoad: { hoist: -0.3 },
+    slewLoadLeft: { slew: 0.35 }, slewLoadRight: { slew: -0.35 }, slewPadLeft: { slew: 0.35 }, slewPadRight: { slew: -0.35 },
+    trolleyLoadOut: { trolley: 0.7 }, trolleyLoadIn: { trolley: -0.7 }, trolleyPadOut: { trolley: 0.7 }, trolleyPadIn: { trolley: -0.7 } };
+  let t = 0;
+  while (st.index < site.loads.length && t < 900) {
+    const move = craneNextMove(c, site, st);
+    assert.ok(CRANE_MOVES[move], `a hint for ${move}`);
+    seen.add(move);
+    if (move === 'take' || move === 'release') assert.equal(craneHookAction(c, site, st), move === 'take' ? 'hooked' : 'released');
+    const load = site.loads[st.index], h = craneHook(c);
+    const floor = st.carried ? (st.seated ? st.ly + load.half.y * 2 + CRANE.sling - 0.3 : -Infinity) : craneSurface(site, h.x, h.z) + 0.5;
+    stepCrane(c, swingOf(c.swing) > 1.2 && !(st.carried && st.seated) ? {} : keys[move] || {}, dt, null, site.jibY - floor);
+    stepCraneLoad(c, site, st, dt);
+    t += dt;
+  }
+  assert.equal(st.results.length, 3, `all three down by the hints (${t.toFixed(0)} s)`);
+  for (const m of ['take', 'release', 'liftClear', 'lowerLoad', 'lowerHook']) assert.ok(seen.has(m), m);
+  assert.equal(craneNextMove(c, site, st), null);
 });
 
 // --- Carting the snow ----------------------------------------------------------------------------------------------------

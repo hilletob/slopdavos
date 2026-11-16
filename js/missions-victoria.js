@@ -401,6 +401,34 @@ const victoria = {
       if (side) { swallow(e); victoria.side(run, side, false); }
     }, { capture: true });
     run.listen(window, 'blur', () => { vc.keys.left = vc.keys.right = false; });
+    // the stations in the register (js/actions.js), for the gamepad: the d-pad is ◀ and ▶ (scrub, sort, steer the
+    // sheet), A the next chore in the room, X, A and B the three burners. The key bar shows the station's keys in short
+    // (the HUD's buttons carry theirs too); the keys themselves are key() below's, the touch screens tap the buttons
+    const at = (id) => () => !!vc.room && live(run) && victoria.station(run) === id;
+    const inRoom = () => !!vc.room && live(run);
+    const sorting = (on) => () => at('laundry')() && (run.state.laundry?.phase === 'sort') === on;
+    run.actions([
+      { kind: 'hint', kbd: ['1-7'], label: 'pick a chore', when: at('housekeeping') },
+      { kind: 'hint', kbd: ['A', 'D'], label: 'scrub, in turns', when: at('housekeeping') },
+      { kind: 'hint', kbd: ['1-3'], label: 'a burner: the ticket on, in the green the plate out', when: at('kitchen') },
+      { kind: 'hint', kbd: ['A'], label: 'whites', when: sorting(true) },
+      { kind: 'hint', kbd: ['D'], label: 'colours', when: sorting(true) },
+      { kind: 'hint', kbd: ['A', 'D'], label: 'held: keep the sheet straight', when: sorting(false) },
+      { id: 'vc-left', kind: 'hold', label: '◀', keys: ['ArrowLeft'], keyboard: false, pad: 'left', touch: false, hint: false, when: inRoom, run: (on) => victoria.side(run, -1, on) },
+      { id: 'vc-right', kind: 'hold', label: '▶', keys: ['ArrowRight'], keyboard: false, pad: 'right', touch: false, hint: false, when: inRoom, run: (on) => victoria.side(run, 1, on) },
+      { id: 'vc-chore', label: 'Next chore', keys: ['Digit1'], keyboard: false, pad: 'a', touch: false, hint: false, when: at('housekeeping'), run: () => victoria.nextChore(run) },
+      ...['x', 'a', 'b'].map((slot, i) => ({ id: `vc-burner-${i + 1}`, label: `Burner ${i + 1}`, keys: [`Digit${i + 1}`], keyboard: false, pad: slot, touch: false, hint: false, when: at('kitchen'), run: () => victoria.pick(run, i) }))
+    ]);
+  },
+  /** The gamepad's chore: the next one in the room's order that may be worked now, after the one in hand */
+  nextChore(run) {
+    const g = run.state?.hk;
+    if (!g) return;
+    const list = hkRoom(g).chores, from = list.indexOf(g.chore);
+    for (let k = 1; k <= list.length; k++) {
+      const id = list[(from + k + list.length) % list.length];
+      if (hkAllowed(g, id)) { victoria.pick(run, CHORE_KEYS.indexOf(id)); return; }
+    }
   },
   reset(run) {
     const vc = run.vc;

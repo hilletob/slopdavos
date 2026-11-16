@@ -29,7 +29,7 @@ const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
 
 const STYLE = `
-.rs-hud{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(640px,calc(100vw - 20px))}
+.rs-hud{position:fixed;left:50%;bottom:var(--keybar-clear,54px);transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(640px,calc(100vw - 20px))}
 .rs-hud[hidden],.rs-game[hidden],.rs-pad[hidden]{display:none!important}
 .rs-card{background:rgba(10,12,20,.8);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:8px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:13px;font-variant-numeric:tabular-nums;text-align:center}
 .rs-card b{font-size:18px}
@@ -51,7 +51,7 @@ const STYLE = `
 .rs-game{position:fixed;inset:0;z-index:38;display:flex;align-items:flex-start;justify-content:center;padding-top:196px;box-sizing:border-box;background:rgba(14,11,8,.86);font-family:Inter,system-ui,sans-serif;color:#fff}
 .rs-game-box{display:flex;flex-direction:column;gap:8px;align-items:center;max-width:calc(100vw - 16px)}
 .rs-game canvas{border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);touch-action:none;max-width:calc(100vw - 16px);background:#222}
-body.rs-busy .controls-hint,body.rs-busy .gta-prompt,body.rs-busy .touch-use,body.rs-busy .mission-prompt,body.rs-busy #touch-controls{display:none!important}
+body.rs-busy .gta-prompt,body.rs-busy .touch-use,body.rs-busy .mission-prompt,body.rs-busy #touch-controls{display:none!important}
 @media (max-width:640px){.rs-hud{bottom:8px}.rs-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}}
 @media (max-height:500px){.rs-game{padding-top:4px;z-index:46}.rs-game .rs-card{padding:2px 8px;font-size:11px}.rs-game .rs-card b{font-size:13px}.rs-game-box{gap:3px}.rs-hud{bottom:4px;gap:3px}.rs-hud .rs-card{padding:3px 8px;font-size:11px}.rs-hud .rs-card b{font-size:13px}.rs-pop{font-size:17px;min-height:20px}.rs-pad .rs-btn{min-height:38px;padding:3px 10px;font-size:13px}.rs-hud>.rs-btn{padding:6px 18px;font-size:14px}.rs-strip{height:26px}.rs-zone{min-width:44px}}
 `;
@@ -345,6 +345,9 @@ const TBAR_FEATURE = {
     run.listen(hand, 'pointerdown', (e) => { e.preventDefault(); TBAR_FEATURE.press(run); });
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', () => { if (run.tb.open) TBAR_FEATURE.press(run); });
+    // the hand-over in the register (js/actions.js): the gamepad's A; the keys themselves are key() below's, the touch
+    // screens tap the button or the view
+    run.actions([{ id: 'tbar-hand', label: 'Hand over the bar', keys: ['Space', 'Enter', 'KeyJ', 'KeyF'], kbd: ['Space'], keyboard: false, pad: 'a', touch: false, when: () => !!run.tb?.open, run: () => TBAR_FEATURE.press(run) }]);
 
     const { suit, gear } = skierGeometries();
     const suitMesh = new THREE.InstancedMesh(suit, litMat(), MAX_SKIERS), gearMesh = new THREE.InstancedMesh(gear, litMat(), MAX_SKIERS);
@@ -561,7 +564,7 @@ const WAX_FEATURE = {
     game.append(box_);
     document.body.append(game);
     run.cleanups.push(() => game.remove());
-    run.wx = { game, canvas, c, info, open: false, finger: null, keys: { left: false, right: false }, pop: null };
+    run.wx = { game, canvas, c, info, open: false, finger: null, keys: { left: false, right: false }, pop: null, sel: null };
     run.listen(canvas, 'pointerdown', (e) => {
       e.preventDefault();
       const p = canvasPoint(canvas, e), b = run.state.bench;
@@ -579,10 +582,24 @@ const WAX_FEATURE = {
       if (e.code === 'ArrowRight' || e.code === 'KeyD') run.wx.keys.right = false;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') run.wx.keys.left = false;
     }, { capture: true });
+    // the bench in the register (js/actions.js), for the gamepad: at the board the d-pad walks along the waxes (a ring
+    // round the one in hand) and A takes it; at the skis the d-pad moves the tool. The keys themselves are key() below's
+    const stage = () => (run.wx?.open && run.phase === 'running' ? run.state.bench?.pair.stage : null);
+    const atBoard = () => stage() === 'wax', atSkis = () => !!stage() && stage() !== 'wax';
+    const along = (step) => { run.wx.sel = clamp((run.wx.sel ?? (step > 0 ? -1 : WAXES.length)) + step, 0, WAXES.length - 1); };
+    run.actions([
+      { kind: 'hint', kbd: ['1-5'], label: 'pick the wax', when: atBoard },
+      { id: 'wax-prev', label: 'Previous wax', keys: ['ArrowLeft'], keyboard: false, pad: 'left', touch: false, hint: false, when: atBoard, run: () => along(-1) },
+      { id: 'wax-next', label: 'Next wax', keys: ['ArrowRight'], keyboard: false, pad: 'right', touch: false, hint: false, when: atBoard, run: () => along(1) },
+      { id: 'wax-take', label: 'Take this wax', keys: ['Enter'], keyboard: false, pad: 'a', touch: false, hint: false, when: () => atBoard() && run.wx.sel != null, run: () => WAX_FEATURE.pick(run, WAXES[run.wx.sel].id) },
+      { kind: 'hint', kbd: ['←', '→'], label: 'move the tool', when: atSkis },
+      { id: 'wax-back', kind: 'hold', label: 'Tool back', keys: ['ArrowLeft'], keyboard: false, pad: 'left', touch: false, hint: false, when: atSkis, run: (on) => { run.wx.keys.left = on; } },
+      { id: 'wax-on', kind: 'hold', label: 'Tool on', keys: ['ArrowRight'], keyboard: false, pad: 'right', touch: false, hint: false, when: atSkis, run: (on) => { run.wx.keys.right = on; } }
+    ]);
   },
   reset(run) {
     const wx = run.wx;
-    wx.open = false; wx.game.hidden = true; wx.finger = null; wx.keys.left = wx.keys.right = false; wx.pop = null;
+    wx.open = false; wx.game.hidden = true; wx.finger = null; wx.keys.left = wx.keys.right = false; wx.pop = null; wx.sel = null;
     run.state.bench = null;
     holdPlayer(run, false);
   },
@@ -646,7 +663,7 @@ function drawSki(c, y, cells, p, active, wax) {
   });
   if (p.stage === 'brush' && p.shine > 0) { c.fillStyle = `rgba(255,255,255,${p.shine * 0.25})`; c.fillRect(SKI_X0 + 12, y + 3, w - 12, SKI_H - 6); }
   c.fillStyle = active ? '#ffe14f' : 'rgba(255,255,255,.4)'; c.font = '700 11px Inter, sans-serif'; c.textAlign = 'left';
-  c.fillText('tip', SKI_X0 - 28, y + SKI_H / 2 + 4);
+  c.fillText(t('tip'), SKI_X0 - 28, y + SKI_H / 2 + 4);
 }
 
 function drawBench(c, wx, b) {
@@ -708,7 +725,7 @@ function drawBench(c, wx, b) {
       c.fillStyle = 'rgba(240,220,180,.9)'; for (let y = yTop + 4; y < yBot - 4; y += 7) c.fillRect(toolX - 12, y, 24, 2);
     }
     c.fillStyle = '#fff'; c.font = '700 14px Inter, sans-serif'; c.textAlign = 'center';
-    const n = p.stage === 'scrape' ? `${Math.round((1 - p.excess) * 100)}% of the wax off` : `${Math.round(p.shine * 100)}% brushed`;
+    const n = p.stage === 'scrape' ? `${Math.round((1 - p.excess) * 100)}% ${t('of the wax off')}` : `${Math.round(p.shine * 100)}% ${t('brushed')}`;
     c.fillText(`${t(p.stage === 'scrape' ? 'Scrape' : 'Brush')} ${t('tip → tail')} · ${n}`, WW / 2, 390);
     c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(SKI_X0, 402, SKI_X1 - SKI_X0, 6);
     c.fillStyle = '#7dffb0'; c.fillRect(SKI_X0, 402, (SKI_X1 - SKI_X0) * clamp(p.pass, 0, 1), 6);
@@ -720,6 +737,7 @@ function drawBench(c, wx, b) {
       c.fillStyle = w.colour; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, 9); c.fill();
       c.fillStyle = i === 0 ? '#222' : '#fff'; c.font = '800 15px Inter, sans-serif'; c.textAlign = 'center';
       c.fillText(`${i + 1} ${t(w.name)}`, r.x + r.w / 2, r.y + 34);
+      if (wx.sel === i) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 12); c.stroke(); } // (the gamepad's wax in hand)
     });
     c.fillStyle = '#fff'; c.font = '700 14px Inter, sans-serif'; c.textAlign = 'center';
     c.fillText(t('Which wax for this snow?'), WW / 2, 342);
@@ -764,6 +782,11 @@ const MARSHAL_FEATURE = {
     });
     void btns;
     const hud = bottomHud(run, [pad]);
+    // the four signals in the register (js/actions.js): the gamepad's d-pad, A for the stop; the keys themselves are
+    // key() below's, the touch screens tap the pad
+    const open = () => !!run.pm?.open;
+    run.actions([['left', 'Wave left', 'ArrowLeft', 'left'], ['straight', 'Wave straight on', 'ArrowUp', 'up'], ['right', 'Wave right', 'ArrowRight', 'right'], ['stop', 'Stop the car', 'ArrowDown', 'a']]
+      .map(([what, label, key, slot]) => ({ id: `marshal-${what}`, label, keys: [key], keyboard: false, pad: slot, touch: false, when: open, run: () => MARSHAL_FEATURE.gesture(run, what) })));
     // the green arrows over the free bays
     const arrowGeo = paint(new THREE.ConeGeometry(0.42, 0.9, 4).rotateX(Math.PI), '#ffffff');
     const arrows = new THREE.InstancedMesh(arrowGeo, new THREE.MeshBasicNodeMaterial({ vertexColors: true }), MAX_ARROWS);

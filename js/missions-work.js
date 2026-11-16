@@ -14,7 +14,7 @@ import {
   GARBAGE, stepGarbage,
   ROSES, createRoseBushes, nearestBush, stepPicking,
   MUSHROOMS, createMushrooms, nearestMushroom,
-  CRANE, CRANE_WING, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneHook, craneTrolley, craneWind, swingOf,
+  CRANE, CRANE_WING, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneNextMove, craneHook, craneTrolley, craneWind, swingOf,
   LOADER, TIP_SPOT, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, stepChute, shedInBend, tipPose, stepTip, blowerHitsTruck, depositHeap, inRingXZ
 } from './missions-data-work.js';
 
@@ -1512,6 +1512,7 @@ const towerCrane = {
     w.view = 'chase';
     w.camInit = false;
     w.t = 0;
+    w.nextIn = 0;
     w.toast.hide();
     w.site.loads.forEach((l, i) => {
       w.loads[i].mesh.position.set(l.yard.x, l.restY, l.yard.z);
@@ -1529,7 +1530,7 @@ const towerCrane = {
     const w = run.work, st = run.state;
     if (!st?.cab || !(run.phase === 'running' || run.phase === 'ready')) return;
     const r = craneHookAction(w.crane, w.site, st);
-    if (r === 'hooked') { w.toast.show('Hooked: lift it clear', '#ffe9a6', 1.4); run.audio?.thump?.(); }
+    if (r === 'hooked') { w.toast.show('Hooked: E lifts it', '#ffe9a6', 1.6); run.audio?.thump?.(); }
     else if (r === 'released') {
       const last = st.results[st.results.length - 1];
       const placed = w.site.loads[st.index - 1];
@@ -1537,19 +1538,23 @@ const towerCrane = {
       w.loads[st.index - 1].mesh.position.set(last.x, last.y, last.z);
       if (last.hard) w.toast.show(`Hard landing  -${Math.round(CRANE.points.hard * placed.fragile)}`, '#ff8f80', 2);
       else w.toast.show(`Set down  +${Math.round(last.points)}`, '#a8ffb0', 1.6);
-    } else if (r === 'off-spot') w.toast.show('Not on the marked spot', '#ff8f80', 1.4);
-    else if (r === 'not-down') w.toast.show('Lower it onto the spot first', '#fff', 1.2);
+      // (what comes next, after the score: the next load in the yard, its yellow ring)
+      w.nextIn = w.site.loads[st.index] ? 1.7 : 0;
+    } else if (r === 'off-spot') w.toast.show('Not on the marked spot: E lifts it again', '#ff8f80', 1.6);
+    else if (r === 'not-down') w.toast.show('Lower it onto the spot first (Q)', '#fff', 1.4);
     else w.toast.show('The hook is not over the load', '#fff', 1.2);
   },
   update(run, ctx, dt, cm) {
     const w = run.work, st = run.state, C = w.crane, S = w.site;
     w.toast.update(dt);
+    if (w.nextIn > 0 && (w.nextIn -= dt) <= 0 && !st.carried && S.loads[st.index]) w.toast.show(`Next: the ${S.loads[st.index].name} in the yard`, '#ffe9a6', 2.2);
     if (st.cab) {
       towerCrane.hold(run);
       w.t += dt;
       const k = cm.keys;
       const input = {
-        slew: (+k.left || 0) - (+k.right || 0),
+        // (the slew is the crane's turning: the game's eased turn input, a tap a small correction, a gamepad's stick fine)
+        slew: cm.turnInput ? cm.turnInput(dt) : (+k.left || 0) - (+k.right || 0),
         trolley: (+k.forward || 0) - (+k.backward || 0),
         hoist: clamp((+k.up || 0) - (+k.down || 0), -1, 1)
       };
@@ -1573,7 +1578,8 @@ const towerCrane = {
         const above = st.carried ? st.ly - load.padY : hook.y - (load.restY + load.half.y * 2 + CRANE.sling);
         st.view = {
           dist: Math.hypot(px - target.x, pz - target.z), above, swing: swingOf(C.swing), wind: wind ? Math.hypot(wind.x, wind.z) : 0,
-          ready: !st.carried && Math.hypot(hook.x - target.x, hook.z - target.z) <= CRANE.pickReach && above <= CRANE.pickAbove && above >= -CRANE.pickBelow
+          ready: !st.carried && Math.hypot(hook.x - target.x, hook.z - target.z) <= CRANE.pickReach && above <= CRANE.pickAbove && above >= -CRANE.pickBelow,
+          move: craneNextMove(C, S, st) // (the objective's step hint: js/missions-data-work.js CRANE_MOVES)
         };
       }
     }

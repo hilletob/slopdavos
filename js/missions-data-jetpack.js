@@ -352,7 +352,7 @@ export const JETPACK_MISSION = {
           text: onPad && f.refuelling ? `Refuelling … ${Math.round(f.fuel)} %` : `${fmtDist(d)} to ${PAD.name} · tank ${Math.round(f.fuel)} %`,
           // (standing on the pad: its column of light out of the way of the pilot and the crew's drums)
           target: onPad ? null : { x: PAD.x, z: PAD.z, r: PAD.r, style: 'pad' },
-          hint: f.phase === 'ground' && !onPad ? (f.fuel <= 0 ? 'The tank is dry: walk over to the pit crew' : 'Not on the pad: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
+          hint: f.phase === 'ground' && !onPad ? (f.fuel <= 0 ? 'The tank is dry: walk over to the pit crew' : 'Not on the pad: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : d < 60 ? 'Over the pad: hold Q to sink and touch down' : null
         };
       }
     },
@@ -382,7 +382,7 @@ export const JETPACK_MISSION = {
           progress: null,
           text: `${fmtDist(d)} to the terrace · tank ${Math.round(f.fuel)} %`,
           target: { x: TERRACE.x, z: TERRACE.z, r: TERRACE.r, style: 'pad' },
-          hint: f.phase === 'ground' ? (f.fuel <= 0 ? 'The tank is dry: walk onto the terrace' : 'Not on the terrace: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : null
+          hint: f.phase === 'ground' ? (f.fuel <= 0 ? 'The tank is dry: walk onto the terrace' : 'Not on the terrace: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : d < 60 ? 'Over the terrace: hold Q to sink and touch down' : null
         };
       }
     }

@@ -605,7 +605,7 @@ export const IBEX_MISSION = {
       check(ctx, state) {
         const h = state.hunt;
         const c = herdCentre(h.herd);
-        return { done: h.done, progress: null, text: `${h.ammo} ${h.ammo === 1 ? 'round' : 'rounds'} · ${Math.max(0, h.score)} pts · herd ${fmtDist(dist(ctx, c))}`, target: null, hint: 'Z / right click: scope · Shift: hold breath · Space / click: fire' };
+        return { done: h.done, progress: null, text: `${h.ammo} ${h.ammo === 1 ? 'round' : 'rounds'} · ${Math.max(0, h.score)} pts · herd ${fmtDist(dist(ctx, c))}`, target: null, hint: 'Turn to the herd, put the crosshair on an old buck, then Z for the scope · Q / E: zoom · Shift: hold breath · Space / click: fire' };
       }
     }
   ]

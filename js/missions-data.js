@@ -30,6 +30,7 @@ import { PHARMACY_MISSIONS } from './missions-data-pharmacy.js'; // the medicine
 import { POST_MISSIONS } from './missions-data-post.js'; // the postman empties the post boxes from Davos Dorf to Platz
 import { VICTORIA_MISSIONS } from './missions-data-victoria.js'; // a shift at the Turmhotel Victoria: rooms, kitchen, Lingerie
 import { JETPACK_MISSIONS } from './missions-data-jetpack.js'; // the jetpack demo of the WEF week: from the Kongress through the gates to the Schatzalp
+import { HELIBLAST_MISSIONS } from './missions-data-heliblast.js'; // avalanche blasting from the helicopter: hand charges on the Jakobshorn and the Parsenn
 
 // js/missions-data.js
 // The missions (js/missions.js runs them): their definitions and the pure progress logic. No three.js and no DOM in
@@ -507,7 +508,7 @@ const blueHint = (ctx) => (ctx.blueLight ? null : 'Turn on the blue lights [K]')
 export const TOEFF_POLIZEI_MISSION = {
   id: 'toeff-unfall-polizei',
   title: 'Police: motorbike crash on the Flüela road',
-  intro: 'Dispatch to patrol Davos: motorbike crash on the Flüelapassstrasse above the Tschuggen, one person injured. Drive there with blue lights (K), park across the road before the crash site, then on foot (1) set cones 50 m before and after the site and guide the Rega in.',
+  intro: 'Dispatch to patrol Davos: motorbike crash on the Flüelapassstrasse above the Tschuggen, one person injured. Drive there with blue lights (K), park across the road before the crash site, then on foot (F gets you out of the car) set cones 50 m before and after the site and guide the Rega in.',
   mode: 'car',
   season: 'summer', // (a motorbike crash on the pass: a summer mission)
   time: 'golden',
@@ -554,8 +555,8 @@ export const TOEFF_POLIZEI_MISSION = {
         state.cones[i] = here ? state.cones[i] + ctx.dt : 0;
         const done = state.cones[i] >= 2;
         if (done) state.conesDone = i + 1;
-        const text = !onFoot ? 'Get out: key 1 (on foot)' : here ? `Placing the cone … ${Math.ceil(2 - state.cones[i])} s` : `${formatDistance(dist2d(ctx, cone))} to the marker, stand there for 2 s`;
-        return { done, progress: Math.min(1, state.cones[i] / 2), text, target: { ...cone, style: 'hazard' }, hint: onFoot ? null : 'On foot [1]' };
+        const text = !onFoot ? 'Get out: F (on foot)' : here ? `Placing the cone … ${Math.ceil(2 - state.cones[i])} s` : `${formatDistance(dist2d(ctx, cone))} to the marker, stand there for 2 s`;
+        return { done, progress: Math.min(1, state.cones[i] / 2), text, target: { ...cone, style: 'hazard' }, hint: onFoot ? null : 'Get out of the car [F]' };
       }
     })),
     {
@@ -571,7 +572,7 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS, ...HELIBLAST_MISSIONS];
 // Every mission has a leaderboard: <id>-1 unless it names its own (supabase/migrations/*_all_leaderboards.sql holds the
 // limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
 for (const m of MISSIONS) m.board ??= `${m.id}-1`;

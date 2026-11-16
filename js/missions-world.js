@@ -60,6 +60,16 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.closePath(); ctx.fill();
       break;
     }
+    case 'dynamite': { // a bundle of three sticks, the fuse curling up to its spark (js/missions-data-heliblast.js)
+      ctx.save(); ctx.rotate(-0.35);
+      for (const x of [-0.42, 0, 0.42]) { ctx.beginPath(); ctx.roundRect(g * (x - 0.19), -g * 0.35, g * 0.38, g * 1.25, g * 0.1); ctx.fill(); }
+      ctx.lineWidth = g * 0.12; ctx.beginPath(); ctx.moveTo(0, -g * 0.35); ctx.quadraticCurveTo(g * 0.1, -g * 0.8, g * 0.45, -g * 0.82); ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, k = i % 2 ? 0.1 : 0.26; ctx.lineTo(g * 0.18 + Math.sin(a) * g * k, -g * 0.98 - Math.cos(a) * g * k); }
+      ctx.closePath(); ctx.fill();
+      break;
+    }
     case 'police': { // a star
       ctx.beginPath();
       for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, k = i % 2 ? 0.45 : 1; ctx.lineTo(Math.sin(a) * g * k, -Math.cos(a) * g * k); }

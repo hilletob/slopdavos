@@ -80,10 +80,10 @@ export function clock(ms) {
   const m = Math.floor(t / 60000), s = Math.floor((t % 60000) / 1000), d = Math.floor((t % 1000) / 100);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${d}`;
 }
-/** A gap in the reader's notation: "4,2 Sekunden" | "4.2 seconds" */
+/** A gap in the reader's language, with the decimal point either way (Swiss usage): "4.2 Sekunden" | "4.2 seconds" */
 const seconds = (ms, lang) => {
   const value = (Math.round(ms / 100) / 10).toFixed(1);
-  return lang === 'de' ? `${value.replace('.', ',')} Sekunden` : `${value} seconds`;
+  return lang === 'de' ? `${value} Sekunden` : `${value} seconds`;
 };
 
 /** The next medal up from `held` and how far `value` is from it, or null (gold held, or the mission has no limits) */

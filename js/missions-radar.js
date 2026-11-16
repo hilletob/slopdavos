@@ -69,6 +69,9 @@ const STYLE = `
 .radar-fine button{flex:1 1 30%;min-width:100px;border:0;border-radius:9px;padding:8px 8px;background:#2d6cdf;color:#fff;font:700 14px/1.2 Inter,system-ui,sans-serif;cursor:pointer}
 .radar-fine button.is-letgo{background:#47505b}
 .radar-fine button small{display:block;font-weight:500;font-size:11px;opacity:.8}
+.radar-fine button.is-pad{outline:2px solid #ffd27a;outline-offset:2px}
+.radar-fine-pad{margin:9px 0 0;font-size:12px;color:#c9d0d8}
+.radar-fine-pad[hidden]{display:none}
 .radar-fine kbd{font:700 11px/1 ui-monospace,monospace;background:rgba(255,255,255,.18);border-radius:4px;padding:2px 4px;margin-right:6px}
 `;
 
@@ -372,19 +375,26 @@ function buildHud(run) {
   R.ui.fineHead = el('h3');
   R.ui.fineText = el('p');
   const buttons = el('div', 'radar-fine-buttons');
-  R.ui.fineButtons = [...FINES.map((f) => f.key), 0].map((k) => {
+  R.ui.fineButtons = FINE_ORDER.map((k) => {
     const b = el('button', k === 0 ? 'is-letgo' : null);
     b.type = 'button';
     b.addEventListener('click', () => { R.input.fine = k; });
     buttons.append(b);
     return { k, b };
   });
-  fine.append(R.ui.fineHead, R.ui.fineText, buttons);
+  // (with a gamepad: the d-pad picks a button, A gives it — the register's radar-fine actions)
+  R.ui.finePad = el('p', 'radar-fine-pad');
+  R.ui.finePad.hidden = true;
+  fine.append(R.ui.fineHead, R.ui.fineText, buttons, R.ui.finePad);
   document.body.append(box, toast, scope, target, fine);
   Object.assign(R.ui, { box, toast, scope, target, fine });
   run.cleanups.push(() => { for (const n of [style, box, toast, scope, target, fine]) n.remove(); });
 }
 
+/** Whether a standard gamepad is connected (the fine panel then shows its buttons' slots and the one picked) */
+const padConnected = () => {
+  try { return [...(navigator.getGamepads?.() || [])].some((g) => g?.connected && g.mapping === 'standard'); } catch { return false; }
+};
 const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const _p = new THREE.Vector3();
@@ -440,6 +450,10 @@ function renderHud(run, check, ctx) {
       ? `${t('Reading')} ${st.kmh} km/h · ${t('limit')} ${RADAR.limit} km/h · ${t('tolerance')} ${RADAR.tolerance} km/h`
       : t('No reading for this car'));
     const deLang = /^de\b/.test(document.documentElement.lang || '');
+    const pad = padConnected();
+    u.finePad.hidden = !pad;
+    if (pad) setText(u.finePad, t('Gamepad: ◀ ▶ choose · A confirm'));
+    u.fineButtons.forEach(({ b }, i) => b.classList.toggle('is-pad', pad && i === R.fineSel));
     for (const { k, b } of u.fineButtons) {
       const label = k === 0 ? t('Let go') : deLang ? FINES[k - 1].de : FINES[k - 1].label;
       const sub = k === 0 ? t('no offence') : FINES[k - 1].range;
@@ -469,6 +483,8 @@ function beep(run, high) {
 
 // --- The feature ---------------------------------------------------------------------------------------------------------
 const PAN_KEYS = { KeyA: 'L', ArrowLeft: 'L', KeyD: 'R', ArrowRight: 'R', KeyW: 'U', ArrowUp: 'U', KeyS: 'D', ArrowDown: 'D' };
+// the fine panel's buttons in order (the fines 1-4, then letting go: 0) — the gamepad's d-pad steps through them
+const FINE_ORDER = [...FINES.map((f) => f.key), 0];
 const FINE_KEYS = { Digit0: 0, Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4, Numpad0: 0, Numpad1: 1, Numpad2: 2, Numpad3: 3, Numpad4: 4 };
 
 const radarCheck = {
@@ -477,7 +493,8 @@ const radarCheck = {
   setup(run) {
     const R = run.radar = {
       laserOn: false, aim: AIM_HEADING, pitch: -0.012, cars: [], visits: new Map(), byId: new Map(), nextId: 0, heldId: 0,
-      input: { measure: false, stop: false, fine: null }, pan: {}, signT: 0, lastPhase: 'idle', personHidden: null, fov: null
+      input: { measure: false, stop: false, fine: null }, pan: {}, signT: 0, lastPhase: 'idle', personHidden: null, fov: null,
+      fineSel: 0, jumpHidden: false
     };
     R.obstacles = [];
     // the officer's stances: writing the ticket at the stopped car (js/person-clips.js), idling otherwise
@@ -490,13 +507,22 @@ const radarCheck = {
     run.group.add(R.tripod, R.sign);
     buildHud(run);
     const checking = () => stepId(run) === 'check' && live(run);
+    const atCar = () => checking() && !!run.state?.check?.stop?.atCar;
     const cm = run.hooks.controllerManager;
+    // the gamepad's slots (the keys stay with key() below): A measures through the laser, B the stop sign, d-pad right
+    // the laser (the game's mission extra; Y cycles the camera); at the stopped car the d-pad steps through the fines
+    // and A gives the one picked (the jump steps aside meanwhile: see update). No touch buttons: the panel's own are
+    const step = (d) => () => { R.fineSel = (R.fineSel + d + FINE_ORDER.length) % FINE_ORDER.length; };
     run.actions([
       { id: 'radar-measure', primary: true, label: 'Measure', icon: 'i-fire', keys: ['Space'], keyboard: false, pad: 'a', when: () => checking() && R.laserOn, run: () => { R.input.measure = true; } },
       { id: 'radar-stop', primary: true, label: 'Stop sign', keys: ['KeyE'], keyboard: false, pad: 'b', when: () => checking() && cm.activeMode === 'person', run: () => { R.input.stop = true; } },
-      { id: 'radar-laser', kind: 'toggle', primary: true, label: 'Laser', glyph: '◎', keys: ['KeyQ'], keyboard: false, pad: 'y', when: () => checking() && (R.laserOn || nearLaser(run, cm)), state: () => R.laserOn, run: () => setLaser(run, !R.laserOn) },
-      { kind: 'hint', kbd: ['Drag', 'A', 'D'], label: 'Aim', when: () => checking() && R.laserOn }
+      { id: 'radar-laser', kind: 'toggle', primary: true, label: 'Laser', glyph: '◎', keys: ['KeyQ'], keyboard: false, pad: 'right', when: () => checking() && (R.laserOn || nearLaser(run, cm)), state: () => R.laserOn, run: () => setLaser(run, !R.laserOn) },
+      { kind: 'hint', kbd: ['Drag', 'A', 'D'], label: 'Aim', when: () => checking() && R.laserOn },
+      { id: 'radar-fine-prev', label: 'Previous fine', pad: 'left', touch: false, hint: false, when: atCar, run: step(-1) },
+      { id: 'radar-fine-next', label: 'Next fine', pad: 'right', touch: false, hint: false, when: atCar, run: step(1) },
+      { id: 'radar-fine-give', label: 'Give the fine', pad: 'a', touch: false, hint: false, when: atCar, run: () => { R.input.fine = FINE_ORDER[R.fineSel]; } }
     ]);
+    run.cleanups.push(() => { if (R.jumpHidden) run.hooks.actions?.relabel('up'); });
     // a drag on the view aims the laser, a click (not a drag) measures
     const canvas = document.getElementById('canvas-container');
     let down = null;
@@ -564,6 +590,13 @@ const radarCheck = {
       if (checking) assignDrivers(run, check);
       stepStream(R.stream, check, dt, streamObstacles(run, cm));
       for (const c of R.stream.cars) R.cars.push(c);
+    }
+    // (at the stopped car the gamepad's A gives the fine: the jump on it steps aside; the pick starts at the first fine)
+    const atCar = checking && !!check?.stop?.atCar;
+    if (atCar !== R.jumpHidden) {
+      R.jumpHidden = atCar;
+      run.hooks.actions?.relabel('up', atCar ? null : undefined);
+      if (atCar) R.fineSel = 0;
     }
     if (!checking) { if (R.laserOn) setLaser(run, false); return; }
     // (the step has just begun: straight to the laser)

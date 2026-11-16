@@ -267,9 +267,13 @@ const ropePark = {
     if (!g || !ropeAloft(g) || !live(run)) {
       if (run.phase === 'intro' || run.phase === 'loading') { p.speed = 0; return; }
       cm.updatePerson(dt);
+      run.rope.steer = 0;
       return;
     }
     const rp = run.rope;
+    // the lean against the sway: the controllers' eased turn (a tap a small correction, as a stick's first travel), read
+    // once a frame by the driver in charge (js/controllers.js turnInput)
+    rp.steer = cm.turnInput(dt);
     const q = rp.pose = ropePose(g, rp.decks, rp.landY, rp.groundY);
     let x = q.x, y = q.y, z = q.z;
     if (g.stage === 'dangle') {
@@ -325,7 +329,7 @@ const ropePark = {
     const g = run.state, rp = run.rope, k = cm.keys;
     if (!g) return;
     const pressed = edge(run, cm, 'up');
-    stepRope(g, dt, { forward: +k.forward || 0, back: +k.backward || 0, steer: (+k.left || 0) - (+k.right || 0), clip: pressed, x: ctx.x, z: ctx.z });
+    stepRope(g, dt, { forward: +k.forward || 0, back: +k.backward || 0, steer: rp.steer || 0, clip: pressed, x: ctx.x, z: ctx.z });
     for (const e of g.events) ropePark.event(run, e);
     g.events.length = 0;
     // the crossing under the walker swings with the lean (the others at rest, but for a little breath)

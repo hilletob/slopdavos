@@ -327,9 +327,11 @@ const rinkIce = {
     const w = run.work, st = run.state, p = cm.entities.person, car = cm.entities.car;
     const obj = objectiveId(run);
     const hoseOn = obj === 'flood' && ctx.mode === 'person';
-    // the walk with the hose (and Space for the jet) only while flooding
+    // the walk with the hose (and Space for the jet) only while flooding; the key bar says so meanwhile
     if (hoseOn && live(run)) cm.personDriver = hoseWalk;
     else if (cm.personDriver === hoseWalk) cm.personDriver = null;
+    if (hoseOn && !w.hintsOff) w.hintsOff = run.hints([[['Space'], 'hold: spray'], [['S'], 'walk backwards'], [['W'], 'walk'], [['A', 'D'], 'turn']]);
+    else if (!hoseOn && w.hintsOff) { w.hintsOff(); w.hintsOff = null; }
     st.spraying = false;
     if (hoseOn && live(run)) {
       const g = RINK.frame.toGrid(p.position.x, p.position.z, w.g), f = RINK.frame.dirToGrid(Math.sin(p.heading), Math.cos(p.heading), w.f);

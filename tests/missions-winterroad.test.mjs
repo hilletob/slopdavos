@@ -312,7 +312,7 @@ test('the winter drives speak German: names, intros, objectives, the HUD\'s text
     de(m.title); de(m.intro); de(m.finish);
     for (const o of m.objectives) de(o.title);
   }
-  assert.equal(de('1.2 km to the Flüela Hospiz · 31 km/h'), '1,2 km bis zum Flüela Hospiz · 31 km/h');
+  assert.equal(de('1.2 km to the Flüela Hospiz · 31 km/h'), '1.2 km bis zum Flüela Hospiz · 31 km/h');
   assert.equal(de('350 m to Islen · 20 km/h · 1 time in the snowbank'), '350 m bis Islen · 20 km/h · 1-mal im Schneewall');
   assert.equal(de('Chains on 1 of 2 wheels · go to the right rear wheel'), 'Ketten an 1 von 2 Rädern · geh zum rechten Hinterrad');
   assert.equal(de('Left rear wheel: pull it over the tyre'), 'Hinterrad links: über den Pneu ziehen');

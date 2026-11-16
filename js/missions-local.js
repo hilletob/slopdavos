@@ -6,6 +6,7 @@ import { surfaceHeight, groundHeight } from './terrain.js';
 import { TLM_TREES } from './tlm-trees-data.js';
 import { logoIndex, logoFor, logoImage, drawLogo } from './logos.js';
 import { QUALITY } from './quality.js';
+import { t as tr } from './i18n.js'; // (tr: the games below keep their `t` for times and the tennis state)
 import {
   BREWERY, BEER_STOPS, beerStep,
   GIPFELI, createRoll, rollStep, rollPoints, rollVerdict, gipfeliNext, gipfeliScore,
@@ -40,7 +41,7 @@ const isTouch = () => document.body.classList.contains('touch-enabled') || match
 
 // --- Styles -------------------------------------------------------------------------------------------------------------
 const STYLE = `
-.lm-hud{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(620px,calc(100vw - 20px))}
+.lm-hud{position:fixed;left:50%;bottom:var(--keybar-clear,54px);transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff;width:min(620px,calc(100vw - 20px))}
 .lm-hud[hidden],.lm-game[hidden],.lm-pad[hidden],.lm-scope[hidden]{display:none!important}
 .lm-card{background:rgba(10,12,20,.78);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:8px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:13px;font-variant-numeric:tabular-nums;text-align:center}
 .lm-card b{font-size:18px}
@@ -53,7 +54,7 @@ const STYLE = `
 .lm-btn{pointer-events:auto;border:0;border-radius:999px;padding:12px 22px;font:800 16px Inter,system-ui,sans-serif;color:#fff;background:linear-gradient(180deg,#ffb84f,#e0761c);box-shadow:0 6px 18px rgba(224,118,28,.4);touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .lm-btn.sec{background:rgba(255,255,255,.14);box-shadow:none;border:1px solid rgba(255,255,255,.25)}
 .lm-btn.on,.lm-btn:active{filter:brightness(1.25);transform:scale(.97)}
-.lm-pad{position:fixed;right:16px;bottom:120px;z-index:41;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none}
+.lm-pad{position:fixed;right:16px;bottom:120px;z-index:45;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none}
 .lm-pad .lm-btn{min-width:84px;min-height:52px}
 .lm-swatch{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.3);pointer-events:auto;touch-action:manipulation}
 .lm-swatch.on{border-color:#fff;transform:scale(1.12)}
@@ -77,7 +78,10 @@ const STYLE = `
 .lm-gallery img{width:72px;height:48px;object-fit:cover;border-radius:6px;opacity:.9}
 body.lm-indoor .gta-prompt,body.lm-indoor .touch-use,body.lm-indoor .mission-prompt{display:none!important}
 body.lm-nojoy #touch-controls{display:none!important}
+body.touch-enabled .lm-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--touch-clear,180px))}
+body.touch-enabled.lm-nojoy .lm-hud{bottom:8px}
 @media (max-width:640px){.lm-paint-tools{flex-direction:row;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 16px);padding:6px}.lm-motif{width:96px}.lm-paint-tools .lm-btn{padding:6px 10px!important;font-size:13px}.lm-swatch{width:30px;height:30px}.lm-pad{right:10px;bottom:150px}.lm-hud{bottom:8px}.lm-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}}
+@media (max-height:500px){.lm-game{padding-top:calc(env(safe-area-inset-top,0px) + 4px);z-index:46}.lm-game-box{gap:4px}.lm-game .lm-card{padding:3px 10px;font-size:11px}.lm-game .lm-card b{font-size:13px}.lm-game .lm-btn{padding:7px 18px;font-size:14px}.lm-paint{flex-wrap:nowrap}.lm-paint-tools{gap:4px;padding:5px}.lm-motif{width:96px}.lm-swatch{width:28px;height:28px}.lm-paint-tools .lm-btn{padding:4px 9px!important;font-size:12px}}
 `;
 function addStyle(run) {
   const s = el('style');
@@ -143,7 +147,11 @@ function canvasPoint(canvas, e, w, h) {
   const r = canvas.getBoundingClientRect();
   return { x: ((e.clientX - r.left) / r.width) * w, y: ((e.clientY - r.top) / r.height) * h };
 }
-const fitWidth = (w, h) => Math.max(240, Math.min(w, (globalThis.innerWidth || w) - 20, ((globalThis.innerHeight || h) - 330) * (w / h)));
+// (on a desk wide enough for the key bar, css/style.css's --keybar-clear: the game a little shorter, so its buttons stay above
+// it; a phone on its side: the game from the top, the whole height but the card and the button)
+const keyBarRoom = () => ((globalThis.innerWidth || 0) > 1240 && !isTouch() ? 20 : 0);
+const gameRoomH = (h) => { const ih = globalThis.innerHeight || h; return ih <= 500 ? ih - 96 : ih - 330 - keyBarRoom(); };
+const fitWidth = (w, h) => Math.max(240, Math.min(w, (globalThis.innerWidth || w) - 20, gameRoomH(h) * (w / h)));
 
 // --- The walker waits (a mini game, a stage): the pedestrian frozen at the door -----------------------------------------
 function holdWalker(run, on, { joystick = false } = {}) {
@@ -268,6 +276,11 @@ function touchPad(run, buttons) {
   run.cleanups.push(() => pad.remove());
   return { pad, buttons: out, show(on) { pad.hidden = !on; } };
 }
+/** A game's lines in the key bar (js/actions.js, kind 'hint'): [[['Space'], 'scrape'], ...], shown while `when()`;
+ *  `replace()` puts them in place of the game's walking hints (a mini game's own controls do that by themselves) */
+function keyHints(run, list, when, replace) {
+  run.actions(list.map(([kbd, label]) => ({ kind: 'hint', kbd, label, when })), replace ? { replace } : undefined);
+}
 
 // =====================================================================================================================
 // 1. The beer van
@@ -350,7 +363,7 @@ const BEER_FEATURE = {
     if (!live(run)) return;
     const stop = run.index >= 1 ? BEER_STOPS[run.index - 1] : null;
     const what = beerStep(st, ctx, st.van, stop);
-    if (what === 'deliver') { blip(run, 'good'); bv.hud.flash(`Delivered: ${stop.name}`); }
+    if (what === 'deliver') { blip(run, 'good'); bv.hud.flash(tr(`Delivered: ${stop.name}`)); }
     else if (what === 'pick' || what === 'stow') blip(run, 'pock');
   },
   after(run, ctx, dt, cm) {
@@ -368,7 +381,7 @@ const BEER_FEATURE = {
       bv.carry.scale.setScalar(st.phase === 'load' ? 1.15 : 1);
     }
     bv.hud.show(run.phase === 'running' || run.phase === 'ready');
-    bv.hud.set(`<b>${st.delivered}/${BEER_STOPS.length}</b> bars · crates on the roof ${inVan}${st.carrying ? ' · carrying a crate' : ''}`);
+    bv.hud.set(`<b>${st.delivered}/${BEER_STOPS.length}</b> ${tr('bars')} · ${tr('crates on the roof')} ${inVan}${st.carrying ? ` · ${tr('carrying a crate')}` : ''}`);
   }
 };
 
@@ -404,6 +417,7 @@ const GIPFELI_FEATURE = {
     for (const ev of ['pointerup', 'pointercancel']) run.listen(cv.canvas, ev, () => { gw.drag = null; });
     run.listen(tap, 'pointerdown', (e) => { e.preventDefault(); gw.pushes++; });
     gw.hud = bottomHud(run);
+    keyHints(run, [[['Drag'], 'roll the dough down'], [['S', 'Space'], 'or tap steadily']], () => gw.open);
   },
   reset(run) { const gw = run.gw; gw.open = false; gw.game.hidden = true; gw.dp = 0; gw.pushes = 0; gw.verdictT = 0; holdWalker(run, false); },
   teardown(run) { run.gw.game.hidden = true; },
@@ -424,7 +438,7 @@ const GIPFELI_FEATURE = {
     const dragging = !!gw.drag;
     rollStep(r, dragging ? { dp: gw.dp } : { push: gw.pushes }, dt);
     gw.dp = 0; gw.pushes = 0;
-    if (r.done) { gw.verdict = `${rollVerdict(r)} +${rollPoints(r)}`; gw.verdictT = 0.9; blip(run, r.quality > 0.6 ? 'good' : 'bad'); }
+    if (r.done) { gw.verdict = `${tr(rollVerdict(r))} +${rollPoints(r)}`; gw.verdictT = 0.9; blip(run, r.quality > 0.6 ? 'good' : 'bad'); }
   },
   after(run, ctx) {
     const gw = run.gw, g = run.state.gipfeli;
@@ -434,7 +448,7 @@ const GIPFELI_FEATURE = {
     const r = g.current || g.rolls[g.rolls.length - 1];
     drawGipfeliBoard(c, gw, r, g);
     const n = g.rolls.length + (g.current ? 1 : 0);
-    gw.info.innerHTML = `Gipfeli <b>${Math.min(GIPFELI.count, n)}/${GIPFELI.count}</b> · ${gipfeliScore(g)} pts · drag down over the dough at an even pace`;
+    gw.info.innerHTML = `Gipfeli <b>${Math.min(GIPFELI.count, n)}/${GIPFELI.count}</b> · ${gipfeliScore(g)} ${tr('pts')} · ${tr('drag down over the dough at an even pace')}`;
   }
 };
 
@@ -465,7 +479,7 @@ function drawGipfeliBoard(c, gw, r, g) {
   c.strokeStyle = 'rgba(150,100,40,.5)'; c.lineWidth = 1.5;
   for (let k = 1; k < 2 + p * 5; k++) { const x = cx - rw / 2 + (rw * k) / (2 + p * 5); c.beginPath(); c.moveTo(x, yr - th + 2); c.quadraticCurveTo(x + 8, yr - th / 2, x, yr + 4); c.stroke(); }
   // the hand's arrow
-  if (!r.done) { c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '700 15px Inter, sans-serif'; c.textAlign = 'center'; c.fillText('↓ roll down ↓', cx, top + len + 58); }
+  if (!r.done) { c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '700 15px Inter, sans-serif'; c.textAlign = 'center'; c.fillText(`↓ ${tr('roll down')} ↓`, cx, top + len + 58); }
   // the pace meter
   const mx = GW - 70, my = 50, mh = GH - 100;
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.roundRect(mx, my, 26, mh, 13); c.fill();
@@ -474,7 +488,7 @@ function drawGipfeliBoard(c, gw, r, g) {
   c.fillStyle = r.v > GIPFELI.band[1] ? '#ff6b6b' : r.v >= GIPFELI.band[0] ? '#7dffb0' : '#ffe14f';
   c.beginPath(); c.arc(mx + 13, toY(r.v), 9, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#fff'; c.font = '600 12px Inter, sans-serif'; c.textAlign = 'center';
-  c.fillText('fast', mx + 13, my - 10); c.fillText('slow', mx + 13, my + mh + 18);
+  c.fillText(tr('fast'), mx + 13, my - 10); c.fillText(tr('slow'), mx + 13, my + mh + 18);
   if (gw.verdictT > 0) {
     drawCroissant(c, cx, GH / 2, 1.5, r.quality);
     c.font = '900 30px Inter, sans-serif'; c.fillStyle = '#ffe14f'; c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 5;
@@ -527,6 +541,7 @@ const RACLETTE_FEATURE = {
     });
     for (const ev of ['pointerup', 'pointercancel']) run.listen(cv.canvas, ev, () => { rc.swipe = null; });
     run.listen(btn, 'pointerdown', (e) => { e.preventDefault(); RACLETTE_FEATURE.scrape(run); });
+    keyHints(run, [[['Space', 'S'], 'scrape a plate'], [['Swipe'], 'or across the cheese']], () => rc.open);
   },
   reset(run) { const rc = run.rc; rc.open = false; rc.game.hidden = true; rc.plate = null; rc.knife = 0; run.state.game = null; holdWalker(run, false); },
   teardown(run) { run.rc.game.hidden = true; },
@@ -560,7 +575,7 @@ const RACLETTE_FEATURE = {
     if (run.phase === 'done' && rc.open) { rc.open = false; rc.game.hidden = true; holdWalker(run, false); }
     if (!rc.open || !g) return;
     drawRaclette(rc.cv.ctx, rc, g);
-    rc.info.innerHTML = `<b>${Math.max(0, g.score)}</b> pts · ${g.served} plates · ${Math.max(0, Math.ceil(RACLETTE.length - g.t))} s · swipe across the cheese (or Space) to scrape`;
+    rc.info.innerHTML = `<b>${Math.max(0, g.score)}</b> ${tr('pts')} · ${g.served} ${tr('plates')} · ${Math.max(0, Math.ceil(RACLETTE.length - g.t))} s · ${tr('scrape when the cheese matches the order: swipe across it, or Space')}`;
   }
 };
 
@@ -604,7 +619,7 @@ function drawRaclette(c, rc, g) {
   c.fillStyle = '#b8671f'; c.fillRect(X(z.crispy[0]), my, X(z.crispy[1]) - X(z.crispy[0]), 20);
   c.fillStyle = '#1a1210'; c.fillRect(X(z.burnt), my, X(1.05) - X(z.burnt), 20);
   c.font = '700 12px Inter, sans-serif'; c.textAlign = 'center'; c.fillStyle = '#fff';
-  c.fillText('raw', X(0.25), my + 38); c.fillText('normal', X((z.normal[0] + z.normal[1]) / 2), my + 38); c.fillText('crispy', X((z.crispy[0] + z.crispy[1]) / 2), my + 38); c.fillText('burnt', X(1.0), my + 38);
+  c.fillText(tr('raw'), X(0.25), my + 38); c.fillText(tr('normal'), X((z.normal[0] + z.normal[1]) / 2), my + 38); c.fillText(tr('crispy'), X((z.crispy[0] + z.crispy[1]) / 2), my + 38); c.fillText(tr('burnt'), X(1.0), my + 38);
   c.fillStyle = '#fff'; c.beginPath(); c.moveTo(X(g.melt), my - 4); c.lineTo(X(g.melt) - 7, my - 14); c.lineTo(X(g.melt) + 7, my - 14); c.fill();
   c.fillRect(X(g.melt) - 1.5, my - 4, 3, 28);
   // the plate just served
@@ -614,12 +629,12 @@ function drawRaclette(c, rc, g) {
     c.fillStyle = meltColour(rc.plate.melt); c.beginPath(); c.ellipse(px, py - 3, 46, 12, 0, 0, Math.PI * 2); c.fill();
     const r = rc.plate.r;
     c.font = '900 24px Inter, sans-serif'; c.fillStyle = r.points >= 100 ? '#ffe14f' : r.points < 20 ? '#ff6b6b' : '#fff';
-    const label = !r.order ? 'Nobody waiting' : r.grade === 'burnt' ? `Burnt! ${r.points}` : r.grade === r.order ? `Just right! +${r.points}` : r.grade === 'raw' || r.grade === 'soft' ? `Too runny +${r.points}` : `Wanted ${r.order === 'crispy' ? 'extra crispy' : 'normal'} +${r.points}`;
+    const label = !r.order ? tr('Nobody waiting') : r.grade === 'burnt' ? `${tr('Burnt!')} ${r.points}` : r.grade === r.order ? `${tr('Just right!')} +${r.points}` : r.grade === 'raw' || r.grade === 'soft' ? `${tr('Too runny')} +${r.points}` : `${tr(r.order === 'crispy' ? 'Wanted extra crispy' : 'Wanted normal')} +${r.points}`;
     c.fillText(label, px, py - 34);
   }
   // the queue
   c.textAlign = 'left';
-  c.font = '800 15px Inter, sans-serif'; c.fillStyle = '#fff'; c.fillText('Orders', 430, 40);
+  c.font = '800 15px Inter, sans-serif'; c.fillStyle = '#fff'; c.fillText(tr('Orders'), 430, 40);
   g.queue.forEach((q, i) => {
     const y = 56 + i * 82;
     c.fillStyle = i === 0 ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.08)'; c.beginPath(); c.roundRect(420, y, 200, 72, 12); c.fill();
@@ -627,17 +642,17 @@ function drawRaclette(c, rc, g) {
     c.beginPath(); c.arc(450, y + 28, 16, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#ffe0c4'; c.beginPath(); c.arc(450, y + 24, 9, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#fff'; c.font = '700 15px Inter, sans-serif';
-    c.fillText(q.kind === 'crispy' ? 'Extra crispy' : 'Normal', 474, y + 26);
+    c.fillText(tr(q.kind === 'crispy' ? 'Extra crispy' : 'Normal'), 474, y + 26);
     c.fillStyle = q.kind === 'crispy' ? '#b8671f' : '#f7c948'; c.beginPath(); c.arc(600, y + 22, 8, 0, Math.PI * 2); c.fill();
     const left = 1 - q.wait / RACLETTE.patience;
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(474, y + 44, 130, 8);
     c.fillStyle = left > 0.5 ? '#7dffb0' : left > 0.25 ? '#ffe14f' : '#ff6b6b'; c.fillRect(474, y + 44, 130 * clamp(left, 0, 1), 8);
   });
-  if (!g.queue.length) { c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '600 14px Inter, sans-serif'; c.fillText('Waiting for guests …', 430, 70); }
+  if (!g.queue.length) { c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '600 14px Inter, sans-serif'; c.fillText(tr('Waiting for guests …'), 430, 70); }
   c.textAlign = 'center'; c.fillStyle = '#ffe9b0'; c.font = '800 18px Georgia, serif';
   c.fillText('Gourmet Käch · Raclette', 210, 30);
   c.font = '600 12px Inter, sans-serif'; c.fillStyle = 'rgba(255,255,255,.8)';
-  c.fillText(`melt: ${meltGrade(g.melt)}`, X(g.melt), my - 20);
+  c.fillText(`${tr('melt')}: ${tr(meltGrade(g.melt))}`, X(g.melt), my - 20);
 }
 
 // =====================================================================================================================
@@ -670,10 +685,31 @@ export function ibexGeometry(a) {
   return merged(parts);
 }
 
+// The scope's power as the camera's field of view (°): opened at the widest, to find the animal in, then zoomed in
+const SCOPE_FOV = { min: 2.2, max: 18 };
+const AIM_RANGE = 600; // m: an ibex this far off still gets its mark in the open view
+// the coarse aim before the scope (a crosshair at the view's centre, a mark over each ibex in sight) and the scope's
+// arrow to the next old buck; in a style of their own (the shared block above belongs to all the games)
+const IBEX_STYLE = `
+.lm-aim{position:fixed;inset:0;z-index:36;pointer-events:none;font:700 11px Inter,system-ui,sans-serif;color:#fff}
+.lm-aim[hidden]{display:none!important}
+.lm-aim-cross{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-13px 0 0 -13px;border:2px solid rgba(255,255,255,.85);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.45)}
+.lm-aim-cross::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#ff4b4b;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.lm-aim-mark{position:absolute;left:0;top:0;width:0;height:0;will-change:transform;color:#ff8a8a;opacity:.75}
+.lm-aim-mark[hidden]{display:none}
+.lm-aim-mark.ok{color:#9dff8a;opacity:1}
+.lm-aim-mark i{position:absolute;left:-5px;top:-6px;width:7px;height:7px;border:2px solid currentColor;transform:rotate(45deg);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.lm-aim-mark span{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);white-space:nowrap;text-shadow:0 1px 3px #000,0 0 2px #000}
+.lm-scope-arrow{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;font:900 26px/30px Inter,system-ui,sans-serif;text-align:center;color:#ffe14f;text-shadow:0 1px 4px #000;pointer-events:none}
+.lm-scope-arrow[hidden]{display:none}
+`;
+
 const IBEX_FEATURE = {
   setup(run) {
     addStyle(run);
-    const ih = run.ih = { meshes: [], mat: litMat(), scoped: false, fov0: null, yaw: 0, pitch: 0, sway: 0, breath: 4, holding: false, recover: 0, fov: 5, kick: 0, rifle: null, info: null, last: null };
+    const css = el('style'); css.textContent = IBEX_STYLE; document.head.append(css); run.cleanups.push(() => css.remove());
+    const ih = run.ih = { meshes: [], mat: litMat(), scoped: false, fov0: null, yaw: 0, pitch: 0, sway: 0, breath: 4, holding: false, recover: 0, fov: SCOPE_FOV.max, kick: 0, rifle: null, info: null, last: null,
+      zoomKey: 0, zoomIn: false, zoomOut: false, panT: 0, aim: null, marks: [], markT: 0, arrow: null };
     // the rifle at the shoulder (a stock, the barrel, the scope)
     const rifle = new THREE.Group();
     rifle.add(meshOf(merged([box(0.06, 0.1, 0.42, 0, 0, -0.1, '#5a3b22'), box(0.03, 0.03, 0.62, 0, 0.03, 0.42, '#222'), box(0.05, 0.05, 0.3, 0, 0.1, 0.2, '#111')]), litMat()));
@@ -685,9 +721,20 @@ const IBEX_FEATURE = {
     scope.append(el('div', 'lm-scope-dot'));
     const info = el('div', 'lm-scope-info', '');
     scope.append(info);
+    // (no ibex in the ring: an arrow at its edge to the next old buck)
+    const arrow = el('div', 'lm-scope-arrow', '➤');
+    arrow.hidden = true;
+    scope.append(arrow);
     document.body.append(scope);
     run.cleanups.push(() => scope.remove());
-    ih.scope = scope; ih.info = info;
+    ih.scope = scope; ih.info = info; ih.arrow = arrow;
+    // the coarse aim in the open view: a crosshair at the centre (where the scope opens) and the herd's marks
+    const aim = el('div', 'lm-aim');
+    aim.hidden = true;
+    aim.append(el('div', 'lm-aim-cross'));
+    document.body.append(aim);
+    run.cleanups.push(() => aim.remove());
+    ih.aim = aim;
     let drag = null;
     run.listen(scope, 'pointerdown', (e) => { e.preventDefault(); scope.setPointerCapture?.(e.pointerId); drag = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, button: e.button }; });
     run.listen(scope, 'pointermove', (e) => {
@@ -699,16 +746,29 @@ const IBEX_FEATURE = {
     });
     run.listen(scope, 'pointerup', (e) => { if (drag && drag.moved < 8 && performance.now() - drag.t < 350 && drag.button === 0) IBEX_FEATURE.fire(run); drag = null; });
     run.listen(scope, 'contextmenu', (e) => { e.preventDefault(); IBEX_FEATURE.toggleScope(run, false); });
-    run.listen(scope, 'wheel', (e) => { e.preventDefault(); ih.fov = clamp(ih.fov * (e.deltaY > 0 ? 1.15 : 0.87), 2.2, 14); }, { passive: false });
+    run.listen(scope, 'wheel', (e) => { e.preventDefault(); ih.fov = clamp(ih.fov * (e.deltaY > 0 ? 1.15 : 0.87), SCOPE_FOV.min, SCOPE_FOV.max); }, { passive: false });
     // right click on the view: the scope
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'contextmenu', (e) => { if (run.def.objectives[run.index]?.id === 'hunt') { e.preventDefault(); IBEX_FEATURE.toggleScope(run, true); } });
     ih.pad = touchPad(run, [
       { id: 'scope', label: 'Scope', down: () => IBEX_FEATURE.toggleScope(run) },
       { id: 'breath', label: 'Breath', down: () => { ih.holding = true; }, up: () => { ih.holding = false; } },
-      { id: 'fire', label: 'Fire', down: () => IBEX_FEATURE.fire(run) }
+      { id: 'fire', label: 'Fire', down: () => IBEX_FEATURE.fire(run) },
+      { id: 'zoomIn', label: 'Zoom +', down: () => { ih.zoomIn = true; }, up: () => { ih.zoomIn = false; } },
+      { id: 'zoomOut', label: 'Zoom −', down: () => { ih.zoomOut = true; }, up: () => { ih.zoomOut = false; } }
     ]);
     ih.hud = bottomHud(run);
+    // the key bar: the scope on the stand; through it, its keys alone (the walker waits)
+    const hunting = () => run.def.objectives[run.index]?.id === 'hunt';
+    keyHints(run, [[['Z', 'Right click'], 'scope']], () => hunting() && !ih.scoped);
+    keyHints(run, [[['Drag', 'W', 'A', 'S', 'D'], 'aim'], [['Wheel', 'Q', 'E'], 'zoom'], [['Shift'], 'hold: hold your breath'], [['Space', 'Click'], 'fire'], [['Z', 'Esc'], 'lower the scope']], () => ih.scoped, () => ih.scoped);
+    // the zoom held: E in, Q out (key() takes the keys, the bar lists them above), the d-pad up / down on a gamepad
+    // (the touch screens: the pad's Zoom + / −); above the scope's hints, which hide the layers under them
+    run.actions([
+      { id: 'ibex-zoom-in', kind: 'hold', label: 'Zoom in', keys: ['KeyE'], kbd: ['E'], keyboard: false, hint: false, touch: false, pad: 'up', when: () => ih.scoped, run: (on) => { ih.zoomIn = on; } },
+      { id: 'ibex-zoom-out', kind: 'hold', label: 'Zoom out', keys: ['KeyQ'], kbd: ['Q'], keyboard: false, hint: false, touch: false, pad: 'down', when: () => ih.scoped, run: (on) => { ih.zoomOut = on; } }
+    ]);
+    bindKeyUps(run, (e) => { if (e.code === 'KeyE' && ih.zoomKey > 0 || e.code === 'KeyQ' && ih.zoomKey < 0) ih.zoomKey = 0; });
   },
   reset(run) {
     const ih = run.ih;
@@ -735,18 +795,43 @@ const IBEX_FEATURE = {
     ih.scope.hidden = !want;
     if (want) {
       ih.fov0 = cam.fov;
-      const d = new THREE.Vector3(); cam.getWorldDirection(d);
-      ih.yaw = Math.atan2(d.x, d.z); ih.pitch = Math.asin(clamp(d.y, -1, 1));
-      // (aim at the herd when the view looked elsewhere)
-      const c = herdCentre(run.state.hunt.herd), p = run.hooks.controllerManager.entities.person.position;
-      const toHerd = Math.atan2(c.x - p.x, c.z - p.z);
-      if (Math.abs(((ih.yaw - toHerd + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 0.5) { ih.yaw = toHerd; ih.pitch = Math.atan2(groundHeight(c.x, c.z) + 0.8 - (p.y + 1.6), Math.hypot(c.x - p.x, c.z - p.z)); }
+      ih.fov = SCOPE_FOV.max; // (at the lowest power: the animal under the crosshair is still in the ring)
+      ih.zoomIn = ih.zoomOut = false; ih.zoomKey = 0;
+      cam.updateMatrixWorld();
+      const herd = run.state.hunt.herd, p = run.hooks.controllerManager.entities.person.position;
+      const eye = new THREE.Vector3(p.x, p.y + 1.62, p.z);
+      if (IBEX_FEATURE.herdInView(run, cam)) {
+        // the scope opens where the view's crosshair points: on the animal it meets or the slope behind, seen from the
+        // eye (the camera hangs a few metres behind the shoulder)
+        const d = new THREE.Vector3(); cam.getWorldDirection(d);
+        const hit = ibexRayHit(herd, cam.position, d);
+        let target = hit ? cam.position.clone().addScaledVector(d, hit.t) : null;
+        for (let s = 6; !target && s < 900; s += 3) { const q = cam.position.clone().addScaledVector(d, s); if (q.y < groundHeight(q.x, q.z)) target = q; }
+        const to = target ? target.sub(eye).normalize() : d;
+        ih.yaw = Math.atan2(to.x, to.z); ih.pitch = clamp(Math.asin(clamp(to.y, -1, 1)), -0.6, 0.6);
+        // (the chase camera looks down on the walker, the herd stands high on the flank: when the crosshair is turned onto
+        // an animal but sits under or over it, the scope takes that animal's height; the turn stays the player's)
+        const ring = Math.atan(0.74 * Math.tan(ih.fov * Math.PI / 360));
+        const sight = (a) => ({ yaw: Math.atan2(a.x - eye.x, a.z - eye.z), pitch: Math.atan2(a.y + 0.8 - eye.y, Math.hypot(a.x - eye.x, a.z - eye.z)) });
+        const off = (s) => Math.abs(((s.yaw - ih.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        const standing = herd.filter((a) => a.state !== 'down' && a.state !== 'gone').map(sight);
+        if (!standing.some((s) => Math.hypot(off(s), s.pitch - ih.pitch) < ring)) {
+          const near = standing.sort((s, q) => off(s) - off(q))[0];
+          if (near && off(near) < ring) ih.pitch = near.pitch;
+        }
+      } else {
+        // (no ibex in the view at all: the scope swings to the herd)
+        const c = herdCentre(herd);
+        ih.yaw = Math.atan2(c.x - p.x, c.z - p.z);
+        ih.pitch = Math.atan2(groundHeight(c.x, c.z) + 0.8 - eye.y, Math.hypot(c.x - p.x, c.z - p.z));
+      }
       holdWalker(run, true);
     } else {
       if (ih.fov0) { cam.fov = ih.fov0; cam.updateProjectionMatrix(); }
       holdWalker(run, false);
     }
     ih.pad.buttons.scope?.classList.toggle('on', want);
+    run.hooks.actions?.notify(); // (the key bar: the scope's keys)
   },
   key(run, e) {
     const ih = run.ih;
@@ -756,6 +841,62 @@ const IBEX_FEATURE = {
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && ih.scoped) { ih.holding = true; return; }
     if ((e.code === 'Space' || e.code === 'KeyF' || e.code === 'Enter') && ih.scoped) { swallow(e); if (!e.repeat) IBEX_FEATURE.fire(run); return; }
     if (e.code === 'Escape' && ih.scoped) { swallow(e); IBEX_FEATURE.toggleScope(run, false); }
+    if ((e.code === 'KeyE' || e.code === 'KeyQ') && ih.scoped) { swallow(e); ih.zoomKey = e.code === 'KeyE' ? 1 : -1; }
+  },
+  /** Whether a standing ibex is in the open view (in front, on the screen, within AIM_RANGE) */
+  herdInView(run, cam) {
+    const v = new THREE.Vector3();
+    return run.state.hunt.herd.some((a) => {
+      if (a.state === 'down' || a.state === 'gone' || Math.hypot(a.x - cam.position.x, a.z - cam.position.z) > AIM_RANGE) return false;
+      v.set(a.x, a.y + 0.8, a.z).project(cam);
+      return v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1;
+    });
+  },
+  /** The marks over the herd in the open view: placed every frame, their range and colour ten times a second */
+  marks(run, cam) {
+    const ih = run.ih, h = run.state.hunt, w = globalThis.innerWidth || 1, hh = globalThis.innerHeight || 1;
+    const now = performance.now(), fresh = now - ih.markT > 100;
+    cam.updateMatrixWorld();
+    if (fresh) ih.markT = now;
+    const v = ih.v || (ih.v = new THREE.Vector3());
+    h.herd.forEach((a, i) => {
+      let m = ih.marks[i];
+      if (!m) { m = ih.marks[i] = el('div', 'lm-aim-mark'); m.append(el('i'), el('span')); ih.aim.append(m); }
+      const r = Math.hypot(a.x - ih.eye.x, a.z - ih.eye.z);
+      v.set(a.x, a.y + 1.45 * ibexScale(a), a.z).project(cam); // (over the back)
+      const on = a.state !== 'down' && a.state !== 'gone' && r < AIM_RANGE && v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1;
+      if (m.hidden === on) m.hidden = !on;
+      if (!on) return;
+      m.style.transform = `translate(${((v.x + 1) / 2 * w).toFixed(1)}px,${((1 - v.y) / 2 * hh).toFixed(1)}px)`;
+      if (fresh) {
+        const legal = legalIbex(a), text = `${Math.round(r)} m`;
+        m.className = `lm-aim-mark ${legal ? 'ok' : 'no'}`;
+        if (m.lastChild.textContent !== text) m.lastChild.textContent = text;
+        m.title = tr(legal ? 'may be taken' : 'protected');
+      }
+    });
+  },
+  /** The scope's arrow: hidden while an ibex stands in the ring; else at the ring's edge towards the old buck nearest
+   *  the line of sight (none left standing: the herd's centre) */
+  scopeArrow(run, cam) {
+    const ih = run.ih, herd = run.state.hunt.herd, w = globalThis.innerWidth || 1, hh = globalThis.innerHeight || 1;
+    const ring = 0.37 * Math.min(w, hh), v = ih.v || (ih.v = new THREE.Vector3());
+    const standing = herd.filter((a) => a.state !== 'down' && a.state !== 'gone');
+    const inRing = standing.some((a) => { v.set(a.x, a.y + 0.8, a.z).project(cam); return v.z < 1 && Math.hypot(v.x * w / 2, v.y * hh / 2) < ring; });
+    if (ih.arrow.hidden !== inRing) ih.arrow.hidden = inRing;
+    if (inRing) return;
+    const d = IBEX_FEATURE.aimDir(run, false);
+    let best = null, bestDot = -2;
+    for (const a of standing) {
+      if (!legalIbex(a)) continue;
+      const dx = a.x - ih.eye.x, dy = a.y + 0.8 - ih.eye.y, dz = a.z - ih.eye.z, l = Math.hypot(dx, dy, dz) || 1;
+      const dot = (dx * d.x + dy * d.y + dz * d.z) / l;
+      if (dot > bestDot) { bestDot = dot; best = a; }
+    }
+    const c = best || herdCentre(herd);
+    v.set(c.x, best ? c.y + 0.8 : groundHeight(c.x, c.z) + 0.8, c.z).applyMatrix4(cam.matrixWorldInverse);
+    const ang = Math.atan2(-v.y, v.x); // (on the screen: y down)
+    ih.arrow.style.transform = `rotate(${ang.toFixed(3)}rad) translateX(${(ring - 22).toFixed(0)}px)`;
   },
   fire(run) {
     const ih = run.ih, h = run.state.hunt;
@@ -780,7 +921,7 @@ const IBEX_FEATURE = {
     run.audio?.boom?.(250, 0.35);
     ih.kick = 0.9;
     ih.pitch += 0.012;
-    if (res) { ih.hud.flash(`${res.text} (${res.points >= 0 ? '+' : ''}${res.points})`, res.points < 0); ih.info.textContent = res.text; if (before && res.kind === 'clean') blip(run, 'good'); }
+    if (res) { ih.hud.flash(`${tr(res.text)} (${res.points >= 0 ? '+' : ''}${res.points})`, res.points < 0); ih.info.textContent = tr(res.text); if (before && res.kind === 'clean') blip(run, 'good'); }
   },
   /** The line of sight: the yaw and pitch with the breathing sway */
   aimDir(run, withSway = true) {
@@ -797,7 +938,7 @@ const IBEX_FEATURE = {
       const alarm = ibexAlarm(h.herd, { x: ctx.x, z: ctx.z, speed: Math.abs(ctx.speed) }, h.wind);
       h.alarm = clamp(h.alarm + alarm.add * dt, 0, 1.2);
       h.alarmWhy = h.alarm > 0.15 ? alarm.why : null;
-      if (h.alarm >= 1) { stepHerd(h.herd, 0, rand, { flee: { x: ctx.x, z: ctx.z } }); h.alarm = 0.4; h.flees++; ih.hud.flash('The herd bolts!', true); }
+      if (h.alarm >= 1) { stepHerd(h.herd, 0, rand, { flee: { x: ctx.x, z: ctx.z } }); h.alarm = 0.4; h.flees++; ih.hud.flash(tr('The herd bolts!'), true); }
     }
     stepHerd(h.herd, dt, rand);
     h.herd.forEach((a, i) => {
@@ -822,11 +963,17 @@ const IBEX_FEATURE = {
     ih.swayX = Math.sin(ih.sway * 0.9) * amp + Math.sin(ih.sway * 2.3) * amp * 0.4;
     ih.swayY = Math.sin(ih.sway * 1.3 + 1) * amp * 0.8 + Math.cos(ih.sway * 0.4) * amp * 0.5;
     ih.kick = Math.max(0, ih.kick - dt);
-    // the keys pan the scope slowly
+    // the keys pan the scope slowly: a third of the view a second (a tap a fine correction), up to twice that while held
+    // a second; the zoom held: E / Q, the d-pad, the touch buttons (×3 a second)
     if (ih.scoped) {
-      const k = cm.keys, rate = (ih.fov * Math.PI / 180) * 0.35;
+      const k = cm.keys;
+      ih.panT = k.left || k.right || k.forward || k.backward ? ih.panT + dt : 0;
+      const rate = (ih.fov * Math.PI / 180) * 0.35 * (1 + Math.min(1, ih.panT));
       if (k.left) ih.yaw += rate * dt; if (k.right) ih.yaw -= rate * dt;
       if (k.forward) ih.pitch += rate * dt; if (k.backward) ih.pitch -= rate * dt;
+      ih.pitch = clamp(ih.pitch, -0.6, 0.6);
+      const zoom = (ih.zoomKey || 0) + (ih.zoomIn ? 1 : 0) - (ih.zoomOut ? 1 : 0);
+      if (zoom) ih.fov = clamp(ih.fov * Math.exp(-Math.sign(zoom) * 1.1 * dt), SCOPE_FOV.min, SCOPE_FOV.max);
     }
   },
   after(run, ctx, dt, cm) {
@@ -836,8 +983,13 @@ const IBEX_FEATURE = {
     const hunting = run.def.objectives[run.index]?.id === 'hunt' && (run.phase === 'running' || run.phase === 'ready');
     if (!hunting && ih.scoped) IBEX_FEATURE.toggleScope(run, false);
     ih.pad.show(hunting && isTouch());
+    for (const id of ['zoomIn', 'zoomOut']) { const b = ih.pad.buttons[id], show = ih.scoped ? '' : 'none'; if (b && b.style.display !== show) b.style.display = show; }
     // the rifle: on the shoulder, along the view
     const cam = ctx.camera;
+    // the coarse aim on the stand: the crosshair and the herd's marks in the open view; the arrow in the scope
+    const coarse = hunting && !ih.scoped && ctx.mode === 'person';
+    if (ih.aim.hidden === coarse) ih.aim.hidden = !coarse;
+    if (coarse) IBEX_FEATURE.marks(run, cam);
     const yaw = ih.scoped ? ih.yaw : p.heading;
     ih.rifle.visible = ctx.mode === 'person' && !ih.scoped;
     ih.rifle.position.set(p.position.x + Math.cos(yaw) * -0.22 + Math.sin(yaw) * 0.2, p.position.y + 1.32, p.position.z - Math.sin(yaw) * -0.22 + Math.cos(yaw) * 0.2);
@@ -850,12 +1002,13 @@ const IBEX_FEATURE = {
       cam.lookAt(ih.eye.x + d.x * 100, ih.eye.y + d.y * 100, ih.eye.z + d.z * 100);
       if (cam.fov !== ih.fov) { cam.fov = ih.fov; cam.updateProjectionMatrix(); }
       cam.updateMatrixWorld();
+      IBEX_FEATURE.scopeArrow(run, cam);
       // the rangefinder and the animal on the line
       const hit = ibexRayHit(h.herd, ih.eye, IBEX_FEATURE.aimDir(run, false));
       let text, cls = '';
       if (hit) {
         const a = hit.animal, legal = legalIbex(a);
-        text = `${ibexLabel(a)} · horns ${Math.round(a.horn * 100)} cm · ${Math.round(hit.t)} m · ${legal ? 'may be taken' : 'protected'}${hit.zone === 'vitals' ? ' · ✚ vitals' : ''}`;
+        text = `${tr(ibexLabel(a))} · ${tr('horns')} ${Math.round(a.horn * 100)} cm · ${Math.round(hit.t)} m · ${tr(legal ? 'may be taken' : 'protected')}${hit.zone === 'vitals' ? ` · ✚ ${tr('vitals')}` : ''}`;
         cls = legal ? 'ok' : 'no';
       } else {
         let range = null;
@@ -864,7 +1017,7 @@ const IBEX_FEATURE = {
         text = range ? `${range} m` : '— m';
       }
       const windRel = (h.wind.dir - ih.yaw) * 180 / Math.PI;
-      text += ` · wind ${h.wind.speed.toFixed(1)} m/s ${Math.sin(h.wind.dir - ih.yaw) > 0.3 ? '←' : Math.sin(h.wind.dir - ih.yaw) < -0.3 ? '→' : Math.cos(windRel * Math.PI / 180) > 0 ? '↑' : '↓'} · ${h.ammo} rounds${ih.holding && ih.breath > 0 && ih.recover <= 0 ? ' · holding breath' : ih.recover > 0 ? ' · out of breath' : ''}`;
+      text += ` · ${tr('wind')} ${h.wind.speed.toFixed(1)} m/s ${Math.sin(h.wind.dir - ih.yaw) > 0.3 ? '←' : Math.sin(h.wind.dir - ih.yaw) < -0.3 ? '→' : Math.cos(windRel * Math.PI / 180) > 0 ? '↑' : '↓'} · ${h.ammo} ${tr(h.ammo === 1 ? 'round' : 'rounds')}${ih.holding && ih.breath > 0 && ih.recover <= 0 ? ` · ${tr('holding breath')}` : ih.recover > 0 ? ` · ${tr('out of breath')}` : ''}`;
       if (!ih.last || performance.now() - ih.last > 120) { ih.info.textContent = text; ih.info.className = `lm-scope-info ${cls}`; ih.last = performance.now(); }
     }
     // the HUD: the wind and the herd
@@ -872,7 +1025,7 @@ const IBEX_FEATURE = {
     const toHerd = Math.atan2(c.x - p.position.x, c.z - p.position.z);
     const windDeg = ((h.wind.dir - (ih.scoped ? ih.yaw : toHerd)) * 180) / Math.PI;
     ih.hud.show(run.phase === 'running' || run.phase === 'ready');
-    ih.hud.set(`Wind <span class="lm-wind" style="transform:rotate(${windDeg}deg)">↑</span> ${h.wind.speed.toFixed(1)} m/s · herd ${Math.round(Math.hypot(c.x - p.position.x, c.z - p.position.z))} m · unease ${'●'.repeat(Math.round(h.alarm * 5))}${'○'.repeat(Math.max(0, 5 - Math.round(h.alarm * 5)))} · ${h.ammo} rounds · legal: old bucks ≥ ${Math.round(IBEX.legalHorn * 100)} cm`);
+    ih.hud.set(`${tr('Wind')} <span class="lm-wind" style="transform:rotate(${windDeg}deg)">↑</span> ${h.wind.speed.toFixed(1)} m/s · ${tr('herd')} ${Math.round(Math.hypot(c.x - p.position.x, c.z - p.position.z))} m · ${tr('unease')} ${'●'.repeat(Math.round(h.alarm * 5))}${'○'.repeat(Math.max(0, 5 - Math.round(h.alarm * 5)))} · ${h.ammo} ${tr(h.ammo === 1 ? 'round' : 'rounds')} · ${tr('legal: old bucks')} ≥ ${Math.round(IBEX.legalHorn * 100)} cm`);
   }
 };
 // (Shift released: the breath goes)
@@ -905,7 +1058,11 @@ const SQUIRREL_FEATURE = {
     for (const t of TLM_TREES.trees) if (t[0] > 1640 && t[0] < 2320 && t[1] > -3060 && t[1] < -2230) trees.push({ x: t[0], z: t[1] });
     sq.trees = trees;
     sq.hud = bottomHud(run);
-    sq.pad = touchPad(run, [{ id: 'nut', label: 'Nut (hold)', down: () => { sq.touchHold = true; }, up: () => { sq.touchHold = false; } }]);
+    // the nut: held out with E or Space (key() takes them before the walker would jump), the big touch button, the
+    // gamepad's A (js/actions.js); the jump button goes
+    run.button('up', null);
+    run.actions([{ id: 'squirrel-nut', kind: 'hold', primary: true, label: 'Hold out a nut', touchLabel: 'Nut', icon: 'i-hand', keys: ['KeyE', 'Space'], kbd: ['E'], keyboard: false, pad: 'a',
+      when: () => run.def.objectives[run.index]?.id === 'feed', run: (on) => { sq.touchHold = on; } }]);
     bindKeyUps(run, (e) => { if (e.code === 'KeyE' || e.code === 'Space') sq.keyHold = false; });
   },
   reset(run) {
@@ -935,8 +1092,8 @@ const SQUIRREL_FEATURE = {
     if (run.def.objectives[run.index]?.id !== 'feed' || run.phase !== 'running') return;
     const before = g.fed, fled = g.fled;
     stepSquirrels(g, { x: ctx.x, z: ctx.z, speed: Math.abs(ctx.speed), offering: sq.offering }, dt, Math.random);
-    if (g.fed > before) { blip(run, 'good'); sq.hud.flash(`+${g.last.points}${g.streak > 1 ? ` · streak ${g.streak}` : ''}`); }
-    if (g.fled > fled) { blip(run, 'bad'); sq.hud.flash('Scared it away!', true); }
+    if (g.fed > before) { blip(run, 'good'); sq.hud.flash(`+${g.last.points}${g.streak > 1 ? ` · ${tr('streak')} ${g.streak}` : ''}`); }
+    if (g.fled > fled) { blip(run, 'bad'); sq.hud.flash(tr('Scared it away!'), true); }
   },
   after(run, ctx, dt, cm) {
     const sq = run.sq, g = run.state.game;
@@ -957,8 +1114,7 @@ const SQUIRREL_FEATURE = {
     if (sq.offering) { const fx = Math.sin(p.heading), fz = Math.cos(p.heading); sq.nut.position.set(p.position.x + fx * 0.42, p.position.y + 0.35, p.position.z + fz * 0.42); }
     const feeding = run.def.objectives[run.index]?.id === 'feed' && run.phase === 'running';
     sq.hud.show(feeding);
-    sq.pad.show(feeding && isTouch());
-    sq.hud.set(`<b>${g.fed}</b> fed · ${g.score} pts · ${Math.max(0, Math.ceil(SQUIRREL.length - g.t))} s${sq.offering ? ' · holding out a nut' : ' · hold E to hold out a nut'}`);
+    sq.hud.set(`<b>${g.fed}</b> ${tr('fed')} · ${g.score} ${tr('pts')} · ${Math.max(0, Math.ceil(SQUIRREL.length - g.t))} s · ${tr(sq.offering ? 'holding out a nut: stand still' : 'hold E to hold out a nut')}`);
   }
 };
 
@@ -1037,7 +1193,17 @@ function buildHall(group, tn) {
 const TENNIS_FEATURE = {
   setup(run) {
     addStyle(run);
-    run.tn = { stage: null, swing: false, hud: bottomHud(run), pad: touchPad(run, [{ id: 'swing', label: 'Swing', down: () => { run.tn.swing = true; } }]), lastPts: 0 };
+    run.tn = { stage: null, swing: false, hud: bottomHud(run), lastPts: 0 };
+    // on the court: the stick (or WASD) runs, Space / J / a click swings (key() takes them), the big touch button and the
+    // gamepad's A too (js/actions.js); the jump button goes
+    const onCourt = () => !!run.tn.stage;
+    run.button('up', null);
+    // (one layer: a second one replacing the game's would hide the swing under it)
+    run.actions([
+      { kind: 'hint', kbd: ['W', 'A', 'S', 'D'], label: 'run to the ball', when: onCourt },
+      { id: 'tennis-swing', primary: true, label: 'Hit the ball', touchLabel: 'Hit', icon: 'i-hand', keys: ['Space', 'KeyJ'], kbd: ['Space', 'Click'], keyboard: false, pad: 'a', when: onCourt, run: () => { run.tn.swing = true; } },
+      { kind: 'hint', kbd: ['A', 'D'], label: 'held at the swing: aim left / right', when: onCourt }
+    ], { replace: onCourt });
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (run.tn.stage && e.pointerType !== 'touch' && e.button === 0) run.tn.swing = true; });
   },
@@ -1055,6 +1221,7 @@ const TENNIS_FEATURE = {
     tn.rigP.reset(t.p.x, t.p.z, Math.PI, () => 0);
     tn.rigA.reset(t.a.x, t.a.z, 0, () => 0);
     tn.lastPts = 0;
+    run.hooks.actions?.notify(); // (the key bar and the touch buttons: the court's)
   },
   update(run, ctx, dt, cm) {
     const tn = run.tn;
@@ -1071,12 +1238,11 @@ const TENNIS_FEATURE = {
     if (t.score.p + t.score.a !== pts) {
       const l = t.last;
       blip(run, l.who === 'p' ? 'good' : 'bad');
-      tn.hud.flash(`${l.who === 'p' ? 'Your point' : 'Coach\'s point'}: ${l.why}`, l.who !== 'p');
-    } else if (t.last?.why === 'fault' && t.last.at === t.t) tn.hud.flash('Fault', true);
+      tn.hud.flash(`${tr(l.who === 'p' ? 'Your point' : 'Coach\'s point')}: ${tr(l.why)}`, l.who !== 'p');
+    } else if (t.last?.why === 'fault' && t.last.at === t.t) tn.hud.flash(tr('Fault'), true);
   },
   after(run, ctx, dt) {
     const tn = run.tn, t = run.state.game;
-    tn.pad.show(!!tn.stage && isTouch() && run.phase === 'running');
     tn.hud.show(!!tn.stage && run.phase === 'running');
     if (!tn.stage || !t) return;
     const b = t.ball;
@@ -1100,8 +1266,8 @@ const TENNIS_FEATURE = {
     place(tn.rP, t.p, -1); place(tn.rA, t.a, 1);
     // the camera: behind and above the player, the court ahead
     tn.stage.camera(ctx.camera, { x: t.p.x * 0.55, y: 4.2, z: clamp(t.p.z + 5.2, 9, 17.3) }, { x: t.p.x * 0.3, y: 0.4, z: -4 });
-    const serve = t.phase === 'serve' ? (t.server === 'p' ? (t.toss ? ' · Space at the top!' : ' · your serve: Space') : ' · coach serves') : '';
-    tn.hud.set(`You <b>${t.score.p}</b> : <b>${t.score.a}</b> Coach${serve}${t.fault && t.phase === 'serve' ? ' · second serve' : ''}`);
+    const serve = t.phase === 'serve' ? ` · ${tr(t.server === 'p' ? (t.toss ? 'Space at the top!' : 'your serve: Space') : 'coach serves')}` : '';
+    tn.hud.set(`${tr('You')} <b>${t.score.p}</b> : <b>${t.score.a}</b> ${tr('Coach')}${serve}${t.fault && t.phase === 'serve' ? ` · ${tr('second serve')}` : ''}`);
   }
 };
 
@@ -1158,23 +1324,28 @@ function buildSlide(group, ws) {
 const WATERSLIDE_FEATURE = {
   setup(run) {
     addStyle(run);
-    run.ws = { stage: null, countdown: 0, hud: bottomHud(run), splashT: 0, pad: touchPad(run, [{ id: 'l', label: '◀ Lean', down: () => { run.ws.tl = true; }, up: () => { run.ws.tl = false; } }, { id: 'r', label: 'Lean ▶', down: () => { run.ws.tr = true; }, up: () => { run.ws.tr = false; } }]) };
+    run.ws = { stage: null, countdown: 0, hud: bottomHud(run), splashT: 0 };
+    // in the tube: A / D, the stick or the gamepad lean (the game's steering, eased: cm.turnInput); the jump button goes
+    const inTube = () => !!run.ws.stage;
+    run.button('up', null);
+    keyHints(run, [[['A', 'D'], 'lean into the bends'], [['←', '→'], 'or the arrows']], inTube, inTube);
   },
-  reset(run) { const ws = run.ws; ws.stage?.dispose(); ws.stage = null; run.state.rider = null; ws.countdown = 0; ws.splashT = 0; ws.tl = ws.tr = false; },
+  reset(run) { const ws = run.ws; ws.stage?.dispose(); ws.stage = null; run.state.rider = null; ws.countdown = 0; ws.splashT = 0; },
   teardown(run) { run.ws.stage?.dispose(); run.ws.stage = null; },
   update(run, ctx, dt, cm) {
     const ws = run.ws;
     if (!ws.stage && run.index >= 1 && live(run)) {
-      ws.stage = new Stage(run, { x: run.def.start.x, z: run.def.start.z }, (g) => { buildSlide(g, ws); run.storage(g); });
+      ws.stage = new Stage(run, { x: run.def.start.x, z: run.def.start.z }, (g) => { buildSlide(g, ws); run.storage(g); }, { joystick: true });
       run.state.rider = null;
       ws.countdown = 2.4;
+      run.hooks.actions?.notify(); // (the key bar: the tube's)
     }
     if (!ws.stage || run.phase !== 'running') return;
     if (ws.countdown > 0) { ws.countdown -= dt; if (ws.countdown <= 0) run.state.rider = createRider(); return; }
     const r = run.state.rider;
     if (!r) return;
-    const k = cm.keys;
-    const steer = ((k.left || ws.tl) ? 1 : 0) - ((k.right || ws.tr) ? 1 : 0);
+    // (the walker waits: this is the frame's one driver, and the lean eases in like the game's steering, + left)
+    const steer = cm.turnInput(dt);
     const was = r.done;
     // (small steps: the bends are tight)
     for (let i = 0, n = Math.max(1, Math.ceil(dt / 0.01)); i < n; i++) stepRider(r, steer, dt / n);
@@ -1190,7 +1361,6 @@ const WATERSLIDE_FEATURE = {
   after(run, ctx, dt) {
     const ws = run.ws;
     const sliding = !!ws.stage && (run.phase === 'running' || run.phase === 'done');
-    ws.pad.show(sliding && isTouch() && run.phase === 'running');
     ws.hud.show(sliding);
     if (!ws.stage) return;
     const r = run.state.rider || createRider();
@@ -1221,7 +1391,7 @@ const WATERSLIDE_FEATURE = {
     const seg = slideAt(r.s);
     const eq = thetaEq(r.v, seg.curve), dev = (r.theta - eq) * Math.sign(seg.curve || 1);
     const line = seg.curve === 0 ? 'straight' : dev > SLIDE.rubFree ? 'too high: braking!' : dev < -SLIDE.joltFree ? 'too low: bumpy' : 'ideal line';
-    ws.hud.set(ws.countdown > 0 ? `<b>${Math.ceil(ws.countdown)}</b> … get ready` : r.done ? `<b>Splash!</b> ${(r.t).toFixed(1)} s on the slide` : `<b>${(r.v * 3.6).toFixed(0)}</b> km/h · ${line} · ${Math.round(slideLength() - r.s)} m to go`);
+    ws.hud.set(ws.countdown > 0 ? `<b>${Math.ceil(ws.countdown)}</b> … ${tr('get ready: A / D lean into the bends')}` : r.done ? `<b>${tr('Splash!')}</b> ${(r.t).toFixed(1)} s ${tr('on the slide')}` : `<b>${(r.v * 3.6).toFixed(0)}</b> km/h · ${tr(line)} · ${tr(`${Math.round(slideLength() - r.s)} m to go`)}`);
   }
 };
 
@@ -1246,7 +1416,8 @@ const KIRCHNER_FEATURE = {
     const wrap = el('div', 'lm-paint-wrap');
     const canvas = el('canvas');
     canvas.width = PW; canvas.height = PH;
-    const dispW = Math.max(240, Math.min(PW, (globalThis.innerWidth || PW) - (isTouch() ? 20 : 140), ((globalThis.innerHeight || PH) - 300) * 1.5));
+    const ih = globalThis.innerHeight || PH; // (a phone on its side: the canvas the whole height, the tools beside it)
+    const dispW = Math.max(240, Math.min(PW, (globalThis.innerWidth || PW) - (isTouch() ? (ih <= 500 ? 230 : 20) : 140), (ih <= 500 ? ih - 44 : ih - 300) * 1.5));
     canvas.style.width = `${dispW}px`; canvas.style.aspectRatio = `${PW} / ${PH}`; canvas.style.background = `rgb(${BG.join(',')})`;
     const tplImg = el('img'); tplImg.hidden = true; tplImg.alt = '';
     wrap.append(canvas, tplImg);
@@ -1271,8 +1442,10 @@ const KIRCHNER_FEATURE = {
     run.listen(clear, 'pointerdown', (e) => { e.preventDefault(); kp.ctx.clearRect(0, 0, PW, PH); });
     const done = el('button', 'lm-btn', 'Done'); done.type = 'button';
     run.listen(done, 'pointerdown', (e) => { e.preventDefault(); KIRCHNER_FEATURE.finish(run); });
-    const swRow = el('div', 'lm-row'); swRow.style.maxWidth = '100px'; swRow.append(...swatches);
-    tools.append(motif, swRow, ...sizes, contour, tpl, clear, done);
+    // (the tools in rows of their own: one column of them ran off a 720 px window)
+    const swRow = el('div', 'lm-row'); swRow.style.maxWidth = '184px'; swRow.append(...swatches);
+    const rowOf = (...items) => { const r = el('div', 'lm-row'); r.append(...items); return r; };
+    tools.append(motif, swRow, rowOf(...sizes), rowOf(contour, tpl), rowOf(clear, done));
     row.append(wrap, tools);
     boxEl.append(info, row);
     game.append(boxEl);
@@ -1288,6 +1461,7 @@ const KIRCHNER_FEATURE = {
     });
     run.listen(canvas, 'pointermove', (e) => { if (!kp.drawing) return; const p = at(e); KIRCHNER_FEATURE.stroke(run, kp.drawing, p); kp.drawing = p; });
     for (const ev of ['pointerup', 'pointercancel']) run.listen(canvas, ev, () => { kp.drawing = null; });
+    keyHints(run, [[['Drag'], 'paint on the canvas'], [['Click'], 'colour, brush, Template, Done']], () => kp.open);
   },
   stroke(run, a, b) {
     const kp = run.kp, c = kp.ctx;
@@ -1419,7 +1593,7 @@ const KIRCHNER_FEATURE = {
         if (kp.captureN === 6) queueMicrotask(() => { if (!run.disposed && kp.open) { KIRCHNER_FEATURE.capture(run); kp.game.hidden = false; } });
       }
       const p = run.state.paint;
-      if (p) kp.info.innerHTML = `<b>${Math.max(0, Math.ceil(KIRCHNER.length - p.t))} s</b> · paint the view in Kirchner's colours · "Template" shows the posterised view${kp.template && !kp.template.fromView ? ' (a sketch: the view could not be read)' : ''}`;
+      if (p) kp.info.innerHTML = `<b>${Math.max(0, Math.ceil(KIRCHNER.length - p.t))} s</b> · ${tr('paint the view in Kirchner\'s colours')} · ${tr('"Template" shows the posterised view')}${kp.template && !kp.template.fromView ? ` ${tr('(a sketch: the view could not be read)')}` : ''}`;
     }
     // the finish dialog: the picture, its download, the gallery
     if (run.phase === 'done' && kp.png && !kp.shown && run.ui.overlay && !run.ui.overlay.hidden) {
@@ -1432,7 +1606,7 @@ const KIRCHNER_FEATURE = {
         const a = el('a', 'mission-btn mission-btn-secondary', 'Download PNG');
         a.href = kp.png; a.download = `kirchner-davos-${new Date().toISOString().slice(0, 10)}.png`;
         const gal = el('div', 'lm-gallery');
-        for (const it of readGallery().slice(1)) { const t = el('img'); t.src = it.img; t.title = `${it.points} pts`; gal.append(t); }
+        for (const it of readGallery().slice(1)) { const t = el('img'); t.src = it.img; t.title = `${it.points} ${tr('pts')}`; gal.append(t); }
         fig.append(img, a);
         if (gal.childElementCount) fig.append(el('p', 'mission-dialog-note', 'Your earlier pictures'), gal);
         panel.insertBefore(fig, buttons);

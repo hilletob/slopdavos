@@ -210,7 +210,7 @@ test('the plough speaks German', async () => {
   setLanguage('de');
   const M = PLOUGH_MISSION;
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);
-  assert.equal(t('To the Passhöhe: 1.2 km · lane cleared 45 % of 80 %'), 'Bis zur Passhöhe: 1,2 km · Spur geräumt: 45 % von 80 %');
+  assert.equal(t('To the Passhöhe: 1.2 km · lane cleared 45 % of 80 %'), 'Bis zur Passhöhe: 1.2 km · Spur geräumt: 45 % von 80 %');
   assert.equal(t('To the Seegalerie: 340 m · lane cleared 81 % of 80 %'), 'Bis zur Seegalerie: 340 m · Spur geräumt: 81 % von 80 %');
   assert.equal(t('the filling station ahead on your throw side: F lifts the blade past it'), 'Einmündung Tankstelle voraus auf der Wurfseite: F hebt die Pflugschar');
   assert.equal(t('You buried the mouth of Höhwaldstrasse!'), 'Einmündung Höhwaldstrasse zugeschüttet!');

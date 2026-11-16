@@ -358,7 +358,7 @@ export const PFADI_MISSION = {
           done: c.all >= n, progress: c.all / n,
           text: `Firewood ${c.all}/${n} · twigs ${c.twigs}/${WOOD_NEED.twigs} · kindling ${c.kindling}/${WOOD_NEED.kindling} · logs ${c.log}/${WOOD_NEED.log}`,
           target: w ? { x: w.x, z: w.z, r: 1.4 } : null,
-          hint: state.picking ? 'Picking up …' : close ? `Hold Space: pick up ${WOOD_NAMES[w.kind]}` : null
+          hint: state.picking ? 'Picking up …' : close ? `Hold Space: pick up ${WOOD_NAMES[w.kind]}` : w ? `To the next firewood: ${toPlace(ctx, w)}` : null
         };
       }
     },

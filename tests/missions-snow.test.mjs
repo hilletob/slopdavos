@@ -4,7 +4,7 @@ import {
   SLALOM_MISSION, BIG_AIR_MISSION, MTB_MISSION, SNOW_MISSIONS, BIG_AIR, MTB_TRAIL, SLALOM_GATES, SLALOM_MISS_MS,
   buildSlalomGates, crossGate, updateSlalom, buildCheckpoints, updateCheckpoints, scoreJump, judgeLanding, yawError,
   recordBigAirJump, bigAirTotal, offTheKicker, bigAirProfile, createRider, stepRider, riderSpeed, lineLength, SKI_PARAMS,
-  BOARD_PARAMS
+  BOARD_PARAMS, MTB_SKID, MTB_CRASH_MS
 } from '../js/missions-data-snow.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
@@ -207,6 +207,33 @@ test('the checkpoints count in order only: a shortcut to a later one takes nothi
   assert.equal(updateCheckpoints(state, 0, 400), 'next');
   assert.equal(state.next, 4);
   assert.equal(updateCheckpoints(state, 0, 400), null); // all done
+});
+
+test('the bike skids before it throws the rider: a warning with time to ease off, a short overshoot forgiven', () => {
+  const K = MTB_SKID;
+  assert.ok(K.g >= 1.5 && K.g <= 2, 'the tyres hold 1.5-2 g');
+  assert.ok(K.warnS > 0 && K.holdS - K.warnS >= 0.4, 'the warning leaves 0.4 s to ease off');
+  // the keys through the eased stick (js/controllers.js turnInput: full lock after 0.35 s, centred within 0.1 s, the
+  // curve 1.5) at 10 m/s (2.15 rad/s at full lock: 2.2 g): a key held `hold` s, then let go
+  const ride = (hold) => {
+    let stick = 0, wob = 0, peak = 0, warned = false;
+    for (let t = 0; t < 2; t += 1 / 60) {
+      const want = t < hold ? 1 : 0, rate = (1 / 60) / (want > stick ? 0.35 : 0.1);
+      stick += Math.max(-rate, Math.min(rate, want - stick));
+      const latG = (10 * stick ** 1.5 * 2.15) / 9.81;
+      wob = latG > K.g ? wob + 1 / 60 : Math.max(0, wob - K.recover / 60);
+      peak = Math.max(peak, wob);
+      warned ||= wob > K.warnS;
+      if (wob > K.holdS) return { crash: true, warned };
+    }
+    return { crash: false, warned, peak };
+  };
+  assert.equal(ride(0.6).crash, false, 'a bend held a moment too long: no crash');
+  assert.deepEqual(ride(5), { crash: true, warned: true }, 'full lock held on: down, warned first');
+  const m = MTB_MISSION, state = m.createState();
+  state.wobble = 0.1;
+  assert.match(m.objectives[0].check(frame({ mode: 'cyclist' }), state).hint, /Skidding! Ease off A\/D and brake \(S\)/);
+  assert.equal(MTB_CRASH_MS, 5000);
 });
 
 test('the race: two sections, the hint on a shortcut, crashes cost time', () => {

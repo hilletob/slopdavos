@@ -213,6 +213,7 @@ const nageln = {
     const ng = run.ng;
     ng.room?.dispose(); ng.room = null;
     ng.ui.hud.hidden = true;
+    ng.offKeys?.(); ng.offKeys = null;
     ng.bubbles.clear();
     Object.assign(ng, { chatSeen: 0, seq: 0, swingSeq: 0, swingAge: 9, cheer: 0, cheerT: 0, gameShown: 0, chipKey: '' });
     if (run.state) { run.state.game = null; run.state.inside = false; }
@@ -244,6 +245,11 @@ const nageln = {
     run.state.game = createNageln(23);
     run.state.inside = true;
     ng.ui.hud.hidden = false;
+    // the one button in the key bar and on the gamepad's A (the keys themselves: key() above; the touch screens tap the HUD's button)
+    ng.offKeys?.();
+    const ngJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const ngLayer = run.actions([{ id: 'nageln-hit', label: 'aim, then strike in the green', keys: ['Space', 'Enter'], kbd: ['Space'], keyboard: false, pad: 'a', touch: false, run: () => nageln.press(run) }]);
+    ng.offKeys = () => { ngLayer(); ngJump(); };
   },
   update(run, ctx, dt) {
     const ng = run.ng;
@@ -458,6 +464,7 @@ const barista = {
     const br = run.br;
     br.room?.dispose(); br.room = null;
     br.ui.hud.hidden = true;
+    br.offKeys?.(); br.offKeys = null;
     br.bubbles.clear();
     Object.assign(br, { chatSeen: 0, seq: 0, ticketKey: '' });
     if (run.state) { run.state.game = null; run.state.inside = false; }
@@ -505,6 +512,15 @@ const barista = {
     run.state.game = createBarista(31);
     run.state.inside = true;
     br.ui.hud.hidden = false;
+    // the stations' keys in the key bar, the station at work on Space and the gamepad's A (the keys themselves: key()
+    // above; the touch screens tap the HUD's buttons)
+    br.offKeys?.();
+    const brJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const brLayer = run.actions([
+      { kind: 'hint', kbd: ['1-6'], label: 'a station · the usual: the drink' },
+      { id: 'barista-act', label: 'the station at work: stop in the green', keys: ['Space', 'Enter'], kbd: ['Space'], keyboard: false, pad: 'a', touch: false, run: () => barista.press(run, null) }
+    ]);
+    br.offKeys = () => { brLayer(); brJump(); };
   },
   update(run, ctx, dt) {
     const br = run.br;

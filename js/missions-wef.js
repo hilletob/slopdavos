@@ -41,15 +41,9 @@ const STYLE = `
 .wf-bar span{position:absolute;inset:0;transform-origin:left;background:#4fd67a}
 .wf-bar.warn span{background:#ffc21a}.wf-bar.bad span{background:#ff5a4f}
 .wf-say{min-height:18px;font-weight:700;text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.8);font-size:14px}
-.wf-pad{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(max(16px,env(safe-area-inset-bottom)) + 190px);z-index:13;display:none;flex-direction:column;gap:10px;align-items:flex-end}
 .wf-btn{pointer-events:auto;touch-action:manipulation;border:0;border-radius:999px;min-height:50px;min-width:92px;padding:10px 18px;font:800 15px Inter,system-ui,sans-serif;color:#fff;background:linear-gradient(180deg,#3f8bff,#2257c9);box-shadow:0 5px 16px rgba(0,0,0,.35);cursor:pointer}
 .wf-btn.sec{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);box-shadow:none}
-.wf-btn.chant{background:linear-gradient(180deg,#ff8a4f,#d4552e);min-width:150px;min-height:56px;font-size:17px}
-.wf-btn.chant.hit{filter:brightness(1.35)}
 .wf-btn kbd{font:inherit;opacity:.7;margin-left:6px;font-size:12px}
-body.touch-enabled .wf-pad{display:flex}
-@media (pointer:coarse){.wf-pad{display:flex}}
-.wf-pad.wf-pad-all{display:flex}
 body.touch-enabled .wf-btn kbd{display:none}
 body.touch-enabled .wf-hud{bottom:auto;top:calc(max(12px,env(safe-area-inset-top)) + 188px)}
 .wf-lane{position:relative;height:26px;border-radius:13px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:6px}
@@ -58,7 +52,7 @@ body.touch-enabled .wf-hud{bottom:auto;top:calc(max(12px,env(safe-area-inset-top
 .wf-call{font:900 18px Inter,system-ui,sans-serif;text-align:center;min-height:24px;text-shadow:0 1px 8px rgba(0,0,0,.8)}
 .wf-call.resp{color:#ffe14f}
 .wf-dialog{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;width:min(440px,calc(100vw - 24px));box-sizing:border-box;background:rgba(10,12,20,.92);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:16px;color:#fff;font-family:Inter,system-ui,sans-serif;display:flex;flex-direction:column;gap:10px}
-.wf-dialog[hidden],.wf-hud[hidden],.wf-pad[hidden]{display:none!important}
+.wf-dialog[hidden],.wf-hud[hidden]{display:none!important}
 .wf-dialog h3{margin:0;font-size:16px}
 .wf-dialog p{margin:0;font-size:14px;opacity:.85}
 .wf-dialog .wf-btn{width:100%;text-align:left;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);box-shadow:none}
@@ -596,17 +590,21 @@ const wefMarch = {
     const ui = wf.ui = { hud, count: stat('Marchers'), morale: stat('Morale'), chant: stat('Chant'), call: el('div', 'wf-call'), say: el('div', 'wf-say'), lane: el('div', 'wf-lane'), notes: [] };
     ui.lane.append(el('i'));
     for (let i = 0; i < 5; i++) { const u = el('u'); ui.lane.append(u); ui.notes.push(u); }
-    const button = el('button', 'wf-btn chant', 'Call');
-    button.type = 'button';
-    button.append(el('kbd', null, 'Space'));
-    run.listen(button, 'pointerdown', (e) => { e.preventDefault(); wefMarch.call(run); });
-    ui.button = button;
     card.append(row, ui.lane);
     hud.append(ui.say, ui.call, card);
     document.body.append(hud);
-    const pad = ui.pad = el('div', 'wf-pad wf-pad-all');
-    pad.append(button);
-    document.body.append(pad);
+    // the call and the liaison's answers in the register (js/actions.js): the call is the big touch button, the key
+    // bar's Space and the pad's A (the jump button goes: Space calls); the answers are the dialog's own buttons on a
+    // touch screen, 1-3 in the key bar, the d-pad on a gamepad (up, right, down as the buttons stand)
+    const talking = () => !!run.state?.march?.dialog;
+    run.button('up', null);
+    run.actions([
+      { id: 'march-call', primary: true, label: 'Call', icon: 'i-sound', keys: ['Space'], keyboard: false, pad: 'a', when: () => !talking(), run: () => wefMarch.call(run) },
+      { id: 'march-stop', label: 'Stop and talk', keys: ['Digit1'], keyboard: false, touch: false, hint: false, pad: 'up', when: talking, run: () => wefMarch.choose(run, 'stop') },
+      { id: 'march-sit', label: 'Sit-in, in the snow', keys: ['Digit2'], keyboard: false, touch: false, hint: false, pad: 'right', when: talking, run: () => wefMarch.choose(run, 'sit') },
+      { id: 'march-back', label: 'Turn back to the agreed route', keys: ['Digit3'], keyboard: false, touch: false, hint: false, pad: 'down', when: talking, run: () => wefMarch.choose(run, 'back') },
+      { kind: 'hint', kbd: ['1', '2', '3'], label: 'Answer', when: talking }
+    ]);
     const dialog = el('div', 'wf-dialog');
     dialog.hidden = true;
     ui.dialog = dialog;
@@ -621,15 +619,13 @@ const wefMarch = {
       dialog.append(b);
     }
     document.body.append(dialog);
-    run.cleanups.push(() => { hud.remove(); pad.remove(); dialog.remove(); });
+    run.cleanups.push(() => { hud.remove(); dialog.remove(); });
   },
   call(run) {
     if (run.phase !== 'running' && run.phase !== 'ready') return;
     const since = run.wf.frameAt ? Math.min(0.05, (performance.now() - run.wf.frameAt) / 1000) : 0;
     const r = marchCall(run.state.march, { t: run.elapsed }, since);
     if (r?.grade === 'perfect' || r?.grade === 'good') run.wf.drum.megaphone();
-    run.wf.ui.button.classList.add('hit');
-    setTimeout(() => run.wf?.ui.button.classList.remove('hit'), 90);
   },
   choose(run, choice) {
     if (marchChoose(run.state.march, choice, { t: run.elapsed })) run.wf.drum.roar(0.14, 0.7);
@@ -766,7 +762,7 @@ const wefMarch = {
       ui.dialog.hidden = !show;
       if (show) setText(ui.dialogText, st.dialog.reason === 'stray' ? 'You have left the registered route, and the fence is that way. What now?' : 'The crowd behind you wants to go on to the fence. The permit ends at the rally point. How do you answer?');
     }
-    ui.hud.hidden = ui.pad.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
+    ui.hud.hidden = run.phase === 'done' || run.phase === 'intro' || run.phase === 'failed' || run.phase === 'aborted';
     if (ui.hud.hidden) ui.dialog.hidden = true;
   }
 };

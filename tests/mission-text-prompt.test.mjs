@@ -43,7 +43,7 @@ test('the facts of a briefing: the history and the gap to the next medal, worked
   assert.ok(lines.includes('The figure they play as looks like: Kapuzenpulli'));
   assert.ok(lines.includes('Completed before: 3 times'));
   assert.ok(lines.includes('Personal best: 01:25.4'), 'cut like the game\'s clock');
-  assert.ok(lines.includes('Missing for silver: 10,5 Sekunden'));
+  assert.ok(lines.includes('Missing for silver: 10.5 Sekunden'));
   const first = facts(cleanRequest(intro({ entry: null })), {});
   assert.ok(first.some((l) => l.includes('a first attempt')));
   assert.ok(first.some((l) => l.includes('do not invent one')));
@@ -57,11 +57,11 @@ test('the facts of a result: this run against the best before', () => {
     result: { total: 74000, previous: 85450, medal: 'silver', improved: true, firstClear: false }, summary: ['2 Tore ausgelassen', 7] }));
   const lines = facts(req, {});
   assert.ok(lines.includes('This run: 01:14.0'));
-  assert.ok(lines.some((l) => l.startsWith('A new personal best, better than before by 11,')));
-  assert.ok(lines.includes('Missing for gold: 16,0 Sekunden'));
+  assert.ok(lines.some((l) => l.startsWith('A new personal best, better than before by 11.')));
+  assert.ok(lines.includes('Missing for gold: 16.0 Sekunden'));
   assert.deepEqual(req.summary, ['2 Tore ausgelassen']);
   const slower = facts(cleanRequest(intro({ moment: 'finish', result: { total: 90000, previous: 85450, medal: 'bronze', improved: false } })), {});
-  assert.ok(slower.some((l) => l.startsWith('No new personal best: short of it by 4,')));
+  assert.ok(slower.some((l) => l.startsWith('No new personal best: short of it by 4.')));
 });
 
 test('a mission judged by points counts the gap upwards', () => {

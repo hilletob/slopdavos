@@ -274,7 +274,7 @@ export const RINK_MISSION = {
           done: state.polished >= RINK.polishGoal, progress: state.polished / RINK.polishGoal,
           text: `Ice resurfaced ${pct(state.polished)} of ${pct(RINK.polishGoal)}`,
           target: far ? { x: POND.centre.x, z: POND.centre.z, r: 6 } : null,
-          hint: ctx.mode !== 'car' ? 'Back onto the machine' : null
+          hint: ctx.mode !== 'car' ? 'Back onto the machine' : 'Drive slowly over the grey ice, lane beside lane'
         };
       }
     }

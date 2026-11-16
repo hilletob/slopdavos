@@ -596,7 +596,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
   // missions' start (js/missions-world.js). T boards a bus to drive it. K in a taken patrol car: the blue light and
   // the siren (the mission's own patrol car has its own K). The touch button above is the use action's own face.
   actions?.layer('gta', [
-    { id: 'use', keys: ['KeyF', 'KeyG'], kbd: () => (cm.activeMode === 'snowcat' ? ['G'] : ['F']), pad: 'x', touch: false, label: () => (cm.activeMode === 'person' ? 'Get in' : 'Get out'), run: (code) => (code === 'KeyF' && cm.activeMode === 'snowcat' ? false : use()) },
+    // (in the key bar only while there is something to get into or out of: a mission whose step allows no switch
+    // offers nothing, and an F there would only mislead)
+    { id: 'use', keys: ['KeyF', 'KeyG'], when: () => !!action, kbd: () => (cm.activeMode === 'snowcat' ? ['G'] : ['F']), pad: 'x', touch: false, label: () => (cm.activeMode === 'person' ? 'Get in' : 'Get out'), run: (code) => (code === 'KeyF' && cm.activeMode === 'snowcat' ? false : use()) },
     { id: 'drive', keys: ['KeyT'], hint: false, touch: false, when: () => cm.activeMode === 'person', run: () => { const a = currentAction(); if (a?.kind !== 'board' || !a.drive) return false; use({ drive: true }); } },
     { id: 'blue', kind: 'toggle', label: 'Blue light', keys: ['KeyK'], icon: 'i-beacon', pad: 'right', when: () => !missionRun() && takeover.inPatrolCar(), state: () => takeover.blueOn(), run: () => takeover.toggleBlue() }
   ]);
@@ -698,7 +700,9 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     takeover.update(dt);
     if (takeover.left.length !== leftBefore) dirty = true; // (one went back into service: its collider goes)
     if (frame % 6 === 0) updateVisuals(camera);
+    const offered = !!action;
     action = mapSystem?.isFullMapOpen ? null : currentAction();
+    if (!!action !== offered) actions?.notify(); // (the key bar: F comes and goes with it)
     render();
     if (dirty) refreshColliders();
     const now = performance.now();

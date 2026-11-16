@@ -6,6 +6,7 @@ import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { poseSkierRig, skierCadence, SKIER_TECH } from './cross-country.js';
 import { poseSkater } from './missions-ice.js';
+import { t } from './i18n.js';
 import {
   XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, XC_PLAYER_BIB, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
   racerAt, aiSpeed, placeAt,
@@ -297,7 +298,14 @@ const xcSkis = {
     xc.ui.choice = choice;
     xc.ui.race = el('div');
     xc.ui.race.append(row, row2, xc.ui.flash);
-    run.hints([[['W'], 'hold: stride · let go downhill: tuck'], [['Space'], 'in the green: power stroke'], [['Q'], 'hold: double pole (flat)'], [['A', 'D'], 'steer']]);
+    // the key bar; before the start the technique's choice (1 / 2, the buttons, the gamepad's d-pad left / right)
+    const choosing = () => !!run.state?.race && !run.state.race.style;
+    run.actions([
+      { id: 'xc-classic', label: 'Classic', keys: ['Digit1'], keyboard: false, pad: 'left', touch: false, when: choosing, run: () => xcSkis.choose(run, 'classic') },
+      { id: 'xc-skate', label: 'Skating', keys: ['Digit2'], keyboard: false, pad: 'right', touch: false, when: choosing, run: () => xcSkis.choose(run, 'skate') },
+      { kind: 'hint', kbd: ['W'], label: 'hold: stride · let go downhill: tuck' }, { kind: 'hint', kbd: ['Space'], label: 'in the green: power stroke' },
+      { kind: 'hint', kbd: ['Q'], label: 'hold: double pole (flat)' }, { kind: 'hint', kbd: ['A', 'D'], label: 'steer' }
+    ], { replace: true });
     xc.ui.race.hidden = true;
     hud.append(choice, xc.ui.race);
     cm.personDriver = (dt) => xcSkis.drive(run, dt, cm);
@@ -353,7 +361,7 @@ const xcSkis = {
     const go = live(run) && st?.started && st.finishT === null;
     const s = st ? st.s : 0;
     const grade = st && st.off < 35 ? xcGrade(s) : 0;
-    let steer = (+k.left || 0) - (+k.right || 0);
+    let steer = cm.turnInput?.(dt) ?? (+k.left || 0) - (+k.right || 0); // (eased like a stick, js/controllers.js)
     // the trail assist: with no steering input, the skis follow the course gently (a point 14 m ahead)
     if (go && !steer && xc.assist && st.off < 12) {
       const a = linePoint(XC_LINE, Math.min(XC_LENGTH, s + 14));
@@ -460,8 +468,8 @@ const xcRace = {
     g.name = 'DavosNordic';
     run.group.add(g);
     // the start / finish arch, a timing clock beside it, the split gantries
-    g.add(buildArch(['DAVOS NORDIC', 'START · FINISH'], 0.0, 8.5));
-    XC_SPLITS.forEach((m, i) => g.add(buildArch([`SPLIT ${i + 1}`, `${(m / 1000).toFixed(1)} km`], m, 7.5, { bg: '#1d5bc4', h: 3.6 })));
+    g.add(buildArch(['DAVOS NORDIC', t('START · FINISH')], 0.0, 8.5));
+    XC_SPLITS.forEach((m, i) => g.add(buildArch([t(`SPLIT ${i + 1}`), t(`${(m / 1000).toFixed(1)} km`)], m, 7.5, { bg: '#1d5bc4', h: 3.6 })));
     // the stadium: fences either side of the first and last 70 m (red boards), the grandstand crowd behind them
     const boards = [], spots = [];
     const fence = (s0, s1, side) => {
@@ -781,7 +789,10 @@ const minigolf = {
     const row = el('div', 'sport-row');
     row.append(el('span', null, 'Power'), mg.ui.meter.m);
     hud.append(mg.ui.title, mg.ui.line, row, mg.ui.card);
-    run.hints(look.keys);
+    run.actions([
+      ...look.keys.map(([kbd, label]) => ({ kind: 'hint', kbd, label })),
+      { id: 'mg-overview', label: 'Overview', icon: 'i-eye', keys: ['KeyV'], keyboard: false, pad: 'x', run: () => { if (live(run)) run.mg.overview = !run.mg.overview; } }
+    ], { replace: true });
     // the slingshot: drag from anywhere on the view, the ball goes the other way, the drag's length is the power
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (!minigolf.ready(run) || e.button !== 0) return; mg.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, power: 0 }; });
@@ -985,14 +996,14 @@ const minigolf = minigolfFeature(WALDHUUS_COURSE, {
   name: 'MinigolfWaldhuus', felt: FELT, feltRoughness: 0.95, board: BOARD_COL, post: 0xd43b2a, body: 0xa8a39a, path: 0xd8d2c6, pathAcross: 6,
   ball: () => mesh(new THREE.SphereGeometry(MINIGOLF.ballR, 16, 12), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.35 }), true),
   ballLift: MINIGOLF.ballR, club: createPutter, button: 'Putt',
-  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to putt'], [['Drag'], 'back from the ball and let go'], [['V'], 'overview']]
+  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to putt'], [['Drag'], 'back from the ball and let go']]
 });
 // Eis-Minigolf on the Arkadenplatz: the same game on rink ice between wooden boards, with a stick and a black puck
 const iceMinigolf = minigolfFeature(ARKADENPLATZ_COURSE, {
   name: 'IceMinigolfArkadenplatz', felt: 0xdcebf4, feltRoughness: 0.25, board: 0xb98a55, post: 0x2b6fb3, body: 0xe6eef2, path: 0xeef5f9, pathAcross: 24,
   ball: () => mesh(new THREE.CylinderGeometry(ICE_MINIGOLF.ballR, ICE_MINIGOLF.ballR, 0.025, 20), new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.5 }), true),
   ballLift: 0.0125, club: createStick, button: 'Shoot',
-  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to shoot'], [['Drag'], 'back from the puck and let go'], [['V'], 'overview']]
+  keys: [[['A', 'D'], 'aim'], [['Space'], 'hold, let go to shoot'], [['Drag'], 'back from the puck and let go']]
 });
 function minigolfWorldLoop(run, y, h, t) {
   const g = run.state.game, f = holeFrame(g.hole, g.course);
@@ -1063,9 +1074,9 @@ function drawChalk(ch, game) {
   g.fillText(String(game ? game.remaining : 301), W / 2, 210);
   g.font = '34px "Comic Sans MS", "Chalkboard", sans-serif';
   const log = game ? game.log.slice(-8) : [];
-  log.forEach((l, i) => g.fillText(l.bust ? 'bust' : String(l.total), W / 2, 290 + i * 40));
+  log.forEach((l, i) => g.fillText(l.bust ? t('bust') : String(l.total), W / 2, 290 + i * 40));
   g.font = '26px "Comic Sans MS", "Chalkboard", sans-serif';
-  g.fillText(game ? `darts: ${game.darts}` : 'game on', W / 2, H - 40);
+  g.fillText(t(game ? `darts: ${game.darts}` : 'game on'), W / 2, H - 40);
   ch.tex.needsUpdate = true;
 }
 
@@ -1154,7 +1165,6 @@ const darts = {
     const row = el('div', 'sport-row');
     row.append(el('span', null, 'Throw'), dd.ui.meter.m);
     hud.append(dd.ui.title, dd.ui.line, row, dd.ui.flash);
-    run.hints([[['Mouse', 'W', 'A', 'S', 'D'], 'aim'], [['Space', 'Click'], 'hold, let go in the green']]);
     hud.hidden = true;
     const cross = el('div', 'sport-cross');
     cross.hidden = true;
@@ -1201,6 +1211,7 @@ const darts = {
     const dd = run.dd;
     dd.interior?.dispose(); dd.interior = null;
     dd.ui.hud.hidden = true; dd.ui.cross.hidden = true;
+    dd.offKeys?.(); dd.offKeys = null;
     dd.flights.length = 0; dd.stuck.length = 0; dd.wait = 0; dd.charging = false; dd.charge = 0;
     dd.aim = { x: 0, y: fieldCentreY(20, 3) };
     if (run.state) { run.state.game = null; run.state.inside = false; }
@@ -1247,6 +1258,18 @@ const darts = {
     dd.ui.hud.hidden = false;
     dd.ui.cross.hidden = false;
     run._sportEdge_up = true;
+    // the oche's keys in the key bar (the walk to the pub keeps the game's) and on the gamepad: the d-pad aims, A held
+    // winds up and let go throws (the keys themselves: key() below; the touch screens aim with the finger and flick)
+    const aim = (dir) => (on) => { dd.keys[dir] = on ? 1 : 0; };
+    dd.offKeys?.();
+    const ddJump = run.button('up', null); // (the gamepad's A is the mission's now: no jump, js/gamepad-controls.js)
+    const ddLayer = run.actions([
+      { kind: 'hint', kbd: ['Mouse', 'W', 'A', 'S', 'D'], label: 'aim' },
+      ...['up', 'down', 'left', 'right'].map((dir) => ({ id: `dart-${dir}`, kind: 'hold', label: 'aim', pad: dir, touch: false, hint: false, run: aim(dir) })),
+      { id: 'dart-throw', kind: 'hold', label: 'hold, let go in the green', keys: ['Space'], kbd: ['Space', 'Click'], keyboard: false, pad: 'a', touch: false,
+        run: (on) => { if (on) { if (darts.canThrow(run)) { dd.charging = true; dd.chargeT = 0; } } else if (dd.charging) { dd.charging = false; darts.throw(run, dd.charge); } } }
+    ]);
+    dd.offKeys = () => { ddLayer(); ddJump(); };
   },
   key(run, e) {
     const dd = run.dd;
@@ -1506,7 +1529,7 @@ const skateBowl = {
     sb.ui.balNeedle = el('span'); sb.ui.bal.append(sb.ui.balNeedle); sb.ui.bal.hidden = true;
     const row = el('div', 'sport-row'); row.append(sb.ui.time, sb.ui.score);
     hud.append(row, sb.ui.combo, sb.ui.trick, sb.ui.bal);
-    run.hints([[['W'], 'pump'], [['A', 'D'], 'carve / spin · grind: balance'], [['Space'], 'hold: grab · grind: drop in']]);
+    run.hints([[['W'], 'pump'], [['A', 'D'], 'carve / spin · grind: balance'], [['Space'], 'hold: grab · grind: drop in'], [['S'], 'brake']]);
     const cm = run.hooks.controllerManager;
     cm.personDriver = (dt) => skateBowl.drive(run, dt, cm);
     cm.personPoser = (dt, p) => skateBowl.pose(run, dt, p);
@@ -1549,7 +1572,8 @@ const skateBowl = {
     }
     const b = st.boarder;
     if (!st.over && live(run)) {
-      const ev = stepBoarder(b, { pump: !!k.forward, back: +k.backward || 0, steer: (+k.left || 0) - (+k.right || 0), grab: !!k.up, drop: dropKey }, Math.min(dt, 0.05));
+      const steer = cm.turnInput?.(dt) ?? (+k.left || 0) - (+k.right || 0); // (eased like a stick, js/controllers.js)
+      const ev = stepBoarder(b, { pump: !!k.forward, back: +k.backward || 0, steer, grab: !!k.up, drop: dropKey }, Math.min(dt, 0.05));
       for (const e of ev) skateBowl.event(run, e);
     } else if (b.mode === 'air' || b.mode === 'grind') {
       for (const e of stepBoarder(b, { pump: false, steer: 0, grab: false, drop: true }, Math.min(dt, 0.05))) skateBowl.event(run, e);

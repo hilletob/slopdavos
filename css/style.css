@@ -2190,6 +2190,13 @@ body.mission-own-controls .gta-prompt,
 body.mission-own-controls .mission-prompt,
 body.mission-own-controls.touch-enabled #touch-controls .touch-movement,
 body.mission-own-controls.touch-enabled .touch-use { display: none !important; }
+/* ... and the key bar stays in sight with the mission's keys: over the rooms' and boards' backdrops (z-index 38), the
+   missions' own HUD at the bottom standing on it by --keybar-clear (js/missions-gastro.js and the bars, -fun, -local,
+   -mine, -resort, -care); where the bar is hidden (a narrow window) the HUD keeps to the bottom, on a touch screen it
+   clears the touch controls by --touch-clear instead */
+:root { --keybar-clear: 54px; }
+@media (max-width: 1240px) { :root { --keybar-clear: 16px; } }
+body.mission-own-controls .hud-bottom-center { z-index: 39; }
 
 body.hud-minimized .mission-hud { opacity: 1; }
 
