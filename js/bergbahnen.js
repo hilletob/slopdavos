@@ -4,9 +4,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
-import { excludeBuildings } from './swissbuildings3d.js';
+import { excludeBuildings, carveBuildings } from './swissbuildings3d.js';
 import { cityUniforms } from './tsl-materials.js';
-import { groundHeight } from './terrain.js';
+import { groundHeight, funicularEnclosedAt } from './terrain.js';
+import { funicularTrack } from './funicular-track.js';
 import { QUALITY } from './quality.js';
 
 // The mountain railways of Davos (js/bergbahnen-data.js, tools/fetch-bergbahnen.mjs):
@@ -142,40 +143,78 @@ const loopOffset = (s, len) => {
   const d = Math.abs(s - len / 2), ease = (u) => u * u * (3 - 2 * u);
   return d > 95 ? 0 : d < 35 ? 1.7 : 1.7 * ease(1 - (d - 35) / 60);
 };
-// The funicular ways in tunnels (OSM tunnel=yes: the Parsennbahn's lower ~230 m under the Salzgäba slope, the short
-// tunnels at the Schatzalpbahn's stations and the Parsennbahn's upper sections), as flat [x, z, …] polylines
-const TUNNELS = (DAVOS_DATA.railways || []).filter((r) => r.kind === 'funicular' && r.tunnel).map((r) => r.pts);
-function inTunnel(x, z) {
-  for (const pts of TUNNELS) for (let i = 2; i < pts.length; i += 2) {
-    const ax = pts[i - 2], az = pts[i - 1], dx = pts[i] - ax, dz = pts[i + 1] - az, L2 = dx * dx + dz * dz || 1e-9;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-    if (Math.hypot(ax + dx * t - x, az + dz * t - z) < 3) return true;
-  }
-  return false;
-}
+// The track (js/funicular-track.js): the plan eased and a smooth grade line instead of the survey's bumps; `tunnel` on
+// the stretches enclosed between portals (js/terrain.js funicularTunnelParts: bores and cut-and-cover galleries, drawn by
+// js/tunnels.js), where no bed, rails or railing are laid
 function carPath(f, side) {
-  const raw = [];
-  for (let i = 0; i < f.paths[0].length; i += 3) raw.push({ x: f.paths[0][i], y: f.paths[0][i + 1], z: f.paths[0][i + 2] });
+  const raw = funicularTrack(f)[0];
   const line = polyline(raw);
-  // Through a tunnel the track dives under the ground: down to 9 m below the surface ~30 m inside a portal
-  const tunnel = raw.map((p) => inTunnel(p.x, p.z));
-  const depth = raw.map((_, i) => {
-    if (!tunnel[i]) return 0;
-    let d = Infinity;
-    for (let j = 0; j < raw.length; j++) if (!tunnel[j]) d = Math.min(d, Math.abs(line.cum[j] - line.cum[i]));
-    if (d === Infinity) d = Math.min(line.cum[i], line.len - line.cum[i]);
-    return Math.min(9, d * 0.3);
-  });
   // Offset sideways through the loop (the OSM tracks rarely separate it)
   const pts = raw.map((p, i) => {
     const q = at(line, line.cum[i]), h = Math.hypot(q.dx, q.dz) || 1, o = loopOffset(line.cum[i], line.len) * side;
-    return { x: p.x - (q.dz / h) * o, y: p.y - depth[i], z: p.z + (q.dx / h) * o, tunnel: tunnel[i] };
+    return { x: p.x - (q.dz / h) * o, y: p.y, z: p.z + (q.dx / h) * o, tunnel: funicularEnclosedAt(p.x, p.z), bridge: p.bridge };
   });
   const out = polyline(pts);
-  // The portals: where the track leaves a tunnel (index of the last point inside, and the direction out of it)
-  out.portals = [];
-  for (let i = 1; i < pts.length; i++) if (pts[i].tunnel !== pts[i - 1].tunnel) out.portals.push({ i: pts[i].tunnel ? i : i - 1, out: pts[i].tunnel ? -1 : 1 });
+  // The enclosed stretches [from, to] along the path (a mission's camera rides through them: js/missions-parsenn.js)
+  out.bores = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (!pts[i].tunnel || (i > 0 && pts[i - 1].tunnel)) continue;
+    let e = i;
+    while (e + 1 < pts.length && pts[e + 1].tunnel) e++;
+    out.bores.push([out.cum[i], out.cum[e]]);
+  }
   return out;
+}
+
+// Under the bed where it runs above the ground: on a bridge (OSM bridge=yes) a deck girder with piers every ~14 m, else
+// an embankment falling away to the ground at 1:1.2. Vertex colours, one geometry for all the lines.
+function substructure(line, halfWidth, out) {
+  const DECK = 0.9, tmp = {};
+  const side = (q, d, o) => ({ x: q.x - (d.dz / d.h) * o, z: q.z + (d.dx / d.h) * o });
+  const push = (colour, ...P) => { for (const p of P) out.pos.push(p[0], p[1], p[2]); for (let i = 0; i < P.length; i++) out.col.push(...colour); };
+  const GRAVEL = [0.42, 0.4, 0.37], CONCRETE = [0.62, 0.61, 0.58];
+  let nextPier = 0;
+  for (let i = 1; i < line.pts.length; i++) {
+    const a = line.pts[i - 1], b = line.pts[i];
+    if (a.tunnel || b.tunnel) continue;
+    const d = at(line, (line.cum[i - 1] + line.cum[i]) / 2, tmp); d.h = Math.hypot(d.dx, d.dz) || 1;
+    const bridge = a.bridge && b.bridge;
+    for (const sgn of [-1, 1]) {
+      const o = sgn * halfWidth;
+      const ea = side(a, d, o), eb = side(b, d, o);
+      const ga = groundHeight(ea.x, ea.z), gb = groundHeight(eb.x, eb.z);
+      const ha = a.y - ga, hb = b.y - gb;
+      if (ha < 0.2 && hb < 0.2) continue;
+      if (bridge && Math.min(ha, hb) > DECK + 0.3) {
+        // the girder's side face
+        push(CONCRETE, [ea.x, a.y + 0.05, ea.z], [eb.x, b.y + 0.05, eb.z], [eb.x, b.y - DECK, eb.z], [ea.x, a.y + 0.05, ea.z], [eb.x, b.y - DECK, eb.z], [ea.x, a.y - DECK, ea.z]);
+        continue;
+      }
+      // the embankment's flank: from the bed's edge out and down to the ground
+      const fa = side(a, d, o + sgn * Math.max(0, ha) * 1.2), fb = side(b, d, o + sgn * Math.max(0, hb) * 1.2);
+      const ya = groundHeight(fa.x, fa.z) - 0.25, yb = groundHeight(fb.x, fb.z) - 0.25;
+      push(GRAVEL, [ea.x, a.y + 0.05, ea.z], [eb.x, b.y + 0.05, eb.z], [fb.x, yb, fb.z], [ea.x, a.y + 0.05, ea.z], [fb.x, yb, fb.z], [fa.x, ya, fa.z]);
+    }
+    if (bridge) {
+      // the girder's underside, and a pier where the deck stands high enough
+      const ea = side(a, d, -halfWidth), eb = side(b, d, -halfWidth), fa = side(a, d, halfWidth), fb = side(b, d, halfWidth);
+      const g = groundHeight((a.x + b.x) / 2, (a.z + b.z) / 2);
+      if ((a.y + b.y) / 2 - g > DECK + 0.3) push(CONCRETE, [ea.x, a.y - DECK, ea.z], [eb.x, b.y - DECK, eb.z], [fb.x, b.y - DECK, fb.z], [ea.x, a.y - DECK, ea.z], [fb.x, b.y - DECK, fb.z], [fa.x, a.y - DECK, fa.z]);
+      if (line.cum[i] >= nextPier) {
+        nextPier = line.cum[i] + 14;
+        const top = b.y - DECK, foot = groundHeight(b.x, b.z) - 0.5;
+        if (top - foot > 1.2) {
+          const ux = d.dx / d.h, uz = d.dz / d.h, w = halfWidth * 0.8, t = 0.6;
+          const c = (s, l, y) => [b.x - uz * s + ux * l, y, b.z + ux * s + uz * l];
+          const quad = (p, q, r, v) => push(CONCRETE, p, q, r, p, r, v);
+          quad(c(-w, -t, top), c(w, -t, top), c(w, -t, foot), c(-w, -t, foot));
+          quad(c(w, t, top), c(-w, t, top), c(-w, t, foot), c(w, t, foot));
+          quad(c(-w, t, top), c(-w, -t, top), c(-w, -t, foot), c(-w, t, foot));
+          quad(c(w, -t, top), c(w, t, top), c(w, t, foot), c(w, -t, foot));
+        }
+      }
+    } else nextPier = 0;
+  }
 }
 
 // The bed: a concrete track slab with sleepers every 0.8 m, and the rails; strips along the path (uv.x across, uv.y
@@ -374,18 +413,106 @@ function schatzalpAtlas(names) {
 // The cars' names: «Zauberberg» is on the photo; the other car's name could not be found (it carries the same here)
 const SCHATZALP_NAMES = ['ZAUBERBERG'];
 
-// A tunnel portal: a concrete frame round the opening (dark inside), wing walls; along `dir` out of the tunnel. The dark
-// inside is a mesh of its own (`hole`): a camera in the tunnel (js/missions-parsenn.js) looks out through the portal.
-function portalGeometry(gauge, hole = false) {
-  const w = Math.max(4.2, gauge + 3.2), h = 4.6;
-  if (hole) return boxes([[w, h, 0.2, 0, h / 2, -0.6, 0x0b0c0d]]);
-  return boxes([
-    [w + 1.4, 0.9, 1.2, 0, h + 0.45, 0, 0xa7a49d],
-    [0.7, h, 1.2, -(w / 2 + 0.35), h / 2, 0, 0xa09d96],
-    [0.7, h, 1.2, w / 2 + 0.35, h / 2, 0, 0xa09d96],
-    [0.5, 2.6, 5, -(w / 2 + 2.0), 1.1, -1.8, 0x9c9992, 0, 0.0],
-    [0.5, 2.6, 5, w / 2 + 2.0, 1.1, -1.8, 0x9c9992, 0, 0.0]
-  ]);
+// Where a line runs into a station building (an OSM footprint over the track near the path's end, outside the tunnels:
+// the Höhenweg's for both sections, the Schatzalp's): a hall through the building. Its box is carved out of the
+// swissBUILDINGS3D tiles (js/swissbuildings3d.js carveBuildings) and lined: the walls (2.7 m left of the track, 5.4 m right,
+// over the platform), the ceiling parallel to the track, the floor, the platform, a wall behind the track's end, and at
+// the open end a concrete portal frame. The hall reaches HALL.out samples (~6 m) out of the footprint (swissBUILDINGS3D's
+// facade may stand off it) and HALL.beyond m past the track's end.
+const HALL = { left: 2.7, right: 5.4, height: 6.2, out: 3, beyond: 6 };
+const inRing = (ring, x, z) => { let inside = false; for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) { if ((ring[i + 1] > z) !== (ring[j + 1] > z) && x < ((ring[j] - ring[i]) * (z - ring[i + 1])) / (ring[j + 1] - ring[i + 1]) + ring[i]) inside = !inside; } return inside; };
+function stationHalls() {
+  const halls = [];
+  for (const f of BERGBAHNEN.funiculars || []) {
+    const p = funicularTrack(f)[0], n = p.length, cum = [0];
+    for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.hypot(p[i].x - p[i - 1].x, p[i].z - p[i - 1].z));
+    const near = (DAVOS_DATA.buildings || []).filter((b) => b.ring && [p[0], p[n - 1]].some((e) => Math.hypot(b.ring[0] - e.x, b.ring[1] - e.z) < 250));
+    const inside = p.map((q, i) => (cum[i] < 80 || cum[n - 1] - cum[i] < 80) && !funicularEnclosedAt(q.x, q.z) && near.some((b) => inRing(b.ring, q.x, q.z)));
+    for (let a = 0; a < n; a++) {
+      if (!inside[a] || (a > 0 && inside[a - 1])) continue;
+      let b = a;
+      while (b + 1 < n && inside[b + 1]) b++;
+      const i0 = a === 0 ? 0 : Math.max(0, a - HALL.out), i1 = b === n - 1 ? n - 1 : Math.min(n - 1, b + HALL.out);
+      const pts = p.slice(i0, i1 + 1).map((q) => ({ x: q.x, y: q.y, z: q.z }));
+      // past the track's end(s): on in its direction and grade
+      const extend = (A, B, list, push) => {
+        const h = Math.hypot(B.x - A.x, B.z - A.z) || 1, g = (B.y - A.y) / h;
+        for (let d = 2; d <= HALL.beyond; d += 2) push.call(list, { x: B.x + (B.x - A.x) / h * d, y: B.y + g * d, z: B.z + (B.z - A.z) / h * d });
+      };
+      if (b === n - 1) extend(pts[pts.length - 2], pts[pts.length - 1], pts, pts.push);
+      if (a === 0) { const pre = []; extend(pts[1], pts[0], pre, pre.push); pts.unshift(...pre.reverse()); }
+      halls.push({ line: f.id, pts, open0: a !== 0, open1: b !== n - 1 });
+    }
+  }
+  return halls;
+}
+const hallDir = (pts, i) => { const A = pts[Math.max(0, i - 1)], B = pts[Math.min(pts.length - 1, i + 1)], h = Math.hypot(B.x - A.x, B.z - A.z) || 1; return { dx: (B.x - A.x) / h, dz: (B.z - A.z) / h }; };
+const STATION_HALLS = stationHalls();
+// The stations underground (Davos Dorf, the Weissfluhjoch: js/missions-parsenn.js lines their halls) are carved too, the
+// last 45 m and 8 m past the track's end: a station building's floor stands over them and would poke into the hall
+function undergroundEnds() {
+  const out = [];
+  for (const f of BERGBAHNEN.funiculars || []) {
+    const p = funicularTrack(f)[0];
+    for (const list of [p, [...p].reverse()]) {
+      if (!funicularEnclosedAt(list[0].x, list[0].z)) continue;
+      const pts = [];
+      let L = 0;
+      for (let i = 0; i < list.length && L < 45; i++) { if (i) L += Math.hypot(list[i].x - list[i - 1].x, list[i].z - list[i - 1].z); pts.push(list[i]); }
+      const A = list[1], B = list[0], h = Math.hypot(B.x - A.x, B.z - A.z) || 1, g = (B.y - A.y) / h;
+      for (let d = 2; d <= 8; d += 2) pts.unshift({ x: B.x + (B.x - A.x) / h * d, y: B.y + g * d, z: B.z + (B.z - A.z) / h * d });
+      // (in the uphill order, so that `right` stays the platform's side)
+      out.push({ pts: list === p ? pts : pts.reverse(), height: 7.5 }); // (over the mission's hall and its lamps)
+    }
+  }
+  return out;
+}
+// (carved now, before the first tile is baked)
+carveBuildings([...STATION_HALLS, ...undergroundEnds()].flatMap(({ pts, height = HALL.height }) => pts.slice(1).map((B, k) => {
+  const A = pts[k], L = Math.hypot(B.x - A.x, B.z - A.z) || 1, ux = (B.x - A.x) / L, uz = (B.z - A.z) / L, o = (HALL.right - HALL.left) / 2;
+  return { x: (A.x + B.x) / 2 - uz * o, z: (A.z + B.z) / 2 + ux * o, ux, uz, hl: L / 2 + 0.05, hw: (HALL.left + HALL.right) / 2 + 0.05, y0: Math.min(A.y, B.y) - 1, y1: Math.max(A.y, B.y) + height + 0.05 };
+})));
+function hallGeometry({ pts, open0, open1 }) {
+  const pos = [], col = [];
+  const WALL = [0.5, 0.49, 0.47], CEIL = [0.42, 0.42, 0.41], FLOOR = [0.33, 0.32, 0.31], PLAT = [0.6, 0.59, 0.56], EDGE = [0.85, 0.66, 0.05], FRAME = [0.66, 0.65, 0.62];
+  const P = (i, side, up) => { const q = pts[i], d = hallDir(pts, i); return [q.x - d.dz * side, q.y + up, q.z + d.dx * side]; };
+  const quad = (c, a, b, d, e) => { pos.push(...a, ...b, ...d, ...a, ...d, ...e); for (let k = 0; k < 6; k++) col.push(...c); };
+  const L = -HALL.left, R = HALL.right, H = HALL.height;
+  for (let i = 1; i < pts.length; i++) {
+    const a = i - 1, b = i;
+    quad(WALL, P(a, L, -0.3), P(b, L, -0.3), P(b, L, H), P(a, L, H));
+    quad(WALL, P(a, R, -0.3), P(b, R, -0.3), P(b, R, H), P(a, R, H));
+    quad(CEIL, P(a, L, H), P(b, L, H), P(b, R, H), P(a, R, H));
+    quad(FLOOR, P(a, L, -0.02), P(a, R, -0.02), P(b, R, -0.02), P(b, L, -0.02));
+    // the platform: its edge, its top with the yellow line
+    quad(PLAT, P(a, 2.15, -0.02), P(b, 2.15, -0.02), P(b, 2.15, 0.9), P(a, 2.15, 0.9));
+    quad(EDGE, P(a, 2.15, 0.9), P(b, 2.15, 0.9), P(b, 2.45, 0.9), P(a, 2.45, 0.9));
+    quad(PLAT, P(a, 2.45, 0.9), P(b, 2.45, 0.9), P(b, R, 0.9), P(a, R, 0.9));
+  }
+  const n = pts.length - 1;
+  for (const [i, open] of [[0, open0], [n, open1]]) {
+    if (!open) { quad(WALL, P(i, L, -0.3), P(i, R, -0.3), P(i, R, H), P(i, L, H)); continue; }
+    // the portal frame: posts beside the walls, the lintel over the opening (plumb, 0.8 m deep, out from the hall's end)
+    const d = hallDir(pts, i), sgn = i === 0 ? -1 : 1, q = pts[i];
+    const at = (side, up, along) => [q.x - d.dz * side + d.dx * along * sgn, q.y + up, q.z + d.dx * side + d.dz * along * sgn];
+    const box = (s0, s1, u0, u1, l0, l1) => {
+      const c = (s, u, l) => at(s, u, l);
+      quad(FRAME, c(s0, u0, l1), c(s1, u0, l1), c(s1, u1, l1), c(s0, u1, l1));
+      quad(FRAME, c(s0, u0, l0), c(s0, u1, l0), c(s1, u1, l0), c(s1, u0, l0));
+      quad(FRAME, c(s0, u0, l0), c(s0, u0, l1), c(s0, u1, l1), c(s0, u1, l0));
+      quad(FRAME, c(s1, u0, l0), c(s1, u1, l0), c(s1, u1, l1), c(s1, u0, l1));
+      quad(FRAME, c(s0, u1, l0), c(s0, u1, l1), c(s1, u1, l1), c(s1, u1, l0));
+      quad(FRAME, c(s0, u0, l0), c(s1, u0, l0), c(s1, u0, l1), c(s0, u0, l1));
+    };
+    box(L - 0.7, L, -1.5, H + 1.2, -0.4, 0.6);
+    box(R, R + 0.7, -1.5, H + 1.2, -0.4, 0.6);
+    box(L - 0.7, R + 0.7, H, H + 1.2, -0.4, 0.6);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
 }
 
 // Safety railing along the track (posts every 2.5 m and a handrail), left out in the tunnels
@@ -412,8 +539,7 @@ function buildFuniculars(group) {
   const lines = [];
   const bed = bedMaterial(), steelBed = steelBedMaterial(), grating = gratingMaterial();
   const steel = new THREE.MeshStandardNodeMaterial({ color: 0xa8acb0, roughness: 0.3, metalness: 0.85 });
-  const posts = [], handrails = [], portals = [];
-  let portalHoles = null;
+  const posts = [], handrails = [], under = { pos: [], col: [] };
   const trackParts = new Map(); // material -> geometries
   const parsennMap = parsennAtlas(), schatzalpMap = schatzalpAtlas(SCHATZALP_NAMES);
   const parsennDecalMaterial = decalMaterial(parsennMap.map), schatzalpDecalMaterial = decalMaterial(schatzalpMap.map);
@@ -431,7 +557,7 @@ function buildFuniculars(group) {
         const off = polyline(p.pts.map((q, i) => { const d = at(p, p.cum[i]), h = Math.hypot(d.dx, d.dz) || 1; return { x: q.x - (d.dz / h) * o, y: q.y, z: q.z + (d.dx / h) * o, tunnel: q.tunnel }; }));
         rails.push(trackStrip(off, 0.07, 0.2));
       }
-      p.portals.forEach((po) => portals.push({ p, ...po, gauge: f.gauge }));
+      substructure(p, (f.gauge + (schatz ? 0.5 : 1.1)) / 2, under);
     }
     // The walkway (Schatzalp: steel grating) and the railing, on the outside of the uphill-right track
     const outer = polyline(paths[0].pts.map((q, i) => { const d = at(paths[0], paths[0].cum[i]), h = Math.hypot(d.dx, d.dz) || 1, o = f.gauge / 2 + 1.0; return { x: q.x - (d.dz / h) * o, y: q.y, z: q.z + (d.dx / h) * o, tunnel: q.tunnel }; }));
@@ -479,25 +605,23 @@ function buildFuniculars(group) {
     hg.setAttribute('position', new THREE.Float32BufferAttribute(handrails, 3));
     group.add(new THREE.LineSegments(hg, new THREE.LineBasicNodeMaterial({ color: 0x8d9297 })));
   }
-  // Tunnel portals
-  if (portals.length) {
-    const seen = [], list = [];
-    for (const po of portals) {
-      const q = po.p.pts[po.i], d = at(po.p, po.p.cum[po.i]);
-      if (seen.some((s) => Math.hypot(s.x - q.x, s.z - q.z) < 8)) continue; // (both paths share the portal)
-      seen.push(q);
-      // The surface at the portal: the track there is still near it (the dive starts inside)
-      const yaw = Math.atan2(d.dx * po.out, d.dz * po.out);
-      list.push({ x: q.x, y: q.y - 0.3, z: q.z, yaw });
-    }
-    const pm = new THREE.Matrix4(), pq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-    for (const hole of [false, true]) {
-      const mesh = new THREE.InstancedMesh(portalGeometry(1.2, hole), vehicleMaterial(), list.length);
-      list.forEach((p, i) => mesh.setMatrixAt(i, pm.compose(new THREE.Vector3(p.x, p.y, p.z), pq.setFromAxisAngle(up, p.yaw), one)));
-      mesh.castShadow = mesh.receiveShadow = !hole;
-      if (hole) portalHoles = mesh;
-      group.add(mesh);
-    }
+  // The station halls through the buildings (one draw, both sides lit)
+  if (STATION_HALLS.length) {
+    const mesh = new THREE.Mesh(mergeGeometries(STATION_HALLS.map(hallGeometry), false), new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }));
+    mesh.name = 'Funicular station halls';
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  // The embankments, girders and piers under the beds (one draw)
+  if (under.pos.length) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(under.pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(under.col, 3));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide }));
+    mesh.name = 'Funicular substructure';
+    mesh.receiveShadow = mesh.castShadow = true;
+    group.add(mesh);
   }
   // A car on the track: its ends on the rails at s ∓ length/2 along the path; the matrix turns it to the chord between
   // them and shears it to the chord's grade (y += grade·z: sills and roof parallel to the track, the ends plumb), the
@@ -546,7 +670,8 @@ function buildFuniculars(group) {
       hold(on) { l.run.held = !!on; if (on) { l.run.wait = 0; l.run.v = 0; l.run.a = 0; } },
       place() { placeLine(l); },
       hideClimbing(on) { l.hideClimbing = !!on; placeLine(l); },
-      portalHoles(on) { if (portalHoles) portalHoles.visible = !!on; }, // (all the lines' portals)
+      portalHoles() {}, // (the portals are js/tunnels.js' now, lit inside: nothing to hide for a camera in the tunnel)
+      bores: l.paths[0].bores, // [[from, to]] along path 0: the stretches enclosed between portals
       at: (k, s, out = {}) => at(l.paths[k], s, out)
     });
   }

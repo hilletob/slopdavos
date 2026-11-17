@@ -738,6 +738,16 @@ class MissionRun {
     return restore;
   }
 
+  /** The mission's own vehicle in the cluster at the bottom right (js/main.js setVehiclePanel), instead of the mode's
+   *  walker or car: { label (English, translated), speed: () => m/s | false (none shown), topSpeedKmh: km/h | () => km/h,
+   *  at: () => where it is (the altitude, the street), camera: false (the mission holds the camera: no switch) }. Again
+   *  to change it, null to give the mode's back early; the end of the run gives it back */
+  vehiclePanel(spec) {
+    if (!this.hooks.setVehiclePanel) return;
+    this.panelHeld = !!spec;
+    this.hooks.setVehiclePanel(spec ? { mode: this.def.mode, ...spec } : null); // (in the mission's mode only)
+  }
+
   start() {
     this.setup();
     this.beginRanking();
@@ -772,6 +782,7 @@ class MissionRun {
       try { f.teardown?.(this); } catch (error) { console.warn('[missions] teardown', error); }
     }
     for (const fn of this.cleanups.splice(0).reverse()) fn();
+    if (this.panelHeld) this.vehiclePanel(null); // (after the cleanups: the walker has its own label back)
     const bodies = this.hooks.trafficBodies;
     if (bodies) for (const b of this.trafficBodies) { const i = bodies.indexOf(b); if (i >= 0) bodies.splice(i, 1); }
     this.trafficBodies.length = 0;

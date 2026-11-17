@@ -724,6 +724,25 @@ async function initApp() {
   }
   actions.subscribe(renderHints);
 
+  // A mission's own vehicle in the cluster at the bottom right (js/missions.js run.vehiclePanel): its name, its speed
+  // (m/s; false: no speed shown), the speed meter's full scale (km/h), where it is (the altitude and the street), and
+  // camera: false when the mission holds the camera itself (the camera switch hidden, V cycles nothing). null: the mode's.
+  // It holds in its mission's mode only (out of it, e.g. in a car after an abort, the cluster is the mode's again)
+  const elCameraSwitch = document.getElementById('camera-switch');
+  const elGaugeSpeed = [document.querySelector('#hud-cluster .gauge-speed'), document.querySelector('#hud-cluster .gauge-meter')];
+  let vehiclePanelSpec = null;
+  const vehiclePanelNow = () => (vehiclePanelSpec && (!vehiclePanelSpec.mode || vehiclePanelSpec.mode === controllerManager.activeMode) ? vehiclePanelSpec : null);
+  function renderVehiclePanel() {
+    const vp = vehiclePanelNow();
+    if (elMode) elMode.textContent = vp?.label || controllerManager.getActiveEntity().label;
+    if (elCameraSwitch) elCameraSwitch.style.display = vp?.camera === false ? 'none' : '';
+    for (const node of elGaugeSpeed) if (node) node.style.display = vp?.speed === false ? 'none' : '';
+  }
+  function setVehiclePanel(spec) {
+    vehiclePanelSpec = spec || null;
+    renderVehiclePanel();
+  }
+
   // The way of travel: the missions put the player into their vehicle, the game gets in and out (js/gta.js)
   function selectMode(mode) {
     controllerManager.setMode(mode);
@@ -731,8 +750,7 @@ async function initApp() {
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
     document.body.dataset.mode = mode;
-    const ent = controllerManager.getActiveEntity();
-    if (elMode) elMode.textContent = ent.label;
+    renderVehiclePanel(); // (the mode's name, or a mission's own vehicle)
     actions.notify(); // (the key bar and the touch buttons follow the mode)
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
@@ -755,6 +773,7 @@ async function initApp() {
 
   // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
   function cycleCamera(step) {
+    if (vehiclePanelNow()?.camera === false) return;
     const n = CAMERA_PRESETS.length;
     const idx = CAMERA_PRESETS.findIndex((p) => p.id === cameraSystem.activePresetId);
     selectCamera(CAMERA_PRESETS[(idx + step + n) % n].id, true);
@@ -1101,7 +1120,7 @@ async function initApp() {
     applyClock(true);
   };
   // Missions (js/missions.js): their pins in the open world (Enter in a start circle), the list, ?mission=<id>
-  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem, actions });
+  const missions = buildMissions(scene, { controllerManager, cameraSystem, selectMode, setVehiclePanel, holdClock, releaseClock, fastForward, teleportXZ: teleportTo, savePlayerState, audio: audioSystem, trafficBodies, traffic: trafficSystem, vbd, world, mapSystem, actions });
   // Getting in and out (js/gta.js): the player on foot takes the vehicles standing about (on a first visit by the
   // Bahnhof Davos Platz)
   gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
@@ -1326,13 +1345,15 @@ async function initApp() {
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
-    streamTerrain(cameraSystem.camera.position); // the terrain chunks' full geometry near the camera, coarse farther
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
     groundMarkings.update(cameraSystem.camera.position); // the traced road paint near the camera
     if (world) { const p = controllerManager.getActiveEntity().position; world.update(p.x, p.z, cameraSystem.camera.position); } // the streets follow the player (the mobile profile)
     winterSports.update(dt, cameraSystem.camera); // skiers and snowboarders near the camera (winter only)
     if (!skipped('winter')) groomMap.update(dt, cameraSystem.camera.position, controllerManager); // the snow's wear, the groomer's tracks
     missions.update(dt, controllerManager, cameraSystem); // the mission's clock, progress and markers; else the pins in the world
+    // the terrain chunks' full geometry near the camera, coarse farther (after the missions: a mission's own camera — the
+    // Parsennbahn's cab far from the waiting player — has been placed by now)
+    streamTerrain(cameraSystem.camera.position);
     gta.update(dt, cameraSystem.camera); // getting in and out, the parked vehicles (js/gta.js)
     freeFlight.update(dt); // the wing off the back with the licence: its flight's clouds, vario and HUD
     if (warmedUp) trafficSigns.update(cameraSystem.camera.position); // the signs near the camera (all in the warm-up frame)
@@ -1427,8 +1448,10 @@ async function initApp() {
 
       const activeEnt = controllerManager.getActiveEntity();
       const mode = controllerManager.activeMode;
-      const kmh = Math.round(Math.abs(activeEnt.speed) * 3.6);
-      const altitudeM = Math.round(activeEnt.position.y + FRAME.H0); // metres above sea level (m ü. M.)
+      const vp = vehiclePanelNow(), at = vp?.at?.() || activeEnt.position;
+      const kmh = Math.round(Math.abs((typeof vp?.speed === 'function' ? vp.speed() : activeEnt.speed) || 0) * 3.6);
+      const topKmh = (typeof vp?.topSpeedKmh === 'function' ? vp.topSpeedKmh() : vp?.topSpeedKmh) || activeEnt.topSpeedKmh || topSpeedKmh[mode] || 80;
+      const altitudeM = Math.round(at.y + FRAME.H0); // metres above sea level (m ü. M.)
 
       renderClock();
       fastForward.update();
@@ -1437,10 +1460,10 @@ async function initApp() {
         elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';
       }
       if (elSpeed) elSpeed.textContent = String(kmh);
-      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (activeEnt.topSpeedKmh || topSpeedKmh[mode] || 80))})`;
+      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / topKmh)})`;
       if (elAltitude) elAltitude.textContent = altitudeM.toLocaleString('de-DE');
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
-      const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
+      const where = cameraSystem.getActivePreset().category === 'follow' || vp?.at ? at : cameraSystem.currentPos;
       renderLocation(getLocationLabel(where.x, where.z));
     }
   };

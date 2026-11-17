@@ -235,6 +235,7 @@ const skates = {
       hud.append(row, flash);
       run.hints([[['W'], 'hold: stroke'], [['Space'], 'in the green: power stroke'], [['A', 'D'], 'lean'], [['S'], 'brake']]);
     }
+    run.vehiclePanel({ label: 'Skates', topSpeedKmh: 50 }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => skates.drive(run, dt, cm);
     cm.personPoser = (dt, p) => skates.pose(run, dt, p);
     run.cleanups.push(() => {

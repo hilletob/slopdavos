@@ -1496,10 +1496,12 @@ const towerCrane = {
     w.trees = run.scene?.getObjectByName('Trees')?.userData.field || null;
     w.trees?.setClearing({ x: CRANE.tower.x, z: CRANE.tower.z, r: CRANE.rMax + 30 });
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; };
+    run.vehiclePanel({ label: 'Crane', speed: false, camera: false }); // (the cluster at the bottom right, js/main.js: up in the cab)
   },
   release(run) {
     const w = run.work, cm = run.hooks.controllerManager;
     if (!w?.held) return;
+    run.vehiclePanel(null);
     for (const off of w.held.controls) off();
     w.trees?.setClearing(null);
     if (w.held.had) cm.personDriver = w.held.prev; else delete cm.personDriver;

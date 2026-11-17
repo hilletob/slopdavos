@@ -3,6 +3,7 @@ import { parseTerrain, gridHeight, gridNormal, subdivideTriangles, fillCuts, gri
 import { DAVOS_DATA } from './davos-geodata.js';
 import { QUALITY } from './quality.js';
 import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
+import { funicularTunnels } from './funicular-track.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
 //  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
@@ -189,11 +190,62 @@ export const getRhBTunnels = () => {
     .filter((r) => r.kind === 'narrow_gauge' && r.tunnel && r.pts.length >= 4 && inside(r.pts[0], r.pts[1]) && inside(r.pts.at(-2), r.pts.at(-1)))
     .map((r) => tunnelProfile(r, groundHeight, 3));
 };
-const allTunnels = () => [...getRoadTunnels(), ...getRhBTunnels()];
+// The funiculars' tunnels (js/funicular-track.js): the track's own grade line, a bore 5.2 m wide
+export const getFunicularTunnels = () => funicularTunnels();
+const allTunnels = () => [...getRoadTunnels(), ...getRhBTunnels()]; // (the ones to walk and drive through)
 const roofOf = (profile) => getRoadTunnels().includes(profile) ? TUNNEL_ROOF.road : TUNNEL_ROOF.rail;
 /** The stretches of a tunnel open to the sky (tunnel-profile.js openRuns) */
-export const tunnelOpenRuns = (profile) => profile.openRuns || (profile.openRuns = openRuns(profile, groundHeight, roofOf(profile)));
-const tunnelCuts = () => cutRects || (cutRects = allTunnels().flatMap((t) => runRects(t, tunnelOpenRuns(t), t.width / 2 + 0.1)));
+export const tunnelOpenRuns = (profile) => profile.openRuns || (profile.openRuns = profile.funicular ? [...(funicularTunnelParts(profile)?.galleries || []), ...(funicularTunnelParts(profile)?.approaches || [])] : openRuns(profile, groundHeight, roofOf(profile)));
+/**
+ * A funicular tunnel's parts: the enclosed stretch { from, to } (the portals: where the ground first rises over
+ * the track, or the station underground at the path's end) and in it the `galleries`, where the mountain is too thin
+ * for a bore (under the roof plus a metre of cover): there the terrain is cut and js/tunnels.js closes a concrete box
+ * (cut and cover). Outside [from, to] the track runs in the open (on its bed, js/bergbahnen.js). Null: no portal at all.
+ */
+export function funicularTunnelParts(t) {
+  if (t.parts !== undefined) return t.parts;
+  const half = t.width / 2, roof = TUNNEL_ROOF.rail, n = Math.max(2, Math.ceil(t.length));
+  const S = [];
+  for (let i = 0; i <= n; i++) {
+    const s = t.length * i / n, p = t.at(s), side = [-half, 0, half].map((o) => groundHeight(p.x - p.dz * o, p.z + p.dx * o));
+    S.push({ s, under: side[1] - p.y, side: Math.max(...side) - p.y, cover: Math.min(...side) - p.y - roof });
+  }
+  // (the stretch reaches some 24 m past the mapped tunnel: the portal is where the ground over the track begins)
+  const inside = S.filter((q) => q.under >= 0.2);
+  const from = t.stationStart ? 0 : inside[0]?.s, to = t.stationEnd ? t.length : inside.at(-1)?.s;
+  if (from === undefined || to === undefined || to - from < 4) return (t.parts = null);
+  // (a bore needs some cover; deep inside, out of sight of the portals, a thin one will do: no cut there)
+  const mouths = [...(t.stationStart ? [] : [from]), ...(t.stationEnd ? [] : [to])];
+  for (const q of S) q.covered = q.cover >= 0.3 || (q.cover >= -1.5 && mouths.every((m) => Math.abs(q.s - m) > 45));
+  const galleries = [];
+  let start = null;
+  for (const q of S) {
+    const open = q.s >= from && q.s <= to && !q.covered;
+    if (open && start === null) start = q.s;
+    if ((!open || q === S.at(-1)) && start !== null) { galleries.push({ from: start, to: open ? q.s : Math.max(start, q.s - t.length / n) }); start = null; }
+  }
+  const merged = [];
+  for (const r of galleries) { if (merged.length && r.from - merged.at(-1).to < 8) merged.at(-1).to = r.to; else if (r.to - r.from > 0.5) merged.push({ ...r }); }
+  // The cuts before the portals: where the slope beside the track stands over it, retaining walls (no more than 20 m out)
+  const approaches = [];
+  for (const [m, dir] of [[from, -1], ...(t.stationEnd ? [] : [[to, 1]])]) {
+    if ((dir < 0 && t.stationStart)) continue;
+    let end = m;
+    for (const q of S) if ((q.s - m) * dir > 0 && (q.s - m) * dir <= 20 && q.side > 0.3) end = dir < 0 ? Math.min(end, q.s - 1) : Math.max(end, q.s + 1);
+    if (end !== m) approaches.push(dir < 0 ? { from: Math.max(0, end), to: m } : { from: m, to: Math.min(t.length, end) });
+  }
+  return (t.parts = { from, to, galleries: merged, approaches });
+}
+/** Whether the funicular track at (x, z) runs enclosed (in a bore or a gallery, from portal to portal) */
+export function funicularEnclosedAt(x, z) {
+  for (const t of getFunicularTunnels()) {
+    if (x < t.minX - 3 || x > t.maxX + 3 || z < t.minZ - 3 || z > t.maxZ + 3) continue;
+    const p = t.project(x, z, 3), parts = funicularTunnelParts(t);
+    if (p && parts && p.s >= parts.from - 0.01 && p.s <= parts.to + 0.01) return true;
+  }
+  return false;
+}
+const tunnelCuts = () => cutRects || (cutRects = [...allTunnels(), ...getFunicularTunnels()].flatMap((t) => runRects(t, tunnelOpenRuns(t), t.width / 2 + 0.1)));
 export function railTunnelHeight(x, z) {
   for (const tunnel of getRhBTunnels()) { const p = tunnel.project(x, z, 4); if (p) return p.y; }
   return NaN;

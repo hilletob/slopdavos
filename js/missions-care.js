@@ -306,6 +306,7 @@ const SNOWSHOES = {
     const particles = new ParticleBatch(run.scene);
     run.cleanups.push(() => particles.dispose());
     run.sn = { hud, pop, card, fill, needle, prints, birds, birdGeos, shoes, particles, stepSide: 1, walked: 0, popT: 0, seen: 0 };
+    run.vehiclePanel({ label: 'Snowshoes', topSpeedKmh: 10 }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => SNOWSHOES.drive(run, dt, cm);
     cm.personPoser = (dt, p) => SNOWSHOES.pose(run, dt, p, cm);
     run.cleanups.push(() => {

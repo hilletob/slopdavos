@@ -308,6 +308,7 @@ const xcSkis = {
     ], { replace: true });
     xc.ui.race.hidden = true;
     hud.append(choice, xc.ui.race);
+    run.vehiclePanel({ label: 'Cross-country skis', topSpeedKmh: 54 }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => xcSkis.drive(run, dt, cm);
     cm.personPoser = (dt, p) => xcSkis.pose(run, dt, p);
     run.cleanups.push(() => {
@@ -1531,6 +1532,7 @@ const skateBowl = {
     hud.append(row, sb.ui.combo, sb.ui.trick, sb.ui.bal);
     run.hints([[['W'], 'pump'], [['A', 'D'], 'carve / spin · grind: balance'], [['Space'], 'hold: grab · grind: drop in'], [['S'], 'brake']]);
     const cm = run.hooks.controllerManager;
+    run.vehiclePanel({ label: 'Skateboard', topSpeedKmh: 30, camera: false }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => skateBowl.drive(run, dt, cm);
     cm.personPoser = (dt, p) => skateBowl.pose(run, dt, p);
     run.cleanups.push(() => {

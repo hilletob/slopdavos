@@ -69,7 +69,8 @@ test('the Parsennbahn machinist is listed: all year at midday, on foot, with its
 
 test('the two sections come from js/bergbahnen-data.js: lengths, trains, top speeds, the tunnels', () => {
   const [lo, up] = SECTIONS.map(lineProfile);
-  assert.ok(Math.abs(lo.pathLen - 1912) < 3 && Math.abs(up.pathLen - 2205) < 3);
+  // (the smoothed track of js/funicular-track.js: shorter than the survey's bumps by some 15 m and 8 m)
+  assert.ok(Math.abs(lo.pathLen - 1896) < 3 && Math.abs(up.pathLen - 2197) < 3, `${lo.pathLen} ${up.pathLen}`);
   assert.equal(lo.trainLength, 25.5); assert.equal(up.trainLength, 19);
   assert.equal(lo.vmax, 10); assert.equal(up.vmax, 6.2);
   // the lower section starts under the Salzgäba slope, the upper one ends in the Weissfluhjoch's tunnel

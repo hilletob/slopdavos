@@ -263,6 +263,7 @@ const hornSledge = {
     };
     // (the key bar says what the keys do on the sledge; the touch stick steers, brakes and ducks the same way)
     run.hints([[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
+    run.vehiclePanel({ label: 'Horn sledge', topSpeedKmh: 80 }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => hornSledge.drive(run, dt, cm);
     cm.personPoser = (dt, p) => hornSledge.pose(run, dt, p);
     run.cleanups.push(() => {
@@ -574,6 +575,7 @@ const tobogganRun = {
       saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
     };
     run.hints([[['W'], 'push off'], [['S'], 'hold: brake'], [['A', 'D'], 'lean into the bend']]);
+    run.vehiclePanel({ label: 'Toboggan', topSpeedKmh: 40 }); // (the cluster at the bottom right, js/main.js: the person's speed)
     cm.personDriver = (dt) => tobogganRun.drive(run, dt, cm);
     cm.personPoser = (dt, p) => tobogganRun.pose(run, dt, p);
     // the phone's tilt leans too (iOS asks once, on the first touch; a desktop has none and nothing changes)

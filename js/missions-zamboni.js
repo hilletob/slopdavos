@@ -311,6 +311,8 @@ const zamboni = {
     // the keys: the driving in the key bar, Space for the conditioner (the touch screens' jump button), V the view
     run.hints([[['W'], 'drive'], [['S'], 'brake · back up'], [['A', 'D'], 'steer'], [['Space'], 'conditioner on/off']]);
     run.actions([{ id: 'zamboni-view', label: 'Overview', icon: 'i-eye', keys: ['KeyV'], keyboard: false, pad: 'x', run: () => zamboni.toggleView(run) }]);
+    // the cluster at the bottom right: the machine and its speed (the person's, js/main.js); the camera is the mission's
+    run.vehiclePanel({ label: 'Ice resurfacer', topSpeedKmh: 15, camera: false });
     // the driver: the controllers' person drives the machine and sits at its wheel meanwhile
     cm.personDriver = (dt) => zamboni.drive(run, dt, cm);
     cm.personPoser = (dt, p) => zamboni.pose(run, dt, p);

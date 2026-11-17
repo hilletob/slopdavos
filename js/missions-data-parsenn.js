@@ -21,7 +21,7 @@
 // shuttle: 0 at the valley station, runLen at the top, its front then 0.3 m short of the track's end: the stop board).
 
 import { BERGBAHNEN } from './bergbahnen-data.js';
-import { DAVOS_DATA } from './davos-geodata.js';
+import { funicularTrack } from './funicular-track.js';
 
 export const PARSENN_ID = 'parsenn-maschinist';
 export const PARSENN_SCORE_MODE = 'points';
@@ -51,7 +51,7 @@ export const PB = {
   fade: 2.5, // s of the change at Höhenweg (to the upper car)
   firstDeparture: 20, // s: the first train leaves Davos Dorf at 0:20 on the run's clock
   change: 45, // s from the arrival at Höhenweg to the upper departure (timetable)
-  margin: 1.1, reserve: 10, // the timetable: the fastest run × margin + reserve s, to 5 s
+  margin: 1.08, reserve: 10, // the timetable: the fastest run × margin + reserve s, to 5 s
   hornBefore: 30, // s: a horn this long before leaving counts
   timelapse: 4, // × the time in the time-lapse
   timelapseClear: 150 // m to the next lower limit or the board: the time-lapse ends there
@@ -63,27 +63,17 @@ export const SECTIONS = [
   { id: 'upper', lineId: 'Parsennbahn|1160', from: 'Höhenweg', to: 'Weissfluhjoch', passengers: 34, side: 1 }
 ];
 
-// The funiculars' tunnels (OSM tunnel=yes in js/davos-geodata.js, as js/bergbahnen.js finds them): along the track
-const TUNNELS = (DAVOS_DATA.railways || []).filter((r) => r.kind === 'funicular' && r.tunnel).map((r) => r.pts);
-function inTunnel(x, z) {
-  for (const pts of TUNNELS) for (let i = 2; i < pts.length; i += 2) {
-    const ax = pts[i - 2], az = pts[i - 1], dx = pts[i] - ax, dz = pts[i + 1] - az, L2 = dx * dx + dz * dz || 1e-9;
-    const t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1);
-    if (Math.hypot(ax + dx * t - x, az + dz * t - z) < 3) return true;
-  }
-  return false;
-}
-
-/** A section's line: { pathLen, trainLength, runLen, vmax (m/s), tunnels: [[from, to]] (m along the track) } */
+/** A section's line: { pathLen, trainLength, runLen, vmax (m/s), tunnels: [[from, to]] (m along the track) }; the track
+ *  as js/bergbahnen.js lays it (js/funicular-track.js: the eased plan and the smooth grade line), the tunnels OSM's */
 export function lineProfile(section) {
   const f = BERGBAHNEN.funiculars.find((l) => l.id === section.lineId);
   if (!f) return null;
-  const p = f.paths[0];
+  const p = funicularTrack(f)[0];
   let len = 0, start = null;
   const tunnels = [];
-  for (let i = 0; i < p.length; i += 3) {
-    if (i) len += Math.hypot(p[i] - p[i - 3], p[i + 1] - p[i - 2], p[i + 2] - p[i - 1]);
-    const t = inTunnel(p[i], p[i + 2]);
+  for (let i = 0; i < p.length; i++) {
+    if (i) len += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y, p[i].z - p[i - 1].z);
+    const t = p[i].tunnel;
     if (t && start === null) start = len;
     if (!t && start !== null) { tunnels.push([start, len]); start = null; }
   }

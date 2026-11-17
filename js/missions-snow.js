@@ -77,6 +77,7 @@ function riderFeature(kind) {
       run.hints(board
         ? [[['A', 'D'], 'carve · in the air: spin'], [['W', 'S'], 'tuck, brake · in the air: flip'], [['Space'], 'in the air: grab']]
         : [[['A', 'D'], 'steer'], [['W'], 'tuck'], [['S'], 'brake']]);
+      run.vehiclePanel({ label: board ? 'Snowboard' : 'Skis', topSpeedKmh: board ? 90 : 100 }); // (the cluster at the bottom right, js/main.js)
       // the rider moves the pedestrian (js/controllers.js personDriver) while the mission lasts
       cm.personDriver = (dt) => drive(run, dt, cm);
       run.cleanups.push(() => { if (cm.personDriver) cm.personDriver = null; });
@@ -468,6 +469,7 @@ function mergeBoxes(parts) {
 const mtbFeature = {
   setup(run) {
     run.mtb = { ...buildCheckpointArches(run, run.def.createState().cps), wobble: 0, warned: false, toast: createToast(run) };
+    run.vehiclePanel({ label: 'Mountain bike' }); // (the cluster at the bottom right, js/main.js: the cyclist's speed)
   },
   reset(run) {
     Object.assign(run.mtb, { shown: -1, wobble: 0, crashT: 0, warned: false });

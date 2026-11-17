@@ -323,8 +323,7 @@ const jetpack = {
     run.cleanups.push(() => steam.dispose());
     person.label = 'Jetpack';
     person.topSpeedKmh = 110;
-    const hudLabel = document.getElementById('hud-active-mode'); // (js/main.js writes it only when the mode changes)
-    if (hudLabel) hudLabel.textContent = 'Jetpack';
+    run.vehiclePanel({ label: 'Jetpack', topSpeedKmh: 110 }); // (the cluster at the bottom right, js/main.js)
     // the HUD: the tank over the numbers
     const hud = el('div', 'panel jp-hud');
     const cell = (key) => { const c = el('div', 'jp-cell'), v = el('span', 'jp-v', '–'); c.append(el('span', 'jp-k', t(key)), v); return { c, v }; };

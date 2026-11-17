@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { BERGBAHNEN } from '../js/bergbahnen-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { funicularTrack, funicularTunnels, trackLength } from '../js/funicular-track.js';
 
 // js/bergbahnen.js's terminal plan (its three.js imports stubbed: only the table is needed)
 const require = createRequire(import.meta.url);
@@ -11,8 +12,10 @@ const { loadModule } = require('./helpers/module.cjs');
 const stub = new Proxy({}, { get: () => undefined });
 const { LIFT_TERMINALS, LIFT_PORTALS } = loadModule(readFileSync(new URL('../js/bergbahnen.js', import.meta.url), 'utf8'), {
   imports: {
-    ...Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', 'three/addons/geometries/RoundedBoxGeometry.js', './tsl-materials.js', './terrain.js', './quality.js'].map((k) => [k, stub])),
-    './bergbahnen-data.js': { BERGBAHNEN }, './davos-geodata.js': { DAVOS_DATA }, './swissbuildings3d.js': { excludeBuildings() {} }
+    ...Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', 'three/addons/geometries/RoundedBoxGeometry.js', './tsl-materials.js', './quality.js'].map((k) => [k, stub])),
+    './terrain.js': { groundHeight: () => 0, funicularEnclosedAt: () => false },
+    './bergbahnen-data.js': { BERGBAHNEN }, './davos-geodata.js': { DAVOS_DATA }, './swissbuildings3d.js': { excludeBuildings() {}, carveBuildings() {} },
+    './funicular-track.js': { funicularTrack }
   },
   globals: { Math, Number, Map, Infinity },
   filename: 'bergbahnen.js'
@@ -69,4 +72,30 @@ test('the T-bars, drag lifts, gondolas and tramways get terminals at both ends, 
   for (const k of Object.keys(LIFT_PORTALS)) assert.ok(LIFT_TERMINALS.some((t) => t.facade === LIFT_PORTALS[k]), `${k}: no such housed end`);
   // the three short drag lifts end to end at the Schatzalp: one terminal where one ends and the next begins
   assert.equal(LIFT_TERMINALS.filter((t) => t.kind === 'drag_lift' && t.mode === 'shared').length, 2);
+});
+
+test('the funiculars\' track: a smooth grade line, never under the ground in the open, the stations where they were', () => {
+  for (const f of BERGBAHNEN.funiculars) {
+    const [p, q] = funicularTrack(f);
+    assert.equal(p.length, f.paths[0].length / 3);
+    // the ends stay at the stations (within a few centimetres)
+    assert.ok(Math.hypot(p[0].x - f.paths[0][0], p[0].z - f.paths[0][2]) < 0.01, f.label);
+    let s = 0, worst = Infinity, kink = 0;
+    for (let i = 1; i < p.length - 1; i++) {
+      if (!p[i].tunnel) worst = Math.min(worst, p[i].y - p[i].ground);
+      const a = Math.hypot(p[i].x - p[i - 1].x, p[i].z - p[i - 1].z), b = Math.hypot(p[i + 1].x - p[i].x, p[i + 1].z - p[i].z);
+      kink = Math.max(kink, Math.abs((p[i + 1].y - p[i].y) / b - (p[i].y - p[i - 1].y) / a) / ((a + b) / 2));
+      s += a;
+    }
+    assert.ok(worst > -0.15, `${f.label}: ${worst.toFixed(2)} m under the ground`);
+    assert.ok(1 / kink > 40, `${f.label}: a vertical curve of ${(1 / kink).toFixed(0)} m`);
+    // both cars' paths agree where they run together
+    assert.ok(Math.abs(q[0].y - p[0].y) < 0.01 && Math.abs(q.at(-1).y - p.at(-1).y) < 0.01);
+    assert.ok(trackLength(p) > s);
+  }
+  // the tunnels with a portal: the Parsennbahn's three (Salzgäba, the mid-line one, the Weissfluhjoch's); the Schatzalpbahn's
+  // short ones at its stations are the stations' covers
+  const t = funicularTunnels();
+  assert.equal(t.filter((x) => /Parsenn/.test(x.name)).length, 3);
+  assert.equal(t.filter((x) => /Schatzalp/.test(x.name)).length, 0);
 });

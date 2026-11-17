@@ -117,6 +117,82 @@ function roofColor(seed, pitched) {
 // Longitude) lies within r of an exclusion ({ x, z, r }, world) is left out of the baked tiles
 const EXCLUSIONS = [];
 export function excludeBuildings(list) { EXCLUSIONS.push(...list); }
+// Passages carved through the buildings (js/bergbahnen.js: the funiculars' station halls, lined there): boxes
+// { x, z (centre), ux, uz (unit, along), hl, hw (half length, half width), y0, y1 } whose inside is cut out of the walls,
+// floors and roofs, the triangles clipped at the box's faces
+const CARVES = [];
+export function carveBuildings(list) {
+  for (const c of list) { const r = Math.hypot(c.hl, c.hw); CARVES.push({ ...c, minX: c.x - r, maxX: c.x + r, minZ: c.z - r, maxZ: c.z + r }); }
+}
+// The part of a convex polygon (vertices: Float64Arrays of the attributes, [x, y, z, ...]) where f >= 0, and where f < 0
+function splitPolygon(poly, f) {
+  const keep = [], rest = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length], fp = f(p), fq = f(q);
+    (fp >= 0 ? keep : rest).push(p);
+    if ((fp >= 0) !== (fq >= 0)) {
+      const t = fp / (fp - fq), v = new Float64Array(p.length);
+      for (let k = 0; k < p.length; k++) v[k] = p[k] + (q[k] - p[k]) * t;
+      keep.push(v); rest.push(v);
+    }
+  }
+  return [keep, rest];
+}
+// Cuts the CARVES out of a baked tile's triangles; `attrs`: [array, itemSize] per vertex attribute, position first.
+// Returns the new arrays and count (or null when no triangle was touched)
+function carveTriangles(total, attrs) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const P = attrs[0][0];
+  for (let i = 0; i < total; i++) { const x = P[i * 3], z = P[i * 3 + 2]; if (x < minX) minX = x; if (x > maxX) maxX = x; if (z < minZ) minZ = z; if (z > maxZ) maxZ = z; }
+  const boxes = CARVES.filter((c) => c.maxX >= minX && c.minX <= maxX && c.maxZ >= minZ && c.minZ <= maxZ);
+  if (!boxes.length) return null;
+  const width = attrs.reduce((n, [, size]) => n + size, 0);
+  const vertex = (i) => { const v = new Float64Array(width); let o = 0; for (const [a, size] of attrs) { for (let k = 0; k < size; k++) v[o + k] = a[i * size + k]; o += size; } return v; };
+  const planes = (c) => [
+    (v) => (v[0] - c.x) * c.ux + (v[2] - c.z) * c.uz - c.hl, (v) => -((v[0] - c.x) * c.ux + (v[2] - c.z) * c.uz) - c.hl,
+    (v) => (v[0] - c.x) * -c.uz + (v[2] - c.z) * c.ux - c.hw, (v) => -((v[0] - c.x) * -c.uz + (v[2] - c.z) * c.ux) - c.hw,
+    (v) => v[1] - c.y1, (v) => c.y0 - v[1]
+  ];
+  const boxPlanes = boxes.map(planes);
+  const out = []; // polygons (or untouched triangles' first index)
+  let touched = false;
+  for (let t = 0; t < total; t += 3) {
+    let polys = null;
+    let tx0 = Infinity, tx1 = -Infinity, tz0 = Infinity, tz1 = -Infinity, ty0 = Infinity, ty1 = -Infinity;
+    for (let j = t; j < t + 3; j++) { const x = P[j * 3], y = P[j * 3 + 1], z = P[j * 3 + 2]; tx0 = Math.min(tx0, x); tx1 = Math.max(tx1, x); ty0 = Math.min(ty0, y); ty1 = Math.max(ty1, y); tz0 = Math.min(tz0, z); tz1 = Math.max(tz1, z); }
+    for (let bi = 0; bi < boxes.length; bi++) {
+      const c = boxes[bi], fs = boxPlanes[bi];
+      if (tx1 < c.minX || tx0 > c.maxX || tz1 < c.minZ || tz0 > c.maxZ || ty1 < c.y0 || ty0 > c.y1) continue;
+      const list = polys || [[vertex(t), vertex(t + 1), vertex(t + 2)]];
+      // (quick: wholly outside one face of the box)
+      if (list.length === 1 && list[0].length === 3 && fs.some((f) => list[0].every((v) => f(v) >= 0))) continue;
+      const next = [];
+      for (const poly of list) {
+        let rest = poly;
+        for (const f of fs) {
+          const [keep, inside] = splitPolygon(rest, f);
+          if (keep.length >= 3) next.push(keep);
+          rest = inside;
+          if (rest.length < 3) break;
+        }
+      }
+      polys = next;
+      touched = true;
+    }
+    out.push(polys || t);
+  }
+  if (!touched) return null;
+  let n = 0;
+  for (const o of out) if (typeof o === 'number') n += 3; else for (const poly of o) n += (poly.length - 2) * 3;
+  const arrays = attrs.map(([a, size]) => new a.constructor(n * size));
+  let w = 0;
+  const put = (v) => { let o = 0; attrs.forEach(([a, size], k) => { const isInt = !(a instanceof Float32Array || a instanceof Float64Array); for (let j = 0; j < size; j++) arrays[k][w * size + j] = isInt ? Math.round(v[o + j]) : v[o + j]; o += size; }); w++; };
+  for (const o of out) {
+    if (typeof o === 'number') { for (let j = 0; j < 3; j++) put(vertex(o + j)); continue; }
+    for (const poly of o) for (let j = 1; j + 1 < poly.length; j++) { put(poly[0]); put(poly[j]); put(poly[j + 1]); }
+  }
+  return { total: n, arrays };
+}
 
 export function bakeTile(gltf, tile, stats) {
   const { featureTable, batchTable } = tile;
@@ -287,9 +363,9 @@ export function bakeTile(gltf, tile, stats) {
   const ground = batchTable.GELAENDEPUNKT || [];
   const kinds = batchTable.OBJEKTART || [];
   const egids = batchTable.EGID || [];
-  const colors = new Uint8Array(total * 4);
-  const above = new Float32Array(total);
-  const style = new Float32Array(total * 4);
+  let colors = new Uint8Array(total * 4);
+  let above = new Float32Array(total);
+  let style = new Float32Array(total * 4);
   // Facades measured in street-level images (js/facades-data.js, Mapillary): per building its colour and timber share,
   // keyed by its surveyed centre; trusted from 25% confidence
   const measured = new Map();
@@ -341,6 +417,16 @@ export function bakeTile(gltf, tile, stats) {
     const roof = normalsY[i] > 0.35;
     const c = roof ? roofColor(seed, normalsY[i] < 0.97) : f ? measuredColor(f) : facadeColor(seed, kinds[b] || '');
     colors[i * 4] = c.r * 255; colors[i * 4 + 1] = c.g * 255; colors[i * 4 + 2] = c.b * 255; colors[i * 4 + 3] = roof ? 255 : 0;
+  }
+  // The passages carved through (the funiculars' station halls)
+  if (CARVES.length) {
+    const cut = carveTriangles(total, [[positions, 3], [colors, 4], [above, 1], [style, 4], [batchOf, 1], [normalsY, 1]]);
+    if (cut) {
+      ({ total } = cut);
+      [positions, colors, above, style, batchOf, normalsY] = cut.arrays;
+      stats.carved = (stats.carved || 0) + 1;
+      if (!total) return null;
+    }
   }
   // The roofs of the buildings whose patch of orthophoto shows ground (data/roofs/index.json `ground`, tools/roof-ground.py:
   // newer than the photo, or missed by it) keep the roof colour: drapeRoofs and setRoofAtlasUV leave them out. Not a

@@ -129,7 +129,8 @@ function tunnelMaterial() {
 }
 // The track in the tunnels (js/bergbahnen.js lays none there): ballast, the sleepers every 0.8 m, the two rails
 function floorMaterial(gauge) {
-  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: true });
+  // (both sides: the sweep's left-to-right rows wind it facing down, so one-sided it was culled and no track showed)
+  const m = new THREE.MeshBasicNodeMaterial({ vertexColors: true, side: THREE.DoubleSide });
   const x = uv().x.sub(0.5).mul(4.6), along = uv().y; // m across, m along
   const phase = fract(along.div(0.8));
   const sleeper = smoothstep(0.0, 0.04, phase).mul(smoothstep(0.38, 0.34, phase)).mul(smoothstep(1.3, 1.2, x.abs()));
@@ -167,7 +168,7 @@ function cabGeometry() {
     [2.4, 0.62, 0.1, 0, -0.68, 1.18, red], // the front wall under the windscreen
     [2.1, 0.06, 0.6, 0, -0.4, 0.86, panel], // the desk top
     [1.1, 0.22, 0.05, 0.15, -0.3, 1.06, dark, -0.45], // the instrument hood, raked
-    [0.13, 1.25, 0.13, 1.02, 0.24, 1.2, frame], [0.13, 1.25, 0.13, -1.02, 0.24, 1.2, frame], [0.07, 1.2, 0.08, 0, 0.24, 1.22, frame], // the windscreen's pillars and the post between its panes
+    [0.13, 1.25, 0.13, 1.02, 0.24, 1.2, frame], [0.13, 1.25, 0.13, -1.02, 0.24, 1.2, frame], // the windscreen's pillars (one pane across, no post between)
     [2.4, 0.26, 0.14, 0, 0.84, 1.2, frame], [2.3, 0.1, 0.14, 0, -0.36, 1.21, frame], // its top and bottom
     [0.06, 1.0, 1.8, 1.32, -0.85, 0.3, red], [0.06, 1.0, 1.8, -1.32, -0.85, 0.3, red], // the walls under the side windows
     [0.1, 1.5, 0.1, 1.32, 0.35, -0.5, frame], [0.1, 1.5, 0.1, -1.32, 0.35, -0.5, frame], // the side windows' pillars
@@ -225,6 +226,8 @@ const parsennCab = {
     const pb = run.pb = { ctrls, lines: parsennLines(), input: { up: false, down: false, brake: false }, hold: { up: 0, down: 0 }, active: false, popT: 0, fadeOut: 0, P: {}, Q: {}, look: { yaw: 0, pitch: 0 } };
     run.group.add(pb.world = new THREE.Group());
     pb.world.name = 'ParsennCab';
+    // the cluster at the bottom right: the car, its speed and where it is (the camera is the cab's: no switch)
+    run.vehiclePanel({ label: 'Funicular', speed: () => (pb.active && run.state?.drive?.v) || 0, topSpeedKmh: () => (pb.active && run.state?.drive ? driveLine(run.state.drive).topKmh : 0), at: () => (pb.active ? run.hooks.cameraSystem?.camera?.position : null), camera: false });
     if (ctrls.every(Boolean)) parsennCab.buildWorld(run);
     // the cab round the eye: placed with the camera every frame
     pb.cab = new THREE.Group();
@@ -279,7 +282,7 @@ const parsennCab = {
       const stationLen = line.trainLength + 10;
       const hallW = (s) => Math.max(clamp((stationLen - s) / 8 + 1, 0, 1), clamp((s - (len - stationLen)) / 8 + 1, 0, 1)); // (1 in a station)
       const floors = [];
-      for (const [a, b] of line.tunnels) {
+      for (const [a, b] of ctrl.bores || line.tunnels) { // (from portal to portal: js/bergbahnen.js, js/tunnels.js)
         const s0 = Math.max(0, a - 2), s1 = b > len - 1 ? len + PB.buffer + 6 : b + 2; // (the top station's hall runs on past the buffer)
         parts.tube.push(sweep(ctrl, 0, s0, s1, step, (s) => blend(hallW(s)), (s) => 1 + 4 * hallW(s)));
         floors.push(sweep(ctrl, 0, s0, s1, step, () => [[-2.3, 0.04], [2.3, 0.04]], (s) => 1 + 1.5 * hallW(s)));

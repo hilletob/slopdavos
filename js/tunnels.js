@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { Fn, attribute, cameraPosition, clamp, exp, float, fract, fwidth, max, mix, normalize, positionWorld, smoothstep, vec3 } from 'three/tsl';
-import { getRoadTunnels, getRhBTunnels, tunnelOpenRuns, groundHeight, TUNNEL_ROOF, ROAD_TOP } from './terrain.js';
+import { getRoadTunnels, getRhBTunnels, getFunicularTunnels, funicularTunnelParts, tunnelOpenRuns, groundHeight, TUNNEL_ROOF, ROAD_TOP } from './terrain.js';
 import { isGallery } from './tunnel-profile.js';
 import { cityUniforms } from './tsl-materials.js';
 
@@ -276,6 +276,69 @@ function addTunnel(parts, profile, railway) {
   for (const [s, dir] of mouths) addMouth(parts, profile.at(s), half, height, dir, arch);
 }
 
+// A funicular's tunnel (js/funicular-track.js, js/terrain.js funicularTunnelParts): enclosed from portal to portal, the
+// track itself js/bergbahnen.js' outside. At each portal (not at a station underground) the mouth with its head wall up
+// to the slope, the retaining walls of the cut before it, and the lit bore FUNICULAR_REACH metres in (beyond that nobody looks in; the
+// machinist's camera rides in js/missions-parsenn.js' own tube). Where the mountain is too thin for a bore, a cut-and-cover
+// gallery: the terrain is cut (js/terrain.js), the concrete box's walls rise to the ground or the roof, its lid follows
+// the slope.
+const FUNICULAR_REACH = 40;
+function addFunicularTunnel(parts, profile) {
+  const t = funicularTunnelParts(profile);
+  if (!t) return;
+  const half = profile.width / 2, height = RAIL_BORE.roof, floorUp = 0, arch = archSection(half, height);
+  const mouths = [];
+  if (!profile.stationStart) mouths.push([t.from, 1]);
+  if (!profile.stationEnd) mouths.push([t.to, -1]);
+  const toMouth = (s) => mouths.reduce((best, [m]) => Math.min(best, Math.abs(s - m)), Infinity);
+  const inGallery = (s) => t.galleries.some((r) => s >= r.from && s <= r.to);
+  const stops = new Set([t.from, t.to]);
+  for (const r of t.galleries) { stops.add(r.from); stops.add(r.to); }
+  for (let s = t.from; s < t.to; s += 2) stops.add(s);
+  const list = [...stops].filter((s) => s >= t.from && s <= t.to).sort((a, b) => a - b).filter((s, i, all) => i === 0 || s - all[i - 1] > 0.05);
+  const shell = half + 0.15, lid = half + 0.35;
+  for (let i = 0; i + 1 < list.length; i++) {
+    const s0 = list[i], s1 = list[i + 1], mid = (s0 + s1) / 2;
+    const a = profile.at(s0), b = profile.at(s1);
+    if (toMouth(mid) <= FUNICULAR_REACH) {
+      const ma = toMouth(s0), mb = toMouth(s1);
+      boreStrip(parts.railFloor, a, b, -half, floorUp, half, floorUp, ma, mb);
+      for (const sign of [-1, 1]) for (let k = 0; k + 1 < arch.length; k++) boreStrip(parts.railLining, a, b, sign * arch[k][0], arch[k][1], sign * arch[k + 1][0], arch[k + 1][1], ma, mb);
+      const crown = arch.at(-1);
+      boreStrip(parts.railLining, a, b, -crown[0], crown[1], crown[0], crown[1], ma, mb);
+    }
+    if (inGallery(mid)) {
+      // the box: its outer walls up to the ground (or the roof and its slab), the lid across following the slope
+      const top = (p, side) => Math.max(height + 0.6, groundAt(p, side) - p.y + 0.05);
+      for (const side of [-shell, shell]) quad(parts.concrete, at(a, side, -0.3), at(b, side, -0.3), at(b, side, top(b, side)), at(a, side, top(a, side)));
+      quad(parts.concrete, at(a, -lid, top(a, -shell)), at(a, lid, top(a, shell)), at(b, lid, top(b, shell)), at(b, -lid, top(b, -shell)));
+    }
+  }
+  for (const [s, dir] of mouths) {
+    const p = profile.at(s);
+    addMouth(parts, p, half, height, dir, arch);
+    // the portal's face round it, wider and higher than the gallery's box behind (its walls and lid end inside it)
+    const wing = lid + 0.5, face = Math.max(height + 1.2, ...[-shell, 0, shell].map((o) => (inGallery(s + dir) ? groundAt(p, o) - p.y + 0.35 : 0)));
+    const w2 = (wing - half) / 2;
+    box(parts.concrete, p, -(half + w2), -0.6, w2, face + 0.6, -dir * 0.45, 0.9);
+    box(parts.concrete, p, half + w2, -0.6, w2, face + 0.6, -dir * 0.45, 0.9);
+    box(parts.concrete, p, 0, height + 0.2, half, face - height - 0.2, -dir * 0.45, 0.9);
+    box(parts.concrete, p, 0, face, wing + 0.15, 0.25, -dir * 0.45, 1.2); // (the coping)
+  }
+  // the cuts before the portals: the floor between retaining walls up to the slope (the track is js/bergbahnen.js')
+  for (const r of t.approaches) {
+    for (let s0 = r.from; s0 < r.to - 0.01; s0 += 2) {
+      const s1 = Math.min(r.to, s0 + 2), a = profile.at(s0), b = profile.at(s1);
+      quad(parts.ballastOut, at(a, -half, -0.02), at(a, half, -0.02), at(b, half, -0.02), at(b, -half, -0.02));
+      for (const side of [-half, half]) {
+        const topA = groundAt(a, side) - a.y + 0.15, topB = groundAt(b, side) - b.y + 0.15;
+        if (topA <= 0 && topB <= 0) continue;
+        quad(parts.concrete, at(a, side, -0.3), at(b, side, -0.3), at(b, side, Math.max(topB, 0)), at(a, side, Math.max(topA, 0)));
+      }
+    }
+  }
+}
+
 export function buildTunnels(scene) {
   const group = new THREE.Group();
   group.name = 'Landwasser and RhB tunnels';
@@ -286,6 +349,7 @@ export function buildTunnels(scene) {
   }
   for (const profile of getRoadTunnels()) addTunnel(parts, profile, false);
   for (const profile of getRhBTunnels()) addTunnel(parts, profile, true);
+  for (const profile of getFunicularTunnels()) addFunicularTunnel(parts, profile);
   for (const [name, part] of Object.entries(parts)) {
     const vertices = part.position || part;
     if (!vertices.length) continue;
