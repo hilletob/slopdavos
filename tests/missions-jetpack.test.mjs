@@ -240,6 +240,20 @@ test('a house is a wall up to its roof and ground above it; over the roof\'s edg
   assert.ok(street.phase === 'ground' && street.z < 30 && street.y === 0);
 });
 
+test('a roof that is not flat (the Eisstadion\'s): a wall and ground only as high as the roof over the spot', () => {
+  // a stand 10 m high over z = 0 … 30, its pitched roof rising to 30 m at z = 30 … 60 (js/landmark-buildings.js roofAt)
+  const roofAt = (x, z) => (z < 30 ? 10 : 10 + (z - 30) * (20 / 30));
+  const hall = { maxY: 30, roofAt };
+  const world = jetWorld(() => 0, (x, z, y) => (z >= 0 && z <= 60 && (y === null || y < roofAt(x, z)) ? hall : null));
+  assert.equal(world.groundAt(0, 15, 12), 10);
+  assert.ok(Math.abs(world.groundAt(0, 45, 25) - 20) < 1e-9);
+  assert.equal(world.groundAt(0, 15, 5), 0, 'under the stand\'s roof: the street');
+  // level at 15 m over the stand: no wall until the pitched roof rises to that height (z = 37.5)
+  const f = hover(15, { z: -5, vz: 10 });
+  for (let i = 0; i < 600 && !f.bumps; i++) stepJet(f, { pitch: 0.5 }, 1 / 60, world.groundAt, world.solidAt);
+  assert.ok(f.bumps === 1 && f.z > 35 && f.z < 37.6, `the wall at z ${f.z}`);
+});
+
 test('only the pit crew\'s pad counts for the full tank; a dry pilot near a pad walks over to it', () => {
   const [, refuel, , land] = JETPACK_MISSION.objectives;
   // back at the start after the town's gates: its drums fill the tank, but the step still points at the pad

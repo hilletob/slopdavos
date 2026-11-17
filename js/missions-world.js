@@ -526,12 +526,26 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       ctx.fillRect(-g * 0.4, -g * 0.15, g * 0.8, g * 0.05); // the door's seam
       break;
     }
+    case 'funicular': { // a funicular car on its slope, the rope running up ahead of it (js/missions-data-parsenn.js)
+      ctx.lineWidth = g * 0.12;
+      ctx.beginPath(); ctx.moveTo(-g, g * 0.95); ctx.lineTo(g, -g * 0.45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-g * 0.75, g * 0.55); ctx.lineTo(-g * 0.75, -g * 0.25); ctx.lineTo(g * 0.35, -g * 1.0); ctx.lineTo(g * 0.35, -g * 0.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = def.colour || '#d3202a';
+      for (const k of [0, 1]) { const x = -g * 0.6 + k * g * 0.5, y = -g * 0.18 - k * g * 0.34; ctx.beginPath(); ctx.moveTo(x, y + g * 0.05); ctx.lineTo(x, y - g * 0.2); ctx.lineTo(x + g * 0.38, y - g * 0.45); ctx.lineTo(x + g * 0.38, y - g * 0.2); ctx.closePath(); ctx.fill(); }
+      break;
+    }
     case 'jetpack': { // the two tanks side by side, a flame under each (js/missions-data-jetpack.js)
       for (const s of [-1, 1]) {
         ctx.beginPath(); ctx.arc(s * g * 0.34, -g * 0.5, g * 0.26, Math.PI, 0); ctx.lineTo(s * g * 0.34 + g * 0.26, g * 0.15); ctx.lineTo(s * g * 0.34 - g * 0.26, g * 0.15); ctx.closePath(); ctx.fill();
         ctx.beginPath(); ctx.moveTo(s * g * 0.34 - g * 0.2, g * 0.28); ctx.lineTo(s * g * 0.34 + g * 0.2, g * 0.28); ctx.lineTo(s * g * 0.34, g * 0.95); ctx.closePath(); ctx.fill();
       }
       ctx.fillRect(-g * 0.12, -g * 0.3, g * 0.24, g * 0.2); // the frame between them
+      break;
+    }
+    case 'spit': { // a falling drop over its splat (js/missions-data-samd.js)
+      ctx.beginPath(); ctx.moveTo(0, -g); ctx.bezierCurveTo(g * 0.15, -g * 0.55, g * 0.5, -g * 0.25, g * 0.5, g * 0.05);
+      ctx.arc(0, g * 0.05, g * 0.5, 0, Math.PI); ctx.bezierCurveTo(-g * 0.5, -g * 0.25, -g * 0.15, -g * 0.55, 0, -g); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, g * 0.82, g * 0.85, g * 0.16, 0, 0, Math.PI * 2); ctx.fill();
       break;
     }
     default:

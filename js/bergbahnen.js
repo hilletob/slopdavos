@@ -121,6 +121,7 @@ function at(line, s, out = {}) {
 function shuttle(len, vmax, accel = 0.6, dwell = 40) {
   const st = { s: Math.random() * len, dir: 1, v: 0, wait: 0, a: 0 };
   st.update = (dt) => {
+    if (st.held) return st; // (a mission drives it: js/missions-parsenn.js, FUNICULAR_CONTROLS)
     if (st.wait > 0) { st.wait -= dt; st.v = 0; st.a = 0; return st; }
     const remaining = st.dir > 0 ? len - st.s : st.s;
     const brake = Math.sqrt(2 * accel * Math.max(0, remaining - 0.3));
@@ -373,14 +374,15 @@ function schatzalpAtlas(names) {
 // The cars' names: «Zauberberg» is on the photo; the other car's name could not be found (it carries the same here)
 const SCHATZALP_NAMES = ['ZAUBERBERG'];
 
-// A tunnel portal: a concrete frame round the opening (dark inside), wing walls; along `dir` out of the tunnel
-function portalGeometry(gauge) {
+// A tunnel portal: a concrete frame round the opening (dark inside), wing walls; along `dir` out of the tunnel. The dark
+// inside is a mesh of its own (`hole`): a camera in the tunnel (js/missions-parsenn.js) looks out through the portal.
+function portalGeometry(gauge, hole = false) {
   const w = Math.max(4.2, gauge + 3.2), h = 4.6;
+  if (hole) return boxes([[w, h, 0.2, 0, h / 2, -0.6, 0x0b0c0d]]);
   return boxes([
     [w + 1.4, 0.9, 1.2, 0, h + 0.45, 0, 0xa7a49d],
     [0.7, h, 1.2, -(w / 2 + 0.35), h / 2, 0, 0xa09d96],
     [0.7, h, 1.2, w / 2 + 0.35, h / 2, 0, 0xa09d96],
-    [w, h, 0.2, 0, h / 2, -0.6, 0x0b0c0d],
     [0.5, 2.6, 5, -(w / 2 + 2.0), 1.1, -1.8, 0x9c9992, 0, 0.0],
     [0.5, 2.6, 5, w / 2 + 2.0, 1.1, -1.8, 0x9c9992, 0, 0.0]
   ]);
@@ -403,11 +405,15 @@ function railing(line, offset, posts, rails) {
   }
 }
 
+/** The funicular lines a mission can drive, by their id in js/bergbahnen-data.js (filled by buildBergbahnen) */
+export const FUNICULAR_CONTROLS = new Map();
+
 function buildFuniculars(group) {
   const lines = [];
   const bed = bedMaterial(), steelBed = steelBedMaterial(), grating = gratingMaterial();
   const steel = new THREE.MeshStandardNodeMaterial({ color: 0xa8acb0, roughness: 0.3, metalness: 0.85 });
   const posts = [], handrails = [], portals = [];
+  let portalHoles = null;
   const trackParts = new Map(); // material -> geometries
   const parsennMap = parsennAtlas(), schatzalpMap = schatzalpAtlas(SCHATZALP_NAMES);
   const parsennDecalMaterial = decalMaterial(parsennMap.map), schatzalpDecalMaterial = decalMaterial(schatzalpMap.map);
@@ -484,11 +490,14 @@ function buildFuniculars(group) {
       const yaw = Math.atan2(d.dx * po.out, d.dz * po.out);
       list.push({ x: q.x, y: q.y - 0.3, z: q.z, yaw });
     }
-    const mesh = new THREE.InstancedMesh(portalGeometry(1.2), vehicleMaterial(), list.length);
     const pm = new THREE.Matrix4(), pq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-    list.forEach((p, i) => mesh.setMatrixAt(i, pm.compose(new THREE.Vector3(p.x, p.y, p.z), pq.setFromAxisAngle(up, p.yaw), one)));
-    mesh.castShadow = mesh.receiveShadow = true;
-    group.add(mesh);
+    for (const hole of [false, true]) {
+      const mesh = new THREE.InstancedMesh(portalGeometry(1.2, hole), vehicleMaterial(), list.length);
+      list.forEach((p, i) => mesh.setMatrixAt(i, pm.compose(new THREE.Vector3(p.x, p.y, p.z), pq.setFromAxisAngle(up, p.yaw), one)));
+      mesh.castShadow = mesh.receiveShadow = !hole;
+      if (hole) portalHoles = mesh;
+      group.add(mesh);
+    }
   }
   // A car on the track: its ends on the rails at s ∓ length/2 along the path; the matrix turns it to the chord between
   // them and shears it to the chord's grade (y += grade·z: sills and roof parallel to the track, the ends plumb), the
@@ -507,24 +516,40 @@ function buildFuniculars(group) {
     return out.setPosition((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
   };
   const point = (p, v) => { const k = p.cum.findIndex((c) => c >= v); return p.pts[k < 0 ? p.pts.length - 1 : k]; };
-  const update = (dt) => {
-    for (const l of lines) {
-      const { paths, body, decals, cars, carLength, gap, trainLength, run } = l;
-      run.update(dt);
-      // Train 0 climbs on path 0 from the valley; train 1 descends on path 1 (its distance from the valley is the rest).
-      // sTrain: the train's valley end; car c (0 = the valley car) centred above it; with two cars the valley car is
-      // turned round (its driving end downhill)
-      [[paths[0], run.s + 0.3], [paths[1], paths[1].len - 0.3 - run.s - trainLength]].forEach(([p, sTrain], t) => {
-        for (let c = 0; c < cars; c++) {
-          placeCar(p, sTrain + c * (carLength + gap) + carLength / 2, carLength, cars > 1 && c === 0, m);
-          body.setMatrixAt(t * cars + c, m);
-          decals[t].setMatrixAt(c, m);
-        }
-      });
-      body.instanceMatrix.needsUpdate = true;
-      for (const d of decals) d.instanceMatrix.needsUpdate = true;
-    }
+  const placeLine = (l) => {
+    const { paths, body, decals, cars, carLength, gap, trainLength, run } = l;
+    // Train 0 climbs on path 0 from the valley; train 1 descends on path 1 (its distance from the valley is the rest).
+    // sTrain: the train's valley end; car c (0 = the valley car) centred above it; with two cars the valley car is
+    // turned round (its driving end downhill)
+    [[paths[0], run.s + 0.3], [paths[1], paths[1].len - 0.3 - run.s - trainLength]].forEach(([p, sTrain], t) => {
+      for (let c = 0; c < cars; c++) {
+        placeCar(p, sTrain + c * (carLength + gap) + carLength / 2, carLength, cars > 1 && c === 0, m);
+        if (t === 0 && l.hideClimbing) m.makeScale(0, 0, 0); // (the camera rides in it: js/missions-parsenn.js)
+        body.setMatrixAt(t * cars + c, m);
+        decals[t].setMatrixAt(c, m);
+      }
+    });
+    body.instanceMatrix.needsUpdate = true;
+    for (const d of decals) d.instanceMatrix.needsUpdate = true;
   };
+  const update = (dt) => {
+    for (const l of lines) { l.run.update(dt); placeLine(l); }
+  };
+  // A mission may take a line over (js/missions-parsenn.js, the machinist's cab): hold(true) stops its own shuttle,
+  // the mission sets run.s (train 0's valley end from the bottom of its run) and place() puts the cars there at once;
+  // at(k, s) is a point of path k (0 the climbing train's, 1 the other's) with its direction; hideClimbing(true) leaves
+  // train 0 out (a camera inside a car sees its boxes' backs)
+  for (const l of lines) {
+    const runLen = l.paths[0].len - l.trainLength - 0.6;
+    FUNICULAR_CONTROLS.set(l.f.id, {
+      f: l.f, run: l.run, paths: l.paths, runLen, trainLength: l.trainLength, carLength: l.carLength, cars: l.cars,
+      hold(on) { l.run.held = !!on; if (on) { l.run.wait = 0; l.run.v = 0; l.run.a = 0; } },
+      place() { placeLine(l); },
+      hideClimbing(on) { l.hideClimbing = !!on; placeLine(l); },
+      portalHoles(on) { if (portalHoles) portalHoles.visible = !!on; }, // (all the lines' portals)
+      at: (k, s, out = {}) => at(l.paths[k], s, out)
+    });
+  }
   update.lines = lines; // (test hooks: the shuttles' state, see group.userData.funiculars)
   return update;
 }

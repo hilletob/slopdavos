@@ -472,3 +472,99 @@ test('the local missions, the Silberberg and the gastro rooms say their keys, ga
   for (const w of words) assert.notEqual(t(w), w, `"${w}" has its German`);
   setLanguage('en');
 });
+
+test('the ice resurfacer in the Eisstadion speaks German: its steps, hints, HUD, keys and summary', async () => {
+  const { ZAMBONI_MISSION, ZAMBONI, createMachine, machineWorld } = await import('../js/missions-data-zamboni.js');
+  setLanguage('de');
+  const m = ZAMBONI_MISSION;
+  assert.equal(t(m.title), 'Die Eismaschine in der Drittelpause');
+  assert.match(t(m.intro), /^Der HC Davos gegen die ZSC Lions/);
+  assert.match(t(m.finish), /Eiscrew/);
+  for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
+  // every text and hint a step can show, in each of its states
+  const at = (x, y, tt = 0) => { const w = machineWorld({ ...createMachine(), x, y }); return { mode: 'person', x: w.x, y: 0, z: w.z, heading: 0, speed: 0, dt: 0.1, t: tt }; };
+  const seen = new Set();
+  const look = (o, ctx, st) => { const v = o.check(ctx, st); for (const s of [v.text, v.hint, v.fail]) if (s) seen.add(s); };
+  const [boards, middle, gate] = m.objectives;
+  for (const st of [m.createState(), { ...m.createState(), on: true }, { ...m.createState(), on: true, water: 0.1, ice: 0.6 }]) {
+    look(boards, at(ZAMBONI.park.x, ZAMBONI.gate.y), st); look(boards, at(0, 0, 65000), st);
+    look(middle, at(0, 0, 125000), st); look(gate, at(0, 0, 200000), st);
+  }
+  look(middle, at(0, 0, ZAMBONI.timeLimitMs + 1), m.createState());
+  look(middle, at(0, 0), { ...m.createState(), dry: true });
+  for (const s of ['Ice 63 %', 'Conditioner on', 'Conditioner off', 'Conditioner', 'Snow tank', 'Water', 'drive', 'brake · back up', 'steer', 'conditioner on/off', 'Overview',
+    'The water tank is empty', 'Water on wet ice: a puddle!', 'Water tank almost empty', 'Hard knock on the boards! −40']) seen.add(s);
+  for (const text of seen) assert.notEqual(t(text), text, text);
+  assert.equal(t('Along the boards 52 % of 90 % · 7:46 left'), 'Der Bande entlang 52 % von 90 % · noch 7:46');
+  assert.equal(t('Ice 63 % of 95 % · water 58 % · 2:05 left'), 'Eis 63 % von 95 % · Wasser 58 % · noch 2:05');
+  assert.equal(t('12 m to the gate · 0:41 left'), '12 m bis zum Tor · noch 0:41');
+  assert.equal(t(m.summary({ ...m.createState(), ice: 0.964, bumps: 2, puddleM2: 3.25, water: 0.31 })[0]), '96 % des Eises geglättet · 2 harte Schläge · 3 m² Pfützen · Wasser übrig 31 %');
+  assert.equal(t(m.summary({ ...m.createState(), ice: 0.95, bumps: 1, puddleM2: 0, water: 0.2 })[0]), '95 % des Eises geglättet · 1 harter Schlag · 0 m² Pfützen · Wasser übrig 20 %');
+  setLanguage('en');
+});
+
+test('the long break on the SAMD\'s roof speaks German, with a Swiss-German shout or two', async () => {
+  const { SAMD_MISSION: m, ROLES, SIDEKICK, START, createBreak } = await import('../js/missions-data-samd.js');
+  setLanguage('de');
+  assert.equal(t(m.title), 'Vom Dach der SAMD');
+  assert.match(t(m.intro), /^Ein Schulmorgen an der SAMD/);
+  assert.match(t(m.finish), /Mathestunde/);
+  for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
+  // every line a walker shouts, every line of Mätti's, the tags (but the names that stay the same)
+  const same = new Set(['Rektor', 'Tourist', 'Hausmutter']);
+  for (const r of Object.values(ROLES)) { for (const line of r.lines) assert.notEqual(t(line), line, line); if (!same.has(r.label)) assert.notEqual(t(r.label), r.label, r.label); }
+  for (const lines of Object.values(SIDEKICK)) for (const line of lines) assert.notEqual(t(line), line, line);
+  assert.equal(t('Hey, you clown!'), 'He, du Lappi!');
+  assert.equal(t('Whoa, what was that?!'), 'Was isch au das?!');
+  // the steps' texts and hints in their states, the HUD and the keys
+  const b = createBreak(3);
+  const seen = new Set();
+  const look = (o, ctx, brk) => { const v = o.check(ctx, { brk }); seen.add(v.text); if (v.hint) seen.add(v.hint); };
+  look(m.objectives[0], { x: START.x, z: START.z }, b);
+  look(m.objectives[1], {}, null);
+  look(m.objectives[1], {}, b);
+  look(m.objectives[1], {}, { ...b, ducked: true });
+  look(m.objectives[1], {}, { ...b, suspicion: 0.8 });
+  look(m.objectives[1], {}, { ...b, mouth: 'hocking', combo: 3 });
+  for (const s of ['Wind', 'Hock', 'Collecting', 'Suspicion', 'Hock, let go to drop', 'Duck', 'aim', 'The Hausmeister!', 'Caught at the parapet: detention', 'Ring!', 'The long break is over', 'The Rektor!', 'Crossing the yard to the Aula']) if (s !== 'Wind') seen.add(s);
+  for (const text of seen) assert.notEqual(t(text), text, text);
+  assert.equal(t('21 m to the side door of the SAMD'), '21 m bis zur Seitentür der SAMD');
+  assert.equal(t('120 pts · 1:23 left · combo ×1.5'), '120 Pkt. · noch 1:23 · Kombo ×1.5');
+  assert.equal(t('0 pts · 2:30 left'), '0 Pkt. · noch 2:30');
+  assert.equal(t(m.summary({ brk: { ...b, spits: 31, hits: 17, maxCombo: 5, rektorHits: 2, forbidden: 1 } })[0]), '31 Rotzer · 17 Treffer · beste Serie ×5 · der Rektor 2× · 1-mal tabu');
+  assert.equal(t(m.summary({ brk: { ...b, caught: true } })[1]), 'Vom Hausmeister erwischt: −150 fürs Nachsitzen');
+  setLanguage('en');
+});
+
+test('the Parsennbahn machinist speaks German: the steps in every phase, the desk, the keys, the summary', async () => {
+  setLanguage('de');
+  const { PARSENN_MISSION: m, createDrive, PB, driveLine } = await import('../js/missions-data-parsenn.js');
+  assert.equal(t(m.title), 'Maschinist auf der Parsennbahn');
+  assert.match(t(m.intro), /^Der erste Zug des Tages auf der Parsennbahn/);
+  assert.match(t(m.finish), /Weissfluhjoch, 2663 m\. Die Türen/);
+  for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
+  const seen = new Set();
+  const look = (k, d) => { const v = m.objectives[k].check({}, { drive: d }); seen.add(v.text); if (v.hint) seen.add(v.hint); };
+  look(0, null); look(1, null);
+  const d = createDrive();
+  look(0, d); d.boardT = PB.boarding; look(0, d);
+  Object.assign(d, { phase: 'ready', doors: 'closed' }); look(0, d); d.t = 30; look(0, d);
+  Object.assign(d, { phase: 'run', s: 500, v: 9 }); look(0, d); d.v = 12; look(0, d); d.v = 9; d.timelapse = true; look(0, d); d.timelapse = false;
+  d.s = driveLine(d).runLen - 100; d.v = 4; look(0, d); d.s = driveLine(d).runLen - 20; look(0, d);
+  Object.assign(d, { phase: 'halt', s: driveLine(d).runLen - 0.4, v: 0 }); look(0, d); d.s = driveLine(d).runLen; look(0, d);
+  Object.assign(d, { phase: 'alight' }); look(0, d); look(1, d);
+  d.results.push({ from: 'Davos Dorf', to: 'Höhenweg', departLate: 2, delay: -8, error: -0.07, horn: 10, comfort: 50, total: 297 });
+  look(0, d);
+  Object.assign(d, { k: 1, phase: 'boarding', s: 0, boardT: 0 }); look(1, d);
+  for (const s of ['Stop board', 'Next limit', 'Clock', 'Due', 'Doors', 'Score', 'Brake', 'Emergency brake', 'Time-lapse ×4', 'Lever', 'past', 'dep.', 'arr.', 'open', 'closed',
+    'Lever up', 'Lever down', 'Faster', 'Slower', 'Horn', 'Emergency', 'Doors open: the drive is locked', 'Wait: the passengers are still boarding', 'Doors only at a standstill',
+    'Not at the platform yet', 'Emergency brake!', 'Past the board: the limit switch trips', 'Into the buffer stop!', 'Time-lapse off: a limit ahead', 'No time-lapse here',
+    'Left too early!', 'Departure, with the horn', 'Departure', 'Change to the upper car']) seen.add(s);
+  for (const text of seen) assert.notEqual(t(text), text, text);
+  assert.equal(t('Höhenweg in 1.2 km · due 4:55 (−12 s) · 30/36 km/h'), 'Höhenweg in 1.2 km · fällig 4:55 (−12 s) · 30/36 km/h');
+  assert.equal(t('Davos Dorf · boarding 12/46 · departure 0:20'), 'Davos Dorf · Einsteigen 12/46 · Abfahrt 0:20');
+  assert.equal(t('Höhenweg · −7 cm from the board'), 'Höhenweg · −7 cm von der Tafel');
+  const summary = m.summary({ drive: { ...d, overspeed: 4, maxOver: 5, overspeedPenalty: 14 } });
+  assert.equal(t(summary[0]), 'Davos Dorf – Höhenweg: Abfahrt +2 s (Hornsignal) · Ankunft −8 s · −7 cm · Fahrt 50/50 → 297 Pkt.');
+  assert.equal(t(summary[1]), 'Über dem Limit 4 s (bis +5 km/h): −14 Pkt.');
+});

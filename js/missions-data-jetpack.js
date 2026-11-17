@@ -111,7 +111,7 @@ const inWalkReach = (f) => onSpot(f, PAD, JP.walkReach) || onSpot(f, START_PAD, 
 
 /**
  * The world the flight flies in, from the terrain and the houses: `terrainAt(x, z)` the terrain's height,
- * `buildingAt(x, z, y)` the house ({ maxY }: its roof) whose floor plan (x, z) lies in and which reaches above the height
+ * `buildingAt(x, z, y)` the house ({ maxY }: its roof; a roof that is not flat: { roofAt(x, z) }) whose floor plan (x, z) lies in and which reaches above the height
  * y (null: at any height). Returns stepJet's { groundAt, solidAt }: a house is a wall up to its roof, and its roof is the
  * ground for a pilot above it.
  */
@@ -120,8 +120,8 @@ export function jetWorld(terrainAt, buildingAt) {
     groundAt(x, z, y) {
       const g = terrainAt(x, z);
       if (y === Infinity) return g;
-      const b = buildingAt(x, z, null);
-      return b && b.maxY > g && y >= b.maxY - JP.roofReach ? b.maxY : g;
+      const b = buildingAt(x, z, null), top = b && (b.roofAt ? b.roofAt(x, z) : b.maxY);
+      return b && top > g && y >= top - JP.roofReach ? top : g;
     },
     solidAt: (x, y, z) => !!buildingAt(x, z, y)
   };
@@ -352,7 +352,8 @@ export const JETPACK_MISSION = {
           text: onPad && f.refuelling ? `Refuelling … ${Math.round(f.fuel)} %` : `${fmtDist(d)} to ${PAD.name} · tank ${Math.round(f.fuel)} %`,
           // (standing on the pad: its column of light out of the way of the pilot and the crew's drums)
           target: onPad ? null : { x: PAD.x, z: PAD.z, r: PAD.r, style: 'pad' },
-          hint: f.phase === 'ground' && !onPad ? (f.fuel <= 0 ? 'The tank is dry: walk over to the pit crew' : 'Not on the pad: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : d < 60 ? 'Over the pad: hold Q to sink and touch down' : null
+          // (on the pad: the crew at work, nothing to do but wait; the green column and the HUD show the way there)
+          hint: onPad ? (f.refuelling ? 'Stay on the pad: the crew fills the tank' : null) : f.phase === 'ground' ? (f.fuel <= 0 ? 'The tank is dry: walk over to the pit crew' : 'Not on the pad: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : d < 60 ? 'Over the pad: hold Q to sink and touch down' : 'Follow the green column of light to the pit crew'
         };
       }
     },

@@ -359,7 +359,7 @@ const speedTrack = {
 
 // =====================================================================================================================
 // The penalty shoot-out: the rink in the Eisstadion
-function rinkShape(halfL, halfW, r) {
+export function rinkShape(halfL, halfW, r) {
   const sh = new THREE.Shape();
   sh.moveTo(-halfL + r, -halfW);
   sh.lineTo(halfL - r, -halfW); sh.absarc(halfL - r, -halfW + r, r, -Math.PI / 2, 0, false);
@@ -369,7 +369,7 @@ function rinkShape(halfL, halfW, r) {
   return sh;
 }
 
-function rinkTexture() {
+export function rinkTexture() {
   const W = 1024, H = 512, c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
@@ -580,7 +580,7 @@ function noiseBuf(ctx) {
   return b;
 }
 /** One of the rink's sounds: 'shot' (k: the power), 'save', 'glove', 'post', 'boards', 'net', 'horn', 'cheer', 'ooh' */
-function rinkSound(run, kind, k = 1) {
+export function rinkSound(run, kind, k = 1) {
   const A = run.audio;
   if (!A?.live) return;
   const ctx = A.audio.context, out = A.audio.mix, now = ctx.currentTime;
@@ -624,7 +624,7 @@ function rinkSound(run, kind, k = 1) {
 
 /** The stands: a bowl from behind the boards up to the arena's outer wall under the eaves (rows in HCD blue and
  *  yellow), sampled round the rink by rays from its centre */
-function buildStands(y0, top) {
+export function buildStands(y0, top) {
   const outline = EISSTADION.outline.map((p) => [p.x, p.z]);
   const N = 120, ROWS = 14;
   const inner = [], outer = [];
@@ -656,7 +656,9 @@ function buildStands(y0, top) {
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide, emissive: 0x222631, emissiveIntensity: 0.6 });
-  return new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.bowl = { inner, outer, y0, top }; // (js/missions-zamboni.js seats its crowd on it)
+  return mesh;
 }
 
 const hockey = {

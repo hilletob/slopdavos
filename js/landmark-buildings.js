@@ -1426,5 +1426,10 @@ export function buildLandmarkBuildings(scene) {
   const ring = EISSTADION.outline.map((p) => ({ x: p.x, z: p.z }));
   const xs = ring.map((p) => p.x), zs = ring.map((p) => p.z);
   const interiors = [{ id: 'eisstadion', ring, holes: [], minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), maxY: EISSTADION.eaves + EISSTADION.apex.h }]; // (up to the apex: on the stands' roof too)
+  // (but only as high as the roof over (x, z): the stands' flat roof round the pitched one stays 10 m up, not the apex's
+  // 33 m: the jetpack flew into an invisible wall over the south stand, coming down towards the Natureisbahn)
+  const foot = Math.min(...ring.map((p) => groundHeight(p.x, p.z)));
+  interiors[0].roofAt = (x, z) => foot + (stadiumRoofHeight(x, z) ?? EISSTADION.eaves);
+  interiors[0].replaces = ['w37221744']; // (the inner hall's 16.5 m slab poked through the pitched roof near its edges)
   return { group: root, colliders, interiors };
 }

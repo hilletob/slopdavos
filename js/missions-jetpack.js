@@ -5,8 +5,11 @@
 //             upright in the air, leaning into the flight, the hands on the pack's grips (the skinned PersonRig's bones,
 //             js/missions-paraglide.js poseHarness), or lets it walk on the ground. The pack on the back: two tanks, the
 //             nozzles out at the shoulders, their flames and a trail of steam in the January air. The gates of light (the
-//             next one bright with a beam down to the ground, the later ones faint), the pit crew's fuel drums at the pad,
-//             the pack's roar, and the HUD at the bottom: the tank, the height over the ground, the climb, the gates.
+//             next one bright with a beam down to the ground, the later ones faint), the pads painted on the ground and
+//             the pit crew's fuel drums, its green column of light over the roofs while the tank wants filling, the hose
+//             and a ring of light rising round the pilot while it fills, the pack's roar and the pump's ticking, and the
+//             HUD at the bottom: the pit crew's way and distance (or the filling tank), the tank, the height over the
+//             ground, the climb, the gates.
 //             The houses are solid (the controllers' floor plans): a wall stops the flight, a roof can be landed on.
 // The camera is the chase camera following the walker. Everything goes with the run's group and its cleanups.
 import * as THREE from 'three/webgpu';
@@ -15,13 +18,16 @@ import { QUALITY } from './quality.js';
 import { t } from './i18n.js';
 import { ParticleBatch } from './missions-fx.js';
 import { poseHarness, bonePoint, walkerShadow, saveWalker, restoreWalker } from './missions-paraglide.js';
-import { JP, GATES, PAD, START, stepJet, gatePoint, coursePoints, jetWorld } from './missions-data-jetpack.js';
+import { drapeRing, RING_DEPTH } from './missions-props.js';
+import { JP, GATES, PAD, START, TOWN_GATES, stepJet, gatePoint, coursePoints, jetWorld } from './missions-data-jetpack.js';
 
 const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const touch = () => !!globalThis.document?.body?.classList.contains('touch-enabled');
 const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 
 const STYLE = `
 .jp-hud { position: fixed; left: 50%; bottom: max(54px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 12;
@@ -39,11 +45,21 @@ const STYLE = `
 .jp-pct { min-width: 44px; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
 .jp-bar.is-low + .jp-pct { color: #ff8a6b; }
 .jp-flash { font-size: 15px; font-weight: 800; min-height: 18px; color: #ffc83d; }
+.jp-call { display: flex; align-items: center; gap: 8px; padding: 3px 12px; border-radius: 999px; background: rgba(91,224,140,0.16);
+  border: 1px solid rgba(91,224,140,0.55); color: #8ff0b2; font-size: 16px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.jp-call[hidden] { display: none; }
+.jp-call i { display: inline-block; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent;
+  border-bottom: 14px solid currentColor; font-style: normal; }
+.jp-call.is-filling { background: rgba(91,224,140,0.3); color: #d9ffe6; font-size: 19px; animation: jp-pulse 0.8s ease-in-out infinite alternate; }
+.jp-call.is-filling i { display: none; }
+.jp-call.is-low { background: rgba(255,90,60,0.2); border-color: rgba(255,90,60,0.6); color: #ffb39e; }
+.jp-bar.is-filling { height: 16px; box-shadow: 0 0 10px rgba(91,224,140,0.75); animation: jp-pulse 0.8s ease-in-out infinite alternate; }
+@keyframes jp-pulse { from { opacity: 0.78; } to { opacity: 1; } }
 body.touch-enabled .jp-hud { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--touch-clear, 200px)); }
 @media (max-width: 820px) {
   .jp-hud { padding: 6px 8px; gap: 4px; }
   .jp-row { gap: 8px; } .jp-cell { min-width: 42px; } .jp-v { font-size: 15px; } .jp-k { font-size: 8px; letter-spacing: 0.02em; }
-  .jp-bar { width: 170px; }
+  .jp-bar { width: 170px; } .jp-call { font-size: 13px; } .jp-call.is-filling { font-size: 15px; }
   body.touch-enabled .jp-hud { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 178px); }
 }
 `;
@@ -146,6 +162,87 @@ function buildPit(x, z, heading) {
   return g;
 }
 
+// The pads as the pit crew painted them: a dark disc with a green ring and a fuel pump in white, for the start's drums
+// and the pit crew's on the Promenade (one canvas, draped over the paving)
+const FUEL = 0x5be08c; // (the HUD's tank bar while it fills)
+function padTexture() {
+  const n = QUALITY.mobile ? 128 : 256, c = document.createElement('canvas');
+  c.width = c.height = n;
+  const g = c.getContext('2d'), m = n / 2, k = n / 256;
+  g.fillStyle = 'rgba(16,24,20,0.55)';
+  g.beginPath(); g.arc(m, m, 124 * k, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#5be08c'; g.lineWidth = 12 * k;
+  g.beginPath(); g.arc(m, m, 114 * k, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 5 * k; g.setLineDash([14 * k, 10 * k]);
+  g.beginPath(); g.arc(m, m, 96 * k, 0, Math.PI * 2); g.stroke();
+  g.setLineDash([]);
+  // the pump: its body with the window, the nozzle on its hose to the right
+  g.fillStyle = '#ffffff'; g.strokeStyle = '#ffffff';
+  g.fillRect(m - 42 * k, m - 52 * k, 56 * k, 104 * k);
+  g.fillStyle = '#5be08c'; g.fillRect(m - 32 * k, m - 42 * k, 36 * k, 26 * k);
+  g.lineWidth = 8 * k; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(m + 14 * k, m - 30 * k); g.lineTo(m + 36 * k, m - 12 * k); g.lineTo(m + 36 * k, m + 30 * k); g.lineTo(m + 48 * k, m + 30 * k); g.lineTo(m + 48 * k, m - 6 * k); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+function buildPadMark(material, x, z, r) {
+  const s = r + 1.2, m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2, 8, 8).rotateX(-Math.PI / 2), material);
+  m.scale.set(s, 1, s);
+  const y = groundHeight(x, z);
+  m.position.set(x, y, z);
+  drapeRing(m, x, y, z, s, 0.25); // (over the Arkadenplatz' paving, 0.18 m over the ground)
+  m.renderOrder = 978;
+  return m;
+}
+/** The pit crew's column of light: green, far above the roofs round the Arkadenplatz, fading upwards; a ring rides up it */
+const BEACON_H = 170;
+function buildBeacon(x, z) {
+  const c = document.createElement('canvas');
+  c.width = 1; c.height = 64;
+  const g = c.getContext('2d'), grad = g.createLinearGradient(0, 0, 0, 64);
+  grad.addColorStop(0, '#000'); grad.addColorStop(0.6, '#555'); grad.addColorStop(1, '#fff');
+  g.fillStyle = grad; g.fillRect(0, 0, 1, 64);
+  const fade = new THREE.CanvasTexture(c);
+  const mat = (opacity) => new THREE.MeshBasicMaterial({ color: FUEL, transparent: true, opacity, alphaMap: fade, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const group = new THREE.Group();
+  const y = groundHeight(x, z);
+  group.position.set(x, y, z);
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3, BEACON_H, 16, 1, true).translate(0, BEACON_H / 2, 0), mat(0.55));
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, BEACON_H, 10, 1, true).translate(0, BEACON_H / 2, 0), mat(0.9));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(4, 0.45, 6, 28).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: FUEL, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  for (const m of [column, core, ring]) { m.frustumCulled = false; m.renderOrder = 981; group.add(m); }
+  group.visible = false;
+  group.userData = { column, core, ring, fade };
+  return group;
+}
+/** While the tank fills: the crew's hose from the drums to the pack (two lengths sagging to the paving), a ring of light
+ *  rising round the pilot again and again */
+function buildFilling() {
+  const hoseMat = new THREE.MeshStandardMaterial({ color: 0x1d2024, roughness: 0.6 });
+  const geo = new THREE.CylinderGeometry(0.035, 0.035, 1, 6).translate(0, 0.5, 0);
+  const hose = [new THREE.Mesh(geo, hoseMat), new THREE.Mesh(geo, hoseMat)];
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.04, 6, 32).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: FUEL, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const group = new THREE.Group();
+  group.add(...hose, ring);
+  for (const m of group.children) m.frustumCulled = false;
+  group.visible = false;
+  return { group, hose, ring };
+}
+const _b = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _h0 = new THREE.Vector3(), _h1 = new THREE.Vector3();
+// The pit crews' drums: at the pad on the Promenade and at the start (buildPit)
+const PITS = [{ x: PAD.x + PAD.r + 1.5, z: PAD.z + 1, heading: 0.6 }, { x: START.x + 5, z: START.z + 4, heading: 2.2 }];
+const START_R = 6; // (js/missions-data-jetpack.js START_PAD)
+/** A length of hose (a unit cylinder up +y) from a to b */
+function lay(mesh, a, b) {
+  _b.subVectors(b, a);
+  const len = _b.length();
+  mesh.position.copy(a);
+  mesh.quaternion.setFromUnitVectors(_up, _b.multiplyScalar(1 / Math.max(1e-6, len)));
+  mesh.scale.set(1, len, 1);
+}
+
 // --- The pack's roar --------------------------------------------------------------------------------------------------------
 class Roar {
   constructor(audio) { this.audio = audio; this.node = null; }
@@ -208,8 +305,17 @@ const jetpack = {
     // the ground under the pilot: the terrain, or the roof below; the walls of the houses (the controllers' floor plans)
     Object.assign(jp, jetWorld(groundHeight, (x, z, y) => cm.insideBuilding?.(x, z, y) || null));
     run.group.add(jp.pack);
-    // the pit crew's drums and flag at the pad and at the start
-    run.group.add(buildPit(PAD.x + PAD.r + 1.5, PAD.z + 1, 0.6), buildPit(START.x + 5, START.z + 4, 2.2));
+    // the pit crew's drums and flag at the pad and at the start, the pads painted on the ground, the columns of light,
+    // the hose and the ring for the filling
+    run.group.add(...PITS.map((p) => buildPit(p.x, p.z, p.heading)));
+    const padMat = new THREE.MeshBasicMaterial({ map: padTexture(), transparent: true, depthWrite: false, ...RING_DEPTH });
+    run.group.add(buildPadMark(padMat, PAD.x, PAD.z, PAD.r), buildPadMark(padMat, START.x, START.z, START_R));
+    jp.beacon = buildBeacon(PAD.x, PAD.z);
+    jp.startBeacon = buildBeacon(START.x, START.z);
+    jp.fill = buildFilling();
+    jp.pumpT = 0;
+    run.group.add(jp.beacon, jp.startBeacon, jp.fill.group);
+    run.cleanups.push(() => { padMat.map.dispose(); jp.beacon.userData.fade.dispose(); jp.startBeacon.userData.fade.dispose(); });
     // the steam
     const steam = jp.steam = new ParticleBatch(run.scene);
     steam.mesh.name = 'JetpackSteam';
@@ -222,13 +328,16 @@ const jetpack = {
     // the HUD: the tank over the numbers
     const hud = el('div', 'panel jp-hud');
     const cell = (key) => { const c = el('div', 'jp-cell'), v = el('span', 'jp-v', '–'); c.append(el('span', 'jp-k', t(key)), v); return { c, v }; };
-    const ui = jp.ui = { hud, agl: cell('Above ground'), climb: cell('Climb'), gate: cell('Gates'), pen: cell('Penalty'), bar: el('div', 'jp-bar'), fill: el('span'), pct: el('span', 'jp-pct', '100 %'), flash: el('div', 'jp-flash') };
+    const ui = jp.ui = { hud, agl: cell('Above ground'), climb: cell('Climb'), gate: cell('Gates'), pen: cell('Penalty'), bar: el('div', 'jp-bar'), fill: el('span'), pct: el('span', 'jp-pct', '100 %'), flash: el('div', 'jp-flash'),
+      call: el('div', 'jp-call'), callArrow: el('i'), callText: el('span') };
     ui.bar.append(ui.fill);
+    ui.call.append(ui.callArrow, ui.callText);
+    ui.call.hidden = true;
     const tank = el('div', 'jp-tank');
     tank.append(el('span', 'jp-k', t('Tank')), ui.bar, ui.pct);
     const row = el('div', 'jp-row');
     row.append(ui.agl.c, ui.climb.c, ui.gate.c, ui.pen.c);
-    hud.append(ui.flash, tank, row);
+    hud.append(ui.flash, ui.call, tank, row);
     hud.hidden = true;
     document.body.append(hud);
     run.hints([[['Space'], 'climb'], [['Q'], 'sink'], [['W'], 'forward'], [['S'], 'brake'], [['A', 'D'], 'turn']]);
@@ -367,9 +476,45 @@ const jetpack = {
           life: 1.2 + Math.random() * 1.1, size0: 0.3, size1: 1.3 + Math.random() * 1.1, alpha: 0.55, r: grey, g: grey, b: grey + 0.02, kind: 'smoke' });
       }
     }
+    jetpack.pads(run, f, dt);
     jp.steam.update(dt, ctx.camera);
     jp.roar.update(air ? f.thrust : 0);
     if (jp.flashT > 0) { jp.flashT -= dt; if (jp.flashT <= 0) jp.ui.flash.textContent = ''; }
+  },
+  /** The pads' columns of light, and the filling: the hose, the rising ring, the pump's ticking */
+  pads(run, f, dt) {
+    const jp = run.jp;
+    // (the pit crew's column while the tank wants filling: after the town's gates, or a low tank over the town, when
+    // the start's drums are a way out too; neither column over a pilot standing in it)
+    const want = !!f && live(run) && !f.refuelled && (f.gate >= TOWN_GATES || f.fuel < 30);
+    const standing = (s, r) => f.phase === 'ground' && Math.hypot(f.x - s.x, f.z - s.z) <= r + 1;
+    jp.beacon.visible = want && !standing(PAD, PAD.r);
+    jp.startBeacon.visible = want && f.gate < TOWN_GATES && !standing(START, START_R);
+    for (const b of [jp.beacon, jp.startBeacon]) {
+      if (!b.visible) continue;
+      const u = b.userData, k = (jp.time * 0.45) % 1;
+      u.ring.position.y = 3 + k * 80;
+      u.ring.material.opacity = 0.9 * (1 - k);
+      u.column.material.opacity = 0.42 + 0.14 * Math.sin(jp.time * 4);
+    }
+    const fill = jp.fill, filling = !!f?.refuelling && live(run);
+    fill.group.visible = filling;
+    if (!filling) { jp.pumpT = 0; return; }
+    // the ring of light rising round the pilot, from the feet to over the head
+    const p = run.hooks.controllerManager.entities.person.position, k = (jp.time * 0.9) % 1;
+    fill.ring.position.set(p.x, p.y + 0.1 + k * 1.9, p.z);
+    fill.ring.material.opacity = 0.95 * Math.sin(k * Math.PI);
+    // the hose from the nearer drums down to the paving and up to the pack
+    const pit = Math.hypot(f.x - PITS[0].x, f.z - PITS[0].z) < Math.hypot(f.x - PITS[1].x, f.z - PITS[1].z) ? PITS[0] : PITS[1];
+    _h0.set(pit.x, groundHeight(pit.x, pit.z) + 0.9, pit.z);
+    const pack = jp.pack.position;
+    _h1.set((pit.x + pack.x) / 2, Math.min(_h0.y, pack.y) - 0.6, (pit.z + pack.z) / 2);
+    _h1.y = Math.max(_h1.y, groundHeight(_h1.x, _h1.z) + 0.05);
+    lay(fill.hose[0], _h0, _h1);
+    lay(fill.hose[1], _h1, pack);
+    // the pump ticks, higher as the tank fills
+    jp.pumpT -= dt;
+    if (jp.pumpT <= 0) { jp.pumpT = 0.2; jp.roar.blip(260 + f.fuel * 5, 230 + f.fuel * 5, 0.06, 0.035); }
   },
   after(run, ctx, dt) {
     const jp = run.jp, f = run.state?.flight, ui = jp.ui;
@@ -384,6 +529,21 @@ const jetpack = {
     ui.bar.classList.toggle('is-low', f.fuel < 20 && !f.refuelling);
     ui.bar.classList.toggle('is-filling', !!f.refuelling);
     setText(ui.pct, `${Math.round(f.fuel)} %`);
+    // the pit crew: the tank filling, or which way and how far while it wants filling
+    if (f.refuelling) {
+      ui.call.hidden = false;
+      ui.call.className = 'jp-call is-filling';
+      setText(ui.callText, `${t('Refuelling')} ${Math.round(f.fuel)} %`);
+    } else if (!f.refuelled && (f.gate >= TOWN_GATES || f.fuel < 30)) {
+      // (over the town a low tank can fill at the start's drums too: the nearer of the two)
+      const dPad = Math.hypot(PAD.x - f.x, PAD.z - f.z), dStart = Math.hypot(START.x - f.x, START.z - f.z);
+      const s = f.gate < TOWN_GATES && dStart < dPad ? START : PAD, d = s === START ? dStart : dPad;
+      ui.call.hidden = false;
+      ui.call.className = f.fuel < 20 ? 'jp-call is-low' : 'jp-call';
+      setText(ui.callText, `${t('Pit crew')} · ${fmtDist(d)}`);
+      const rel = wrap(Math.atan2(s.x - f.x, s.z - f.z) - f.heading);
+      ui.callArrow.style.transform = `rotate(${(-rel).toFixed(2)}rad)`;
+    } else ui.call.hidden = true;
     setText(ui.agl.v, `${Math.max(0, Math.round(f.agl))} m`);
     const vy = f.phase === 'air' ? f.vy : 0;
     setText(ui.climb.v, `${vy >= 0 ? '+' : '−'}${Math.abs(vy).toFixed(1)}`);

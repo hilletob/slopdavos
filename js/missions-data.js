@@ -31,6 +31,9 @@ import { POST_MISSIONS } from './missions-data-post.js'; // the postman empties 
 import { VICTORIA_MISSIONS } from './missions-data-victoria.js'; // a shift at the Turmhotel Victoria: rooms, kitchen, Lingerie
 import { JETPACK_MISSIONS } from './missions-data-jetpack.js'; // the jetpack demo of the WEF week: from the Kongress through the gates to the Schatzalp
 import { HELIBLAST_MISSIONS } from './missions-data-heliblast.js'; // avalanche blasting from the helicopter: hand charges on the Jakobshorn and the Parsenn
+import { ZAMBONI_MISSIONS } from './missions-data-zamboni.js'; // the ice resurfacer in the Eisstadion's second intermission
+import { SAMD_MISSIONS } from './missions-data-samd.js'; // the long break on the roof of the SAMD: spitting on the yard below
+import { PARSENN_MISSIONS } from './missions-data-parsenn.js'; // the machinist in the Parsennbahn's cab: Davos Dorf – Höhenweg – Weissfluhjoch
 
 // js/missions-data.js
 // The missions (js/missions.js runs them): their definitions and the pure progress logic. No three.js and no DOM in
@@ -572,7 +575,7 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS, ...HELIBLAST_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS, ...HELIBLAST_MISSIONS, ...ZAMBONI_MISSIONS, ...SAMD_MISSIONS, ...PARSENN_MISSIONS];
 // Every mission has a leaderboard: <id>-1 unless it names its own (supabase/migrations/*_all_leaderboards.sql holds the
 // limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
 for (const m of MISSIONS) m.board ??= `${m.id}-1`;

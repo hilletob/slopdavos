@@ -835,10 +835,11 @@ class ThirdPersonControllerManager {
   }
 
   // The buildings' floor plans (js/buildings.js interiors, lifted onto the terrain: { minX, maxX, minZ, maxZ, minY, maxY,
-  // ring: [{ x, z }], holes: [ring] }). The wall colliders stop the player at the walls but say nothing about the
-  // inside: an arrival inside one (the first start, a teleport, stepping out of a vehicle) would be walled in. So the
-  // clearance checks refuse the inside of a building, and the movement puts anyone who ends up inside (a gap between
-  // the walls, a save from before the building stood) back outside (keepOutOfBuildings)
+  // ring: [{ x, z }], holes: [ring], roofAt?: (x, z) => the top of a roof that is not flat there, under maxY }). The
+  // wall colliders stop the player at the walls but say nothing about the inside: an arrival inside one (the first
+  // start, a teleport, stepping out of a vehicle) would be walled in. So the clearance checks refuse the inside of a
+  // building, and the movement puts anyone who ends up inside (a gap between the walls, a save from before the building
+  // stood) back outside (keepOutOfBuildings)
   setBuildingInteriors(list) {
     this.buildingInteriors = list || [];
     this._interiorCells = null;
@@ -868,6 +869,8 @@ class ThirdPersonControllerManager {
       if (y !== null && (y + 1.9 <= (b.minY ?? -Infinity) || y >= b.maxY)) continue;
       if (!pointInRing(b.ring, x, z)) continue;
       if (b.holes && b.holes.some((h) => pointInRing(h, x, z))) continue;
+      // (a roof that is not flat says how high it is at (x, z): `roofAt`, js/landmark-buildings.js' Eisstadion)
+      if (y !== null && b.roofAt && y >= b.roofAt(x, z)) continue;
       return b;
     }
     return null;

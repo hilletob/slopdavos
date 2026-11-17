@@ -1407,6 +1407,8 @@ const pairs = [
   ['Slow down for the landing: S', 'Für die Landung abbremsen: S'], ['The tank ran dry in the air and the jetpack came down like a stone. The investors look away.', 'Der Tank war in der Luft leer, und das Jetpack fiel wie ein Stein. Die Investoren schauen weg.'],
   ['The tank is dry, and the pit crew is somewhere else. The demo ends on foot.', 'Der Tank ist leer, und die Boxencrew steht woanders. Die Demo endet zu Fuss.'], ['Too fast: a tumble! +10 s', 'Zu schnell: Purzelbaum! +10 s'],
   ['A wall! +3 s', 'Eine Wand! +3 s'], ['Tank full: go!', 'Tank voll: los!'], ['The tank is dry!', 'Der Tank ist leer!'], ['Jetpack', 'Jetpack'], ['Tank', 'Tank'], ['Gates', 'Tore'], ['Penalty', 'Strafzeit'],
+  ['Refuelling', 'Tanken'], ['Pit crew', 'Boxencrew'], ['Stay on the pad: the crew fills the tank', 'Bleib auf dem Landeplatz: Die Crew füllt den Tank'],
+  ['Follow the green column of light to the pit crew', 'Folge der grünen Lichtsäule zur Boxencrew'],
   ['Sink', 'Sinken'], ['sink', 'sinken'], ['climb', 'steigen'], ['forward', 'vorwärts'], ['turn', 'drehen'], ['the spire of St. Johann', 'Kirchturm St. Johann'], ['Schatzalpbahn, the lower section', 'Schatzalpbahn, unterer Abschnitt'],
   ['Schatzalpbahn, the passing loop', 'Schatzalpbahn, Ausweiche'], ['Schatzalpbahn, below the hotel', 'Schatzalpbahn, unter dem Hotel'],
   // avalanche blasting from the helicopter (js/missions-data-heliblast.js, js/missions-heliblast.js)
@@ -1426,6 +1428,63 @@ const pairs = [
   ['Caught in the powder cloud: +20 s', 'In der Staubwolke erwischt: +20 s'],
   ['The charge went off right under the helicopter. The crew is shaken, the flight is over.', 'Die Ladung ist direkt unter dem Helikopter explodiert. Die Crew ist durchgeschüttelt, der Flug ist vorbei.'],
   ['Out of charges: the slopes stay closed today.', 'Keine Ladungen mehr: Die Hänge bleiben heute zu.'],
+  // the long break on the SAMD's roof (js/missions-data-samd.js, js/missions-samd.js)
+  ['From the roof of the SAMD', 'Vom Dach der SAMD'],
+  ['Down the stairs before anyone asks questions. Five minutes later Gian and Mätti sit in the maths lesson as if nothing had happened, a little out of breath.', 'Die Treppe runter, bevor jemand Fragen stellt. Fünf Minuten später sitzen Gian und Mätti in der Mathestunde, als wäre nichts gewesen, ein bisschen ausser Atem.'],
+  ['Sneak to the side door', 'Schleich zur Seitentür'], ['The long break', 'Die grosse Pause'],
+  ['Up the stairs and through the roof hatch', 'Die Treppe hoch und durch die Dachluke'], ['Up on the roof …', 'Rauf aufs Dach …'],
+  ['Ducked: let the yard calm down', 'Abgetaucht: Lass den Pausenhof sich beruhigen'], ['They are looking up: duck (C)!', 'Sie schauen hoch: abtauchen (C)!'],
+  ['Let go to drop it', 'Loslassen, und er fällt'], ['Hold to hock, let go to drop: lead them', 'Halten zum Aufziehen, loslassen zum Spucken: vorhalten!'],
+  ['Pupil', 'Schüler'], ['Teacher', 'Lehrerin'], ['Rektor', 'Rektor'], ['Tourist', 'Tourist'], ['Cyclist', 'Velofahrer'],
+  ['Bläss, the caretaker\'s dog', 'Bläss, der Hund vom Hausmeister'], ['Chindsgi kid', 'Chindsgi-Kind'], ['Hausmutter', 'Hausmutter'],
+  ['Hey! Who was that?!', 'He! Wer isch das gsi?!'], ['Gross, it\'s in my hair!', 'Gruusig, das isch i mine Hoor!'], ['Not funny, guys!', 'Gar nöd luschtig, Giele!'],
+  ['My coffee! Who did that?', 'Min Kafi! Wer isch das gsi?'], ['I\'ll find out who you are!', 'Ich finds use, wer ihr sind!'],
+  ['Unheard of! To my office, at once!', 'Unerhört! Sofort is Rektorat!'], ['Hey, you clown!', 'He, du Lappi!'],
+  ['Is it raining? The sun is out!', 'Regnet es? Die Sonne scheint doch!'], ['Disgusting! And on holiday!', 'Igitt! Und das in den Ferien!'],
+  ['Whoa, what was that?!', 'Was isch au das?!'], ['Woof! Woof!', 'Wuff! Wuff!'], ['Waaah! Mummy!', 'Wääh! Mami!'],
+  ['Just you wait! No cake on Sunday!', 'Wart nur! Am Sunntig gits kei Chueche!'],
+  ['Bull\'s eye!', 'Volltreffer!'], ['Right on the head!', 'Grad uf de Grind!'], ['Ha, look at him!', 'Ha, lueg dä a!'],
+  ['Unstoppable!', 'Nöd z bremse!'], ['Gian, you\'re a legend!', 'Gian, du bisch e Legände!'], ['THE REKTOR! Legendary!', 'DE REKTOR! Legendär!'],
+  ['Not the dog, man!', 'Nöd de Hund, Mann!'], ['Not the little ones!', 'Nöd d Chliine!'], ['Are you crazy? No cake now!', 'Spinnsch? Jetzt gits kei Chueche!'],
+  ['Missed.', 'Danebe.'], ['Lead them, Gian!', 'Vorhalte, Gian!'], ['Mind the wind!', 'Pass uf de Wind uf!'],
+  ['Footsteps on the stairs! Duck!', 'Schritt uf de Stäge! Abtauche!'], ['Swallowed it? Gross!', 'Abegschluckt? Gruusig!'],
+  ['Hock', 'Aufziehen'], ['Collecting', 'Sammeln'], ['Suspicion', 'Verdacht'],
+  ['Hock, let go to drop', 'Aufziehen, loslassen zum Spucken'], ['Duck', 'Abtauchen'],
+  ['The Hausmeister!', 'Der Hausmeister!'], ['Caught at the parapet: detention', 'An der Brüstung erwischt: Nachsitzen'],
+  ['Ring!', 'Rrring!'], ['The long break is over', 'Die grosse Pause ist vorbei'],
+  ['The Rektor!', 'Der Rektor!'], ['Crossing the yard to the Aula', 'Er geht über den Pausenhof zur Aula'],
+  // the ice resurfacer in the Eisstadion's second intermission (js/missions-data-zamboni.js, js/missions-zamboni.js)
+  ['The ice resurfacer in the intermission', 'Die Eismaschine in der Drittelpause'],
+  ['HC Davos against the ZSC Lions, 2 : 1 after two periods, and the Eisstadion is sold out. The siren has gone, the players are in the dressing rooms, and the ice they left behind is grey and cut up. You drive the ice resurfacer: out through its gate in the west end boards and over the whole rink before the teams come back. The conditioner behind the machine shaves the ice and lays a film of warm water, 2.3 m wide, that freezes as smooth as glass. Do it the way the ice masters do: first two laps along the boards, then ovals towards the middle, each pass overlapping the last by a hand\'s width. W drives, S brakes and backs up, A/D steer: it is a heavy machine with a wide turning circle, so turn early. Space switches the conditioner on and off, V shows the ice from above. Water laid on water that has not frozen yet pools into puddles, a hard knock against the boards costs points, and the water tank does not last for ever. At least 95 % of the ice, then back through the gate before the intermission clock runs out. Points for the ice, the time left and a clean run.', 'Der HC Davos gegen die ZSC Lions, 2 : 1 nach zwei Dritteln, und das Eisstadion ist ausverkauft. Die Sirene ist ertönt, die Spieler sind in der Garderobe, und das Eis, das sie zurückgelassen haben, ist grau und zerfurcht. Du fährst die Eismaschine: durch ihr Tor in der Bande am Westende hinaus und übers ganze Feld, bevor die Teams zurückkommen. Der Hobel hinten an der Maschine schabt das Eis ab und legt einen Film aus warmem Wasser, 2.3 m breit, der spiegelglatt gefriert. Mach es wie die Eismeister: zuerst zwei Runden der Bande entlang, dann Ovale zur Mitte hin, jede Bahn eine Handbreite über der letzten. W fährt, S bremst und fährt rückwärts, A/D lenken: Die Maschine ist schwer und hat einen grossen Wendekreis, also früh einlenken. Die Leertaste senkt und hebt den Hobel, V zeigt das Eis von oben. Wasser auf Wasser, das noch nicht gefroren ist, gibt Pfützen, ein harter Schlag an die Bande kostet Punkte, und der Wassertank reicht nicht ewig. Mindestens 95 % des Eises, dann zurück durchs Tor, bevor die Pausenuhr abgelaufen ist. Punkte gibt es fürs Eis, die übrige Zeit und eine saubere Fahrt.'],
+  ['The ice shines under the floodlights, the gate closes behind the machine, and the teams step back onto a sheet like glass. The Eisstadion applauds the ice crew.', 'Das Eis glänzt im Flutlicht, das Tor schliesst sich hinter der Maschine, und die Teams betreten ein Eis wie Glas. Das Eisstadion applaudiert der Eiscrew.'],
+  ['Two laps along the boards', 'Zwei Runden der Bande entlang'], ['Ovals towards the middle', 'Ovale zur Mitte hin'], ['Back through the gate', 'Zurück durchs Tor'],
+  ['The intermission is over: the teams are back at the boards and the ice is not ready. The referee waves the machine off.', 'Die Pause ist vorbei: Die Teams stehen an der Bande, und das Eis ist nicht fertig. Der Schiedsrichter winkt die Maschine vom Feld.'],
+  ['The water tank is empty and the ice is only half done: the crew has to finish it with the hose, and the game starts late.', 'Der Wassertank ist leer, und das Eis ist erst halb fertig: Die Crew muss es mit dem Schlauch fertig machen, und das Spiel beginnt zu spät.'],
+  ['Space: conditioner on', 'Leertaste: Hobel ein'], ['W: out through the gate onto the ice', 'W: durchs Tor aufs Eis'], ['First two laps along the boards, close to them', 'Zuerst zwei Runden nah der Bande entlang'],
+  ['The water is running low: no passes twice', 'Das Wasser wird knapp: keine Bahn doppelt'], ['Now the middle: overlap your last pass by a hand\'s width', 'Jetzt die Mitte: Überlapp die letzte Bahn um eine Handbreite'],
+  ['Space: conditioner off, then into the gate', 'Leertaste: Hobel aus, dann ins Tor'], ['Into the gate: the teams are waiting', 'Ins Tor: Die Teams warten'],
+  ['Conditioner on', 'Hobel ein'], ['Conditioner off', 'Hobel aus'], ['Conditioner', 'Hobel'], ['Snow tank', 'Schneetank'], ['conditioner on/off', 'Hobel ein/aus'],
+  ['drive', 'fahren'], ['brake · back up', 'bremsen · rückwärts'],
+  ['The water tank is empty', 'Der Wassertank ist leer'], ['Water on wet ice: a puddle!', 'Wasser auf nassem Eis: eine Pfütze!'], ['Water tank almost empty', 'Wassertank fast leer'],
+  // the machinist on the Parsennbahn (js/missions-data-parsenn.js, js/missions-parsenn.js)
+  ['Machinist on the Parsennbahn', 'Maschinist auf der Parsennbahn'],
+  ['Weissfluhjoch, 2663 m. The doors open onto the snow, the first skiers clatter out, and the car waits for the next run down.', 'Weissfluhjoch, 2663 m. Die Türen gehen auf in den Schnee, die ersten Skifahrer klappern hinaus, und der Wagen wartet auf die nächste Fahrt ins Tal.'],
+  ['Up to Höhenweg', 'Hinauf zum Höhenweg'], ['Up to the Weissfluhjoch', 'Hinauf aufs Weissfluhjoch'],
+  ['Drive to Höhenweg', 'Fahr zum Höhenweg'], ['Drive to Weissfluhjoch', 'Fahr aufs Weissfluhjoch'],
+  ['Change to the upper car at Höhenweg', 'Am Höhenweg in den oberen Wagen umsteigen'], ['Change to the upper car', 'Umsteigen in den oberen Wagen'],
+  ['The passengers are boarding', 'Die Fahrgäste steigen ein'], ['F: close the doors', 'F: Türen schliessen'], ['F: open the doors', 'F: Türen öffnen'],
+  ['B: the horn before you leave', 'B: Hornsignal vor der Abfahrt'], ['W: lever up, off you go', 'W: Fahrhebel hoch, los gehts'],
+  ['Creep on (W) or open the doors (F)', 'Langsam vorrücken (W) oder Türen öffnen (F)'], ['Stop with the front at the yellow line', 'Mit der Wagenspitze an der gelben Linie halten'],
+  ['Slow down for the station', 'Abbremsen vor der Station'], ['Time-lapse ×4 · T: back to normal', 'Zeitraffer ×4 · T: zurück zu normal'],
+  ['Stop board', 'Haltetafel'], ['Next limit', 'Nächstes Limit'], ['Clock', 'Uhr'], ['Due', 'Fahrplan'], ['Doors', 'Türen'], ['Score', 'Punkte'],
+  ['Emergency brake', 'Notbremse'], ['Emergency', 'Not-Halt'], ['Time-lapse ×4', 'Zeitraffer ×4'], ['Lever', 'Fahrhebel'], ['past', 'vorbei'],
+  ['dep.', 'Abf.'], ['arr.', 'Ank.'], ['open', 'offen'], ['closed', 'zu'],
+  ['Lever up', 'Hebel hoch'], ['Lever down', 'Hebel runter'], ['Faster', 'Schneller'], ['Slower', 'Langsamer'],
+  ['Doors open: the drive is locked', 'Türen offen: Der Antrieb ist gesperrt'], ['Wait: the passengers are still boarding', 'Warte: Die Fahrgäste steigen noch ein'],
+  ['Doors only at a standstill', 'Türen nur im Stillstand'], ['Not at the platform yet', 'Noch nicht am Perron'], ['Emergency brake!', 'Notbremse!'],
+  ['Past the board: the limit switch trips', 'Über die Tafel hinaus: Der Endschalter löst aus'], ['Into the buffer stop!', 'In den Prellbock!'],
+  ['Time-lapse off: a limit ahead', 'Zeitraffer aus: Limit voraus'], ['No time-lapse here', 'Hier kein Zeitraffer'],
+  ['Left too early!', 'Zu früh abgefahren!'], ['Departure, with the horn', 'Abfahrt, mit Hornsignal'], ['Departure', 'Abfahrt'],
 ];
 
 const enToDe = new Map(pairs);
@@ -1446,6 +1505,7 @@ const PFADI_STEPS_DE = {
 };
 const PFADI_WOOD_DE = { 'dry twigs': 'dürre Zweige', kindling: 'Anfeuerholz', 'a log': 'ein Scheit' };
 const missionIntros = [
+  ['The first train of the day up the Parsennbahn', 'Der erste Zug des Tages auf der Parsennbahn, und du bist der Maschinist im Führerstand vorne im Wagen. In Davos Dorf steigen die Fahrgäste ein: Schliess die Türen (F), gib ein Hornsignal (B) und fahr pünktlich ab. Der Fahrhebel (W/S) stellt das Tempo ein, das die Winde hält, die Leertaste ist die Betriebsbremse, X die Notbremse. Halte die Tempolimits ein, aus der Station, durch den Tunnel und durch die Ausweiche, wo dir der andere Wagen entgegenkommt, und halte am Höhenweg mit der Wagenspitze auf den Zentimeter genau an der gelben Linie. Öffne die Türen, steig in den oberen Wagen um und mach dasselbe nochmals bis aufs Weissfluhjoch. Die Leute stehen: Brems sanft. T fährt die langen Strecken im Zeitraffer.'],
   ['January, the World Economic Forum. A start-up', 'Januar, das World Economic Forum. Ein Start-up aus Zürich will sein Jetpack den Investoren vorführen, die auf der Terrasse des Berghotels Schatzalp warten, des alten Sanatoriums aus dem «Zauberberg». Doch der Testpilot steckt im Stau am Wolfgang, und die Schatzalpbahn ist von Delegationen ausgebucht. Du wurdest angestellt, um die Benzinkanister zu tragen. Jetzt trägst du das Ding selbst. Flieg die Demo: vom Kurpark beim Kongresszentrum durch die Lichttore über dem Ort, tief über die Natureisbahn und um den Kirchturm von St. Johann. Lande dann bei der Boxencrew an der Promenade zum Volltanken, steig der Schatzalpbahn entlang hinauf und lande auf der Hotelterrasse. Leertaste steigt, Q sinkt, ohne beides schwebt das Jetpack von selbst; W neigt nach vorn, S bremst, A/D drehen. Auf dem Handy lenkt der Stick, die Knöpfe steigen und sinken. Behalte den Tank im Auge: Jede Sekunde in der Luft kostet Treibstoff, Steigen am meisten. Setz langsamer als 30 km/h auf, sonst gibt es einen Purzelbaum (+10 s); eine Wand kostet 3 s.'],
   ['Evening at the Pfadiheim Davos', 'Abend beim Pfadiheim Davos an der Eisbahnstrasse, und heute Nacht schlafen die Pfadi Davos draussen. Geh zu Fuss in den Mattawald, den Wald jenseits des Landwassers: Folge den Wegzeichen, als Pfeile gelegten Ästen. Stell auf dem Lagerplatz den Spatz auf, das Gruppenzelt der Pfadi aus sechs Baumwollblachen: Halte Space beim Zeltplatz, um die Blachen auszulegen, zusammenzuknöpfen, die zwei Holzstangen aufzustellen, die Ränder zu verhäringen und die Abspannschnüre zu spannen. Lässt du los, rutscht der Schritt zurück. Dann sammle Feuerholz rund um den Lagerplatz (dürre Zweige, Anfeuerholz und Scheiter: Space halten, um jedes aufzuheben), bau die Feuerstelle (Space halten: der Steinkreis, das Zundernest, das Anfeuerholz als Tipi, die Scheiter) und zünde sie auf die alte Art an, mit Feuerstein und Feuerstahl: Drück Space, wenn die Nadel im Grünen ist, und drei gute Schläge geben eine Glut im Zunder. Dann halte Space, um sie zur Flamme anzublasen, und lass ab und zu los, um einzuatmen. Wenn das Zelt steht und das Feuer brennt, bist du fertig.'],
   ['A clear winter day on the Strelapass', 'Ein klarer Wintertag auf dem Strelapass, unter dir die Schatzalp und am Ende des Grats im Südwesten das Chörbschhorn (2650 m). Du gehst nicht allein: Reto kommt mit, in deiner Spur. Zuerst der Gruppencheck der LVS: Space halten, während Retos Gerät deines sucht, dann während deines seines findet. Dann mit Fellen, das Board in zwei Hälften geteilt, am Hauptertälli vorbei und über den Grat hinauf: von Markierstange zu Markierstange, welche Linie du willst. W geht, A/D dreht. Wo die Spur abfällt, gleiten die Felle: Du fährst bergab und wirst schneller. Die Felle halten an mässig steilen Hängen; gerade einen steilen hinauf rutschen sie, und du gleitest zurück. Also im Zickzack quer zum Hang, und mit Space eine Spitzkehre auf die andere Diagonale. Wo es steiler als 30° wird, hält Reto 10 m Abstand. Bleib nahe der markierten Linie: Abseits davon, in Hängen ab 35°, kann die Schneedecke brechen, und dann gräbst du Reto mit LVS, Sonde und Schaufel aus. Auf dem Gipfel auf ihn warten und Space halten: Felle abziehen, das Board zusammenfügen. Dann über den Südgrat an der Chörbschhornhütte vorbei durch die roten Fahnen hinunter zur Stafelalp ob Frauenkirch: A/D kurven, W in die Hocke, S bremsen. Ein verpasstes Tor kostet 8 s.'],
@@ -1518,6 +1578,7 @@ const missionIntros = [
   ['Saturday morning at Sport Hofmänner', 'Samstagmorgen bei Sport Hofmänner an der Mattastrasse: Die Langläufer wollen ihre Langlaufski gewachst haben. Lies die Schneetemperatur auf der Tafel ab und wähle das Wachs nach seiner Farbe (Tasten 1–5 oder Antippen). Bügle es in einem gleichmässigen Zug pro Ski auf, von der Spitze bis zum Ende: Zieh das Bügeleisen oder halte → / D und halte das Tempo im grünen Band. Zu langsam oder ein heisses Bügeleisen, das stillsteht, verbrennt den Belag. Dann abziehen und bürsten, von der Spitze bis zum Ende (ziehen oder → halten). Zweieinhalb Minuten: Es zählt die Qualität, aber auch die Anzahl Paare.'],
   ['A bluebird winter morning', 'Ein Wintermorgen mit Kaiserwetter, und halb Davos will aufs Jakobshorn. In deiner Warnweste dirigierst du den Parkplatz Jakobshornbahn: Jedes Auto rollt die Gasse auf dich zu, und du winkst es nach links, rechts oder geradeaus (← → ↑ oder die Tasten) dorthin, wo grüne Pfeile freie Plätze zeigen. Winkst du rechtzeitig, parkt es gerade ein; zu spät, und es parkt schräg; ohne Zeichen macht der Fahrer, was er will, vielleicht quer über die Gasse. Wenn Skifahrer direkt vor deinen Füssen queren, halte das Auto an (↓ / Space) und winke es hinter ihnen durch. Zwei Minuten.'],
   ['Last run done, boots still on', 'Letzte Abfahrt geschafft, die Skischuhe noch an: Après-Ski-Party in der Bolgenschanze an der Skistrasse in Davos Platz. Geh hinein und spring mit der Menge: Drücke Space (oder tippe SPRINGEN) genau im Takt, und wenn der DJ zu den Off-Beats wechselt, zwischen den Kicks. Perfekte Treffer zählen mehr, eine Serie vervielfacht deine Punkte bis ×5. Ein Track, 60 Sekunden.'],
+  ['A school morning at the SAMD', 'Ein Schulmorgen an der SAMD, der Schweizerischen Alpinen Mittelschule an der Guggerbachstrasse. Gian und Mätti, zwei Internatsschüler mit nichts Besserem zu tun, schleichen sich in der grossen Pause aufs Flachdach. Geh zur Seitentür bei der Einfahrt, dann leg dich an die Brüstung: Unten ist der Pausenhof voll. Das Fadenkreuz bewegst du mit der Maus, durch Ziehen oder mit W/A/S/D; halt die Taste oder die Leertaste zum Aufziehen (grösser: mehr Punkte, langsamer aus dem Mund), lass los, und er fällt. Er fällt zwei Sekunden lang: Halte bei den Leuten vor und achte auf den Wind (der Pfeil). Der Rektor gibt am meisten, der Velofahrer ist schnell. Finger weg vom Hund, vom Chindsgi-Kind und von der Hausmutter. Jeder Treffer lässt den Hof hochschauen: Halte C zum Abtauchen, bis es sich beruhigt, sonst kommt der Hausmeister durch die Dachluke. Nach 2:30 läutet die Glocke.'],
 ];
 // Mission places in running text: [after "bis" (distance), after "geh" (walk in)]
 const placeDe = new Map([
@@ -1605,6 +1666,21 @@ function translate(value) {
       .replace(/^Missed by (\d+) m: \+10 s$/, 'Daneben um $1 m: +10 s')
       .replace(/^(\d+) charges? thrown · (\d+) zones? released · (\d+) missed · (\d+) in the powder cloud \((?:\+(\d+) s|no penalties)\)$/, (_, t, z, m, c, s) => `${t} ${t === '1' ? 'Ladung' : 'Ladungen'} geworfen · ${z} ${z === '1' ? 'Zone' : 'Zonen'} ausgelöst · ${m} daneben · ${c}-mal in der Staubwolke (${s ? `+${s} s` : 'keine Strafzeit'})`);
   }
+  // the long break on the SAMD's roof (js/missions-data-samd.js)
+  dynamic = dynamic
+    .replace(/^([\d.]+ (?:m|km)) to the side door of the SAMD$/, '$1 bis zur Seitentür der SAMD')
+    .replace(/^(-?\d+) pts · (\d+:\d\d) left(?: · combo ×([\d.]+))?$/, (_, p, left, c) => `${p} Pkt. · noch ${left}${c ? ` · Kombo ×${c}` : ''}`)
+    .replace(/^(\d+) gobs? · (\d+) hits? · best run ×(\d+) · the Rektor (\d+)× · (\d+) off limits$/, (_, g, h, r, k, f) => `${g} Rotzer · ${h} Treffer · beste Serie ×${r} · der Rektor ${k}× · ${f}-mal tabu`)
+    .replace(/^Caught by the Hausmeister: −(\d+) for the detention$/, 'Vom Hausmeister erwischt: −$1 fürs Nachsitzen');
+  // the machinist on the Parsennbahn (js/missions-data-parsenn.js)
+  dynamic = dynamic
+    .replace(/^(Davos Dorf|Höhenweg) · boarding (\d+)\/(\d+) · departure (\d+:\d\d)$/, '$1 · Einsteigen $2/$3 · Abfahrt $4')
+    .replace(/^Doors closed · departure (\d+:\d\d)(?: \(in (\d+) s\))?$/, (_, c, n) => `Türen zu · Abfahrt ${c}${n ? ` (in ${n} s)` : ''}`)
+    .replace(/^(Höhenweg|Weissfluhjoch) · ([+−][\d.]+ c?m) from the board$/, '$1 · $2 von der Tafel')
+    .replace(/^(Höhenweg|Weissfluhjoch) · the passengers get off$/, '$1 · Die Fahrgäste steigen aus')
+    .replace(/^(Höhenweg|Weissfluhjoch): (\d+) pts$/, '$1: $2 Pkt.')
+    .replace(/^Too fast: limit (\d+) km\/h$/, 'Zu schnell: Limit $1 km/h')
+    .replace(/^(.+) – (.+): departure ([+−]\d+ s)( \(horn\))? · arrival ([+−]\d+ s) · ([+−][\d.]+ c?m) · ride (\d+)\/50 → (\d+) pts$/, (_, a, b, dep, horn, arr, e, ride, p) => `${a} – ${b}: Abfahrt ${dep}${horn ? ' (Hornsignal)' : ''} · Ankunft ${arr} · ${e} · Fahrt ${ride}/50 → ${p} Pkt.`);
   // the paraglider flight (js/missions-data-paraglide.js)
   dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
   dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
@@ -1897,6 +1973,12 @@ function translate(value) {
   dynamic = dynamic.replace(/^Ice flooded (.+?) of (.+?)( · (\d+) footprint cells)?$/, (_, a, b, _x, n) => `Eis geflutet: ${a} von ${b}${n ? ` · ${n} Felder mit Fussabdrücken` : ''}`);
   dynamic = dynamic.replace(/^Ice resurfaced (.+) of (.+)$/, 'Eis geglättet: $1 von $2');
   dynamic = dynamic.replace(/^(\d+) footprints? flooded again · (.+) resurfaced$/, (_, n, p) => `${n} Fussabdr${n === '1' ? 'uck' : 'ücke'} nochmals geflutet · ${p} geglättet`);
+  // the ice resurfacer in the Eisstadion (js/missions-data-zamboni.js, js/missions-zamboni.js)
+  dynamic = dynamic.replace(/^Along the boards (\d+ %) of (\d+ %) · (\d+:\d\d) left$/, 'Der Bande entlang $1 von $2 · noch $3');
+  dynamic = dynamic.replace(/^Ice (\d+ %) of (\d+ %) · water (\d+ %) · (\d+:\d\d) left$/, 'Eis $1 von $2 · Wasser $3 · noch $4');
+  dynamic = dynamic.replace(/^(\d+) m to the gate · (\d+:\d\d) left$/, '$1 m bis zum Tor · noch $2').replace(/^Ice (\d+ %)$/, 'Eis $1');
+  dynamic = dynamic.replace(/^Hard knock on the boards! −(\d+)$/, 'Harter Schlag an die Bande! −$1');
+  dynamic = dynamic.replace(/^(\d+ %) of the ice resurfaced · (\d+) hard knocks? · (\d+) m² of puddles · water left (\d+ %)$/, (_, a, n, m, w) => `${a} des Eises geglättet · ${n} ${n === '1' ? 'harter Schlag' : 'harte Schläge'} · ${m} m² Pfützen · Wasser übrig ${w}`);
   dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
   dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');
   dynamic = dynamic.replace(/^(\d+) (?:fall|falls) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${a === '1' ? 'Sturz' : 'Stürze'} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'mit vollem Tempo in die Matte'}`);

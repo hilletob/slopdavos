@@ -1004,6 +1004,10 @@ test('a player inside a building is set outside across the nearest wall, never i
   controller.setBuildingInteriors([{ ...squarePlan(0, 0, 10, 10), maxY: 12 }]);
   assert.equal(controller.insideBuilding(5, 5, 14), null);
   assert.ok(controller.insideBuilding(5, 5, 3));
+  // A roof that is not flat (the Eisstadion's stands round its pitched roof): only as high as the roof over the spot
+  controller.setBuildingInteriors([{ ...squarePlan(0, 0, 10, 10), maxY: 30, roofAt: (x) => (x < 5 ? 10 : 30) }]);
+  assert.equal(controller.insideBuilding(2, 5, 14), null);
+  assert.ok(controller.insideBuilding(8, 5, 14));
 });
 
 // A yard walled in on all four sides by 0.44 m walls (no floor plan: it is not inside a building), with a gate of

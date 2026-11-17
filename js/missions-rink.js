@@ -71,17 +71,17 @@ function merged(list, material, shadow = true) {
   m.castShadow = shadow; m.receiveShadow = true;
   return m;
 }
-function decalTexture() {
+function decalTexture([title, line] = ['EISBAHN', 'Seehofseeli · Davos Dorf']) {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 128;
   const x = c.getContext('2d');
   x.fillStyle = '#1f5fbf';
   x.font = '800 64px system-ui, sans-serif';
   x.textBaseline = 'middle';
-  x.fillText('EISBAHN', 18, 50);
+  x.fillText(title, 18, 50);
   x.font = '600 34px system-ui, sans-serif';
   x.fillStyle = '#3a4048';
-  x.fillText('Seehofseeli · Davos Dorf', 20, 104);
+  x.fillText(line, 20, 104);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -96,7 +96,8 @@ function resurfacerWheel() {
   g.add(tyre, side, rim);
   return g;
 }
-function buildZamboniModel() {
+/** The resurfacer (`decal`: the two lines on its tank; js/missions-zamboni.js paints the Eisstadion's) */
+export function buildZamboniModel({ decal } = {}) {
   const g = new THREE.Group();
   g.name = 'IceResurfacer';
   const C = RINK.conditioner, CW = C.halfW * 2, W = RES.W, F = RES.front, B = RES.rear;
@@ -151,7 +152,7 @@ function buildZamboniModel() {
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.42), new THREE.MeshStandardNodeMaterial({ color: 0xcfe6f5, transparent: true, opacity: 0.28, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false }));
   screen.position.set(0, 1.68, 2.02); screen.rotation.x = -0.25;
   g.add(screen);
-  const decalMat = new THREE.MeshStandardNodeMaterial({ map: decalTexture(), transparent: true, roughness: 0.5, depthWrite: false });
+  const decalMat = new THREE.MeshStandardNodeMaterial({ map: decalTexture(decal), transparent: true, roughness: 0.5, depthWrite: false });
   for (const sx of [1, -1]) {
     const d = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), decalMat);
     d.position.set(sx * (W / 2 + 0.03), 1.68, -0.75);
@@ -180,7 +181,7 @@ function buildZamboniModel() {
     seat: { seat: new THREE.Vector3(0, 1.37, 0.92), bars: new THREE.Vector3(0, 1.92, 1.6), gripHalf: 0.17, bracket: new THREE.Vector3(0, 1.1, 1.75), crankLength: 0, pedalHalf: 0.16, lean: 0.05 }
   };
 }
-VEHICLES.zamboni = buildZamboniModel;
+VEHICLES.zamboni = () => buildZamboniModel();
 
 // --- The ice's colours -----------------------------------------------------------------------------------------------
 const SNOW = new THREE.Color(0.9, 0.92, 0.95), RAW = new THREE.Color(0.6, 0.64, 0.68), COAT = new THREE.Color(0.62, 0.76, 0.9);

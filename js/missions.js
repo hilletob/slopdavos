@@ -45,6 +45,9 @@ import { POST_FEATURES } from './missions-post.js';
 import { JETPACK_FEATURES } from './missions-jetpack.js';
 import { VICTORIA_FEATURES } from './missions-victoria.js';
 import { HELIBLAST_FEATURES } from './missions-heliblast.js';
+import { ZAMBONI_FEATURES } from './missions-zamboni.js';
+import { SAMD_FEATURES } from './missions-samd.js';
+import { PARSENN_FEATURES } from './missions-parsenn.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -1294,3 +1297,6 @@ Object.assign(FEATURES, POST_FEATURES); // the postman empties the post boxes fr
 Object.assign(FEATURES, JETPACK_FEATURES); // the jetpack demo from the Kongress to the Schatzalp (js/missions-jetpack.js)
 Object.assign(FEATURES, VICTORIA_FEATURES); // a shift at the Turmhotel Victoria (js/missions-victoria.js)
 Object.assign(FEATURES, HELIBLAST_FEATURES); // hand charges thrown from the helicopter onto the avalanche slopes (js/missions-heliblast.js)
+Object.assign(FEATURES, ZAMBONI_FEATURES); // the ice resurfacer in the Eisstadion's second intermission (js/missions-zamboni.js)
+Object.assign(FEATURES, SAMD_FEATURES); // the long break on the SAMD's roof: the gobs, the yard, the parapet (js/missions-samd.js)
+Object.assign(FEATURES, PARSENN_FEATURES); // the machinist's cab on the Parsennbahn (js/missions-parsenn.js)
