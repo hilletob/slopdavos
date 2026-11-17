@@ -69,7 +69,7 @@ const PROFILES = {
     facadeAtlas: 2048, // the photographed houses' facade atlas (px a side; decoded at this size at most)
     deferScenery: false, // build the golf course and the streams after the first frame (their build's garbage apart)
     playerModel: '', // the player's figure for a test, over the menu's choice (?qset=playerModel:police-m01; js/player-figure.js)
-    summitNames: true, // the names and heights of the summits round about over the view (?qset=summitNames:false; js/names.js)
+    summitNames: false, // the names and heights of the summits round about over the view, off by default (?qset=summitNames:true; js/names.js)
     worldRadius: 0, // m: the streets, sidewalks, markings, track bed and car parks only this far round the player, streamed in cells (0: everywhere at once)
   },
   mobile: {
@@ -137,7 +137,7 @@ const PROFILES = {
     facadeAtlas: 512,
     deferScenery: true,
     playerModel: '',
-    summitNames: true,
+    summitNames: false,
     // (an iPhone 13 closed the tab while the town's ground layers were built, even with every other system left out:
     // ~6.8 GB of short-lived arrays for the whole valley, which Safari's garbage collector let pile up to ~2.5 GB. Only
     // the town about this far round the player gets its streets, sidewalks, curbs, markings, track bed and car parks,
