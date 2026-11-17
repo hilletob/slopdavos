@@ -1195,8 +1195,9 @@ class NYCMapSystem {
       }
     }
 
-    // GPS route to the active waypoint
-    if (this.waypoint) {
+    // GPS route to the active waypoint: to a mission's place only (the marker a teleport leaves where one arrived
+    // would draw the way gone since: that stays on the full map)
+    if (this.waypoint && this.waypoint.mission) {
       const wx = toX(this.waypoint.x);
       const wy = toY(this.waypoint.z);
       const route=getBerlinMapRoute(px,pz,this.waypoint.x,this.waypoint.z);

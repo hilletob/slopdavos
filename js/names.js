@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { NAMES } from './names-data.js';
 import { FRAME } from './davos-frame.js';
 import { groundHeight } from './terrain.js';
+import { cachedMapLayer } from './map-layer-cache.js';
 
 // The geographic names of the Landschaft Davos (js/names-data.js, tools/fetch-names.mjs: swisstopo's swissNAMES3D):
 // - on the full map: the summits (a small triangle, the name, the height) and passes, the valleys, alps, ridges and
@@ -23,9 +24,7 @@ const FONT = 'Inter, system-ui, sans-serif';
 /** The map layer: { draw(ctx, view, isMinimap) } (js/nyc-map.js overlays) */
 export function namesOverlay() {
   const widths = new Map();
-  return {
-    draw(ctx, v, isMinimap) {
-      if (isMinimap) return;
+  const layer = cachedMapLayer((ctx, v) => {
       const s = v.s, hw = v.w * 0.5, hh = v.h * 0.5;
       const placed = [];
       const free = (box) => !placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]);
@@ -62,6 +61,10 @@ export function namesOverlay() {
         ctx.fillText(label, tx, y);
       }
       ctx.restore();
+  });
+  return {
+    draw(ctx, v, isMinimap) {
+      if (!isMinimap) layer(ctx, v);
     }
   };
 }

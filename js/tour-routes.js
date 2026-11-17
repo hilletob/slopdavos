@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { isWinter } from './season.js';
 import { getLanguage } from './i18n.js';
+import { cachedMapLayer } from './map-layer-cache.js';
 
 // The marked and the published routes of the Landschaft Davos (js/tour-routes-data.js, tools/fetch-tour-routes.mjs:
 // swisstopo's hiking network, SchweizMobil's routes, the SAC's ski touring and snowshoe routes):
@@ -32,14 +33,14 @@ const TEXT = {
 const text = () => TEXT[getLanguage() === 'de' ? 'de' : 'en'];
 
 // --- The full map ---------------------------------------------------------------------------------------------------
-const pathOf = (lines) => {
+// One path per line with its bounds: only the lines in the view are stroked (a dashed stroke is cut into its dashes
+// along the whole path, also where it lies outside the canvas)
+const pathsOf = (lines) => lines.map((l) => {
   const path = new Path2D();
-  for (const l of lines) {
-    path.moveTo(l[0], l[1]);
-    for (let i = 2; i < l.length; i += 2) path.lineTo(l[i], l[i + 1]);
-  }
-  return path;
-};
+  path.moveTo(l[0], l[1]);
+  for (let i = 2; i < l.length; i += 2) path.lineTo(l[i], l[i + 1]);
+  return { path, bounds: boundsOf([l]) };
+});
 const boundsOf = (lines) => {
   const b = [Infinity, Infinity, -Infinity, -Infinity];
   for (const l of lines) for (let i = 0; i < l.length; i += 2) { b[0] = Math.min(b[0], l[i]); b[1] = Math.min(b[1], l[i + 1]); b[2] = Math.max(b[2], l[i]); b[3] = Math.max(b[3], l[i + 1]); }
@@ -62,8 +63,8 @@ function distanceTo(route, x, z, reach) {
 
 /** The map layer: { draw(ctx, view, isMinimap), hover(mx, my, view) } (js/nyc-map.js overlays) */
 export function tourRoutesOverlay(data) {
-  const hiking = ['w', 'b', 'a'].map((c) => ({ c, path: pathOf(data.hiking.filter((h) => h.c === c).map((h) => h.pts)) }));
-  const prepared = (list, kindOf) => list.map((r) => ({ ...r, kind: kindOf(r), path: pathOf(r.lines), bounds: boundsOf(r.lines) }));
+  const hiking = ['w', 'b', 'a'].map((c) => ({ c, paths: pathsOf(data.hiking.filter((h) => h.c === c).map((h) => h.pts)) }));
+  const prepared = (list, kindOf) => list.map((r) => ({ ...r, kind: kindOf(r), paths: pathsOf(r.lines), bounds: boundsOf(r.lines) }));
   const mobil = prepared(data.mobil, (r) => r.kind);
   const ski = prepared(data.ski, () => 'ski'), snowshoe = prepared(data.snowshoe, () => 'snowshoe');
   // One badge per SchweizMobil route number: at the middle of its longest stretch in the map
@@ -73,30 +74,33 @@ export function tourRoutesOverlay(data) {
     const l = [...r.lines].sort((a, b) => b.length - a.length)[0], i = (l.length >> 2) * 2;
     badges.push({ nr, kind: r.kind, x: l[i], z: l[i + 1] });
   }
-  const stroke = (ctx, v, path, style, alpha = 1) => {
+  const stroke = (ctx, v, paths, style, alpha = 1) => {
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = style.colour;
-    ctx.lineWidth = style.width / v.s; // (the path is in world metres)
+    ctx.lineWidth = style.width / v.s; // (the paths are in world metres)
     ctx.setLineDash(style.dash ? style.dash.map((d) => d / v.s) : []);
-    ctx.stroke(path);
+    ctx.lineCap = style.dash ? 'butt' : 'round';
+    for (const p of paths) {
+      const b = p.bounds;
+      if (b[2] < v.minX || b[0] > v.maxX || b[3] < v.minZ || b[1] > v.maxZ) continue;
+      ctx.stroke(p.path);
+    }
   };
   const visible = () => (isWinter() ? [...snowshoe, ...ski] : mobil);
   const hasAlpine = data.hiking.some((h) => h.c === 'a');
   let networkAlpha = 0;
-  return {
-    draw(ctx, v, isMinimap) {
-      if (isMinimap) return;
+  const layer = cachedMapLayer((ctx, v) => {
       ctx.save();
       v.world(ctx);
-      ctx.lineJoin = ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       if (isWinter()) {
-        for (const r of snowshoe) stroke(ctx, v, r.path, STYLE.snowshoe, 0.8);
-        for (const r of ski) stroke(ctx, v, r.path, STYLE.ski, 0.85);
+        for (const r of snowshoe) stroke(ctx, v, r.paths, STYLE.snowshoe, 0.8);
+        for (const r of ski) stroke(ctx, v, r.paths, STYLE.ski, 0.85);
       } else {
         // (the network fades in from the overview: 600 km of it would be a mesh over the whole valley)
         networkAlpha = Math.max(0, Math.min(0.85, (v.s - 0.02) / 0.03 * 0.85));
-        if (networkAlpha > 0.02) for (const h of hiking) stroke(ctx, v, h.path, STYLE[h.c], networkAlpha);
-        for (const r of mobil) stroke(ctx, v, r.path, STYLE[r.kind], 0.8);
+        if (networkAlpha > 0.02) for (const h of hiking) stroke(ctx, v, h.paths, STYLE[h.c], networkAlpha);
+        for (const r of mobil) stroke(ctx, v, r.paths, STYLE[r.kind], 0.8);
       }
       ctx.restore();
       // The legend: a row over the map's own, for what the season shows
@@ -142,6 +146,10 @@ export function tourRoutesOverlay(data) {
         ctx.fillText(String(b.nr), x, y + 0.5);
       }
       ctx.restore();
+  }, () => `${isWinter()}|${getLanguage()}`);
+  return {
+    draw(ctx, v, isMinimap) {
+      if (!isMinimap) layer(ctx, v);
     },
     hover(mx, my, v) {
       const x = (mx - v.w / 2) / v.s + v.cx, z = (my - v.h / 2) / v.s + v.cz;
