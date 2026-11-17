@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { uniform, vec3 } from 'three/tsl';
-import { surfaceHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
+import { surfaceHeight, groundHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import {
   ISLAND_BOUNDS,
   CENTRAL_PARK_BOUNDS,
@@ -25,6 +25,7 @@ import { loadPersonClips } from './person-clips.js';
 import { createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { QUALITY } from './quality.js';
 import { FRAME } from './davos-frame.js';
+import { airObstacleContact } from './air-obstacle-field.js';
 import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { bryantParkLawn } from './landmarks.js';
@@ -73,6 +74,7 @@ const HELI_START = { x: -601, z: 400, heading: Math.PI / 4, agl: 40 };
 const SNOWCAT_START = { x: 900, z: -1062, heading: 1.889 };
 export const PLAYER_STARTS = { person: PERSON_START, cyclist: CYCLIST_START, car: CAR_HOME, helicopter: HELI_START, snowcat: SNOWCAT_START };
 const groundCollider = { type: 'ground' };
+const airObstacleCollider = { type: 'air-obstacle' }; // a mast, a conductor or a cable (js/air-obstacle-field.js)
 
 // The turn input every driver reads (this.steer, -1..1, + left): the keys are on or off, so it eases in like a stick —
 // a tap a small correction, a held key full lock after STEER_IN s — and centres within STEER_OUT s; the response curve
@@ -3152,6 +3154,20 @@ class ThirdPersonControllerManager {
     }
     h.position.y = Math.max(floor, h.position.y);
     this.resolveHorizontalCollision(h.position, 4.5, null, h);
+
+    // The registered air obstacles (power lines, material cables, masts): the helicopter is thrown back off them, its
+    // speed gone (a wire strike; the fuselage and the rotor disc as one 5 m ball)
+    const strike = airObstacleContact(groundHeight, h.position.x, h.position.y + 1.7, h.position.z, 5);
+    if (strike) {
+      const push = strike.depth + 0.3;
+      h.position.x += strike.nx * push;
+      h.position.z += strike.nz * push;
+      h.position.y = Math.max(floor, h.position.y + strike.ny * push);
+      this.reportCollision(h, airObstacleCollider, 'post', strike.x, strike.y, strike.z, strike.nx, strike.ny, strike.nz, Math.hypot(h.speed, h.verticalSpeed));
+      h.speed *= -0.25;
+      h.verticalSpeed = strike.ny * Math.max(2, Math.abs(h.verticalSpeed) * 0.4);
+      h.airStrike = { kind: strike.kind, at: elapsed };
+    }
 
     const targetPitch = (h.speed / maxHorizSpeed) * 0.24;
     const targetRoll = -yawInput * 0.28;

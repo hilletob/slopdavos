@@ -30,6 +30,9 @@ import { buildSnowfall } from './snowfall.js';
 import { buildStreams } from './streams.js';
 import { buildShops } from './shops.js';
 import { buildBergbahnen } from './bergbahnen.js';
+import { buildAirObstacles } from './air-obstacles.js';
+import { buildTourRoutes } from './tour-routes.js';
+import { namesOverlay, createSummitLabels } from './names.js';
 import { buildParking } from './parking.js';
 import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
@@ -365,6 +368,7 @@ async function initApp() {
   const rhb = skipped('rhb') ? noVehicles() : buildRhB(scene);
   buildTunnels(scene);
   const bergbahnen = skipped('bergbahnen') ? { update: NOOP } : buildBergbahnen(scene); // Parsennbahn, Schatzalpbahn, Jakobshornbahn and the ski lifts
+  if (!skipped('details')) buildAirObstacles(scene); // the power lines, material cables and masts of the BAZL's obstacle register
   const vbd = skipped('traffic') ? noVehicles() : buildVBD(scene); // the Verkehrsbetrieb Davos buses on their lines
   const levelCrossings = skipped('rhb') ? noVehicles() : buildLevelCrossings(scene, rhb); // booms and flashing lights where roads cross the RhB
   markInit('trams');
@@ -1042,6 +1046,11 @@ async function initApp() {
   });
 
   const openMapBtn = document.getElementById('btn-open-map');
+  // The map's names (swissNAMES3D) over the routes (the hiking network, SchweizMobil, the SAC's ski and snowshoe tours;
+  // their data is fetched now, apart from the start), the signposts at the trails' junctions, the summits' names
+  (mapSystem.overlays ||= []).unshift(namesOverlay());
+  if (!skipped('signs')) buildTourRoutes(scene, mapSystem).catch((e) => console.warn('[tour-routes]', e));
+  const summitLabels = QUALITY.summitNames && !skipped('details') ? createSummitLabels() : null;
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
   if (hudToggleBtn) {
@@ -1342,6 +1351,7 @@ async function initApp() {
     crossCountry.update(dt, cameraSystem.camera);
     winterHikers.update(dt, cameraSystem.camera);
     mapSystem.update();
+    summitLabels?.update(cameraSystem.camera, dt, !mapSystem.isFullMapOpen);
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
