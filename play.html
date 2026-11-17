@@ -244,6 +244,8 @@
   <link rel="modulepreload" href="./js/gta.js" />
   <link rel="modulepreload" href="./js/gta-takeover.js" />
   <link rel="modulepreload" href="./js/play-stats.js" />
+  <link rel="modulepreload" href="./js/heat-trail.js" />
+  <link rel="modulepreload" href="./js/live-beacon.js" />
   <link rel="modulepreload" href="./js/hijack.js" />
   <link rel="modulepreload" href="./js/bus-joint.js" />
   <link rel="modulepreload" href="./js/bus-stopping.js" />
@@ -386,8 +388,12 @@
     <button id="btn-hud-menu" class="pop-item" type="button" title="Clean view: hide the HUD [H]">
       <span class="pop-name"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>Clean view</span><span class="pop-state"><kbd>H</kbd></span>
     </button>
+    <button id="btn-live" class="pop-item" type="button" title="Show me as a dot on the public live map" aria-pressed="true">
+      <span class="pop-name">Live map</span><span class="pop-state"><span id="live-state">On</span></span>
+    </button>
     <div class="pop-title">About</div>
     <button id="btn-credits-menu" class="pop-item" type="button"><span class="pop-name">Data &amp; credits</span></button>
+    <a class="pop-item" href="./heatmap.html" target="_blank" rel="noopener"><span class="pop-name">Heat map</span><span class="pop-state" aria-hidden="true">↗</span></a>
     <a class="pop-item" href="./privacy.html" target="_blank" rel="noopener"><span class="pop-name">Privacy</span><span class="pop-state" aria-hidden="true">↗</span></a>
   </div>
 

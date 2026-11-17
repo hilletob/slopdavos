@@ -11,7 +11,7 @@ import { emailSignIn } from './account-email.js';
  *  @param {() => boolean} o.missionActive a running mission would be lost: no login then
  *  @param {() => void} o.pause stops the game when a guest's free time is up (js/guest-gate.js)
  *  @param {object} o.progress the missions' progress store (js/missions-progress.js) */
-export async function startAccount({ save, leaving, missionActive, pause, progress }) {
+export async function startAccount({ save, leaving, missionActive, pause, progress, heat }) {
   const button = document.getElementById('btn-account');
   const list = document.getElementById('account-items');
   const status = document.getElementById('account-status');
@@ -189,7 +189,7 @@ export async function startAccount({ save, leaving, missionActive, pause, progre
     if (!user) { guard(true); return; }
     renderUser(user);
     const { startSync } = await import('./account-sync.js');
-    sync = await startSync({ save, missionActive, progress, onStatus: (state) => {
+    sync = await startSync({ save, missionActive, progress, heat, onStatus: (state) => {
       syncState = state;
       if (popover.matches(':popover-open')) say(SYNC_TEXT[state]);
     } });

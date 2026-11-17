@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Heatmap – Slop Davos</title>
+  <meta name="description" content="Wo in Slop Davos gespielt wird: die Karte von Davos mit den Spuren aller Spielerinnen und Spieler als Heatmap, und wer gerade unterwegs ist, live." />
+  <link rel="canonical" href="https://davos.tschopp.cloud/heatmap.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Slop Davos" />
+  <meta property="og:url" content="https://davos.tschopp.cloud/heatmap.html" />
+  <meta property="og:title" content="Heatmap – Slop Davos" />
+  <meta property="og:description" content="Die Spuren aller Spielerinnen und Spieler auf der Karte von Davos, und wer gerade unterwegs ist." />
+  <meta property="og:image" content="https://davos.tschopp.cloud/assets/welcome/og-image.jpg" />
+  <meta name="theme-color" content="#12161b" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <link rel="preload" href="./assets/welcome/fonts/signika-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <style>
+    /* The public heat map (js/heatmap-page.js): the map fills the page, what is said about it lies on top in panels */
+    @font-face {
+      font-family: 'Signika'; font-style: normal; font-weight: 300 700; font-display: swap;
+      src: url('./assets/welcome/fonts/signika-latin.woff2') format('woff2');
+    }
+    :root { --ground: #12161b; --panel: rgba(18, 22, 27, 0.86); --edge: rgba(255, 255, 255, 0.14); --text: #e8edf2; --soft: #9aa6b3; --gelb: #ffc21a; --radius: 10px; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--ground); color: var(--text); font: 400 15px/1.4 'Signika', system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; }
+    html[lang='de'] [data-l='en'], html[lang='en'] [data-l='de'] { display: none; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #dots { touch-action: none; cursor: grab; outline: none; }
+    #dots:active { cursor: grabbing; }
+    #dots:focus-visible { box-shadow: inset 0 0 0 3px var(--gelb); }
+
+    .panel { position: fixed; z-index: 2; background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    .head { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); width: min(330px, calc(100vw - 24px)); padding: 14px 16px 12px; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); text-decoration: none; font-weight: 600; font-size: 14px; }
+    .brand:hover { color: var(--text); }
+    .brand img { border-radius: 6px; }
+    h1 { margin: 8px 0 2px; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: 0.01em; }
+    .lede { margin: 0 0 12px; color: var(--soft); font-size: 14px; }
+    #live { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    #live i { width: 10px; height: 10px; border-radius: 50%; background: var(--soft); flex: none; }
+    #live[data-state='on'] i { background: #5fe08a; box-shadow: 0 0 0 0 rgba(95, 224, 138, 0.6); animation: beat 2s infinite; }
+    #live[data-state='off'] i { background: #e0705f; }
+    @keyframes beat { to { box-shadow: 0 0 0 9px rgba(95, 224, 138, 0); } }
+    @media (prefers-reduced-motion: reduce) { #live[data-state='on'] i { animation: none; } }
+
+    .groups { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+    .groups button {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; cursor: pointer;
+      font: 500 13.5px/1 'Signika', system-ui, sans-serif; color: var(--text); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--edge);
+    }
+    .groups button::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--dot); }
+    .groups button[aria-pressed='false'] { color: var(--soft); background: transparent; }
+    .groups button[aria-pressed='false']::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--soft); }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--gelb); outline-offset: 2px; }
+
+    #legend { margin-top: 12px; }
+    #legend .bar { height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgb(62, 20, 110), rgb(140, 30, 130), rgb(214, 55, 90), rgb(248, 120, 40), rgb(252, 195, 70), rgb(255, 248, 200)); }
+    #legend .ends { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12.5px; color: var(--soft); }
+    #heat-note { margin: 8px 0 0; font-size: 12.5px; color: var(--soft); min-height: 1.4em; }
+    .play { display: inline-block; margin-top: 10px; padding: 9px 14px; border-radius: 8px; background: var(--gelb); color: #1b1d1f; font-weight: 700; text-decoration: none; }
+
+    .langs { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 2px; padding: 3px; }
+    .langs button, .zoom button { font: 600 14px/1 'Signika', system-ui, sans-serif; color: var(--text); background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
+    .langs button { padding: 7px 10px; }
+    .langs button[aria-pressed='true'] { background: var(--gelb); color: #1b1d1f; }
+    .zoom { right: max(12px, env(safe-area-inset-right)); bottom: max(44px, calc(env(safe-area-inset-bottom) + 44px)); display: grid; padding: 3px; }
+    .zoom button { width: 38px; height: 38px; font-size: 22px; }
+    .zoom button:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .foot { position: fixed; z-index: 2; left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; pointer-events: none; font-size: 12px; color: var(--soft); text-shadow: 0 0 4px var(--ground), 0 0 4px var(--ground); }
+    .scale { display: grid; gap: 3px; justify-items: center; color: var(--text); font-weight: 600; }
+    #scale { border: 2px solid var(--text); border-top: 0; height: 8px; }
+    .credit { pointer-events: auto; text-align: right; }
+    .credit a { color: inherit; }
+
+    @media (max-width: 560px) {
+      .head { padding: 10px 12px; }
+      h1 { font-size: 19px; margin: 0 0 6px; }
+      .lede, .brand, .play, #heat-note { display: none; }
+      .groups { margin-top: 8px; gap: 5px; }
+      .groups button { padding: 5px 8px; font-size: 12.5px; }
+      #legend { margin-top: 9px; }
+      .langs { top: auto; bottom: max(136px, calc(env(safe-area-inset-bottom) + 136px)); display: grid; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="map" aria-hidden="true"></canvas>
+  <canvas id="dots" tabindex="0" role="img" data-label-de="Karte von Davos mit den Spuren der Spieler als Heatmap und den Spielern, die gerade unterwegs sind. Ziehen verschiebt, das Mausrad oder Plus und Minus zoomen." data-label-en="Map of Davos with the players' trails as a heat map and the players out there right now. Drag to move, the wheel or plus and minus to zoom."></canvas>
+
+  <section class="panel head">
+    <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="22" height="22" /><span>Slop Davos</span></a>
+    <h1><span data-l="de">Wo Davos gespielt wird</span><span data-l="en">Where Davos is played</span></h1>
+    <p class="lede"><span data-l="de">Die Spuren aller angemeldeten Spielerinnen und Spieler, und wer gerade unterwegs ist.</span><span data-l="en">The trails of all signed-in players, and who is out there right now.</span></p>
+    <div id="live" data-state="connecting" role="status"><i aria-hidden="true"></i><span></span></div>
+    <div class="groups" role="group" data-label-de="Fortbewegung zeigen" data-label-en="Ways of travel shown">
+      <button type="button" data-group="0" aria-pressed="true"><span data-l="de">Zu Fuss</span><span data-l="en">On foot</span></button>
+      <button type="button" data-group="1" aria-pressed="true"><span data-l="de">Räder</span><span data-l="en">Wheels</span></button>
+      <button type="button" data-group="2" aria-pressed="true"><span data-l="de">Schnee</span><span data-l="en">Snow</span></button>
+      <button type="button" data-group="3" aria-pressed="true"><span data-l="de">Luft</span><span data-l="en">Air</span></button>
+      <button type="button" data-group="4" aria-pressed="true"><span data-l="de">Bahn</span><span data-l="en">Rail</span></button>
+    </div>
+    <div id="legend" hidden>
+      <div class="bar"></div>
+      <div class="ends"><span id="legend-min"></span><span id="legend-max"></span></div>
+    </div>
+    <p id="heat-note" role="status"></p>
+    <a class="play" href="./play.html"><span data-l="de">Davos spielen</span><span data-l="en">Play Davos</span></a>
+  </section>
+
+  <div class="panel langs" role="group" aria-label="Sprache / Language">
+    <button type="button" data-set-lang="de" lang="de">DE</button>
+    <button type="button" data-set-lang="en" lang="en">EN</button>
+  </div>
+  <div class="panel zoom">
+    <button id="zoom-in" type="button" data-label-de="Hineinzoomen" data-label-en="Zoom in">+</button>
+    <button id="zoom-out" type="button" data-label-de="Herauszoomen" data-label-en="Zoom out">−</button>
+  </div>
+  <div class="foot">
+    <div class="scale"><span id="scale-label"></span><div id="scale"></div></div>
+    <div class="credit">© OpenStreetMap · © swisstopo · <a href="./privacy.html"><span data-l="de">Datenschutz</span><span data-l="en">Privacy</span></a></div>
+  </div>
+
+  <script type="module" src="./js/heatmap-page.js"></script>
+</body>
+</html>

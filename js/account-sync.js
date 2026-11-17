@@ -16,7 +16,7 @@ const PROGRESS_DELAY = 3000; // ms
 const WRITE_TRIES = 3;
 const KEEPALIVE_LIMIT = 60000; // bytes (browsers refuse more)
 // (these debug switches move the clock; such a session's world is not the player's)
-const DEBUG_SWITCHES = /[?&](time|winter|summer|mission)\b/;
+export const DEBUG_SWITCHES = /[?&](time|winter|summer|mission)\b/;
 
 async function sessionUser() {
   const supabase = await getClient();
@@ -111,6 +111,31 @@ async function pushStats() {
   }
 }
 
+/** The stretch of the player's trail since the last call (js/heat-trail.js) onto the public heat map: heat_add counts the
+ *  cells, with no player beside them. A plain request, like pushWorld; what does not get through goes with the next call */
+async function pushHeat(heat) {
+  const cells = heat?.take() || [];
+  let token = null;
+  try { token = JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token; } catch { /* */ }
+  if (!cells.length) return true;
+  if (!token) { heat.restore(cells); return false; }
+  const body = JSON.stringify({ cells });
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heat_add`, {
+      method: 'POST',
+      keepalive: body.length < KEEPALIVE_LIMIT,
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body
+    });
+    // (refused for its shape, or the function is not there yet: these cells are not sent again)
+    if (!response.ok && response.status >= 500) heat.restore(cells);
+    return response.ok;
+  } catch {
+    heat.restore(cells);
+    return false;
+  }
+}
+
 /**
  * The sync while playing.
  * @param {object} o
@@ -118,9 +143,10 @@ async function pushStats() {
  * @param {() => boolean} o.missionActive
  * @param {{ subscribe: (fn: () => void) => () => void }} o.progress
  * @param {(state: 'saved' | 'failed') => void} o.onStatus
+ * @param {{ start: () => void, take: () => number[], restore: (cells: number[]) => void }} [o.heat] the player's trail (js/heat-trail.js)
  * @returns {Promise<{ flush: () => Promise<void>, stop: () => void } | null>}
  */
-export async function startSync({ save, missionActive, progress, onStatus }) {
+export async function startSync({ save, missionActive, progress, onStatus, heat = null }) {
   const { supabase, user } = await sessionUser();
   if (!user || ownedByOther(localStorage, user.id)) return null;
   const userId = user.id;
@@ -136,6 +162,7 @@ export async function startSync({ save, missionActive, progress, onStatus }) {
 
   const syncWorld = async () => {
     pushStats(); // (the statistics also during a mission: they hold no clock)
+    pushHeat(heat);
     if (worldHeld || missionActive() || DEBUG_SWITCHES.test(location.search)) return;
     try { save(); } catch { /* (the last saved state goes then) */ }
     onStatus(await pushWorld(userId) ? 'saved' : 'failed');
@@ -143,6 +170,8 @@ export async function startSync({ save, missionActive, progress, onStatus }) {
 
   await syncSave();
   localStorage.setItem(OWNER_KEY, userId);
+  // (the trail onto the public heat map: a signed-in player's only, and not a debug session's)
+  if (!DEBUG_SWITCHES.test(location.search)) heat?.start();
   pushStats();
 
   const unsubscribe = progress?.subscribe?.(() => {

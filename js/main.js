@@ -66,6 +66,8 @@ import { groomMap } from './groom-map.js';
 import { buildMissions } from './missions.js';
 import { buildGta, hasGtaState } from './gta.js';
 import { createPlayStats, travelKind } from './play-stats.js';
+import { createHeatTrail } from './heat-trail.js';
+import { createLiveBeacon, liveEnabled, setLiveEnabled } from './live-beacon.js';
 import { buildFreeFlight } from './paraglide-free.js';
 import { GTA_START } from './vehicle-depots.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
@@ -1142,6 +1144,20 @@ async function initApp() {
   renderHints();
   // The play time and the ways of travel (js/play-stats.js), counted from the first frame shown
   const playStats = createPlayStats();
+  // The public heat map and its live dots (heatmap.html): a signed-in player's trail (js/heat-trail.js, started and
+  // sent by js/account-sync.js), and everybody's place now (js/live-beacon.js; off in the menu)
+  // (not from the development server, where it is no player's game: ?live switches it on there for a check)
+  const publicTrail = !/^(localhost|127\.0\.0\.1|\[::1\]|.*\.localhost)$/.test(location.hostname) || /[?&]live\b/.test(location.search);
+  const heatTrail = createHeatTrail();
+  const liveBeacon = createLiveBeacon();
+  const liveButton = document.getElementById('btn-live'), liveState = document.getElementById('live-state');
+  const updateLiveButton = () => {
+    const on = liveEnabled();
+    liveButton?.setAttribute('aria-pressed', String(on));
+    if (liveState) setLocalizedText(liveState, on ? 'On' : 'Off');
+  };
+  liveButton?.addEventListener('click', () => { setLiveEnabled(!liveEnabled()); updateLiveButton(); });
+  updateLiveButton();
   const travelNow = () => travelKind({
     mode: controllerManager.activeMode,
     passenger: !!controllerManager.rhbPassenger,
@@ -1322,7 +1338,16 @@ async function initApp() {
     levelCrossings.update(dt);
     controllerManager.update(dt, elapsed);
     constrainToTunnel(controllerManager.getActiveEntity().position);
-    if (warmedUp) playStats.tick(realDt, travelNow(), controllerManager.getActiveEntity().position);
+    if (warmedUp) {
+      const kind = travelNow(), body = controllerManager.getActiveEntity().position;
+      playStats.tick(realDt, kind, body);
+      // (a mission's vehicle that leaves the walker behind, the funicular's cab: the place is the vehicle's, on rails)
+      const ride = vehiclePanelNow()?.at?.();
+      if (publicTrail) {
+        heatTrail.tick(ride ? 'train-driver' : kind, ride || body);
+        liveBeacon.tick(ride ? 'train-driver' : kind, ride || body);
+      }
+    }
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
     trafficSystem.update(
@@ -1410,7 +1435,8 @@ async function initApp() {
           missionActive: () => missions.active,
           // (a guest's free time is up, js/guest-gate.js: the game stands still behind the sign-in)
           pause: () => { renderer.setAnimationLoop(null); audioSystem.suspend(); document.exitPointerLock?.(); },
-          progress: globalThis.__slopdavosProgress
+          progress: globalThis.__slopdavosProgress,
+          heat: publicTrail ? heatTrail : null
         })).catch(() => { /* the game goes on without it */ });
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
         window.__slopdavos = {
