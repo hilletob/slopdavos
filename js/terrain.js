@@ -202,6 +202,10 @@ export const tunnelOpenRuns = (profile) => profile.openRuns || (profile.openRuns
  * for a bore (under the roof plus a metre of cover): there the terrain is cut and js/tunnels.js closes a concrete box
  * (cut and cover). Outside [from, to] the track runs in the open (on its bed, js/bergbahnen.js). Null: no portal at all.
  */
+// Portals in a house, past where the ground falls away below the track (swissALTI3D has no ground under a house over
+// the track): the enclosed stretch reaches the house's far wall, js/bergbahnen.js carves the bore through the house.
+// Davos Dorf: the Parsennbahn leaves its tunnel through the house at the Palüdastrasse (swisstopo's map, SWISSIMAGE)
+const FUNICULAR_HOUSE_PORTALS = [{ funicular: 'Parsennbahn|2200', x: 525.9, z: -1629.3 }];
 export function funicularTunnelParts(t) {
   if (t.parts !== undefined) return t.parts;
   const half = t.width / 2, roof = TUNNEL_ROOF.rail, n = Math.max(2, Math.ceil(t.length));
@@ -212,8 +216,14 @@ export function funicularTunnelParts(t) {
   }
   // (the stretch reaches some 24 m past the mapped tunnel: the portal is where the ground over the track begins)
   const inside = S.filter((q) => q.under >= 0.2);
-  const from = t.stationStart ? 0 : inside[0]?.s, to = t.stationEnd ? t.length : inside.at(-1)?.s;
+  let from = t.stationStart ? 0 : inside[0]?.s, to = t.stationEnd ? t.length : inside.at(-1)?.s;
   if (from === undefined || to === undefined || to - from < 4) return (t.parts = null);
+  for (const h of FUNICULAR_HOUSE_PORTALS) {
+    const p = h.funicular === t.funicular && t.project(h.x, h.z, 3, true);
+    if (!p) continue;
+    if (!t.stationEnd && p.s > to && p.s - to < 30) to = p.s;
+    if (!t.stationStart && p.s < from && from - p.s < 30) from = p.s;
+  }
   // (a bore needs some cover; deep inside, out of sight of the portals, a thin one will do: no cut there)
   const mouths = [...(t.stationStart ? [] : [from]), ...(t.stationEnd ? [] : [to])];
   for (const q of S) q.covered = q.cover >= 0.3 || (q.cover >= -1.5 && mouths.every((m) => Math.abs(q.s - m) > 45));

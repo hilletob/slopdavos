@@ -13,7 +13,7 @@ const stub = new Proxy({}, { get: () => undefined });
 const { LIFT_TERMINALS, LIFT_PORTALS } = loadModule(readFileSync(new URL('../js/bergbahnen.js', import.meta.url), 'utf8'), {
   imports: {
     ...Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', 'three/addons/geometries/RoundedBoxGeometry.js', './tsl-materials.js', './quality.js'].map((k) => [k, stub])),
-    './terrain.js': { groundHeight: () => 0, funicularEnclosedAt: () => false },
+    './terrain.js': { groundHeight: () => 0, funicularEnclosedAt: () => false, getFunicularTunnels: () => [], funicularTunnelParts: () => null, TUNNEL_ROOF: { road: 5.8, rail: 5.5 } },
     './bergbahnen-data.js': { BERGBAHNEN }, './davos-geodata.js': { DAVOS_DATA }, './swissbuildings3d.js': { excludeBuildings() {}, carveBuildings() {} },
     './funicular-track.js': { funicularTrack }
   },

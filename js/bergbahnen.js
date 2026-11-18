@@ -6,7 +6,7 @@ import { BERGBAHNEN } from './bergbahnen-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { excludeBuildings, carveBuildings } from './swissbuildings3d.js';
 import { cityUniforms } from './tsl-materials.js';
-import { groundHeight, funicularEnclosedAt } from './terrain.js';
+import { groundHeight, funicularEnclosedAt, getFunicularTunnels, funicularTunnelParts, TUNNEL_ROOF } from './terrain.js';
 import { funicularTrack } from './funicular-track.js';
 import { QUALITY } from './quality.js';
 
@@ -467,7 +467,27 @@ function undergroundEnds() {
   }
   return out;
 }
+// The bores' last metres at the portals (js/tunnels.js): a house standing on a portal (the Parsennbahn's at the
+// Palüdastrasse, js/terrain.js FUNICULAR_HOUSE_PORTALS) would close the opening; its walls and floors are cut away round
+// the bore, the gallery's concrete box and the portal's face (js/tunnels.js) take their place
+function portalEnds() {
+  const out = [];
+  for (const t of getFunicularTunnels()) {
+    const parts = funicularTunnelParts(t);
+    if (!parts) continue;
+    for (const [m, dir] of [...(t.stationStart ? [] : [[parts.from, 1]]), ...(t.stationEnd ? [] : [[parts.to, -1]])]) {
+      const pts = [];
+      for (let d = -1; d <= 16; d += 1.5) pts.push(t.at(m + dir * d));
+      out.push({ pts: dir < 0 ? pts.reverse() : pts, height: TUNNEL_ROOF.rail + 0.3, half: t.width / 2 + 0.4 });
+    }
+  }
+  return out;
+}
 // (carved now, before the first tile is baked)
+carveBuildings(portalEnds().flatMap(({ pts, height, half }) => pts.slice(1).map((B, k) => {
+  const A = pts[k], L = Math.hypot(B.x - A.x, B.z - A.z) || 1;
+  return { x: (A.x + B.x) / 2, z: (A.z + B.z) / 2, ux: (B.x - A.x) / L, uz: (B.z - A.z) / L, hl: L / 2 + 0.05, hw: half, y0: Math.min(A.y, B.y) - 1, y1: Math.max(A.y, B.y) + height };
+})));
 carveBuildings([...STATION_HALLS, ...undergroundEnds()].flatMap(({ pts, height = HALL.height }) => pts.slice(1).map((B, k) => {
   const A = pts[k], L = Math.hypot(B.x - A.x, B.z - A.z) || 1, ux = (B.x - A.x) / L, uz = (B.z - A.z) / L, o = (HALL.right - HALL.left) / 2;
   return { x: (A.x + B.x) / 2 - uz * o, z: (A.z + B.z) / 2 + ux * o, ux, uz, hl: L / 2 + 0.05, hw: (HALL.left + HALL.right) / 2 + 0.05, y0: Math.min(A.y, B.y) - 1, y1: Math.max(A.y, B.y) + height + 0.05 };
