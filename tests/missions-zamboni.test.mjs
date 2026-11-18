@@ -75,11 +75,12 @@ test('the machine: 15 km/h at most, a wide turn, the steer to the left turns it 
   for (let i = 0; i < 30 * 8; i++) stepMachine(m, { forward: 1 }, DT);
   assert.ok(Math.abs(m.v - 15 / 3.6) < 0.01, `${m.v * 3.6} km/h`);
   assert.ok(m.x > -5 && m.x < 10);
-  // full lock to the left at a crawl: a circle; the heading falls (towards −y: left of a driver facing +x)
+  // full lock to the left at a crawl: a circle; the heading falls (towards −y: left of a driver facing +x; steered at
+  // the rear axle, the tail and with it the body's middle first swings out a little to the right)
   Object.assign(m, { x: 0, y: 0, a: 0, v: 1.5, steer: 0 });
   const xs = [], ys = [];
   for (let i = 0; i < 30 * 12; i++) { stepMachine(m, { forward: 0.3, steer: 1 }, DT); m.v = 1.5; xs.push(m.x); ys.push(m.y); }
-  assert.ok(Math.min(...ys) < -6 && Math.max(...ys) <= 0.01, 'turned to the left (−y)');
+  assert.ok(Math.min(...ys) < -6 && Math.max(...ys) <= 0.3, 'turned to the left (−y)');
   const across = Math.max(...ys) - Math.min(...ys);
   assert.ok(across > 8 && across < 13, `a turning circle of ${across.toFixed(1)} m (the body's middle)`);
   // braking, then backing up slowly

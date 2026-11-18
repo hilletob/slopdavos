@@ -45,8 +45,8 @@ export const ZAMBONI = {
     coast: 0.45,
     back: 0.9, // m/s² backing up
     wheelbase: 2.4,
-    rearAxle: -1.1, // m behind the origin: the machine turns about its rear axle
-    maxSteer: 0.52, // rad: a turning circle of ~4.2 m at the rear axle (~10.5 m across, outside the body)
+    rearAxle: -1.1, // m behind the origin: the steered axle (the front axle wheelbase ahead of it)
+    maxSteer: 0.52, // rad at the rear wheels: a turning circle of ~4.2 m at the front axle (~10.5 m across, outside the body)
     steerRate: 1.4, // rad/s at the wheels
     // the body against the boards: two circles along the axis (the nose with the driver; the tank and the conditioner)
     circles: [{ s: 0.85, r: 1.2 }, { s: -1.45, r: 1.2 }],
@@ -121,7 +121,7 @@ export function createMachine(Z = ZAMBONI) {
 
 /**
  * One step of the machine. `input`: { forward 0-1, back 0-1 (brakes, then backs up), steer −1..1 (positive: to the left) }.
- * Kinematic: the rear axle runs along the heading, the front wheels turn it; then the boards (and the gate's tunnel)
+ * Kinematic: the front axle runs along the heading, the rear wheels turn it (the tail swings out); then the boards (and the gate's tunnel)
  * keep the body in. Returns { hit, impact } (impact: m/s into the boards when it touched them this step).
  */
 export function stepMachine(m, input, dt, Z = ZAMBONI) {
@@ -133,12 +133,13 @@ export function stepMachine(m, input, dt, Z = ZAMBONI) {
   else m.v = m.v > 0 ? Math.max(0, m.v - M.coast * dt) : Math.min(0, m.v + M.coast * dt);
   const want = clamp(input.steer || 0, -1, 1) * M.maxSteer;
   m.steer += clamp(want - m.steer, -M.steerRate * dt, M.steerRate * dt);
-  // the rear axle along the heading; the heading turns by v·tan(δ)/L (a steer to the left: towards −y, a smaller a)
-  const ra = -M.rearAxle;
-  let rx = m.x - Math.cos(m.a) * ra, ry = m.y - Math.sin(m.a) * ra;
-  rx += Math.cos(m.a) * m.v * dt; ry += Math.sin(m.a) * m.v * dt;
+  // steered at the rear axle, like the real machines: the front axle runs along the heading, the rear wheels (turned
+  // against the steer) swing the tail out; the heading turns by v·tan(δ)/L (a steer to the left: towards −y, a smaller a)
+  const fa = M.rearAxle + M.wheelbase;
+  let fx = m.x + Math.cos(m.a) * fa, fy = m.y + Math.sin(m.a) * fa;
+  fx += Math.cos(m.a) * m.v * dt; fy += Math.sin(m.a) * m.v * dt;
   m.a -= (m.v * Math.tan(m.steer) / M.wheelbase) * dt;
-  m.x = rx + Math.cos(m.a) * ra; m.y = ry + Math.sin(m.a) * ra;
+  m.x = fx - Math.cos(m.a) * fa; m.y = fy - Math.sin(m.a) * fa;
   return containMachine(m, Z);
 }
 
@@ -269,9 +270,11 @@ export function masterPath({ first = 1.45, step = 2.0, laps = 5, lanes = [-3.45,
 }
 
 /** Pure pursuit along `path` from index `i`: the steer for the machine and the index reached */
-export function pursue(m, path, i, look = 4.2) {
-  while (i < path.length - 1 && Math.hypot(path[i].x - m.x, path[i].y - m.y) < look) i++;
-  const p = path[i], dx = p.x - m.x, dy = p.y - m.y;
+export function pursue(m, path, i, look = 5) {
+  // (from the front axle: it runs along the heading, the rear-steered tail follows)
+  const fa = ZAMBONI.machine.rearAxle + ZAMBONI.machine.wheelbase, ox = m.x + Math.cos(m.a) * fa, oy = m.y + Math.sin(m.a) * fa;
+  while (i < path.length - 1 && Math.hypot(path[i].x - ox, path[i].y - oy) < look) i++;
+  const p = path[i], dx = p.x - ox, dy = p.y - oy;
   let err = Math.atan2(dy, dx) - m.a;
   while (err > Math.PI) err -= 2 * Math.PI;
   while (err < -Math.PI) err += 2 * Math.PI;

@@ -374,10 +374,10 @@ const zamboni = {
     if (r.impact >= ZAMBONI.bump && run.phase === 'running') z.knock = r.impact;
     else if (r.impact > 0.4) rinkSound(run, 'boards', clamp(r.impact / 2, 0.2, 0.5));
     zamboni.place(run, p);
-    // the wheels: rolling, the front pair steered
+    // the wheels: rolling, the rear pair steered (against the steer: the tail swings out)
     for (const w of z.v.wheels) {
       w.mesh.rotation.x += (m.v * dt) / w.r;
-      w.mesh.rotation.y = w.front ? m.steer : 0;
+      w.mesh.rotation.y = w.front ? 0 : -m.steer;
     }
   },
   pose(run, _dt, p) {
