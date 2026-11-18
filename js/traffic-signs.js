@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, float, frontFacing, mix, positionLocal, select, texture, uv, vec2, vec3 } from 'three/tsl';
+import { attribute, float, frontFacing, mix, select, texture, uv, vec2, vec3 } from 'three/tsl';
 import { TRAFFIC_SIGNS } from './traffic-signs-data.js';
 import { surfaceHeight, sidewalkRise, SIDEWALK_TOP } from './terrain.js';
 import { QUALITY } from './quality.js';
@@ -383,11 +383,12 @@ function buildAtlas(keys) {
   return { tex, rects, width: canvas.width, height: canvas.height };
 }
 
-// --- The metal and the street furniture: one geometry, a part per instance --------------------------------------------------
+// --- The metal and the street furniture: one geometry, one index range per part --------------------------------------------------
 const PART = { post: 0, clamp: 1, bend: 2, case: 3, bench: 4, bin: 5 };
 const GALVANISED = [0.55, 0.57, 0.59], ZINC_DARK = [0.42, 0.44, 0.46];
 
-/** All the parts merged (indexed), each vertex with its colour, (metalness, roughness) and part id */
+/** All the parts merged (indexed), each vertex with its colour and (metalness, roughness); userData.ranges: per part
+ *  (PART) its [start, count] in the index (a part's pieces are added one after the other) */
 function hardwareGeometry() {
   const pieces = [];
   const add = (g, part, color, metal = 0.5, rough = 0.5) => { pieces.push({ g, part, color, metal, rough }); };
@@ -424,14 +425,17 @@ function hardwareGeometry() {
 
   let nv = 0, ni = 0;
   for (const p of pieces) { nv += p.g.attributes.position.count; ni += p.g.index.count; }
-  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), mat = new Float32Array(nv * 2), id = new Float32Array(nv);
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), mat = new Float32Array(nv * 2);
   const index = new Uint32Array(ni);
   let v = 0, k = 0;
+  const ranges = [];
   for (const p of pieces) {
+    if (!ranges[p.part]) ranges[p.part] = [k, 0];
+    ranges[p.part][1] += p.g.index.count;
     const g = p.g, n = g.attributes.position.count;
     pos.set(g.attributes.position.array, v * 3);
     nor.set(g.attributes.normal.array, v * 3);
-    for (let i = 0; i < n; i++) { col.set(p.color, (v + i) * 3); mat[(v + i) * 2] = p.metal; mat[(v + i) * 2 + 1] = p.rough; id[v + i] = p.part; }
+    for (let i = 0; i < n; i++) { col.set(p.color, (v + i) * 3); mat[(v + i) * 2] = p.metal; mat[(v + i) * 2 + 1] = p.rough; }
     for (let i = 0; i < g.index.count; i++) index[k++] = g.index.array[i] + v;
     v += n;
     g.dispose();
@@ -441,9 +445,9 @@ function hardwareGeometry() {
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setAttribute('aMat', new THREE.BufferAttribute(mat, 2));
-  geo.setAttribute('aPartId', new THREE.BufferAttribute(id, 1));
   geo.setIndex(new THREE.BufferAttribute(nv > 65535 ? index : new Uint16Array(index), 1));
   geo.computeBoundingSphere();
+  geo.userData.ranges = ranges;
   return geo;
 }
 
@@ -725,23 +729,32 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
     }
   }
 
-  // The metal and furniture (capacity: all of them; drawn: the ones near the camera)
+  // The metal and furniture (capacity: all of them; drawn: the ones near the camera): one instanced mesh per part on
+  // that part's range of the shared geometry, all with the one material (one shader). (Each instance drawing the whole
+  // merged set and the shader folding away the other parts cost ~420 triangles a post.)
   const hwGeometry = hardwareGeometry();
-  const aPart = new THREE.InstancedBufferAttribute(new Float32Array(parts.length), 1);
-  hwGeometry.setAttribute('aPart', aPart);
   const hwMaterial = new THREE.MeshStandardNodeMaterial();
   {
-    const keep = attribute('aPartId', 'float').sub(attribute('aPart', 'float')).abs().lessThan(0.5);
-    hwMaterial.positionNode = select(keep, positionLocal, vec3(0));
     hwMaterial.colorNode = attribute('color', 'vec3');
     const mr = attribute('aMat', 'vec2');
     hwMaterial.metalnessNode = mr.x;
     hwMaterial.roughnessNode = mr.y;
   }
-  const hwMesh = new THREE.InstancedMesh(hwGeometry, hwMaterial, parts.length);
-  hwMesh.name = 'Traffic sign posts and stop furniture';
-  hwMesh.castShadow = true;
-  hwMesh.receiveShadow = true;
+  const capacity = [];
+  for (const p of parts) capacity[p.part] = (capacity[p.part] || 0) + 1;
+  const hwMeshes = hwGeometry.userData.ranges.map(([start, count], kind) => {
+    const g = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(hwGeometry.attributes)) g.setAttribute(name, attr);
+    g.setIndex(hwGeometry.index);
+    g.setDrawRange(start, count);
+    g.boundingSphere = hwGeometry.boundingSphere;
+    const mesh = new THREE.InstancedMesh(g, hwMaterial, Math.max(1, capacity[kind] || 0));
+    mesh.name = `Traffic sign posts and stop furniture (${Object.keys(PART)[kind]})`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  });
+  for (let k = 1; k < hwMeshes.length; k++) hwMeshes[k].userData.sharesPipelineWith = hwMeshes[0];
 
   const plateGeometry = new THREE.PlaneGeometry(1, 1);
   const aFront = new THREE.InstancedBufferAttribute(new Float32Array(plates.length * 4), 4);
@@ -768,19 +781,19 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
   // (the posts' shadows are enough: the plates casting too would add two draws per frame, one per shadow cascade)
   plateMesh.castShadow = false;
   plateMesh.receiveShadow = true;
-  group.add(hwMesh, plateMesh);
+  group.add(...hwMeshes, plateMesh);
 
   // Packs the posts within VIEW_DISTANCE (all of them before the first update: the shaders compile with every one in)
   function fill(test) {
-    const hm = hwMesh.instanceMatrix.array, lm = plateMesh.instanceMatrix.array;
-    let n = 0, j = 0, k = 0;
+    const lm = plateMesh.instanceMatrix.array;
+    const used = hwMeshes.map(() => 0);
+    let n = 0, k = 0;
     for (const post of posts) {
       if (test && !test(post)) continue;
       n++;
       for (let i = post.parts[0]; i < post.parts[1]; i++) {
-        hm.set(parts[i].matrix, j * 16);
-        aPart.array[j] = parts[i].part;
-        j++;
+        const kind = parts[i].part;
+        hwMeshes[kind].instanceMatrix.array.set(parts[i].matrix, used[kind]++ * 16);
       }
       for (let i = post.plates[0]; i < post.plates[1]; i++) {
         const pl = plates[i];
@@ -790,12 +803,17 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
         k++;
       }
     }
-    hwMesh.count = Math.max(1, j);
+    hwMeshes.forEach((mesh, kind) => {
+      mesh.count = Math.max(1, used[kind]);
+      mesh.visible = used[kind] > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (used[kind]) mesh.computeBoundingSphere();
+    });
     plateMesh.count = Math.max(1, k);
-    hwMesh.visible = plateMesh.visible = n > 0;
-    hwMesh.instanceMatrix.needsUpdate = plateMesh.instanceMatrix.needsUpdate = true;
-    aPart.needsUpdate = aFront.needsUpdate = aBack.needsUpdate = true;
-    if (n) { hwMesh.computeBoundingSphere(); plateMesh.computeBoundingSphere(); }
+    plateMesh.visible = n > 0;
+    plateMesh.instanceMatrix.needsUpdate = true;
+    aFront.needsUpdate = aBack.needsUpdate = true;
+    if (n) plateMesh.computeBoundingSphere();
     return n;
   }
   fill(null);

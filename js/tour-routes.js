@@ -5,6 +5,7 @@ import { groundHeight } from './terrain.js';
 import { isWinter } from './season.js';
 import { getLanguage } from './i18n.js';
 import { cachedMapLayer } from './map-layer-cache.js';
+import { cullInstanced } from './scene-culling.js';
 
 // The marked and the published routes of the Landschaft Davos (js/tour-routes-data.js, tools/fetch-tour-routes.mjs:
 // swisstopo's hiking network, SchweizMobil's routes, the SAC's ski touring and snowshoe routes):
@@ -206,16 +207,15 @@ function signpostGeometry() {
   return mergeGeometries(parts, false);
 }
 
-// `tip`: null (a Wanderweg: all yellow) or the colour between the two white bands (red: mountain, blue: alpine)
-function signpostMaterial(tip) {
+// One material for all three kinds (one shader on a phone): the instance's `tip` attribute is the colour between the
+// two white bands of the blades' tips and whether there are bands (w 0: a Wanderweg, all yellow; red: mountain, blue:
+// alpine)
+function signpostMaterial() {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.55, metalness: 0 });
-  const part = attribute('part', 'float'), along = attribute('along', 'float');
+  const part = attribute('part', 'float'), along = attribute('along', 'float'), tip = attribute('tip', 'vec4');
   const isPart = (id) => smoothstep(0.3, 0.2, abs(part.sub(id)));
-  let blade = color(0xf5c400);
-  if (tip !== null) {
-    const white = smoothstep(0.495, 0.5, along), middle = smoothstep(0.545, 0.55, along).mul(smoothstep(0.6, 0.595, along));
-    blade = mix(blade, mix(color(0xf2f2ee), color(tip), middle), white);
-  }
+  const white = smoothstep(0.495, 0.5, along).mul(tip.w), middle = smoothstep(0.545, 0.55, along).mul(smoothstep(0.6, 0.595, along));
+  const blade = mix(color(0xf5c400), mix(color(0xf2f2ee), tip.xyz, middle), white);
   m.colorNode = mix(mix(color(0x8d9094), blade, isPart(1)), color(0xeeeeea), isPart(2));
   m.metalnessNode = isPart(0).mul(0.6);
   return m;
@@ -227,21 +227,27 @@ export function buildSignposts(scene, nodes) {
   group.userData.terrain = 'absolute';
   const geometry = signpostGeometry();
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
-  for (const [c, tip] of [['w', null], ['b', 0xd4202a], ['a', 0x1f5fc4]]) {
-    const sites = nodes.filter((n) => n.c === c);
-    if (!sites.length) continue;
-    const mesh = new THREE.InstancedMesh(geometry, signpostMaterial(tip), sites.length);
+  const TIP = { w: null, b: new THREE.Color(0xd4202a), a: new THREE.Color(0x1f5fc4) };
+  const sites = nodes.filter((n) => n.c in TIP);
+  if (sites.length) {
+    const tips = new Float32Array(sites.length * 4);
+    const mesh = new THREE.InstancedMesh(geometry, signpostMaterial(), sites.length);
     sites.forEach((s, i) => {
       const x = s.x + Math.sin(s.a) * 1.6, z = s.z + Math.cos(s.a) * 1.6;
       mesh.setMatrixAt(i, m.compose(p.set(x, groundHeight(x, z) - 0.3, z), q.setFromAxisAngle(up, s.a), one));
+      const t = TIP[s.c];
+      if (t) tips.set([t.r, t.g, t.b, 1], i * 4);
     });
-    mesh.name = `Hiking signposts (${c})`;
+    geometry.setAttribute('tip', new THREE.InstancedBufferAttribute(tips, 4));
+    mesh.name = 'Hiking signposts';
     mesh.castShadow = true;
     mesh.computeBoundingSphere();
     group.add(mesh);
-  }
+    scene.add(group);
+    // (spread over the whole map: cut into squares the view culls, none drawn beyond 700 m, where a post is a pixel)
+    cullInstanced(mesh, { cell: 400, maxDistance: 700 });
+  } else scene.add(group);
   group.userData.stats = { signposts: nodes.length };
-  scene.add(group);
   return group;
 }
 

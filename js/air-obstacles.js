@@ -3,6 +3,7 @@ import { color, float, fract, max, min, mix, positionGeometry, positionView, smo
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { airObstacleField, KIND, PYLON_FROM, armHalf } from './air-obstacle-field.js';
+import { cullInstanced } from './scene-culling.js';
 
 // The registered air navigation obstacles of Davos, drawn (js/air-obstacle-field.js has the geometry and the contact
 // test; the data is the BAZL's obstacle register, js/air-obstacles-data.js):
@@ -11,7 +12,8 @@ import { airObstacleField, KIND, PYLON_FROM, armHalf } from './air-obstacle-fiel
 // - the material and transport cables across the side valleys: a single rope high over the ground, with the orange
 //   marker balls such spans carry;
 // - the single masts (aerials), banded red and white.
-// Four instanced meshes and one line set for the whole map (a few hundred instances, ~5000 line segments).
+// Four instanced meshes, cut into 1 km squares, and one line set for the whole map (a few hundred instances, ~5000
+// line segments).
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -139,5 +141,9 @@ export function buildAirObstacles(scene) {
   }
   group.userData.stats = { pylons: pylons.length, poles: poles.length, aerials: aerials.length, wires: wires.length, balls: balls.length };
   scene.add(group);
+  // The instanced sets span the whole map: cut into squares the view culls; the small ones also hidden where they
+  // shrink to a pixel (the pylons stand out over the valley at any distance)
+  const reach = { 'Power line pylons': Infinity, 'Power line poles': 1500, 'Aerial masts': 2500, 'Cable marker balls': 1200 };
+  for (const mesh of [...group.children]) if (mesh.isInstancedMesh) cullInstanced(mesh, { cell: 1000, maxDistance: reach[mesh.name] ?? Infinity });
   return group;
 }

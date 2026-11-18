@@ -315,10 +315,25 @@ function setupSceneCulling(scene, roots, shadow = null) {
     if (!mesh.castShadow) replaceWithChunks(mesh, STATIC_CELL);
   }
 
-  state.culled = culled;
+  state.culled.push(...culled);
 }
 
 const state = { culled: [] };
+
+// For props outside setupSceneCulling's roots (optional or late layers: signposts, masts): splits a map-wide
+// InstancedMesh (already in the scene) into `cell` squares, which the view frustum culls, and hides the squares farther
+// than `maxDistance` from the camera (Infinity: frustum culling only). Returns the chunks.
+function cullInstanced(mesh, { cell = 500, maxDistance = Infinity } = {}) {
+  mesh.parent.updateMatrixWorld(true);
+  const chunks = replaceWithChunks(mesh, cell);
+  if (Number.isFinite(maxDistance)) {
+    for (const chunk of chunks) {
+      const sphere = chunk.boundingSphere.clone().applyMatrix4(chunk.matrixWorld);
+      state.culled.push({ mesh: chunk, x: sphere.center.x, y: sphere.center.y, z: sphere.center.z, r: sphere.radius, d: maxDistance });
+    }
+  }
+  return chunks;
+}
 
 // Per frame (after the warm-up frame, which must see everything): hide the chunks beyond their cull distance
 function updateSceneCulling(cameraPosition) {
@@ -383,4 +398,4 @@ function chunkedMeshes(geometry, material, { cell = 400, maxDistance = Infinity,
   });
 }
 
-export { setupSceneCulling, updateSceneCulling, SHADOW_PROXY_LAYER, chunkedMeshes };
+export { setupSceneCulling, updateSceneCulling, SHADOW_PROXY_LAYER, chunkedMeshes, cullInstanced };
