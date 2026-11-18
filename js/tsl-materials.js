@@ -1446,6 +1446,92 @@ function createParkPavingMaterial() {
 }
 
 /**
+ * The unsealed paths and tracks (js/city-grid.js lays them as level benches, js/path-bench.js) and the fill slopes of
+ * every bench. uv.x: across the way, -1 at its left edge to 1 at its right, beyond that (to ±2) down the fill slope;
+ * uv.y: metres along. Attribute `trail`: half the bench's width (m), the surface (0 gravel, 1 earth, 2 rock, 3 wooden
+ * boards) and how much the grass has taken back (0 bare .. 3 a faint line in the turf).
+ * A path is a trodden line with turf shoulders, wandering a little; a track from two metres up is two wheel ruts with
+ * a grass strip between them once it is grown (tracktype grade3 and up).
+ */
+function createTrailMaterial() {
+  const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0.0, roughness: 0.95 });
+  const trail = attribute('trail', 'vec3');
+
+  // (bare ground 0..1, and the noises shared with the bump)
+  const wear = Fn(() => {
+    const wp = positionWorld.xz;
+    const half = trail.x, grown = trail.z.div(3.0);
+    const m = abs(uv().x).mul(half); // metres from the centre line
+    const wobble = noise2D(wp.mul(0.8)).sub(0.5).mul(min(half, float(1.0)).mul(0.45));
+    const patch = noise2D(wp.mul(0.23));
+    // A path: the trodden line, narrower the more it is grown
+    const trod = half.mul(mix(float(0.86), float(0.42), grown));
+    const single = float(1.0).sub(smoothstep(trod.sub(0.1), trod.add(0.06), m.add(wobble)));
+    // A track: bare to its shoulders; grown, a grass strip in the middle and the ruts alone at last
+    const rut = min(float(0.75), half.mul(0.56));
+    const shoulder = float(1.0).sub(smoothstep(half.mul(0.8), half.mul(0.97), m.add(wobble)));
+    const strip = float(1.0).sub(smoothstep(grown.mul(0.42), grown.mul(0.42).add(0.14), m.add(wobble.mul(0.6))))
+      .mul(smoothstep(0.02, 0.3, grown)).mul(smoothstep(0.75, 0.35, patch.add(grown.mul(-0.6)).add(0.25)));
+    const beyond = smoothstep(rut.add(0.22), rut.add(0.42), m.add(wobble)).mul(smoothstep(0.45, 0.8, grown));
+    const double = shoulder.mul(float(1.0).sub(strip)).mul(float(1.0).sub(beyond));
+    const bare = mix(single, double, step(0.95, half));
+    // (the faintest: the turf comes through in patches)
+    const faint = mix(float(1.0), smoothstep(0.25, 0.6, patch).mul(0.55).add(0.25), smoothstep(0.7, 1.0, grown));
+    return bare.mul(faint).mul(float(1.0).sub(step(1.001, abs(uv().x))));
+  });
+
+  mat.colorNode = Fn(() => {
+    const wp = positionWorld.xz;
+    const kind = trail.y;
+    const camDist = length(positionWorld.sub(cameraPosition));
+    const detail = smoothstep(90.0, 6.0, camDist);
+    // (the finer noises on turned grids: one value-noise lattice alone shows as a weave)
+    const wa = vec2(wp.x.mul(0.8).sub(wp.y.mul(0.6)), wp.x.mul(0.6).add(wp.y.mul(0.8)));
+    const wb = vec2(wp.x.mul(0.28).sub(wp.y.mul(0.96)), wp.x.mul(0.96).add(wp.y.mul(0.28)));
+    const broad = noise2D(wp.mul(0.3));
+    const mid = noise2D(wa.mul(1.9));
+    const fine = noise2D(wb.mul(7.3)).mul(0.55).add(noise2D(wa.mul(15.1)).mul(0.45));
+    const grain = mix(float(0.5), fine, detail);
+    // Gravel: the pale chippings of the valley's paths and forest roads
+    const gravel = mix(color(0x777165), color(0x969082), mid.mul(0.45).add(grain.mul(0.55)));
+    // Earth: trodden brown soil with the odd stone in it
+    const stones = smoothstep(0.8, 0.86, noise2D(wb.mul(6.1))).mul(detail);
+    const earth = mix(mix(color(0x4c3f30), color(0x74614a), mid.mul(0.5).add(grain.mul(0.5))), color(0x6f6b62), stones.mul(0.55));
+    // Rock: the grey of the scree and slabs above the tree line
+    const crack = noise2D(wa.mul(1.3));
+    const cracks = smoothstep(0.46, 0.5, crack).mul(smoothstep(0.54, 0.5, crack)).mul(detail);
+    const rock = mix(color(0x6c6c69), color(0x96948c), mid.mul(0.5).add(grain.mul(0.5))).mul(float(1.0).sub(cracks.mul(0.35)));
+    // Boards: planks across the way
+    const plank = floor(uv().y.div(0.17));
+    const gap = gridLine(uv().y, 0.17, 0.008).mul(detail);
+    const wood = mix(color(0x6b5a45), color(0x8e7b60), hash2D(vec2(plank, 3.1))).mul(grain.mul(0.2).add(0.9)).mul(float(1.0).sub(gap.mul(0.6)));
+    const ground = mix(mix(mix(gravel, earth, step(0.5, kind)), rock, step(1.5, kind)), wood, step(2.5, kind))
+      .mul(broad.mul(0.2).add(0.9));
+    // The turf of the shoulders and of the fill slope, with earth showing through down the slope
+    const turf = mix(color(0x34432a), color(0x586a3c), mid.mul(0.5).add(broad.mul(0.5))).mul(grain.mul(0.3).add(0.85));
+    const slope = smoothstep(1.0, 1.4, abs(uv().x));
+    const scar = smoothstep(0.5, 0.8, noise2D(wb.mul(0.37)).mul(0.65).add(mid.mul(0.35))).mul(slope);
+    const verge = mix(turf, mix(color(0x3f3428), color(0x5e4f3d), grain), scar.mul(0.55));
+    // (boards have no shoulders: the planks reach from edge to edge)
+    const bare = mix(wear(), float(1.0).sub(step(1.001, abs(uv().x))), step(2.5, kind));
+    return mix(verge, ground, bare);
+  })();
+
+  mat.roughnessNode = mix(float(0.97), float(0.9), wear());
+
+  mat.normalNode = Fn(() => {
+    const wp = positionWorld.xz;
+    const camDist = length(positionWorld.sub(cameraPosition));
+    const detail = smoothstep(70.0, 6.0, camDist);
+    const grain = noise2D(wp.mul(9.0)).sub(0.5).mul(0.012).add(noise2D(wp.mul(2.1)).sub(0.5).mul(0.02));
+    // (the trodden ground lies a little in the turf)
+    return bumpNormal(grain.sub(wear().mul(0.025)).mul(detail));
+  })();
+
+  return mat;
+}
+
+/**
  * Central Park Perimeter Wall TSL Material: coursed grey schist & gneiss ashlar with recessed mortar joints on
  * the vertical faces and a smoother pale bluestone coping on top (axis-aligned walls, world-space courses).
  */
@@ -3054,6 +3140,7 @@ export {
   createCarPaintMaterial,
   createTreeMaterial,
   createParkPavingMaterial,
+  createTrailMaterial,
   createParkWallMaterial,
   createIronFenceMaterial,
   createParkLampGlobeMaterial,

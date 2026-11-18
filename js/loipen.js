@@ -47,7 +47,7 @@ function strips(trails, width) {
     g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(positions.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometries.push(drapeOverlay(g, { maxEdge: 4, lift: 0.16 }));
+    geometries.push(drapeOverlay(g, { maxEdge: 4, lift: 0.16, surface: 'trod' }));
     g.dispose();
   }
   return geometries.length ? mergeGeometries(geometries, false) : null;

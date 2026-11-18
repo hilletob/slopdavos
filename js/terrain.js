@@ -4,6 +4,7 @@ import { DAVOS_DATA } from './davos-geodata.js';
 import { QUALITY } from './quality.js';
 import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
 import { funicularTunnels } from './funicular-track.js';
+import { createBenches } from './path-bench.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
 //  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
@@ -170,6 +171,13 @@ export const OVERPASSES = [];
   for (const [k, y] of bed) heights[k] = Math.min(heights[k], y);
 }
 export const groundHeight = (x, z) => gridHeight(TERRAIN, x, z);
+// The paths and tracks, level benches drawn over the slope (js/path-bench.js, js/city-grid.js): the height of the bench
+// under (x, z), NaN off them; and the ground with them, for whatever walks or lies along a path
+export const PATH_BENCHES = createBenches(DAVOS_DATA.roads, TERRAIN);
+// (`pad`: also within that many metres of a bench's edge, 2 at most)
+export const benchHeight = (x, z, pad = 0) => PATH_BENCHES.heightAt(x, z, pad);
+export const trodHeight = (x, z, pad = 0) => { const g = gridHeight(TERRAIN, x, z), b = PATH_BENCHES.heightAt(x, z, pad); return b > g ? b : g; };
+const trodWide = (x, z) => trodHeight(x, z, 1.5);
 export const groundNormal = (x, z, out) => gridNormal(TERRAIN, x, z, out);
 
 // --- Tunnels --------------------------------------------------------------------------------------------------------------
@@ -374,7 +382,7 @@ export function deckHeight(x, z) {
 
 /** The surface at (x, z) for something at about `nearY`: a bridge deck, or the ground under a bridge (never the water) */
 export function surfaceHeight(x, z, nearY) {
-  const g = groundHeight(x, z);
+  const g = trodHeight(x, z);
   // (a tunnel's floor lies beneath the surveyed mountain: only for someone entering a mouth or already down there)
   const floor = tunnelFloor(x, z, nearY);
   if (floor === floor) return floor;
@@ -771,13 +779,14 @@ function interpolateAttribute(attr, weights, sources) {
  * A flat ground layer (built at a small y offset over a flat world) laid on the terrain: subdivided until no edge is
  * longer than `maxEdge` (the city's streets are smooth at that scale), every vertex lifted onto the surface plus `lift`
  * (so that the chords between vertices stay above the ground), with the terrain's normals.
- * `deck`: the layer belongs to a bridge and follows its deck. `surface`: 'ground' (default) or 'water'.
+ * `deck`: the layer belongs to a bridge and follows its deck. `surface`: 'ground' (default), 'water', or 'trod': the
+ * ground with the paths' benches (what is laid along a path, a groomed trail, lies on its bench and level with it).
  */
 export function drapeOverlay(geometry, { deck = false, surface = 'ground', maxEdge = 8, lift = 0.05 } = {}) {
   // (the mobile profile, js/quality.js, splits the finer overlays less: up to twice the edge, never past the terrain's
   // own 8 m cells, under which the chords keep to the ground)
   if (QUALITY.drapeScale > 1 && maxEdge < 8) maxEdge = Math.min(8, maxEdge * QUALITY.drapeScale);
-  const heightAt = deck ? (x, z) => surfaceHeight(x, z) : surface === 'water' ? waterSurfaceHeight : groundHeight;
+  const heightAt = deck ? (x, z) => surfaceHeight(x, z) : surface === 'water' ? waterSurfaceHeight : surface === 'trod' ? trodWide : groundHeight;
   const g = geometry.index ? geometry.toNonIndexed() : geometry;
   const { positions, weights, sources } = subdivideTriangles(g.attributes.position.array, maxEdge);
   const normals = new Float32Array(positions.length);

@@ -84,7 +84,7 @@ function trailStrips(trails) {
       g.computeBoundingBox();
       const box = g.boundingBox; // (the mobile profile, js/quality.js worldRadius: near the start only)
       if (!boxInWorld(box.min.x, box.max.x, box.min.z, box.max.z)) { g.dispose(); continue; }
-      geometries.push(drapeOverlay(g, { maxEdge: 3, lift: TRAIL_LIFT }));
+      geometries.push(drapeOverlay(g, { maxEdge: 3, lift: TRAIL_LIFT, surface: 'trod' }));
       g.dispose();
     }
   }

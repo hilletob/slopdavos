@@ -9,7 +9,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
-import { groundHeight } from './terrain.js';
+import { groundHeight, trodHeight } from './terrain.js';
 import { gameClock, dayOf, MINUTES_PER_DAY } from './game-clock.js';
 import { waterAt } from './city-config.js';
 import { QUALITY } from './quality.js';
@@ -37,7 +37,7 @@ function buildPath(route) {
   for (let s = 0; s <= total; s += STEP) {
     const p = pointAt(route, lengths, s), q = pointAt(route, lengths, s + 1.5), dx = q.x - p.x, dz = q.z - p.z, L = Math.hypot(dx, dz) || 1;
     const nx = dz / L * HALF, nz = -dx / L * HALF;
-    const cur = [[p.x + nx, 0, p.z + nz], [p.x - nx, 0, p.z - nz]].map((v) => { v[1] = groundHeight(v[0], v[2]) + 0.14; return v; });
+    const cur = [[p.x + nx, 0, p.z + nz], [p.x - nx, 0, p.z - nz]].map((v) => { v[1] = trodHeight(v[0], v[2], 1) + 0.14; return v; });
     if (prev) pos.push(...prev[0], ...cur[0], ...cur[1], ...prev[0], ...cur[1], ...prev[1]);
     prev = cur;
   }

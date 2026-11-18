@@ -132,6 +132,35 @@ const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7,
 const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
 const DRIVABLE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'living_street']);
 const RAIL = /^(rail|light_rail|tram|subway|funicular|narrow_gauge)$/;
+// The ways on foot and the farm and forest tracks (js/city-grid.js lays them as level benches, js/path-bench.js): what
+// they are made of and how wide they are trodden. `sf`: a letter for the surface (p paved, g gravel, d earth, r rock,
+// w wood) and a digit for how much of it the grass has taken back (0 bare .. 3 a faint line in the turf) — from
+// surface=*, else a track's tracktype (grade1 sealed .. grade5 two ruts in the meadow), a path's sac_scale (rock from
+// alpine_hiking up) and trail_visibility. The width where OSM gives none: a hiking path is a metre of trodden ground
+// and narrower the harder it gets, a track a vehicle wide; footways in town stay 2 m.
+const SURFACE = { asphalt: 'p', paved: 'p', concrete: 'p', 'concrete:plates': 'p', 'concrete:lanes': 'p', paving_stones: 'p', sett: 'p', cobblestone: 'p', metal: 'p',
+  gravel: 'g', fine_gravel: 'g', compacted: 'g', unpaved: 'g', pebblestone: 'g', sand: 'g',
+  ground: 'd', dirt: 'd', earth: 'd', mud: 'd', grass: 'd', woodchips: 'd',
+  rock: 'r', scree: 'r', stone: 'r', wood: 'w' };
+const GRADE = { grade1: ['p', 0, 3], grade2: ['g', 0, 2.8], grade3: ['g', 1, 2.6], grade4: ['d', 2, 2.4], grade5: ['d', 3, 2.2] };
+const VISIBILITY = { excellent: 0, good: 1, intermediate: 2, bad: 3, horrible: 3, no: 3 };
+const SAC_WIDTH = { hiking: 1.1, mountain_hiking: 0.9, demanding_mountain_hiking: 0.7, alpine_hiking: 0.6, demanding_alpine_hiking: 0.6, difficult_alpine_hiking: 0.6 };
+function trailOf(t, kind) {
+  const tagged = SURFACE[t.surface];
+  if (kind === 'track') {
+    const [m, v, width] = GRADE[t.tracktype] || ['g', 1, 2.6];
+    return { sf: (tagged || m) + (t.surface === 'grass' ? 3 : tagged === 'p' ? 0 : v), width };
+  }
+  if (kind === 'path') {
+    const alpine = /alpine/.test(t.sac_scale || '');
+    const v = VISIBILITY[t.trail_visibility] ?? (t.surface === 'grass' ? 3 : tagged === 'p' || tagged === 'g' ? 0 : 1);
+    return { sf: (tagged || (alpine ? 'r' : 'd')) + v, width: SAC_WIDTH[t.sac_scale] ?? (tagged === 'p' ? 2 : tagged === 'g' ? 1.5 : 1.1) };
+  }
+  if (kind === 'footway') return { sf: (tagged || 'p') + 0, width: 2 };
+  if (kind === 'cycleway' || kind === 'pedestrian' || kind === 'steps') return tagged && tagged !== 'p' ? { sf: tagged + 0 } : null;
+  return null;
+}
+
 // Sidewalks along a carriageway: [left, right] widths in metres (left/right of the way's direction), from sidewalk=*,
 // sidewalk:both|left|right=* and their :width; none where they are mapped as ways of their own (=separate, drawn from
 // those footway=sidewalk ways) or absent. The main streets of the centre have them on both sides where untagged.
@@ -324,7 +353,8 @@ for (const e of osm.elements) {
   const busBack = oneway && (t['oneway:bus'] === 'no' || t['oneway:psv'] === 'no');
   const busLane = busBack && /designated/.test(t[t.oneway === '-1' ? 'bus:lanes:forward' : 'bus:lanes:backward'] || '');
   // (a lane each way: ~6.5 m curb to curb, as on the Promenade's one-way stretches)
-  const width = num(t.width) ?? (busBack ? 6.5 : Math.max(WIDTH[base] ?? 3, lanes * 3));
+  const trail = trailOf(t, kind);
+  const width = num(t.width) ?? trail?.width ?? (busBack ? 6.5 : Math.max(WIDTH[base] ?? 3, lanes * 3));
   const sidewalk = sidewalksOf(t, base);
   // Tram streets (none in Davos): the tracks share the carriageway (OSM railway=tram ways run along them)
   const rounded = !bridge && !tunnel && kind !== 'steps' && e.nodes && e.nodes.length === pts.length ? roundBends(pts, e.nodes, kind) : null;
@@ -333,6 +363,7 @@ for (const e of osm.elements) {
   if (busBack) record.bus = busLane ? 2 : 1;
   if (sidewalk) record.sidewalk = sidewalk;
   if (t.footway === 'sidewalk') record.sidewalkWay = 1;
+  if (trail) record.sf = trail.sf;
   roads.push(record);
   noteLevel(e, pts, rounded ? [] : kept, record, bridge, tunnel);
   if (DRIVABLE.has(kind) && (!tunnel || isDrivableTunnel(t.name)) && t.access !== 'no' && t.motor_vehicle !== 'no' && e.nodes && e.nodes.length === e.geometry.length) {

@@ -53,6 +53,7 @@ import {
   createParkLawnMaterial,
   cityUniforms,
   createParkPavingMaterial,
+  createTrailMaterial,
   createIronFenceMaterial,
   createParkLampGlobeMaterial,
   createTktsStepMaterial,
@@ -78,6 +79,8 @@ import { indexGeometry } from './gpu-memory.js';
 import { withoutTraced } from './ground-markings-area.js';
 import { busBaySegments } from './bus-bays.js';
 import { FRAME } from './davos-frame.js';
+import { isBenched } from './path-bench.js';
+import { PATH_BENCHES } from './terrain.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP, OVERPASSES } from './terrain.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
@@ -114,7 +117,72 @@ function cityMaterials() {
   const paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true });
   // (the markings lie ~1 cm over the asphalt: pulled forward in depth so that they never flicker through it far off)
   paintMat.polygonOffset = true; paintMat.polygonOffsetFactor = -1; paintMat.polygonOffsetUnits = -4;
-  return (cityMats = { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, waterMat, lawnMat, pavingMat, paintMat });
+  // (the unsealed paths and tracks and every bench's fill slope; in winter under trodden snow from edge to edge)
+  const trailMat = snowyStreet(createTrailMaterial(), { cover: 1 });
+  return (cityMats = { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, waterMat, lawnMat, pavingMat, paintMat, trailMat });
+}
+
+// --- The paths and tracks as level benches (js/path-bench.js) --------------------------------------------------------------
+const BENCH_LIFT = 0.07; // m the bench lies over its profile (the profile's own tolerance, and the chords between samples)
+const SKIRT_MIN = 0.12; // m: an edge standing less than this over the ground has no fill slope drawn
+const TRAIL_SURFACE = { g: 0, d: 1, r: 2, w: 3 };
+/**
+ * The bench of way `r` along the stretches `owned(segment index)` says are to be built, in world heights:
+ * { paved, trail } geometries (either may be null). A sealed way's surface goes to the paving material (uv: its style),
+ * an unsealed one's and every fill slope to the trail material (uv: across -1..1 and on to ±2 down the slope, metres
+ * along; `trail`: half width, surface, overgrowth). `skip(x, z)`: no bench there (a carriageway lies over it).
+ */
+function benchGeometries(r, owned, skip) {
+  const P = PATH_BENCHES.profile(r);
+  if (!P) return { paved: null, trail: null };
+  const sf = r.sf || 'p0', sealed = sf[0] === 'p';
+  const surface = TRAIL_SURFACE[sf[0]] ?? 0, grown = +sf[1] || 0, half = P.half;
+  const make = () => ({ pos: [], nor: [], uv: [], trail: [] });
+  const top = make(), side = sealed ? make() : top;
+  const _a = [0, 0, 0], _b = [0, 0, 0];
+  // A triangle facing up, its corners [x, y, z, u, v]
+  const tri = (o, p, q, w) => {
+    for (let c = 0; c < 3; c++) { _a[c] = q[c] - p[c]; _b[c] = w[c] - p[c]; }
+    let nx = _a[1] * _b[2] - _a[2] * _b[1], ny = _a[2] * _b[0] - _a[0] * _b[2], nz = _a[0] * _b[1] - _a[1] * _b[0];
+    const l = Math.hypot(nx, ny, nz);
+    if (l < 1e-9) return;
+    if (ny < 0) { const t = q; q = w; w = t; nx = -nx; ny = -ny; nz = -nz; }
+    for (const v of [p, q, w]) {
+      o.pos.push(v[0], v[1], v[2]); o.nor.push(nx / l, ny / l, nz / l); o.uv.push(v[3], v[4]); o.trail.push(half, surface, grown);
+    }
+  };
+  const quad = (o, a, b, c, d) => { tri(o, a, b, c); tri(o, a, c, d); };
+  // Per sample: the two edges on the bench, their drop to the ground, and the feet of the fill slopes
+  const edge = (m, sgn) => {
+    const x = P.x[m] + sgn * P.nx[m] * half, z = P.z[m] + sgn * P.nz[m] * half, y = P.h[m] + BENCH_LIFT;
+    const drop = y - groundHeight(x, z);
+    const out = Math.min(2.5, 0.12 + Math.max(0, drop) * 0.55), nl = Math.hypot(P.nx[m], P.nz[m]) || 1;
+    const fx = x + (sgn * P.nx[m] / nl) * out, fz = z + (sgn * P.nz[m] / nl) * out;
+    return { p: [x, y, z, sealed ? (r.kind === 'cycleway' ? 0 : 2) : -sgn, sealed ? 0 : P.s[m]], drop, foot: [fx, Math.min(y, groundHeight(fx, fz)) - 0.15, fz, -sgn * 2, P.s[m]], rim: [x, y, z, -sgn, P.s[m]] };
+  };
+  let prev = null;
+  for (let m = 0; m < P.n; m++) {
+    const here = { l: edge(m, 1), r: edge(m, -1) };
+    if (prev && owned(P.seg[m - 1]) && !skip((P.x[m - 1] + P.x[m]) / 2, (P.z[m - 1] + P.z[m]) / 2)) {
+      quad(top, prev.l.p, here.l.p, here.r.p, prev.r.p);
+      for (const k of ['l', 'r']) {
+        if (prev[k].drop < SKIRT_MIN && here[k].drop < SKIRT_MIN) continue;
+        quad(side, prev[k].rim, here[k].rim, here[k].foot, prev[k].foot);
+      }
+    }
+    prev = here;
+  }
+  const geometry = (o, withTrail) => {
+    if (!o.pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(o.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(o.nor, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(o.uv, 2));
+    if (withTrail) g.setAttribute('trail', new THREE.Float32BufferAttribute(o.trail, 3));
+    g.computeBoundingBox(); g.computeBoundingSphere();
+    return g;
+  };
+  return sealed ? { paved: geometry(top, false), trail: geometry(side, true) } : { paved: null, trail: geometry(top, true) };
 }
 // Everything is built flat (small y offsets above y = 0) and laid on the terrain before merging: ground layers are
 // draped, solids displaced; geometry of a bridge follows its deck; `absolute` geometry is already in world heights.
@@ -227,7 +295,7 @@ const beyondStreetLamps = (road, x, z) => UNLIT_BEYOND.some((e) => e.road.test(r
  * `streetSites`: collect the street lamps' sites (berlinStreetSites) along the way (js/street-details.js reads them once).
  */
 async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSites = true } = {}) {
-  const { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, lawnMat, pavingMat, paintMat } = cityMaterials();
+  const { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, lawnMat, pavingMat, paintMat, trailMat } = cityMaterials();
   const collector = makeCollector();
   const { collect } = collector;
   const colliders = [], carveStrips = [], raised = [];
@@ -542,8 +610,34 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     collect(g, paintMat);
   };
+  // The paths and tracks off the bridges: level benches over the slope, with their fill (benchGeometries); where a
+  // carriageway lies over them, it is the ground, and its raised sidewalks with it (a bench on the highest ground
+  // across it would come up through the slab on a street that leans)
+  const underStreet = (x, z, source) => {
+    const p = { x, z };
+    for (const o of nearbyCarriageways(p, p, 4)) {
+      if (o.road === source.road || o.bridge) continue;
+      const walks = o.road.sidewalk, pad = walks ? Math.max(walks[0] || 0, walks[1] || 0) + 0.3 : -0.3;
+      if (roadPlanes(o, pad).every(([nx, nz, c]) => nx * x + nz * z - c >= 0)) return true;
+    }
+    return inCornerCut(corners, x, z);
+  };
+  {
+    const builtWays = new Set();
+    for (const s of roadSegments) {
+      if (!isBenched(s.road) || builtWays.has(s.road)) continue;
+      builtWays.add(s.road);
+      const p = s.road.pts, probe = { road: s.road, bridge: false };
+      const owned = (i) => region.all || region.ownsSegment(p[i * 2], p[i * 2 + 1], p[i * 2 + 2], p[i * 2 + 3]);
+      const { paved, trail } = benchGeometries(s.road, owned, (x, z) => underStreet(x, z, probe));
+      if (paved) collect(paved, pavingMat, { world: true });
+      if (trail) collect(trail, trailMat, { world: true });
+      if (paved || trail) clippedPedestrianPieces++;
+    }
+  }
   const bridgeSlabs = [];
   for (const s of roadSegments) {
+    if (isBenched(s.road)) continue;
     const width = s.width;
     const y = 0.06;
     const deckContext = collector.deckContext = !!s.road.bridge && Array.isArray(s.road.ys);
