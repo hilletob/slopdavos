@@ -817,6 +817,7 @@ class NYCMapSystem {
   }
 
   toggleFullMap(open) {
+    if (open && !this.isFullMapOpen) this.fullMapOpenedAt = Date.now();
     this.isFullMapOpen = Boolean(open);
     if (!this.isFullMapOpen) { this.cancelPan(); this.touchPoints?.clear(); this.pinch = null; }
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
@@ -1095,6 +1096,15 @@ class NYCMapSystem {
       n++;
     }
     ctx.textBaseline = 'alphabetic';
+  }
+
+  /**
+   * The full map covers the whole screen (opaque, css .fullmap-modal) once its fade-in is over: the city behind it
+   * needn't be drawn. (The scene's full pipeline drawn every frame under the map, with the map's own 2D canvases on the
+   * same GPU, stalled the GPU for seconds when zooming out, up to a lost device and a frozen Mac.)
+   */
+  get fullMapCovers() {
+    return this.isFullMapOpen && Date.now() - (this.fullMapOpenedAt || 0) > 350;
   }
 
   update() {

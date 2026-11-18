@@ -1417,7 +1417,8 @@ async function initApp() {
       for (const o of culled) o.frustumCulled = true;
       markInit('warmup');
     }
-    renderPipeline.render();
+    // (not behind the full map: it covers the screen, js/nyc-map.js fullMapCovers)
+    if (!warmedUp || !mapSystem.fullMapCovers) renderPipeline.render();
     if (!warmedUp) {
       warmedUp = true;
       markInit('firstFrame');
@@ -1442,7 +1443,7 @@ async function initApp() {
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd, levelCrossings, trafficSigns,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd, levelCrossings, trafficSigns, mapSystem,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },
