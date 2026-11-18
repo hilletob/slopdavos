@@ -200,6 +200,25 @@ function pointAt(s) {
 }
 
 // --- 6. Tennis ------------------------------------------------------------------------------------------------------
+test('tennis: a casual player (no running, Space pressed roughly as the ball comes) wins most tiebreaks', () => {
+  let wins = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const t = createTennis(seed), rnd = seededRandom(seed * 7 + 1);
+    let n = 0, pressAt = null;
+    while (!t.done && n < 60 * 1200) {
+      const input = { x: 0, z: 0, swing: false };
+      if (t.phase === 'serve' && t.server === 'p') input.swing = !t.toss || Math.abs(t.toss.t - (0.53 + (rnd() - 0.5) * 0.4)) < 0.02;
+      else if (t.phase === 'rally' && t.ball.lastHit === 'a' && t.ball.vz > 0) {
+        // pressed 0–0.6 s before the ball reaches the player's line
+        if (pressAt === null) pressAt = 0.3 + (rnd() * 2 - 1) * 0.3;
+        if ((t.p.z - t.ball.z) / t.ball.vz < pressAt) { input.swing = true; pressAt = -99; }
+      } else pressAt = null;
+      stepTennis(t, input, 1 / 60); n++;
+    }
+    if (t.winner === 'p') wins++;
+  }
+  assert.ok(wins >= 10, `casual player won ${wins}/12`);
+});
 test('tennis: the tiebreak serve order, a shot over the net, the reach', () => {
   assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((n) => tiebreakServer(n)), ['p', 'a', 'a', 'p', 'p', 'a', 'a']);
   const v = aimShot({ x: 0, y: 1, z: 11 }, { x: 2, z: -9 }, 20);

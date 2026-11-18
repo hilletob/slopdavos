@@ -13,7 +13,7 @@ import {
   RACLETTE, createRaclette, racletteStep, racletteScrape, meltGrade,
   IBEX, legalIbex, ibexLabel, ibexScale, ibexRayHit, ballistics, ibexAlarm, herdCentre, stepHerd, huntShoot,
   SEEPROMENADE, SQUIRREL, squirrelSpots, stepSquirrels,
-  COURT, TENNIS, createTennis, stepTennis,
+  COURT, TENNIS, createTennis, stepTennis, swingQuality, nextBounce,
   SLIDE, slideLength, slideCenterline, createRider, stepRider, slideAt, thetaEq,
   KIRCHNER, KIRCHNER_PALETTE, kirchnerIndex, nearestPalette, gridMode, templateEdges, scorePainting
 } from './missions-data-local.js';
@@ -78,6 +78,7 @@ const STYLE = `
 .lm-gallery img{width:72px;height:48px;object-fit:cover;border-radius:6px;opacity:.9}
 body.lm-indoor .gta-prompt,body.lm-indoor .touch-use,body.lm-indoor .mission-prompt{display:none!important}
 body.lm-nojoy #touch-controls{display:none!important}
+body.lm-court .hud-bottom-left,body.lm-court .hud-bottom-right{display:none!important}
 body.touch-enabled .lm-hud{bottom:calc(max(12px,env(safe-area-inset-bottom)) + var(--touch-clear,180px))}
 body.touch-enabled.lm-nojoy .lm-hud{bottom:8px}
 @media (max-width:640px){.lm-paint-tools{flex-direction:row;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 16px);padding:6px}.lm-motif{width:96px}.lm-paint-tools .lm-btn{padding:6px 10px!important;font-size:13px}.lm-swatch{width:30px;height:30px}.lm-pad{right:10px;bottom:150px}.lm-hud{bottom:8px}.lm-game{padding-top:calc(env(safe-area-inset-top,0px) + 168px)}}
@@ -1121,75 +1122,175 @@ const SQUIRREL_FEATURE = {
 // =====================================================================================================================
 // 6. Tennis in the Färbi hall
 // =====================================================================================================================
+// The hall: 20 × 40 m, 10 m to the glulam beams; one court (the doubles lines 10.97 × 23.77 m), its run-off in green,
+// dark green curtains round it to 4 m, light wall panels and a band of skylights above; all self-lit (the stage floats
+// high above the town, the sun doesn't reach in), the light baked into the textures
+const HALL = { W: 20, L: 40, H: 10, curtain: 4 };
+function speckle(g, w, h, n, alpha, light = true) {
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = `rgba(${light ? '255,255,255' : '0,0,0'},${alpha * Math.random()})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+  }
+}
 function courtTexture() {
-  const c = document.createElement('canvas'); c.width = 512; c.height = 1024;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 2048;
   const g = c.getContext('2d');
-  const sx = 512 / 18, sz = 1024 / 36; // the hall floor 18 × 36 m
-  g.fillStyle = '#3c7a4a'; g.fillRect(0, 0, 512, 1024);
-  const X = (x) => 256 + x * sx, Z = (z) => 512 + z * sz;
-  g.fillStyle = '#2f5f9e'; g.fillRect(X(-5.485), Z(-11.885), 10.97 * sx, 23.77 * sz);
-  g.strokeStyle = '#fff'; g.lineWidth = 3;
-  const line = (x0, z0, x1, z1) => { g.beginPath(); g.moveTo(X(x0), Z(z0)); g.lineTo(X(x1), Z(z1)); g.stroke(); };
-  for (const x of [-5.485, 5.485, -COURT.halfW, COURT.halfW]) line(x, -COURT.halfL, x, COURT.halfL);
-  for (const z of [-COURT.halfL, COURT.halfL]) line(-5.485, z, 5.485, z);
-  for (const z of [-COURT.service, COURT.service]) line(-COURT.halfW, z, COURT.halfW, z);
-  line(0, -COURT.service, 0, COURT.service);
-  line(0, -COURT.halfL, 0, -COURT.halfL + 0.3); line(0, COURT.halfL, 0, COURT.halfL - 0.3);
+  const sx = 1024 / HALL.W, sz = 2048 / HALL.L;
+  const X = (x) => 512 + x * sx, Z = (z) => 1024 + z * sz;
+  g.fillStyle = '#2f7552'; g.fillRect(0, 0, 1024, 2048);
+  g.fillStyle = '#2d5f9c'; g.fillRect(X(-5.485), Z(-COURT.halfL), 10.97 * sx, 23.77 * sz);
+  speckle(g, 1024, 2048, 26000, 0.08); speckle(g, 1024, 2048, 26000, 0.1, false);
+  // the lights' pools on the floor and the dark along the walls
+  const pool = g.createRadialGradient(512, 1024, 120, 512, 1024, 1150);
+  pool.addColorStop(0, 'rgba(255,255,240,.10)'); pool.addColorStop(0.65, 'rgba(0,0,0,0)'); pool.addColorStop(1, 'rgba(0,0,0,.35)');
+  g.fillStyle = pool; g.fillRect(0, 0, 1024, 2048);
+  for (const [x0, x1] of [[0, 40], [1024, 984]]) { const e = g.createLinearGradient(x0, 0, x1, 0); e.addColorStop(0, 'rgba(0,0,0,.35)'); e.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = e; g.fillRect(Math.min(x0, x1), 0, 40, 2048); }
+  // the lines, 5 cm (the baselines 10 cm)
+  g.fillStyle = '#f4f6f2';
+  const lineX = (x, z0, z1, w = 0.05) => g.fillRect(X(x - w / 2), Z(z0), w * sx, (z1 - z0) * sz);
+  const lineZ = (z, x0, x1, w = 0.05) => g.fillRect(X(x0), Z(z - w / 2), (x1 - x0) * sx, w * sz);
+  for (const x of [-5.485, 5.485, -COURT.halfW, COURT.halfW]) lineX(x, -COURT.halfL, COURT.halfL);
+  for (const z of [-COURT.halfL, COURT.halfL]) lineZ(z, -5.485, 5.485, 0.1);
+  for (const z of [-COURT.service, COURT.service]) lineZ(z, -COURT.halfW, COURT.halfW);
+  lineX(0, -COURT.service, COURT.service);
+  lineX(0, -COURT.halfL, -COURT.halfL + 0.15); lineX(0, COURT.halfL - 0.15, COURT.halfL);
+  // the club's name in the run-off behind the coach's baseline
+  g.save(); g.translate(512, Z(-COURT.halfL - 3.2)); g.font = '800 64px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(255,255,255,.22)'; g.fillText('TC DAVOS', 0, 0); g.restore();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  return tex;
+}
+/** A wall: curtain folds below, panels and the skylight band above; `w` m wide, `banner` across the curtain */
+function wallTexture(w, banner = null) {
+  const c = document.createElement('canvas'); c.width = Math.round(w * 40); c.height = HALL.H * 40;
+  const g = c.getContext('2d'), W = c.width, Hc = c.height, cy = Hc - HALL.curtain * 40;
+  // panels: light, with seams every 2.5 m, darker towards the floor (the light comes from the roof)
+  const up = g.createLinearGradient(0, 0, 0, cy);
+  up.addColorStop(0, '#e9e6df'); up.addColorStop(1, '#bdbab2');
+  g.fillStyle = up; g.fillRect(0, 0, W, cy);
+  g.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < W; x += 100) g.fillRect(x, 0, 2, cy);
+  // the skylight band
+  g.fillStyle = '#d5e6f2'; g.fillRect(0, 0.9 * 40, W, 1.4 * 40);
+  g.fillStyle = 'rgba(255,255,255,.7)'; for (let x = 0; x < W; x += 60) g.fillRect(x + 4, 0.95 * 40, 52, 1.3 * 40);
+  g.fillStyle = '#8e8a80'; g.fillRect(0, 2.3 * 40, W, 6);
+  // the curtain: dark green, folds every 40 cm
+  for (let x = 0; x < W; x++) {
+    const f = 0.5 + 0.5 * Math.sin((x / 16) * Math.PI);
+    g.fillStyle = `rgb(${18 + f * 14},${58 + f * 22},${40 + f * 16})`;
+    g.fillRect(x, cy, 1, Hc - cy);
+  }
+  const shade = g.createLinearGradient(0, cy, 0, Hc); shade.addColorStop(0, 'rgba(0,0,0,.25)'); shade.addColorStop(0.15, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.3)');
+  g.fillStyle = shade; g.fillRect(0, cy, W, Hc - cy);
+  g.fillStyle = '#163826'; g.fillRect(0, cy - 4, W, 8); // (its rail)
+  if (banner) {
+    const bw = Math.min(W * 0.6, 520), bh = 70, bx = (W - bw) / 2, by = cy + 40;
+    g.fillStyle = '#14304f'; g.fillRect(bx, by, bw, bh);
+    g.fillStyle = '#ffe14f'; g.fillRect(bx, by + bh - 6, bw, 6);
+    g.font = '800 40px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff';
+    g.fillText(banner, W / 2, by + bh / 2 - 2, bw - 30);
+  }
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   return tex;
 }
+function netTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 96;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 1024, 96);
+  g.strokeStyle = 'rgba(12,14,16,.85)'; g.lineWidth = 1.4;
+  for (let x = 0; x < 1024; x += 7) { g.beginPath(); g.moveTo(x, 8); g.lineTo(x, 96); g.stroke(); }
+  for (let y = 12; y < 96; y += 7) { g.beginPath(); g.moveTo(0, y); g.lineTo(1024, y); g.stroke(); }
+  g.fillStyle = '#f6f6f2'; g.fillRect(0, 0, 1024, 9); // the white band
+  g.fillStyle = '#1b1d20'; g.fillRect(0, 90, 1024, 6);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  return tex;
+}
+const ring = (r0, r1, col, opacity) => {
+  const m = meshOf(new THREE.RingGeometry(r0, r1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(col), transparent: true, opacity, depthWrite: false }));
+  m.renderOrder = 2;
+  return m;
+};
 function buildHall(group, tn) {
-  const floor = meshOf(new THREE.PlaneGeometry(18, 36).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ map: courtTexture() }));
-  group.add(floor);
-  const W = 18, L = 36, H = 9;
-  const walls = [
-    box(W, H, 0.3, 0, H / 2, -L / 2, '#2c4a6e', true), box(W, H, 0.3, 0, H / 2, L / 2, '#2c4a6e', true),
-    box(0.3, H, L, -W / 2, H / 2, 0, '#35587f', true), box(0.3, H, L, W / 2, H / 2, 0, '#35587f', true),
-    box(W, 0.3, L, 0, H, 0, '#d9dde2', true),
-    box(W, 2.2, 0.32, 0, 1.1, -L / 2 + 0.05, '#1f6b3a', true), box(W, 2.2, 0.32, 0, 1.1, L / 2 - 0.05, '#1f6b3a', true)
-  ];
-  // the ceiling's light bands, the net posts, a bench
-  for (let k = -3; k <= 3; k++) walls.push(box(1.2, 0.08, 30, k * 2.4, H - 0.2, 0, '#ffffff', false));
-  walls.push(box(0.1, 1.07, 0.1, -5.9, 0.53, 0, '#ddd', true), box(0.1, 1.07, 0.1, 5.9, 0.53, 0, '#ddd', true));
-  walls.push(box(3, 0.45, 0.5, -8.2, 0.23, 6, '#8a5a32', true), box(3, 0.45, 0.5, -8.2, 0.23, -6, '#8a5a32', true));
-  group.add(meshOf(merged(walls), unlitMat()));
-  // the net: a dark mesh with its white band
-  const net = document.createElement('canvas'); net.width = 256; net.height = 32;
-  const g = net.getContext('2d');
-  g.fillStyle = 'rgba(20,20,20,.55)'; g.fillRect(0, 0, 256, 32);
-  g.strokeStyle = 'rgba(0,0,0,.8)'; for (let x = 0; x < 256; x += 4) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 32); g.stroke(); }
-  for (let y = 0; y < 32; y += 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(256, y); g.stroke(); }
-  g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 4);
-  const nt = new THREE.CanvasTexture(net); nt.colorSpace = THREE.SRGBColorSpace;
-  const netMesh = meshOf(new THREE.PlaneGeometry(11.9, COURT.net), new THREE.MeshBasicNodeMaterial({ map: nt, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-  netMesh.position.set(0, COURT.net / 2, 0);
+  const { W, L, H } = HALL;
+  group.add(meshOf(new THREE.PlaneGeometry(W, L).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ map: courtTexture() })));
+  // the walls (textured planes facing in) and the roof
+  const wall = (w, x, z, ry, banner) => {
+    const m = meshOf(new THREE.PlaneGeometry(w, H), new THREE.MeshBasicNodeMaterial({ map: wallTexture(w, banner) }));
+    m.position.set(x, H / 2, z); m.rotation.y = ry; group.add(m);
+  };
+  wall(W, 0, -L / 2, 0, 'TC DAVOS · SPORTHALLE FÄRBI'); wall(W, 0, L / 2, Math.PI, 'TC DAVOS');
+  wall(L, -W / 2, 0, Math.PI / 2, null); wall(L, W / 2, 0, -Math.PI / 2, null);
+  const parts = [box(W, 0.2, L, 0, H + 0.6, 0, '#b9b2a4')];
+  // glulam beams across every 5 m, purlins along, the lights in rows between the beams
+  for (let z = -L / 2 + 2.5; z < L / 2; z += 5) parts.push(box(W, 0.9, 0.28, 0, H + 0.05, z, '#b88452', true));
+  for (const x of [-7, -3.5, 0, 3.5, 7]) parts.push(box(0.14, 0.22, L, x, H + 0.4, 0, '#9a6e44', true));
+  const lights = [];
+  for (let z = -L / 2 + 5; z < L / 2; z += 5) for (const x of [-5.2, -1.8, 1.8, 5.2]) lights.push(box(1.4, 0.06, 0.4, x, H - 0.45, z - 0.3, '#fffdf2'), box(1.5, 0.14, 0.5, x, H - 0.36, z - 0.3, '#5d5f62'));
+  // the net posts, the centre strap, the umpire's chair, two benches with their bottles, a ball cart
+  const NP = 6.4;
+  for (const x of [-NP, NP]) parts.push(paint(new THREE.CylinderGeometry(0.04, 0.045, 1.07, 10).translate(x, 0.535, 0), '#1d4a33', true), box(0.1, 0.06, 0.1, x, 1.08, 0, '#1d4a33', true));
+  parts.push(box(0.05, COURT.net, 0.012, 0, COURT.net / 2, 0, '#f6f6f2'), box(0.05, 0.04, 0.05, 0, 0.02, 0, '#333'));
+  const chairX = NP + 1.0;
+  for (const [dx, dz] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) parts.push(box(0.05, 1.6, 0.05, chairX + dx, 0.8, dz, '#1d4a33', true));
+  parts.push(box(0.75, 0.06, 0.75, chairX, 1.62, 0, '#1d4a33', true), box(0.55, 0.06, 0.5, chairX, 1.9, 0, '#2a5c40', true), box(0.06, 0.5, 0.5, chairX + 0.3, 2.16, 0, '#2a5c40', true));
+  for (let k = 0; k < 4; k++) parts.push(box(0.4, 0.03, 0.05, chairX - 0.42, 0.3 + k * 0.4, 0.2, '#1d4a33', true));
+  for (const z of [-2.2, 2.2]) {
+    const bx = -NP - 1.3;
+    parts.push(box(0.45, 0.06, 1.8, bx, 0.45, z, '#c99a62', true), box(0.06, 0.45, 1.8, bx - 0.22, 0.75, z, '#c99a62', true));
+    for (const dz of [-0.8, 0.8]) parts.push(box(0.4, 0.45, 0.05, bx, 0.22, z + dz, '#3a3d42', true));
+    parts.push(paint(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 8).translate(bx + 0.05, 0.6, z - 0.45), '#2f8fd8'), paint(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 8).translate(bx + 0.05, 0.6, z - 0.3), '#e04848'));
+    parts.push(box(0.3, 0.04, 0.5, bx + 0.02, 0.5, z + 0.35, '#f2f2f2'));
+  }
+  // the ball cart behind the player's baseline, left
+  const cx = -4.6, cz = COURT.halfL + 3.2;
+  for (const [dx, dz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) parts.push(box(0.03, 0.75, 0.03, cx + dx, 0.38, cz + dz, '#9aa0a6'));
+  parts.push(box(0.56, 0.35, 0.56, cx, 0.85, cz, '#6b7076'), box(0.5, 0.05, 0.5, cx, 1.03, cz, '#d8f03a'));
+  group.add(meshOf(merged(parts), unlitMat()));
+  group.add(meshOf(merged(lights), unlitMat()));
+  // the net: sagging from 1.07 m at the posts to 0.914 m in the middle
+  const ng = new THREE.PlaneGeometry(NP * 2, 1, 48, 1);
+  const pos = ng.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), top = COURT.net + (1.07 - COURT.net) * (x / NP) ** 2;
+    pos.setY(i, pos.getY(i) > 0 ? top : 0.02);
+  }
+  const netMesh = meshOf(ng, new THREE.MeshBasicNodeMaterial({ map: netTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.05 }));
   group.add(netMesh);
-  const sign = textPlane('TC DAVOS · SPORTHALLE FÄRBI', 12, 1.2, { fg: '#ffe14f', bg: '#14304f', font: '800 64px Inter, Arial, sans-serif' });
-  sign.position.set(0, 4.2, -L / 2 + 0.2);
-  group.add(sign);
-  // the ball, its shadow, the rackets
-  tn.ball = meshOf(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshBasicNodeMaterial({ color: 0xe6ff3a }));
-  tn.shadow = meshOf(new THREE.CircleGeometry(0.07, 12).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
-  tn.shadow.position.y = 0.01;
-  group.add(tn.ball, tn.shadow);
+  // the ball (a little larger than life to be seen from behind the baseline), its trail and shadow; the bounce marker
+  tn.ball = meshOf(new THREE.SphereGeometry(0.075, 14, 10), new THREE.MeshBasicNodeMaterial({ color: 0xe8ff3c }));
+  tn.trail = [];
+  const trailGeo = new THREE.SphereGeometry(0.06, 8, 6);
+  for (let k = 0; k < 7; k++) {
+    const m = meshOf(trailGeo, new THREE.MeshBasicNodeMaterial({ color: 0xe8ff3c, transparent: true, opacity: 0.32 * (1 - k / 7), depthWrite: false }));
+    m.scale.setScalar(1 - k * 0.1); tn.trail.push(m); group.add(m);
+  }
+  tn.trailPts = [];
+  tn.shadow = meshOf(new THREE.CircleGeometry(0.09, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false }));
+  tn.shadow.position.y = 0.012; tn.shadow.renderOrder = 1;
+  tn.marker = ring(0.16, 0.24, '#ffe14f', 0.85); tn.marker.position.y = 0.015;
+  // where the ball wants to be met: beside the player's right hand; it lights when a swing would meet it
+  tn.spot = ring(0.22, 0.3, '#ffffff', 0.35); tn.spot.position.y = 0.016;
+  group.add(tn.ball, tn.shadow, tn.marker, tn.spot);
   const racket = () => {
-    const ring = new THREE.TorusGeometry(0.14, 0.012, 6, 18); ring.scale(1, 1.3, 1); ring.translate(0, 0.42, 0);
-    const grip = new THREE.CylinderGeometry(0.014, 0.016, 0.3, 6); grip.translate(0, 0.13, 0);
-    const strings = new THREE.CircleGeometry(0.135, 16); strings.scale(1, 1.3, 1); strings.translate(0, 0.42, 0);
+    const rim = new THREE.TorusGeometry(0.13, 0.013, 6, 24); rim.scale(0.82, 1.08, 1); rim.translate(0, 0.43, 0);
+    const throat = new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6); throat.translate(0, 0.25, 0);
+    const grip = new THREE.CylinderGeometry(0.017, 0.019, 0.2, 8); grip.translate(0, 0.08, 0);
+    const strings = new THREE.CircleGeometry(0.128, 20); strings.scale(0.82, 1.08, 1); strings.translate(0, 0.43, 0);
     const r = new THREE.Group();
-    r.add(meshOf(merged([paint(ring, '#222', true), paint(grip, '#c33', true)]), unlitMat()));
-    r.add(meshOf(strings, new THREE.MeshBasicNodeMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false })));
+    r.add(meshOf(merged([paint(rim, '#1c1f24', true), paint(throat, '#c8102e', true), paint(grip, '#f1f1f1', true)]), unlitMat()));
+    r.add(meshOf(strings, new THREE.MeshBasicNodeMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false })));
     return r;
   };
   tn.rP = racket(); tn.rA = racket();
   group.add(tn.rP, tn.rA);
-  // the two players: the city's figures, self-lit
-  tn.crowd = new PersonCrowd(2, { farDistance: 1e9, castShadow: false });
-  tn.tint = uniform(new THREE.Color(1.05, 1.05, 1.05));
+  // the two players in tennis whites: the city's figures, self-lit
+  tn.crowd = new PersonCrowd(2, { farDistance: 1e9, castShadow: false, dress: {
+    coat: [0xe4e6e2, 0xdfe5ec, 0x1d3f6e], coatF: [0xe4e6e2, 0xdfe5ec], shirt: [0xe4e6e2], legs: [0xdedfdb, 0x1c2230], legsF: [0xdedfdb], casual: true } });
+  tn.tint = uniform(new THREE.Color(0.48, 0.48, 0.5)); // (whites self-lit at 1 bloom into a blur)
   for (const m of tn.crowd.meshes) { m.receiveShadow = false; m.material.emissiveNode = m.material.colorNode.mul(tn.tint); group.add(m); }
   tn.rigP = new PersonRig({ seed: 0.23, female: false, hair: 0.3, girth: 1 });
   tn.rigA = new PersonRig({ seed: 0.71, female: false, hair: 0.1, girth: 1.08 });
 }
+const TN_TMP = { hand: new THREE.Vector3(), pole: new THREE.Vector3(), dir: new THREE.Vector3(), basis: new THREE.Matrix4(), shaft: new THREE.Vector3(), face: new THREE.Vector3(), side: new THREE.Vector3() };
 const TENNIS_FEATURE = {
   setup(run) {
     addStyle(run);
@@ -1200,15 +1301,15 @@ const TENNIS_FEATURE = {
     run.button('up', null);
     // (one layer: a second one replacing the game's would hide the swing under it)
     run.actions([
-      { kind: 'hint', kbd: ['W', 'A', 'S', 'D'], label: 'run to the ball', when: onCourt },
+      { kind: 'hint', kbd: ['W', 'A', 'S', 'D'], label: 'run to the ball', when: onCourt }, // (the legs run on their own while the stick is left alone)
       { id: 'tennis-swing', primary: true, label: 'Hit the ball', touchLabel: 'Hit', icon: 'i-hand', keys: ['Space', 'KeyJ'], kbd: ['Space', 'Click'], keyboard: false, pad: 'a', when: onCourt, run: () => { run.tn.swing = true; } },
       { kind: 'hint', kbd: ['A', 'D'], label: 'held at the swing: aim left / right', when: onCourt }
     ], { replace: onCourt });
     const canvas = document.getElementById('canvas-container');
     run.listen(canvas, 'pointerdown', (e) => { if (run.tn.stage && e.pointerType !== 'touch' && e.button === 0) run.tn.swing = true; });
   },
-  reset(run) { const tn = run.tn; tn.stage?.dispose(); tn.stage = null; run.state.game = null; tn.swing = false; },
-  teardown(run) { run.tn.stage?.dispose(); run.tn.stage = null; },
+  reset(run) { const tn = run.tn; tn.stage?.dispose(); tn.stage = null; run.state.game = null; tn.swing = false; document.body.classList.remove('lm-court'); },
+  teardown(run) { run.tn.stage?.dispose(); run.tn.stage = null; document.body.classList.remove('lm-court'); },
   key(run, e) {
     if (!run.tn.stage) return;
     if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyJ') { swallow(e); if (!e.repeat && run.phase !== 'intro') run.tn.swing = true; }
@@ -1217,6 +1318,7 @@ const TENNIS_FEATURE = {
     const tn = run.tn;
     tn.stage = new Stage(run, run.def.objectives[0] ? { x: run.def.start.x, z: run.def.start.z } : run.def.start, (g) => buildHall(g, tn), { joystick: true });
     run.state.game = createTennis(5);
+    document.body.classList.add('lm-court');
     const t = run.state.game;
     tn.rigP.reset(t.p.x, t.p.z, Math.PI, () => 0);
     tn.rigA.reset(t.a.x, t.a.z, 0, () => 0);
@@ -1246,26 +1348,57 @@ const TENNIS_FEATURE = {
     tn.hud.show(!!tn.stage && run.phase === 'running');
     if (!tn.stage || !t) return;
     const b = t.ball;
+    const showBall = t.phase !== 'between' || b.live;
     tn.ball.position.set(b.x, b.y, b.z);
-    tn.shadow.position.set(b.x, 0.01, b.z);
-    tn.ball.visible = tn.shadow.visible = t.phase !== 'between' || b.live;
+    tn.shadow.position.set(b.x, 0.012, b.z);
+    tn.shadow.scale.setScalar(1 + Math.min(1.5, b.y * 0.35));
+    tn.ball.visible = tn.shadow.visible = showBall;
+    // the trail: the last positions while it flies
+    if (b.live && t.phase === 'rally') { tn.trailPts.unshift(b.x, b.y, b.z); tn.trailPts.length = Math.min(tn.trailPts.length, 21); } else tn.trailPts.length = 0;
+    tn.trail.forEach((m, k) => { const i = (k + 1) * 3; m.visible = showBall && tn.trailPts.length > i + 2; if (m.visible) m.position.set(tn.trailPts[i], tn.trailPts[i + 1], tn.trailPts[i + 2]); });
+    // where the coach's ball comes down, and the spot to meet it (lit: a swing now meets it)
+    const incoming = t.phase === 'rally' && b.live && b.lastHit === 'a' && b.bounces === 0;
+    const land = incoming ? nextBounce(b) : null;
+    tn.marker.visible = !!land;
+    if (land) { tn.marker.position.x = land.x; tn.marker.position.z = land.z; tn.marker.scale.setScalar(0.8 + 0.4 * Math.min(1, land.t)); }
+    const q = t.phase === 'rally' ? swingQuality(t, 'p') : 0;
+    tn.spot.visible = t.phase === 'rally' && b.lastHit === 'a';
+    tn.spot.position.set(t.p.x + TENNIS.ideal, 0.016, t.p.z - 0.45);
+    tn.spot.material.color.set(q >= 0.6 ? '#7dff6a' : q > 0 ? '#ffe14f' : '#ffffff');
+    tn.spot.material.opacity = q > 0 ? 0.9 : t.p.armed > 0 ? 0.6 : 0.3;
     const ground = () => 0;
     tn.rigP.update(dt, t.p.x, t.p.z, Math.PI, ground, null, 0);
     tn.rigA.update(dt, t.a.x, t.a.z, 0, ground, null, 0);
-    tn.crowd.begin(); tn.crowd.add(tn.rigP, 0); tn.crowd.add(tn.rigA, 0); tn.crowd.end();
-    // the rackets: at the right hand, swung through
-    const place = (r, s, facing) => {
-      const sw = s.swing > 0 ? 1 - s.swing / 0.35 : 0;
-      const f = facing; // +1: faces +z (the coach), −1: faces −z (the player)
-      r.position.set(s.x - 0.35 * f, 0.85, s.z + 0.1 * f);
-      r.rotation.set(0, 0, 0);
-      r.rotation.y = f > 0 ? 0 : Math.PI;
-      r.rotation.x = -0.4 + Math.sin(sw * Math.PI) * 1.4 * -1;
-      r.rotation.z = (f > 0 ? 1 : -1) * (0.9 - sw * 2.2);
+    // the racket arms: ready in front, taken back while a swing waits (or the ball comes), swung through across the body;
+    // the server's racket up behind the head under the toss
+    const { hand, pole, dir, basis, shaft, face, side } = TN_TMP;
+    const swingArm = (rig, r, s, f, serving, waiting) => {
+      // f: +1 faces +z (the coach), −1 faces −z (the player); right = (−f, 0, 0) in x
+      const right = -f, sw = s.swing > 0 ? 1 - s.swing / 0.35 : -1;
+      let phi, y, reach = 0.55;
+      if (sw >= 0) { phi = -1.0 + sw * 3.6; y = 0.95 + 0.45 * Math.max(0, sw - 0.5); }
+      else if (serving) { phi = -0.5; y = 1.75; reach = 0.3; }
+      else if (waiting) { phi = -1.0; y = 1.0; }
+      else { phi = 0.7; y = 0.95; reach = 0.45; }
+      // dir(φ): to the right at 0, forward at π/2, to the left at π
+      dir.set(right * Math.cos(phi), 0, f * Math.sin(phi));
+      hand.set(s.x + dir.x * reach, y, s.z + dir.z * reach);
+      pole.set(right * 0.3 - dir.x * 0.4, -1, -f * 0.5 - dir.z * 0.4);
+      rig.reachArm(1, hand, pole, hand);
+      // the racket from the hand: its shaft out from the body and up, its face turned along the swing
+      shaft.set(dir.x, serving && sw < 0 ? 1.4 : 0.55, dir.z).normalize();
+      face.set(-right * Math.sin(phi), 0, f * Math.cos(phi));
+      side.crossVectors(shaft, face).normalize();
+      face.crossVectors(side, shaft);
+      basis.makeBasis(side, shaft, face);
+      r.position.copy(hand); r.quaternion.setFromRotationMatrix(basis);
     };
-    place(tn.rP, t.p, -1); place(tn.rA, t.a, 1);
-    // the camera: behind and above the player, the court ahead
-    tn.stage.camera(ctx.camera, { x: t.p.x * 0.55, y: 4.2, z: clamp(t.p.z + 5.2, 9, 17.3) }, { x: t.p.x * 0.3, y: 0.4, z: -4 });
+    const serveP = t.phase === 'serve' && t.server === 'p', serveA = t.phase === 'serve' && t.server === 'a';
+    swingArm(tn.rigP, tn.rP, t.p, -1, serveP && !!t.toss, t.p.armed > 0 || (t.phase === 'rally' && b.lastHit === 'a' && b.vz > 0 && b.z > -1));
+    swingArm(tn.rigA, tn.rA, t.a, 1, serveA && t.wait < 0.6, t.phase === 'rally' && b.lastHit === 'p' && b.vz < 0 && b.z < 1);
+    tn.crowd.begin(); tn.crowd.add(tn.rigP, 0); tn.crowd.add(tn.rigA, 0); tn.crowd.end();
+    // the camera: high behind the player, the whole court ahead (the player fully in view)
+    tn.stage.camera(ctx.camera, { x: t.p.x * 0.45, y: 5.6, z: clamp(t.p.z + 6.4, 11, HALL.L / 2 - 0.6) }, { x: t.p.x * 0.2, y: 0, z: 2.5 });
     const serve = t.phase === 'serve' ? ` · ${tr(t.server === 'p' ? (t.toss ? 'Space at the top!' : 'your serve: Space') : 'coach serves')}` : '';
     tn.hud.set(`${tr('You')} <b>${t.score.p}</b> : <b>${t.score.a}</b> ${tr('Coach')}${serve}${t.fault && t.phase === 'serve' ? ` · ${tr('second serve')}` : ''}`);
   }

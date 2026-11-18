@@ -805,17 +805,20 @@ export const FAERBI = { door: { x: -1206.5, z: 1387.9, r: 2.4 }, start: { x: -12
 export const COURT = { halfW: 4.115, halfL: 11.885, service: 6.40, net: 0.914, ball: 0.033 };
 export const TENNIS = {
   g: 9.81, bounce: 0.74, roll: 0.8, drag: 0.012,
-  reach: 1.55, ideal: 0.85, height: [0.15, 2.4],
-  run: 5.4, aiRun: 4.6,
-  speed: [17, 27], // m/s of a stroke, by its quality
-  serveSpeed: 24,
+  reach: 2.1, ideal: 0.9, height: [0.1, 2.8],
+  run: 6.0, aiRun: 4.4,
+  speed: [15, 24], // m/s of a stroke, by its quality
+  serveSpeed: 21,
+  arm: 0.9, // s: a swing pressed early waits this long for the ball (the stroke goes when the ball is best placed)
+  assist: 0.75, // the player's legs run to the ball on their own (× run) while the stick is left alone
+  coachMiss: 0.1, // the coach's unforced errors per stroke
   winBy: 2, target: 7
 };
 
 export function createTennis(seed = 5) {
   const t = {
     rand: seededRandom(seed),
-    p: { x: 0.5, z: COURT.halfL + 0.8, swing: 0, swingAt: -9 }, a: { x: -0.5, z: -COURT.halfL - 0.8, swing: 0, react: 0 },
+    p: { x: 0.5, z: COURT.halfL + 0.8, swing: 0, swingAt: -9, armed: 0 }, a: { x: -0.5, z: -COURT.halfL - 0.8, swing: 0, react: 0 },
     ball: { x: 0, y: 1, z: 0, vx: 0, vy: 0, vz: 0, live: false, bounces: 0, side: 0, lastHit: null, served: false },
     score: { p: 0, a: 0 }, server: 'p', fault: 0, phase: 'serve', toss: null, wait: 0, t: 0, done: false, winner: null,
     rally: 0, last: null, points: [], aces: 0, winners: 0, errors: 0
@@ -837,6 +840,7 @@ function placeServe(t) {
   const b = t.ball;
   Object.assign(b, { live: false, bounces: 0, side: 0, lastHit: null, served: false, vx: 0, vy: 0, vz: 0 });
   t.phase = 'serve'; t.toss = null; t.wait = t.server === 'a' ? 1.2 : 0;
+  t.p.armed = 0; t.p.steer = null;
   syncBallToServer(t);
 }
 function syncBallToServer(t) {
@@ -866,10 +870,10 @@ function serveBall(t, who, quality) {
   const dirZ = who === 'p' ? -1 : 1;
   // the receiver's service box: diagonal from the server
   const boxX = (who === 'p' ? (deuce ? -1 : 1) : (deuce ? 1 : -1)) * COURT.halfW * 0.5;
-  const err = (1 - quality) * 2.4;
+  const err = (1 - quality) * (who === 'p' ? 1.3 : 2.4);
   const target = { x: boxX + (t.rand() - 0.5) * err * 1.6, z: dirZ * (COURT.service - 1.0 + (t.rand() - 0.3) * err) };
   const b = t.ball;
-  Object.assign(b, aimShot(b, target, TENNIS.serveSpeed * (0.8 + 0.25 * quality), { net: COURT.net + 0.12 }));
+  Object.assign(b, aimShot(b, target, TENNIS.serveSpeed * (0.8 + 0.25 * quality) * (who === 'a' ? 0.85 : 1), { net: COURT.net + 0.12 }));
   b.live = true; b.bounces = 0; b.side = 0; b.lastHit = who; b.served = true;
   t.phase = 'rally'; t.rally = 0;
 }
@@ -933,10 +937,23 @@ export function stepTennis(t, input, dt) {
   const P = t.p, A = t.a, b = t.ball;
   // the player runs on their half
   const mx = clamp(input.x || 0, -1, 1), mz = clamp(input.z || 0, -1, 1), ml = Math.hypot(mx, mz) || 1;
-  const k = Math.min(1, ml);
+  const k = Math.min(1, Math.hypot(mx, mz));
   if (t.phase !== 'serve' || t.server !== 'p') {
-    P.x = clamp(P.x + (mx / ml) * k * TENNIS.run * dt, -COURT.halfW - 3, COURT.halfW + 3);
-    P.z = clamp(P.z + (mz / ml) * k * TENNIS.run * dt, 1.2, COURT.halfL + 4);
+    if (k > 0.1 && !(P.armed > 0 && t.phase === 'rally')) { // (A/D held with a swing waiting: the aim, the legs keep running)
+      P.x = clamp(P.x + (mx / ml) * k * TENNIS.run * dt, -COURT.halfW - 3, COURT.halfW + 3);
+      P.z = clamp(P.z + (mz / ml) * k * TENNIS.run * dt, 1.2, COURT.halfL + 4);
+    } else if (TENNIS.assist > 0 && t.phase === 'rally') {
+      // the legs run on their own: to the ball's forehand side where it will come down after its bounce, or back to the
+      // middle of the baseline while the coach has it
+      let tx = 0, tz = COURT.halfL + 0.6;
+      if (b.live && b.lastHit === 'a' && b.vz > 0) {
+        const pr = interceptPoint(t, TENNIS.run * TENNIS.assist);
+        if (pr) { tx = pr.x; tz = pr.z; }
+      }
+      const dx = tx - P.x, dz = tz - P.z, d = Math.hypot(dx, dz);
+      if (d > 0.05) { const s = Math.min(d, TENNIS.run * TENNIS.assist * dt); P.x += (dx / d) * s; P.z += (dz / d) * s; }
+      P.x = clamp(P.x, -COURT.halfW - 3, COURT.halfW + 3); P.z = clamp(P.z, 1.2, COURT.halfL + 4);
+    }
   }
   P.swing = Math.max(0, P.swing - dt); A.swing = Math.max(0, A.swing - dt);
   if (t.phase === 'between') { t.wait -= dt; if (t.wait <= 0) placeServe(t); return t; }
@@ -948,7 +965,7 @@ export function stepTennis(t, input, dt) {
         b.vy -= TENNIS.g * dt; b.y += b.vy * dt;
         if (input.swing && t.toss.t > 0.15) {
           // best at the top of the toss (~0.53 s)
-          const q = clamp(1 - Math.abs(t.toss.t - 0.53) * 2.2, 0.05, 1);
+          const q = clamp(1 - Math.abs(t.toss.t - 0.53) * 1.2, 0.35, 1);
           P.swing = 0.3;
           serveBall(t, 'p', q);
           return t;
@@ -1001,11 +1018,19 @@ export function stepTennis(t, input, dt) {
     pointTo(t, b.bounces ? b.lastHit : (b.lastHit === 'p' ? 'a' : 'p'), b.bounces ? 'winner' : 'out');
     return t;
   }
-  // the player's swing
-  if (input.swing && P.swing <= 0) {
-    P.swing = 0.35;
+  // the player's swing: pressed a little early it waits for the ball (armed) and goes when the ball is well placed, or
+  // as it is about to pass; pressed with nothing in reach it is a swing into the air
+  if (input.swing && P.swing <= 0 && P.armed <= 0) { P.armed = TENNIS.arm; if (input.steer != null) P.steer = input.steer; else P.steer = null; }
+  if (input.steer) P.steer = input.steer;
+  if (P.armed > 0) {
+    P.armed -= dt;
     const q = swingQuality(t, 'p');
-    if (q > 0) { t.fault = 0; strokeBall(t, 'p', q, clamp(input.steer ?? (contact(t, 'p').side > 0 ? -0.6 : 0.6), -1, 1)); }
+    const passing = q > 0 && contact(t, 'p').ahead < 0.1;
+    if (q >= 0.6 || passing || (q > 0 && P.armed <= 0)) {
+      P.armed = 0; P.swing = 0.35; t.fault = 0;
+      // (no aim held: away from the coach)
+      strokeBall(t, 'p', Math.max(q, 0.3), clamp(P.steer ?? (A.x > 0 ? -0.75 : 0.75), -1, 1));
+    } else if (P.armed <= 0) { P.armed = 0; P.swing = 0.35; }
   }
   // the coach: runs to where the ball will come down on his side and plays it
   if (b.lastHit === 'p' && b.vz < 0) {
@@ -1015,7 +1040,12 @@ export function stepTennis(t, input, dt) {
     if (d > 0.1) { const s = Math.min(d, TENNIS.aiRun * dt); A.x += (dx / d) * s; A.z += (dz / d) * s; }
     if (b.bounces === 1 && A.swing <= 0) {
       const q = swingQuality(t, 'a');
-      if (q > 0.35 || (q > 0 && contact(t, 'a').ahead < 0.1)) { A.swing = 0.35; t.fault = 0; strokeBall(t, 'a', clamp(q * (0.6 + t.rand() * 0.5), 0.1, 0.95)); }
+      if (q > 0.35 || (q > 0 && contact(t, 'a').ahead < 0.1)) {
+        A.swing = 0.35; t.fault = 0;
+        // a club coach, not a pro: middling pace, mostly inside the lines, now and then one into the net or long
+        const miss = t.rand() < TENNIS.coachMiss + 0.015 * Math.min(t.rally, 8);
+        strokeBall(t, 'a', miss ? 0.12 : clamp(q * (0.45 + t.rand() * 0.45), 0.25, 0.85), (t.rand() * 2 - 1) * 0.65);
+      }
     }
   } else {
     // back to the middle of the baseline
@@ -1023,6 +1053,26 @@ export function stepTennis(t, input, dt) {
     if (d > 0.1) { const s = Math.min(d, TENNIS.aiRun * 0.6 * dt); A.x += (dx / d) * s; A.z += (dz / d) * s; }
   }
   return t;
+}
+
+/**
+ * Where the player should stand to meet the ball: along its flight after the bounce (on their side, at a hittable
+ * height), the first place they can reach in time running at `speed`, with the ball at their forehand (+x, `ideal`
+ * away) and a little in front; or the nearest miss when none can be reached
+ */
+export function interceptPoint(t, speed) {
+  const P = t.p, b = t.ball, h = 1 / 60;
+  let { x, y, z, vx, vy, vz } = b, bounces = b.bounces, best = null, bestLag = Infinity;
+  for (let i = 1; i < 240; i++) {
+    vy -= TENNIS.g * h; x += vx * h; y += vy * h; z += vz * h;
+    if (y <= COURT.ball) { y = COURT.ball; vy = -vy * TENNIS.bounce; vx *= TENNIS.roll; vz *= TENNIS.roll; if (++bounces > 1) break; }
+    if (bounces < 1 || z < 1.5 || y < 0.35 || y > 1.9) continue;
+    const sx = x - TENNIS.ideal, sz = clamp(z + 0.25, 1.2, COURT.halfL + 4);
+    const lag = Math.hypot(sx - P.x, sz - P.z) / speed - i * h; // s late (> 0) or early
+    if (lag <= 0) return { x: sx, z: sz };
+    if (lag < bestLag) { bestLag = lag; best = { x: sx, z: sz }; }
+  }
+  return best;
 }
 
 /** Where the ball will be after its next bounce when it is about `z` along: a rough look ahead */
@@ -1038,6 +1088,18 @@ export function predictBall(b, z) {
   return { x, z: zz };
 }
 
+/** Where the ball comes down next (its next bounce), for the marker on the court; null when it isn't flying */
+export function nextBounce(b) {
+  if (!b.live) return null;
+  let { x, y, z, vx, vy, vz } = b;
+  for (let i = 0; i < 240; i++) {
+    const h = 1 / 60;
+    vy -= TENNIS.g * h; x += vx * h; y += vy * h; z += vz * h;
+    if (y <= COURT.ball) return { x, z, t: i * h };
+  }
+  return null;
+}
+
 export const tennisScore = (t) => {
   if (!t) return 0;
   const { p, a } = t.score;
@@ -1048,7 +1110,7 @@ export const tennisScore = (t) => {
 export const TENNIS_MISSION = {
   id: 'tennis-hall',
   title: 'Tiebreak in the Färbi tennis hall',
-  intro: 'The coach of the tennis club challenges you to a tiebreak in the Sporthalle Färbi: first to seven points, two clear. Move with W A S D (the joystick), swing with Space, a click or the Swing button when the ball is beside you, after its bounce; A/D held at the swing aim it left or right. To serve: Space tosses the ball, Space again at the top of the toss hits it.',
+  intro: 'The coach of the tennis club challenges you to a tiebreak in the Sporthalle Färbi: first to seven points, two clear. Your legs find the ball on their own (the yellow ring: where it comes down); press Space, click or tap Hit as it comes, the swing waits for it and goes when the ball is beside you. W A S D (the joystick) to run yourself, A/D held at the swing aims left or right. To serve: Space tosses the ball, Space again near the top hits it.',
   mode: 'person',
   season: null,
   time: 'midday',
@@ -1075,7 +1137,7 @@ export const TENNIS_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Warming up …', target: null, hint: null };
-        return { done: g.done, progress: Math.max(g.score.p, g.score.a) / TENNIS.target, text: `You ${g.score.p} : ${g.score.a} Coach${g.phase === 'serve' ? (g.server === 'p' ? ' · your serve' : ' · coach serves') : ''}`, target: null, hint: 'WASD: run · Space / click: swing · A/D at the swing: aim' };
+        return { done: g.done, progress: Math.max(g.score.p, g.score.a) / TENNIS.target, text: `You ${g.score.p} : ${g.score.a} Coach${g.phase === 'serve' ? (g.server === 'p' ? ' · your serve' : ' · coach serves') : ''}`, target: null, hint: 'Space / click as the ball comes: swing · A/D at the swing: aim' };
       }
     }
   ]

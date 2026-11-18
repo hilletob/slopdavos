@@ -1884,6 +1884,38 @@ class PersonRig {
    * -1: the right; the caller tips the bike towards it), sitting up and forward off the saddle as far as that leg needs;
    * `look`: the head turned (radians, left positive).
    */
+  /**
+   * After update(): one arm (0 left, 1 right) reaches for `target` (world) by two-bone IK, the elbow bent towards `pole`
+   * (a world direction): a racket held out and swung (js/missions-local.js, tennis). Returns the hand's position (target,
+   * pulled in to the arm's length)
+   */
+  reachArm(i, target, pole, out = new THREE.Vector3()) {
+    const a = this.pose, o = BONE.CHEST * 8, s = this.s, j = this.bind, side = SIDES[i];
+    _qChest.set(a[o], a[o + 1], a[o + 2], a[o + 3]);
+    _chest.set(a[o + 4], a[o + 5], a[o + 6]).add(_v2.copy(j[BONE.CHEST]).applyQuaternion(_qChest).multiplyScalar(s));
+    _fwd.set(0, 0, 1).applyQuaternion(_qChest);
+    _shoulder.copy(j[LIMB.upperArm[i]]).sub(j[BONE.CHEST]).multiplyScalar(s).applyQuaternion(_qChest).add(_chest);
+    const l1 = UPPER_ARM * s, l2 = (FOREARM + 0.07) * s;
+    _v.subVectors(target, _shoulder);
+    let dist = _v.length();
+    const dn = _v.divideScalar(dist || 1);
+    dist = Math.max(Math.abs(l1 - l2) + 1e-3, Math.min((l1 + l2) * 0.999, dist));
+    _pole.copy(pole).addScaledVector(dn, -pole.dot(dn));
+    if (_pole.lengthSq() < 1e-8) _pole.set(0, -1, 0);
+    _pole.normalize();
+    const cosA = (l1 * l1 + dist * dist - l2 * l2) / (2 * l1 * dist);
+    const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    _knee.copy(_shoulder).addScaledVector(dn, l1 * cosA).addScaledVector(_pole, l1 * sinA);
+    _ankle.copy(_shoulder).addScaledVector(dn, dist);
+    this.basis(_v2.subVectors(_shoulder, _knee), _fwd, _qUpper);
+    _qUpper.multiply(qZ(_q, -side * ARM_BIND_ABDUCTION));
+    this.writeBone(LIMB.upperArm[i], _qUpper, _shoulder);
+    this.basis(_v2.subVectors(_knee, _ankle), _fwd, _q2);
+    _q2.multiply(qZ(_q, -side * ARM_BIND_ABDUCTION));
+    this.writeBone(LIMB.forearm[i], _q2, _knee);
+    return out.copy(_ankle);
+  }
+
   ride(root, crank, { seat, bars, gripHalf = 0.22, bracket, crankLength = 0.17, pedalHalf = 0.1, steerPivot, steerAngle = 0, lean = 0.42, footDown = 0, footSide = 1, look = 0 }) {
     const s = this.s;
     const j = this.bind;
