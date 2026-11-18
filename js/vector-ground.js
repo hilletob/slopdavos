@@ -3,6 +3,8 @@ import { attribute, float, mx_noise_float, normalize, positionWorld, smoothstep 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { polygonGeometry } from './golf.js';
 import { drapeOverlay } from './terrain.js';
+import { cutTriangles } from './terrain-grid.js';
+import { DAVOS_DATA } from './davos-geodata.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyGround, snowyStreet, winter } from './season.js';
 import { QUALITY, worldRegion } from './quality.js';
@@ -82,9 +84,62 @@ function siteHeading(site) {
   return h;
 }
 
+// The railway's track bed (js/trams.js: 2.8 m of ballast over each mapped track, off the bridges and tunnels) is cut
+// out of the surfaces: a yard traced up to the platforms reaches over the tracks, lies 2 cm under the ballast and is
+// pulled forward in depth (its polygonOffset), so that from a little way off it covered the rails at the stations.
+// (TRACK_CUT: a little under the ballast's half width, so that the photo never shows in a seam beside it)
+const TRACK_CUT = 1.3, TRACK_CELL = 64;
+let trackCells = null;
+function trackRects(minX, minZ, maxX, maxZ) {
+  if (!trackCells) {
+    trackCells = new Map();
+    for (const r of DAVOS_DATA.railways || []) {
+      if (r.tunnel || r.bridge || !/^(rail|narrow_gauge)$/.test(r.kind)) continue;
+      for (let i = 2; i < r.pts.length; i += 2) {
+        const rect = { ax: r.pts[i - 2], az: r.pts[i - 1], bx: r.pts[i], bz: r.pts[i + 1], half: TRACK_CUT };
+        for (let cx = Math.floor((Math.min(rect.ax, rect.bx) - TRACK_CUT) / TRACK_CELL); cx <= Math.floor((Math.max(rect.ax, rect.bx) + TRACK_CUT) / TRACK_CELL); cx++) {
+          for (let cz = Math.floor((Math.min(rect.az, rect.bz) - TRACK_CUT) / TRACK_CELL); cz <= Math.floor((Math.max(rect.az, rect.bz) + TRACK_CUT) / TRACK_CELL); cz++) {
+            const key = cx * 65536 + cz;
+            if (!trackCells.has(key)) trackCells.set(key, []);
+            trackCells.get(key).push(rect);
+          }
+        }
+      }
+    }
+  }
+  const found = new Set();
+  for (let cx = Math.floor(minX / TRACK_CELL); cx <= Math.floor(maxX / TRACK_CELL); cx++) {
+    for (let cz = Math.floor(minZ / TRACK_CELL); cz <= Math.floor(maxZ / TRACK_CELL); cz++) for (const r of trackCells.get(cx * 65536 + cz) || []) found.add(r);
+  }
+  return [...found];
+}
+/** `g` (draped, non-indexed) without the track bed, or `g` itself where no track crosses it */
+function withoutTrackBed(g) {
+  g.computeBoundingBox();
+  const b = g.boundingBox, rects = trackRects(b.min.x, b.min.z, b.max.x, b.max.z);
+  if (!rects.length) return g;
+  const p = g.attributes.position.array, n = p.length / 3;
+  // (cutTriangles rounds the new vertices' normals, as for normals in bytes: these go in scaled up)
+  const nrm = Float32Array.from(g.attributes.normal.array, (v) => v * 1e4);
+  const index = new Uint32Array(n);
+  for (let i = 0; i < n; i++) index[i] = i;
+  const cut = cutTriangles(p, nrm, index, 0, n, rects);
+  if (cut.index.length === n && cut.positions.length === p.length) return g; // (nothing on the tracks)
+  const pos = new Float32Array(cut.index.length * 3), nor = new Float32Array(cut.index.length * 3);
+  for (let t = 0; t < cut.index.length; t++) for (let c = 0; c < 3; c++) {
+    pos[t * 3 + c] = cut.positions[cut.index[t] * 3 + c]; nor[t * 3 + c] = cut.normals[cut.index[t] * 3 + c] * 1e-4;
+  }
+  g.dispose();
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.computeBoundingSphere(); out.computeBoundingBox();
+  return out;
+}
+
 function surfaceGeometry(s, heading) {
   const flat = polygonGeometry(s.ring, s.holes || []);
-  const g = drapeOverlay(flat, { maxEdge: SURFACE_EDGE, lift: SURFACE_LIFT });
+  const g = withoutTrackBed(drapeOverlay(flat, { maxEdge: SURFACE_EDGE, lift: SURFACE_LIFT }));
   flat.dispose();
   const p = g.attributes.position, n = p.count;
   const kind = new Float32Array(n).fill(GROUND_KINDS[s.kind].index), edge = new Float32Array(n), dir = new Float32Array(n * 2);
