@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Heatmap – Slop Davos</title>
-  <meta name="description" content="Wo in Slop Davos gespielt wird: die Karte von Davos mit den Spuren aller Spielerinnen und Spieler als Heatmap, und wer gerade unterwegs ist, live." />
+  <title>Heatmap – GTA Davos</title>
+  <meta name="description" content="Wo in GTA Davos gespielt wird: die Karte von Davos mit den Spuren aller Spielerinnen und Spieler als Heatmap, und wer gerade unterwegs ist, live." />
   <link rel="canonical" href="https://davos.tschopp.cloud/heatmap.html" />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Slop Davos" />
+  <meta property="og:site_name" content="GTA Davos" />
   <meta property="og:url" content="https://davos.tschopp.cloud/heatmap.html" />
-  <meta property="og:title" content="Heatmap – Slop Davos" />
+  <meta property="og:title" content="Heatmap – GTA Davos" />
   <meta property="og:description" content="Die Spuren aller Spielerinnen und Spieler auf der Karte von Davos, und wer gerade unterwegs ist." />
   <meta property="og:image" content="https://davos.tschopp.cloud/assets/welcome/og-image.jpg" />
   <meta name="theme-color" content="#12161b" />
@@ -23,7 +23,11 @@
       font-family: 'Signika'; font-style: normal; font-weight: 300 700; font-display: swap;
       src: url('./assets/welcome/fonts/signika-latin.woff2') format('woff2');
     }
-    :root { --ground: #12161b; --panel: rgba(18, 22, 27, 0.86); --edge: rgba(255, 255, 255, 0.14); --text: #e8edf2; --soft: #9aa6b3; --gelb: #ffc21a; --radius: 10px; }
+    @font-face {
+      font-family: 'Anton'; font-style: normal; font-weight: 400; font-display: swap;
+      src: url('./assets/welcome/fonts/anton-latin.woff2') format('woff2');
+    }
+    :root { --ground: #12161b; --panel: rgba(8, 9, 10, 0.88); --edge: rgba(255, 255, 255, 0.14); --text: #e8edf2; --soft: #9aa6b3; --gelb: #f5c542; --radius: 10px; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
     body { background: var(--ground); color: var(--text); font: 400 15px/1.4 'Signika', system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; }
@@ -35,10 +39,11 @@
 
     .panel { position: fixed; z-index: 2; background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
     .head { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); width: min(330px, calc(100vw - 24px)); padding: 14px 16px 12px; }
-    .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); text-decoration: none; font-weight: 600; font-size: 14px; }
-    .brand:hover { color: var(--text); }
+    .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font: 400 16px/1 'Anton', Impact, 'Arial Narrow Bold', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+    .brand b { font-weight: 400; color: var(--gelb); }
+    .brand:hover { color: #fff; }
     .brand img { border-radius: 6px; }
-    h1 { margin: 8px 0 2px; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: 0.01em; }
+    h1 { margin: 10px 0 4px; font: 400 27px/1.08 'Anton', Impact, 'Arial Narrow Bold', sans-serif; text-transform: uppercase; letter-spacing: 0.02em; }
     .lede { margin: 0 0 12px; color: var(--soft); font-size: 14px; }
     #live { display: flex; align-items: center; gap: 8px; font-weight: 600; }
     #live i { width: 10px; height: 10px; border-radius: 50%; background: var(--soft); flex: none; }
@@ -79,7 +84,7 @@
 
     @media (max-width: 560px) {
       .head { padding: 10px 12px; }
-      h1 { font-size: 19px; margin: 0 0 6px; }
+      h1 { font-size: 21px; margin: 0 0 6px; }
       .lede, .brand, .play, #heat-note { display: none; }
       .groups { margin-top: 8px; gap: 5px; }
       .groups button { padding: 5px 8px; font-size: 12.5px; }
@@ -93,7 +98,7 @@
   <canvas id="dots" tabindex="0" role="img" data-label-de="Karte von Davos mit den Spuren der Spieler als Heatmap und den Spielern, die gerade unterwegs sind. Ziehen verschiebt, das Mausrad oder Plus und Minus zoomen." data-label-en="Map of Davos with the players' trails as a heat map and the players out there right now. Drag to move, the wheel or plus and minus to zoom."></canvas>
 
   <section class="panel head">
-    <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="22" height="22" /><span>Slop Davos</span></a>
+    <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="22" height="22" /><span><b>GTA</b> Davos</span></a>
     <h1><span data-l="de">Wo Davos gespielt wird</span><span data-l="en">Where Davos is played</span></h1>
     <p class="lede"><span data-l="de">Die Spuren aller angemeldeten Spielerinnen und Spieler, und wer gerade unterwegs ist.</span><span data-l="en">The trails of all signed-in players, and who is out there right now.</span></p>
     <div id="live" data-state="connecting" role="status"><i aria-hidden="true"></i><span></span></div>

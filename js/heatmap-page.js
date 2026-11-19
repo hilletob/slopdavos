@@ -228,7 +228,7 @@ function renderInfo() {
 function applyLanguage(next, keep = false) {
   lang = next;
   document.documentElement.lang = lang;
-  document.title = lang === 'de' ? 'Heatmap – Slop Davos' : 'Heat map – Slop Davos';
+  document.title = lang === 'de' ? 'Heatmap – GTA Davos' : 'Heat map – GTA Davos';
   for (const el of document.querySelectorAll('[data-label-de]')) el.setAttribute('aria-label', el.dataset[lang === 'de' ? 'labelDe' : 'labelEn']);
   for (const b of document.querySelectorAll('[data-set-lang]')) b.setAttribute('aria-pressed', String(b.dataset.setLang === lang));
   if (keep) { try { localStorage.setItem(LANG_KEY, lang); } catch { /* */ } }
