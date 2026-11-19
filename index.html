@@ -5,6 +5,13 @@
   <script>
     // (an old link to the game, ?mission=… or ?race=… on the site's root: straight on into the game, play.html)
     if (location.search) location.replace('./play.html' + location.search + location.hash);
+    // (the page's season before the first paint, so its colours and pictures don't turn on arrival: what the visitor
+    // chose last, else winter from November to April; the switch and the rest of it at the end of the page)
+    (function () {
+      var s = null;
+      try { s = localStorage.getItem('slopdavos-landing-season'); } catch (e) { /* */ }
+      document.documentElement.dataset.season = s === 'winter' || s === 'summer' ? s : [10, 11, 0, 1, 2, 3].indexOf(new Date().getMonth()) >= 0 ? 'winter' : 'summer';
+    })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GTA Davos – Grand Theft Alps | Gratis-Browsergame</title>
@@ -22,7 +29,7 @@
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Davos im Spiel: das verschneite Landwassertal in der Abenddämmerung, darüber «Davos, 1:1.»" />
-  <meta property="og:video" content="https://davos.tschopp.cloud/assets/welcome/trailer.mp4" />
+  <meta property="og:video" content="https://davos.tschopp.cloud/assets/welcome/trailer-winter-en.mp4" />
   <meta property="og:video:type" content="video/mp4" />
   <meta property="og:video:width" content="1280" />
   <meta property="og:video:height" content="720" />
@@ -31,7 +38,7 @@
   <meta name="twitter:description" content="Ganz Davos als offene Welt im Browser. Nimm jedes Fahrzeug, über 70 Missionen in Sommer und Winter. Gratis." />
   <meta name="twitter:image" content="https://davos.tschopp.cloud/assets/welcome/og-image.jpg" />
   <meta name="twitter:image:alt" content="Davos im Spiel: das verschneite Landwassertal in der Abenddämmerung" />
-  <meta name="theme-color" content="#0a0a0b" />
+  <meta name="theme-color" content="#03060b" />
   <meta name="color-scheme" content="dark" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png" />
@@ -57,8 +64,8 @@
       "@type": "VideoObject",
       "name": "GTA Davos – Grand Theft Alps: der Trailer",
       "description": "Der Trailer zu GTA Davos – Grand Theft Alps, aufgenommen im Spiel: Davos als offene Welt im Browser.",
-      "thumbnailUrl": "https://davos.tschopp.cloud/assets/welcome/trailer-poster.jpg",
-      "contentUrl": "https://davos.tschopp.cloud/assets/welcome/trailer.mp4",
+      "thumbnailUrl": "https://davos.tschopp.cloud/assets/welcome/trailer-winter-poster.jpg",
+      "contentUrl": "https://davos.tschopp.cloud/assets/welcome/trailer-winter-en.mp4",
       "uploadDate": "2026-11-19",
       "duration": "PT47S"
     },
@@ -87,18 +94,52 @@
       font-display: swap;
       src: url(./assets/welcome/fonts/signika-latin.woff2) format('woff2');
     }
+    /* The colours turn with the season (html[data-season], set before the first paint and by the switch in the top bar):
+       winter cold, blue-black with an icy second tone; summer warm, a brown-green black with the alpenglow's. The yellow
+       stays. Registered as colours, so that the whole page fades from one to the other when the switch is pressed. */
+    @property --ink { syntax: '<color>'; inherits: true; initial-value: #080b10; }
+    @property --coal { syntax: '<color>'; inherits: true; initial-value: #0d1219; }
+    @property --slab { syntax: '<color>'; inherits: true; initial-value: #141b25; }
+    @property --pitch { syntax: '<color>'; inherits: true; initial-value: #03060b; }
+    @property --line { syntax: '<color>'; inherits: true; initial-value: rgba(190, 220, 255, 0.16); }
+    @property --text { syntax: '<color>'; inherits: true; initial-value: #eef4fa; }
+    @property --mute { syntax: '<color>'; inherits: true; initial-value: #d0d9e3; }
+    @property --soft { syntax: '<color>'; inherits: true; initial-value: #a0adbb; }
+    @property --tone { syntax: '<color>'; inherits: true; initial-value: #9fd4ff; }
+    @property --glow { syntax: '<color>'; inherits: true; initial-value: rgba(86, 150, 230, 0.14); }
     :root {
-      --ink: #0a0a0b;        /* the page: near black */
-      --coal: #111214;       /* a section set off from it */
-      --slab: #17191c;       /* panels, cards */
-      --line: rgba(255, 255, 255, 0.13);
-      --gold: #f5c542;       /* the one accent (the trailer's yellow) */
+      --ink: #080b10;        /* the page: near black, in winter towards blue */
+      --coal: #0d1219;       /* a section set off from it */
+      --slab: #141b25;       /* panels, cards */
+      --pitch: #03060b;      /* the film's black bands: the top bar, the trailer, the foot */
+      --line: rgba(190, 220, 255, 0.16);
+      --gold: #f5c542;       /* the one accent (the trailer's yellow), in both seasons */
       --gold-hot: #ffd966;
-      --text: #f4f2ec;
-      --soft: #a8adb4;
+      --text: #eef4fa;
+      --mute: #d0d9e3;
+      --soft: #a0adbb;
+      --tone: #9fd4ff;       /* the season's second tone: ice, for the small lines, the outlines, the glow */
+      --glow: rgba(86, 150, 230, 0.14);
+      --shade: 3, 8, 18;     /* what the pictures are darkened with (r, g, b) */
       --bar: 56px;           /* the top bar, the film's upper black band */
       --display: 'Anton', Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif;
       --body: 'Signika', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    html[data-season='summer'] {
+      --ink: #0c0b08;
+      --coal: #14120c;
+      --slab: #1d1a12;
+      --pitch: #060503;
+      --line: rgba(255, 232, 196, 0.15);
+      --text: #f8f2e6;
+      --mute: #e0d8c8;
+      --soft: #b3ab99;
+      --tone: #ffa574;       /* (alpenglow) */
+      --glow: rgba(240, 140, 60, 0.12);
+      --shade: 16, 9, 2;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      html { transition: --ink 900ms ease, --coal 900ms ease, --slab 900ms ease, --pitch 900ms ease, --line 900ms ease, --text 900ms ease, --mute 900ms ease, --soft 900ms ease, --tone 900ms ease, --glow 900ms ease; }
     }
     *, *::before, *::after { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -127,10 +168,10 @@
     .kicker {
       display: flex; align-items: center; gap: 14px;
       margin-bottom: 18px;
-      font: 400 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.34em; color: var(--gold);
+      font: 400 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.34em; color: var(--tone);
     }
     .kicker::before { content: ''; flex: none; width: 44px; height: 3px; background: var(--gold); }
-    .lede { max-width: 38em; color: #d8d9d6; font-size: clamp(18px, 1.5vw, 20px); }
+    .lede { max-width: 38em; color: var(--mute); font-size: clamp(18px, 1.5vw, 20px); }
     .lede + .lede { margin-top: 0.9em; }
     section { padding: clamp(64px, 9vw, 128px) 0; }
     .head { margin-bottom: clamp(28px, 4vw, 52px); }
@@ -162,25 +203,26 @@
     /* --- The top bar: the film's upper band, always there -------------------------------------------------------- */
     .top {
       position: fixed; z-index: 20; inset: 0 0 auto 0; height: var(--bar);
-      background: #000;
+      background: var(--pitch);
       border-bottom: 1px solid var(--line);
     }
     .top .wrap { height: 100%; display: flex; align-items: center; gap: 22px; }
     .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; color: #fff; text-decoration: none; font: 400 22px/1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; }
     .brand img { width: 30px; height: 30px; border-radius: 6px; }
     .brand b { font-weight: 400; color: var(--gold); }
-    .top nav { display: none; gap: 26px; }
-    .top nav a { color: #d8d9d6; text-decoration: none; font: 400 14px/1 var(--display); text-transform: uppercase; letter-spacing: 0.22em; padding: 8px 0; }
+    .top nav { display: none; gap: clamp(16px, 1.8vw, 26px); }
+    .top nav a { color: var(--mute); text-decoration: none; font: 400 14px/1 var(--display); text-transform: uppercase; letter-spacing: 0.22em; padding: 8px 0; }
     .top nav a:hover { color: var(--gold); }
-    @media (min-width: 980px) { .top nav { display: flex; } }
+    @media (min-width: 1060px) { .top nav { display: flex; } }
     .langs { display: flex; }
     .langs button {
-      font: 400 14px/1 var(--display); letter-spacing: 0.14em; color: #d8d9d6; cursor: pointer;
+      font: 400 14px/1 var(--display); letter-spacing: 0.14em; color: var(--mute); cursor: pointer;
       padding: 8px 9px 7px; border: 1px solid var(--line); background: transparent;
     }
     .langs button + button { border-left: 0; }
     .langs button[aria-pressed='true'] { background: #fff; border-color: #fff; color: #0a0a0b; }
-    @media (max-width: 420px) { .top .wrap { gap: 12px; } .brand img { display: none; } }
+    .seasons button[aria-pressed='true'] { background: var(--tone); border-color: var(--tone); }
+    @media (max-width: 420px) { .top .wrap { gap: 8px; } .brand img { display: none; } .brand { white-space: nowrap; font-size: 20px; } .top .seasons { margin-right: 0; } }
 
     /* --- Hero: the film behind the name ------------------------------------------------------------------------- */
     .hero {
@@ -188,7 +230,7 @@
       min-height: max(560px, 100svh);
       padding: var(--bar) 0 0;
       display: grid; grid-template-rows: 1fr auto;
-      background: #000 url(./assets/welcome/hero-poster.webp) center 40% / cover no-repeat;
+      background: #000 url(./assets/welcome/hero-summer-poster.jpg) center 40% / cover no-repeat;
       overflow: hidden;
       isolation: isolate;
     }
@@ -197,9 +239,32 @@
     .hero::before {
       content: ''; position: absolute; z-index: -1; inset: 0;
       background:
-        linear-gradient(90deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.3) 48%, rgba(0, 0, 0, 0) 75%),
-        linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.5) 72%, rgba(0, 0, 0, 0.92) 100%);
+        linear-gradient(90deg, rgba(var(--shade), 0.74) 0%, rgba(var(--shade), 0.3) 48%, rgba(var(--shade), 0) 75%),
+        linear-gradient(180deg, rgba(var(--shade), 0.4) 0%, rgba(var(--shade), 0) 30%, rgba(var(--shade), 0.5) 72%, rgba(var(--shade), 0.94) 100%);
     }
+    /* (the air in front of the film: light snow in winter, drawn by the script below; the low sun's haze in summer) */
+    .hero-air { position: absolute; z-index: -1; inset: 0; pointer-events: none; overflow: hidden; }
+    .hero-air canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 900ms ease; }
+    html[data-season='winter'] .hero-air canvas { opacity: 1; }
+    .hero-air i { position: absolute; inset: -10%; opacity: 0; transition: opacity 900ms ease; mix-blend-mode: screen; }
+    .hero-air .frost { background: radial-gradient(60% 50% at 12% 0%, rgba(150, 200, 255, 0.2), rgba(150, 200, 255, 0) 70%), linear-gradient(180deg, rgba(120, 170, 255, 0.07), rgba(120, 170, 255, 0) 50%); }
+    .hero-air .haze { background: radial-gradient(46% 52% at 84% 6%, rgba(255, 186, 96, 0.42), rgba(255, 128, 48, 0.13) 46%, rgba(255, 128, 48, 0) 72%), linear-gradient(205deg, rgba(255, 190, 110, 0.14), rgba(255, 190, 110, 0) 42%); }
+    html[data-season='winter'] .hero-air .frost, html[data-season='summer'] .hero-air .haze { opacity: 1; }
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-air .haze { animation: haze 11s ease-in-out infinite alternate; }
+      @keyframes haze { from { transform: translate3d(-1.5%, 0, 0) scale(1); } to { transform: translate3d(1.5%, 1.5%, 0) scale(1.08); } }
+    }
+    /* (a line of the game's HUD: where this is, how high, and what time it is there now) */
+    .hud {
+      position: absolute; top: calc(var(--bar) + 18px); right: max(16px, calc((100% - 1200px) / 2));
+      display: grid; justify-items: end; gap: 7px;
+      font: 400 13px/1 var(--display); text-transform: uppercase; letter-spacing: 0.26em; color: #fff; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+    }
+    .hud span { display: flex; align-items: center; gap: 10px; }
+    .hud .now { padding: 7px 4px 6px 12px; background: rgba(var(--shade), 0.6); border-right: 3px solid var(--gold); font-size: 15px; }
+    .hud .now i { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); }
+    .hud .geo { color: var(--mute); font-size: 11px; padding-right: 7px; }
+    @media (max-width: 700px) { .hud { top: calc(var(--bar) + 12px); } .hud .now { font-size: 13px; } }
     .hero-inner { align-self: end; padding-block: 40px clamp(28px, 5vh, 56px); }
     .hero .kicker { margin-bottom: clamp(6px, 1.4vh, 16px); color: #fff; }
     .lockup { --t: clamp(64px, 23.4vw, 250px); display: inline-block; font-size: var(--t); }
@@ -214,8 +279,8 @@
     .hero .pitch { max-width: 31em; margin-top: clamp(18px, 3vh, 30px); font-size: clamp(18px, 1.7vw, 22px); line-height: 1.42; color: #f1f1ee; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6); }
     .cta { display: flex; flex-wrap: wrap; gap: 14px 22px; margin-top: clamp(22px, 3.4vh, 34px); padding-left: 6px; }
     /* (the lower black band, with what it costs: nothing) */
-    .band { background: #000; border-top: 1px solid var(--line); }
-    .band ul { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 28px; padding: 15px 0 14px; font: 400 13px/1.3 var(--display); text-transform: uppercase; letter-spacing: 0.3em; color: #d8d9d6; }
+    .band { background: var(--pitch); border-top: 1px solid var(--line); }
+    .band ul { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 28px; padding: 15px 0 14px; font: 400 13px/1.3 var(--display); text-transform: uppercase; letter-spacing: 0.3em; color: var(--mute); }
     .band li::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 12px; background: var(--gold); transform: skewX(-9deg) translateY(-1px); }
     @media (max-width: 700px) { .band ul { letter-spacing: 0.22em; font-size: 12px; } .band li:nth-child(n+3) { display: none; } }
 
@@ -230,7 +295,7 @@
     }
 
     /* --- The trailer --------------------------------------------------------------------------------------------- */
-    .trailer { background: #000; padding-bottom: clamp(56px, 8vw, 112px); }
+    .trailer { background: var(--pitch); padding-bottom: clamp(56px, 8vw, 112px); }
     .screen { position: relative; aspect-ratio: 16 / 9; background: #000; outline: 1px solid var(--line); }
     .screen video { width: 100%; height: 100%; object-fit: contain; background: #000; }
     .screen .play {
@@ -254,7 +319,76 @@
     .screen::before, .heat-panel::before { top: -8px; left: -8px; border-right: 0; border-bottom: 0; }
     .screen::after, .heat-panel::after { bottom: -8px; right: -8px; border-left: 0; border-top: 0; }
 
+
+    /* --- One day in Davos: the trailer's day, told by scrolling ---------------------------------------------------
+       A stage that stays (sticky) between two black bands while the section, some screens long, scrolls past: each
+       stretch of it is an hour of the day, with its picture from the game, the clock running on towards the next, and
+       the day's rail below. A winter and a summer day (ol[data-s]); the script at the end of the page turns them. */
+    .day { position: relative; padding: 0; background: var(--pitch); height: calc(100vh + var(--n, 9) * 56vh); }
+    .day-stage { position: sticky; top: 0; height: 100vh; padding-top: var(--bar); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    @supports (height: 100svh) { .day { height: calc(100svh + var(--n, 9) * 56svh); } .day-stage { height: 100svh; } }
+    .day-slate { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 50px; }
+    .day-slate h2 { font-size: clamp(19px, 2vw, 25px); line-height: 1; letter-spacing: 0.08em; white-space: nowrap; }
+    .day-slate p { display: flex; gap: 14px; font: 400 13px/1 var(--display); text-transform: uppercase; letter-spacing: 0.26em; color: var(--tone); white-space: nowrap; }
+    .day-slate p b { font-weight: 400; color: #fff; font-variant-numeric: tabular-nums; }
+    .day-view { position: relative; overflow: hidden; background: #000; border-block: 1px solid var(--line); }
+    .day-view ol, .day-view li { position: absolute; inset: 0; margin: 0; padding: 0; }
+    .day-view li { opacity: 0; visibility: hidden; transition: opacity 700ms ease, visibility 0s 700ms; }
+    .day-view li.is-on { opacity: 1; visibility: visible; transition: opacity 700ms ease; z-index: 1; }
+    .day-view img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+    .day-view img:not([src]) { visibility: hidden; }
+    .day-view li::after {
+      content: ''; position: absolute; inset: 0;
+      background:
+        linear-gradient(90deg, rgba(var(--shade), 0.82) 0%, rgba(var(--shade), 0.42) 38%, rgba(var(--shade), 0) 68%),
+        linear-gradient(0deg, rgba(var(--shade), 0.86) 0%, rgba(var(--shade), 0) 46%);
+    }
+    .day-text { position: absolute; z-index: 1; inset: auto 0 0 0; margin-inline: auto; }
+    .day-time { display: block; font: 400 min(30vw, 27vh, 250px)/0.9 var(--display); color: #fff; letter-spacing: 0; white-space: nowrap; text-shadow: 0 4px 40px rgba(var(--shade), 0.6); }
+    .day-time i { display: inline-block; width: 0.5em; text-align: center; font-style: normal; }
+    .day-time i.c { width: 0.26em; color: var(--gold); }
+    .day-cap { height: clamp(132px, 21vh, 176px); padding-top: clamp(8px, 1.4vh, 16px); }
+    .day-cap h3 { font-size: clamp(27px, 3.4vw, 46px); line-height: 1.05; }
+    .day-cap p { margin-top: 8px; max-width: 30em; color: var(--mute); font-size: clamp(16px, 1.4vw, 19px); line-height: 1.4; text-wrap: pretty; }
+    .day-cap .tag {
+      display: inline-block; margin: 0 0 9px 3px; padding: 5px 11px 4px; background: var(--gold); color: #0a0a0b; transform: skewX(-9deg);
+      font: 400 13px/1 var(--display); text-transform: uppercase; letter-spacing: 0.22em;
+    }
+    .day-cap .tag span { display: inline-block; transform: skewX(9deg); }
+    .day-rail { height: 62px; display: flex; align-items: center; }
+    .day-rail div { position: relative; flex: 1; height: 2px; margin-inline: 22px; background: var(--line); }
+    .day-rail .fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); background: var(--gold); }
+    .day-rail .fill::after { content: ''; position: absolute; right: -6px; top: -5px; width: 12px; height: 12px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 5px rgba(245, 197, 66, 0.2); }
+    .day-rail span { position: absolute; top: -4px; width: 2px; height: 10px; margin-left: -1px; background: var(--soft); }
+    .day-rail span.is-past { background: var(--gold); }
+    .day-rail b { position: absolute; top: 15px; left: 50%; translate: -50% 0; font: 400 12px/1 var(--display); letter-spacing: 0.14em; color: var(--soft); }
+    .day-rail span.is-on b { color: #fff; }
+    @media (max-width: 760px) {
+      .day-slate { height: 44px; }
+      .day-slate p span { display: none; }
+      .day-view img { height: 76%; object-position: var(--x, 50%) 50%; }
+      .day-view li::after { background: linear-gradient(180deg, rgba(var(--shade), 0) 40%, var(--pitch) 76%); }
+      .day-time { font-size: min(30vw, 19vh); }
+      .day-cap { height: clamp(124px, 18vh, 150px); }
+      .day-rail { height: 40px; }
+      .day-rail b { display: none; }
+    }
+    @media (max-height: 520px) { .day-cap p { display: none; } .day-cap { height: 76px; } .day-rail { height: 34px; } .day-rail b { display: none; } .day-slate { height: 36px; } }
+    @media (prefers-reduced-motion: no-preference) {
+      .day-view img { transform: scale(calc(1.02 + var(--f, 0) * 0.06)); will-change: transform; }
+      .day-view li .day-cap { translate: 0 14px; opacity: 0; transition: translate 700ms cubic-bezier(.2, .7, .2, 1) 120ms, opacity 500ms ease 120ms; }
+      .day-view li.is-on .day-cap { translate: none; opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) { .day-view li, .day-view li.is-on { transition: none; } }
+
+    /* (what comes into view rises into place: only with the script running and motion allowed, html.rises) */
+    @media (prefers-reduced-motion: no-preference) {
+      html.rises .rv { opacity: 0; translate: 0 28px; transition: opacity 800ms ease, translate 900ms cubic-bezier(.2, .7, .2, 1); transition-delay: var(--d, 0ms); }
+      html.rises .rv.in { opacity: 1; translate: none; }
+    }
+
     /* --- The place: what is in it, and how high ------------------------------------------------------------------ */
+    #welt { background: radial-gradient(60% 80% at 100% 30%, var(--glow), transparent 70%); }
     .place { display: grid; gap: 44px clamp(40px, 6vw, 96px); align-items: center; }
     @media (min-width: 940px) { .place { grid-template-columns: 1.05fr 1fr; } }
     .place-shot { margin: 0; border-top: 3px solid var(--gold); }
@@ -270,11 +404,11 @@
     }
     .chapter figure { position: relative; }
     .chapter img, .rides img { width: 100%; background: var(--slab); }
-    .chapter .no { display: block; margin-bottom: 6px; font: 400 clamp(64px, 8vw, 116px)/0.9 var(--display); color: transparent; -webkit-text-stroke: 2px var(--gold); letter-spacing: 0.02em; }
+    .chapter .no { display: block; margin-bottom: 6px; font: 400 clamp(64px, 8vw, 116px)/0.9 var(--display); color: transparent; -webkit-text-stroke: 2px var(--tone); letter-spacing: 0.02em; }
     .chapter .kicker { margin-bottom: 12px; }
-    .chapter p:not(.kicker) { margin-top: 14px; color: #d8d9d6; max-width: 30em; }
+    .chapter p:not(.kicker) { margin-top: 14px; color: var(--mute); max-width: 30em; }
 
-    .rides { background: var(--coal); border-block: 1px solid var(--line); }
+    .rides { background: radial-gradient(80% 60% at 88% 0%, var(--glow), transparent 70%), var(--coal); border-block: 1px solid var(--line); }
     .grid5 { display: grid; gap: 12px; grid-template-columns: 1fr; }
     @media (min-width: 640px) { .grid5 { grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1000px) { .grid5 { grid-template-columns: repeat(6, 1fr); } .grid5 figure:nth-child(-n+2) { grid-column: span 3; } .grid5 figure:nth-child(n+3) { grid-column: span 2; } }
@@ -296,13 +430,13 @@
     .facts p { color: var(--soft); }
 
     /* --- The numbers: the city so far ---------------------------------------------------------------------------- */
-    .stats { background: #000; }
+    .stats { background: radial-gradient(70% 50% at 10% 0%, var(--glow), transparent 70%), var(--pitch); }
     .numbers { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 3px solid var(--gold); }
     @media (min-width: 900px) { .numbers { grid-template-columns: repeat(4, 1fr); } }
     .numbers div { display: flex; flex-direction: column-reverse; justify-content: flex-end; padding: 22px 16px 22px 0; border-bottom: 1px solid var(--line); }
     .numbers div + div { padding-left: clamp(14px, 2vw, 28px); border-left: 1px solid var(--line); }
     @media (max-width: 899px) { .numbers div:nth-child(odd) { padding-left: 0; border-left: 0; } }
-    .numbers dt { margin-top: 10px; font: 400 14px/1.3 var(--display); text-transform: uppercase; letter-spacing: 0.24em; color: #d8d9d6; }
+    .numbers dt { margin-top: 10px; font: 400 14px/1.3 var(--display); text-transform: uppercase; letter-spacing: 0.24em; color: var(--mute); }
     .numbers dd { font: 400 clamp(50px, 7vw, 100px)/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; }
     .stats[data-state='loading'] .numbers dd { color: rgba(245, 197, 66, 0.35); }
     .travel { margin-top: clamp(40px, 5vw, 64px); display: grid; gap: 20px clamp(28px, 5vw, 80px); }
@@ -319,7 +453,7 @@
     .bars li > span:first-of-type { font: 400 19px/1.1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; }
     .bars .bar { height: 14px; background: rgba(255, 255, 255, 0.09); transform: skewX(-9deg); overflow: hidden; }
     .bars .bar span { display: block; height: 100%; background: var(--gold); transform-origin: left; }
-    .bars .km { text-align: right; font-variant-numeric: tabular-nums; color: #d8d9d6; white-space: nowrap; }
+    .bars .km { text-align: right; font-variant-numeric: tabular-nums; color: var(--mute); white-space: nowrap; }
     @media (max-width: 560px) {
       .bars li { grid-template-columns: 2em 1fr auto; grid-template-areas: 'rank name km' 'rank bar bar'; gap: 7px 12px; }
       .bars li::before { grid-area: rank; align-self: start; }
@@ -334,7 +468,7 @@
     }
 
     /* --- The heat map: where Davos is played --------------------------------------------------------------------- */
-    .heat { background: var(--coal); border-block: 1px solid var(--line); }
+    .heat { background: radial-gradient(80% 60% at 12% 0%, var(--glow), transparent 70%), var(--coal); border-block: 1px solid var(--line); }
     .heat-panel { position: relative; aspect-ratio: 21 / 9; min-height: 440px; width: 100%; background: #12161b; outline: 1px solid var(--line); }
     @media (max-width: 700px) { .heat-panel { aspect-ratio: 4 / 5; min-height: 0; } }
     .heat-panel canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -356,7 +490,7 @@
       @keyframes beat { to { box-shadow: 0 0 0 9px rgba(95, 224, 138, 0); } }
     }
     .heat-foot { position: absolute; z-index: 1; inset: auto 16px 16px 16px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; }
-    .heat-legend { width: min(250px, 100%); padding: 11px 13px 8px; background: rgba(0, 0, 0, 0.82); border: 1px solid var(--line); font-size: 13px; color: #d8d9d6; }
+    .heat-legend { width: min(250px, 100%); padding: 11px 13px 8px; background: rgba(0, 0, 0, 0.82); border: 1px solid var(--line); font-size: 13px; color: var(--mute); }
     .heat-legend .ramp + .ends { margin-bottom: 3px; }
     .heat-legend .ramp { height: 8px; background: linear-gradient(90deg, rgb(62, 20, 110), rgb(140, 30, 130), rgb(214, 55, 90), rgb(248, 120, 40), rgb(252, 195, 70), rgb(255, 248, 200)); }
     .heat-legend .ends { display: flex; justify-content: space-between; margin-top: 5px; }
@@ -367,17 +501,25 @@
     /* --- The end ------------------------------------------------------------------------------------------------- */
     .last { position: relative; isolation: isolate; text-align: center; background: #000 url(./assets/welcome/davos-valley-1200.webp) center 45% / cover no-repeat; }
     @media (min-width: 1000px) { .last { background-image: url(./assets/welcome/davos-valley-2000.webp); } }
-    .last::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, #0a0a0b 0%, rgba(10, 10, 11, 0.62) 40%, rgba(10, 10, 11, 0.78) 100%); }
+    html[data-season='summer'] .last { background-image: url(./assets/welcome/day-s-1930.jpg); } /* (the Schatzalp's evening, the day's picture) */
+    .last::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, var(--ink) 0%, rgba(var(--shade), 0.6) 40%, rgba(var(--shade), 0.8) 100%); }
     .last h2 { font-size: clamp(56px, 11vw, 168px); }
     .last .lede { margin: 22px auto 34px; }
-    footer { background: #000; border-top: 1px solid var(--line); padding: 28px 0 44px; font-size: 15px; color: var(--soft); }
+    footer { background: var(--pitch); border-top: 1px solid var(--line); padding: 28px 0 44px; font-size: 15px; color: var(--soft); }
     footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 26px; }
     footer .fine { flex-basis: 100%; margin-top: 8px; font-size: 13.5px; }
-    footer a { color: #d8d9d6; }
+    footer a { color: var(--mute); }
     footer a:hover { color: var(--gold); }
 
     /* two languages: the text of the other one hidden (the switch top right, the game's choice remembered) */
     html[lang='de'] [data-l='en'], html[lang='en'] [data-l='de'] { display: none; }
+    /* The season of the page (the switch next to the language's): the hero's film, the valley, the rides, the trailer */
+    html[data-season='winter'] [data-s='summer'], html[data-season='summer'] [data-s='winter'] { display: none; }
+    html[data-season='winter'] .hero { background-image: url(./assets/welcome/hero-winter-poster.jpg); }
+    .seasons { margin-right: 10px; }
+    .seasons button { display: inline-flex; align-items: center; gap: 6px; }
+    .seasons .word { display: none; }
+    @media (min-width: 1180px) { .seasons .word { display: inline; } }
     .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   </style>
 </head>
@@ -387,11 +529,16 @@
       <a class="brand" href="./"><img src="./assets/icons/icon-192.png" alt="" width="30" height="30" /><span><b>GTA</b> Davos</span></a>
       <nav data-label-de="Abschnitte" data-label-en="Sections" aria-label="Abschnitte">
         <a href="#trailer">Trailer</a>
+        <a href="#tag"><span data-l="de">Ein Tag</span><span data-l="en">One day</span></a>
         <a href="#welt"><span data-l="de">Welt</span><span data-l="en">World</span></a>
         <a href="#fahrzeuge"><span data-l="de">Fahrzeuge</span><span data-l="en">Rides</span></a>
         <a href="#statistik" data-needs="stats" hidden><span data-l="de">Statistik</span><span data-l="en">Stats</span></a>
         <a href="#heatmap">Heatmap</a>
       </nav>
+      <div class="langs seasons" role="group" data-label-de="Jahreszeit" data-label-en="Season" aria-label="Jahreszeit">
+        <button type="button" data-set-season="winter" data-label-de="Winter" data-label-en="Winter" aria-label="Winter"><span aria-hidden="true">❄</span><span class="word" aria-hidden="true">Winter</span></button>
+        <button type="button" data-set-season="summer" data-label-de="Sommer" data-label-en="Summer" aria-label="Sommer"><span aria-hidden="true">☀</span><span class="word" aria-hidden="true"><span data-l="de">Sommer</span><span data-l="en">Summer</span></span></button>
+      </div>
       <div class="langs" role="group" aria-label="Sprache / Language">
         <button type="button" data-set-lang="de" lang="de" aria-label="Deutsch">DE</button>
         <button type="button" data-set-lang="en" lang="en" aria-label="English">EN</button>
@@ -402,9 +549,14 @@
 
   <main>
     <section class="hero" style="padding-bottom: 0">
-      <video class="hero-video" muted loop playsinline preload="none" poster="./assets/welcome/hero-poster.webp" aria-hidden="true" tabindex="-1"></video>
+      <video class="hero-video" muted loop playsinline preload="none" poster="./assets/welcome/hero-summer-poster.jpg" aria-hidden="true" tabindex="-1"></video>
+      <div class="hero-air" aria-hidden="true"><canvas></canvas><i class="frost"></i><i class="haze"></i></div>
+      <p class="hud" aria-hidden="true">
+        <span class="now"><i></i>Davos <b data-davos-time>–:–</b></span>
+        <span class="geo">46.80° N · 9.83° E · 1560 m</span>
+      </p>
       <div class="hero-inner wrap">
-        <p class="kicker">1560 metres above the rest</p>
+        <p class="kicker"><span data-l="de">1560 Meter über dem Meer</span><span data-l="en">1560 metres above the rest</span></p>
         <h1 class="lockup"><span class="name"><b>GTA</b> Davos</span><span class="sub">Grand Theft Alps</span></h1>
         <p class="pitch"><span data-l="de">Ganz Davos als offene Welt, eins zu eins im Browser: jede Strasse, jedes Haus, jeder Hang auf dem echten Relief. Nimm, was herumsteht, und fahr los.</span><span data-l="en">All of Davos as an open world, one to one in your browser: every street, every house, every slope on the real terrain. Take whatever is standing around and go.</span></p>
         <div class="cta">
@@ -424,10 +576,10 @@
 
     <div class="ticker" aria-hidden="true">
       <div>
-        <ul><li>Take any ride</li><li>Own the night</li><li>Rule the slopes</li><li>Take to the skies</li><li>Four seasons</li><li>1560 metres above the rest</li></ul>
-        <ul><li>Take any ride</li><li>Own the night</li><li>Rule the slopes</li><li>Take to the skies</li><li>Four seasons</li><li>1560 metres above the rest</li></ul>
-        <ul><li>Take any ride</li><li>Own the night</li><li>Rule the slopes</li><li>Take to the skies</li><li>Four seasons</li><li>1560 metres above the rest</li></ul>
-        <ul><li>Take any ride</li><li>Own the night</li><li>Rule the slopes</li><li>Take to the skies</li><li>Four seasons</li><li>1560 metres above the rest</li></ul>
+        <ul><li><span data-l="de">Nimm, was fährt</span><span data-l="en">Take any ride</span></li><li><span data-l="de">Die Nacht gehört dir</span><span data-l="en">Own the night</span></li><li data-s="winter"><span data-l="de">Die Piste gehört dir</span><span data-l="en">Rule the slopes</span></li><li data-s="summer"><span data-l="de">Der See. Das Tal. Alles deins.</span><span data-l="en">The lake. The town. All yours.</span></li><li><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></li><li><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></li><li><span data-l="de">Winter &amp; Sommer</span><span data-l="en">Winter &amp; summer</span></li><li><span data-l="de">1560 Meter über dem Meer</span><span data-l="en">1560 metres above the rest</span></li></ul>
+        <ul><li><span data-l="de">Nimm, was fährt</span><span data-l="en">Take any ride</span></li><li><span data-l="de">Die Nacht gehört dir</span><span data-l="en">Own the night</span></li><li data-s="winter"><span data-l="de">Die Piste gehört dir</span><span data-l="en">Rule the slopes</span></li><li data-s="summer"><span data-l="de">Der See. Das Tal. Alles deins.</span><span data-l="en">The lake. The town. All yours.</span></li><li><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></li><li><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></li><li><span data-l="de">Winter &amp; Sommer</span><span data-l="en">Winter &amp; summer</span></li><li><span data-l="de">1560 Meter über dem Meer</span><span data-l="en">1560 metres above the rest</span></li></ul>
+        <ul><li><span data-l="de">Nimm, was fährt</span><span data-l="en">Take any ride</span></li><li><span data-l="de">Die Nacht gehört dir</span><span data-l="en">Own the night</span></li><li data-s="winter"><span data-l="de">Die Piste gehört dir</span><span data-l="en">Rule the slopes</span></li><li data-s="summer"><span data-l="de">Der See. Das Tal. Alles deins.</span><span data-l="en">The lake. The town. All yours.</span></li><li><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></li><li><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></li><li><span data-l="de">Winter &amp; Sommer</span><span data-l="en">Winter &amp; summer</span></li><li><span data-l="de">1560 Meter über dem Meer</span><span data-l="en">1560 metres above the rest</span></li></ul>
+        <ul><li><span data-l="de">Nimm, was fährt</span><span data-l="en">Take any ride</span></li><li><span data-l="de">Die Nacht gehört dir</span><span data-l="en">Own the night</span></li><li data-s="winter"><span data-l="de">Die Piste gehört dir</span><span data-l="en">Rule the slopes</span></li><li data-s="summer"><span data-l="de">Der See. Das Tal. Alles deins.</span><span data-l="en">The lake. The town. All yours.</span></li><li><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></li><li><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></li><li><span data-l="de">Winter &amp; Sommer</span><span data-l="en">Winter &amp; summer</span></li><li><span data-l="de">1560 Meter über dem Meer</span><span data-l="en">1560 metres above the rest</span></li></ul>
       </div>
     </div>
 
@@ -438,11 +590,215 @@
           <h2><span data-l="de">Der <em>Trailer</em></span><span data-l="en">The <em>trailer</em></span></h2>
         </div>
         <div class="screen">
-          <video playsinline preload="none" poster="./assets/welcome/trailer-poster.jpg" width="1280" height="720" data-label-de="Trailer zu GTA Davos, 47 Sekunden, mit Ton" data-label-en="Trailer for GTA Davos, 47 seconds, with sound" aria-label="Trailer zu GTA Davos, 47 Sekunden, mit Ton">
-            <source src="./assets/welcome/trailer.mp4" type="video/mp4" />
+          <video playsinline preload="none" poster="./assets/welcome/trailer-winter-poster.jpg" width="1280" height="720" data-label-de="Trailer zu GTA Davos, 47 Sekunden, mit Ton" data-label-en="Trailer for GTA Davos, 47 seconds, with sound" aria-label="Trailer zu GTA Davos, 47 Sekunden, mit Ton">
+            <source src="./assets/welcome/trailer-winter-de.mp4" type="video/mp4" />
           </video>
           <button class="play" type="button"><i aria-hidden="true"></i><span><span data-l="de">Trailer abspielen · mit Ton</span><span data-l="en">Play trailer · with sound</span></span></button>
         </div>
+      </div>
+    </section>
+
+    <section class="day" id="tag" aria-labelledby="day-title">
+      <div class="day-stage">
+        <div class="day-slate wrap">
+          <h2 id="day-title"><span data-l="de">Ein Tag in <em>Davos</em></span><span data-l="en">One day in <em>Davos</em></span></h2>
+          <p aria-hidden="true"><span data-s="winter">Winter</span><span data-s="summer"><span data-l="de">Sommer</span><span data-l="en">Summer</span></span><b data-day-count>01 / 09</b></p>
+        </div>
+        <div class="day-view">
+          <ol data-s="winter">
+            <li data-t="07:00">
+              <img data-src="./assets/welcome/day-w-0700.jpg" width="1280" height="720" decoding="async" style="--x: 60%" data-alt-de="Morgendämmerung über dem verschneiten Davos, im Tal brennen die Lichter" data-alt-en="Dawn over snow-covered Davos, the lights on in the valley" alt="Morgendämmerung über dem verschneiten Davos, im Tal brennen die Lichter" />
+              <div class="day-text wrap">
+                <b class="day-time">07:00</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Das Tal erwacht</span><span data-l="en">The valley wakes up</span></h3>
+                  <p><span data-l="de">Über dem Landwassertal dämmert es, unten brennen noch die Lichter. Es schneit leicht.</span><span data-l="en">Dawn over the Landwasser valley, the lights still on below. A little snow is falling.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="08:30">
+              <img data-src="./assets/welcome/day-w-0830.jpg" width="1280" height="720" decoding="async" style="--x: 80%" data-alt-de="Ein rotes Pistenfahrzeug fährt über den Schnee auf den Ort zu" data-alt-en="A red snowcat driving over the snow towards the town" alt="Ein rotes Pistenfahrzeug fährt über den Schnee auf den Ort zu" />
+              <div class="day-text wrap">
+                <b class="day-time">08:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Pisten präparieren</span><span data-l="en">Groom the slopes</span></h3>
+                  <p><span data-l="de">Bevor die Ersten kommen, ziehst du mit dem Pistenfahrzeug deine Spur in den Schnee.</span><span data-l="en">Before the first skiers arrive, you lay your track in the snow with the snowcat.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="10:00">
+              <img data-src="./assets/welcome/day-w-1000.jpg" width="1280" height="720" decoding="async" style="--x: 48%" data-alt-de="Die Spielfigur steht auf einer verschneiten Strasse vor einem parkierten Auto" data-alt-en="The player stands in a snowy street in front of a parked car" alt="Die Spielfigur steht auf einer verschneiten Strasse vor einem parkierten Auto" />
+              <div class="day-text wrap">
+                <b class="day-time">10:00</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Brauchst du ein Auto?</span><span data-l="en">Need a ride?</span></h3>
+                  <p><span data-l="de">Da steht eins. Mit F steigst du ein, und es gehört dir.</span><span data-l="en">There is one standing right there. Press F to get in, and it is yours.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="12:00">
+              <img data-src="./assets/welcome/day-w-1200.jpg" width="1280" height="720" decoding="async" style="--x: 45%" data-alt-de="Ein Skifahrer vor einem Slalomtor, darüber eine Sesselbahn und verschneite Berge" data-alt-en="A skier in front of a slalom gate, a chairlift and snowy mountains above" alt="Ein Skifahrer vor einem Slalomtor, darüber eine Sesselbahn und verschneite Berge" />
+              <div class="day-text wrap">
+                <b class="day-time">12:00</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Ski-Slalom</span><span data-l="en">Ski slalom</span></h3>
+                  <p><span data-l="de">Tor um Tor den Hang hinunter, gegen die Uhr.</span><span data-l="en">Gate after gate down the slope, against the clock.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="13:30">
+              <img data-src="./assets/welcome/day-w-1330.jpg" width="1280" height="720" decoding="async" style="--x: 50%" data-alt-de="Der rote Rega-Helikopter hebt über dem Landeplatz ab, dahinter das verschneite Davos" data-alt-en="The red Rega helicopter lifting off above the helipad, snowy Davos beyond" alt="Der rote Rega-Helikopter hebt über dem Landeplatz ab, dahinter das verschneite Davos" />
+              <div class="day-text wrap">
+                <b class="day-time">13:30</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Rega-Rettung</span><span data-l="en">Rega rescue</span></h3>
+                  <p><span data-l="de">Abheben vom Landeplatz, hin zur Unfallstelle. Jede Minute zählt.</span><span data-l="en">Lift off from the helipad and out to the casualty. Every minute counts.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="14:45">
+              <img data-src="./assets/welcome/day-w-1445.jpg" width="1280" height="720" decoding="async" style="--x: 38%" data-alt-de="Ein Snowboarder auf dem Jakobshorn, dahinter die verschneiten Berge" data-alt-en="A snowboarder on the Jakobshorn, the snowy mountains beyond" alt="Ein Snowboarder auf dem Jakobshorn, dahinter die verschneiten Berge" />
+              <div class="day-text wrap">
+                <b class="day-time">14:45</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Big Air</span><span data-l="en">Big air</span></h3>
+                  <p><span data-l="de">Anlauf, Kicker, Spin: Auf dem Jakobshorn zählt, was du in der Luft zeigst.</span><span data-l="en">Run-in, kicker, spin: on the Jakobshorn it is what you show in the air that counts.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="17:00">
+              <img data-src="./assets/welcome/day-w-1700.jpg" width="1280" height="720" decoding="async" style="--x: 72%" data-alt-de="Ein blauer VW-Bus fährt in der Abenddämmerung über die verschneite Promenade" data-alt-en="A blue VW van driving down the snowy Promenade at dusk" alt="Ein blauer VW-Bus fährt in der Abenddämmerung über die verschneite Promenade" />
+              <div class="day-text wrap">
+                <b class="day-time">17:00</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Feierabend auf der Promenade</span><span data-l="en">Rush hour on the Promenade</span></h3>
+                  <p><span data-l="de">Die Schaufenster leuchten, der Himmel wird dunkel, und du rollst im VW-Bus durch den Ort.</span><span data-l="en">The shop windows glow, the sky darkens, and you roll through town in the VW van.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="22:30">
+              <img data-src="./assets/welcome/day-w-2230.jpg" width="1280" height="720" decoding="async" style="--x: 50%" data-alt-de="Das verschneite Davos in der Nacht aus der Luft, in den Häusern brennt Licht" data-alt-en="Snow-covered Davos at night from the air, lights on in the houses" alt="Das verschneite Davos in der Nacht aus der Luft, in den Häusern brennt Licht" />
+              <div class="day-text wrap">
+                <b class="day-time">22:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></h3>
+                  <p><span data-l="de">Fenster um Fenster leuchtet das Tal unter dem Sternenhimmel.</span><span data-l="en">Window by window the valley glows under the stars.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="00:00">
+              <img data-src="./assets/welcome/day-w-0000.jpg" width="1280" height="720" decoding="async" style="--x: 40%" data-alt-de="Im Club Box Davos: Figuren auf der Bühne im bunten Scheinwerferlicht" data-alt-en="In the Box Davos club: figures on stage in coloured spotlights" alt="Im Club Box Davos: Figuren auf der Bühne im bunten Scheinwerferlicht" />
+              <div class="day-text wrap">
+                <b class="day-time">00:00</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Headbang-Contest</span><span data-l="en">Headbang contest</span></h3>
+                  <p><span data-l="de">Nach Mitternacht im Club: Kopf runter und im Takt bleiben.</span><span data-l="en">After midnight in the club: head down and stay on the beat.</span></p>
+                </div>
+              </div>
+            </li>
+          </ol>
+          <ol data-s="summer">
+            <li data-t="05:30">
+              <img data-src="./assets/welcome/day-s-0530.jpg" width="1280" height="720" decoding="async" style="--x: 55%" data-alt-de="Davos im Sommer vor Sonnenaufgang aus der Luft, das Tal noch dunkel" data-alt-en="Davos in summer before sunrise from the air, the valley still dark" alt="Davos im Sommer vor Sonnenaufgang aus der Luft, das Tal noch dunkel" />
+              <div class="day-text wrap">
+                <b class="day-time">05:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Das Tal erwacht</span><span data-l="en">The valley wakes up</span></h3>
+                  <p><span data-l="de">Der erste Schimmer über den Bergen. Unten liegt Davos noch im Dunkeln.</span><span data-l="en">The first glimmer over the mountains. Down below, Davos still lies in the dark.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="08:00">
+              <img data-src="./assets/welcome/day-s-0800.jpg" width="1280" height="720" decoding="async" style="--x: 60%" data-alt-de="Blick aus der Luft über den Davosersee das grüne Tal hinunter auf Davos" data-alt-en="Aerial view over Lake Davos down the green valley to the town" alt="Blick aus der Luft über den Davosersee das grüne Tal hinunter auf Davos" />
+              <div class="day-text wrap">
+                <b class="day-time">08:00</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Der See. Das Tal. Alles deins.</span><span data-l="en">The lake. The town. All yours.</span></h3>
+                  <p><span data-l="de">Vom Davosersee bis hinunter nach Monstein: Wohin du schaust, kannst du auch hin.</span><span data-l="en">From Lake Davos all the way down to Monstein: wherever you look, you can go.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="09:30">
+              <img data-src="./assets/welcome/day-s-0930.jpg" width="1280" height="720" decoding="async" style="--x: 34%" data-alt-de="Die Spielfigur steht auf einer Strasse neben einem weissen Auto" data-alt-en="The player stands in a street next to a white car" alt="Die Spielfigur steht auf einer Strasse neben einem weissen Auto" />
+              <div class="day-text wrap">
+                <b class="day-time">09:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Brauchst du ein Auto?</span><span data-l="en">Need a ride?</span></h3>
+                  <p><span data-l="de">Da steht eins. Mit F steigst du ein, und es gehört dir.</span><span data-l="en">There is one standing right there. Press F to get in, and it is yours.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="11:00">
+              <img data-src="./assets/welcome/day-s-1100.jpg" width="1280" height="720" decoding="async" style="--x: 40%" data-alt-de="Die Spielfigur fährt auf einem Quad eine Strasse entlang, gelbe Pfeile zeigen den Weg" data-alt-en="The player riding a quad down a street, yellow arrows showing the way" alt="Die Spielfigur fährt auf einem Quad eine Strasse entlang, gelbe Pfeile zeigen den Weg" />
+              <div class="day-text wrap">
+                <b class="day-time">11:00</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Quad-Rennen</span><span data-l="en">Quad race</span></h3>
+                  <p><span data-l="de">Mit dem Quad quer durch den Ort, den gelben Pfeilen nach.</span><span data-l="en">Across town on the quad, following the yellow arrows.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="12:30">
+              <img data-src="./assets/welcome/day-s-1230.jpg" width="1280" height="720" decoding="async" style="--x: 45%" data-alt-de="Ein Gleitschirm hebt am Rinerhorn ab, darunter das grüne Tal" data-alt-en="A paraglider taking off on the Rinerhorn, the green valley below" alt="Ein Gleitschirm hebt am Rinerhorn ab, darunter das grüne Tal" />
+              <div class="day-text wrap">
+                <b class="day-time">12:30</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Gleitschirm</span><span data-l="en">Paragliding</span></h3>
+                  <p><span data-l="de">Aufziehen am Rinerhorn, ein paar Schritte den Hang hinunter, und du fliegst.</span><span data-l="en">Pull up the wing on the Rinerhorn, a few steps down the slope, and you are flying.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="14:00">
+              <img data-src="./assets/welcome/day-s-1400.jpg" width="1280" height="720" decoding="async" style="--x: 42%" data-alt-de="Der rote Rega-Helikopter fliegt über die Häuser von Davos, dahinter grüne Hänge" data-alt-en="The red Rega helicopter flying over the houses of Davos, green slopes beyond" alt="Der rote Rega-Helikopter fliegt über die Häuser von Davos, dahinter grüne Hänge" />
+              <div class="day-text wrap">
+                <b class="day-time">14:00</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Rega-Rettung</span><span data-l="en">Rega rescue</span></h3>
+                  <p><span data-l="de">Im Helikopter über die Dächer zur Unfallstelle. Jede Minute zählt.</span><span data-l="en">Over the rooftops in the helicopter to the casualty. Every minute counts.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="15:30">
+              <img data-src="./assets/welcome/day-s-1530.jpg" width="1280" height="720" decoding="async" style="--x: 38%" data-alt-de="Die Röhre der Wasserrutsche von innen, Ringe in Pink und Türkis" data-alt-en="Inside the tube of the water slide, rings in pink and turquoise" alt="Die Röhre der Wasserrutsche von innen, Ringe in Pink und Türkis" />
+              <div class="day-text wrap">
+                <b class="day-time">15:30</b>
+                <div class="day-cap">
+                  <span class="tag"><span>Mission</span></span>
+                <h3><span data-l="de">Wasserrutsche</span><span data-l="en">Water slide</span></h3>
+                  <p><span data-l="de">Durch die Röhre hinunter, so schnell es geht: Leg dich in die Kurven.</span><span data-l="en">Down the tube as fast as it goes: lean into the bends.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="19:30">
+              <img data-src="./assets/welcome/day-s-1930.jpg" width="1280" height="720" decoding="async" style="--x: 55%" data-alt-de="Blick von der Schatzalp über Davos im Abendlicht" data-alt-en="The view from the Schatzalp over Davos in the evening light" alt="Blick von der Schatzalp über Davos im Abendlicht" />
+              <div class="day-text wrap">
+                <b class="day-time">19:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Abendsonne auf der Schatzalp</span><span data-l="en">Golden hour on the Schatzalp</span></h3>
+                  <p><span data-l="de">Von hier oben liegt dir das ganze Tal zu Füssen.</span><span data-l="en">From up here the whole valley lies at your feet.</span></p>
+                </div>
+              </div>
+            </li>
+            <li data-t="22:30">
+              <img data-src="./assets/welcome/day-s-2230.jpg" width="1280" height="720" decoding="async" style="--x: 60%" data-alt-de="Davos in einer Sommernacht aus der Luft, in den Häusern brennt Licht" data-alt-en="Davos on a summer night from the air, lights on in the houses" alt="Davos in einer Sommernacht aus der Luft, in den Häusern brennt Licht" />
+              <div class="day-text wrap">
+                <b class="day-time">22:30</b>
+                <div class="day-cap">
+                  <h3><span data-l="de">Davos schläft nie</span><span data-l="en">The town never sleeps</span></h3>
+                  <p><span data-l="de">Fenster um Fenster leuchtet das Tal in der Sommernacht.</span><span data-l="en">Window by window the valley glows in the summer night.</span></p>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+        <div class="day-rail wrap" aria-hidden="true"><div><i class="fill"></i></div></div>
       </div>
     </section>
 
@@ -454,7 +810,10 @@
           <p class="lede" style="margin-top: 22px"><span data-l="de">Vom Wolfgang bis Monstein, vom Dischma bis hinauf zum Flüelapass. Das Gelände stammt aus den Höhendaten von swisstopo, die Häuser aus swissBUILDINGS3D, die Strassen, Wege und Loipen aus OpenStreetMap.</span><span data-l="en">From the Wolfgang to Monstein, from the Dischma up to the Flüela Pass. The terrain comes from swisstopo's elevation data, the houses from swissBUILDINGS3D, the roads, paths and cross-country trails from OpenStreetMap.</span></p>
           <p class="lede"><span data-l="de">Busse halten an ihren Haltestellen, die RhB fährt durchs Tal, die Bergbahnen laufen.</span><span data-l="en">Buses pull in at their stops, the RhB runs through the valley, the mountain lifts turn.</span></p>
         </div>
-        <figure class="place-shot">
+        <figure class="place-shot" data-s="winter">
+          <img src="./assets/welcome/valley-winter-1200.jpg" width="1200" height="750" loading="lazy" decoding="async" data-alt-de="Blick aus der Luft über das verschneite Davos und das Tal, aufgenommen im Spiel" data-alt-en="Aerial view over snow-covered Davos and the valley, recorded in the game" alt="Blick aus der Luft über das verschneite Davos und das Tal, aufgenommen im Spiel" />
+        </figure>
+        <figure class="place-shot" data-s="summer">
           <img src="./assets/welcome/lake-aerial-1200.jpg" width="1200" height="750" loading="lazy" decoding="async" data-alt-de="Blick aus der Luft über den Davosersee das Tal hinunter auf Davos, aufgenommen im Spiel" data-alt-en="Aerial view over Lake Davos down the valley to the town, recorded in the game" alt="Blick aus der Luft über den Davosersee das Tal hinunter auf Davos, aufgenommen im Spiel" />
         </figure>
       </div>
@@ -467,7 +826,7 @@
         </figure>
         <div>
           <span class="no" aria-hidden="true">01</span>
-          <p class="kicker">Own the night</p>
+          <p class="kicker"><span data-l="de">Die Nacht gehört dir</span><span data-l="en">Own the night</span></p>
           <h3><span data-l="de">Vor der Sonne aufs Schwarzhorn</span><span data-l="en">Up the Schwarzhorn before the sun</span></h3>
           <p><span data-l="de">Mit der Stirnlampe los, wenn es noch dunkel ist, über Geröll hinauf auf 3146 Meter. Oben wartest du, bis die Sonne über den Gipfeln im Osten aufgeht. Unterwegs schauen dir Gämsen und Steinböcke nach.</span><span data-l="en">Set out with a headlamp while it is still dark, up the scree to 3146 metres. At the top you wait for the sun to rise over the peaks in the east. Chamois and ibex watch you on the way.</span></p>
         </div>
@@ -478,7 +837,7 @@
         </figure>
         <div>
           <span class="no" aria-hidden="true">02</span>
-          <p class="kicker">Take to the skies</p>
+          <p class="kicker"><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></p>
           <h3><span data-l="de">Am Gleitschirm vom Rinerhorn</span><span data-l="en">Paragliding from the Rinerhorn</span></h3>
           <p><span data-l="de">Aufziehen, ein paar Schritte den Hang hinunter, und du fliegst. Das Vario piepst in der Thermik, Alpendohlen kreisen darin, der Talwind versetzt dich nach Nordosten. Mit dem Flugschein darfst du danach überall frei starten.</span><span data-l="en">Pull up the wing, a few steps down the slope, and you are flying. The vario beeps in the thermals, alpine choughs circle in them, the valley wind drifts you north-east. With the licence you may take off anywhere afterwards.</span></p>
         </div>
@@ -489,13 +848,13 @@
       <div class="wrap">
         <div class="head">
           <p class="kicker"><span data-l="de">Einfach einsteigen</span><span data-l="en">Just get in</span></p>
-          <h2>Take any <em>ride</em></h2>
+          <h2><span data-l="de">Nimm, was <em>fährt</em></span><span data-l="en">Take any <em>ride</em></span></h2>
           <p class="lede"><span data-l="de">Mit F steigst du in jedes Fahrzeug, das herumsteht: Auto, Bus, Velo, Pistenfahrzeug, Helikopter. Missionen startest du an ihrem Startpunkt mit Enter, oder direkt aus der Liste.</span><span data-l="en">Press F to get into any vehicle standing around: car, bus, bike, snowcat, helicopter. Start a mission with Enter at its starting point, or straight from the list.</span></p>
         </div>
-        <div class="grid5">
+        <div class="grid5" data-s="winter">
           <figure>
             <img src="./assets/welcome/snowcat-dischma-625.webp" srcset="./assets/welcome/snowcat-dischma-625.webp 625w, ./assets/welcome/snowcat-dischma-1000.webp 1000w" sizes="(min-width: 1000px) 594px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein rotes Pistenfahrzeug präpariert eine Loipe" data-alt-en="A red snow groomer grooming a cross-country trail" alt="Ein rotes Pistenfahrzeug präpariert eine Loipe" loading="lazy" />
-            <figcaption><b>Rule the slopes</b><span data-l="de">Mit dem Pistenfahrzeug die Loipe präparieren</span><span data-l="en">Grooming the cross-country trail in a snowcat</span></figcaption>
+            <figcaption><b><span data-l="de">Die Piste gehört dir</span><span data-l="en">Rule the slopes</span></b><span data-l="de">Mit dem Pistenfahrzeug die Loipe präparieren</span><span data-l="en">Grooming the cross-country trail in a snowcat</span></figcaption>
           </figure>
           <figure>
             <img src="./assets/welcome/rega-heliport-625.webp" srcset="./assets/welcome/rega-heliport-625.webp 625w, ./assets/welcome/rega-heliport-1000.webp 1000w" sizes="(min-width: 1000px) 594px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Der rote Rega-Helikopter auf dem Landeplatz des Spitals" data-alt-en="The red Rega helicopter on the hospital's helipad" alt="Der rote Rega-Helikopter auf dem Landeplatz des Spitals" loading="lazy" />
@@ -514,6 +873,28 @@
             <figcaption><b><span data-l="de">Passfahrt</span><span data-l="en">Pass run</span></b><span data-l="de">Mit Sommerpneus auf Schnee zum Flüelapass</span><span data-l="en">Summer tyres on snow up to the Flüela Pass</span></figcaption>
           </figure>
         </div>
+        <div class="grid5" data-s="summer">
+          <figure>
+            <img src="./assets/welcome/summer-bus-1000.jpg" sizes="(min-width: 1000px) 594px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein blauer VW-Bus fährt im Sommer über die Promenade" data-alt-en="A blue VW van driving down the Promenade in summer" alt="Ein blauer VW-Bus fährt im Sommer über die Promenade" loading="lazy" decoding="async" />
+            <figcaption><b><span data-l="de">Nimm, was fährt</span><span data-l="en">Take any ride</span></b><span data-l="de">Im VW-Bus über die Promenade</span><span data-l="en">Down the Promenade in the VW van</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/summer-heli-1000.jpg" sizes="(min-width: 1000px) 594px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Ein roter Helikopter fliegt über das grüne Tal" data-alt-en="A red helicopter flying over the green valley" alt="Ein roter Helikopter fliegt über das grüne Tal" loading="lazy" decoding="async" />
+            <figcaption><b><span data-l="de">Ab in die Luft</span><span data-l="en">Take to the skies</span></b><span data-l="de">Im Helikopter über das Tal</span><span data-l="en">Over the valley in the helicopter</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/summer-town-1000.jpg" sizes="(min-width: 1000px) 392px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Davos im Sommer aus der Luft, Häuser zwischen Wald und Wiesen" data-alt-en="Davos in summer from the air, houses between forest and meadows" alt="Davos im Sommer aus der Luft, Häuser zwischen Wald und Wiesen" loading="lazy" decoding="async" />
+            <figcaption><b><span data-l="de">Jede Strasse</span><span data-l="en">Every street</span></b><span data-l="de">Davos Platz und Dorf, Haus für Haus</span><span data-l="en">Davos Platz and Dorf, house by house</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/summer-schatzalp-1000.jpg" sizes="(min-width: 1000px) 392px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Blick von der Schatzalp über Davos und die Berge gegenüber" data-alt-en="The view from the Schatzalp over Davos and the mountains opposite" alt="Blick von der Schatzalp über Davos und die Berge gegenüber" loading="lazy" decoding="async" />
+            <figcaption><b>Schatzalp</b><span data-l="de">Der Blick übers ganze Tal</span><span data-l="en">The view across the whole valley</span></figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/welcome/summer-lake-1000.jpg" sizes="(min-width: 1000px) 392px, (min-width: 640px) 50vw, 100vw" width="1000" height="625" data-alt-de="Der Davosersee aus der Luft, dahinter das Tal mit Davos" data-alt-en="Lake Davos from the air, the valley and the town beyond" alt="Der Davosersee aus der Luft, dahinter das Tal mit Davos" loading="lazy" decoding="async" />
+            <figcaption><b><span data-l="de">Davosersee</span><span data-l="en">Lake Davos</span></b><span data-l="de">Vom See das Tal hinunter</span><span data-l="en">From the lake down the valley</span></figcaption>
+          </figure>
+        </div>
 
         <div class="facts">
           <div>
@@ -522,9 +903,9 @@
             <p><span data-l="de">Rettungsflüge, Arbeit auf der Strasse und am Berg, Rennen, Bars und Beizen. Jede mit Medaillen und eigener Rangliste.</span><span data-l="en">Rescue flights, work on the road and on the mountain, races, bars and restaurants. Each with medals and its own leaderboard.</span></p>
           </div>
           <div>
-            <span class="fig" aria-hidden="true">4</span>
-            <h3>Four seasons</h3>
-            <p><span data-l="de">Die Jahreszeiten wechseln, die Tage werden kürzer und länger. Manche Missionen gibt es nur bei Schnee, andere nur im Sommer oder nach Mitternacht.</span><span data-l="en">The seasons change, the days grow shorter and longer. Some missions only happen in the snow, others only in summer or after midnight.</span></p>
+            <span class="fig" aria-hidden="true">2</span>
+            <h3><span data-l="de">Winter &amp; Sommer</span><span data-l="en">Winter &amp; summer</span></h3>
+            <p><span data-l="de">Winter und Sommer wechseln sich ab, die Tage werden kürzer und länger. Manche Missionen gibt es nur bei Schnee, andere nur im Sommer oder nach Mitternacht.</span><span data-l="en">Winter and summer take turns, the days grow shorter and longer. Some missions only happen in the snow, others only in summer or after midnight.</span></p>
           </div>
           <div>
             <span class="fig" aria-hidden="true">24 h</span>
@@ -599,6 +980,7 @@
   <footer>
     <div class="wrap">
       <span><span data-l="de">Karten und Gelände © swisstopo, Strassen © OpenStreetMap-Mitwirkende</span><span data-l="en">Maps and terrain © swisstopo, roads © OpenStreetMap contributors</span></span>
+      <span><span data-l="de">Musik im Trailer: «Neon Laser Horizon» von Kevin MacLeod (incompetech.com), lizenziert unter Creative Commons: By Attribution 4.0</span><span data-l="en">Trailer music: “Neon Laser Horizon” by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0</span></span>
       <a href="./heatmap.html"><span data-l="de">Heatmap und Live-Karte</span><span data-l="en">Heat map and live map</span></a>
       <a href="./privacy.html"><span data-l="de">Datenschutz</span><span data-l="en">Privacy</span></a>
       <a href="https://github.com/hilletob/slopdavos"><span data-l="de">Quellcode</span><span data-l="en">Source code</span></a>
@@ -613,9 +995,14 @@
       const film = document.querySelector('.hero-video');
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData;
       if (film && !still) {
-        film.src = matchMedia('(min-width: 900px)').matches ? './assets/welcome/hero-1280.mp4' : './assets/welcome/hero-854.mp4';
-        film.addEventListener('playing', () => film.classList.add('is-playing'), { once: true });
-        film.play().catch(() => {});
+        // (the film of the page's season: window.setHeroSeason, called by the season switch below)
+        window.setHeroSeason = (season) => {
+          film.classList.remove('is-playing');
+          film.poster = season === 'winter' ? './assets/welcome/hero-winter-poster.jpg' : './assets/welcome/hero-summer-poster.jpg';
+          film.src = `./assets/welcome/hero-${season}-${matchMedia('(min-width: 900px)').matches ? 1280 : 854}.mp4`;
+          film.addEventListener('playing', () => film.classList.add('is-playing'), { once: true });
+          film.play().catch(() => {});
+        };
       } else film?.remove();
 
       const screen = document.querySelector('.screen'), trailer = screen.querySelector('video');
@@ -634,6 +1021,157 @@
           document.getElementById('trailer').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
           start();
         });
+      }
+    })();
+  </script>
+  <script>
+    // What makes the page a place: the hero's air and its line of HUD, the day told by scrolling, and the sections rising
+    // into view. All of it follows html[data-season] (set in the head, turned by the switch in the module below).
+    (() => {
+      const root = document.documentElement;
+      const calm = matchMedia('(prefers-reduced-motion: reduce)');
+      const onSeason = (fn) => new MutationObserver(fn).observe(root, { attributes: true, attributeFilter: ['data-season'] });
+
+      // The time in Davos now, in the hero's HUD line
+      const now = document.querySelector('[data-davos-time]');
+      if (now) {
+        const clock = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit' });
+        const tick = () => { now.textContent = clock.format(new Date()); };
+        tick();
+        setInterval(tick, 15000);
+      }
+
+      // Snow in front of the hero's film, in winter: some dozen flakes on a canvas at the size of the hero in CSS pixels.
+      // Only while the hero is on screen, the tab is visible and it is winter; not at all with reduced motion.
+      const hero = document.querySelector('.hero'), sky = hero?.querySelector('.hero-air canvas');
+      if (sky && !calm.matches && 'IntersectionObserver' in window) {
+        const ctx = sky.getContext('2d');
+        let flakes = [], seen = true, raf = 0, last = 0, w = 0, h = 0;
+        const size = () => {
+          w = sky.width = hero.clientWidth;
+          h = sky.height = hero.clientHeight;
+          const n = Math.round(Math.min(90, Math.max(34, w / 16)));
+          flakes = Array.from({ length: n }, () => {
+            const depth = Math.random(); // (near ones larger, faster, fewer)
+            return { x: Math.random() * w, y: Math.random() * h, r: 0.7 + depth * depth * 2.4, v: 22 + depth * 58, sway: Math.random() * 6.28, a: 0.35 + depth * 0.5 };
+          });
+        };
+        const draw = (t) => {
+          raf = 0;
+          const dt = Math.min(0.05, (t - last) / 1000 || 0);
+          last = t;
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = '#fff';
+          for (const f of flakes) {
+            f.y += f.v * dt;
+            f.sway += dt * 0.9;
+            f.x += (Math.sin(f.sway) * 9 - 7) * dt * (0.4 + f.r * 0.4);
+            if (f.y > h + 4) { f.y = -4; f.x = Math.random() * w; }
+            if (f.x < -4) f.x = w + 4;
+            ctx.globalAlpha = f.a;
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.r, 0, 6.2832);
+            ctx.fill();
+          }
+          run();
+        };
+        const run = () => {
+          const on = seen && !document.hidden && root.dataset.season === 'winter';
+          if (on && !raf) { if (!flakes.length) size(); last = performance.now(); raf = requestAnimationFrame(draw); }
+          if (!on && raf) { cancelAnimationFrame(raf); raf = 0; }
+        };
+        new IntersectionObserver((entries) => { seen = entries[0].isIntersecting; run(); }).observe(hero);
+        document.addEventListener('visibilitychange', run);
+        addEventListener('resize', () => { if (flakes.length && hero.clientWidth !== w) size(); });
+        onSeason(run);
+        run();
+      }
+
+      // One day in Davos. How far the section has scrolled past its sticky stage picks the hour (li.is-on); within an
+      // hour the clock first rests, then runs on to the next one's time, and the day's rail fills along with it. The
+      // pictures are fetched as their hour comes near (data-src), the first ones when the section does.
+      const day = document.querySelector('.day');
+      if (day) {
+        const stage = day.querySelector('.day-stage'), rail = day.querySelector('.day-rail div'), count = day.querySelector('[data-day-count]');
+        const minutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+        const two = (n) => String(n).padStart(2, '0');
+        const paint = (el, m) => { // (each digit in a cell of its own width: the clock doesn't shiver as it runs)
+          m = Math.round(m) % 1440;
+          const text = `${two(Math.floor(m / 60))}:${two(m % 60)}`;
+          if (el.dataset.shown === text) return;
+          el.dataset.shown = text;
+          el.innerHTML = [...text].map((c) => (c === ':' ? '<i class="c">:</i>' : `<i>${c}</i>`)).join('');
+        };
+        let list = null, steps = [], ticks = [], at = -1, near = false, queued = false;
+        const fetchPicture = (li) => { const img = li?.querySelector('img[data-src]'); if (img && !img.getAttribute('src')) img.src = img.dataset.src; };
+        const turn = () => { // (the day of the page's season)
+          const next = day.querySelector(`ol[data-s="${root.dataset.season === 'summer' ? 'summer' : 'winter'}"]`);
+          if (next === list) return;
+          for (const li of steps) li.classList.remove('is-on');
+          list = next;
+          steps = [...list.children];
+          at = -1;
+          day.style.setProperty('--n', steps.length);
+          for (const t of ticks) t.remove();
+          ticks = steps.map((li, k) => {
+            const tick = document.createElement('span'), label = document.createElement('b');
+            tick.style.left = `${(k / (steps.length - 1)) * 100}%`;
+            label.textContent = li.dataset.t;
+            tick.append(label);
+            rail.append(tick);
+            paint(li.querySelector('.day-time'), minutes(li.dataset.t));
+            return tick;
+          });
+        };
+        const frame = () => {
+          queued = false;
+          turn();
+          const n = steps.length, span = day.offsetHeight - stage.offsetHeight;
+          const p = span > 0 ? Math.min(1, Math.max(0, -day.getBoundingClientRect().top / span)) : 0;
+          const f = Math.min(p * n, n - 0.0001), i = Math.floor(f), part = f - i;
+          if (i !== at) {
+            steps.forEach((li, k) => {
+              li.classList.toggle('is-on', k === i);
+              if (k !== i) { li.style.removeProperty('--f'); paint(li.querySelector('.day-time'), minutes(li.dataset.t)); }
+            });
+            ticks.forEach((t, k) => { t.classList.toggle('is-on', k === i); t.classList.toggle('is-past', k <= i); });
+            if (near) for (const k of [i, i + 1, i - 1]) fetchPicture(steps[k]);
+            count.textContent = `${two(i + 1)} / ${two(n)}`;
+            at = i;
+          }
+          const li = steps[i], t0 = minutes(li.dataset.t);
+          let t1 = steps[i + 1] ? minutes(steps[i + 1].dataset.t) : t0;
+          if (t1 < t0) t1 += 1440; // (past midnight)
+          const go = calm.matches ? 0 : Math.max(0, (part - 0.4) / 0.6) ** 2;
+          paint(li.querySelector('.day-time'), go > 0.995 ? t1 : t0 + Math.floor((t1 - t0) * go));
+          if (!calm.matches) li.style.setProperty('--f', part.toFixed(3));
+          rail.style.setProperty('--p', Math.min(1, (i + go) / (n - 1)).toFixed(4));
+        };
+        const ask = () => { if (near && !queued) { queued = true; requestAnimationFrame(frame); } };
+        addEventListener('scroll', ask, { passive: true });
+        addEventListener('resize', ask);
+        onSeason(() => { frame(); if (near) for (const k of [at, at + 1]) fetchPicture(steps[k]); });
+        if ('IntersectionObserver' in window) {
+          new IntersectionObserver((entries) => {
+            near = entries[0].isIntersecting;
+            if (near) { at = -1; frame(); }
+          }, { rootMargin: '700px 0px' }).observe(day);
+        } else near = true;
+        frame();
+      }
+
+      // The sections rise into view, once each
+      if (!calm.matches && 'IntersectionObserver' in window) {
+        const seen = new IntersectionObserver((entries) => {
+          for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); seen.unobserve(e.target); }
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+        const rising = document.querySelectorAll('.head, .screen, .place > *, .chapter > *, .grid5 figure, .facts > div, .numbers, .travel, .heat-panel, .last .wrap');
+        rising.forEach((el) => {
+          el.classList.add('rv');
+          if (el.matches('.grid5 figure, .facts > div, .chapter > div')) el.style.setProperty('--d', `${[...el.parentNode.children].indexOf(el) * 80}ms`);
+          seen.observe(el);
+        });
+        root.classList.add('rises');
       }
     })();
   </script>
@@ -670,6 +1208,7 @@
     };
     const LOCALE = { de: 'de-CH', en: 'en-GB' };
     let lang = 'de';
+    let shownSeason = null; // (the season the page has been turned to by applySeason; html[data-season] is set in the head)
     try { const saved = localStorage.getItem(KEY); lang = saved === 'de' || saved === 'en' ? saved : /^de(?:-|$)/i.test(navigator.language || '') ? 'de' : 'en'; } catch { /* */ }
 
     const section = document.getElementById('statistik');
@@ -724,9 +1263,42 @@
       if (keep) { try { localStorage.setItem(KEY, lang); } catch { /* */ } } // (the game then speaks it too)
       renderStats();
       heat?.setLang(lang);
+      if (shownSeason) applySeason(shownSeason); // (the trailer in the language)
     }
     for (const b of document.querySelectorAll('[data-set-lang]')) b.addEventListener('click', () => applyLanguage(b.dataset.setLang, true));
     applyLanguage(lang);
+
+    // The season of the page: winter from November to April by the calendar, or what the visitor chose last. It turns the
+    // hero's film, the valley, the rides and the trailer; once chosen by hand, Play starts the game in that season
+    // (play.html?winter / ?summer, js/game-clock.js applyClockSwitches). Untouched, the game keeps its own calendar.
+    const SEASON_KEY = 'slopdavos-landing-season';
+    // (four cuts of the trailer: a winter and a summer day, each with German or English captions)
+    const trailerOf = (season) => [`trailer-${season}-${lang}.mp4`, `trailer-${season}-poster.jpg`];
+    function applySeason(season, chosen = false) {
+      const turned = shownSeason !== season;
+      shownSeason = season;
+      document.documentElement.dataset.season = season; // (the colours too: the tokens at the top of the stylesheet)
+      document.querySelector('meta[name="theme-color"]').content = season === 'winter' ? '#03060b' : '#060503';
+      for (const b of document.querySelectorAll('[data-set-season]')) b.setAttribute('aria-pressed', String(b.dataset.setSeason === season));
+      if (chosen) {
+        try { localStorage.setItem(SEASON_KEY, season); } catch { /* */ }
+        for (const a of document.querySelectorAll('a[href^="./play.html"]')) a.href = `./play.html?${season}`;
+      }
+      if (turned) window.setHeroSeason?.(season);
+      // (the trailer of the season, unless one is playing: its poster and the play button are back)
+      const screen = document.querySelector('.screen'), video = screen?.querySelector('video');
+      const film = `./assets/welcome/${trailerOf(season)[0]}`;
+      if (video && video.paused && video.getAttribute('src') !== film) {
+        video.controls = false;
+        screen.classList.remove('is-on');
+        video.poster = `./assets/welcome/${trailerOf(season)[1]}`;
+        video.src = film;
+      }
+    }
+    let season = [10, 11, 0, 1, 2, 3].includes(new Date().getMonth()) ? 'winter' : 'summer', seasonChosen = false;
+    try { const saved = localStorage.getItem(SEASON_KEY); if (saved === 'winter' || saved === 'summer') { season = saved; seasonChosen = true; } } catch { /* */ }
+    for (const b of document.querySelectorAll('[data-set-season]')) b.addEventListener('click', () => applySeason(b.dataset.setSeason, true));
+    applySeason(season, seasonChosen);
 
     async function load() {
       if (!SUPABASE_URL) throw new Error('no backend');
