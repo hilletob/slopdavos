@@ -742,6 +742,25 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
 
   // --- The map: the pins on the radar (in view) and the full map (all); a click on one sets the waypoint -------------
   const PIN_PX = { mini: 7, full: 11 };
+  // The pins' icons drawn once into a small canvas each (by size, medal and closed), copied onto the map. Drawn straight
+  // onto the map's full-screen canvas, every closed pin's grey `ctx.filter` was a filter pass over a layer of its own,
+  // every frame — with the first frame's filter set-up, a frame of seconds on opening the map
+  const mapIcons = new Map();
+  const mapIcon = (pin, r, dpr) => {
+    const medal = progress.medal(pin.def.id);
+    const key = `${pin.def.id}|${medal || ''}|${pin.closed ? 1 : 0}|${r}|${dpr}`;
+    let c = mapIcons.get(key);
+    if (!c) {
+      const side = 2 * r + 4;
+      c = document.createElement('canvas');
+      c.width = c.height = Math.ceil(side * dpr);
+      const g = c.getContext('2d');
+      g.scale(c.width / side, c.width / side);
+      drawPinIcon(g, pin, side / 2, side / 2, r);
+      mapIcons.set(key, c);
+    }
+    return c;
+  };
   const overlay = {
     draw(ctx, v, isMinimap) {
       if (manager.active && isMinimap) return;
@@ -749,7 +768,8 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       for (const pin of pins) {
         const x = v.toX(pin.x), y = v.toY(pin.z);
         if (Math.abs(x) > v.w * 0.5 - r || Math.abs(y) > v.h * 0.5 - r) continue;
-        drawPinIcon(ctx, pin, x, y, r);
+        const icon = mapIcon(pin, r, v.dpr || 1), half = icon.width / (v.dpr || 1) / 2;
+        ctx.drawImage(icon, x - half, y - half, 2 * half, 2 * half);
         if (!isMinimap && v.s >= 0.5) {
           ctx.font = '600 11px Inter, system-ui, sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'top';

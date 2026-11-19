@@ -59,6 +59,7 @@ const MAP = {
   parkEdge: '#24432f',
   block: '#1c2128',
   blockEdge: '#272e37',
+  settlement: '#262c35', // the built-up areas on the overview, in place of the blocks & houses
   lawn: '#1e3a26',
   drive: '#2c4033',
   transverse: '#22332a',
@@ -214,6 +215,54 @@ class TiledLayer {
   }
 }
 
+// The zoom (map pixels per metre) a road kind shows from. The footpaths and the farm & forest tracks are three quarters
+// of the network's points: on the overview they cost a hundred milliseconds a view, a mesh of hairlines under the
+// hiking routes' own overlay (js/tour-routes.js); the side streets join a little farther in
+const ROAD_MIN_S = { path: 0.12, track: 0.12, footway: 0.12, steps: 0.12, cycleway: 0.12, pedestrian: 0.12, service: 0.12,
+  residential: 0.05, unclassified: 0.05, living_street: 0.05 };
+// Below this zoom the built-up areas are drawn as one (settlementPath) in place of the blocks (the houses are off below 0.18)
+const SETTLEMENT_MAX_S = 0.12;
+const SETTLEMENT_CELL = 20; // m
+
+/**
+ * The built-up areas for the overview: every building marks the cells of a 20 m grid it covers and those around them,
+ * so houses up to ~40 m apart run together into a village; the marked cells go into one path as runs along the rows.
+ */
+function settlementPath(buildings) {
+  if (!buildings || !buildings.length) return null;
+  const C = SETTLEMENT_CELL;
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+  const boxes = [];
+  for (const b of buildings) {
+    if (!b.ring || b.ring.length < 6) continue;
+    const bb = boundsOf(b.ring);
+    boxes.push(bb);
+    if (bb.minX < minX) minX = bb.minX;
+    if (bb.minZ < minZ) minZ = bb.minZ;
+    if (bb.maxX > maxX) maxX = bb.maxX;
+    if (bb.maxZ > maxZ) maxZ = bb.maxZ;
+  }
+  if (!boxes.length) return null;
+  const x0 = minX - 2 * C, z0 = minZ - 2 * C;
+  const nx = Math.ceil((maxX - x0) / C) + 3, nz = Math.ceil((maxZ - z0) / C) + 3;
+  const grid = new Uint8Array(nx * nz);
+  for (const bb of boxes) {
+    const i0 = Math.floor((bb.minX - x0) / C) - 1, i1 = Math.floor((bb.maxX - x0) / C) + 1;
+    const j0 = Math.floor((bb.minZ - z0) / C) - 1, j1 = Math.floor((bb.maxZ - z0) / C) + 1;
+    for (let j = j0; j <= j1; j++) grid.fill(1, j * nx + i0, j * nx + i1 + 1);
+  }
+  const path = new Path2D();
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      if (!grid[j * nx + i]) continue;
+      const start = i;
+      while (i < nx && grid[j * nx + i]) i++;
+      path.rect(x0 + start * C, z0 + j * C, (i - start) * C, C);
+    }
+  }
+  return path;
+}
+
 let LAYERS = null;
 function mapLayers() {
   if (LAYERS) return LAYERS;
@@ -276,17 +325,20 @@ function mapLayers() {
     } else if (feature.pts?.length) addLine(path, feature.pts);
     L.airfields.push({ path, polygon, width: feature.width || (feature.kind === 'runway' ? 45 : 15) });
   }
+  // The mapped roads, in tiles (a view strokes only those it overlaps) and by the zoom they show from (ROAD_MIN_S)
   L.berlinRoads=[]; L.berlinBridges=[];
   if (GEO.irregular) {
     const widths=new Map();
     for(const r of ROADS){
       const pedestrian=['footway','path','pedestrian','steps','cycleway'].includes(r.kind);
-      const key=`${r.bridge?'bridge':'road'}:${r.w}:${pedestrian}`;
+      const minS=ROAD_MIN_S[r.kind]??0;
+      const key=`${r.bridge?'bridge':'road'}:${r.w}:${pedestrian}:${minS}`;
       let item=widths.get(key);
-      if(!item){item={path:new Path2D(),width:r.w,pedestrian};widths.set(key,item);(r.bridge?L.berlinBridges:L.berlinRoads).push(item);}
-      addLine(item.path,r.pts);
+      if(!item){item={layer:new TiledLayer(1000),width:r.w,pedestrian,minS};widths.set(key,item);(r.bridge?L.berlinBridges:L.berlinRoads).push(item);}
+      item.layer.line(r.pts);
     }
   }
+  L.settlement = settlementPath(GEO.berlin?.buildings);
 
   // Landmark lots
   L.landmarks = new Path2D();
@@ -924,19 +976,25 @@ class NYCMapSystem {
     // 3. Parkland, blocks (curb islands) and park blocks
     ctx.fillStyle = MAP.park;
     L.parkLand.each(v, (p) => ctx.fill(p));
-    ctx.fillStyle = MAP.block;
-    L.blocks.each(v, (p) => ctx.fill(p));
-    if (s >= 0.22) {
-      ctx.strokeStyle = MAP.blockEdge;
-      ctx.lineWidth = px(Math.min(1.2, 0.5 + s));
-      L.blocks.each(v, (p) => ctx.stroke(p));
-    }
-    ctx.fillStyle = MAP.park;
-    L.parkBlocks.each(v, (p) => ctx.fill(p));
-    if (s >= 0.1) {
-      ctx.strokeStyle = MAP.parkEdge;
-      ctx.lineWidth = px(1);
-      L.parkBlocks.each(v, (p) => ctx.stroke(p));
+    if (L.settlement && s < SETTLEMENT_MAX_S) {
+      // the overview: the villages as one area (settlementPath), no blocks
+      ctx.fillStyle = MAP.settlement;
+      ctx.fill(L.settlement);
+    } else {
+      ctx.fillStyle = MAP.block;
+      L.blocks.each(v, (p) => ctx.fill(p));
+      if (s >= 0.22) {
+        ctx.strokeStyle = MAP.blockEdge;
+        ctx.lineWidth = px(Math.min(1.2, 0.5 + s));
+        L.blocks.each(v, (p) => ctx.stroke(p));
+      }
+      ctx.fillStyle = MAP.park;
+      L.parkBlocks.each(v, (p) => ctx.fill(p));
+      if (s >= 0.1) {
+        ctx.strokeStyle = MAP.parkEdge;
+        ctx.lineWidth = px(1);
+        L.parkBlocks.each(v, (p) => ctx.stroke(p));
+      }
     }
 
     ctx.fillStyle = MAP.streets;
@@ -945,7 +1003,7 @@ class NYCMapSystem {
       if (field.polygon) ctx.fill(field.path, 'evenodd');
       else { ctx.lineWidth = Math.max(field.width, px(0.5)); ctx.stroke(field.path); }
     }
-    for(const r of L.berlinRoads){ctx.strokeStyle=r.pedestrian?MAP.blockEdge:MAP.streets;ctx.lineWidth=Math.max(r.width,px(.5));ctx.stroke(r.path);}
+    for(const r of L.berlinRoads){if(s<r.minS)continue;ctx.strokeStyle=r.pedestrian?MAP.blockEdge:MAP.streets;ctx.lineWidth=Math.max(r.width,px(.5));r.layer.each(v,(p)=>ctx.stroke(p));}
 
     // 4. Mapped park water bodies and the Spree
     if (v.sees(L.cpBounds)) {
@@ -964,7 +1022,7 @@ class NYCMapSystem {
       ctx.stroke(L.cpWater);
     }
 
-    for(const r of L.berlinBridges){ctx.strokeStyle=MAP.streets;ctx.lineWidth=r.width;ctx.stroke(r.path);}
+    for(const r of L.berlinBridges){if(s<r.minS)continue;ctx.strokeStyle=MAP.streets;ctx.lineWidth=r.width;r.layer.each(v,(p)=>ctx.stroke(p));}
 
     // 5. Building footprints, lowest first
     if (s >= 0.18) {
