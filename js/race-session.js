@@ -61,11 +61,14 @@ export class RaceSession {
   emit(what) { for (const fn of this.listeners) { try { fn(what, this); } catch (error) { console.warn('[race] listener', error); } } }
 
   async join() {
-    this.net = await joinRace(this.code, { id: this.me.id, name: this.me.name, mission: this.def.id, phase: 'lobby' }, {
+    const net = await joinRace(this.code, { id: this.me.id, name: this.me.name, mission: this.def.id, phase: 'lobby' }, {
       onPresence: (members) => this.onPresence(members),
       onEvent: (event, payload) => this.onEvent(event, payload),
       onStatus: (status) => { this.status = status; this.emit('status'); }
     });
+    // (left while the wire was still being laid: leave() found no channel, so it is let go here, not kept as a ghost)
+    if (this.left) { net?.leave(); return this; }
+    this.net = net;
     this.onPresence(this.net.members());
     return this;
   }

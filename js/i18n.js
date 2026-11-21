@@ -1537,7 +1537,7 @@ const pairs = [
   ["You are joining this table.", "Du setzt dich an diesen Tisch."],
   ["Share the code or the link. Up to ten players at the table.", "Teile den Code oder den Link. Bis zu zehn Spieler am Tisch."],
   ["More than 10 at the table: the first 10 play, the others the next round.", "Mehr als 10 am Tisch: Die ersten 10 spielen, die anderen in der nächsten Runde."],
-  ["The round could not be started here.", "Die Runde konnte hier nicht gestartet werden."],
+  ["The round could not be started here. Reload the page and try again.", "Die Runde konnte hier nicht gestartet werden. Lade die Seite neu und versuche es noch einmal."],
   ["The table is not reachable right now. Try again in a moment.", "Der Tisch ist gerade nicht erreichbar. Versuche es gleich noch einmal."],
   ["A round is on at this table. You are in for the next one.", "An diesem Tisch läuft eine Runde. Bei der nächsten bist du dabei."],
   ["ski instructor from Arosa", "Skilehrer vo Arosa"],

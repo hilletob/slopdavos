@@ -741,11 +741,15 @@ const QUIZ_FEATURE = {
     g.session?.detach(run);
   },
   ownControls: (run) => !!run._gq?.held,
+  // (with other players the host starts the next round for everyone: R would take the end dialog and its "Another round" away)
+  noRestart: (run) => !!run._gq?.session,
   key(run, e) {
     const g = run._gq;
     if (!g?.held) return;
     // (at the table: a digit goes into the field, the walker's keys do nothing)
-    if (/^(Digit|Numpad)\d$/.test(e.code) && !g.ui.form.hidden) { g.ui.input.focus(); return; }
+    // (the digit is not prevented, it lands in the field; but it stops here: 7 to 0 are the game's cameras)
+    if (/^(Digit|Numpad)\d$/.test(e.code) && !g.ui.form.hidden) { g.ui.input.focus(); e.stopImmediatePropagation(); return; }
+    if (/^Digit\d$/.test(e.code) || ['KeyV', 'KeyO', 'KeyH'].includes(e.code)) { e.stopImmediatePropagation(); return; } // (the cameras and views: the table has its own)
     if (['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); }
   },
   after(run, ctx, dt) {
@@ -790,7 +794,7 @@ const QUIZ_FEATURE = {
       text: p.phase === 'lead' ? 'Gigi takes a sip' : `Question ${Math.min(p.q + 1, n)} of ${n}`,
       hint: (p.phase === 'ask' || p.phase === 'guess') && mine && round.guesses.get(table.me.id)[p.q] === null ? 'Type a number and press Enter' : null
     };
-    if (done) g.scored = round.seed;
+    if (done) { g.scored = round.seed; table.rest?.(); }
   }
 };
 

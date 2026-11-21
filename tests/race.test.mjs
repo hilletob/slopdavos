@@ -158,7 +158,7 @@ test('the race modules load on demand only, and the run takes the race from the 
   assert.match(missions, /race\?\.frame\(this, ctx, dt, cm\)/, 'the session sees every frame');
   assert.match(missions, /this\.hooks\.race\?\.reportFinish\(this\)/);
   assert.match(missions, /this\.hooks\.race\?\.detach\(this\)/);
-  assert.match(missions, /restart\(\) \{ if \(this\.hooks\.race\) return;/, 'no restart of one\'s own in a race');
+  assert.match(missions, /restart\(\) \{ if \(this\.hooks\.race \|\| /, 'no restart of one\'s own in a race');
   assert.match(missions, /export function dialogHead/);
   assert.match(read('js/missions-manager.js'), /createRun\(def, \{ night: nightRun, race \}\)/);
   assert.match(read('js/race-net.js'), /joinRoom\(`race:\$\{code\}`/);

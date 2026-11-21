@@ -809,8 +809,9 @@ class MissionRun {
     this.hooks.race?.detach(this);
   }
 
-  // (in a race the host starts the next one for everyone: no restart of one's own)
-  restart() { if (this.hooks.race) return; this.start(); }
+  // (in a race the host starts the next one for everyone: no restart of one's own; a feature says the same of its run
+  // by `noRestart(run)`: Gigi's table with other players)
+  restart() { if (this.hooks.race || Object.values(this.features).some((f) => f.noRestart?.(this))) return; this.start(); }
 
   // --- The frame -----------------------------------------------------------------------------------------------------
   frame(cm, cs, dt, now) {

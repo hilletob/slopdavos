@@ -293,11 +293,14 @@ export function cutWaiting(round, now) {
   const t = p.phase === 'ask' ? 0 : p.t;
   const cut = Math.floor(left - 1500);
   if (cut <= 0) return 0;
+  // (their moments are counted from where the clock stands after the cut, 1.5 s before the end, or they would all be
+  // past at once)
+  const after = QUIZ.guessMs - 1500;
   let late = 0;
   for (const seat of round.seats) {
     if (!seat.bot) continue;
     const play = round.botPlays.get(seat.id)[p.q];
-    if (play.at > t) play.at = Math.min(play.at, t + 300 + 220 * late++);
+    if (play.at > t) play.at = after + 300 + 220 * late++;
   }
   // (while the question is still being read out, the reading is what is left of it: the guessing time shrinks to the rest)
   round.skip += cut;

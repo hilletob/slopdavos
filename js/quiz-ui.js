@@ -30,7 +30,7 @@ const QUIZ_KIND = {
     joinOther: 'Got a code from someone? Type it in to sit down at their table instead.',
     join: 'Join the table',
     invalidShort: 'No such code',
-    error: 'The round could not be started here.',
+    error: 'The round could not be started here. Reload the page and try again.',
     unreachable: 'The table is not reachable right now. Try again in a moment.'
   }
 };

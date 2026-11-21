@@ -181,6 +181,11 @@ test('a round alone: the guess counts once and in time, the regulars are in by t
   assert.equal(soon.phase, 'guess');
   assert.ok(soon.left >= 1200 && soon.left <= 1500);
   for (const seat of round.seats) assert.equal(hasGuessed(round, seat, 0, QUIZ.guessMs - 1), true, 'everyone is in before the reveal');
+  // (those who were still thinking come in one after the other from where the clock stands now, not all at once)
+  const later = round.seats.filter((s) => s.bot).map((s) => round.botPlays.get(s.id)[0].at).filter((t) => t > 1500).sort((x, y) => x - y);
+  assert.ok(later.length >= 2, 'regulars were still thinking');
+  assert.ok(later[0] > soon.t, `the first comes after the cut: ${later[0]} > ${soon.t}`);
+  assert.equal(new Set(later).size, later.length, 'each at a moment of their own');
   assert.equal(roundPhase(round, now + soon.left).phase, 'reveal');
   // the reveal: the closest first, the player's on the spot
   const rows = questionResult(round, 0);
@@ -378,6 +383,66 @@ test('two players at a table: the host starts, both get the same round, a guess 
   b.detach(b.run);
   assert.equal(left, 1);
   assert.equal(b.left, true);
+});
+
+test('a table that holds together: a lost cut comes with the host\'s guesses, another version does not start, a leave during the join lets the wire go', async (t) => {
+  let QuizSession, QUIZ_PROTOCOL;
+  try { ({ QuizSession, QUIZ_PROTOCOL } = await import('../js/quiz-session.js')); } catch (error) { t.skip(`js/quiz-session.js does not load outside a browser: ${error.message}`); return; }
+  const kept = new Map();
+  globalThis.localStorage ??= { getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, String(v)) };
+  const sessions = [];
+  const lost = new Set(); // the events that do not arrive
+  const tracked = [];
+  const make = (id) => {
+    const manager = { start: (missionId) => ({ id: missionId, start() {} }) };
+    const s = new QuizSession({ code: 'ABCD', me: { id, name: id }, def: GIGI_MISSION, manager });
+    s.net = { send: (event, payload) => { if (lost.has(event)) return; for (const o of sessions) if (o !== s) o.onEvent(event, JSON.parse(JSON.stringify(payload))); }, track: (o) => tracked.push([id, o]), leave: async () => {} };
+    sessions.push(s);
+    return s;
+  };
+  const a = make('aaa'), b = make('bbb');
+  const members = [{ id: 'aaa', name: 'Anna', joinedAt: 1 }, { id: 'bbb', name: 'Beat', joinedAt: 2 }];
+  a.onPresence(members); b.onPresence(members);
+  // a start of another version is not taken, and says so
+  let errors = 0;
+  b.on((what) => { if (what === 'error') errors++; });
+  b.onEvent('start', { from: 'aaa', at: Date.now(), seed: 5, qids: pickQuestions(5), ids: ['aaa', 'bbb'] });
+  assert.equal(b.round, null);
+  assert.equal(errors, 1);
+  a.start();
+  assert.equal(b.round.seed, a.round.seed, `the wire's version ${QUIZ_PROTOCOL} rides in the start`);
+  const now = Date.now;
+  try {
+    const fixed = at(a.round, 0, 'guess', 2000);
+    Date.now = () => fixed;
+    assert.equal(b.guess(0, 500), true);
+    lost.add('cut');
+    assert.equal(a.guess(0, 400), true); // (everyone is in: the host cuts, but b hears nothing of it)
+    assert.ok(a.round.skip > 0);
+    assert.equal(b.round.skip, 0, 'the cut was lost');
+    a.sendGuesses(); // (the host's guesses once more, as at the reveal: the cut rides along)
+    assert.equal(b.round.skip, a.round.skip, 'the clocks are together again');
+    // or by the presence: someone back from a lost connection is told again
+    b.round.skip = 0; b.round.cuts = [];
+    lost.clear();
+    a.onPresence(members);
+    assert.equal(b.round.skip, a.round.skip);
+    // between two rounds the presence says so again
+    assert.equal(a.phase, 'playing');
+    a.rest();
+    assert.equal(a.phase, 'playing', 'not while the round is on');
+    Date.now = () => fixed + 10 * 60 * 1000;
+    a.rest(); a.rest();
+    assert.equal(a.phase, 'lobby');
+    assert.deepEqual(tracked.filter(([id, o]) => id === 'aaa' && o.phase === 'lobby').length, 1);
+  } finally { Date.now = now; }
+  for (const s of sessions) s.left = true; // (no more of the timers' messages)
+  // R is no restart of one's own at a table with others, and a pasted link is cut to no wrong code
+  assert.match(read('js/missions-quiz.js'), /noRestart: \(run\) => !!run\._gq\?\.session/);
+  assert.match(read('js/missions.js'), /f\.noRestart\?\.\(this\)/);
+  assert.doesNotMatch(read('js/race-ui.js'), /maxLength: 12/);
+  assert.match(read('js/quiz-session.js'), /if \(this\.left\) \{ net\?\.leave\(\); return this; \}/);
+  assert.match(read('js/race-session.js'), /if \(this\.left\) \{ net\?\.leave\(\); return this; \}/);
 });
 
 // --- the languages ------------------------------------------------------------------------------------------------------

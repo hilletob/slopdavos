@@ -172,7 +172,7 @@ export async function openRoomLobby(kind, { manager, def, code = null, getMissio
   if (T.joinOther && !joining) {
     joinForm = el('form', 'race-link race-join');
     const field = el('input', 'race-link-field player-name');
-    Object.assign(field, { type: 'text', maxLength: 12, autocomplete: 'off', spellcheck: false, placeholder: T.codeLabel });
+    Object.assign(field, { type: 'text', maxLength: 2048, autocomplete: 'off', spellcheck: false, placeholder: T.codeLabel });
     field.setAttribute('autocapitalize', 'characters');
     field.setAttribute('aria-label', T.joinOther);
     field.style.textTransform = 'uppercase';
@@ -181,10 +181,10 @@ export async function openRoomLobby(kind, { manager, def, code = null, getMissio
     joinForm.append(field, go);
     joinForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      // (a pasted link works too: its code is taken)
-      let typed = field.value;
-      try { typed = new URL(typed).searchParams.get(kind.param) || typed; } catch { /* (a bare code) */ }
-      const other = cleanCode(typed);
+      // (a pasted link works too: its code is taken; a link or an address without one is no code, whatever letters it has)
+      const typed = field.value.trim();
+      const linked = typed.match(new RegExp(`[?&]${kind.param}=([^&#\\s]+)`));
+      const other = linked ? cleanCode(linked[1]) : /[/:.?=&#]/.test(typed) ? '' : cleanCode(typed);
       if (!codeFits(other) || other === code) { field.value = ''; field.placeholder = T.invalidShort || T.codeLabel; field.focus(); return; }
       session?.leave();
       close();
