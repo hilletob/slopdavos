@@ -1202,6 +1202,11 @@ const FEATURES = {
       run.group.add(run.police);
       run.blueLight = false;
       run.hooks.controllerManager.entities.car.mesh.visible = false;
+      // K as an action of the register (js/actions.js): the touch button, the gamepad, the key bar; the key itself
+      // stays with key() below
+      run.actions([
+        { id: 'blue', kind: 'toggle', label: 'Blue light', icon: 'i-beacon', keys: ['KeyK'], keyboard: false, pad: 'right', state: () => !!run.blueLight, run: () => FEATURES.policeCar.key(run, { code: 'KeyK', repeat: false }) }
+      ]);
     },
     reset(run) { run.blueLight = false; run.police.userData.lightbar.visible = false; run.audio.siren(false); },
     // the VW T3 back (the patrol car goes with the run's group)

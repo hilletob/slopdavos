@@ -366,9 +366,9 @@ const wefEscort = {
     hud.append(wf.ui.say, card);
     document.body.append(hud);
     run.cleanups.push(() => hud.remove());
-    // the blue light and the radio: the small touch row, the gamepad, the key bar (js/actions.js)
+    // the radio: the small touch row, the gamepad, the key bar (js/actions.js; the blue light's button comes with the
+    // policeCar feature of js/missions.js)
     run.actions([
-      { id: 'blue', kind: 'toggle', label: 'Blue light', icon: 'i-beacon', keys: ['KeyK'], keyboard: false, pad: 'right', state: () => !!run.blueLight, run: () => run.features.policeCar?.key(run, { code: 'KeyK', repeat: false }) },
       { id: 'radio', label: 'Radio', icon: 'i-radio', keys: ['KeyJ'], keyboard: false, pad: 'l3', run: () => wefEscort.radio(run) }
     ]);
   },
