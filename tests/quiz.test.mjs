@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   QUIZ, QUIZ_PERIOD, QUIZ_MAX_SCORE, QUIZ_QUESTIONS, QUIZ_BOTS, QUIZ_MISSIONS, GIGI_MISSION, GIGI, getQuestion, halfOf, pickQuestions, parseGuess, formatNumber,
-  scoreGuess, botGuess, tableSeats, createRound, phaseAt, roundPhase, roundLength, lockGuess, mergeGuesses, hasGuessed, guessOf, cutWaiting, questionResult,
+  scoreGuess, botGuess, tableSeats, createRound, phaseAt, roundPhase, roundLength, lockGuess, mergeGuesses, hasGuessed, guessOf, cutWaiting, endGuessing, questionResult,
   tableStandings, gigiLine, quizTexts, seededRandom, seenQuestions, noteQuestions, quizHandoff
 } from '../js/missions-data-quiz.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -335,7 +335,8 @@ test('two players at a table: the host starts, both get the same round, a guess 
   assert.equal(b.guess(0, 500), false);
   const now = Date.now;
   try {
-    Date.now = () => at(a.round, 0, 'guess', 2000);
+    const fixed = at(a.round, 0, 'guess', 2000); // (a moment on the clock, whatever is cut out of the round later)
+    Date.now = () => fixed;
     let told = 0;
     a.on((what) => { if (what === 'guess') told++; });
     assert.equal(b.guess(0, 500), true);
@@ -345,6 +346,18 @@ test('two players at a table: the host starts, both get the same round, a guess 
     assert.equal(b.guess(0, 700), false);
     b.sendGuesses(); // (once more: nothing changes)
     assert.equal(told, 1);
+    // the host guesses too: everyone is in, the countdown is not waited for, on both clocks the same
+    assert.ok(Math.abs(roundPhase(b.round, Date.now()).left - (QUIZ.guessMs - 2000)) < 2);
+    assert.equal(a.guess(0, 400), true);
+    for (const s of [a, b]) {
+      const p = roundPhase(s.round, Date.now());
+      assert.equal(p.phase, 'guess');
+      assert.ok(Math.abs(p.left - 1500) < 2, `a moment is left: ${p.left}`);
+      for (const seat of s.round.seats) assert.equal(hasGuessed(s.round, seat, 0, QUIZ.guessMs - 1), true, 'the regulars are in before the reveal');
+    }
+    assert.equal(a.round.skip, b.round.skip);
+    assert.equal(endGuessing(a.round, 0, Date.now()), 0, 'once a question');
+    assert.equal(roundPhase(a.round, Date.now() + 1502).phase, 'reveal');
     // a guess of another round is not taken
     a.onEvent('guess', { id: 'bbb', r: a.round.seed + 1, g: [1, 2, 3] });
     assert.deepEqual(a.round.guesses.get('bbb'), [500, null, null]);

@@ -52,6 +52,9 @@ at one table. It reuses the race's room: the code, the host election, the clock 
   - `guess { id, r, g: [v0, v1, v2] }`: a player's guesses of the round `r` so far, sent when one is locked in, again
     1.5 s later and once more when the guessing time ends (broadcasts are not acknowledged). The others show a tick at
     that seat at once ("3 of 7 have guessed"); the number shows at the reveal.
+  - `cut { from, r, q, at }`: once every player still in the room has guessed question `q`, the host ends its
+    guessing time at `at` (its clock, 1.5 s ahead) instead of letting the countdown run out; every client cuts the
+    same out of its schedule (`endGuessing`). Sent twice.
 - **Every client scores for itself** (`questionResult`, `tableStandings`): points by how close the guess is, the same
   whatever the size of the table, so the mission's leaderboard stays comparable. No anti-cheat, as in the race.
 - **The regulars** (`QUIZ_BOTS`) fill the table up to four seats; their guesses come from the seed, so they are the same

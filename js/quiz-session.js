@@ -1,6 +1,6 @@
 import { electHost, offsetFromPings, releaseTime, displayName } from './race-protocol.js';
 import { joinRoom } from './race-net.js';
-import { QUIZ, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, lockGuess, mergeGuesses, roundPhase, getQuestion } from './missions-data-quiz.js';
+import { QUIZ, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, lockGuess, mergeGuesses, roundPhase, getQuestion, endGuessing } from './missions-data-quiz.js';
 
 // js/quiz-session.js
 // Gigi's table with other players (js/missions-data-quiz.js has the game, js/missions-quiz.js shows it, js/quiz-ui.js the
@@ -13,14 +13,18 @@ import { QUIZ, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSe
 //  - `guess { id, r, g: [v0, v1, v2] }`: a player's guesses of the round `r` (its seed) so far, sent when one is locked
 //    in, again a moment later and once more as the guessing time ends (a broadcast may be lost). The others show at once that the player has
 //    guessed; the number itself only at the reveal. Every client works the points out for itself.
+//  - `cut { from, r, q, at }`: the host's "everyone has guessed": once every player still in the room has locked a
+//    guess for question `q`, its guessing time ends at `at` (the host's clock, a moment ahead) instead of running out.
+//    Every client cuts the same out of its schedule (endGuessing), so the clocks stay together. Sent twice.
 // Only ids, seeds and numbers go over the wire, never a text: each client shows the round in its own language.
 // The session lives from the lobby over as many rounds as the host starts to the moment the player leaves; a round is
 // a run of the mission (js/missions.js), which takes the session as its table through quizHandoff.
 
-export const QUIZ_EVENTS = ['ping', 'pong', 'start', 'guess'];
+export const QUIZ_EVENTS = ['ping', 'pong', 'start', 'guess', 'cut'];
 export const SEAT_COLOURS = ['#3fd6ff', '#ffb347', '#7ee787', '#ff7eb6', '#c3a6ff', '#ffe066', '#5eead4', '#fb923c', '#a3e635', '#f472b6'];
 const PING_SAMPLES = 6, PING_GAP_MS = 350;
 const RESEND_MS = 1500;
+const CUT_REST_MS = 1500; // what is left of the guessing time once everyone has guessed
 const START_DELAY_MS = 1500; // from the host's click to the round's start, on its clock (the message's way and the run's set-up)
 
 export class QuizSession {
@@ -100,6 +104,7 @@ export class QuizSession {
     for (const id of [...this.players.keys()]) if (!present.has(id)) this.players.delete(id);
     this.ordered().forEach((p, i) => { p.colour = SEAT_COLOURS[i % SEAT_COLOURS.length]; });
     this.renameSeats();
+    this.maybeCut(); // (the one everybody waited for has left)
     const host = this.host;
     if (host !== this.hostId) { this.hostId = host; this.measureOffset(); }
     this.emit('members');
@@ -139,7 +144,10 @@ export class QuizSession {
         if (p.from === this.host && Number.isFinite(p.at) && Number.isFinite(p.seed) && Array.isArray(p.qids) && Array.isArray(p.ids)) this.onStart(p.at, p.seed, p.qids, p.ids);
         break;
       case 'guess':
-        if (this.round && p.r === this.round.seed && typeof p.id === 'string' && p.id !== this.me.id && mergeGuesses(this.round, p.id, p.g)) this.emit('guess');
+        if (this.round && p.r === this.round.seed && typeof p.id === 'string' && p.id !== this.me.id && mergeGuesses(this.round, p.id, p.g)) { this.emit('guess'); this.maybeCut(); }
+        break;
+      case 'cut':
+        if (this.round && p.r === this.round.seed && p.from === this.host && p.from !== this.me.id && endGuessing(this.round, p.q, releaseTime(p.at, this.offset))) this.emit('guess');
         break;
       default:
     }
@@ -179,8 +187,24 @@ export class QuizSession {
   guess(qi, value) {
     if (!this.round || !lockGuess(this.round, this.me.id, qi, value, Date.now())) return false;
     this.sendGuesses();
+    this.maybeCut();
     setTimeout(() => { if (!this.left) this.sendGuesses(); }, RESEND_MS); // (a broadcast is not acknowledged: the others' tick should not hang on one message)
     return true;
+  }
+  /** The host: every player still in the room has guessed the question that is on, so nobody waits for the clock */
+  maybeCut() {
+    const round = this.round;
+    if (!round || !this.net || this.left || !this.isHost) return;
+    const now = Date.now(), p = roundPhase(round, now);
+    if ((p.phase !== 'guess' && p.phase !== 'ask') || round.cuts?.[p.q]) return;
+    if ((p.phase === 'ask' ? p.left + QUIZ.guessMs : p.left) < CUT_REST_MS + 1000) return;
+    const here = round.seats.filter((seat) => !seat.bot && this.players.has(seat.id)); // (who left does not hold the table up)
+    if (!here.length || !here.every((seat) => round.guesses.get(seat.id)?.[p.q] != null)) return;
+    const cut = { from: this.me.id, r: round.seed, q: p.q, at: now + CUT_REST_MS };
+    this.net.send('cut', cut);
+    setTimeout(() => { if (!this.left && this.round === round) this.net?.send('cut', cut); }, 500);
+    endGuessing(round, p.q, cut.at);
+    this.emit('guess');
   }
   /** (once more as the guessing time ends, js/missions-quiz.js: a broadcast may have been lost) */
   sendGuesses() {

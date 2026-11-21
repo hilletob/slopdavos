@@ -282,8 +282,8 @@ export function guessOf(round, seat, qi) {
 
 /**
  * A lone player has guessed: the regulars who are still thinking come in one after the other within a second, and the
- * rest of the guessing time is cut down to 1.5 s. Returns the ms cut. With other players nothing is cut: everyone's
- * clock runs the same.
+ * rest of the guessing time is cut down to 1.5 s. Returns the ms cut. With other players see endGuessing: everyone's
+ * clock has to run the same.
  */
 export function cutWaiting(round, now) {
   if (!round.solo) return 0;
@@ -300,6 +300,28 @@ export function cutWaiting(round, now) {
     if (play.at > t) play.at = Math.min(play.at, t + 300 + 220 * late++);
   }
   // (while the question is still being read out, the reading is what is left of it: the guessing time shrinks to the rest)
+  round.skip += cut;
+  return cut;
+}
+
+/**
+ * A table with other players: everyone has guessed question `qi`, so its guessing time ends at `endAt` (this clock)
+ * instead of running out (js/quiz-session.js: the host says when, every client cuts the same). Once a question; the
+ * regulars still thinking come in before it. Returns the ms cut.
+ */
+export function endGuessing(round, qi, endAt) {
+  round.cuts ??= [];
+  if (!Number.isInteger(qi) || qi < 0 || qi >= round.questions.length || round.cuts[qi] || !Number.isFinite(endAt)) return 0;
+  const end = round.startAt - round.skip + QUIZ.leadMs + qi * QUIZ_PERIOD + QUIZ.askMs + QUIZ.guessMs; // (as it stands)
+  const cut = Math.floor(end - Math.max(endAt, end - QUIZ.askMs - QUIZ.guessMs));
+  if (cut <= 0) return 0;
+  round.cuts[qi] = cut;
+  let late = 0;
+  for (const seat of round.seats) {
+    if (!seat.bot) continue;
+    const play = round.botPlays.get(seat.id)[qi];
+    play.at = Math.min(play.at, QUIZ.guessMs - 1300 + 250 * late++);
+  }
   round.skip += cut;
   return cut;
 }
