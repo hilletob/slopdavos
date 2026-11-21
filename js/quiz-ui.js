@@ -27,6 +27,9 @@ const QUIZ_KIND = {
     joining: 'You are joining this table.',
     share: 'Share the code or the link. Up to ten players at the table.',
     tooMany: (n) => `More than ${n} at the table: the first ${n} play, the others the next round.`,
+    joinOther: 'Got a code from someone? Type it in to sit down at their table instead.',
+    join: 'Join the table',
+    invalidShort: 'No such code',
     error: 'The round could not be started here.',
     unreachable: 'The table is not reachable right now. Try again in a moment.'
   }

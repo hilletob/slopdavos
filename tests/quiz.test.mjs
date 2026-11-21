@@ -392,7 +392,7 @@ test('every text of the round has its German: the questions, the units, Gigi, th
     'The host starts the next round.', 'More than 10 at the table: the first 10 play, the others the next round.', 'Play together', 'You', 'pts', '2310 pts',
     // (every text the card and the lobby hand to t() or to the page)
     ...[...source.matchAll(/tr\('((?:[^'\\]|\\.)+)'\)/g)].map((m) => m[1]),
-    ...[...source.matchAll(/(?:invalid|codeLabel|nameLabel|about|start|startAlone|waiting|joining|share|error|unreachable): '((?:[^'\\]|\\.)+)'/g)].map((m) => m[1]),
+    ...[...source.matchAll(/(?:invalid|invalidShort|joinOther|join|codeLabel|nameLabel|about|start|startAlone|waiting|joining|share|error|unreachable): '((?:[^'\\]|\\.)+)'/g)].map((m) => m[1]),
     'A round is on at this table. You are in for the next one.', 'The table', 'pays the round', 'Another round', 'Leave the table', 'your guess', 'lock it in'
   ];
   assert.ok(new Set(texts).size > 110, `${new Set(texts).size} texts`);

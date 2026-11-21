@@ -23,7 +23,7 @@ export const QUIZ = {
   leadMs: 4500, // from the start to the first question (Gigi's welcome)
   askMs: 3500, // Gigi reads the question out
   guessMs: 20000, // the guesses
-  revealMs: 9500, // the answer, the guesses on the line, the table's standing
+  revealMs: 11500, // the guesses on the line, a roll, the answer and the points, the table's standing moving
   minSeats: 4, // (with players: the regulars fill the table up to this)
   maxPlayers: 10
 };

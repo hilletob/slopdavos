@@ -167,7 +167,31 @@ export async function openRoomLobby(kind, { manager, def, code = null, getMissio
   leaveButton.type = 'button';
   leaveButton.addEventListener('click', leave);
   row.append(start, leaveButton);
-  panel.append(el('p', 'mission-dialog-text', joining ? T.joining : T.share), codeBox, linkRow, status, nameForm, el('h3', 'mission-board-title', 'Players'), members, waiting, about, row);
+  // Another room's code (a kind with `texts.joinOther`: who opened a room of their own but was given a code sits down there instead)
+  let joinForm = null;
+  if (T.joinOther && !joining) {
+    joinForm = el('form', 'race-link race-join');
+    const field = el('input', 'race-link-field player-name');
+    Object.assign(field, { type: 'text', maxLength: 12, autocomplete: 'off', spellcheck: false, placeholder: T.codeLabel });
+    field.setAttribute('autocapitalize', 'characters');
+    field.setAttribute('aria-label', T.joinOther);
+    field.style.textTransform = 'uppercase';
+    const go = el('button', 'mission-btn mission-btn-secondary', T.join);
+    go.type = 'submit';
+    joinForm.append(field, go);
+    joinForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      // (a pasted link works too: its code is taken)
+      let typed = field.value;
+      try { typed = new URL(typed).searchParams.get(kind.param) || typed; } catch { /* (a bare code) */ }
+      const other = cleanCode(typed);
+      if (!codeFits(other) || other === code) { field.value = ''; field.placeholder = T.invalidShort || T.codeLabel; field.focus(); return; }
+      session?.leave();
+      close();
+      openRoomLobby(kind, { manager, def, code: other, getMission, signedIn });
+    });
+  }
+  panel.append(el('p', 'mission-dialog-text', joining ? T.joining : T.share), codeBox, linkRow, status, nameForm, el('h3', 'mission-board-title', 'Players'), members, waiting, about, ...(joinForm ? [el('p', 'mission-dialog-note', T.joinOther), joinForm] : []), row);
   setRaceParam(code, kind.param);
 
   const render = () => {

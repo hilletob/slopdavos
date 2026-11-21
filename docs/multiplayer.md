@@ -41,7 +41,7 @@ at one table. It reuses the race's room: the code, the host election, the clock 
 (`js/race-protocol.js`), the wire (`js/race-net.js` `joinRoom(topic, events, …)`) and the lobby (`js/race-ui.js`
 `openRoomLobby(kind, …)`, with the table's words from `js/quiz-ui.js`).
 
-- **Entry:** "Play together" in the mission's briefing opens a table with a code; the link is `?quiz=<CODE>`
+- **Entry:** "Play together" in the mission's briefing opens a table with a code; the link is `?quiz=<CODE>`; the lobby also has a field for another table's code (or its pasted link), which leaves the own table and joins that one
   (`manager.openQuiz`, `js/missions.js`). Loaded on demand; a lone player's round needs no network at all.
 - **Channel** `quiz:<CODE>`, presence `{ id, name, joinedAt, mission, phase: 'lobby' | 'playing' }`, broadcasts
   `ping`, `pong`, `start`, `guess` (`js/quiz-session.js`).
