@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { attribute, vertexColor } from 'three/tsl';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';
 import { t as tr, getLanguage } from './i18n.js';
@@ -143,7 +144,7 @@ const STYLE = `
 body.gq-seated .gta-prompt,body.gq-seated .touch-use,body.gq-seated .mission-prompt{display:none!important}
 body.gq-seated #touch-controls{display:none!important}
 @media (max-width:820px),(pointer:coarse){.gq{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 58px);max-height:calc(100vh - 66px);padding:10px 12px;gap:8px}.gq-question{font-size:18px}.gq-clock{width:40px;height:40px;font-size:19px}.gq-answer,.gq-drum{font-size:24px}.gq-line{font-size:13px}}
-@media (pointer:coarse){.gq{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,12,20,.93)}}
+.gq.is-spare{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,12,20,.93)}
 @media (max-height:500px){.gq{top:calc(env(safe-area-inset-top,0px) + 4px);max-height:calc(100vh - 8px);z-index:46;gap:6px}.gq-gigi{display:none}.gq-question{font-size:15px}.gq-input{font-size:18px;padding:7px 10px}}
 `;
 
@@ -253,17 +254,20 @@ function buildBar(run) {
   barrel(parts, 3.2, gy(3.2, -2.3), -2.3, 2);
 
   const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))), mat);
+  // what shines by itself: the bulbs, the fire (it flickers: js after()). On the mobile profile they are drawn with the
+  // bar's own material, one pipeline instead of two (what that saves on a phone is not measured): every vertex has
+  // aGlow, 0 on the bar and 1 on the bulbs and the flames, and the material emits its vertex colour by it, so they shine
+  // at night there too. The sign is left out there
+  const shine = (g, v) => { if (QUALITY.mobile) g.setAttribute('aGlow', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1)); return g; };
+  if (QUALITY.mobile) mat.emissiveNode = vertexColor().mul(attribute('aGlow', 'float'));
+  const mesh = new THREE.Mesh(shine(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))), 0), mat);
   mesh.castShadow = true; mesh.receiveShadow = false;
   group.add(mesh);
-  // what shines by itself: the bulbs, the fire (it flickers: js after()). A phone is at the edge of its memory and every
-  // material is a pipeline more (~1.7 MB in Safari's GPU process): there the bulbs and the fire are drawn with the bar's
-  // own material, and the sign is left out
   const lit = QUALITY.mobile ? mat : new THREE.MeshBasicNodeMaterial({ vertexColors: true });
-  group.add(new THREE.Mesh(mergeGeometries(glow), lit));
+  group.add(new THREE.Mesh(shine(mergeGeometries(glow), 1), lit));
   const flames = [];
   for (let i = 0; i < 3; i++) { const g = new THREE.ConeGeometry(0.2 - i * 0.045, 0.6 - i * 0.1, 7); g.translate(0, 0.3 - i * 0.05, 0); flames.push(paint(g, [0xff6a1a, 0xff9d2e, 0xffd76a][i])); }
-  const flame = new THREE.Mesh(mergeGeometries(flames), lit);
+  const flame = new THREE.Mesh(shine(mergeGeometries(flames), 1), lit);
   flame.position.set(fx, fy + 0.62, fz);
   group.add(flame);
   group.userData.flame = flame;
@@ -408,6 +412,7 @@ function buildCard(run) {
   style.textContent = STYLE;
   document.head.append(style);
   const card = el('div', 'gq player-name'); // (.player-name: translated here, not by the observer)
+  card.classList.toggle('is-spare', QUALITY.mobile); // (no backdrop blur on the mobile profile: blurred anew over the 3D picture with every animation)
   card.hidden = true;
   card.setAttribute('role', 'group');
   const gigi = el('div', 'gq-gigi');
