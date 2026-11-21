@@ -16,10 +16,13 @@ const JOIN_TIMEOUT = 10000; // ms
  * onEvent(event, payload) for each broadcast of the others, onStatus(status) with the channel's states ('SUBSCRIBED',
  * 'CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'). Rejects when the channel cannot be joined.
  */
-export async function joinRace(code, me, { onPresence = () => {}, onEvent = () => {}, onStatus = () => {} } = {}) {
+export const joinRace = (code, me, handlers) => joinRoom(`race:${code}`, EVENTS, me, handlers, 'race');
+
+/** A room of any kind on the channel `topic` with the broadcasts `events` (js/quiz-session.js: `quiz:<CODE>`), as joinRace */
+export async function joinRoom(topic, events, me, { onPresence = () => {}, onEvent = () => {}, onStatus = () => {} } = {}, tag = 'room') {
   const supabase = await getClient();
-  const channel = supabase.channel(`race:${code}`, { config: { broadcast: { self: false, ack: false }, presence: { key: me.id } } });
-  for (const event of EVENTS) channel.on('broadcast', { event }, ({ payload }) => { try { onEvent(event, payload); } catch (error) { console.warn('[race] on', event, error); } });
+  const channel = supabase.channel(topic, { config: { broadcast: { self: false, ack: false }, presence: { key: me.id } } });
+  for (const event of events) channel.on('broadcast', { event }, ({ payload }) => { try { onEvent(event, payload); } catch (error) { console.warn(`[${tag}] on`, event, error); } });
   const members = () => Object.values(channel.presenceState()).flat().map(({ presence_ref, ...state }) => state).filter((m) => m && m.id);
   channel.on('presence', { event: 'sync' }, () => onPresence(members()));
   let state = { ...me, joinedAt: Date.now() };
@@ -29,7 +32,7 @@ export async function joinRace(code, me, { onPresence = () => {}, onEvent = () =
     channel.subscribe(async (status, error) => {
       onStatus(status, error);
       if (status === 'SUBSCRIBED') {
-        try { await channel.track(state); } catch (e) { console.warn('[race] track', e); } // (after a reconnect too: the state comes back)
+        try { await channel.track(state); } catch (e) { console.warn(`[${tag}] track`, e); } // (after a reconnect too: the state comes back)
         if (!settled) { settled = true; clearTimeout(timer); resolve(); }
       } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !settled) {
         settled = true; clearTimeout(timer); reject(error || new Error(status));

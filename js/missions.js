@@ -28,6 +28,7 @@ import { GASTRO_FEATURES } from './missions-gastro.js';
 import { OUTDOOR_FEATURES } from './missions-outdoor.js';
 import { HIKE_FEATURES } from './missions-hike.js';
 import { BARS_FEATURES } from './missions-bars.js';
+import { QUIZ_FEATURES } from './missions-quiz.js';
 import { EXPERT_FEATURES } from './missions-expert.js';
 import { WEF_FEATURES } from './missions-wef.js';
 import { RURAL_FEATURES } from './missions-rural.js';
@@ -131,12 +132,22 @@ export function buildMissions(scene, hooks) {
       .then((ui) => ui.openRaceLobby({ manager, def: def || getMission('quad-heldstab'), code, getMission, signedIn: signedIn() }))
       .catch((error) => console.warn('[missions] the race lobby could not be opened', error));
   };
+  // Gigi's table with other players (js/quiz-ui.js, js/quiz-session.js): the lobby for the mission `def`, or the table
+  // `code` of a link (?quiz=<CODE>); loaded on demand, like the race
+  manager.openQuiz = (def, code = null) => {
+    manager.stop();
+    return import('./quiz-ui.js')
+      .then((ui) => ui.openQuizLobby({ manager, def: def || getMission('gigi-schaetzt'), code, getMission, signedIn: signedIn() }))
+      .catch((error) => console.warn('[missions] the table\'s lobby could not be opened', error));
+  };
   globalThis.__slopdavosMissions = manager; // (test hooks)
   globalThis.__slopdavosProgress = progress;
   globalThis.__slopdavosMissionWorld = world;
   manager.fromSearch(location.search);
   const raceCode = new URLSearchParams(location.search).get('race');
   if (raceCode) manager.openRace(null, raceCode);
+  const quizCode = new URLSearchParams(location.search).get('quiz');
+  if (quizCode && !raceCode) manager.openQuiz(null, quizCode);
   return manager;
 }
 
@@ -630,7 +641,9 @@ class MissionRun {
     nodes.push(el('p', 'mission-dialog-note', 'The stopwatch starts with your first input after Start.'), ...this.boardNode(false));
     // (a mission with a race: the lobby, js/race-ui.js through the manager)
     const race = this.def.race && !this.hooks.race && this.hooks.missions?.openRace ? [['Race together', null, () => this.hooks.missions.openRace(this.def), true]] : [];
-    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ...race, ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
+    // (Gigi's table: the lobby for a round with other players, js/quiz-ui.js through the manager)
+    const quiz = this.def.quiz && this.hooks.missions?.openQuiz ? [['Play together', null, () => this.hooks.missions.openQuiz(this.def), true]] : [];
+    this.dialog('Mission', this.def.title, nodes, [['Start', 'Enter', () => this.start()], ...race, ...quiz, ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 
   showEnd() {
@@ -1287,6 +1300,7 @@ Object.assign(FEATURES, GASTRO_FEATURES);
 Object.assign(FEATURES, OUTDOOR_FEATURES);
 Object.assign(FEATURES, HIKE_FEATURES); // the waymarks of the hikes, the Schwarzhorn's moving dawn (js/missions-hike.js)
 Object.assign(FEATURES, BARS_FEATURES);
+Object.assign(FEATURES, QUIZ_FEATURES); // Gigi's guessing round at the umbrella bar (js/missions-quiz.js)
 // (js/missions-expert.js: the eye test at Meerkämper Optik, the snow profile for the SLF)
 Object.assign(FEATURES, EXPERT_FEATURES);
 // (js/missions-wef.js: the motorcade and the march of the WEF week)

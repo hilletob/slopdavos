@@ -131,6 +131,12 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       for (const k of [0.01, 0.4]) { ctx.beginPath(); ctx.ellipse(0, g * 0.15, g * k, g * 0.72, 0, 0, Math.PI * 2); ctx.stroke(); }
       break;
     }
+    case 'umbrella': { // a bar's umbrella over a glass (js/missions-data-quiz.js: Gigi's table)
+      ctx.beginPath(); ctx.moveTo(-g, -g * 0.1); ctx.quadraticCurveTo(0, -g * 1.5, g, -g * 0.1); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = g * 0.14; ctx.beginPath(); ctx.moveTo(0, -g * 0.1); ctx.lineTo(0, g * 0.95); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(g * 0.28, g * 0.35, g * 0.42, g * 0.6, g * 0.08); ctx.fill();
+      break;
+    }
     case 'foosball': { // a rod with a man and the ball
       ctx.lineWidth = g * 0.16;
       ctx.beginPath(); ctx.moveTo(-g, -g * 0.35); ctx.lineTo(g, -g * 0.35); ctx.stroke();

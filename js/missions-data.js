@@ -13,6 +13,7 @@ import { GASTRO_MISSIONS } from './missions-data-gastro.js'; // Flämmli in the 
 import { HIKE_MISSIONS } from './missions-data-hike.js'; // up the Schwarzhorn before the sun, to the Jöriseen
 import { OUTDOOR_MISSIONS } from './missions-data-outdoor.js'; // the rope park in the Färich, hockey on the Seehofseeli
 import { BARS_MISSIONS } from './missions-data-bars.js'; // Nageln in the Tijuana Bar, Barista at the Kafi Klatsch
+import { QUIZ_MISSIONS } from './missions-data-quiz.js'; // Gigi's guessing round at the umbrella bar beside Bolgen Plaza
 import { CARE_MISSIONS } from './missions-data-care.js'; // snowshoes on the Junkerboden, a plaster cast at the Spital
 import { PARAGLIDE_MISSIONS } from './missions-data-paraglide.js'; // a paraglider flight from the Rinerhorn, in the thermals
 import { RINK_MISSIONS } from './missions-data-rink.js'; // fresh ice on the Seehofseeli: the hose, then the ice resurfacer
@@ -575,7 +576,7 @@ export const TOEFF_POLIZEI_MISSION = {
   ]
 };
 
-export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS, ...HELIBLAST_MISSIONS, ...ZAMBONI_MISSIONS, ...SAMD_MISSIONS, ...PARSENN_MISSIONS];
+export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_MISSION, TOEFF_POLIZEI_MISSION, ...FUN_MISSIONS, ...SNOW_MISSIONS, ...ICE_MISSIONS, ...SLEDGE_MISSIONS, ...GOLF_MISSIONS, ...LOCAL_MISSIONS, ...MINE_MISSIONS, ...WORK_MISSIONS, ...SPORT_MISSIONS, ...RESORT_MISSIONS, ...GASTRO_MISSIONS, ...OUTDOOR_MISSIONS, ...HIKE_MISSIONS, ...BARS_MISSIONS, ...EXPERT_MISSIONS, ...WEF_MISSIONS, ...RURAL_MISSIONS, ...CARE_MISSIONS, ...PARAGLIDE_MISSIONS, ...RINK_MISSIONS, ...SPLITBOARD_MISSIONS, ...PFADI_MISSIONS, ...SNOWFARM_MISSIONS, ...PLOUGH_MISSIONS, ...WINTERROAD_MISSIONS, ...RADAR_MISSIONS, ...PHARMACY_MISSIONS, ...POST_MISSIONS, ...JETPACK_MISSIONS, ...VICTORIA_MISSIONS, ...HELIBLAST_MISSIONS, ...ZAMBONI_MISSIONS, ...SAMD_MISSIONS, ...PARSENN_MISSIONS, ...QUIZ_MISSIONS];
 // Every mission has a leaderboard: <id>-1 unless it names its own (supabase/migrations/*_all_leaderboards.sql holds the
 // limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
 for (const m of MISSIONS) m.board ??= `${m.id}-1`;

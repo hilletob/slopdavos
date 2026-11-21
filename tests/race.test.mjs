@@ -161,7 +161,7 @@ test('the race modules load on demand only, and the run takes the race from the 
   assert.match(missions, /restart\(\) \{ if \(this\.hooks\.race\) return;/, 'no restart of one\'s own in a race');
   assert.match(missions, /export function dialogHead/);
   assert.match(read('js/missions-manager.js'), /createRun\(def, \{ night: nightRun, race \}\)/);
-  assert.match(read('js/race-net.js'), /supabase\.channel\(`race:\$\{code\}`/);
+  assert.match(read('js/race-net.js'), /joinRoom\(`race:\$\{code\}`/);
   assert.doesNotMatch(read('js/race-net.js'), /from ['"]https?:/, 'the SDK comes from js/account.js');
   assert.doesNotMatch(read('js/main.js'), /race-/, 'nothing of the race in the game\'s start');
 });

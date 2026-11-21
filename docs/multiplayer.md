@@ -33,3 +33,31 @@ definition `race: { gates, nextGate(state, index) }`.
 - Clock offsets: a device with a clock seconds off still starts together (the offset is measured), but the host election by
   `joinedAt` could disagree between clients with badly skewed clocks.
 - The installed iPhone app in the background drops the WebSocket; the SDK reconnects, the presence comes back.
+
+# Multiplayer: Gigi's table (guessing questions)
+
+The second kind of room: the mission `gigi-schaetzt` (`js/missions-data-quiz.js`, `quiz: true`) played by up to ten players
+at one table. It reuses the race's room: the code, the host election, the clock offset, the guest's identity
+(`js/race-protocol.js`), the wire (`js/race-net.js` `joinRoom(topic, events, …)`) and the lobby (`js/race-ui.js`
+`openRoomLobby(kind, …)`, with the table's words from `js/quiz-ui.js`).
+
+- **Entry:** "Play together" in the mission's briefing opens a table with a code; the link is `?quiz=<CODE>`
+  (`manager.openQuiz`, `js/missions.js`). Loaded on demand; a lone player's round needs no network at all.
+- **Channel** `quiz:<CODE>`, presence `{ id, name, joinedAt, mission, phase: 'lobby' | 'playing' }`, broadcasts
+  `ping`, `pong`, `start`, `guess` (`js/quiz-session.js`).
+  - `start { from, at, seed, qids, ids }`: only the host's is taken. `qids` are the three questions, `seed` decides the
+    regulars' guesses and Gigi's lines, `ids` who has a seat (the first ten by `joinedAt`), `at` the round's start on the
+    host's clock. From there the round runs by the clock on every client (`phaseAt`): a lead, then for each question the
+    asking, 20 s of guessing and the reveal. If the host leaves, the round goes on; the next host starts the next one.
+  - `guess { id, r, g: [v0, v1, v2] }`: a player's guesses of the round `r` so far, sent when one is locked in, again
+    1.5 s later and once more when the guessing time ends (broadcasts are not acknowledged). The others show a tick at
+    that seat at once ("3 of 7 have guessed"); the number shows at the reveal.
+- **Every client scores for itself** (`questionResult`, `tableStandings`): points by how close the guess is, the same
+  whatever the size of the table, so the mission's leaderboard stays comparable. No anti-cheat, as in the race.
+- **The regulars** (`QUIZ_BOTS`) fill the table up to four seats; their guesses come from the seed, so they are the same
+  on every client. Alone all four sit down, and the waiting is cut once the player has guessed (`cutWaiting`).
+- **Languages:** only ids, the seed and numbers go over the wire. Each client shows the questions, Gigi's lines and the
+  numbers (12’500 / 12,500) in its own language; a German and an English player sit at the same table.
+- **Late comers** (a round is on, or the table is full) stay in the lobby and are in for the next round.
+- **Messages:** a handful per player and question; nothing like the race's 8 Hz stream.
+- **Test:** `tests/quiz.test.mjs` (the game's logic, two sessions on a wire of their own, every text's German).
