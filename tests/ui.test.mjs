@@ -48,7 +48,7 @@ test('the menu holds the language, the sound, the clean view, the credits and th
 
 test('one dialog shell: the credits share the missions\' dialog, with the head and the ×', () => {
   assert.match(html, /<dialog id="credits-dialog" class="panel mission-dialog credits-dialog"/);
-  assert.match(html, /class="mission-dialog-head">\s*<div>\s*<div class="mission-kicker">Slop Davos<\/div>\s*<h2 id="credits-title" class="mission-dialog-title">/);
+  assert.match(html, /class="mission-dialog-head">\s*<div>\s*<div class="mission-kicker">GTA Davos<\/div>\s*<h2 id="credits-title" class="mission-dialog-title">/);
   assert.match(html, /<button class="dialog-close" type="submit"[^>]*><svg class="icon"[^>]*><use href="#i-close"\/>/);
   assert.doesNotMatch(css, /credits-close|credits-head|\.mission-score \{|leaderboard-overlay/);
   assert.match(css, /\.mission-dialog-head \{/);

@@ -4,13 +4,17 @@ const STORAGE_KEY = 'slopdavos-language';
 const pairs = [
   ['Initializing WebGPURenderer & TSL Shaders...', 'WebGPU-Renderer und TSL-Shader werden initialisiert …'],
   ['Getting the city ready…', 'Die Stadt wird vorbereitet …'],
+  ['The whole valley is open: on foot, by car, by bike, in the air', 'Das ganze Tal steht offen: zu Fuss, mit dem Auto, dem Velo, in der Luft'],
+  ['The star in the toolbar opens the missions', 'Der Stern in der Leiste öffnet die Missionen'],
+  ['Summer and winter take turns, the snow comes overnight', 'Sommer und Winter wechseln sich ab, der Schnee kommt über Nacht'],
+  ['The car radio plays real stations', 'Im Autoradio laufen echte Sender'],
   ['Opening the streets…', 'Die Strassen werden geöffnet …'],
   ['Moving the town…', 'Die Stadt wird verschoben …'],
   ['Bringing Davos to life…', 'Davos wird zum Leben erweckt …'],
   ['Your ride is almost ready…', 'Deine Fahrt kann gleich beginnen …'],
   ['Davos couldn’t open this time. Please try again.', 'Davos konnte nicht geöffnet werden. Bitte versuche es erneut.'],
   ['Davos emblem', 'Davos-Wappen'],
-  ['3D Interactive Slop Davos Viewport', 'Interaktive 3D-Ansicht von Slop Davos'],
+  ['3D Interactive GTA Davos Viewport', 'Interaktive 3D-Ansicht von GTA Davos'],
   ['Game time: fast-forward', 'Spielzeit: vorspulen'],
   ['Menu', 'Menü'], ['Language', 'Sprache'], ['Sound', 'Ton'], ['On', 'An'], ['Off', 'Aus'], ['Unavailable', 'Nicht verfügbar'],
   ['Clean view', 'Freie Sicht'], ['About', 'Über'], ['Live map', 'Live-Karte'], ['Heat map', 'Heatmap'],
@@ -99,7 +103,7 @@ const pairs = [
   ['Figure', 'Figur'], ['Your figure', 'Deine Figur'], ['On foot, on the bicycle and on the cargo bike.', 'Zu Fuss, auf dem Velo und auf dem Cargovelo.'],
   ['Jacket & boots', 'Jacke & Stiefel'], ['Jumper', 'Pullover'], ['Blouse & jeans', 'Bluse & Jeans'], ['Hoodie', 'Kapuzenjacke'],
   ['Jumper & skirt', 'Pulli & Rock'], ['Police officer', 'Polizist'],
-  ['Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.', 'Slop Davos basiert auf offenen Behördendaten und OpenStreetMap. Es ist ein inoffizielles Projekt ohne Verbindung zu swisstopo oder der Gemeinde Davos.'],
+  ['GTA Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.', 'GTA Davos basiert auf offenen Behördendaten und OpenStreetMap. Es ist ein inoffizielles Projekt ohne Verbindung zu swisstopo oder der Gemeinde Davos.'],
   ['buildings and roofs.', 'Gebäude und Dächer.'], ['the terrain.', 'das Gelände.'],
   [': buildings and roofs.', ': Gebäude und Dächer.'], [': the terrain.', ': das Gelände.'],
   ['the orthophotos on the ground and the roofs.', 'die Orthofotos auf dem Boden und den Dächern.'],
@@ -2133,7 +2137,7 @@ function translate(value) {
   dynamic = dynamic.replace(/^You (\d+) : (\d+) Locals · (.+)$/, (_, a, b, c) => `Du ${a} : ${b} Einheimische · ${c === 'next goal wins' ? 'das nächste Tor entscheidet' : c}`);
   dynamic = dynamic.replace(/^(Won|Drawn|Lost) (\d+) : (\d+) · your goals: (\d+)(?: · assists: (\d+))?$/, (_, r, a, b, m, n) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[r]} ${a} : ${b} · deine Tore: ${m}${n ? ` · Assists: ${n}` : ''}`);
   dynamic = dynamic.replace(/(-?\d+) goals ahead\b/g, (_, n) => `${n} ${n === '1' ? 'Tor' : 'Tore'} Vorsprung`);
-  dynamic = dynamic.replace(/^Loading swissBUILDINGS3D (\d+\/\d+)…$/, 'swissBUILDINGS3D wird geladen $1 …');
+  dynamic = dynamic.replace(/^Raising the houses around you (\d+\/\d+)…$/, 'Die Häuser um dich herum entstehen $1 …');
   dynamic = dynamic.replace(/^Previous launch stopped at: (.+)$/, 'Letzter Start abgebrochen bei: $1');
   dynamic = dynamic.replace(/ · last shader #/, ' · letzter Shader #');
   dynamic = dynamic.replace(/^(.+) · Click to teleport here$/, '$1 · Klicken, um hierher zu teleportieren');

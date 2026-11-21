@@ -6,6 +6,18 @@
 const SESSION_KEY = 'slopdavos-session'; // (js/account.js; a static import here would load it for every guest)
 const PULL_LIMIT = 1500; // ms
 
+// The loading screen's picture (css/style.css loader-scene): the valley in the season the game opens in, winter with
+// ?winter or by the saved clock (js/game-clock.js: an 8-day year whose days 4-7 are winter)
+{
+  let winter = false;
+  try {
+    const q = new URLSearchParams(location.search);
+    const saved = JSON.parse(localStorage.getItem('slopdavos-clock') || 'null');
+    winter = q.has('winter') || (!q.has('summer') && Number.isFinite(saved?.total) && Math.floor(saved.total / 1440) % 8 >= 4);
+  } catch { /* (storage off: the summer picture) */ }
+  document.getElementById('loading-overlay')?.classList.add(winter ? 'is-winter' : 'is-summer');
+}
+
 let signedIn = false, firstVisit = false;
 try {
   signedIn = !!localStorage.getItem(SESSION_KEY);

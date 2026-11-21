@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Slop Davos</title>
+  <title>GTA Davos</title>
   <link rel="icon" type="image/png" href="./assets/icons/icon-192.png" />
   <!-- Installable app (PWA): manifest, home-screen icon & full-screen on iOS, service worker (sw.js, registered by js/main.js) -->
   <link rel="manifest" href="./manifest.webmanifest" />
@@ -14,12 +14,12 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Davos" />
-  <meta name="description" content="Slop Davos: ganz Davos im Massstab 1:1 im Browser, auf dem echten Relief von swisstopo. Zu Fuss, im Auto, mit der RhB, im Pistenfahrzeug, im Rega-Helikopter oder am Gleitschirm, mit über 70 Missionen in Sommer und Winter." />
+  <meta name="description" content="GTA Davos: ganz Davos im Massstab 1:1 im Browser, auf dem echten Relief von swisstopo. Zu Fuss, im Auto, mit der RhB, im Pistenfahrzeug, im Rega-Helikopter oder am Gleitschirm, mit über 70 Missionen in Sommer und Winter." />
   <link rel="canonical" href="https://davos.tschopp.cloud/" />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Slop Davos" />
+  <meta property="og:site_name" content="GTA Davos" />
   <meta property="og:url" content="https://davos.tschopp.cloud/" />
-  <meta property="og:title" content="Slop Davos – ganz Davos im Browser" />
+  <meta property="og:title" content="GTA Davos – ganz Davos im Browser" />
   <meta property="og:description" content="Jede Strasse, jedes Haus, jeder Hang auf dem echten Relief. Über 70 Missionen in Sommer und Winter, gratis im Browser." />
   <meta property="og:image" content="https://davos.tschopp.cloud/assets/welcome/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
@@ -318,23 +318,30 @@
 
   <!-- Loading Screen -->
   <div id="loading-overlay" role="status" aria-live="polite">
+    <!-- (the valley of the welcome page behind it, in the season the game opens in: js/start.js) -->
+    <div class="loader-scene" aria-hidden="true"></div>
     <div class="loader">
-      <img class="loader-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet loader-bullet',textContent:'D'}))" />
-      <div class="loader-title">Slop Davos</div>
+      <div class="loader-kicker">Grand Theft Alps</div>
+      <div class="loader-title">GTA Davos</div>
       <div class="loader-track is-indeterminate" aria-hidden="true"><span id="loading-progress" class="loader-fill"></span></div>
       <div id="loading-status">Initializing WebGPURenderer &amp; TSL Shaders...</div>
+      <div class="loader-tips" aria-hidden="true">
+        <span>The whole valley is open: on foot, by car, by bike, in the air</span>
+        <span>The star in the toolbar opens the missions</span>
+        <span>Summer and winter take turns, the snow comes overnight</span>
+        <span>The car radio plays real stations</span>
+      </div>
     </div>
   </div>
-
   <!-- 3D WebGPU Viewport Container -->
-  <main id="canvas-container" aria-label="3D Interactive Slop Davos Viewport"></main>
+  <main id="canvas-container" aria-label="3D Interactive GTA Davos Viewport"></main>
 
   <!-- Top-Left: Brand & Renderer Telemetry -->
   <header class="hud hud-top-left">
     <div class="panel brand">
       <img class="brand-logo" src="./assets/davos-flag.svg" alt="Davos emblem" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mta-bullet',textContent:'D'}))" />
       <div class="brand-titles">
-        <h1>Slop Davos</h1>
+        <h1>GTA Davos</h1>
         <!-- (the renderer and the frame rate: only with ?stats=1, js/main.js sets body.show-stats) -->
         <div class="brand-subtitle">three.js · <span id="hud-backend">WebGPU</span> · TSL · <span id="hud-fps" class="fps-ok">60</span> fps</div>
       </div>
@@ -453,7 +460,7 @@
   <dialog id="figure-dialog" class="panel mission-dialog figure-dialog" aria-labelledby="figure-title">
     <div class="mission-dialog-head">
       <div>
-        <div class="mission-kicker">Slop Davos</div>
+        <div class="mission-kicker">GTA Davos</div>
         <h2 id="figure-title" class="mission-dialog-title">Your figure</h2>
       </div>
       <form method="dialog"><button class="dialog-close" type="submit" title="Close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
@@ -474,12 +481,12 @@
   <dialog id="credits-dialog" class="panel mission-dialog credits-dialog" aria-labelledby="credits-title">
     <div class="mission-dialog-head">
       <div>
-        <div class="mission-kicker">Slop Davos</div>
+        <div class="mission-kicker">GTA Davos</div>
         <h2 id="credits-title" class="mission-dialog-title">Data &amp; credits</h2>
       </div>
       <form method="dialog"><button class="dialog-close" type="submit" title="Close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></form>
     </div>
-    <p>Slop Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.</p>
+    <p>GTA Davos is built from open government data and OpenStreetMap. It is an unofficial project, not affiliated with swisstopo or the Gemeinde Davos.</p>
     <ul class="credits-list">
       <li>
         <b>swissBUILDINGS3D 3.0</b>: buildings and roofs.<br>

@@ -786,7 +786,7 @@ export function streamSwissBuildings(scene, { center = { x: 0, z: 0 }, nearRadiu
     let next = 0, loaded = 0, settled = 0;
     const settle = () => {
       settled++;
-      onProgress?.(loaded, tiles.length);
+      onProgress?.(loaded, tiles.length, near);
       if (settled === near) (loaded ? resolveReady(group) : rejectReady(new Error('no swissBUILDINGS3D tile could be loaded')));
     };
     const worker = async () => {

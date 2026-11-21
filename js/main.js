@@ -116,10 +116,21 @@ async function initApp() {
   const loadingStatus = document.getElementById('loading-status');
   const loadingTrack = loadingOverlay ? loadingOverlay.querySelector('.loader-track') : null;
   const loadingFill = document.getElementById('loading-progress');
-  // The loading bar sweeps while the city is being built (the main thread is busy) and fills as the shaders compile
+  // The loading bar fills by the clock, over the time the last start took on this device (css/style.css is-timed: an
+  // animation on the compositor, the main thread paints nothing while it builds the town), and the first frame fills it
+  const LOAD_TIME_KEY = 'slopdavos-load-ms';
+  const loadStarted = performance.now();
+  if (loadingTrack) {
+    let last = NaN;
+    try { last = Number(localStorage.getItem(LOAD_TIME_KEY)); } catch { /* (storage off: the default) */ }
+    const expected = last >= 3000 && last <= 600000 ? last : (QUALITY.mobile ? 80000 : 45000);
+    loadingTrack.style.setProperty('--load-time', `${Math.round(expected)}ms`);
+    loadingTrack.classList.remove('is-indeterminate');
+    loadingTrack.classList.add('is-timed');
+  }
   const setLoadingProgress = (p) => {
     if (!loadingFill) return;
-    if (loadingTrack) loadingTrack.classList.remove('is-indeterminate');
+    if (loadingTrack) loadingTrack.classList.remove('is-indeterminate', 'is-timed');
     loadingFill.style.transform = `scaleX(${Math.min(1, Math.max(0, p))})`;
   };
 
@@ -395,9 +406,10 @@ async function initApp() {
     const stream = swissStream = streamSwissBuildings(scene, {
       center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START,
       nearRadius: QUALITY.buildingNear, concurrency: QUALITY.buildingLoads,
-      onProgress: (done, total) => {
-        if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${total}`);
-        if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Loading swissBUILDINGS3D ${done}/${total}…`;
+      // (`near`: the tiles around the player the start waits for; the rest of the valley's come in while playing)
+      onProgress: (done, total, near) => {
+        if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${near} (of ${total})`);
+        if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Raising the houses around you ${Math.min(done, near)}/${near}…`;
       }
     });
     swissBuildings = await stream.ready;
@@ -1049,7 +1061,7 @@ async function initApp() {
       savePlayerState();
       const status = document.getElementById('loading-status');
       if (status) status.textContent = 'Moving the town…';
-      document.getElementById('loading-overlay')?.classList.remove('hidden');
+      document.getElementById('loading-overlay')?.classList.remove('hidden', 'is-gone');
       leavePage();
       setTimeout(() => window.location.reload(), 50);
     }
@@ -1312,7 +1324,6 @@ async function initApp() {
           const message = done < jobs.length * 0.75 ? 'Bringing Davos to life…' : 'Your ride is almost ready…';
           if (loadingStatus.textContent !== message) loadingStatus.textContent = message;
         }
-        setLoadingProgress(done / jobs.length);
       }
     };
     await Promise.all(Array.from({ length: COMPILE_POOL }, worker));
@@ -1501,7 +1512,13 @@ async function initApp() {
           shaderModules() { return shaderModuleStats(); },
         };
         initTimings = null;
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (loadingOverlay) {
+          loadingOverlay.classList.add('hidden');
+          // (faded out: its picture is let go of and its animations stop)
+          setTimeout(() => { if (loadingOverlay.classList.contains('hidden')) loadingOverlay.classList.add('is-gone'); }, 900);
+        }
+        // (how long this start took: the next one's bar runs by it)
+        try { localStorage.setItem(LOAD_TIME_KEY, String(Math.round(performance.now() - loadStarted))); } catch { /* (storage off) */ }
         audioSystem.ready = true;
         // From now on, every few seconds: the static scenery's vertex data leaves JavaScript once it is on the GPU
         // (js/gpu-memory.js; what has not been drawn yet keeps its arrays until it is)

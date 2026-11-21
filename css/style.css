@@ -173,13 +173,22 @@ body::after {
 /* ------------------------------------------------------------------------------------------------------------------
    Loading screen
    ------------------------------------------------------------------------------------------------------------------ */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/welcome/fonts/anton-latin.woff2) format('woff2');
+}
+
 #loading-overlay {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
-  place-items: center;
-  background: radial-gradient(120% 90% at 50% 38%, #1b1e24 0%, #0c0d10 55%, #060607 100%);
+  place-items: end center;
+  overflow: hidden;
+  background: #060607;
   transition: opacity 0.6s ease, visibility 0.6s ease;
 }
 
@@ -189,11 +198,42 @@ body::after {
   pointer-events: none;
 }
 
+/* The valley of the welcome page, drifting slowly (on the compositor: the main thread is busy building the town), under
+   a veil that keeps the lower half dark for the text. Gone once the game is on screen (is-gone, js/main.js) */
+.loader-scene {
+  position: absolute;
+  inset: 0;
+  background: center 40% / cover no-repeat;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  animation: loader-drift 36s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+/* (the season is known once js/start.js runs: only that one picture is fetched) */
+#loading-overlay.is-summer .loader-scene { background-image: url(../assets/welcome/hero-summer-poster.jpg); opacity: 1; }
+#loading-overlay.is-winter .loader-scene { background-image: url(../assets/welcome/hero-winter-poster.jpg); opacity: 1; }
+#loading-overlay.is-gone .loader-scene { display: none; }
+#loading-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 6, 7, 0.5) 0%, rgba(6, 6, 7, 0.08) 26%, rgba(6, 6, 7, 0.5) 58%, rgba(6, 6, 7, 0.94) 100%),
+    radial-gradient(120% 90% at 50% 40%, rgba(6, 6, 7, 0) 40%, rgba(6, 6, 7, 0.55) 100%);
+  pointer-events: none;
+}
+
 .loader {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  width: min(560px, calc(100vw - 32px));
+  max-height: 100dvh;
+  overflow-y: auto;
+  padding: 24px 0 max(clamp(28px, 9vh, 96px), env(safe-area-inset-bottom));
   animation: rise-in 0.8s var(--ease-out) both;
 }
 
@@ -211,28 +251,34 @@ body::after {
   object-fit: contain;
 }
 
-.loader-logo {
-  height: 72px;
-  width: auto;
-  max-width: 220px;
-  margin-bottom: 22px;
-  object-fit: contain;
+.loader-kicker {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  text-transform: uppercase;
+  color: var(--taxi);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
 }
 
 .loader-title {
-  font-size: 34px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  margin-top: 6px;
+  font-family: 'Anton', Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif;
+  font-size: clamp(56px, 13vw, 116px);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.98;
+  text-transform: uppercase;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.55);
 }
 
 .loader-track {
   position: relative;
-  width: 240px;
-  height: 3px;
+  width: min(360px, 100%);
+  height: 4px;
   margin: 26px 0 14px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
   overflow: hidden;
 }
 
@@ -290,7 +336,10 @@ dialog.guest-gate::backdrop { background: rgba(6, 7, 9, 0.62); backdrop-filter: 
 .popover .account-email-btn { padding-inline: 0; }
 .popover .account-email-btn.is-quiet { color: var(--text-3); font-size: 12px; }
 
-/* While the city is being built (main thread busy) the bar sweeps on the compositor; it fills once shaders compile */
+/* The bar. Before the build starts it sweeps; then it fills by the clock (is-timed, js/main.js): the town is built on the
+   main thread, which paints nothing meanwhile, so the bar runs as an animation on the compositor over the time the last
+   start took on this device (--load-time), up to 90 % in that time and creeping on after it. A light keeps running over
+   it, so a start that takes longer never looks stuck. The first frame fills it (setLoadingProgress) */
 .loader-track.is-indeterminate .loader-fill {
   width: 35%;
   transform: translateX(-100%);
@@ -298,16 +347,80 @@ dialog.guest-gate::backdrop { background: rgba(6, 7, 9, 0.62); backdrop-filter: 
   animation: loader-sweep 1.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
   will-change: transform;
 }
+.loader-track.is-timed .loader-fill {
+  animation: loader-fill calc(var(--load-time, 45s) * 1.6) linear both !important;
+  animation-iteration-count: 1 !important;
+  will-change: transform;
+}
+.loader-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  transform: translateX(-100%);
+  animation: loader-sweep 1.8s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  will-change: transform;
+}
+.loader-track.is-indeterminate::after { display: none; }
 
 #loading-status {
-  font-size: 12.5px;
-  color: var(--text-3);
+  font-size: 13px;
+  color: rgba(246, 245, 242, 0.72);
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* What the game has, one line after the other (each fades in and out in its quarter of the round, on the compositor) */
+.loader-tips {
+  position: relative;
+  width: 100%;
+  height: 2.9em;
+  margin-top: 22px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--text);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+}
+.loader-tips span {
+  position: absolute;
+  inset: 0 0 auto;
+  opacity: 0;
+  animation: loader-tip 24s linear infinite;
+}
+.loader-tips span:nth-child(2) { animation-delay: 6s; }
+.loader-tips span:nth-child(3) { animation-delay: 12s; }
+.loader-tips span:nth-child(4) { animation-delay: 18s; }
+.loader.is-asking .loader-tips,
+#loading-overlay.has-error .loader-tips,
+#loading-overlay.has-error .loader-track { display: none; }
+@media (max-height: 520px) {
+  .loader-title { font-size: clamp(40px, 16vh, 72px); }
+  .loader-tips { display: none; }
+  .loader-track { margin: 14px 0 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-scene, .loader-track::after { animation: none; }
+  .loader-tips span { animation: none; }
+  .loader-tips span:first-child { opacity: 1; }
 }
 
 @keyframes loader-sweep {
   from { transform: translateX(-100%); }
-  to { transform: translateX(290%); }
+  to { transform: translateX(340%); }
+}
+@keyframes loader-fill {
+  0% { transform: scaleX(0.02); }
+  62.5% { transform: scaleX(0.9); }
+  100% { transform: scaleX(0.985); }
+}
+@keyframes loader-drift {
+  from { transform: scale(1.04) translate3d(-0.6%, 0.4%, 0); }
+  to { transform: scale(1.13) translate3d(0.8%, -0.8%, 0); }
+}
+@keyframes loader-tip {
+  0%, 25%, 100% { opacity: 0; transform: translateY(6px); }
+  3%, 22% { opacity: 1; transform: none; }
 }
 
 @keyframes rise-in {
