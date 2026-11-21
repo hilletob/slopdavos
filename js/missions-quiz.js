@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';
 import { t as tr, getLanguage } from './i18n.js';
+import { QUALITY } from './quality.js';
 import {
   QUIZ, GIGI, QUIZ_BOTS, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, roundPhase, lockGuess, cutWaiting,
   hasGuessed, guessOf, questionResult, tableStandings, gigiLine, parseGuess, formatNumber
@@ -142,6 +143,7 @@ const STYLE = `
 body.gq-seated .gta-prompt,body.gq-seated .touch-use,body.gq-seated .mission-prompt{display:none!important}
 body.gq-seated #touch-controls{display:none!important}
 @media (max-width:820px),(pointer:coarse){.gq{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 58px);max-height:calc(100vh - 66px);padding:10px 12px;gap:8px}.gq-question{font-size:18px}.gq-clock{width:40px;height:40px;font-size:19px}.gq-answer,.gq-drum{font-size:24px}.gq-line{font-size:13px}}
+@media (pointer:coarse){.gq{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,12,20,.93)}}
 @media (max-height:500px){.gq{top:calc(env(safe-area-inset-top,0px) + 4px);max-height:calc(100vh - 8px);z-index:46;gap:6px}.gq-gigi{display:none}.gq-question{font-size:15px}.gq-input{font-size:18px;padding:7px 10px}}
 `;
 
@@ -254,8 +256,10 @@ function buildBar(run) {
   const mesh = new THREE.Mesh(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))), mat);
   mesh.castShadow = true; mesh.receiveShadow = false;
   group.add(mesh);
-  // what shines by itself: the bulbs, the fire (it flickers: js after())
-  const lit = new THREE.MeshBasicNodeMaterial({ vertexColors: true });
+  // what shines by itself: the bulbs, the fire (it flickers: js after()). A phone is at the edge of its memory and every
+  // material is a pipeline more (~1.7 MB in Safari's GPU process): there the bulbs and the fire are drawn with the bar's
+  // own material, and the sign is left out
+  const lit = QUALITY.mobile ? mat : new THREE.MeshBasicNodeMaterial({ vertexColors: true });
   group.add(new THREE.Mesh(mergeGeometries(glow), lit));
   const flames = [];
   for (let i = 0; i < 3; i++) { const g = new THREE.ConeGeometry(0.2 - i * 0.045, 0.6 - i * 0.1, 7); g.translate(0, 0.3 - i * 0.05, 0); flames.push(paint(g, [0xff6a1a, 0xff9d2e, 0xffd76a][i])); }
@@ -264,7 +268,7 @@ function buildBar(run) {
   group.add(flame);
   group.userData.flame = flame;
   // the sign over the hut's roof
-  try {
+  if (!QUALITY.mobile) try {
     const canvas = document.createElement('canvas');
     canvas.width = 768; canvas.height = 160;
     const c = canvas.getContext('2d');
