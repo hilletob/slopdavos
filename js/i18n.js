@@ -201,6 +201,7 @@ const pairs = [
   ['Turn', 'Drehen'], ['Orbit', 'Umschauen'],
   ['Steer', 'Lenken'], ['Boost', 'Beschleunigen'],
   ['Horn', 'Hupe'], ['Indicators', 'Blinker'], ['High beam', 'Fernlicht'],
+  ['Radio off', 'Radio aus'],
   ['Pedal', 'Treten'], ['Lean', 'Neigen'],
   ['Throttle', 'Gas geben'], ['Brake', 'Bremsen'], ['Pitch', 'Nicken'], ['Yaw', 'Gieren'],
   ['Ascend', 'Steigen'], ['Searchlight', 'Suchscheinwerfer'],

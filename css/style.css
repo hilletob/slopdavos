@@ -1016,6 +1016,66 @@ body[data-mode='helicopter'] .gauge-alt {
   color: var(--text-3);
 }
 
+/* The radio's station at the right of the speed (js/main.js renderRadio): its logo, or its name as a badge; a button
+   that goes on to the next station, and a struck-out radio when it is off */
+.gauge-radio {
+  align-self: center;
+  margin: -4px 0 -4px auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 40px;
+  min-width: 40px;
+  max-width: 128px;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.3s ease, transform 0.15s var(--ease-out);
+}
+.gauge-radio[hidden] { display: none; }
+.gauge-radio:hover { transform: scale(1.06); }
+.gauge-radio:active { transform: scale(0.96); }
+.gauge-radio img {
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.gauge-radio-name {
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.gauge-radio-off { display: none; width: 26px; height: 26px; }
+.gauge-radio.is-off { opacity: 0.45; position: relative; }
+.gauge-radio.is-off .gauge-radio-off { display: block; }
+.gauge-radio.is-off::after { /* (struck out) */
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 30px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: rotate(-38deg);
+}
+.gauge-radio.is-off:hover { opacity: 0.8; }
+.gauge-radio.is-tuning { animation: radio-tuning 0.9s ease-in-out infinite alternate; }
+.gauge-radio.is-lost { opacity: 0.35; }
+@keyframes radio-tuning { from { opacity: 0.3; } to { opacity: 0.9; } }
+
 .gauge-meter {
   position: relative;
   height: 4px;
@@ -1533,6 +1593,10 @@ body[data-mode='helicopter'] .gauge-alt {
 .touch-action.is-extra .touch-face { font-size: 17px; }
 .touch-action.is-extra .touch-face .icon { width: 20px; height: 20px; }
 .touch-action.is-extra .touch-label { font-size: 8px; letter-spacing: -0.1px; max-width: 48px; }
+/* A picture as the face (the radio's station logo): it takes the button, the label is left out */
+.touch-action.has-image .touch-label { display: none; }
+.touch-image { display: block; width: 46px; height: 34px; object-fit: contain; border-radius: 3px; pointer-events: none; }
+.touch-action.is-extra .touch-image { width: 36px; height: 26px; }
 .touch-action[data-on="true"] { color: var(--taxi); border-color: var(--taxi); box-shadow: var(--shadow), inset 0 0 0 1.5px var(--taxi); }
 .touch-action.is-pressed { color: var(--taxi-ink); background: var(--taxi); border-color: var(--taxi); }
 

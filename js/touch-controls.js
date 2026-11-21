@@ -186,6 +186,23 @@ class TouchControls {
         b.setAttribute('aria-label', label);
         entry.text.textContent = label;
       }
+      if (a.image !== undefined) {
+        // (a picture for the face while there is one: the radio's station logo; the icon again without)
+        const image = (typeof a.image === 'function' ? a.image() : a.image) || '';
+        if ((entry.image || '') !== image) {
+          entry.image = image;
+          b.classList.toggle('has-image', !!image);
+          if (image) {
+            const img = document.createElement('img');
+            img.className = 'touch-image';
+            img.alt = '';
+            img.draggable = false;
+            img.src = image;
+            entry.face.replaceChildren(img);
+          } else if (a.icon) entry.face.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${a.icon}"/></svg>`;
+          else entry.face.textContent = a.glyph ?? '•';
+        }
+      }
       const glyph = entry.glyph ?? a.glyph;
       if (!a.icon && glyph != null && entry.face.textContent !== glyph) entry.face.textContent = glyph;
       if (a.primary) (a.order < 0 ? order.primary.before : order.primary.after).push(b); else order.extra.push(b);

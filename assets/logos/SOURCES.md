@@ -55,3 +55,15 @@ Davos Klosters; sie stehen hier nur, um das reale Gebäude darzustellen.
 |---|---|---|---|---|
 | Davoser Craft Beer | `davoser-craft-beer.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2022/12/kleineslogo-4b42d710.svg (offizielle Website, Kopfzeile; auf 512 px gerastert) | Marke der Davoser Craft Beer GmbH, Bolgenstrasse 1, 7270 Davos. Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
 | Davoser Craft Beer (Emblem) | `davoser-craft-beer-emblem.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2023/01/cropped-Davoser_Logo_Gelb_quadrat-270x270.png (offizielle Website, Site-Icon; auf 128 px verkleinert) | wie oben, Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
+
+## Radio stations (assets/logos/radio/)
+
+The stations of the radio (js/car-radio.js), shown small in the speed cluster while the station plays. Trademarks of
+their owners. Retrieved 2026-11-21.
+
+| station | file | source | licence / notes |
+|---|---|---|---|
+| Radio SRF 3 | radio/srf3.svg | https://commons.wikimedia.org/wiki/File:Radio_SRF_3_Logo_2020.svg | Public domain, trademarked |
+| Radio SRF Virus | radio/virus.svg | https://commons.wikimedia.org/wiki/File:Radio_SRF_Virus_Logo_2022.svg | Public domain, trademarked |
+| Radio Swiss Pop | radio/swiss-pop.svg | https://commons.wikimedia.org/wiki/File:Radio_Swiss_Pop_Logo_2018.svg | Public domain, trademarked |
+| Radio Grischa | radio/grischa.svg | https://www.radiogrischa.ch/themes/custom/grischa/images/RadioGrischa.svg (the station's website) | Trademark of Somedia; no licence stated |

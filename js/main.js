@@ -54,6 +54,7 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { CarRadio } from './car-radio.js';
 import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './frame-guard.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
@@ -688,6 +689,39 @@ async function initApp() {
   ]);
   const car = () => controllerManager.entities.car;
   const cat = () => controllerManager.entities.snowcat;
+  // The radio (js/car-radio.js): on from the start in the car, the groomer, the Rega helicopter, on the bike and under
+  // the free paraglider (no mode of its own). No keys: the station shows in the speed cluster, as its logo
+  // (assets/logos/radio/) or, until that has loaded, as its name; a click on it goes on to the next station and after
+  // the last one to off (a struck-out radio then, which switches it on again). It pulses while it tunes in and is
+  // dimmed without a signal
+  let glidingNow = () => false; // (the free flight is built further down)
+  const elRadio = document.getElementById('hud-radio');
+  const elRadioLogo = elRadio?.querySelector('img'), elRadioName = elRadio?.querySelector('.gauge-radio-name');
+  let radioShown;
+  const radio = new CarRadio({ audio: audioSystem, mode: modeNow, also: () => glidingNow(), onChange: () => actions.notify() }); // (→ renderRadio below, and the touch button)
+  const radioLogo = (station) => (station?.logo ? new URL(`../assets/logos/radio/${station.logo}`, import.meta.url).href : null);
+  elRadioLogo?.addEventListener('load', () => { if (radioShown) { elRadioLogo.hidden = false; elRadioName.hidden = true; } });
+  elRadioLogo?.addEventListener('error', () => { elRadioLogo.hidden = true; elRadioName.hidden = !radioShown; });
+  elRadio?.addEventListener('click', () => { radio.cycle(); elRadio.blur(); }); // (Space is the jump, not this button)
+  function renderRadio() {
+    if (!elRadio) return;
+    elRadio.hidden = !radio.available();
+    if (elRadio.hidden) return;
+    const station = radio.station;
+    elRadio.classList.toggle('is-off', !station);
+    elRadio.classList.toggle('is-tuning', !!station && radio.status === 'tuning');
+    elRadio.classList.toggle('is-lost', !!station && radio.status === 'error');
+    if (station === radioShown) return;
+    radioShown = station;
+    elRadio.title = station ? station.name : 'Radio off';
+    elRadio.setAttribute('aria-label', elRadio.title);
+    elRadioName.textContent = station ? station.short : '';
+    elRadioName.hidden = !station;
+    elRadioLogo.hidden = true;
+    if (station?.logo) elRadioLogo.src = radioLogo(station);
+    else elRadioLogo.removeAttribute('src');
+  }
+  actions.subscribe(renderRadio); // (the mode changed, the wing came out)
   actions.layer('vehicle', [
     { id: 'horn', label: 'Horn', keys: ['KeyB'], icon: 'i-horn', pad: 'l3', when: is('car', 'snowcat', 'rhb'), run: () => { if (mapSystem.isFullMapOpen) return false; audioSystem.honk(controllerManager.getActiveEntity()); } },
     { id: 'indicatorLeft', kind: 'toggle', label: 'Left', keys: ['KeyQ'], icon: 'i-ind-left', hint: false, when: is('car'), state: () => car()?.indicator === 'left', run: () => controllerManager.toggleIndicator('left') },
@@ -695,6 +729,9 @@ async function initApp() {
     hint(['Q', 'E'], 'Indicators', is('car')),
     { id: 'hazard', kind: 'toggle', label: 'Hazard lights', touchLabel: 'Hazard', keys: ['KeyX'], icon: 'i-hazard', when: is('car'), state: () => car()?.indicator === 'hazard', run: () => controllerManager.toggleIndicator('hazard') },
     { id: 'highBeam', kind: 'toggle', label: () => (modeNow() === 'helicopter' ? 'Searchlight' : 'High beam'), touchLabel: () => (modeNow() === 'helicopter' ? 'Spotlight' : 'High beam'), keys: ['KeyL'], icon: 'i-beam', pad: 'b', when: is('car', 'snowcat', 'helicopter'), state: () => !!controllerManager.highBeam, run: () => controllerManager.toggleHighBeam() },
+    // (a touch screen has no speed cluster: the radio's button there, with the station's logo as its face and the
+    // same click as the logo's in the cluster; no key)
+    { id: 'radio', kind: 'toggle', label: () => radio.station?.short || 'Radio off', icon: 'i-car-radio', image: () => radioLogo(radio.station), hint: false, when: () => radio.available(), state: () => radio.on, run: () => radio.cycle() },
     { id: 'beacon', kind: 'toggle', label: 'Beacon', keys: ['KeyK'], icon: 'i-beacon', when: is('snowcat'), state: () => !!cat()?.beaconOn, run: () => controllerManager.toggleBeacon() },
     { id: 'tiller', kind: 'toggle', label: 'Tiller', keys: ['KeyF'], icon: 'i-tiller', pad: 'right', when: is('snowcat'), state: () => !!cat() && !cat().tillerRaised, run: () => controllerManager.toggleTiller() }
   ]);
@@ -1137,6 +1174,7 @@ async function initApp() {
   gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
   const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
+  glidingNow = () => freeFlight.gliding; // (only now: building it lists the actions, and they ask)
   actions.layer('look', [hint(['Drag'], 'Orbit', () => modeNow() !== 'helicopter')]);
   // The register's keyboard: after the missions' own capture listeners; nothing while the map, the missions' list or
   // a mission's intro is open
@@ -1378,6 +1416,7 @@ async function initApp() {
     mapSystem.update();
     summitLabels?.update(cameraSystem.camera, dt, !mapSystem.isFullMapOpen);
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
+    radio.sync();
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     swissStream?.updateRoofDetail(cameraSystem.camera.position); // sharp roof crops near the camera
     parking.update(cameraSystem.camera.position); // parked cars: full near the camera, proxies farther
@@ -1443,7 +1482,7 @@ async function initApp() {
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd, levelCrossings, trafficSigns, mapSystem,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, swissBuildings: swissStream, trams, rhb, vbd, levelCrossings, trafficSigns, mapSystem, radio,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },
