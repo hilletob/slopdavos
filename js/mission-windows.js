@@ -125,3 +125,32 @@ export function yearShare(def) {
   }
   return { game: game / year, real: real / (YEAR_DAYS * 1440) };
 }
+
+/**
+ * The list's order (js/missions.js): what is still to do and open now first, then what is still to do but needs the clock
+ * moved (the soonest first), last what is done (what is open now before the rest). `isDone(def)`: the mission is
+ * completed; `distance(def)` (m, optional): within a group, and among those that open at the same time, the nearest
+ * first — without it the missions keep their order
+ */
+export function listGroups(missions, total, isDone, distance = null) {
+  const now = [], later = [], done = [];
+  for (const def of missions) {
+    const open = missionOpen(def, total);
+    const row = { def, open, opens: open ? total : nextOpening(def, total), distance: distance ? distance(def) : 0 };
+    (isDone(def) ? done : open ? now : later).push(row);
+  }
+  const near = (a, b) => a.distance - b.distance;
+  now.sort(near);
+  later.sort((a, b) => a.opens - b.opens || near(a, b));
+  done.sort((a, b) => (b.open ? 1 : 0) - (a.open ? 1 : 0) || near(a, b));
+  return { now, later, done };
+}
+
+const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+/** The search of the list: every word of `query` is in one of `texts` (case and accents don't count: "flamm" finds Flämmli) */
+export function searchMatches(query, texts) {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = texts.map(fold).join(' \n ');
+  return words.every((w) => hay.includes(w));
+}

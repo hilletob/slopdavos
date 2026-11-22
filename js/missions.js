@@ -9,10 +9,10 @@ import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter, QUALITY } from './quality.js';
 import { releaseRenderState } from './gpu-memory.js';
 import { MissionManager, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from './missions-manager.js';
-import { createProgressStore, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
-import { buildMissionWorld } from './missions-world.js';
+import { createProgressStore, missionPin, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
+import { buildMissionWorld, drawMissionIcon } from './missions-world.js';
 import { gameClock, formatClock } from './game-clock.js';
-import { missionOpen, closedText, nextOpening } from './mission-windows.js';
+import { missionOpen, closedText, nextOpening, listGroups, searchMatches } from './mission-windows.js';
 import { t as translateUI, setLocalizedText } from './i18n.js';
 import { SNOW_FEATURES } from './missions-snow.js';
 import { ICE_FEATURES } from './missions-ice.js';
@@ -108,7 +108,7 @@ export function buildMissions(scene, hooks) {
       globalThis.__slopdavosMission = run; // (test hooks: tools/probe scripts drive the mission through it)
       return run;
     },
-    showList: (note, opts) => { listOverlay = showList(manager, progress, note, hooks.fastForward, opts); },
+    showList: (note, opts) => { listOverlay = showList(manager, progress, note, hooks.fastForward, opts, { mapSystem: hooks.mapSystem, controllerManager: hooks.controllerManager }); },
     hideList: () => { listOverlay?.remove(); listOverlay = null; },
     setSearch: (search) => {
       // (the URL's other switches stay: a reload keeps ?quality=, ?memhud=, ...)
@@ -154,7 +154,7 @@ export function buildMissions(scene, hooks) {
 /** ?mission=list: the missions to click on (the links keep their URLs: a new tab, a copied link work as ever), and in a
  *  second tab all the leaderboards (js/leaderboard-overview.js). `opts.tab`: 'boards' opens that tab, `opts.board` the
  *  list to show there. The ×, Esc and a click beside the dialog go back to the game */
-function showList(manager, progress, note = null, fastForward = null, { tab = 'missions', board = null } = {}) {
+function showList(manager, progress, note = null, fastForward = null, { tab = 'missions', board = null } = {}, nav = null) {
   const overlay = el('div', 'mission-overlay');
   overlay.id = 'mission-overlay'; overlay.dataset.list = '1';
   const go = (a, id, night) => a.addEventListener('click', (e) => {
@@ -168,7 +168,11 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
   panel.append(dialogHead('Missions', 'Choose a mission', () => manager.stop()));
   const onKey = (e) => {
     if (!overlay.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
-    if (e.key === 'Escape') { e.stopPropagation(); manager.stop(); }
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    // (in the search with a text in it Esc empties the search first)
+    if (e.target?.classList?.contains('mission-search') && e.target.value) { e.target.value = ''; e.target.dispatchEvent(new Event('input')); return; }
+    manager.stop();
   };
   document.addEventListener('keydown', onKey, true);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) manager.stop(); });
@@ -188,7 +192,11 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
     }
     if (which === 'boards' && !boardsShown) {
       boardsShown = import('./leaderboard-overview.js')
-        .then((o) => o.renderLeaderboards(boardsPane, { signedIn: signedIn(), start: board }))
+        .then((o) => o.renderLeaderboards(boardsPane, {
+          signedIn: signedIn(), start: board, translate: translateUI,
+          icon: (def) => missionIcon(def, progress.medal(def.id), !!progress.entry(def.id)),
+          onStart: (def) => manager.start(def.id, { night: false })
+        }))
         .catch(() => boardsPane.replaceChildren(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.')));
     }
   };
@@ -211,51 +219,115 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
   const now = gameClock.total;
   missionsPane.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
   const waitFor = (m) => {
-    const scroll = panel.scrollTop;
+    const query = missionsPane.querySelector('.mission-search')?.value || '';
     const reopened = fastForward?.go(nextOpening(m, gameClock.total), () => {
+      carriedQuery = query; // (the list comes back in a new order: the search stays, the mission is brought into view)
       manager.showList(note);
       const fresh = document.querySelector(`#mission-overlay .mission-list li[data-mission="${m.id}"]`);
       fresh?.classList.add('is-just-opened');
-      const dialog = document.querySelector('#mission-overlay .mission-dialog');
-      if (dialog) dialog.scrollTop = scroll;
+      fresh?.scrollIntoView({ block: 'center' });
     });
     return reopened;
   };
   if (note) missionsPane.append(el('p', 'mission-dialog-note', note));
+  // The search: over the titles (in both languages), the ids and the vehicles; Enter starts the first hit, Esc empties it (onKey above)
+  const search = el('input', 'mission-search');
+  search.type = 'search'; search.placeholder = 'Search missions'; search.setAttribute('aria-label', 'Search missions');
+  search.autocomplete = 'off'; search.spellcheck = false; search.enterKeyHint = 'search';
+  search.value = carriedQuery; carriedQuery = '';
+  missionsPane.append(search);
   const list = el('ul', 'mission-list');
   const best = readBestTimes(globalThis.localStorage);
-  for (const m of MISSIONS) {
-    const li = el('li');
+  // The order (js/mission-windows.js listGroups): to do and open now, to do after a jump of the clock, done; the nearest
+  // first. Without the fast-forward nothing is closed: one group of what is to do
+  let here = null;
+  try { here = nav?.controllerManager?.getActiveEntity?.()?.position || null; } catch { here = null; }
+  const distanceTo = (m) => { if (!here) return null; const pin = missionPin(m, TELEPORT_LOCATIONS); return Math.hypot(pin.x - here.x, pin.z - here.z); };
+  const groups = listGroups(MISSIONS, now, (m) => !!progress.entry(m.id), here ? distanceTo : null);
+  if (!fastForward) { groups.now = [...groups.now, ...groups.later].sort((x, y) => (x.distance ?? 0) - (y.distance ?? 0)); groups.later = []; }
+  const sections = [];
+  const row = (m) => {
+    const li = el('li', 'mission-row');
     li.dataset.mission = m.id;
     const a = el('a', 'mission-link', m.title);
     a.href = `?mission=${m.id}`;
     const closed = !missionOpen(m, now) && !!fastForward;
-    if (closed) {
-      li.classList.add('is-closed');
-      a.addEventListener('click', (e) => {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        waitFor(m);
-      });
-    } else go(a, m.id, false);
+    const onPlain = (node, fn) => node.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // (a new tab: the browser's)
+      e.preventDefault();
+      fn();
+    });
+    if (closed) { li.classList.add('is-closed'); onPlain(a, () => waitFor(m)); } else go(a, m.id, false);
     const entry = progress.entry(m.id);
-    li.append(medalBadge(entry?.medal, !!entry), a);
-    if (m.licence && progress.hasLicence(m.licence.id)) { const tag = el('span', 'mission-list-licence', m.licence.badge || m.licence.name); tag.title = m.licence.held; li.append(tag); } // (its exam passed)
+    // The line under the title: how far it is, the medal and the points, the best, the licence
+    const meta = el('div', 'mission-row-meta');
+    const d = distanceTo(m);
+    if (d !== null) meta.append(el('span', 'mission-row-distance', formatDistance(d)));
+    if (entry) meta.append(el('span', null, entry.medal ? MEDAL_LABELS[entry.medal] : 'Completed, no medal'));
+    const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`);
+    meta.append(score);
     const b = best[bestTimeKey(m.id)];
-    const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `– / ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold}`);
-    if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) score.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
-    else if (Number.isFinite(b)) score.append(el('span', 'mission-list-best', formatTime(b)));
-    li.append(score);
-    if (closed) {
-      const wait = el('button', 'mission-wait');
-      wait.type = 'button';
-      wait.append(el('span', 'mission-wait-when', closedText(m, now)), el('span', 'mission-wait-go', 'Wait until then'));
-      wait.addEventListener('click', () => waitFor(m));
-      li.append(wait);
+    if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) meta.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
+    else if (Number.isFinite(b)) meta.append(el('span', 'mission-list-best', formatTime(b)));
+    if (m.licence && progress.hasLicence(m.licence.id)) { const tag = el('span', 'mission-list-licence', m.licence.badge || m.licence.name); tag.title = m.licence.held; meta.append(tag); } // (its exam passed)
+    if (closed) meta.append(el('span', 'mission-row-when', closedText(m, now)));
+    const body = el('div', 'mission-row-body');
+    body.append(a, meta);
+    // What to do with it: go there by the waypoint's arrow, or be set down at its start (closed: wait for it first)
+    const actions = el('div', 'mission-row-actions');
+    if (nav?.mapSystem) {
+      const route = el('button', 'mission-row-btn', 'Start navigation');
+      route.type = 'button';
+      route.addEventListener('click', () => {
+        const pin = missionPin(m, TELEPORT_LOCATIONS);
+        nav.mapSystem.waypoint = { x: pin.x, z: pin.z, name: m.title, mission: m.id };
+        manager.stop();
+      });
+      actions.append(route);
     }
-    if (m.nightTime) { const n = el('a', 'mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); li.append(n); }
-    list.append(li);
+    if (m.nightTime && !closed) { const n = el('a', 'mission-row-btn mission-link-night', 'Night'); n.href = `?mission=${m.id}&night=1`; go(n, m.id, true); actions.append(n); }
+    if (closed) {
+      const wait = el('button', 'mission-row-btn mission-wait', 'Wait until then');
+      wait.type = 'button';
+      wait.addEventListener('click', () => waitFor(m));
+      actions.append(wait);
+    } else {
+      const tp = el('a', 'mission-row-btn mission-row-go', 'Teleport');
+      tp.href = a.href;
+      go(tp, m.id, false);
+      actions.append(tp);
+    }
+    li.append(missionIcon(m, entry?.medal, !!entry), body, actions);
+    return { li, def: m, texts: [m.title, translateUI(m.title), m.id, m.vehicle || m.mode] };
+  };
+  for (const [key, label] of [['now', 'Open now'], ['later', 'After a time jump'], ['done', 'Completed']]) {
+    if (!groups[key].length) continue;
+    const head = el('li', `mission-list-head mission-list-head-${key}`);
+    const count = el('span', 'mission-list-count');
+    head.append(el('span', null, label), count);
+    list.append(head);
+    const rows = groups[key].map((r) => row(r.def));
+    for (const r of rows) list.append(r.li);
+    sections.push({ head, count, rows });
   }
+  const none = el('p', 'mission-dialog-note', 'No mission found');
+  const filter = () => {
+    let shown = 0;
+    for (const s of sections) {
+      let n = 0;
+      for (const r of s.rows) { const hit = searchMatches(search.value, r.texts); r.li.hidden = !hit; if (hit) n++; }
+      s.head.hidden = !n;
+      s.count.textContent = String(n);
+      shown += n;
+    }
+    none.hidden = shown > 0;
+  };
+  search.addEventListener('input', filter);
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); list.querySelector('li[data-mission]:not([hidden]) .mission-link')?.click(); }
+  });
+  filter();
+  missionsPane.append(none);
   missionsPane.append(list);
   const back = el('a', 'mission-btn mission-btn-secondary', 'Back to the game');
   back.href = location.pathname;
@@ -264,7 +336,23 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
   select(tab === 'boards' ? 'boards' : 'missions');
   overlay.append(panel);
   document.body.append(overlay);
+  // (a keyboard at hand: type straight away; on a touch screen the field would only raise the keyboard over the list)
+  if (tab !== 'boards' && globalThis.matchMedia?.('(hover: hover) and (pointer: fine)').matches) missionsPane.querySelector('.mission-search')?.focus({ preventScroll: true });
   return overlay;
+}
+
+let carriedQuery = ''; // the search's text over a "Wait until then" (the list is built anew)
+
+/** A mission's icon for the list: its pin's (js/missions-world.js: the glyph on the mission's colour, the medal's ring) */
+function missionIcon(def, medal, completed) {
+  const SIZE = 40, dpr = Math.min(3, globalThis.devicePixelRatio || 1);
+  const c = el('canvas', `mission-list-icon${completed ? '' : ' is-open'}`);
+  c.width = c.height = Math.round(SIZE * dpr);
+  c.title = medal ? `${MEDAL_LABELS[medal]} medal` : completed ? 'Completed, no medal' : 'Not completed yet';
+  c.setAttribute('role', 'img');
+  const g = c.getContext('2d');
+  if (g) { g.scale(dpr, dpr); drawMissionIcon(g, def, medal, SIZE / 2, SIZE / 2, SIZE / 2 - 1); }
+  return c;
 }
 
 /** A medal as a small round badge (grey: none yet; dashed: not completed) */

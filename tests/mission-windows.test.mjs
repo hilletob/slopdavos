@@ -165,3 +165,38 @@ test('the fast-forward\'s targets go by the sun of their day', () => {
   assert.equal(winterBlendAt(fastForwardTarget('season', at(1, 9))), 1);
   assert.equal(winterBlendAt(fastForwardTarget('season', at(5, 9))), 0);
 });
+
+test('the list: to do and open now, then to do after a jump of the clock (the soonest first), then what is done', async () => {
+  const { listGroups, searchMatches } = await import('../js/mission-windows.js');
+  const total = at(1, 13); // a summer's early afternoon
+  const done = new Set(['c', 'e']);
+  const defs = [
+    mission({ id: 'a', time: 'midnight' }), // closed until the night
+    mission({ id: 'b', time: 'midday' }), // open
+    mission({ id: 'c', time: 'midday' }), // open, done
+    mission({ id: 'd', time: 'midday', season: 'winter' }), // closed until the winter
+    mission({ id: 'e', time: 'midnight' }), // closed, done
+    mission({ id: 'f', time: 'midday' }) // open
+  ];
+  const g = listGroups(defs, total, (def) => done.has(def.id));
+  assert.deepEqual(g.now.map((r) => r.def.id), ['b', 'f']);
+  assert.deepEqual(g.later.map((r) => r.def.id), ['a', 'd']);
+  assert.deepEqual(g.done.map((r) => r.def.id), ['c', 'e']);
+  assert.ok(g.later[0].opens > total && g.later[0].opens < g.later[1].opens);
+  // with a distance: the nearest first within a group
+  const far = { b: 900, f: 100, a: 5, d: 1, c: 3, e: 2 };
+  const n = listGroups(defs, total, (def) => done.has(def.id), (def) => far[def.id]);
+  assert.deepEqual(n.now.map((r) => r.def.id), ['f', 'b']);
+  assert.deepEqual(n.later.map((r) => r.def.id), ['a', 'd']); // (the sooner one first, however far)
+  assert.deepEqual(n.done.map((r) => r.def.id), ['c', 'e']); // (the open one first)
+  // every mission is in exactly one group
+  const all = listGroups(MISSIONS, total, () => false);
+  assert.equal(all.now.length + all.later.length, MISSIONS.length);
+  assert.equal(all.done.length, 0);
+
+  assert.equal(searchMatches('', ['x']), true);
+  assert.equal(searchMatches('flamm rot', ['Flämmli in the Rot Liechtli']), true);
+  assert.equal(searchMatches('FLÄMMLI', ['Flämmli in the Rot Liechtli']), true);
+  assert.equal(searchMatches('heli', ['Avalanche blasting', 'Lawinen sprengen', 'helicopter']), true);
+  assert.equal(searchMatches('rot pizza', ['Flämmli in the Rot Liechtli']), false);
+});

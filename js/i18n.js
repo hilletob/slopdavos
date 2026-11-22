@@ -254,6 +254,7 @@ const pairs = [
   ['hold: grab · grind: drop in', 'halten: Grab · Grind: einfahren'],
   ['Missions', 'Missionen'], ['All missions', 'Alle Missionen'], ['Choose a mission', 'Mission auswählen'],
   ['Back to the game', 'Zurück zum Spiel'], ['Day', 'Tag'], ['Fire', 'Abfeuern'],
+  ['Search missions', 'Missionen suchen'], ['Open now', 'Jetzt offen'], ['After a time jump', 'Mit Zeitsprung'], ['No mission found', 'Keine Mission gefunden'], ['All leaderboards', 'Alle Bestenlisten'], ['Search leaderboards', 'Bestenlisten suchen'], ['No leaderboard found', 'Keine Bestenliste gefunden'], ['Start navigation', 'Navigation starten'], ['Completed', 'Erledigt'],
   ['No best score yet', 'Noch kein Bestwert'], ['No best time yet', 'Noch keine Bestzeit'],
   ['No medal this time', 'Diesmal keine Medaille'],
   ['Completed, no medal', 'Abgeschlossen, keine Medaille'], ['Not completed yet', 'Noch nicht abgeschlossen'],

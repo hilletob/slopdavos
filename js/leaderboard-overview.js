@@ -6,7 +6,7 @@ import { el, boardList, compareText, listKind, pointsGap } from './leaderboard-u
 // js/leaderboard-overview.js
 // All the leaderboards, the second tab of the missions' dialog (js/missions.js): the overall list of the missions' points
 // (from the cloud saves) and every mission's list (times, or scores for a mission judged by points), each with the top
-// and the lines around the player. A select picks the list: there is one for every mission.
+// and the lines around the player. One list at a time; "All leaderboards" leads to the lists to choose from, with a search.
 
 const LAST_KEY = 'slopdavos-leaderboard-last'; // (the list picked last time, a convenience only)
 
@@ -52,42 +52,91 @@ const FREE_FLIGHT = {
 const remembered = () => { try { return localStorage.getItem(LAST_KEY); } catch { return null; } };
 const remember = (id) => { try { localStorage.setItem(LAST_KEY, id); } catch { /* */ } };
 
-/** Renders the lists into `container` (the leaderboards tab of the missions' dialog, js/missions.js). `signedIn`: whether
- *  there is a player to place, `start`: the list to show first (else the one picked last time) */
-export function renderLeaderboards(container, { signedIn = false, start = null } = {}) {
+const fold = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Renders the lists into `container` (the leaderboards tab of the missions' dialog, js/missions.js): one list at a time,
+ *  with "All leaderboards" back to the lists to choose from (a search over them, a row a list with the mission's icon).
+ *  `signedIn`: whether there is a player to place, `start`: the list to show first (else the one picked last time, else
+ *  the missions' points), `icon(def)`: a mission's icon as a node, `onStart(def)`: starts the mission of a list,
+ *  `translate`: a title in the page's language (for the search) */
+export function renderLeaderboards(container, { signedIn = false, start = null, icon = null, onStart = null, translate = (v) => v } = {}) {
   const tabs = overviewTabs();
-
-  const picker = el('label', 'leaderboard-pick');
-  const select = el('select', 'leaderboard-select');
-  const groups = new Map();
-  for (const tab of tabs) {
-    if (!groups.has(tab.group)) {
-      const g = el('optgroup');
-      g.label = tab.group;
-      import('./i18n.js').then(({ t }) => { g.label = t(tab.group); }).catch(() => {}); // (an attribute the page's observer leaves alone)
-      groups.set(tab.group, g);
-      select.append(g);
-    }
-    const o = el('option', null, tab.label);
-    o.value = tab.id;
-    groups.get(tab.group).append(o);
-  }
-  picker.append(el('span', null, 'List'), select);
-
-  const body = el('div', 'mission-board leaderboard-body');
-  body.setAttribute('aria-live', 'polite');
   let shown = 0;
+  const glyph = (tab) => {
+    if (tab.def && icon) return icon(tab.def);
+    return el('span', 'leaderboard-glyph', tab.free ? '➶' : '★');
+  };
 
+  // --- The lists to choose from ---------------------------------------------------------------------------------------
+  const chooser = () => {
+    shown++;
+    const search = el('input', 'mission-search');
+    search.type = 'search'; search.placeholder = 'Search leaderboards'; search.setAttribute('aria-label', 'Search leaderboards');
+    search.autocomplete = 'off'; search.spellcheck = false;
+    const list = el('ul', 'mission-list leaderboard-lists');
+    const none = el('p', 'mission-dialog-note', 'No leaderboard found');
+    const sections = [];
+    for (const group of [...new Set(tabs.map((t) => t.group))]) {
+      const head = el('li', 'mission-list-head', group);
+      list.append(head);
+      const rows = tabs.filter((t) => t.group === group).map((tab) => {
+        const li = el('li');
+        const b = el('button', 'mission-row leaderboard-row');
+        b.type = 'button';
+        const body = el('span', 'mission-row-body');
+        body.append(el('span', 'mission-link', tab.title));
+        b.append(glyph(tab), body, el('span', 'leaderboard-row-go', '›'));
+        b.addEventListener('click', () => show(tab));
+        li.append(b);
+        list.append(li);
+        return { li, text: fold(`${tab.title} ${translate(tab.title)} ${tab.id}`) };
+      });
+      sections.push({ head, rows });
+    }
+    const filter = () => {
+      const words = fold(search.value).split(/\s+/).filter(Boolean);
+      let any = 0;
+      for (const s of sections) {
+        let n = 0;
+        for (const r of s.rows) { const hit = words.every((w) => r.text.includes(w)); r.li.hidden = !hit; if (hit) n++; }
+        s.head.hidden = !n;
+        any += n;
+      }
+      none.hidden = any > 0;
+    };
+    search.addEventListener('input', filter);
+    search.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); list.querySelector('li:not([hidden]) .leaderboard-row')?.click(); } });
+    filter();
+    container.replaceChildren(search, list, none);
+    if (globalThis.matchMedia?.('(hover: hover) and (pointer: fine)').matches) search.focus({ preventScroll: true });
+  };
+
+  // --- One list -------------------------------------------------------------------------------------------------------
   const show = async (tab) => {
     const ticket = ++shown;
-    select.value = tab.id;
     remember(tab.id);
     const kind = tab.free ? FREE_FLIGHT : tab.def ? listOf(tab.def) : POINTS;
-    body.replaceChildren(el('h3', 'mission-board-title', tab.title), el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
+    const back = el('button', 'leaderboard-back', 'All leaderboards');
+    back.type = 'button';
+    back.addEventListener('click', chooser);
+    const head = el('div', 'leaderboard-head');
+    const titles = el('div', 'mission-row-body');
+    titles.append(el('h3', 'mission-board-title', tab.title), el('p', 'mission-board-note', kind.hint));
+    head.append(glyph(tab), titles);
+    if (tab.def && onStart) {
+      const go = el('button', 'mission-row-btn mission-row-go', 'Teleport');
+      go.type = 'button';
+      go.addEventListener('click', () => onStart(tab.def));
+      head.append(go);
+    }
+    const body = el('div', 'mission-board leaderboard-body');
+    body.setAttribute('aria-live', 'polite');
+    body.append(el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
+    container.replaceChildren(back, head, body);
     let rows;
     try { rows = await kind.load(); } catch { rows = null; }
     if (ticket !== shown || !body.isConnected) return; // (another list was picked meanwhile, or the dialog is gone)
-    const parts = [el('h3', 'mission-board-title', tab.title), el('p', 'mission-board-note', kind.hint)];
+    const parts = [];
     if (!rows) parts.push(el('p', 'mission-dialog-note', 'The leaderboard is not reachable right now.'));
     else {
       const compare = compareText(rows, kind);
@@ -97,9 +146,7 @@ export function renderLeaderboards(container, { signedIn = false, start = null }
     }
     body.replaceChildren(...parts);
   };
-  select.addEventListener('change', () => show(tabs.find((t) => t.id === select.value) || tabs[0]));
 
-  container.replaceChildren(picker, body);
   const first = start || remembered();
   show(tabs.find((t) => t.id === first) || tabs[0]);
   return { show: (id) => show(tabs.find((t) => t.id === id) || tabs[0]) };

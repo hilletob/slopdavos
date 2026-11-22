@@ -45,6 +45,7 @@ export function boardList(rows, show) {
     if (row.place > last + 1) list.append(el('li', 'mission-board-gap', '…'));
     last = row.place;
     const li = el('li', row.is_me ? 'is-me' : null);
+    li.dataset.place = String(row.place); // (css/style.css: the first three in the medals' colours)
     li.append(el('span', 'mission-board-place', String(row.place)), el('span', 'mission-board-name player-name', row.name), el('span', 'mission-board-time', show(row)));
     list.append(li);
   }
