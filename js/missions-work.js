@@ -747,6 +747,19 @@ const workVehicle = {
       Object.assign(car, { drive: saved.drive, dims: saved.dims, chaseDistance: saved.chaseDistance, chaseHeight: saved.chaseHeight, label: saved.label });
       car.mesh.visible = saved.visible;
     });
+    if (v.lightSpec && car.headLights?.length) {
+      // the car's two headlamp spots shine from the vehicle's lamps (the hidden van's would stay dark): they hang on its
+      // model for the run, placed by js/controllers.js updateVehicleLights from car.lightSpec
+      const home = car.headLights[0].parent, spec = car.lightSpec;
+      for (const spot of car.headLights) v.group.add(spot, spot.target);
+      car.lightSpec = v.lightSpec;
+      car._highBeam = undefined;
+      run.cleanups.push(() => {
+        for (const spot of car.headLights) home.add(spot, spot.target);
+        car.lightSpec = spec;
+        car._highBeam = undefined;
+      });
+    }
     if (v.seat) {
       // the driver on the open seat (the mower)
       const crowd = new PersonCrowd(1, { farDistance: 1e9 });
@@ -774,6 +787,7 @@ const workVehicle = {
       // (a rear-steered machine, drive.rearSteer — the ice resurfacer: the rear wheels turn, against the steer)
       if (car.drive?.rearSteer ? !w.front : w.front) w.mesh.rotation.y = (car.drive?.rearSteer ? -1 : 1) * (car.steerAngle || 0);
     }
+    v.animate?.(cm, car, dt); // (its own moving parts and lamps: the quad's bars and lenses, js/missions-rural.js)
     v.pose?.(g, car, dt); // (a vehicle's own body motion over the physics: the quad of js/missions-rural.js)
     g.updateMatrixWorld(true);
     if (v.driver) {

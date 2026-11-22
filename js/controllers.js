@@ -2678,6 +2678,7 @@ class ThirdPersonControllerManager {
     // Modulate clustered vehicle & bike lights by time of day (off during Midday & Golden Hour; fade in at Dusk & Night)
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
     const beamScale = Math.min(1.28, Math.max(0.0, (glow - 0.60) * 1.45));
+    this.beamScale = beamScale; // (for the bodies the car wears: the quad's lenses, js/quad.js setQuadLamps)
     this.updateVehicleLights(beamScale);
     for (const mode of ['cyclist', 'cargobike']) {
       const bike = this.entities[mode];

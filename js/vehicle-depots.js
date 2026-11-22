@@ -89,6 +89,46 @@ export const DEPOTS = [
   { id: 'bike-seehof', type: 'cyclist', x: 782.9, z: -1422.3, heading: -0.15, season: 'all', label: 'Seehof Seeli' }
 ];
 
+// --- Quads ------------------------------------------------------------------------------------------------------------
+// The quads standing about the valley (js/gta-quads.js): no entity of their own, the player's car wears them like a
+// taken car (js/gta-takeover.js). Each has its stand; left elsewhere, it is brought back once the player is
+// QUAD_RETURN_M away. `paint`: the index of its colour (js/quad.js QUAD_PAINTS).
+export const QUAD_STANDS = [
+  // by the yard of Heldstab AG in Davos Dorf (the quad mission starts round the corner, js/missions-data-rural.js QUAD_START)
+  { id: 'quad-heldstab', x: 927.5, z: -1666, heading: 2.4, paint: 1, label: 'Heldstab, Davos Dorf' },
+  // on the paved island of the Bahnhof Davos Platz's forecourt, a few steps from the start
+  { id: 'quad-platz', x: -661.5, z: 442, heading: -0.6, paint: 0, label: 'Bahnhof Davos Platz' },
+  // at the mouth of the Dischma valley, by the start of the trail
+  { id: 'quad-dischma', x: 1560, z: -158, heading: 1.5, paint: 2, label: 'Dischma' },
+  // on the Schatzalp's terrace, by the funicular's top station
+  { id: 'quad-schatzalp', x: -1112.5, z: -587, heading: 0.6, paint: 3, label: 'Schatzalp' }
+];
+/** How close (m) the pedestrian must stand to a quad's outline to get on */
+export const QUAD_ENTER_RADIUS = 2.6;
+export const QUAD_FOOTPRINT = { halfW: 0.6, halfL: 1.13 };
+/** A quad left off its stand goes back once the player is this far away (m) */
+export const QUAD_RETURN_M = 600;
+
+/** The quad the pedestrian at `player` can get onto: the nearest standing one ({ x, y?, z, heading, held }) within
+ *  `radius` of its outline and 3 m of height: { quad, distance } or null */
+export function findQuad(player, quads, radius = QUAD_ENTER_RADIUS) {
+  let best = null, bestD = Infinity;
+  for (const q of quads || []) {
+    if (q.held) continue;
+    if (Number.isFinite(player.y) && Number.isFinite(q.y) && Math.abs(player.y - q.y) > 3) continue;
+    const sn = Math.sin(q.heading || 0), cs = Math.cos(q.heading || 0), dx = player.x - q.x, dz = player.z - q.z;
+    const d = Math.hypot(Math.max(0, Math.abs(dx * cs - dz * sn) - QUAD_FOOTPRINT.halfW), Math.max(0, Math.abs(dx * sn + dz * cs) - QUAD_FOOTPRINT.halfL));
+    if (d <= radius && d < bestD) { best = q; bestD = d; }
+  }
+  return best ? { quad: best, distance: bestD } : null;
+}
+
+/** Is quad q ({ x, z, held, home: { x, z } }) brought back to its stand now? Not while ridden or at home, nor in view */
+export function quadGoesHome(q, player, far = QUAD_RETURN_M) {
+  if (q.held || !q.home || Math.hypot(q.x - q.home.x, q.z - q.home.z) < 0.5) return false;
+  return Math.hypot(player.x - q.x, player.z - q.z) > far && Math.hypot(player.x - q.home.x, player.z - q.home.z) > far / 4;
+}
+
 /** Is a depot (or a parked vehicle with a season) in use in this season? */
 export const inSeason = (item, winter) => !item.season || item.season === 'all' || (item.season === 'winter') === !!winter;
 

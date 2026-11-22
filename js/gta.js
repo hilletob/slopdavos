@@ -33,7 +33,8 @@ import { missionAllowsTakeover } from './hijack.js';
 // The vehicles on the road (js/gta-takeover.js, js/hijack.js): beside a car of the traffic standing or crawling, "Take
 // the <kind>" (F) puts the player into it (the T3 stays where it stood); a VBD bus standing at a stop: "Drive the bus";
 // a bike standing at a signal: "Take the bike"; a car parked in a car park (js/parking.js): "Get in the <kind>". Got out
-// of, they stand where they were left until the player is far away.
+// of, they stand where they were left until the player is far away. The quads at their stands (js/gta-quads.js): "Get
+// on the quad"; left somewhere, a quad is brought back to its stand once the player is far away.
 
 const STATE_KEY = 'slopdavos-gta';
 const STATE_VERSION = 1;
@@ -699,6 +700,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
     const leftBefore = takeover.left.length;
     takeover.update(dt);
     if (takeover.left.length !== leftBefore) dirty = true; // (one went back into service: its collider goes)
+    if (takeover.quadMoved()) { refreshColliders(); dirty = true; } // (a quad back at its stand)
     if (frame % 6 === 0) updateVisuals(camera);
     const offered = !!action;
     action = mapSystem?.isFullMapOpen ? null : currentAction();

@@ -250,3 +250,25 @@ test('a bay gets its car back with the player away and nothing standing in it', 
   assert.ok(!bayIsClear(bay, away, [{ x: 1, z: 1 }]));
   assert.ok(bayIsClear(bay, away, [{ position: { x: 9, z: 1 } }]), 'in the next bay but two');
 });
+
+// --- The quads standing about (js/vehicle-depots.js QUAD_STANDS, js/gta-quads.js) -----------------------------------------
+test('the quads: stands apart from each other, got onto from beside one, brought home once the player is far away', async () => {
+  const { QUAD_STANDS, QUAD_ENTER_RADIUS, QUAD_RETURN_M, findQuad, quadGoesHome } = await import('../js/vehicle-depots.js');
+  assert.ok(QUAD_STANDS.length >= 3);
+  assert.equal(new Set(QUAD_STANDS.map((s) => s.id)).size, QUAD_STANDS.length);
+  for (const a of QUAD_STANDS) for (const b of QUAD_STANDS) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.z - b.z) > 100);
+  const quads = QUAD_STANDS.map((s) => ({ ...s, home: s, y: 0, held: false }));
+  const q = quads[0], side = { x: q.x + Math.cos(q.heading) * 1.6, y: 0, z: q.z - Math.sin(q.heading) * 1.6 };
+  assert.equal(findQuad(side, quads).quad, q);
+  assert.ok(findQuad(side, quads).distance <= QUAD_ENTER_RADIUS);
+  assert.equal(findQuad({ x: q.x + 12, y: 0, z: q.z }, quads), null);
+  assert.equal(findQuad({ ...side, y: 9 }, quads), null, 'not one a floor below');
+  q.held = true;
+  assert.equal(findQuad(side, quads), null, 'not the one being ridden');
+  // left 300 m off its stand
+  const left = { ...q, held: false, x: q.x + 300, z: q.z };
+  assert.equal(quadGoesHome(left, { x: left.x + 50, z: left.z }), false, 'not while the player is near it');
+  assert.equal(quadGoesHome(left, { x: left.x, z: left.z + QUAD_RETURN_M + 50 }), true);
+  assert.equal(quadGoesHome({ ...left, held: true }, { x: 1e5, z: 1e5 }), false);
+  assert.equal(quadGoesHome({ ...q, held: false }, { x: 1e5, z: 1e5 }), false, 'at home already');
+});

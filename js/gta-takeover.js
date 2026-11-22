@@ -9,6 +9,7 @@ import {
   shouldRelease, MAX_LEFT, pickPoolCar, borrowVehicle, endBorrow, bayIsClear, clearSpotBeside
 } from './hijack.js';
 import { lotCars, takeLotBay, returnLotBay } from './parking.js';
+import { createQuads } from './gta-quads.js';
 
 // js/gta-takeover.js
 // The GTA mode (js/gta.js): taking over the vehicles on the road (the rules: js/hijack.js). The player's car (the
@@ -25,6 +26,8 @@ import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 // A car parked in a car park (js/parking.js) is got into the same way, empty (no driver, no horn): its bay goes empty, a
 // traffic car of its kind is borrowed from the pool for the slot (hijack.js borrowVehicle) with the parked car's paint, and
 // from there on it is a taken car like the others. When it goes back into service the parked car is back in its bay.
+// A quad standing about (js/gta-quads.js) is got onto the same way: the car wears it ({ kind: 'quad', quad }), the
+// player's figure rides it; got off, it stands where it was left, and is brought back to its stand later.
 // The driver gets out by the driver's door, waves a fist and walks off; a horn. The patrol car's blue light and siren:
 // K, as in the mission.
 
@@ -45,7 +48,8 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     shadow: car.mesh.children.find((o) => o.isMesh && o.renderOrder === 998) || null
   };
 
-  let body = null; // what the car wears: null (the T3) | { kind: 'traffic', v, bodyType, paint, police, model } | { kind: 'bus', bus }
+  const quads = createQuads({ scene, cm, trafficBodies });
+  let body = null; // what the car wears: null (the T3) | { kind: 'traffic', v, bodyType, paint, police, model } | { kind: 'bus', bus } | { kind: 'quad', quad }
   let vacant = false; // the car entity put away (the vehicle it was got out of stands in its own system)
   let blue = false;
   const left = []; // { kind: 'traffic' | 'bus', ref, x, z, heading, collider, trafficBody }
@@ -110,6 +114,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       body.model.root.removeFromParent();
       for (const p of body.model.wheelsRoot) p.removeFromParent();
     }
+    if (body?.kind === 'quad' && quads.worn) quads.unwear(); // (not left standing: leaveBody() does that with a pose)
     siren?.siren(false);
     blue = false;
     body = desc || null;
@@ -143,6 +148,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
         chaseDistance: body.bodyType === 'truck' ? 11.5 : 7.6, chaseHeight: body.bodyType === 'truck' ? 3.2 : 1.75
       });
       if (t3.shadow) t3.shadow.scale.set((2 * halfW + 0.2) / 2.1, 1, (2 * halfL + 0.2) / 4.95);
+    } else if (body.kind === 'quad') {
+      Object.assign(car, quads.wear(body.quad));
+      const d = car.dims;
+      if (t3.shadow) t3.shadow.scale.set((2 * d.halfW + 0.1) / 2.1, 1, (2 * d.halfL + 0.1) / 4.95);
     } else {
       const b = body.bus;
       const fl = b.art && b.rear ? b.frontLen : 12;
@@ -177,6 +186,8 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       const b = findTakeableBus(p, vbd.buses, vbd.bodies);
       if (b) opts.push({ source: 'bus', ref: b.bus, distance: b.distance, label: 'Drive the bus', sub: `Line ${b.bus.ref}${b.bus.art ? ' · articulated' : ''}`, parked: !!b.bus.parked });
     }
+    const q = quads.find(p);
+    if (q) opts.push({ source: 'quad', ref: q.quad, distance: q.distance, label: 'Get on the quad', sub: q.quad.home?.label && Math.hypot(q.quad.x - q.quad.home.x, q.quad.z - q.quad.home.z) < 1 ? q.quad.home.label : null, parked: true });
     opts.sort((a, b) => a.distance - b.distance);
     return opts[0] ? { kind: 'take', ...opts[0] } : null;
   }
@@ -222,6 +233,8 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       const tb = { x, z, prevX: x, prevZ: z, y: car.position.y, sin: Math.sin(heading), cos: Math.cos(heading), halfW: d.halfW, halfL: d.halfL, mass: d.mass, vx: 0, vz: 0, angularVel: 0, parked: 'taken' };
       trafficBodies?.push(tb);
       addLeft({ kind: 'traffic', ref: v, x, z, heading, collider, trafficBody: tb });
+    } else if (body.kind === 'quad') {
+      quads.unwear({ x, z, heading });
     } else {
       const b = body.bus;
       poseBus(0, true);
@@ -258,6 +271,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       borrowVehicle(v, { key: c.key, paint: c.paint });
       takeLotBay(c.key, cm);
       place('car', c.x, c.z, c.heading, () => setPlayerCarBody({ kind: 'traffic', v, bodyType: v.bodyType, paint: [...v.paint], police: false }));
+      car.speed = 0;
+    } else if (a.source === 'quad') {
+      const q = a.ref;
+      place('car', q.x, q.z, q.heading, () => setPlayerCarBody({ kind: 'quad', quad: q }));
       car.speed = 0;
     } else if (a.source === 'bus') {
       const b = a.ref, wasParked = !!b.parked;
@@ -311,7 +328,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     const p = car.position, cp = car.chassisPivot;
     vbd.pose(b, { x: p.x, y: p.y + (cp?.position.y || 0), z: p.z, yaw: car.heading, pitch: cp?.rotation.x || 0, roll: cp?.rotation.z || 0, speed: car.speed || 0, dt, solid });
   }
-  let frame = 0;
+  let frame = 0, quadMoved = false;
   function update(dt) {
     frame++;
     const active = cm.activeMode === 'car';
@@ -324,6 +341,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       else if (active && blue) siren?.siren(true);
     }
     if (body?.kind === 'bus') poseBus(dt, !active);
+    if (quads.update(dt, active)) quadMoved = true;
     updateWalker(dt);
     // far enough away: back into service
     if (frame % 30 === 0 && (left.length || returning.length)) {
@@ -345,12 +363,16 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
   // --- Saved with the GTA state (js/gta.js) ------------------------------------------------------------------------------
   function state() {
     const d = body?.kind === 'traffic' ? { kind: 'traffic', bodyType: body.bodyType, paint: body.paint.map((c) => +c.toFixed(4)), police: !!body.police, lotBay: body.v?.lotBay || undefined }
-      : body?.kind === 'bus' ? { kind: 'bus', index: vbd.buses.indexOf(body.bus) } : null;
-    return { vacant, body: d };
+      : body?.kind === 'bus' ? { kind: 'bus', index: vbd.buses.indexOf(body.bus) }
+        : body?.kind === 'quad' ? { kind: 'quad', id: body.quad.id } : null;
+    return { vacant, body: d, quads: quads.state() };
   }
   function restore(s) {
     if (!s) return;
-    if (s.body && cm.activeMode === 'car') {
+    quads.restore(s.quads);
+    const quad = s.body?.kind === 'quad' ? quads.quads.find((q) => q.id === s.body.id) : null;
+    if (quad && cm.activeMode === 'car') setPlayerCarBody({ kind: 'quad', quad });
+    else if (s.body && cm.activeMode === 'car') {
       if (s.body.kind === 'traffic' && traffic) {
         const v = traffic.cars.find((c) => c.bodyType === s.body.bodyType && !!c.isPolice === !!s.body.police && !c.held && !c.parked && !c.edge)
           || traffic.cars.find((c) => c.bodyType === s.body.bodyType && !!c.isPolice === !!s.body.police && !c.held && !c.parked);
@@ -385,11 +407,14 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     /** The bays waiting to get their car back */
     get returning() { return returning; },
     /** The colliders of the cars left standing (js/controllers.js parkedVehicles) */
-    colliders() { return left.filter((r) => r.collider).map((r) => r.collider); },
+    colliders() { return left.filter((r) => r.collider).map((r) => r.collider).concat(quads.colliders()); },
+    /** Did a quad go back to its stand since the last call? (js/gta.js: the colliders anew) */
+    quadMoved() { const m = quadMoved; quadMoved = false; return m; },
+    quads,
     /** Where the pedestrian gets out of the worn body: its footprint and door (js/vehicle-depots.js exitSpots) */
     footprint() {
       if (!body || !car.dims) return null;
-      return { halfW: car.dims.halfW, halfL: car.dims.halfL, door: body.kind === 'bus' ? car.dims.halfL - 1.4 : 0.6 };
+      return { halfW: car.dims.halfW, halfL: car.dims.halfL, door: body.kind === 'bus' ? car.dims.halfL - 1.4 : body.kind === 'quad' ? 0 : 0.6 };
     }
   };
 }

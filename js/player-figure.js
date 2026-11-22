@@ -87,6 +87,14 @@ let request = 0;
  * model, and its PersonRig — the same object, the missions may hold it — the model's scale and bind pose. Resolves to
  * the model once it shows (a later call wins over an earlier one still loading).
  */
+const riders = new Set(); // other riders of the player's figure ({ riderCrowd, riderRig }: the quad's, js/gta-quads.js)
+let dressNow = null; // (dresses one holder as the current figure, once one is applied)
+/** `rider` ({ riderCrowd, riderRig }, its crowd's meshes in the scene) wears the player's figure, now and whenever another is chosen */
+export function dressRider(cm, rider) {
+  riders.add(rider);
+  dressNow?.(rider);
+}
+
 export async function applyFigure(cm, id) {
   const mine = ++request;
   const model = await loadPersonModel(id);
@@ -125,5 +133,7 @@ export async function applyFigure(cm, id) {
   dress(cm.entities.person, 'crowd', 'rig');
   dress(cm.entities.cyclist, 'riderCrowd', 'riderRig');
   dress(cm.entities.cargobike, 'riderCrowd', 'riderRig');
+  dressNow = (rider) => dress(rider, 'riderCrowd', 'riderRig');
+  for (const rider of riders) dressNow(rider);
   return model;
 }

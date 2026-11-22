@@ -194,7 +194,7 @@ const pairs = [
   ['Get in', 'Einsteigen'], ['Get out', 'Aussteigen'],
   ['Get off', 'Aussteigen'], ['Leave the cab', 'Führerstand verlassen'],
   ['Board the RhB', 'In die RhB einsteigen'], ['Take the bike', 'Fahrrad nehmen'], ['estate car', 'Kombi'], ['box lorry', 'Lastwagen'], ['hatchback', 'Kleinwagen'],
-  ['Drive the bus', 'Bus fahren'], ['End of the line: you got off', 'Endstation: Du bist ausgestiegen'],
+  ['Drive the bus', 'Bus fahren'], ['Get on the quad', 'Aufs Quad steigen'], ['End of the line: you got off', 'Endstation: Du bist ausgestiegen'],
   ['On foot', 'Zu Fuss'], ['Wait for the next station', 'Bis zum nächsten Bahnhof warten'],
   ['Only at a station', 'Nur an einem Bahnhof'], ['Land first', 'Erst landen'],
   ['Stop first', 'Erst anhalten'], ['Brake to a stop first (S)', 'Erst mit S zum Stillstand bremsen'],

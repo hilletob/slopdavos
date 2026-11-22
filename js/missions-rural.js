@@ -4,6 +4,7 @@ import { t } from './i18n.js';
 import { painted, createHelper } from './missions-props.js';
 import { VEHICLES, createToast, particles, lump } from './missions-work.js';
 import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
+import { QUAD_MODEL, QUAD_PAINTS, createQuad, setQuadLamps } from './quad.js';
 import {
   QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_GATES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
   BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_ROUTE, bioLoad, rejectBarrel, stopAtBed, stepBioStops
@@ -13,7 +14,7 @@ import {
 // The runtime of the two rural missions (js/missions-data-rural.js has their definitions and logic; js/missions.js takes
 // RURAL_FEATURES into its FEATURES). Both drive the player's car through js/missions-work.js workVehicle, which wears the
 // vehicle registered here in its VEHICLES:
-//   quadCourse  the quad: merged boxes and fat wheels (two draw calls and its rider), its body hopping and rocking in the
+//   quadCourse  the quad (js/quad.js: body, bars, four wheels, and its rider), its body hopping and rocking in the
 //               vehicle's pose() hook; the bumps, the mud and snow patches and the gates' flags as one merged mesh draped
 //               on the terrain; the handling swapped through car.drive on the surfaces and in the air.
 //   bioRound    the open transporter (a lofted dropside lorry, buildBioTruck), the round barrels (full, empty, the plastic in the two bad ones: three instanced
@@ -33,42 +34,19 @@ const carGround = (run, x, z) => run.hooks.controllerManager.getGroundHeight(x, 
 // =====================================================================================================================
 // 1. The quad
 function buildQuadModel() {
-  const g = new THREE.Group();
-  g.name = 'Quad';
-  const orange = 0xd9601a, dark = 0x1f2124, steel = 0x6d7276, seat = 0x15171a;
-  const body = mergeGeometries([
-    boxAt(0.62, 0.2, 1.5, dark, 0, 0.42, 0), // the frame
-    boxAt(0.5, 0.26, 0.5, steel, 0, 0.42, -0.02), // the engine
-    boxAt(0.5, 0.24, 0.5, orange, 0, 0.74, 0.22), // the tank
-    boxAt(0.42, 0.14, 0.7, seat, 0, 0.77, -0.3), // the seat
-    boxAt(1.02, 0.07, 0.62, orange, 0, 0.72, 0.68), boxAt(1.02, 0.07, 0.62, orange, 0, 0.72, -0.68), // the mudguards
-    boxAt(0.6, 0.05, 0.42, steel, 0, 0.83, 0.7), boxAt(0.6, 0.05, 0.42, steel, 0, 0.83, -0.72), // the racks
-    boxAt(0.74, 0.26, 0.06, dark, 0, 0.56, 1.1), // the bull bar
-    boxAt(0.3, 0.1, 0.05, 0xfff3c0, 0, 0.72, 1.0), // the lamp
-    boxAt(0.3, 0.05, 0.42, dark, 0.46, 0.34, -0.04), boxAt(0.3, 0.05, 0.42, dark, -0.46, 0.34, -0.04), // the footrests
-    cylAt(0.05, 0.05, 0.55, 8, steel, 0.24, 0.48, -0.86, Math.PI / 2), // the exhaust
-    cylAt(0.022, 0.022, 0.42, 6, dark, 0, 0.98, 0.34, -0.5), // the bars' column
-    cylAt(0.02, 0.02, 0.66, 6, dark, 0, 1.17, 0.27, 0, Math.PI / 2) // the bars
-  ]);
-  const mesh = new THREE.Mesh(body, vertexMat({ roughness: 0.55 }));
-  mesh.castShadow = true;
-  g.add(mesh);
-  // (the four fat wheels: one geometry, one material)
-  const R = 0.31, W = 0.3;
-  const wheelGeo = mergeGeometries([cylAt(R, R, W, 14, 0x17181a, 0, 0, 0, 0, Math.PI / 2), cylAt(R * 0.52, R * 0.52, W + 0.02, 10, 0xb0b0a8, 0, 0, 0, 0, Math.PI / 2), boxAt(W + 0.03, R * 1.85, 0.06, 0x2a2b2d, 0, 0, 0)]);
-  const wheelMat = vertexMat({ roughness: 0.92 });
-  const wheels = [];
-  for (const [x, z] of [[0.56, 0.68], [-0.56, 0.68], [0.56, -0.68], [-0.56, -0.68]]) {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.position.set(x, R, z);
-    w.castShadow = true;
-    g.add(w);
-    wheels.push({ mesh: w, r: R, front: z > 0, y: R });
-  }
+  // (js/quad.js: the body, the bars and the four wheels; its own material, the race's ghosts fade it)
+  const q = createQuad(QUAD_PAINTS[0]);
+  const seat = { ...QUAD_MODEL.seat, steerPivot: QUAD_MODEL.steerPivot, steerAngle: 0 };
   return {
-    group: g, wheels, drive: QUAD.drive,
-    dims: { halfW: 0.72, halfL: 1.08, top: 1.25, mass: 340 }, chase: [5.8, 2.3], label: 'Quad',
-    seat: { seat: new THREE.Vector3(0, 0.8, -0.26), bars: new THREE.Vector3(0, 1.17, 0.27), gripHalf: 0.28, bracket: new THREE.Vector3(0, 0.42, 0.02), crankLength: 0, pedalHalf: 0.3, lean: 0.2 }
+    group: q.group, wheels: q.wheels, drive: QUAD.drive,
+    dims: QUAD_MODEL.dims, chase: QUAD_MODEL.chase, label: 'Quad', seat,
+    lightSpec: QUAD_MODEL.lights,
+    // the bars turn with the steering (the rider's hands with them), the lamps glow at night, the tail lamp under the brake
+    animate(cm, car) {
+      const riding = cm.activeMode === 'car';
+      q.steer.rotation.y = seat.steerAngle = riding ? car.steerAngle || 0 : 0;
+      setQuadLamps(q.look, { night: cm.beamScale || 0, high: !!cm.highBeam, brake: car.carState?.value.x || 0, on: riding });
+    }
   };
 }
 VEHICLES.quad = buildQuadModel;
