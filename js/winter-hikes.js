@@ -6,6 +6,9 @@ import { drapeOverlay, groundHeight } from './terrain.js';
 import { winter } from './season.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { boxInWorld } from './quality.js';
+import { DAVOS_DATA } from './davos-geodata.js';
+import { signpostObstacles, signpostSpot } from './signpost-sites.js';
+import { TLM_TREES } from './tlm-trees-data.js';
 
 // The signposted winter hiking trails of Davos (Winterwanderwege: the Landwasser Winterwanderweg over the meadows of
 // the valley floor, the Hohe Promenade, Schatzalp - Strela, the Dischma, Rinerhorn, Pischa...; ASTRA / SchweizMobil
@@ -125,7 +128,7 @@ function createTrailMaterial() {
 // Stakes (1.6 m above the snow, pink with a white reflector band) and signposts (a galvanised post with two pink arrow
 // signs pointing along the trail, a white location plate): sites along the trails
 function markerSites(trails) {
-  const stakes = [], signs = [];
+  const stakes = [], signs = [], obstacles = signpostObstacles({ ...DAVOS_DATA, trees: [...TLM_TREES.trees, ...(TLM_TREES.shrubs || [])] });
   let seed = 7;
   const rand = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) + 1) >>> 0) / 4294967296;
   const at = (t, s) => {
@@ -150,7 +153,9 @@ function markerSites(trails) {
       for (let s = s0 + SIGN_SPACING; s < s1 - SIGN_SPACING / 2; s += SIGN_SPACING) posts.push(s);
       for (const s of posts) {
         const p = at(t, s), off = TRAIL_WIDTH / 2 + 0.6, sd = rand() < 0.5 ? 1 : -1;
-        signs.push({ x: p.x - p.hz * off * sd, z: p.z + p.hx * off * sd, yaw: Math.atan2(p.hx, p.hz) });
+        // (beside the trail, and clear of the street it leaves or the path it follows: js/signpost-sites.js)
+        const spot = signpostSpot(obstacles, p.x, p.z, Math.atan2(-p.hz * sd, p.hx * sd), { start: off });
+        signs.push({ x: spot.x, z: spot.z, yaw: Math.atan2(p.hx, p.hz) });
       }
     }
   }

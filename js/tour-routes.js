@@ -6,6 +6,9 @@ import { isWinter } from './season.js';
 import { getLanguage } from './i18n.js';
 import { cachedMapLayer } from './map-layer-cache.js';
 import { cullInstanced } from './scene-culling.js';
+import { DAVOS_DATA } from './davos-geodata.js';
+import { signpostObstacles, signpostSpot } from './signpost-sites.js';
+import { TLM_TREES } from './tlm-trees-data.js';
 
 // The marked and the published routes of the Landschaft Davos (js/tour-routes-data.js, tools/fetch-tour-routes.mjs:
 // swisstopo's hiking network, SchweizMobil's routes, the SAC's ski touring and snowshoe routes):
@@ -230,10 +233,12 @@ export function buildSignposts(scene, nodes) {
   const TIP = { w: null, b: new THREE.Color(0xd4202a), a: new THREE.Color(0x1f5fc4) };
   const sites = nodes.filter((n) => n.c in TIP);
   if (sites.length) {
+    const obstacles = signpostObstacles({ ...DAVOS_DATA, trees: [...TLM_TREES.trees, ...(TLM_TREES.shrubs || [])] });
     const tips = new Float32Array(sites.length * 4);
     const mesh = new THREE.InstancedMesh(geometry, signpostMaterial(), sites.length);
     sites.forEach((s, i) => {
-      const x = s.x + Math.sin(s.a) * 1.6, z = s.z + Math.cos(s.a) * 1.6;
+      // (beside the junction, clear of the ways meeting there by their mapped widths: js/signpost-sites.js)
+      const { x, z } = signpostSpot(obstacles, s.x, s.z, s.a);
       mesh.setMatrixAt(i, m.compose(p.set(x, groundHeight(x, z) - 0.3, z), q.setFromAxisAngle(up, s.a), one));
       const t = TIP[s.c];
       if (t) tips.set([t.r, t.g, t.b, 1], i * 4);
