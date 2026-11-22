@@ -271,12 +271,15 @@ export class Builder {
       if (colour) B.col.push(colour[0], colour[1], colour[2]);
     }
   }
-  tri(name, a, b, c, uvs) {
+  tri(name, a, b, c, uvs = [[0, 0], [1, 0], [0, 1]], { colour = null } = {}) {
     const B = this.bucket(name);
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const l = Math.hypot(nx, ny, nz) || 1;
-    [a, b, c].forEach((p, i) => { B.pos.push(p[0], p[1], p[2]); B.nrm.push(nx / l, ny / l, nz / l); B.uv.push(uvs[i][0], uvs[i][1]); B.half.push(0); });
+    [a, b, c].forEach((p, i) => {
+      B.pos.push(p[0], p[1], p[2]); B.nrm.push(nx / l, ny / l, nz / l); B.uv.push(uvs[i][0], uvs[i][1]); B.half.push(0);
+      if (colour) B.col.push(colour[0], colour[1], colour[2]);
+    });
   }
   /** A box in a wall's frame: s along it, o out of it, y up; `colour` (the trim) or uv in metres (s or o, y) */
   box(name, F, s0, s1, o0, o1, y0, y1, colour = null, { top = name } = {}) {

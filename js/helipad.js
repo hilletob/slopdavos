@@ -73,11 +73,12 @@ function furnitureGeometry() {
     if (u !== 0 && v !== 0) lamp(u * (half - inset), v * (half - inset), true);
     else lamp(u * (half - inset), v * (half - inset), false);
   }
-  // Windsock: a 3.4 m mast just off the north-east corner, the sock in orange and white bands streaming down the valley
-  // (the wind along the Landwassertal, towards Davos Dorf)
-  const mx = half + 1.4, mz = -half - 1.0;
-  const mast = new THREE.CylinderGeometry(0.035, 0.05, 3.4, 8);
-  mast.translate(mx, 1.7, mz);
+  // Windsock: a mast just off the north-east corner, 3.4 m over the deck, the sock in orange and white bands streaming
+  // down the valley (the wind along the Landwassertal, towards Davos Dorf). The mast stands beside the deck, on the
+  // wing's roof 2.05 m under it (js/spital-data.js: the west wing's roof at 2.7): it ended at the deck's level, in the air
+  const mx = half + 1.4, mz = -half - 1.0, foot = -2.05;
+  const mast = new THREE.CylinderGeometry(0.035, 0.05, 3.4 - foot, 8);
+  mast.translate(mx, (3.4 + foot) / 2, mz);
   parts.push(colored(mast, 0.75, 0.76, 0.78));
   const ring = new THREE.TorusGeometry(0.26, 0.02, 6, 16);
   ring.rotateY(Math.PI / 2);

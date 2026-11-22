@@ -41,6 +41,7 @@ import { buildPfadiheim } from './pfadiheim.js';
 import { buildParkedResurfacers } from './missions-rink.js';
 import { buildSpital } from './spital.js';
 import { buildAltePost } from './alte-post.js';
+import { buildStJohann } from './st-johann.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder, vectorGroundBuilder } from './world-stream.js';
 import { buildVectorGround, groundCoverage, streamGroundMarkings } from './vector-ground.js';
@@ -367,6 +368,7 @@ async function initApp() {
   const pfadiheim = skipped('pfadiheim') ? { colliders: [] } : buildPfadiheim(scene); // the Pfadiheim Davos, after its photographs (js/pfadiheim.js)
   const spital = skipped('spital') ? { colliders: [] } : buildSpital(scene); // the Spital Davos: concrete, reliefs, the entrance hall (js/spital.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
+  const stJohann = skipped('stjohann') ? { setTime: NOOP } : buildStJohann(scene); // the tower of St. Johann with its twisted spire, its dials at the game's time (js/st-johann.js)
   markInit('cityGrid');
   await breathe();
   // The relief around the city, out to the Alps (swissALTIRegio)
@@ -1381,6 +1383,7 @@ async function initApp() {
     // The game's clock on wall time, so that a day stays 24 minutes at any frame rate (a hidden tab's gap counts as 1 s)
     const realDt = Math.min(Math.max(rawDt, 0), 1);
     gameClock.tick(realDt);
+    stJohann.setTime(gameClock.minute); // (the church clock's hands: two uniforms)
     lightStepIn -= realDt;
     if (gameClock.takeJump()) applyClock(true);
     else if (lightStepIn <= 0) applyClock();
