@@ -222,6 +222,7 @@ function populationContext() {
     clock: 0,
     VEHICLE_SPAWN_DISTANCE: 250, PED_SPAWN_DISTANCE: 150, NEAR_RADIUS: 350, VEHICLE_SPACING: 30, PED_AVOID_INTERVAL: 0.12,
     BUILT_UP: 60, RURAL_SPACING_MAX: 4, buildingsNear: () => 60,
+    CAR_SPACING: [36, 85, 190], BIKE_SPACING: [500, 200, 40], carCap: [0, 0, 0], bikeCap: [0, 0, 0], nearClass: [[], [], []],
     nearEdges: [], nearSignals: [], track: {}, KERB: 1.6, QUEUE_GAP: 0.62,
     atCurb: () => {}, laneClear: () => true, nearTramBody: () => false, trackFull: () => false, trackLoad: new Map(), STUCK_TIME: 45,
     place: (v, e, lane, s) => Object.assign(v, { edge: e, lane, s })
@@ -286,12 +287,27 @@ test('long roads are available near their ends and spawn only in the local secti
   const refreshNear = trafficFunction('refreshNear', context);
   refreshNear();
   assert.deepEqual(context.nearEdges, [edge]);
-  // (Davos) the lanes within NEAR_RADIUS of the focus (700 m of this road) take one vehicle per VEHICLE_SPACING metres...
-  assert.equal(context.capacity, Math.floor(700 / 30));
-  // ...and out of town, with fewer buildings around, fewer
-  Object.assign(context, { buildingsNear: () => 40, nearX: Infinity });
+  // (Davos) the lanes within NEAR_RADIUS of the focus (700 m of this road) take the cars and the cyclists of its class:
+  // a quarter's street few cars and many cyclists...
+  assert.deepEqual(context.nearClass, [[], [], [edge]]);
+  assert.deepEqual([context.carCap, context.bikeCap], [[0, 0, Math.floor(700 / 190)], [0, 0, Math.floor(700 / 40)]]);
+  // ...a main axis the cars, a road into a side valley fewer of them
+  for (const [cls, cars, bikes] of [[0, Math.floor(700 / 36), 1], [1, 8, 3]]) {
+    Object.assign(context, { nearX: Infinity });
+    edge.cls = cls;
+    refreshNear();
+    assert.equal(context.nearClass[cls][0], edge);
+    assert.deepEqual([context.carCap[cls], context.bikeCap[cls]], [cars, bikes]);
+  }
+  // Out of town, with fewer buildings around, fewer cyclists; the valley road's cars drive on through
+  Object.assign(context, { buildingsNear: () => 30, nearX: Infinity });
   refreshNear();
-  assert.equal(context.capacity, Math.floor(700 / 45));
+  assert.deepEqual([context.carCap[1], context.bikeCap[1]], [8, 1]);
+  // ...and fewer cars on a hamlet's streets (up to half), none on a road closed to cyclists
+  Object.assign(context, { nearX: Infinity });
+  Object.assign(edge, { cls: 2, noBikes: true });
+  refreshNear();
+  assert.deepEqual([context.carCap[2], context.bikeCap[2]], [2, 0]);
   Object.assign(context, { buildingsNear: () => 60, nearX: Infinity });
   refreshNear();
   const car = { half: 2.25 };
@@ -385,10 +401,37 @@ test('cyclists stay out of a road closed to them, and turn off for it if they ca
 
   const toClosed = { to: closed, turn: 'S', out: [0] }, away = { to: {}, turn: 'R', out: [0] };
   const edge = { moves: [toClosed, away], len: 500 };
-  const choose = trafficFunction('chooseMove', { Math, weights: [], nearestLane: () => 0 });
+  const pulls = { CAR_ROAD_PULL: [5, 2, 1], BIKE_ROAD_PULL: [0.5, 1.5, 4] };
+  const choose = trafficFunction('chooseMove', { Math, weights: [], nearestLane: () => 0, ...pulls });
   assert.equal(choose({ bike: true, edge, lane: 0, s: 0 }, false), away);
   assert.equal(choose({ bike: true, edge: { moves: [toClosed], len: 500 }, lane: 0, s: 0 }, false), toClosed, 'its only way on');
   assert.equal(choose({ edge: { moves: [toClosed], len: 500 }, lane: 0, s: 0 }, false), toClosed);
+});
+
+test('cars keep to the main roads at a junction, cyclists turn off into the quarters', () => {
+  const main = { to: { cls: 0 }, turn: 'S', out: [0] }, quarter = { to: { cls: 2 }, turn: 'R', out: [0] };
+  const edge = { moves: [main, quarter], len: 500 };
+  // the share that turns off: a car's 1 in 16, a cyclist's 8 in 11
+  const share = (v, r) => trafficFunction('chooseMove', {
+    Math: Object.assign(Object.create(Math), { random: () => r }), weights: [], nearestLane: () => 0,
+    CAR_ROAD_PULL: [5, 2, 1], BIKE_ROAD_PULL: [0.5, 1.5, 4]
+  })({ ...v, edge, lane: 0, s: 0 }, false);
+  assert.equal(share({}, 0.93), main);
+  assert.equal(share({}, 0.95), quarter);
+  assert.equal(share({ bike: true }, 0.26), main);
+  assert.equal(share({ bike: true }, 0.28), quarter);
+});
+
+test('a street\'s class: the main axes, the roads into the side valleys, the quarters', () => {
+  const net = readFileSync(join(__dirname, '../js/road-network.js'), 'utf8');
+  const roadClass = vm.runInNewContext(`${net.match(/const MAIN_ROADS[^]*?\n}\n/)[0]}; roadClass`);
+  for (const [name, width, cls] of [
+    ['Promenade', 6.5, 0], ['Talstrasse', 6.5, 0], ['Prättigauerstrasse', 10, 0], ['Landwasserstrasse', 6.7, 0],
+    ['Landwassertunnel', 8, 0], ['Hauptstrasse', 6, 0], ['Bahnhofstrasse', 10, 0],
+    ['Flüelapassstrasse', 10, 1], ['Dischmastrasse', 7, 1], ['Sertigerstrasse', 7, 1], ['Monsteinerstrasse', 6, 1],
+    ['Arosastrasse', 8, 1], ['Lengmattastrasse', 7, 1],
+    ['Mattastrasse', 6, 2], ['Bahnhofstrasse', 6, 2], ['', 6, 2], ['Obergasse', 3, 2]
+  ]) assert.equal(roadClass(name, width), cls, `${name} ${width}`);
 });
 
 test('no sidewalks through a road tunnel', async () => {

@@ -63,8 +63,18 @@ const VEHICLE_SPAWN_DISTANCE = 250;
 // density (325 vehicles on some 5 km of lanes), gridlocking the loops of short links at every junction. Vehicles that
 // don't fit stay off the road until others leave the area.
 const VEHICLE_SPACING = 30;
+// How many of them, by the street's class (road-network.js roadClass: 0 a main axis — Promenade, Talstrasse, the road
+// from Wolfgang, the Landwasserstrasse to Wiesen —, 1 a road into a side valley, 2 a quarter's street): the metres of
+// lane to a car and to a cyclist. The main axes carry the cars and few cyclists, the quarters few cars and the cyclists.
+const CAR_SPACING = [VEHICLE_SPACING + 6, 85, 190];
+const BIKE_SPACING = [500, 200, 40];
+// At a junction a driver takes a road of a class this many times as readily (chooseMove): cars keep to the main roads
+// and leave the quarters for them, cyclists turn off into the quarters
+const CAR_ROAD_PULL = [5, 2, 1];
+const BIKE_ROAD_PULL = [0.5, 1.5, 4];
 // Out of town (Monstein, the valley roads to it) fewer drive: below BUILT_UP mapped buildings within NEAR_RADIUS the
-// spacing grows with the lack of them, up to RURAL_SPACING_MAX times as far apart
+// spacing grows with the lack of them, up to RURAL_SPACING_MAX times as far apart (the cyclists', and the cars' on the
+// quarters' streets, those up to twice: the main axes and the valley roads carry their traffic through open country)
 const BUILT_UP = 60;
 const RURAL_SPACING_MAX = 4;
 const BUILDING_CELL = 50;
@@ -148,11 +158,11 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     // e.tunnel: a street under a mountain (no sidewalks to walk there, and its height is not the ground's)
     const midX = e.x0 + e.dx * e.span / 2, midZ = e.z0 + e.dz * e.span / 2;
     e.tunnel = !!roadTunnelAt(midX, midZ);
-    e.noBikes = e.tunnel && !!landwasser.project(midX, midZ, 6, true);
+    e.noBikes = !!e.transit || (e.tunnel && !!landwasser.project(midX, midZ, 6, true));
   }
-  // Cyclists keep out of the 2.8 km Landwassertunnel. They can't overtake or be overtaken on its
-  // single lanes, and with no other street near, the vehicle pool fills it: at 4.5-7 m/s they held all traffic to their
-  // pace. The road leading only to it is no way for them either (chooseMove, spawnVehicle).
+  // Cyclists keep off the through roads out of town (e.transit: road-network.js THROUGH_ROADS) and out of the 2.8 km
+  // Landwassertunnel. They can't overtake or be overtaken on a single lane, and with no other street near, the vehicle
+  // pool fills it: at 4.5-7 m/s they held all traffic to their pace. The road leading only to it is no way for them either (chooseMove, spawnVehicle).
   for (let found = true; found;) {
     found = false;
     for (const e of edges) {
@@ -699,16 +709,19 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   let nearX = Infinity;
   let nearZ = Infinity;
-  let capacity = Infinity; // vehicles the lanes around the focus take (VEHICLE_SPACING)
-  let bikeRoad = true; // is any of those lanes open to cyclists?
+  // The cars and the cyclists the lanes around the focus take, by the class of their street (CAR_SPACING, BIKE_SPACING),
+  // those driving there now (update), and the streets of each class
+  const carCap = [0, 0, 0], bikeCap = [0, 0, 0];
+  const carsOn = [0, 0, 0], bikesOn = [0, 0, 0];
+  const nearClass = [[], [], []];
   function refreshNear() {
     if (Math.hypot(focusX - nearX, focusZ - nearZ) < 40) return;
     nearX = focusX;
     nearZ = focusZ;
     nearEdges.length = 0;
     nearSignals.length = 0;
-    let laneMetres = 0;
-    bikeRoad = false;
+    const metres = [0, 0, 0], bikeMetres = [0, 0, 0];
+    for (const list of nearClass) list.length = 0;
     for (const e of edges) {
       const s = clamp((focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz, 0, e.len);
       const dx = e.sx + e.dx * s - focusX, dz = e.sz + e.dz * s - focusZ;
@@ -717,12 +730,19 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
         // (only the stretch within NEAR_RADIUS: a long valley road's runs reach far beyond it)
         const b = (e.sx - focusX) * e.dx + (e.sz - focusZ) * e.dz;
         const q = Math.sqrt(Math.max(0, b * b - ((e.sx - focusX) ** 2 + (e.sz - focusZ) ** 2 - NEAR_RADIUS * NEAR_RADIUS)));
-        laneMetres += Math.max(0, Math.min(e.len, q - b) - Math.max(0, -b - q)) * e.lanes.length;
-        if (!e.noBikes) bikeRoad = true;
+        const m = Math.max(0, Math.min(e.len, q - b) - Math.max(0, -b - q)) * e.lanes.length;
+        const c = e.cls ?? 2;
+        nearClass[c].push(e);
+        metres[c] += m;
+        if (!e.noBikes) bikeMetres[c] += m;
       }
     }
     const rural = clamp(BUILT_UP / Math.max(1, buildingsNear(focusX, focusZ, NEAR_RADIUS)), 1, RURAL_SPACING_MAX);
-    capacity = Math.max(12, Math.floor(laneMetres / (VEHICLE_SPACING * rural)));
+    for (let c = 0; c < 3; c++) {
+      // (never a road with nobody on it: two cars at least where there are 200 m of it)
+      carCap[c] = Math.max(metres[c] > 200 ? 2 : 0, Math.floor(metres[c] / (CAR_SPACING[c] * (c === 2 ? Math.min(rural, 2) : 1))));
+      bikeCap[c] = Math.floor(bikeMetres[c] / (BIKE_SPACING[c] * rural));
+    }
     for (const n of nodes) {
       const dx = n.x - focusX, dz = n.z - focusZ;
       if (n.signal && dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) nearSignals.push(n);
@@ -850,6 +870,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     for (let k = 0; k < e.moves.length; k++) {
       const m = e.moves[k];
       let w = m.turn === 'S' ? (v.bus ? 8 : 3) : 1;
+      w *= (v.bike ? BIKE_ROAD_PULL : CAR_ROAD_PULL)[m.to.cls ?? 2];
       if (v.bus && m.turn !== 'S' && m.to.lanes.length < 2) w *= 0.05;
       if (fromLane) {
         if (m.out[v.lane] < 0) w = 0;
@@ -1139,7 +1160,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (pedestrianOn(n, e.inSide, laneCoord(e, v.lane), 0, timeTo(v, d + 2.5 + 2 * v.half))) return false;
     if (wait < 0 && pedestrianOn(n, f.outSide, laneCoord(f, j), timeTo(v, d + c.len - 3), timeTo(v, d + c.len + 2 * v.half))) return false;
     const vs = v.s - e.len - c.len; // where on f it would be now
-    if (!room(f, j, v)) return false;
+    // (not at a bend of the road itself, a shape node: there is no junction to keep clear, and the mapped line's
+    // chords are 5-15 m long on the Promenade — waiting at each for the one ahead to empty stopped the whole queue at
+    // every corner of the line. The car follows the one ahead round the bend, as along a straight.)
+    if (!n.shape && !room(f, j, v)) return false;
     if (alongside(f, j, v, vs, m.turn !== 'S')) return false;
     if (mergingAhead(v, f, j)) return false;
     if (f.passThrough && !throughClear(v, f, j, d)) return false;
@@ -1248,7 +1272,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
         const o = c && !v.claimed && mergingAhead(v, f, j);
         if (o) worst = Math.min(worst, Math.max(-v.driver.b, brake(v, o.s - o.v.half - vs - v.half, o.v.speed)));
         let vt = c ? bendSpeed(v, c) : Infinity;
-        const cautious = e.to.signal ? v.isPolice && phaseOf(e) !== 'green' : e.axisIndex !== 0;
+        // (not at a bend of the road itself, a shape node: nothing crosses there)
+        const cautious = e.to.signal ? v.isPolice && phaseOf(e) !== 'green' : e.axisIndex !== 0 && !e.to.shape;
         if (cautious) vt = Math.min(vt, 5);
         cap = Math.sqrt(vt * vt + 5 * Math.max(0, d));
       }
@@ -1646,9 +1671,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     }
     return false;
   }
-  function spawnVehicle(v, rMin, rMax, protectView) {
+  function spawnVehicle(v, rMin, rMax, protectView, streets = nearEdges) {
     for (let attempt = 0; attempt < 12; attempt++) {
-      const e = nearEdges[Math.floor(Math.random() * nearEdges.length)];
+      const e = streets[Math.floor(Math.random() * streets.length)];
       if (!e || (v.bus && e.axis !== 'ave') || (v.bike && e.noBikes) || e.len < 2 * v.half + 10) continue;
       const lane = Math.floor(Math.random() * e.lanes.length);
       const along = (focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz;
@@ -2065,21 +2090,34 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     // Limit attempted placements, not just successes, and rotate through the pool so an awkward location
     // cannot monopolize a frame. Previous-frame lane lists protect spawn spacing; rebuild before driving.
     let budget = jump ? vehicles.length : 24;
-    let active = 0;
-    for (const v of vehicles) if (v.edge && Math.hypot(v.x - focusX, v.z - focusZ) <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) active++;
+    const keep = jump ? NEAR_RADIUS : VEHICLE_RADIUS;
+    carsOn.fill(0);
+    bikesOn.fill(0);
+    for (const v of vehicles) if (v.edge && Math.hypot(v.x - focusX, v.z - focusZ) <= keep) (v.bike ? bikesOn : carsOn)[v.edge.cls ?? 2]++;
     for (let scanned = 0; scanned < vehicles.length && budget > 0; scanned++) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
       if (!inService(v)) continue; // (the player's, or left by the player: js/hijack.js)
       // a cyclist whose only way on was a road closed to them leaves it unseen
       if (v.bike && v.edge && v.edge.noBikes && !nearView(v.x, v.z, v.half + 4, VEHICLE_SPAWN_DISTANCE, v.y)) v.edge = null;
-      const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
-      if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
+      const on = v.bike ? bikesOn : carsOn, cap = v.bike ? bikeCap : carCap;
+      if (v.edge && Math.hypot(v.x - focusX, v.z - focusZ) <= keep) {
+        // One too many on its class of street (they turn where they like: the cars that drifted into a quarter, the
+        // cyclists that gathered on the Promenade) leaves it unseen, for a street that has room
+        const c = v.edge.cls ?? 2;
+        if (on[c] <= cap[c] * 1.25 + 2 || nearView(v.x, v.z, v.half + 4, VEHICLE_SPAWN_DISTANCE, v.y)) continue;
+        on[c]--;
+      }
       budget--;
-      // no room for it on the lanes around here: off the road until others leave (it is far away, or everything is
-      // being placed afresh after a jump)
-      if (active >= capacity || (v.bike && !bikeRoad)) { v.edge = null; continue; }
-      if (spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump)) active++;
+      // The class of street that lacks most of its share takes it. No room on the lanes around here: off the road until
+      // others leave (it is far away, or everything is being placed afresh after a jump)
+      let to = -1, lack = 0;
+      for (let c = 0; c < 3; c++) {
+        const l = (cap[c] - on[c]) / Math.max(1, cap[c]);
+        if (cap[c] > on[c] && l > lack) { lack = l; to = c; }
+      }
+      v.edge = null;
+      if (to >= 0 && spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump, nearClass[to])) on[to]++;
     }
     buildOccupancy();
     for (const m of bodyMeshes) m.count = 0;

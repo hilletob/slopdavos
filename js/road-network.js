@@ -22,6 +22,21 @@ import { GEO } from './nyc-geodata.js';
 const CELL = 32;
 const Z_MIN = Math.floor(ISLAND_BOUNDS.minZ) - 20; // the detailed island, ~129th St to the Battery
 const Z_MAX = Math.ceil(ISLAND_BOUNDS.maxZ) + 20;
+// (Davos) How much traffic a street carries (js/traffic.js), from its name and its mapped width (a primary road 10 m,
+// a secondary 8, a tertiary 7, the rest 6 or less): 0 the main axes — the Promenade and the Talstrasse through the town,
+// the road in from Wolfgang, the Landwasserstrasse down the valley to Wiesen —, 1 the roads into the side valleys
+// (Flüela, Dischma, Sertig, Clavadel, Monstein, Langwies), 2 the quarters' streets
+const MAIN_ROADS = /^(Promenade|Talstrasse|Prättigauerstrasse|Seegalerie|Landwasserstrasse|Landwassertunnel|Hauptstrasse)$/;
+const VALLEY_ROADS = /^(Flüelastrasse|Flüelapassstrasse|Via Pass dal Flüela|Flüela Pass|Dischmastrasse|Sertigerstrasse|Clavadelerstrasse|Monsteinerstrasse|Arosastrasse)$/;
+function roadClass(name, width) {
+  if (MAIN_ROADS.test(name)) return 0;
+  if (VALLEY_ROADS.test(name)) return 1;
+  return width >= 8 ? 0 : width >= 7 ? 1 : 2;
+}
+// The through roads among the main axes, out of the town's centre: no cyclists on them (js/traffic.js: nobody overtakes
+// on a lane each way, so half a dozen cyclists held all of the road from Wolfgang to their 20 km/h)
+const THROUGH_ROADS = /^(Prättigauerstrasse|Seegalerie|Landwasserstrasse|Landwassertunnel|Hauptstrasse)$/;
+
 const LANE_CLEAR = 1.2; // half width each lane keeps free of obstacles
 const CROSSWALK = 2.5; // depth between an intersection box and its stop lines
 const SHORE_MARGIN = 6;
@@ -512,7 +527,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       split(pts[0], pts[pts.length - 1], 0, total);
       stations.push(B);
       const lanes = lanesOf(l);
-      for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k], to: stations[k + 1], walk: l.walk, ...lanes });
+      for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k], to: stations[k + 1], walk: l.walk, cls: roadClass(l.name, l.w), transit: THROUGH_ROADS.test(l.name), ...lanes });
     }
     console.info(`[roads] centreline streets: ${links.length} links not on the grid, ${runs.length} straight runs`);
     return runs;
@@ -533,7 +548,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
         Math.min(az, az + dz * span) - cz, Math.max(az, az + dz * span) + cz);
     });
     if (!open.length) return;
-    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [] });
+    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [], cls: axis === 'ave' ? 0 : 2 });
   }
   for (const a of avenues) {
     a.nodes.sort((m, n) => m.z - n.z);
@@ -570,7 +585,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
   };
   // `walk`: the raised sidewalks' widths [left, right] of from -> to, where mapped (js/city-grid.js draws them; the
   // pedestrians keep to them, js/pedestrian-routes.js)
-  function addEdgeGeneral(from, to, axis, lanes, half, divided, bus = 0, walk = null) {
+  function addEdgeGeneral(from, to, axis, lanes, half, divided, bus = 0, walk = null, cls = 2, transit = false) {
     const x0 = from.x;
     const z0 = from.z;
     const span = Math.hypot(to.x - x0, to.z - z0);
@@ -579,7 +594,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     const dz = (to.z - z0) / span;
     const open = lanes.filter((o) => laneOpen(x0, z0, dx, dz, span, o));
     if (!open.length) return;
-    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [], general: true, cand: lanes, divided: !!divided, bus, walk });
+    edges.push({ from, to, axis, x0, z0, dx, dz, rx: -dz, rz: dx, span, half, lanes: open.sort((p, q) => p - q), moves: [], general: true, cand: lanes, divided: !!divided, bus, walk, cls, transit });
   }
   // A divided road drawn as two one-way roadways between the same two junctions (most of the Bowery) runs both ways
   // along one centreline here: each way keeps to the right of it, as on a two-way street, and the road is as wide as
@@ -608,8 +623,8 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     if (r.half >= 7.25) r.axis = o.axis = 'ave'; // as wide as a major road (see lanesOf)
   }
   for (const r of genRuns) {
-    if (r.fwd.length) addEdgeGeneral(r.from, r.to, r.axis, r.fwd, r.half, r.divided, r.bus, r.walk);
-    if (r.back.length) addEdgeGeneral(r.to, r.from, r.axis, r.back, r.half, r.divided, r.bus, r.walk && [r.walk[1], r.walk[0]]);
+    if (r.fwd.length) addEdgeGeneral(r.from, r.to, r.axis, r.fwd, r.half, r.divided, r.bus, r.walk, r.cls, r.transit);
+    if (r.back.length) addEdgeGeneral(r.to, r.from, r.axis, r.back, r.half, r.divided, r.bus, r.walk && [r.walk[1], r.walk[0]], r.cls, r.transit);
   }
   // Two edges from one node to the same next one (a service road whose ends were drawn onto its main road's junctions)
   // would drive through each other: keep the grid's, else the one with the most lanes
@@ -1290,7 +1305,17 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
   function connector(e, i, f, j) {
     const k = ((e.id * 8 + i) * 16384 + f.id) * 8 + j;
     let c = curves.get(k);
-    if (!c) curves.set(k, (c = makeCurve(e, i, f, j)));
+    if (!c) {
+      curves.set(k, (c = makeCurve(e, i, f, j)));
+      // (Davos) A bend of the road itself (a shape node: a corner of the mapped line, nothing crosses there) is driven as
+      // the curve the line stands for, not as the 2 m arc that joins its two straights: a real bend of radius R is mapped
+      // as chords, and the circle that touches both chords half way along the shorter one has about that radius. The
+      // arc's own curvature slowed every car to 7-14 km/h at each corner of the line, on the open valley roads too.
+      if (e.to.shape && i === j) {
+        const turn = Math.acos(Math.max(-1, Math.min(1, e.dx * f.dx + e.dz * f.dz)));
+        c.curv = Math.min(c.curv, 2 * Math.tan(turn / 2) / Math.max(1, Math.min(e.span, f.span)));
+      }
+    }
     return c;
   }
 
@@ -1432,4 +1457,4 @@ function curvePoint(c, s, out) {
   return out;
 }
 
-export { buildRoadNetwork, CROSSWALK };
+export { buildRoadNetwork, roadClass, CROSSWALK };
