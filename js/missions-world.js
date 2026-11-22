@@ -679,21 +679,28 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
   prompt.addEventListener('click', () => { if (inReach?.pin.closed) waitForReach(); else startInReach(); });
   document.body.append(prompt);
 
+  // (a round compass where there is no radar, phones and touch screens: the needle turns in a disc towards the
+  // waypoint, the distance under it; a tap on it clears the waypoint)
   const way = el('div', 'hud hud-top-center mission-waypoint');
   way.hidden = true;
-  const wayPanel = el('div', 'panel mission-waypoint-panel');
+  const wayPanel = el('button', 'mission-compass');
+  wayPanel.type = 'button';
+  wayPanel.title = 'Clear the waypoint';
+  wayPanel.setAttribute('aria-label', 'Clear the waypoint');
+  const wayDisc = el('span', 'panel mission-compass-disc');
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   arrow.setAttribute('viewBox', '0 0 24 24');
   arrow.setAttribute('class', 'mission-arrow');
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', ARROW);
   arrow.append(path);
-  const wayText = el('span', 'mission-waypoint-text');
-  const wayClear = el('button', 'mission-waypoint-clear', '×');
-  wayClear.type = 'button';
-  wayClear.title = 'Clear the waypoint';
-  wayClear.addEventListener('click', () => { if (mapSystem?.waypoint?.mission) mapSystem.waypoint = null; });
-  wayPanel.append(arrow, wayText, wayClear);
+  wayDisc.append(arrow);
+  const wayDist = el('strong', 'mission-waypoint-dist');
+  wayPanel.addEventListener('click', () => { if (mapSystem?.waypoint?.mission) mapSystem.waypoint = null; });
+  wayPanel.append(wayDisc, wayDist);
+  // (with the radar on screen the way is shown there, js/nyc-map.js drawRadarCompass: the needle and the distance)
+  const radar = document.getElementById('minimap-card');
+  const radarClear = document.getElementById('minimap-clear');
   way.append(wayPanel);
   document.body.append(way);
 
@@ -886,14 +893,17 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
     const def = wp?.mission && MISSIONS.find((m) => m.id === wp.mission);
     if (def && !active) {
       const d = Math.hypot(wp.x - p.x, wp.z - p.z);
-      if (d < START_RADIUS) { mapSystem.waypoint = null; way.hidden = true; return; }
-      way.hidden = false;
+      if (d < START_RADIUS) { mapSystem.waypoint = null; way.hidden = true; if (radarClear) radarClear.hidden = true; return; }
+      const inRadar = !!radar?.offsetParent;
+      if (radarClear) radarClear.hidden = !inRadar;
+      way.hidden = inRadar;
+      if (inRadar) return;
       const rel = relativeBearing(p.x, p.z, ent.heading, wp.x, wp.z);
       arrow.style.transform = `rotate(${(-rel * 180) / Math.PI}deg)`;
       arrow.style.color = def.colour;
-      const text = `${def.title} · ${formatDistance(d)}`;
-      if (wayText.textContent !== t(text)) setLocalizedText(wayText, text);
-    } else way.hidden = true;
+      const dist = formatDistance(d);
+      if (wayDist.textContent !== dist) wayDist.textContent = dist;
+    } else { way.hidden = true; if (radarClear) radarClear.hidden = true; }
   }
 
   return { update, flashPoints, pins, overlay };

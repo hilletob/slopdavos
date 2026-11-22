@@ -551,6 +551,51 @@ function drawWaypoint(ctx, x, y, r) {
   ctx.fill();
 }
 
+// The radar's compass (CSS pixels from the radar's centre, north up): the waypoint at (wx, wy), the radar w x h
+let RADAR_NEEDLE = null; // (a Path2D, made at the first use: there is none outside a browser)
+function drawRadarCompass(ctx, wx, wy, w, h, metres) {
+  const hw = w * 0.5 - 24;
+  const hh = h * 0.5 - 24;
+  const outside = Math.abs(wx) > hw || Math.abs(wy) > hh;
+  const text = metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`;
+  let lx = wx;
+  let ly = wy + 19;
+  if (outside) {
+    const k = Math.min(hw / Math.max(Math.abs(wx), 1e-6), hh / Math.max(Math.abs(wy), 1e-6));
+    const nx = wx * k;
+    const ny = wy * k;
+    const len = Math.hypot(wx, wy);
+    RADAR_NEEDLE ||= new Path2D('M0 -16 11.5 13.5 0 7 -11.5 13.5z');
+    ctx.save();
+    ctx.translate(nx, ny);
+    ctx.rotate(Math.atan2(wx, -wy));
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = MAP.halo;
+    ctx.stroke(RADAR_NEEDLE);
+    ctx.fillStyle = MAP.route;
+    ctx.fill(RADAR_NEEDLE);
+    ctx.restore();
+    // (the distance on the needle's inner side)
+    lx = nx - (wx / len) * 40;
+    ly = ny - (wy / len) * 30;
+  }
+  ctx.save();
+  ctx.font = `800 13px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(text).width + 14;
+  lx = Math.max(-w * 0.5 + tw * 0.5 + 6, Math.min(w * 0.5 - tw * 0.5 - 6, lx));
+  ly = Math.max(-h * 0.5 + 16, Math.min(h * 0.5 - 16, ly));
+  ctx.fillStyle = 'rgba(10, 12, 15, 0.86)';
+  ctx.beginPath();
+  ctx.roundRect(lx - tw * 0.5, ly - 10, tw, 20, 10);
+  ctx.fill();
+  ctx.fillStyle = MAP.route;
+  ctx.fillText(text, lx, ly + 0.5);
+  ctx.restore();
+}
+
 const overlaps = (boxes, b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
 
 class NYCMapSystem {
@@ -632,6 +677,11 @@ class NYCMapSystem {
 
     if (miniCard) {
       miniCard.addEventListener('click', () => this.toggleFullMap(true));
+      // (the mission waypoint's "clear", shown by js/missions-world.js while one is set)
+      document.getElementById('minimap-clear')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.waypoint?.mission) this.waypoint = null;
+      });
     }
     if (closeBtn) {
       closeBtn.addEventListener('click', () => this.toggleFullMap(false));
@@ -1274,6 +1324,12 @@ class NYCMapSystem {
     }
 
     for (const o of this.overlays || []) o.draw?.(ctx, v, true);
+
+    // The way to a mission's waypoint, in the radar itself: a needle at the rim towards it while it lies outside,
+    // and the distance beside the needle (under the waypoint once it is in view)
+    if (this.waypoint && this.waypoint.mission) {
+      drawRadarCompass(ctx, toX(this.waypoint.x), toY(this.waypoint.z), w, h, Math.hypot(this.waypoint.x - px, this.waypoint.z - pz));
+    }
 
     // Landmark blips
     for (const lm of NYC_LANDMARKS) {

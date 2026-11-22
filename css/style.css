@@ -2430,22 +2430,30 @@ body.hud-minimized .mission-hud { opacity: 1; }
 body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 300px); padding: 12px 18px; }
 
 .mission-waypoint[hidden] { display: none; }
-.mission-waypoint-panel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 12px;
-  border-radius: 12px;
-  font-size: 12.5px;
-  font-weight: 650;
-  color: var(--text);
+/* the compass: a round disc with a big needle in it (turned towards the waypoint, js/missions-world.js) and the
+   distance in large figures under it; a tap clears the waypoint. Shown where there is no radar (phones, touch
+   screens); with the radar on screen the needle and the distance are drawn in it (js/nyc-map.js drawRadarCompass) */
+.mission-compass {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 0; border: 0; background: none; font: inherit; color: var(--text); cursor: pointer; pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
-.mission-waypoint .mission-arrow { width: 18px; height: 18px; flex: none; }
-.mission-waypoint-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.mission-waypoint-clear {
-  border: 0; border-radius: 7px; padding: 1px 7px; font: inherit; font-size: 14px; line-height: 1.2;
-  color: var(--text-2); background: rgba(255, 255, 255, 0.08); cursor: pointer;
+.mission-compass-disc {
+  display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.16), 0 6px 18px -8px rgba(0, 0, 0, 0.8);
 }
+.mission-waypoint .mission-arrow { width: 46px; height: 46px; flex: none; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.mission-waypoint-dist {
+  padding: 2px 9px; border-radius: 999px; background: rgba(10, 12, 15, 0.72);
+  font-size: 19px; font-weight: 800; line-height: 1.2; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.radar-clear {
+  position: absolute; top: 7px; left: 7px; z-index: 1;
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: 7px; font: inherit; font-size: 15px; line-height: 1;
+  color: rgba(255, 255, 255, 0.85); background: rgba(10, 12, 15, 0.72); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); cursor: pointer;
+}
+.radar-clear[hidden] { display: none; }
+.radar-clear:hover { color: var(--taxi-ink); background: var(--taxi); }
 
 /* medals: a small disc (grey: none yet; dashed: not completed) */
 .mission-medal {
@@ -2486,9 +2494,6 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 .mission-list-points { font-size: 11.5px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 /* phones: the waypoint under the toolbar and the camera switcher */
-@media (max-width: 820px) {
-  .mission-waypoint-panel { font-size: 11px; padding: 4px 6px 4px 10px; }
-}
 .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 62px); }
 .mission-list li { flex-wrap: nowrap; }
 .mission-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2501,9 +2506,11 @@ body.touch-enabled .mission-prompt { bottom: calc(max(var(--edge), env(safe-area
 .mission-licence strong { font-size: 14px; color: var(--text); }
 .mission-licence strong.mission-new-best { color: var(--taxi); }
 .mission-licence span { font-weight: 500; color: var(--text-3); }
+/* phones and touch screens: the compass at the left under the toolbar, beside the camera switcher */
 @media (max-width: 820px) {
-  .mission-waypoint.hud-top-center { top: calc(max(var(--edge), env(safe-area-inset-top)) + 120px); }
+  .mission-waypoint.hud-top-center { left: max(var(--edge), env(safe-area-inset-left)); transform: none; }
 }
+body.touch-enabled .mission-waypoint.hud-top-center { left: max(var(--edge), env(safe-area-inset-left)); transform: none; }
 
 /* Getting in and out (js/gta.js): the prompt to get in or out above the controls guide (under a mission's start
    prompt); the touch screens' "Get in / Get out" button first among the action buttons, under the left thumb */
