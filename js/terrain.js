@@ -354,7 +354,7 @@ for (const u of DAVOS_DATA.underpasses || []) {
  *  surfaceHeight(), so the helicopter sets down on it (js/controllers.js: the floor is the surface) — the Rega pad on
  *  the roof of the Spital Davos (js/helipad.js) */
 export function addPlatform(x, z, r, y) {
-  const s = { ax: x, az: z, bx: x, bz: z, ya: y, yb: y, half: r, road: null };
+  const s = { ax: x, az: z, bx: x, bz: z, ya: y, yb: y, half: r, road: null, platform: true };
   for (let ix = Math.floor((x - r) / DECK_CELL); ix <= Math.floor((x + r) / DECK_CELL); ix++) {
     for (let iz = Math.floor((z - r) / DECK_CELL); iz <= Math.floor((z + r) / DECK_CELL); iz++) {
       const k = ix * 65536 + iz;
@@ -364,12 +364,14 @@ export function addPlatform(x, z, r, y) {
   }
 }
 
-/** Height of the bridge deck under (x, z) (nearest bridge centreline within its half width), or NaN */
-export function deckHeight(x, z) {
+/** Height of the bridge deck under (x, z) (nearest bridge centreline within its half width), or NaN.
+ *  `platforms` false: the bridges only, not the landing platforms on a roof (addPlatform) */
+export function deckHeight(x, z, platforms = true) {
   const list = deckCells.get(Math.floor(x / DECK_CELL) * 65536 + Math.floor(z / DECK_CELL));
   if (!list) return NaN;
   let best = Infinity, h = NaN;
   for (const s of list) {
+    if (s.platform && !platforms) continue;
     const dx = s.bx - s.ax, dz = s.bz - s.az, L2 = dx * dx + dz * dz || 1e-9;
     const raw = ((x - s.ax) * dx + (z - s.az) * dz) / L2;
     if (s.lid && (raw < 0 || raw > 1)) continue; // (a rectangle, no round ends: its long sides fall away into the cut)
@@ -888,13 +890,16 @@ export function placeOnTerrain(root, stats = { rigid: 0, instances: 0, draped: 0
 export const TERRAIN_INFO = { cols: TERRAIN.cols, rows: TERRAIN.rows, cell: TERRAIN.cell, deckSegments };
 
 /** Shifts flat-world colliders ({ minX, maxX, minZ, maxZ, minY?, maxY }) onto the terrain: from the lowest ground under
- * the footprint up to the height above the highest. `baseY` keeps the shift (heights relative to the ground: maxY - baseY). */
+ * the footprint up to the height above the highest. `baseY` keeps the shift (heights relative to the ground: maxY - baseY).
+ * The ground or a bridge's deck, not a landing platform on a roof (addPlatform): the wall under the Spital Davos' Rega
+ * pad was measured from the pad, 14 m over the ground, and stood 9 m over the pad along its south edge, unseen. */
 export function liftColliders(colliders) {
   for (const c of colliders) {
     if (c.baseY !== undefined) continue;
     let lo = Infinity, hi = -Infinity;
     for (const x of [c.minX, (c.minX + c.maxX) / 2, c.maxX]) for (const z of [c.minZ, (c.minZ + c.maxZ) / 2, c.maxZ]) {
-      const h = surfaceHeight(x, z);
+      const g = trodHeight(x, z), d = deckHeight(x, z, false);
+      const h = d > g ? d : g;
       if (h < lo) lo = h;
       if (h > hi) hi = h;
     }
