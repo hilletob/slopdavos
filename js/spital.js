@@ -104,7 +104,7 @@ function materials() {
   return M;
 }
 
-function decalMaterial(map) {
+export function decalMaterial(map) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0, transparent: true });
   const t = texture(map, uv());
   m.colorNode = t.rgb;
@@ -245,9 +245,14 @@ function atlasTexture() {
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------
-// One mesh per material: quads pushed as two triangles, counter-clockwise seen from their front
-class Builder {
-  constructor() { this.buckets = new Map(); }
+// One mesh per material: quads pushed as two triangles, counter-clockwise seen from their front. (Also the Alte Post's,
+// js/alte-post.js: `atlas` the decals' cells ([x, y, w, h] px) in a canvas of `atlasSize` [w, h], `walls` the bucket
+// whose mesh carries aHalf, `name` the meshes' prefix)
+export class Builder {
+  constructor({ atlas = ATLAS, atlasSize = [ATLAS_SIZE, ATLAS_SIZE], walls = 'concrete', name = 'Spital Davos' } = {}) {
+    this.buckets = new Map();
+    Object.assign(this, { atlas, atlasSize, walls, name });
+  }
   bucket(name) {
     let b = this.buckets.get(name);
     if (!b) this.buckets.set(name, (b = { pos: [], nrm: [], uv: [], half: [], col: [] }));
@@ -287,10 +292,12 @@ class Builder {
     face(P(s0, o0, y0), P(s1, o0, y0), P(s1, o1, y0), P(s0, o1, y0), L, D); // the underside
   }
   /** A decal from the atlas on a wall: s0–s1 along it (left to right seen from outside), `o` m before it */
-  decal(F, s0, s1, o, y0, y1, key) {
-    const [ax, ay, aw, ah] = ATLAS[key], S = ATLAS_SIZE;
+  decal(F, s0, s1, o, y0, y1, key, { mirror = false } = {}) {
+    const [ax, ay, aw, ah] = this.atlas[key], [W, H] = this.atlasSize;
     const P = (s, y) => { const [x, z] = onWall(F, s, o); return [x, y, z]; };
-    const u0 = ax / S, u1 = (ax + aw) / S, v0 = 1 - (ay + ah) / S, v1 = 1 - ay / S;
+    let u0 = ax / W, u1 = (ax + aw) / W;
+    if (mirror) [u0, u1] = [u1, u0];
+    const v0 = 1 - (ay + ah) / H, v1 = 1 - ay / H;
     this.quad('decal', P(s0, y0), P(s1, y0), P(s1, y1), P(s0, y1), [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
   }
   meshes(M) {
@@ -300,10 +307,10 @@ class Builder {
       g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
       g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nrm, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
-      if (name === 'concrete') g.setAttribute('aHalf', new THREE.Float32BufferAttribute(b.half, 1));
+      if (name === this.walls) g.setAttribute('aHalf', new THREE.Float32BufferAttribute(b.half, 1));
       if (b.col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
       const mesh = new THREE.Mesh(g, M[name]);
-      mesh.name = `Spital Davos ${name}`;
+      mesh.name = `${this.name} ${name}`;
       mesh.castShadow = name !== 'decal';
       mesh.receiveShadow = true;
       out.push(mesh);
