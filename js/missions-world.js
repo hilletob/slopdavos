@@ -165,6 +165,13 @@ export function drawMissionIcon(ctx, def, medal, cx, cy, r) {
       for (const x of [-0.7, -0.15, 0.35]) ctx.fillRect(g * (x - 0.07), 0, g * 0.14, g * 0.6);
       break;
     }
+    case 'fondue': { // a caquelon on its burner, the fork in it (js/missions-data-fondue.js)
+      ctx.beginPath(); ctx.moveTo(-g * 0.8, -g * 0.15); ctx.lineTo(g * 0.55, -g * 0.15); ctx.lineTo(g * 0.4, g * 0.5); ctx.lineTo(-g * 0.65, g * 0.5); ctx.closePath(); ctx.fill();
+      ctx.fillRect(g * 0.45, -g * 0.12, g * 0.55, g * 0.2);
+      ctx.fillRect(-g * 0.45, g * 0.62, g * 0.65, g * 0.28);
+      ctx.lineWidth = g * 0.13; ctx.beginPath(); ctx.moveTo(-g * 0.1, -g * 0.2); ctx.lineTo(g * 0.5, -g * 1.0); ctx.stroke();
+      break;
+    }
     case 'mine': { // hammer and pick crossed, the miners' sign (js/missions-data-mine.js)
       ctx.lineWidth = g * 0.17; ctx.lineCap = 'round';
       for (const s of [1, -1]) { ctx.beginPath(); ctx.moveTo(-g * 0.8 * s, g * 0.85); ctx.lineTo(g * 0.55 * s, -g * 0.5); ctx.stroke(); }

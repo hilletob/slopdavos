@@ -433,6 +433,42 @@ const pairs = [
   ['Stand still while the sacks go in', 'Stehen bleiben, während die Säcke abgegeben werden'], ['Empty', 'Leeren'], ['Post van', 'Lieferwagen der Post'],
   ['Alpine roses below the Strelaberg', 'Alpenrosen unter dem Strelaberg'],
   ['Mushroom hunt in the Dischma forest', 'Pilzsuche im Dischmawald'],
+  // the Drupal Mountain Camp's Fondue Night (js/missions-data-fondue.js, js/missions-fondue.js)
+  ['Fondue Night on the Schatzalp', 'Fondue Night auf der Schatzalp'],
+  ['Davos Platz, the runners scrape over the last ice. The fondue held, the Flämmli is still warm in your belly. See you at the next session, on top of the world.', 'Davos Platz, die Kufen kratzen übers letzte Eis. Das Fondue hat gehalten, das Flämmli wärmt noch. Bis zur nächsten Session, on top of the world.'],
+  ['Meet the camp at the Kongress', 'Triff das Camp beim Kongress'],
+  ['Up to the Schatzalp', 'Hinauf zur Schatzalp'],
+  ['Stir the fondue in a figure of eight', 'Rühr das Fondue in einer Acht'],
+  ['A Flämmli: with or without effect?', 'Ein Flämmli: mit oder ohne Wirkung?'],
+  ['The upper hairpins', 'Die oberen Kehren'],
+  ['Down to Davos Platz', 'Hinunter nach Davos Platz'],
+  ['Walk to the entrance between the flags', 'Geh zum Eingang zwischen den Fahnen'],
+  ['With the Schatzalpbahn up to the Schatzalp …', 'Mit der Schatzalpbahn hinauf zur Schatzalp …'],
+  ['The caquelon is on the flame: to the table', 'Das Caquelon steht auf der Flamme: zum Tisch'],
+  ['Draw a figure of eight through the pot with the mouse or your finger', 'Zeichne mit Maus oder Finger eine Acht durchs Caquelon'],
+  ['Smooth and creamy: keep the eight going', 'Schön sämig: bleib bei der Acht'],
+  ['Round in circles: the cheese splits! Cross through the middle', 'Im Kreis gerührt: Der Käse scheidet! Rühr durch die Mitte'],
+  ['Too wild: it splashes over the rim', 'Zu wild: Es spritzt über den Rand'],
+  ['Too slow: it catches on the bottom', 'Zu langsam: Es brennt am Boden an'],
+  ['Caught on the bottom! Scraping it loose: +8 s', 'Angebrannt! Loskratzen: +8 s'],
+  ['With effect: a faster sledge, late horns, a swaying valley', 'Mit Wirkung: schnellerer Schlitten, träge Hörner, schwankendes Tal'],
+  ['Choose your Flämmli', 'Wähl dein Flämmli'],
+  ['To the sledges at the top of the run …', 'Zu den Schlitten oben an der Bahn …'],
+  ['Brake (S) before a hairpin, then steer through it with A/D', 'Vor der Kehre bremsen (S), dann mit A/D hindurchlenken'],
+  ['Duck low (W) on the straights, brake for the bends', 'Auf den Geraden ducken (W), vor den Kurven bremsen'],
+  ['Smooth!', 'Sämig!'],
+  ['It splits: cross the middle!', 'Es scheidet: durch die Mitte!'],
+  ['Too wild!', 'Zu wild!'],
+  ['Too slow!', 'Zu langsam!'],
+  ['Caught! +8 s', 'Angebrannt! +8 s'],
+  ['creamy', 'sämig'],
+  ['catching', 'brennt an'],
+  ['A Kafi with a schnapps alight on top. With effect: the sledge runs faster, but the horns answer late and the valley sways. Without: all as it is.', 'Ein Kafi mit brennendem Schnaps obendrauf. Mit Wirkung: Der Schlitten läuft schneller, aber die Hörner reagieren träge und das Tal schwankt. Ohne: alles wie gewohnt.'],
+  ['With effect', 'Mit Wirkung'],
+  ['Without effect', 'Ohne Wirkung'],
+  ['A Flämmli with effect. To the sledges!', 'Ein Flämmli mit Wirkung. Zu den Schlitten!'],
+  ['A Flämmli without effect. To the sledges!', 'Ein Flämmli ohne Wirkung. Zu den Schlitten!'],
+  ['The valley sways: steer early!', 'Das Tal schwankt: früh lenken!'],
   ['Horn sledge race at the Rinerhorn', 'Hornschlittenrennen am Rinerhorn'],
   ['Sommerrodelbahn on the Schatzalp', 'Sommerrodelbahn auf der Schatzalp'],
   ['The first hairpins', 'Die ersten Spitzkehren'], ['Through the tunnel', 'Durch den Tunnel'], ['Down to the foot of the lift', 'Hinunter zum Lift'],
@@ -1655,6 +1691,7 @@ const PFADI_STEPS_DE = {
 };
 const PFADI_WOOD_DE = { 'dry twigs': 'dürre Zweige', kindling: 'Anfeuerholz', 'a log': 'ein Scheit' };
 const missionIntros = [
+  ['Drupal Mountain Camp, open source on top of the world', 'Drupal Mountain Camp, Open Source on top of the world, und heute Abend der Klassiker: die Fondue Night. Triff das Camp beim Kongresszentrum, fahr auf die Schatzalp und rühr das Fondue: Zeichne mit Maus oder Finger eine Acht durchs Caquelon. Im Kreis gerührt scheidet der Käse, zu langsam brennt er am Boden an. Danach ein Flämmli, mit oder ohne Wirkung, du entscheidest: Mit Wirkung läuft der Schlitten schneller, aber die Hörner reagieren träge und das Tal schwankt. Und dann auf dem Hornschlitten die Schlittelbahn hinunter nach Davos Platz, 2,3 km Kehren im Fackelschein, auf Zeit. Jeder Sturz kostet 5 s.'],
   ["Après-ski under the umbrella bar at the foot of the Jakobshorn", "Après-Ski unter der Schirmbar am Fuss des Jakobshorns. Der Gigi, Skilehrer vo Arosa, hält am Stammtisch Hof und behauptet, die Davoser kennten ihr eigenes Tal nicht. Er stellt drei Fragen, alle tippen eine Zahl, verdeckt, bis er die Lösung vorliest. Je näher, desto mehr Punkte; die dritte Frage zählt doppelt; wer Letzter wird, zahlt die Runde. Spiel gegen die Stammgäste oder bring bis zu zehn Spieler an den Tisch."],
   ['The first train of the day up the Parsennbahn', 'Der erste Zug des Tages auf der Parsennbahn, und du bist der Maschinist im Führerstand vorne im Wagen. In Davos Dorf steigen die Fahrgäste ein: Schliess die Türen (F), gib ein Hornsignal (B) und fahr pünktlich ab. Der Fahrhebel (W/S) stellt das Tempo ein, das die Winde hält, die Leertaste ist die Betriebsbremse, X die Notbremse. Halte die Tempolimits ein, aus der Station, durch den Tunnel und durch die Ausweiche, wo dir der andere Wagen entgegenkommt, und halte am Höhenweg mit der Wagenspitze auf den Zentimeter genau an der gelben Linie. Öffne die Türen, steig in den oberen Wagen um und mach dasselbe nochmals bis aufs Weissfluhjoch. Die Leute stehen: Brems sanft. T fährt die langen Strecken im Zeitraffer.'],
   ['January, the World Economic Forum. A start-up', 'Januar, das World Economic Forum. Ein Start-up aus Zürich will sein Jetpack den Investoren vorführen, die auf der Terrasse des Berghotels Schatzalp warten, des alten Sanatoriums aus dem «Zauberberg». Doch der Testpilot steckt im Stau am Wolfgang, und die Schatzalpbahn ist von Delegationen ausgebucht. Du wurdest angestellt, um die Benzinkanister zu tragen. Jetzt trägst du das Ding selbst. Flieg die Demo: vom Kurpark beim Kongresszentrum durch die Lichttore über dem Ort, tief über die Natureisbahn und um den Kirchturm von St. Johann. Lande dann bei der Boxencrew an der Promenade zum Volltanken, steig der Schatzalpbahn entlang hinauf und lande auf der Hotelterrasse. Leertaste steigt, Q sinkt, ohne beides schwebt das Jetpack von selbst; W neigt nach vorn, S bremst, A/D drehen. Auf dem Handy lenkt der Stick, die Knöpfe steigen und sinken. Behalte den Tank im Auge: Jede Sekunde in der Luft kostet Treibstoff, Steigen am meisten. Setz langsamer als 30 km/h auf, sonst gibt es einen Purzelbaum (+10 s); eine Wand kostet 3 s.'],
@@ -1936,6 +1973,12 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+ (?:bump|bumps) · \d+ (?:ram|rams)) · top speed (\d+) km\/h$/, (_, c, v) => `${tobogganDe(c)} · Höchsttempo ${v} km/h`);
   dynamic = dynamic.replace(/^Over the wall! \+(\d+) s$/, 'Über die Wand! +$1 s');
   // (the horn sledge, the bike race, the slalom: js/missions-data-sledge.js, js/missions-data-snow.js, js/missions-snow.js)
+  // the Fondue Night (js/missions-data-fondue.js)
+  dynamic = dynamic.replace(/^The camp waits at the entrance · ([\d,.]+ (?:m|km))$/, 'Das Camp wartet beim Eingang · $1');
+  dynamic = dynamic.replace(/^The fondue table on the terrace · ([\d,.]+ (?:m|km))$/, 'Der Fonduetisch auf der Terrasse · $1');
+  dynamic = dynamic.replace(/^Figure eights (\d+\/\d+)(?: · caught (\d+)× (\(\+\d+ s\)))?$/, (_, n, c, s) => `Achten ${n}${c ? ` · ${c}× angebrannt ${s}` : ''}`);
+  dynamic = dynamic.replace(/^(\d+) figure eights · (?:nothing caught|caught on the bottom (\d+)× (\(\+\d+ s\)))(?: · (\d+) circles?)?$/, (_, n, c, s, k) => `${n} Achten · ${c ? `${c}× angebrannt ${s}` : 'nichts angebrannt'}${k ? ` · ${k}-mal im Kreis gerührt` : ''}`);
+  dynamic = dynamic.replace(/^Flämmli (with|without) effect · (\d+) (?:crash|crashes)( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, (_, w, n, s, v) => `Flämmli ${w === 'with' ? 'mit' : 'ohne'} Wirkung · ${n} ${n === '1' ? 'Sturz' : 'Stürze'}${s || ''} · Höchsttempo ${v} km/h`);
   dynamic = dynamic.replace(/^(Into the net|Off the run|Tipped over)! \+(\d+) s$/, (_, w, n) => `${{ 'Into the net': 'Ins Netz', 'Off the run': 'Von der Bahn abgekommen', 'Tipped over': 'Umgekippt' }[w]}! +${n} s`);
   dynamic = dynamic.replace(/^Checkpoint (\d+) missed: (?:back up to it|ride back to it)$/, 'Checkpoint $1 verpasst: zurück dorthin');
   dynamic = dynamic.replace(/^Checkpoint (\d+\/\d+) · ([\d,.]+ (?:m|km)) · (\d+) (?:crash|crashes) \((\+[\d.]+ s)\)$/, (_, n, d, c, s) => `Checkpoint ${n} · ${d} · ${c} ${c === '1' ? 'Sturz' : 'Stürze'} (${s})`);

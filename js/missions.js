@@ -49,6 +49,7 @@ import { HELIBLAST_FEATURES } from './missions-heliblast.js';
 import { ZAMBONI_FEATURES } from './missions-zamboni.js';
 import { SAMD_FEATURES } from './missions-samd.js';
 import { PARSENN_FEATURES } from './missions-parsenn.js';
+import { FONDUE_FEATURES } from './missions-fondue.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -717,7 +718,8 @@ class MissionRun {
       const logo = el('img', 'mission-dialog-logo');
       logo.src = this.def.logo;
       logo.alt = '';
-      Object.assign(logo.style, { display: 'block', height: '64px', width: 'auto', margin: '0 0 10px' });
+      // (the dialog lays its children out in a column and stretches them: the logo keeps its own shape, at the left)
+      Object.assign(logo.style, { display: 'block', height: '64px', width: 'auto', maxWidth: '100%', alignSelf: 'flex-start', objectFit: 'contain', objectPosition: 'left center', margin: '0 0 10px' });
       nodes.unshift(logo);
     }
     const meta = el('p', 'mission-dialog-meta');
@@ -1419,3 +1421,4 @@ Object.assign(FEATURES, HELIBLAST_FEATURES); // hand charges thrown from the hel
 Object.assign(FEATURES, ZAMBONI_FEATURES); // the ice resurfacer in the Eisstadion's second intermission (js/missions-zamboni.js)
 Object.assign(FEATURES, SAMD_FEATURES); // the long break on the SAMD's roof: the gobs, the yard, the parapet (js/missions-samd.js)
 Object.assign(FEATURES, PARSENN_FEATURES); // the machinist's cab on the Parsennbahn (js/missions-parsenn.js)
+Object.assign(FEATURES, FONDUE_FEATURES); // the Drupal Mountain Camp's Fondue Night (js/missions-fondue.js)

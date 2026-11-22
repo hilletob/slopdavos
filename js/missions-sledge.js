@@ -131,7 +131,7 @@ function buildArch(course, s, text, colour, { half = SLEDGE_TRACK.half + 1.2 } =
   return g;
 }
 
-function buildRun(run, course) {
+function buildRun(run, course, arches) {
   const T = SLEDGE_TRACK;
   // the stakes along both edges, every 12 m, orange and black in turn
   const marks = [];
@@ -184,7 +184,7 @@ function buildRun(run, course) {
     pm.frustumCulled = false;
     run.group.add(run.storage(pm));
   }
-  run.group.add(buildArch(course, 3, 'START · HORNSCHLITTENRENNEN RINERHORN', 0xb5652b), buildArch(course, course.length - 2, 'ZIEL · FINISH · GLARIS', 0xd42a20));
+  for (const [s, text, colour] of arches) run.group.add(buildArch(course, s < 0 ? course.length + s : s, text, colour));
 }
 
 // --- The HUD: speed, the tip meter ---------------------------------------------------------------------------------------
@@ -245,59 +245,102 @@ function showToast(hud, text, colour = '#ff8f80', seconds = 2) {
 }
 
 // --- The feature ---------------------------------------------------------------------------------------------------------
-const hornSledge = {
-  setup(run) {
-    const cm = run.hooks.controllerManager;
-    const course = createCourse();
-    const person = cm.entities.person;
-    const sledge = buildSledge();
-    run.group.add(sledge);
-    buildRun(run, course);
-    // the partner on the back seat: one more of the city's figures
-    const crowd = new PersonCrowd(1, { farDistance: 1e9 });
-    for (const m of crowd.meshes) run.group.add(m);
-    const partner = new PersonRig({ seed: 0.4142, female: true, hair: 0.8, girth: 0.98, scale: 0.96 });
-    run.sl = {
-      course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1, warned: false,
-      saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
-    };
-    // (the key bar says what the keys do on the sledge; the touch stick steers, brakes and ducks the same way)
-    run.hints([[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
-    run.vehiclePanel({ label: 'Horn sledge', topSpeedKmh: 80 }); // (the cluster at the bottom right, js/main.js: the person's speed)
-    cm.personDriver = (dt) => hornSledge.drive(run, dt, cm);
-    cm.personPoser = (dt, p) => hornSledge.pose(run, dt, p);
-    run.cleanups.push(() => {
-      if (cm.personDriver) cm.personDriver = null;
-      cm.personPoser = null;
-      const p = cm.entities.person;
-      p.rig.placed = false; // (the walk starts afresh where the sledge stopped)
-      p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
-      p.speed = 0;
-      p.slopePitch = 0;
-      Object.assign(p, run.sl.saved);
-    });
-  },
-  reset(run) {
-    const cm = run.hooks.controllerManager;
-    const S = run.sl;
-    S.sl = createSledge(S.course, groundHeight, 0);
-    const r = S.sl.rider;
-    const p = S.person;
-    p.position.set(r.x, r.y, r.z);
-    p.heading = r.heading;
+const HORN_ARCHES = [[3, 'START · HORNSCHLITTENRENNEN RINERHORN', 0xb5652b], [-2, 'ZIEL · FINISH · GLARIS', 0xd42a20]];
+
+/**
+ * A horn sledge and its run for a mission: the sledge, the partner, the stakes, nets and arches along `course`, the HUD.
+ * `arches`: [[s (from the end when negative), text, colour]]. `mounted: false` builds it all and leaves the player on
+ * foot until sledgeMount (the Fondue Night, js/missions-fondue.js: the ride is its last part); run.sl holds it, with
+ * `inputFilter(input, dt)` (what reaches the sledge of the driver's input) and `params` ({ on, off, track } for
+ * stepSledge) for a mission to set. `height(x, z)`: the snow the sledge runs on (the ground; a run laid as a bench in the
+ * slope passes the ground with its bench).
+ */
+export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES, mounted = true, height = groundHeight } = {}) {
+  const cm = run.hooks.controllerManager;
+  const person = cm.entities.person;
+  const sledge = buildSledge();
+  run.group.add(sledge);
+  buildRun(run, course, arches);
+  // the partner on the back seat: one more of the city's figures
+  const crowd = new PersonCrowd(1, { farDistance: 1e9 });
+  for (const m of crowd.meshes) run.group.add(m);
+  const partner = new PersonRig({ seed: 0.4142, female: true, hair: 0.8, girth: 0.98, scale: 0.96 });
+  run.sl = {
+    course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1, warned: false, mounted: false,
+    inputFilter: null, params: null, offHints: null, wait: false, height,
+    saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
+  };
+  if (!mounted) { sledge.visible = false; for (const m of crowd.meshes) m.visible = false; run.sl.hud.box.style.display = 'none'; }
+  run.cleanups.push(() => {
+    if (cm.personDriver) cm.personDriver = null;
+    cm.personPoser = null;
+    const p = cm.entities.person;
+    p.rig.placed = false; // (the walk starts afresh where the sledge stopped)
+    p.position.y = cm.getGroundHeight(p.position.x, p.position.z, 'person');
     p.speed = 0;
-    p.verticalVel = 0;
-    p.chaseDistance = 6.2;
-    p.chaseHeight = 2.4;
-    run.lastPos?.copy(p.position);
-    cm.personDriver = (dt) => hornSledge.drive(run, dt, cm);
-    cm.personPoser = (dt, pp) => hornSledge.pose(run, dt, pp);
-    cm.setEntityHidden?.('person', false);
-    S.roll = 0;
-    S.warned = false;
-    S.hud.toastT = 0;
-    S.hud.toast.style.opacity = '0';
-  },
+    p.slopePitch = 0;
+    Object.assign(p, run.sl.saved);
+  });
+}
+
+/** The player onto the sledge at arc length s of the run, at rest (a mission's start, a restart, the Fondue Night's ride) */
+export function sledgeMount(run, s = 0) {
+  const cm = run.hooks.controllerManager;
+  const S = run.sl;
+  S.sl = createSledge(S.course, S.height, s);
+  const r = S.sl.rider;
+  const p = S.person;
+  p.position.set(r.x, r.y, r.z);
+  p.heading = r.heading;
+  p.speed = 0;
+  p.verticalVel = 0;
+  p.chaseDistance = 6.2;
+  p.chaseHeight = 2.4;
+  run.lastPos?.copy(p.position);
+  cm.personDriver = (dt) => hornSledge.drive(run, dt, cm);
+  cm.personPoser = (dt, pp) => hornSledge.pose(run, dt, pp);
+  cm.setEntityHidden?.('person', false);
+  S.sledge.visible = true;
+  for (const m of S.crowd.meshes) m.visible = true;
+  S.hud.box.style.display = 'flex';
+  if (!S.mounted) {
+    S.mounted = true;
+    // (the key bar says what the keys do on the sledge; the touch stick steers, brakes and ducks the same way)
+    S.offHints = run.hints([[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
+    run.vehiclePanel({ label: 'Horn sledge', topSpeedKmh: 80 }); // (the cluster at the bottom right, js/main.js: the person's speed)
+  }
+  S.roll = 0;
+  S.warned = false;
+  S.wait = run.phase === 'running'; // (a ride begun in the middle of a mission waits for the driver)
+  S.hud.toastT = 0;
+  S.hud.toast.style.opacity = '0';
+}
+
+/** Off the sledge again, on foot where the mission puts the player next (a restart of a mission that begins on foot) */
+export function sledgeUnmount(run) {
+  const cm = run.hooks.controllerManager;
+  const S = run.sl;
+  if (!S.mounted) return;
+  S.mounted = false;
+  S.sl = null;
+  cm.personDriver = null;
+  cm.personPoser = null;
+  S.sledge.visible = false;
+  for (const m of S.crowd.meshes) m.visible = false;
+  S.hud.box.style.display = 'none'; // (its inline display: flex stands over `hidden`)
+  S.hud.toast.style.opacity = '0';
+  S.offHints?.(); S.offHints = null;
+  run.vehiclePanel(null);
+  const p = S.person;
+  p.rig.placed = false;
+  p.speed = 0;
+  p.slopePitch = 0;
+  Object.assign(p, S.saved);
+}
+
+const hornSledge = {
+  setup(run) { sledgeSetup(run); },
+  reset(run) { sledgeMount(run); },
   teardown(run) {
     const cm = run.hooks.controllerManager;
     cm.personDriver = null;
@@ -316,16 +359,19 @@ const hornSledge = {
     if (!sl) return;
     const r = sl.rider;
     const live = run.phase === 'running' || run.phase === 'done';
-    if (!live) {
+    // (mounted in the middle of a mission, S.wait: held too until the driver does something)
+    let input = live ? hornSledge.input(run, cm, dt) : null;
+    if (S.wait && input && (input.steer || input.tuck || input.brake)) S.wait = false;
+    if (!live || S.wait) {
       r.vx = r.vy = r.vz = 0; // (held at the start until the first input: the stopwatch starts with it)
     } else {
-      let input = hornSledge.input(run, cm, dt);
       if (run.phase === 'done') input = { steer: 0, tuck: 0, brake: 1 };
+      else if (S.inputFilter) input = S.inputFilter(input, dt);
       if (input.steer) S.steerSide = Math.sign(input.steer);
       let left = Math.min(dt, 0.1);
       while (left > 1e-6) {
         const h = Math.min(SUBSTEP, left);
-        const ev = stepSledge(sl, input, h, groundHeight, S.course);
+        const ev = stepSledge(sl, input, h, S.height, S.course, S.params?.track || SLEDGE_TRACK, S.params);
         if (ev) hornSledge.event(run, ev);
         left -= h;
       }
@@ -337,7 +383,7 @@ const hornSledge = {
     p.verticalVel = r.vy;
     // the chase camera keeps the framing of level ground down the slope (js/cameras.js slopePitch)
     const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
-    const pitch = Math.atan2(groundHeight(r.x - fx * 2, r.z - fz * 2) - groundHeight(r.x + fx * 2, r.z + fz * 2), 4);
+    const pitch = Math.atan2(S.height(r.x - fx * 2, r.z - fz * 2) - S.height(r.x + fx * 2, r.z + fz * 2), 4);
     p.slopePitch = (p.slopePitch ?? pitch) + (pitch - (p.slopePitch ?? pitch)) * Math.min(1, dt * 4);
     // the state the objectives read
     const st = run.state;
@@ -380,8 +426,8 @@ const hornSledge = {
     S.roll += (targetRoll - S.roll) * Math.min(1, dt * (crashed ? 6 : 10));
     const yaw = r.heading;
     const fx = Math.sin(yaw), fz = Math.cos(yaw), lx = Math.cos(yaw), lz = -Math.sin(yaw);
-    const hF = groundHeight(r.x + fx * 0.9, r.z + fz * 0.9), hB = groundHeight(r.x - fx * 0.9, r.z - fz * 0.9);
-    const hL = groundHeight(r.x + lx * 0.3, r.z + lz * 0.3), hR = groundHeight(r.x - lx * 0.3, r.z - lz * 0.3);
+    const hF = S.height(r.x + fx * 0.9, r.z + fz * 0.9), hB = S.height(r.x - fx * 0.9, r.z - fz * 0.9);
+    const hL = S.height(r.x + lx * 0.3, r.z + lz * 0.3), hR = S.height(r.x - lx * 0.3, r.z - lz * 0.3);
     _Z.set(fx * 1.8, r.airborne ? 0 : hF - hB, fz * 1.8).normalize();
     _X.set(lx * 0.6, r.airborne ? 0 : hL - hR, lz * 0.6).normalize();
     _Y.crossVectors(_Z, _X).normalize();
@@ -410,10 +456,10 @@ const hornSledge = {
     const kmh = `${Math.round(riderSpeed(sl.rider) * 3.6)} km/h`;
     if (hud.speed.textContent !== kmh) hud.speed.textContent = kmh;
     // the tilt: how close the sledge is to its tip limit (the lateral acceleration), red once it starts to go over
-    const level = sl.tip > 0 ? 0.75 + 0.25 * sl.tip : clamp(Math.abs(sl.latG) / SLEDGE_TRACK.tipG, 0, 1) * 0.75;
+    const level = sl.tip > 0 ? 0.75 + 0.25 * sl.tip : clamp(Math.abs(sl.latG) / (S.params?.track || SLEDGE_TRACK).tipG, 0, 1) * 0.75;
     hud.fill.style.width = `${Math.round(level * 100)}%`;
     hud.fill.style.background = sl.tip > 0 ? '#ff4b3e' : level > 0.55 ? '#ffc21a' : '#3fd66b';
-    hud.box.hidden = run.phase === 'intro' || run.phase === 'done';
+    hud.box.style.display = run.phase === 'intro' || run.phase === 'done' ? 'none' : 'flex'; // (its inline display stands over `hidden`)
   }
 };
 
@@ -716,9 +762,12 @@ const tobogganRun = {
     const level = sl.wall > 0.02 ? 0.75 + 0.25 * sl.wall : clamp(sl.latG / TOBOGGAN.warnG, 0, 1) * 0.75;
     hud.fill.style.width = `${Math.round(level * 100)}%`;
     hud.fill.style.background = sl.wall > 0.02 ? '#ff4b3e' : level > 0.55 ? '#ffc21a' : '#3fd66b';
-    hud.box.hidden = run.phase === 'intro' || run.phase === 'done';
+    hud.box.style.display = run.phase === 'intro' || run.phase === 'done' ? 'none' : 'flex'; // (its inline display stands over `hidden`)
   }
 };
 
 export const SLEDGE_FEATURES = { hornSledge, tobogganRun };
+/** The sledge's HUD for the frame (the speed, the tilt, the toast's fading): for a mission that mounts the sledge itself */
+export const sledgeUpdate = (run, ctx, dt) => hornSledge.update(run, ctx, dt);
+export { showToast as sledgeToast };
 export { resetSledge };

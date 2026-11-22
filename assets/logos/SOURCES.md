@@ -56,6 +56,16 @@ Davos Klosters; sie stehen hier nur, um das reale Gebäude darzustellen.
 | Davoser Craft Beer | `davoser-craft-beer.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2022/12/kleineslogo-4b42d710.svg (offizielle Website, Kopfzeile; auf 512 px gerastert) | Marke der Davoser Craft Beer GmbH, Bolgenstrasse 1, 7270 Davos. Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
 | Davoser Craft Beer (Emblem) | `davoser-craft-beer-emblem.png` | https://www.davosercraftbeer.ch/wp-content/uploads/2023/01/cropped-Davoser_Logo_Gelb_quadrat-270x270.png (offizielle Website, Site-Icon; auf 128 px verkleinert) | wie oben, Nutzung mit Erlaubnis des Users/Inhabers | 2026-11-01 |
 
+## Drupal Mountain Camp (Mission «Fondue Night», js/missions-data-fondue.js)
+
+| Marke | Datei | Quelle | Lizenz / Hinweis | Abgerufen |
+|---|---|---|---|---|
+| Drupal Mountain Camp (Logo 2027, weiss, «10 year edition») | `drupal-mountain-camp.webp` | https://drupalmountaincamp.ch/images/logo-mountain-camp-white.webp (offizielle Website, Kopfzeile; unverändert, 417 × 168 px) | © Drupal Events Switzerland, keine Lizenzangabe; «Drupal» ist eine eingetragene Marke von Dries Buytaert. Verwendung auf Wunsch des Users für die Mission zum Camp | 2026-11-22 |
+
+Das Banner am Kongresszentrum und die Fahnen am Eingang (js/missions-fondue.js) sind um dieses Logo herum auf eine
+Canvas-Textur gezeichnet: Schrift, Daten und die hellblaue Bergkette in den Farben der Camp-Grafiken 2027. Die
+Ticket-Grafik der Website wird nicht verwendet.
+
 ## Radio stations (assets/logos/radio/)
 
 The stations of the radio (js/car-radio.js), shown small in the speed cluster while the station plays. Trademarks of

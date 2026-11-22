@@ -166,7 +166,7 @@ export function createSledge(course, height, s = 0) {
   const p = pointAt(course.pts, s);
   const heading = runHeading(course, s);
   const r = createRider(p.x, height(p.x, p.z), p.z, heading);
-  return { rider: r, tip: 0, latG: 0, crashT: 0, crashes: 0, nets: 0, offT: 0, proj: projectOnRun(course, p.x, p.z), last: null };
+  return { rider: r, tip: 0, latG: 0, crashT: 0, crashes: 0, nets: 0, offT: 0, netT: 0, proj: projectOnRun(course, p.x, p.z), last: null };
 }
 
 /** Puts the sledge back on the run at arc length s, at rest, along the run */
@@ -184,9 +184,10 @@ export function resetSledge(sl, course, height, s) {
 /**
  * One step of the sledge (dt <= ~1/60 s). input: { steer (-1..1, + left), tuck (0..1, W: duck / push off), brake (0..1,
  * S) }. Returns the event of the step: null | 'crash' (tipped over, into a net too fast, lost) | 'net' (stopped by a
- * net) | 'back' (on the run again after a crash); sl.last says why.
+ * net) | 'back' (on the run again after a crash); sl.last says why. `params`: { on, off } instead of SLEDGE_PARAMS on
+ * the run and SLEDGE_OFF_PARAMS beside it (the Fondue Night's sledge after a Flämmli, js/missions-data-fondue.js).
  */
-export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK) {
+export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK, params = null) {
   const r = sl.rider;
   if (sl.crashT > 0) {
     // on the snow: the sledge slides to a stop, then back onto the run a little above where it left it
@@ -198,10 +199,12 @@ export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK) {
     return null;
   }
   const proj = projectOnRun(course, r.x, r.z, sl.proj.i ?? -1, sl.proj);
+  const touching = sl.netT > 0; // (against a net a moment ago)
+  if (touching) sl.netT -= dt;
   const off = Math.abs(proj.d) > T.half;
   sl.offT = off ? sl.offT + dt : 0;
   const steer = clamp(input.steer || 0, -1, 1), brake = clamp(input.brake || 0, 0, 1), tuck = clamp(input.tuck || 0, 0, 1);
-  const landing = stepRider(r, { steer, tuck, brake, spin: 0, flip: 0, grab: false }, dt, height, off ? SLEDGE_OFF_PARAMS : SLEDGE_PARAMS);
+  const landing = stepRider(r, { steer, tuck, brake, spin: 0, flip: 0, grab: false }, dt, height, off ? (params?.off || SLEDGE_OFF_PARAMS) : (params?.on || SLEDGE_PARAMS));
   // a heel dragged in the snow: the sledge pivots round it (slow, and it brakes: stepRider has the brake)
   if (!r.airborne && brake > 0 && steer) r.heading += steer * brake * T.heelTurn * dt;
   if (landing && landing.quality === 'crash') { r.crashT = 0; return crash(sl, 'landing'); }
@@ -220,13 +223,18 @@ export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK) {
     const vAcross = Math.abs(r.vx * p2.tz - r.vz * p2.tx);
     if (vAcross > T.netCrash) return crash(sl, 'net');
     // stopped by the net: back against it, the speed along the run kept in part
-    const edge = bend.side * (T.half + T.netGap - 0.05);
+    // (T.netSlide, a run on a bench with the slope falling away behind its nets: set back onto the run's edge, and still
+    // against the net a moment later the sledge slides along it at its speed instead of losing 40 % of it every step,
+    // which held a sledge that kept drifting outwards at the net for good)
+    const slide = !!T.netSlide;
+    const edge = bend.side * (slide ? T.half - 0.2 : T.half + T.netGap - 0.05);
     r.x = p2.x + p2.tz * edge; r.z = p2.z - p2.tx * edge; r.y = height(r.x, r.z);
-    const along = r.vx * p2.tx + r.vz * p2.tz;
-    r.vx = p2.tx * along * 0.6; r.vz = p2.tz * along * 0.6; r.vy = 0;
+    const along = r.vx * p2.tx + r.vz * p2.tz, keep = slide && touching ? 1 : 0.6;
+    r.vx = p2.tx * along * keep; r.vz = p2.tz * along * keep; r.vy = 0;
     r.heading = Math.atan2(p2.tx, p2.tz);
-    sl.nets++;
     sl.last = 'net';
+    if (slide) { sl.netT = 0.5; if (touching) return null; }
+    sl.nets++;
     return 'net';
   }
   if (Math.abs(p2.d) > T.lostAt) return crash(sl, 'lost');
@@ -248,7 +256,7 @@ function crash(sl, why) {
  * The input of a driver who looks ahead: steers for a point on the run `look` m ahead, brakes for the bends to the
  * speed the sledge stands in them (the tightest radius ahead × `margin` of the tip limit), ducks where it can go.
  */
-export function botInput(sl, course, { margin = 0.82, ahead = 2.4 } = {}) {
+export function botInput(sl, course, { margin = 0.82, ahead = 2.4, tipG = SLEDGE_TRACK.tipG, maxSpeed = SLEDGE_PARAMS.maxSpeed } = {}) {
   const r = sl.rider, sp = riderSpeed(r), s = sl.proj.s;
   const look = Math.max(7, sp * 0.9);
   const tgt = pointAt(course.pts, Math.min(course.length, s + look));
@@ -257,12 +265,12 @@ export function botInput(sl, course, { margin = 0.82, ahead = 2.4 } = {}) {
   const err = wrapPi(want - travelHeading(r, r.heading));
   const steer = clamp(err * 2.6, -1, 1);
   // the slowest bend within the braking distance ahead
-  let vMax = SLEDGE_PARAMS.maxSpeed;
+  let vMax = maxSpeed;
   const reach = Math.max(25, sp * sp / (2 * 2.2) + sp * ahead);
   for (let d = 0; d <= reach; d += 4) {
     const k = Math.abs(runCurvature(course, Math.min(course.length, s + d), 8));
     if (k < 1e-4) continue;
-    const v = Math.sqrt((margin * SLEDGE_TRACK.tipG * SNOW_GRAVITY) / k);
+    const v = Math.sqrt((margin * tipG * SNOW_GRAVITY) / k);
     // (a bend further on can be met faster now: what braking still takes off before it)
     vMax = Math.min(vMax, Math.sqrt(v * v + 2 * 2.2 * Math.max(0, d - sp * 0.5)));
   }
@@ -282,7 +290,8 @@ const SECTIONS = [
   { id: 'finish', title: 'Down to the finish', toS: Infinity, tip: 'Duck low (W) on the straights, brake for the last bends' }
 ];
 
-const sledgeSection = ({ id, title, toS, tip }) => ({
+/** A part of a sled run as an objective: its checkpoints up to arc length `toS` (the Fondue Night's run uses it too) */
+export const sledgeSection = ({ id, title, toS, tip }) => ({
   id,
   title,
   check(ctx, state) {
