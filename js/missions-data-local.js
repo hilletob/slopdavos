@@ -102,7 +102,7 @@ export function beerStep(st, ctx, van, stop) {
 function beerDeliverObjective(stop, i) {
   return {
     id: `deliver-${stop.id}`,
-    title: `Deliver to ${stop.name}`,
+    title: stop.name, // (the bar's name alone: the phone's strip has room for some 20 letters),
     allowModes: ['car', 'person'],
     check(ctx, state) {
       const st = state.beer;
@@ -156,7 +156,7 @@ export const BEER_MISSION = {
   objectives: [
     {
       id: 'load',
-      title: 'Load the crates at the brewery',
+      title: 'Load the crates',
       allowModes: ['car', 'person'],
       check(ctx, state) {
         const st = state.beer;

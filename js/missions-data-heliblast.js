@@ -226,7 +226,7 @@ function zoneObjective(zone, i) {
       }
       const agl = Math.round(ctx.agl);
       const hint = state.note
-        || (ctx.agl < HB.aglMin ? `Too low: climb above ${HB.aglMin} m` : ctx.agl > HB.aglMax ? `Sink to ${HB.aglMax} m over the snow` : state.aim?.inZone ? 'G: drop the charge' : 'Over the ring: the white mark shows where it lands');
+        || (ctx.agl < HB.aglMin ? `Too low: climb above ${HB.aglMin} m` : ctx.agl > HB.aglMax ? `Sink to ${HB.aglMax} m over the snow` : state.aim?.inZone ? 'Drop the charge now' : 'Over the ring: the white mark shows where it lands');
       return { done: false, fail, progress: null, text: `Hover ${HB.aglMin}–${HB.aglMax} m over the slope · now ${agl} m · ${chargesText(state.charges)}`, target, hint };
     }
   };

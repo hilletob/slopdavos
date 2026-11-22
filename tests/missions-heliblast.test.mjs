@@ -151,7 +151,7 @@ test('the steps say where to fly and what to do', () => {
   assert.equal(v.text, `Hover 15–45 m over the slope · now 70 m · ${HB.charges} charges left`);
   assert.equal(v.hint, 'Sink to 45 m over the snow');
   s.aim = { inZone: true };
-  assert.equal(o.check({ x: z.x, z: z.z, y: 0, agl: 30 }, s).hint, 'G: drop the charge');
+  assert.equal(o.check({ x: z.x, z: z.z, y: 0, agl: 30 }, s).hint, 'Drop the charge now');
   assert.equal(o.check({ x: z.x, z: z.z, y: 0, agl: 8 }, s).hint, 'Too low: climb above 15 m');
   s.charge = { x: z.x, y: 0, z: z.z, fuse: 3.2 };
   v = o.check({ x: z.x, z: z.z, y: 20, agl: 20 }, s);

@@ -1670,12 +1670,17 @@ body[data-mode='helicopter'] .gauge-alt {
   align-items: flex-start;
   gap: 10px;
   padding-bottom: 22px;
+  min-width: 0;
+  max-width: calc(100% - 152px); /* (what the stick, 136 px, and the gap, 16 px, leave) */
 }
 .touch-row {
   display: flex;
   align-items: flex-end;
   gap: 10px;
 }
+/* (a phone held upright has room for three big buttons beside the stick: a fourth, a mission's own beside "Get out",
+   Ascend and Descend, goes on a line above them instead of off the screen) */
+.touch-primary { flex-wrap: wrap-reverse; align-items: flex-start; }
 .touch-extra {
   flex-wrap: wrap;
   gap: 6px;
