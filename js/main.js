@@ -38,6 +38,7 @@ import { buildTrafficSigns } from './traffic-signs.js';
 import { buildDetailHouses } from './detail-houses.js';
 import { buildLandmarkBuildings } from './landmark-buildings.js';
 import { buildPfadiheim } from './pfadiheim.js';
+import { buildParkedResurfacers } from './missions-rink.js';
 import { buildSpital } from './spital.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder, vectorGroundBuilder } from './world-stream.js';
@@ -472,6 +473,7 @@ async function initApp() {
   worldHooks.controllers = controllerManager; // (the cells built from now on hand their colliders over directly)
   if (!skipped('rhb')) controllerManager.setRailway(rhb); // the rhb mode drives one of the trains
   trafficBodies.push(controllerManager.snowcatTrafficBody); // the parked snow groomer is solid for the traffic
+  if (!skipped('winter')) buildParkedResurfacers(scene, controllerManager); // an ice resurfacer by the Seehof Seeli and one at the Eisstadion, in winter (js/missions-rink.js)
   controllerManager.setTrees(streetDetails.trees); // ... and the driven one stops at the trees
   // The lamp posts and sign posts stop the player, and go down under a vehicle at speed (controllers.js knockOverPost)
   controllerManager.setKnockablePosts([...streetDetails.knockablePosts, ...trafficSigns.knockablePosts]);

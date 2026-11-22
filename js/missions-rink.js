@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, vertexColor } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { surfaceHeight } from './terrain.js';
+import { isWinter, onSeasonChange } from './season.js';
 import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { touchLabel } from './missions-ice.js';
 import { pondIceY } from './missions-outdoor.js';
@@ -183,6 +184,38 @@ export function buildZamboniModel({ decal } = {}) {
 }
 VEHICLES.zamboni = () => buildZamboniModel();
 
+// --- The resurfacers parked for the winter ---------------------------------------------------------------------------
+// Where there is ice to make, a machine stands outside all winter: by the Seehof Seeli on the north bank (where the
+// mission's stands: hidden while that runs, `held`) and at the Eisstadion by the service road along its north-east
+// side, in the HCD's lettering. Not there in summer. They are solid (controllers.js dynamicColliders, sceneryVehicles).
+const PARKED_RESURFACERS = [
+  { id: 'seehofseeli', x: RINK.machine.x, z: RINK.machine.z, heading: RINK.machine.heading },
+  { id: 'eisstadion', x: -195.8, z: -347.2, heading: 0.71, decal: ['HCD', 'Eisstadion Davos · Vaillant Arena'] }
+];
+const parkedResurfacers = [];
+const showParked = () => { for (const p of parkedResurfacers) p.visual.visible = isWinter() && !p.held; };
+/** Parks them (once, js/main.js); returns them: { id, x, z, heading, visual } */
+export function buildParkedResurfacers(scene, cm) {
+  if (parkedResurfacers.length) return parkedResurfacers;
+  for (const def of PARKED_RESURFACERS) {
+    const v = buildZamboniModel({ decal: def.decal });
+    v.group.name = `ParkedResurfacer:${def.id}`;
+    v.group.position.set(def.x, surfaceHeight(def.x, def.z), def.z);
+    v.group.rotation.y = def.heading;
+    scene.add(v.group);
+    parkedResurfacers.push({ ...def, type: 'zamboni', position: v.group.position, dims: v.dims, visual: v.group, held: false });
+  }
+  showParked();
+  onSeasonChange(showParked);
+  if (cm) cm.sceneryVehicles = parkedResurfacers;
+  return parkedResurfacers;
+}
+/** The pond's machine is the mission's meanwhile (js/missions-rink.js rinkIce.setup) */
+function holdParked(id, held) {
+  const p = parkedResurfacers.find((q) => q.id === id);
+  if (p) { p.held = held; showParked(); }
+}
+
 // --- The ice's colours -----------------------------------------------------------------------------------------------
 const SNOW = new THREE.Color(0.9, 0.92, 0.95), RAW = new THREE.Color(0.6, 0.64, 0.68), COAT = new THREE.Color(0.62, 0.76, 0.9);
 const WET = new THREE.Color(0.2, 0.3, 0.4), PRINT = new THREE.Color(0.44, 0.45, 0.47), POLISH = new THREE.Color(0.86, 0.93, 1.0), FILM = new THREE.Color(0.42, 0.55, 0.68);
@@ -304,7 +337,9 @@ const rinkIce = {
     // the car: its state before the mission (the machine is parked on it by the pond)
     const car = cm.entities.car;
     run.work.saved = { hidden: !!car.hidden, x: car.position.x, z: car.position.z, heading: car.heading };
+    holdParked('seehofseeli', true); // (the machine parked there for the winter is this run's)
     run.cleanups.push(() => {
+      holdParked('seehofseeli', false);
       if (cm.personDriver === hoseWalk) cm.personDriver = null;
       const s = run.work?.saved;
       // (the player left on foot: the van goes back where it was, hidden again if it was put away)

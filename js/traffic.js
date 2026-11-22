@@ -44,6 +44,7 @@ import { GEO } from './nyc-geodata.js';
 const NUM_CARS = QUALITY.cars; // 100 (40 on the mobile profile, js/quality.js)
 const NUM_BUSES = 0; // Davos: the VBD buses run their real lines (js/vbd.js) instead of the generic ones
 const NUM_BIKES = QUALITY.bikes; // 225 (60 on the mobile profile)
+const NUM_QUADS = Math.max(2, Math.round(NUM_CARS * 0.07)); // 7 quads among the 100 cars (3 on the mobile profile)
 
 // Intelligent Driver Model: max acceleration, comfortable braking, time headway, standstill gap; and the sideways
 // acceleration drivers accept in bends, which sets how fast they take each turn or lane shift
@@ -220,8 +221,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   for (let i = 0; i < NUM_CARS; i++) {
     const isPolice = (i % 100) === 6;
     const k = i % 20;
-    // 25% estates, 30% hatchbacks, 20% compact SUVs, 10% minibuses, 10% taxis (Davos has many), 5% box lorries
-    const bodyType = isPolice ? 'sedan' : k < 2 ? 'taxi' : k < 7 ? 'sedan' : k < 13 ? 'hatch' : k < 17 ? 'suv' : k < 19 ? 'van' : 'truck';
+    // 20% estates, 25% hatchbacks, 20% compact SUVs, 10% minibuses, 10% taxis (Davos has many), 15% box lorries (the
+    // deliveries of a town at the end of its valley), spread through the pool (k = 3, 10, 17: the lanes fill in its order)
+    const bodyType = isPolice ? 'sedan' : k === 3 || k === 10 || k === 17 ? 'truck' : k < 2 ? 'taxi' : k < 7 ? 'sedan' : k < 13 ? 'hatch' : k < 18 ? 'suv' : 'van';
     counts[bodyType]++;
     if (isPolice) policeCount++;
     const isTaxi = bodyType === 'taxi', isSUV = bodyType === 'suv' || bodyType === 'van';
@@ -457,7 +459,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   });
   // The riders: one instanced, skinned draw per level of detail (PersonCrowd), posed on their bikes by PersonRig.ride.
   // A Dutch bike's frame in its own space (bikeGeo): saddle, bars and bottom bracket
-  const riderCrowd = new PersonCrowd(NUM_BIKES, { farDistance: 40 });
+  const riderCrowd = new PersonCrowd(NUM_BIKES + NUM_QUADS, { farDistance: 40 });
   for (const m of riderCrowd.meshes) group.add(m);
   const BIKE_FRAME = { seat: new THREE.Vector3(0, 1.02, -0.28), bars: new THREE.Vector3(0, 1.0, 0.38), gripHalf: 0.21, bracket: new THREE.Vector3(0, 0.34, -0.145), crankLength: 0.17, lean: 0.24 };
   const riderPose = { ...BIKE_FRAME, footDown: 0, footSide: 1, look: 0 };
@@ -482,9 +484,54 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     bike.footSide = riderHash(i, 7) < 0.6 ? 1 : -1;
     bikes.push(bike);
   }
+  // Quads among the cars (the farmers' and the huts' four-wheelers, on the road in Davos the year round): a frame of
+  // boxes on four fat tyres, one instanced draw (the mudguards and the tank white in the geometry, painted per quad by
+  // its instance colour), the rider one of the city's people sitting on it (PersonRig.ride, no cranks). They drive as
+  // the cars do and count with them (update), a little slower.
+  const QUAD_SEAT = { seat: new THREE.Vector3(0, 0.8, -0.26), bars: new THREE.Vector3(0, 1.17, 0.27), gripHalf: 0.28, bracket: new THREE.Vector3(0, 0.42, 0.02), crankLength: 0, pedalHalf: 0.3, lean: 0.2, footDown: 0, footSide: 1, look: 0 };
+  const quadGeo = (() => {
+    const box = (w, h, l, rgb, x, y, z) => paintGeo(new THREE.BoxGeometry(w, h, l).translate(x, y, z), ...rgb);
+    const STEEL = [0.36, 0.38, 0.4], LAMP = [1.6, 1.5, 1.2], TYRE = [0.06, 0.06, 0.07], HUB = [0.5, 0.5, 0.48];
+    const R = 0.31, W = 0.3;
+    const parts = [
+      box(0.62, 0.2, 1.5, DARK, 0, 0.42, 0), // the frame
+      box(0.5, 0.26, 0.5, STEEL, 0, 0.42, -0.02), // the engine
+      box(0.5, 0.24, 0.5, WHITE, 0, 0.74, 0.22), // the tank
+      box(0.42, 0.14, 0.7, DARK, 0, 0.77, -0.3), // the seat
+      box(1.02, 0.07, 0.62, WHITE, 0, 0.72, 0.68), box(1.02, 0.07, 0.62, WHITE, 0, 0.72, -0.68), // the mudguards
+      box(0.6, 0.05, 0.42, STEEL, 0, 0.83, 0.7), box(0.6, 0.05, 0.42, STEEL, 0, 0.83, -0.72), // the racks
+      box(0.74, 0.26, 0.06, DARK, 0, 0.56, 1.1), // the bull bar
+      box(0.3, 0.1, 0.05, LAMP, 0, 0.72, 1.0), // the lamp
+      box(0.3, 0.05, 0.42, DARK, 0.46, 0.34, -0.04), box(0.3, 0.05, 0.42, DARK, -0.46, 0.34, -0.04), // the footrests
+      box(0.66, 0.04, 0.04, DARK, 0, 1.17, 0.27), box(0.05, 0.4, 0.05, DARK, 0, 0.98, 0.34) // the bars on their column
+    ];
+    for (const [x, z] of [[0.56, 0.68], [-0.56, 0.68], [0.56, -0.68], [-0.56, -0.68]]) {
+      parts.push(paintGeo(new THREE.CylinderGeometry(R, R, W, 14).rotateZ(Math.PI / 2).translate(x, R, z), ...TYRE));
+      parts.push(paintGeo(new THREE.CylinderGeometry(R * 0.5, R * 0.5, W + 0.02, 10).rotateZ(Math.PI / 2).translate(x, R, z), ...HUB));
+    }
+    return mergeGeometries(parts);
+  })();
+  const quadInst = new THREE.InstancedMesh(quadGeo, new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 }), NUM_QUADS);
+  quadInst.name = 'Quads';
+  quadInst.frustumCulled = false;
+  quadInst.castShadow = quadInst.receiveShadow = true;
+  const quadPalette = [0xd9601a, 0xb3261e, 0x2f5d3a, 0x1d3b6c, 0xe0b020, 0x3a3d42].map((c) => new THREE.Color(c));
+  const quads = [];
+  for (let i = 0; i < NUM_QUADS; i++) {
+    const quad = createVehicle(false, 1.08, 0.62, 0.68, CAR_DRIVER, 8.5 + (i % 3) * 0.9);
+    const female = riderHash(i, 11) < 0.3;
+    Object.assign(quad, { quad: true, slot: i, rider: new PersonRig({
+      seed: i * 3.171 + 0.29, female, scale: (female ? 0.93 : 0.98) + riderHash(i, 14) * 0.08,
+      girth: 0.92 + riderHash(i, 15) * 0.2, ...rollHairstyle(riderHash(i, 12), female)
+    }) });
+    quadInst.setMatrixAt(i, zero);
+    quadInst.setColorAt(i, quadPalette[i % quadPalette.length]);
+    quads.push(quad);
+  }
+  group.add(quadInst);
   // Cars, buses and bikes interleaved in proportion: the lanes around the focus are filled in this order (update), and
   // where they take only a few (out of town), the first in it would otherwise get them all
-  const vehicles = [cars, buses, bikes].flatMap((list) => list.map((v, i) => [(i + 0.5) / list.length, v]))
+  const vehicles = [cars, buses, bikes, quads].flatMap((list) => list.map((v, i) => [(i + 0.5) / list.length, v]))
     .sort((p, q) => p[0] - q[0]).map(([, v]) => v);
 
   // =========================================================================
@@ -1477,7 +1524,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     body.halfW = v.halfWidth;
     // (cars: their own body length — hatchbacks to minibuses)
     body.halfL = v.bus ? 5.72 : v.bike ? 0.95 : v.half - 0.07;
-    body.mass = v.bus ? 12000 : v.bike ? 95 : v.bodyType === 'truck' ? 7500 : v.bodyType === 'van' ? 2400 : v.isSUV ? 1800 : v.bodyType === 'hatch' ? 1300 : 1600;
+    body.mass = v.bus ? 12000 : v.bike ? 95 : v.quad ? 340 : v.bodyType === 'truck' ? 7500 : v.bodyType === 'van' ? 2400 : v.isSUV ? 1800 : v.bodyType === 'hatch' ? 1300 : 1600;
     body.vx = v.tx * v.speed + v.vx;
     body.vz = v.tz * v.speed + v.vz;
     body.angularVel = v.yawRate + v.yawVel;
@@ -1850,6 +1897,21 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     riderCrowd.add(b.rider, distance);
   }
 
+  // A quad on its four wheels, its rider sitting on it (slot by slot: a quad out of sight or off the road is a zero matrix)
+  function renderQuad(q) {
+    if (!q.edge) { quadInst.setMatrixAt(q.slot, zero); return; }
+    elevate(q, 0.68);
+    if (hasView && !visible(q.x, q.z, 6, q.y)) { quadInst.setMatrixAt(q.slot, zero); return; }
+    dummy.position.set(q.x, q.y, q.z);
+    dummy.rotation.set(q.pitch + q.slope, q.yaw + q.yawOffset, q.roll, 'YXZ');
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    quadInst.setMatrixAt(q.slot, dummy.matrix);
+    QUAD_SEAT.look = Math.sin(clock * 0.3 + q.slot) * 0.25;
+    q.rider.ride(dummy, 0, QUAD_SEAT);
+    riderCrowd.add(q.rider, Math.hypot(q.x - camX, q.y - camY, q.z - camZ));
+  }
+
   function renderBus(b) {
     const rotY = b.yaw + b.yawOffset;
     const sinY = Math.sin(rotY);
@@ -2146,6 +2208,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (tramBodies.length) collideWithTrams();
     collideTraffic();
     for (const v of vehicles) {
+      if (v.quad) { renderQuad(v); continue; }
       if (!v.edge) {
         if (v.parked && !v.bus && !v.bike) renderCar(v); // (a car the player left standing, js/hijack.js)
         continue;
@@ -2154,6 +2217,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       else if (v.bike) renderBike(v, dt);
       else renderCar(v);
     }
+    quadInst.instanceMatrix.needsUpdate = true;
     const hideEmpty = ++updates > 2;
     riderCrowd.end();
     for (const { mesh, frame, axes, n } of bikeSets) {
@@ -2233,6 +2297,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     cars,
     buses,
     bikes,
+    quads,
     peds: pedestrianSystem.peds,
     network
   };

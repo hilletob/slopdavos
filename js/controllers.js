@@ -2471,6 +2471,10 @@ class ThirdPersonControllerManager {
       const dims = v.dims || PARKED_DIMS[v.type]; // (v.dims: a taken traffic car left standing, js/gta.js)
       if (dims) this._pushParkedObstacle(out, v, v.type, dims, x, z, reach);
     }
+    // Machines standing about as scenery (the ice resurfacers parked for the winter, js/missions-rink.js)
+    for (const v of this.sceneryVehicles || []) {
+      if (v.visual.visible) this._pushParkedObstacle(out, v, v.type, v.dims, x, z, reach);
+    }
     return this._dynamicTail(entity, x, z, reach, out);
   }
 
