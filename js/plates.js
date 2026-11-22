@@ -4,7 +4,8 @@ import { QUALITY } from './quality.js';
 // Licence plates for the cars around Davos: one generated atlas (canvas) of PLATE_COUNT plates, each as a rear plate
 // (Swiss long format 500 × 110 mm: the Swiss shield, the canton's code and number, the canton's shield) and a front
 // plate (300 × 80 mm, code and number only). Three quarters are from Graubünden (GR), the rest from other cantons and
-// a few German, Italian and Dutch visitors. The shields are drawn simplified, from their heraldry.
+// a few German, Italian and Dutch visitors. The shields are drawn simplified, from their heraldry; Graubünden's
+// from its official arms (assets/heraldry/graubuenden.svg).
 //
 // Atlas layout (1024 × 1024 px, top-down): rear plates in cells of 256 × 56 px (4 columns × 8 rows, from y = 0), front
 // plates in cells of 256 × 68 px (4 × 8, from y = 448); plate i sits in column i % 4, row ⌊i / 4⌋ of both.
@@ -70,8 +71,27 @@ function cross(ctx, cx, cy, s, fill) {
   ctx.fillRect(cx - s * 0.16, cy - s * 0.5, s * 0.32, s);
 }
 
+// The arms of Graubünden as drawn officially (Wikimedia Commons, "CHE Graubünden COA.svg", public domain), loaded once;
+// until they are decoded the simplified shield below stands in, and the atlases are redrawn when they arrive
+const GR_ARMS_ASPECT = 226.77333 / 264.57333;
+let grArms = null;
+const armsWaiting = [];
+if (typeof Image !== 'undefined') {
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => { grArms = img; armsWaiting.splice(0).forEach((redraw) => redraw()); };
+  img.src = new URL('../assets/heraldry/graubuenden.svg', import.meta.url).href;
+}
+
 // Draws the shield `code` ('CH' or a canton) clipped to its outline
 function shield(ctx, code, x, y, w, h) {
+  if (code === 'GR' && grArms) {
+    // (its own outline with the black rim, fitted into the box and centred)
+    let dw = w, dh = w / GR_ARMS_ASPECT;
+    if (dh > h) { dh = h; dw = h * GR_ARMS_ASPECT; }
+    ctx.drawImage(grArms, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    return;
+  }
   ctx.save();
   shieldPath(ctx, x, y, w, h);
   ctx.clip();
@@ -217,16 +237,20 @@ export function plateAtlasTexture() {
   canvas.width = canvas.height = Math.round(size * QUALITY.atlasScale);
   const ctx = canvas.getContext('2d');
   ctx.scale(QUALITY.atlasScale, QUALITY.atlasScale);
-  ctx.fillStyle = '#f7f7f4';
-  ctx.fillRect(0, 0, size, size);
-  plateList().forEach((plate, i) => {
-    const cx = (i % cols) * cellW, row = Math.floor(i / cols);
-    drawPlate(ctx, plate, cx, row * rearH, cellW, rearH, true);
-    drawPlate(ctx, plate, cx, frontY + row * frontH, cellW, frontH, false);
-  });
+  const draw = () => {
+    ctx.fillStyle = '#f7f7f4';
+    ctx.fillRect(0, 0, size, size);
+    plateList().forEach((plate, i) => {
+      const cx = (i % cols) * cellW, row = Math.floor(i / cols);
+      drawPlate(ctx, plate, cx, row * rearH, cellW, rearH, true);
+      drawPlate(ctx, plate, cx, frontY + row * frontH, cellW, frontH, false);
+    });
+  };
+  draw();
   atlas = new THREE.CanvasTexture(canvas);
   atlas.colorSpace = THREE.SRGBColorSpace;
   atlas.anisotropy = 8;
+  if (!grArms) armsWaiting.push(() => { draw(); atlas.needsUpdate = true; });
   return atlas;
 }
 
@@ -294,5 +318,6 @@ export function liveryAtlasTexture() {
   livery = new THREE.CanvasTexture(canvas);
   livery.colorSpace = THREE.SRGBColorSpace;
   livery.anisotropy = 8;
+  if (!grArms) armsWaiting.push(() => { ctx.clearRect(0, 0, LIVERY_ATLAS.w, LIVERY_ATLAS.h); drawLivery(ctx); livery.needsUpdate = true; });
   return livery;
 }
