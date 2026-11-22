@@ -1213,7 +1213,8 @@ async function initApp() {
     passenger: !!controllerManager.rhbPassenger,
     body: gta?.takeover?.body,
     mission: missions.run?.def,
-    rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : null,
+    // (a horn sledge mounted in a mission's middle, js/missions-sledge.js: the Fondue Night is on foot until its ride)
+    rider: missions.run?.snow ? (missions.run.snow.board ? 'board' : 'ski') : missions.run?.sl?.mounted ? 'sledge' : null,
     gliding: freeFlight.gliding
   });
   markInit('ui');

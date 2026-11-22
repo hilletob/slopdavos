@@ -131,8 +131,8 @@ function buildArch(course, s, text, colour, { half = SLEDGE_TRACK.half + 1.2 } =
   return g;
 }
 
-function buildRun(run, course, arches) {
-  const T = SLEDGE_TRACK;
+/** The stakes, nets and arches of a run: `T` its track (the width, the nets' gap), `height` the snow they stand on */
+function buildRun(run, course, arches, T = SLEDGE_TRACK, height = groundHeight) {
   // the stakes along both edges, every 12 m, orange and black in turn
   const marks = [];
   for (let s = 6; s < course.length; s += 12) {
@@ -143,7 +143,7 @@ function buildRun(run, course, arches) {
   const stakeGeo = new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5).translate(0, 0.6, 0);
   const stakes = new THREE.InstancedMesh(stakeGeo, new THREE.MeshStandardNodeMaterial({ roughness: 0.5 }), marks.length);
   marks.forEach(([x, z, orange], i) => {
-    stakes.setMatrixAt(i, _m.makeTranslation(x, groundHeight(x, z) - 0.05, z));
+    stakes.setMatrixAt(i, _m.makeTranslation(x, height(x, z) - 0.05, z));
     stakes.setColorAt(i, _c.set(orange ? 0xff6a12 : 0x1b1c1f));
   });
   stakes.frustumCulled = false;
@@ -158,7 +158,7 @@ function buildRun(run, course, arches) {
     for (let s = b.s0; s <= b.s1 + 1e-6; s += 2) {
       const p = pointAt(course.pts, s), h = runHeading(course, s, 3);
       const x = p.x + Math.cos(h) * off, z = p.z - Math.sin(h) * off;
-      const y = groundHeight(x, z) - 0.05;
+      const y = height(x, z) - 0.05;
       if (prev) u += Math.hypot(x - prev[0], z - prev[1]);
       const base = pos.length / 3;
       pos.push(x, y, z, x, y + 1.1, z);
@@ -184,7 +184,7 @@ function buildRun(run, course, arches) {
     pm.frustumCulled = false;
     run.group.add(run.storage(pm));
   }
-  for (const [s, text, colour] of arches) run.group.add(buildArch(course, s < 0 ? course.length + s : s, text, colour));
+  for (const [s, text, colour] of arches) run.group.add(buildArch(course, s < 0 ? course.length + s : s, text, colour, { half: T.half + 1.2 }));
 }
 
 // --- The HUD: speed, the tip meter ---------------------------------------------------------------------------------------
@@ -253,21 +253,22 @@ const HORN_ARCHES = [[3, 'START · HORNSCHLITTENRENNEN RINERHORN', 0xb5652b], [-
  * foot until sledgeMount (the Fondue Night, js/missions-fondue.js: the ride is its last part); run.sl holds it, with
  * `inputFilter(input, dt)` (what reaches the sledge of the driver's input) and `params` ({ on, off, track } for
  * stepSledge) for a mission to set. `height(x, z)`: the snow the sledge runs on (the ground; a run laid as a bench in the
- * slope passes the ground with its bench).
+ * slope passes the ground with its bench). `track`: the run's width and nets (SLEDGE_TRACK's shape): the stakes and the
+ * nets are built by it and stand on `height`, and it is the track of the ride where `params` names none.
  */
-export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES, mounted = true, height = groundHeight } = {}) {
+export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES, mounted = true, height = groundHeight, track = SLEDGE_TRACK } = {}) {
   const cm = run.hooks.controllerManager;
   const person = cm.entities.person;
   const sledge = buildSledge();
   run.group.add(sledge);
-  buildRun(run, course, arches);
+  buildRun(run, course, arches, track, height);
   // the partner on the back seat: one more of the city's figures
   const crowd = new PersonCrowd(1, { farDistance: 1e9 });
   for (const m of crowd.meshes) run.group.add(m);
   const partner = new PersonRig({ seed: 0.4142, female: true, hair: 0.8, girth: 0.98, scale: 0.96 });
   run.sl = {
     course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1, warned: false, mounted: false,
-    inputFilter: null, params: null, offHints: null, wait: false, height,
+    inputFilter: null, params: null, offHints: null, wait: false, height, track,
     saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
   };
   if (!mounted) { sledge.visible = false; for (const m of crowd.meshes) m.visible = false; run.sl.hud.box.style.display = 'none'; }
@@ -283,8 +284,9 @@ export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES
   });
 }
 
-/** The player onto the sledge at arc length s of the run, at rest (a mission's start, a restart, the Fondue Night's ride) */
-export function sledgeMount(run, s = 0) {
+/** The player onto the sledge at arc length s of the run, at rest (a mission's start, a restart, the Fondue Night's ride).
+ *  `wait`: the sledge stays put until the driver steers, ducks or brakes (a ride begun in the middle of a mission) */
+export function sledgeMount(run, s = 0, { wait = false } = {}) {
   const cm = run.hooks.controllerManager;
   const S = run.sl;
   S.sl = createSledge(S.course, S.height, s);
@@ -311,7 +313,7 @@ export function sledgeMount(run, s = 0) {
   }
   S.roll = 0;
   S.warned = false;
-  S.wait = run.phase === 'running'; // (a ride begun in the middle of a mission waits for the driver)
+  S.wait = wait;
   S.hud.toastT = 0;
   S.hud.toast.style.opacity = '0';
 }
@@ -336,6 +338,13 @@ export function sledgeUnmount(run) {
   p.speed = 0;
   p.slopePitch = 0;
   Object.assign(p, S.saved);
+}
+
+/** The HUD out of the way of the briefing and of the panels at the end (its inline display: flex stands over `hidden`).
+ *  From a feature's `after`, which runs in every phase: `update` runs only while the mission is live (js/missions.js) */
+function hudShown(run, hud) {
+  const show = run.phase === 'loading' || run.phase === 'ready' || run.phase === 'running' ? 'flex' : 'none';
+  if (hud.box.style.display !== show) hud.box.style.display = show;
 }
 
 const hornSledge = {
@@ -371,7 +380,7 @@ const hornSledge = {
       let left = Math.min(dt, 0.1);
       while (left > 1e-6) {
         const h = Math.min(SUBSTEP, left);
-        const ev = stepSledge(sl, input, h, S.height, S.course, S.params?.track || SLEDGE_TRACK, S.params);
+        const ev = stepSledge(sl, input, h, S.height, S.course, S.params?.track || S.track, S.params);
         if (ev) hornSledge.event(run, ev);
         left -= h;
       }
@@ -388,13 +397,13 @@ const hornSledge = {
     // the state the objectives read
     const st = run.state;
     if (st) {
-      st.crashT = sl.crashT; st.tip = sl.tip; st.off = Math.abs(sl.proj.d) > SLEDGE_TRACK.half && sl.offT > 0.4;
+      st.crashT = sl.crashT; st.tip = sl.tip; st.off = Math.abs(sl.proj.d) > (S.params?.track || S.track).half && sl.offT > 0.4;
       st.crashes = sl.crashes; st.nets = sl.nets;
       if (run.phase === 'running') st.topSpeed = Math.max(st.topSpeed, p.speed);
     }
     // the warning, once a lift: a runner leaves the snow (the toast, the scrape of the other one) — still time to ease
     // off the horns and brake before it goes over
-    if (sl.crashT <= 0 && sl.tip > SLEDGE_TRACK.tipWarn && !S.warned) {
+    if (sl.crashT <= 0 && sl.tip > (S.params?.track || S.track).tipWarn && !S.warned) {
       S.warned = true;
       showToast(S.hud, 'A runner lifts: ease off, brake!', '#ffd27a', 1.2);
       runnerScrape(run);
@@ -456,11 +465,11 @@ const hornSledge = {
     const kmh = `${Math.round(riderSpeed(sl.rider) * 3.6)} km/h`;
     if (hud.speed.textContent !== kmh) hud.speed.textContent = kmh;
     // the tilt: how close the sledge is to its tip limit (the lateral acceleration), red once it starts to go over
-    const level = sl.tip > 0 ? 0.75 + 0.25 * sl.tip : clamp(Math.abs(sl.latG) / (S.params?.track || SLEDGE_TRACK).tipG, 0, 1) * 0.75;
+    const level = sl.tip > 0 ? 0.75 + 0.25 * sl.tip : clamp(Math.abs(sl.latG) / (S.params?.track || S.track).tipG, 0, 1) * 0.75;
     hud.fill.style.width = `${Math.round(level * 100)}%`;
     hud.fill.style.background = sl.tip > 0 ? '#ff4b3e' : level > 0.55 ? '#ffc21a' : '#3fd66b';
-    hud.box.style.display = run.phase === 'intro' || run.phase === 'done' ? 'none' : 'flex'; // (its inline display stands over `hidden`)
-  }
+  },
+  after(run) { if (run.sl.sl) hudShown(run, run.sl.hud); }
 };
 
 // === The Sommerrodelbahn on the Schatzalp (js/missions-data-sledge.js has the course and the rails) =========================
@@ -762,12 +771,14 @@ const tobogganRun = {
     const level = sl.wall > 0.02 ? 0.75 + 0.25 * sl.wall : clamp(sl.latG / TOBOGGAN.warnG, 0, 1) * 0.75;
     hud.fill.style.width = `${Math.round(level * 100)}%`;
     hud.fill.style.background = sl.wall > 0.02 ? '#ff4b3e' : level > 0.55 ? '#ffc21a' : '#3fd66b';
-    hud.box.style.display = run.phase === 'intro' || run.phase === 'done' ? 'none' : 'flex'; // (its inline display stands over `hidden`)
-  }
+  },
+  after(run) { if (run.to.sl) hudShown(run, run.to.hud); }
 };
 
 export const SLEDGE_FEATURES = { hornSledge, tobogganRun };
 /** The sledge's HUD for the frame (the speed, the tilt, the toast's fading): for a mission that mounts the sledge itself */
 export const sledgeUpdate = (run, ctx, dt) => hornSledge.update(run, ctx, dt);
+/** … and its HUD hidden under the briefing and the end's panels: from the mission's `after`, every frame */
+export const sledgeAfter = (run) => hornSledge.after(run);
 export { showToast as sledgeToast };
 export { resetSledge };

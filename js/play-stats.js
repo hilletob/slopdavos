@@ -28,7 +28,7 @@ export const TRAVEL_KINDS = {
 // (a mission's vehicle, missions-data*.js `vehicle`, and the missions on foot that move the player some other way)
 const MISSION_VEHICLES = { blower: 'snow-blower', mower: 'mower', garbage: 'garbage-truck', quad: 'quad', bioTruck: 'truck' };
 const MISSION_TRAVEL = {
-  'ski-slalom': 'ski', 'big-air': 'ski', 'davos-nordic': 'xc-ski', 'horn-sledge-rinerhorn': 'sledge', 'fondue-night-schatzalp': 'sledge',
+  'ski-slalom': 'ski', 'big-air': 'ski', 'davos-nordic': 'xc-ski', 'horn-sledge-rinerhorn': 'sledge',
   'sommerrodelbahn-schatzalp': 'toboggan', 'speed-skating': 'skates', 'hockey-penalty': 'skates', 'seehofseeli-hockey': 'skates',
   'skate-bowl': 'skateboard', 'snowshoe-junkerboden': 'snowshoe', 'paraglider-rinerhorn': 'paraglider',
   'waterslide-race': 'waterslide', 'seilpark-faerich': 'climbing', 'derby-crane': 'crane'

@@ -248,14 +248,13 @@ export const TIPSY = {
 };
 // (bolder: ducked lower and the heels lighter on the snow, the two hanging further out in the bends)
 export const TIPSY_PARAMS = { ...SLEDGE_PARAMS, mu: 0.034, drag: 0.0028, tuckDrag: 0.0021, maxSpeed: 26 };
-export const TIPSY_OFF_PARAMS = { ...SLEDGE_OFF_PARAMS };
 // (the run is a 3 m track laid as a bench in the slope, js/path-bench.js: narrower than the horn sledge's 5 m run, with
 // the ground falling away behind it. So the run is narrower here and its nets stand closer; a sledge at a net is set back
 // onto the run and slides along the net, js/missions-data-sledge.js netSlide)
 export const SCHLITTEL_TRACK = { ...SLEDGE_TRACK, half: 2.2, netGap: 0.8, netSlide: true };
 export const TIPSY_TRACK = { ...SCHLITTEL_TRACK, tipG: 0.95 };
 /** The sledge's numbers on this run after the Flämmli: { on, off, track } for stepSledge */
-export const flaemmliParams = (choice) => (choice === 'tipsy' ? { on: TIPSY_PARAMS, off: TIPSY_OFF_PARAMS, track: TIPSY_TRACK } : { on: SLEDGE_PARAMS, off: SLEDGE_OFF_PARAMS, track: SCHLITTEL_TRACK });
+export const flaemmliParams = (choice) => (choice === 'tipsy' ? { on: TIPSY_PARAMS, off: SLEDGE_OFF_PARAMS, track: TIPSY_TRACK } : { on: SLEDGE_PARAMS, off: SLEDGE_OFF_PARAMS, track: SCHLITTEL_TRACK });
 // (the ride begins a few metres down the way, on the bench: its first metre is a step up from the ground before it)
 export const SCHLITTEL_START_S = 4;
 export const SCHLITTEL_SNOW = { flat: 2, bank: 0.5 };

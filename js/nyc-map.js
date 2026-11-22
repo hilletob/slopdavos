@@ -557,7 +557,8 @@ function drawRadarCompass(ctx, wx, wy, w, h, metres) {
   const hw = w * 0.5 - 24;
   const hh = h * 0.5 - 24;
   const outside = Math.abs(wx) > hw || Math.abs(wy) > hh;
-  const text = metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`;
+  // (as js/missions-data.js formatDistance, which the phones' compass shows: whole kilometres from 10 km on)
+  const text = metres >= 1000 ? `${(metres / 1000).toFixed(metres >= 10000 ? 0 : 1)} km` : `${Math.round(metres)} m`;
   let lx = wx;
   let ly = wy + 19;
   if (outside) {

@@ -5,7 +5,7 @@ import { t as tr } from './i18n.js';
 import { logoImage, drawLogo } from './logos.js';
 import { pointAt } from './missions-data-snow.js';
 import { runHeading } from './missions-data-sledge.js';
-import { sledgeSetup, sledgeMount, sledgeUnmount, sledgeUpdate, sledgeToast } from './missions-sledge.js';
+import { sledgeSetup, sledgeMount, sledgeUnmount, sledgeUpdate, sledgeAfter, sledgeToast } from './missions-sledge.js';
 import { el, live, swallow, blip, makeCrowd, poseCrowd } from './missions-gastro.js';
 import {
   STIR, stirPoint, stirLift, stirGauge, fondueStir, chooseFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll,
@@ -59,7 +59,7 @@ function canvasTexture(w, h, draw) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  return { tex, redraw: () => { draw(c, w, h); tex.needsUpdate = true; } };
+  return { tex };
 }
 /** The camp's mountains: a pale line of peaks along the bottom, as on its pictures for 2027 */
 function mountains(c, w, h, y0, colour) {
@@ -433,7 +433,7 @@ const fondueNight = {
         S.params = flaemmliParams(st.choice);
         fd.tipsy = st.choice === 'tipsy' ? createTipsy() : null;
         S.inputFilter = fd.tipsy ? (input, d) => tipsyInput(input, d, fd.tipsy) : null;
-        sledgeMount(run, SCHLITTEL_START_S);
+        sledgeMount(run, SCHLITTEL_START_S, { wait: true });
         hooks.cameraSystem?.resetForTeleport?.();
         st.riding = true;
         fd.rideT = 0;
@@ -444,7 +444,11 @@ const fondueNight = {
   },
   after(run, ctx, dt) {
     const fd = run.fd, st = run.state;
-    if (run.phase === 'done' && (fd.potOpen || fd.cupOpen)) { fd.potOpen = fd.cupOpen = false; fd.game.hidden = fd.cup.hidden = true; fondueNight.hold(run, false); }
+    // (over: the pot and the cup away, and a cut that was under way with its veil — `update` no longer runs to end it)
+    const over = run.phase === 'done' || run.phase === 'aborted' || run.phase === 'failed';
+    if (over && (fd.potOpen || fd.cupOpen)) { fd.potOpen = fd.cupOpen = false; fd.game.hidden = fd.cup.hidden = true; fondueNight.hold(run, false); }
+    if (over && fd.cut) { fd.cut = null; fd.veil.classList.remove('on'); fd.veil.hidden = true; }
+    sledgeAfter(run);
     // the people at the door and at the table (whichever is near)
     const near = (g) => Math.hypot(ctx.x - g.x, ctx.z - g.z) < 120;
     if (near(KONGRESS_DOOR)) poseCrowd(fd.kongress, dt);
