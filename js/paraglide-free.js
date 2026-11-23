@@ -13,6 +13,7 @@ import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 import { LICENCE_ID, LAUNCH_RULE, FREE_THERMALS, freeThermals, launchSpot, createFlight, onGround, FREE_FLIGHT_BOARD, freeFlightEntry, freeFlightText } from './missions-data-paraglide.js';
 import * as THREE from 'three/webgpu';
 import { el } from './dom.js';
+import { msg } from './messages.js';
 
 const feature = PARAGLIDE_FEATURES.paraglider;
 const PACK_AFTER = 2.6; // s on the ground after the landing: the wing folded, walking on
@@ -235,10 +236,12 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
     if (!entry) return;
     const best = localBest();
     if (entry.score > best) keepBest(entry.score);
-    const own = `${freeFlightText(entry.score)} from the launch${entry.score > best ? ' · personal best!' : ''}`;
+    const own = entry.score > best
+      ? msg('{d} from the launch · personal best!', '{d} vom Startpunkt · persönlicher Rekord!', { d: freeFlightText(entry.score) })
+      : msg('{d} from the launch', '{d} vom Startpunkt', { d: freeFlightText(entry.score) });
     flash(own);
     r.ranked?.then((run) => (run ? import('./leaderboard.js').then((l) => l.submitScore(run, entry.score, entry.total)) : null))
-      .then((res) => { if (res?.accepted) flash(`${own} · rank ${res.rank} of ${res.players}`); })
+      .then((res) => { if (res?.accepted) flash(msg('{own} · rank {rank} of {of}', '{own|t} · Rang {rank} von {of}', { own, rank: res.rank, of: res.players })); })
       .catch(() => {});
   }
 

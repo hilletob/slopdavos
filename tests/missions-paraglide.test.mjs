@@ -213,9 +213,16 @@ test('the flight speaks German: its name, intro, steps, HUD and summary', async 
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
   const s = m.createState();
   assert.equal(t(m.objectives[0].check({}, s).text), 'W oder Leertaste: Schirm aufziehen');
-  assert.equal(t('1234 pts · 4.4 km from the launch · field 820 m'), '1234 Pkt. · 4.4 km vom Startplatz · Landeplatz 820 m');
-  assert.equal(t('12:03 in the air · 4.4 km from the launch · 2950 m highest · on the field, 23 m from the cross'), '12:03 in der Luft · 4.4 km vom Startplatz · höchstens 2950 m · auf dem Landeplatz, 23 m vom Kreuz');
-  assert.equal(t('0:40 in the air · 850 m from the launch · 2526 m highest · crash landing'), '0:40 in der Luft · 850 m vom Startplatz · höchstens 2526 m · Bruchlandung');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const f = Object.assign(createFlight(), { phase: 'air', maxDist: 4400, x: FIELD.x + 820, z: FIELD.z });
+  const p = flightScore(f);
+  says(m.objectives[1].check({}, { flight: f }).text, `${p} pts · 4.4 km from the launch · field 820 m`, `${p} Pkt. · 4.4 km vom Startplatz · Landeplatz 820 m`);
+  const flown = (airtime, maxDist, top, landing) => m.summary({ flight: { airtime, maxDist, maxY: top - H0, landing } })[0];
+  says(flown(723, 4400, 2950, { onField: true, distance: 23 }), '12:03 in the air · 4.4 km from the launch · 2950 m highest · on the field, 23 m from the cross', '12:03 in der Luft · 4.4 km vom Startplatz · höchstens 2950 m · auf dem Landeplatz, 23 m vom Kreuz');
+  says(flown(40, 850, 2526, { crash: true }), '0:40 in the air · 850 m from the launch · 2526 m highest · crash landing', '0:40 in der Luft · 850 m vom Startplatz · höchstens 2526 m · Bruchlandung');
+  says(flown(300, 2100, 2600, { onField: false }), '5:00 in the air · 2.1 km from the launch · 2600 m highest · landed out', '5:00 in der Luft · 2.1 km vom Startplatz · höchstens 2600 m · ausserhalb gelandet');
+  says(flown(61, 400, 2300, null), '1:01 in the air · 400 m from the launch · 2300 m highest · still in the air', '1:01 in der Luft · 400 m vom Startplatz · höchstens 2300 m · noch in der Luft');
   for (const k of ['Above ground', 'Airtime', 'Speed', 'Distance', 'Points', 'Airborne!', 'Lift! Circle in it', 'Flare now!', 'Launch', 'Flare', 'speed bar', 'brakes', 'flare']) assert.notEqual(t(k), k, k);
   setLanguage('en');
 });

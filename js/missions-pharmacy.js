@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { surfaceHeight } from './terrain.js';
 import { createToast } from './missions-kit.js';
-import { PARCELS, parcelById } from './missions-data-pharmacy.js';
+import { PARCELS, eventText } from './missions-data-pharmacy.js';
 
 // js/missions-pharmacy.js
 // The runtime of the medicine round by cargo bike (js/missions-data-pharmacy.js has its definition and the pure logic;
@@ -139,12 +139,11 @@ const pharmacyRound = {
     if (!st?.events) return;
     while (st.events.length) {
       const e = st.events.shift();
-      const p = e.id ? parcelById(e.id) : null;
-      if (e.type === 'delivered') ph.toast.show(`Delivered: ${p.content}`, e.broken ? '#ffb4a0' : '#c8f7a0', 1.6);
-      else if (e.type === 'bump') { ph.toast.show(`Bump! The glass at ${Math.round(e.condition * 100)} %`, '#ffd27a', 1.2); run.audio.thump(); }
-      else if (e.type === 'crash') { ph.toast.show(`Crash! The glass at ${Math.round(e.condition * 100)} %`, '#ff9a7a', 1.4); run.audio.thump(); }
-      else if (e.type === 'broken') ph.toast.show(`${p.content} broken: +30 s`, '#ff6a5a', 2.2);
-      else if (e.type === 'warm') ph.toast.show('The insulin is warm: +45 s', '#ff6a5a', 2.2);
+      const text = eventText(e);
+      if (e.type === 'delivered') ph.toast.show(text, e.broken ? '#ffb4a0' : '#c8f7a0', 1.6);
+      else if (e.type === 'bump') { ph.toast.show(text, '#ffd27a', 1.2); run.audio.thump(); }
+      else if (e.type === 'crash') { ph.toast.show(text, '#ff9a7a', 1.4); run.audio.thump(); }
+      else if (e.type === 'broken' || e.type === 'warm') ph.toast.show(text, '#ff6a5a', 2.2);
     }
     ph.toast.update(dt);
   },

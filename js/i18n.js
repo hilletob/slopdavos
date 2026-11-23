@@ -1843,48 +1843,10 @@ function translate(value) {
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
-  // a helicopter flown back to its pad while the player was away (js/gta.js returnStrays)
-  dynamic = dynamic.replace(/^The crew flew the (.+) back to (.+)$/, (_, what, where) => `Die Crew hat den ${what} zurück nach ${translate(where)} geflogen`);
-  // avalanche blasting from the helicopter (js/missions-data-heliblast.js)
-  {
-    const left = (n) => `${n === '1' ? 'noch 1 Ladung' : `noch ${n} Ladungen`}`;
-    const dirDe = { N: 'N', NE: 'NO', E: 'O', SE: 'SO', S: 'S', SW: 'SW', W: 'W', NW: 'NW' };
-    dynamic = dynamic
-      .replace(/^The slope is going · (\d+) charges? left$/, (_, n) => `Der Hang geht ab · ${left(n)}`)
-      .replace(/^Charge away · fuse (\d+) s · (\d+) charges? left$/, (_, f, n) => `Ladung unterwegs · Zündschnur ${f} s · ${left(n)}`)
-      .replace(/^Hover (\d+)–(\d+) m over the slope · now (\d+) m · (\d+) charges? left$/, (_, a, b, h, n) => `Schwebe ${a}–${b} m über dem Hang · jetzt ${h} m · ${left(n)}`)
-      .replace(/^([\d.]+ (?:m|km)) (N|NE|E|SE|S|SW|W|NW) · (Jakobshorn, north flank|Jakobshorn, east flank above the Teufi|Dorftälli below the Weissfluhjoch|Weissfluh, east flank)$/, (_, d, dir, where) => `${d} ${dirDe[dir]} · ${translate(where)}`)
-      .replace(/^Missed by (\d+) m: \+10 s$/, 'Daneben um $1 m: +10 s')
-      .replace(/^(\d+) charges? thrown · (\d+) zones? released · (\d+) missed · (\d+) in the powder cloud \((?:\+(\d+) s|no penalties)\)$/, (_, t, z, m, c, s) => `${t} ${t === '1' ? 'Ladung' : 'Ladungen'} geworfen · ${z} ${z === '1' ? 'Zone' : 'Zonen'} ausgelöst · ${m} daneben · ${c}-mal in der Staubwolke (${s ? `+${s} s` : 'keine Strafzeit'})`);
-  }
-  // the long break on the SAMD's roof (js/missions-data-samd.js)
-  dynamic = dynamic
-    .replace(/^([\d.]+ (?:m|km)) to the side door of the SAMD$/, '$1 bis zur Seitentür der SAMD')
-    .replace(/^(-?\d+) pts · (\d+:\d\d) left(?: · combo ×([\d.]+))?$/, (_, p, left, c) => `${p} Pkt. · noch ${left}${c ? ` · Kombo ×${c}` : ''}`)
-    .replace(/^(\d+) gobs? · (\d+) hits? · best run ×(\d+) · the Rektor (\d+)× · (\d+) off limits$/, (_, g, h, r, k, f) => `${g} Rotzer · ${h} Treffer · beste Serie ×${r} · der Rektor ${k}× · ${f}-mal tabu`)
-    .replace(/^Caught by the Hausmeister: −(\d+) for the detention$/, 'Vom Hausmeister erwischt: −$1 fürs Nachsitzen');
-  // the machinist on the Parsennbahn (js/missions-data-parsenn.js)
-  dynamic = dynamic
-    .replace(/^(Davos Dorf|Höhenweg) · boarding (\d+)\/(\d+) · departure (\d+:\d\d)$/, '$1 · Einsteigen $2/$3 · Abfahrt $4')
-    .replace(/^Doors closed · departure (\d+:\d\d)(?: \(in (\d+) s\))?$/, (_, c, n) => `Türen zu · Abfahrt ${c}${n ? ` (in ${n} s)` : ''}`)
-    .replace(/^(Höhenweg|Weissfluhjoch) · ([+−][\d.]+ c?m) from the board$/, '$1 · $2 von der Tafel')
-    .replace(/^(Höhenweg|Weissfluhjoch) · the passengers get off$/, '$1 · Die Fahrgäste steigen aus')
-    .replace(/^(Höhenweg|Weissfluhjoch): (\d+) pts$/, '$1: $2 Pkt.')
-    .replace(/^Too fast: limit (\d+) km\/h$/, 'Zu schnell: Limit $1 km/h')
-    .replace(/^(.+) – (.+): departure ([+−]\d+ s)( \(horn\))? · arrival ([+−]\d+ s) · ([+−][\d.]+ c?m) · ride (\d+)\/50 → (\d+) pts$/, (_, a, b, dep, horn, arr, e, ride, p) => `${a} – ${b}: Abfahrt ${dep}${horn ? ' (Hornsignal)' : ''} · Ankunft ${arr} · ${e} · Fahrt ${ride}/50 → ${p} Pkt.`);
-  // the paraglider flight (js/missions-data-paraglide.js)
-  dynamic = dynamic.replace(/^(\d+) pts · ([\d,.]+ (?:m|km)) from the launch · field ([\d,.]+ (?:m|km))$/, '$1 Pkt. · $2 vom Startplatz · Landeplatz $3');
-  dynamic = dynamic.replace(/^(\d+:\d\d) in the air · ([\d,.]+ (?:m|km)) from the launch · (\d+) m highest · (.+)$/, (_, time, d, h, how) => `${time} in der Luft · ${d} vom Startplatz · höchstens ${h} m · ${how === 'still in the air' ? 'noch in der Luft' : how === 'crash landing' ? 'Bruchlandung' : how === 'landed out' ? 'ausserhalb gelandet' : how.replace(/^on the field, (\d+) m from the cross$/, 'auf dem Landeplatz, $1 m vom Kreuz')}`);
-  // the free flight's landing (js/paraglide-free.js) and its list (js/leaderboard-overview.js)
-  dynamic = dynamic.replace(/^([\d.]+ (?:m|km)) from the launch( · personal best!)?( · rank (\d+) of (\d+))?$/, (_, d, best, _r, rank, of) => `${d} vom Startpunkt${best ? ' · persönlicher Rekord!' : ''}${rank ? ` · Rang ${rank} von ${of}` : ''}`);
-  // the medicine round by cargo bike (js/missions-data-pharmacy.js, js/missions-pharmacy.js)
-  dynamic = dynamic.replace(/^Insulin cold for (\d+:\d\d) · (.+) to (.+)$/, (_, c, d, w) => `Insulin noch ${c} kalt · ${d} bis ${w}`).replace(/^The insulin is warm \(\+45 s\) · (.+) to (.+)$/, (_, d, w) => `Das Insulin ist warm (+45 s) · ${d} bis ${w}`);
-  dynamic = dynamic.replace(/^Delivered (\d+\/\d+) · next (.+), ([\d,.]+ (?:m|km))(?: · fragile (\d+) %)?$/, (_, n, where, d, f) => `Abgegeben ${n} · nächste: ${where}, ${d}${f ? ` · zerbrechlich ${f} %` : ''}`);
-  dynamic = dynamic.replace(/^Delivered (\d+\/\d+)$/, 'Abgegeben $1').replace(/^Crate empty · (.+) to the pharmacy$/, (_, d) => `Kiste leer · ${d} bis zur Apotheke`).replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
-  dynamic = dynamic.replace(/^Delivered: (.+)$/, (_, what) => `Abgegeben: ${translate(what)}`).replace(/^(.+) broken: \+30 s$/, (_, what) => `${translate(what)} kaputt: +30 s`);
-  dynamic = dynamic.replace(/^(Bump|Crash)! The glass at (\d+) %$/, (_, what, n) => `${what === 'Bump' ? 'Rumms' : 'Unfall'}! Das Glas noch bei ${n} %`);
-  dynamic = dynamic.replace(/^(\d+) of (\d+) parcels delivered · insulin (?:after (\d+:\d\d)|not delivered)( \(warm, \+45 s\))?$/, (_, a, b, at, warm) => `${a} von ${b} Paketen abgegeben · Insulin ${at ? `nach ${at}` : 'nicht abgegeben'}${warm ? ' (warm, +45 s)' : ''}`);
-  dynamic = dynamic.replace(/^(\d+) bumps? · (\d+) crash(?:es)? · (?:(\d+) broken \(\+(\d+) s\)|the glass arrived whole)$/, (_, b, c, k, s) => `${b} ${b === '1' ? 'Rumms' : 'Rummse'} · ${c} ${c === '1' ? 'Unfall' : 'Unfälle'} · ${k ? `${k} kaputt (+${s} s)` : 'das Glas kam ganz an'}`);
+  // the machinist on the Parsennbahn (js/missions-data-parsenn.js) and the RhB's cab (js/missions-data-fun.js): the limit
+  dynamic = dynamic.replace(/^Too fast: limit (\d+) km\/h$/, 'Zu schnell: Limit $1 km/h');
+  // the handing over of the medicine round by cargo bike (js/missions-data-pharmacy.js) and of the post's round (js/missions-data-post.js)
+  dynamic = dynamic.replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
   // the WEF week (js/missions-data-wef.js)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
   dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');

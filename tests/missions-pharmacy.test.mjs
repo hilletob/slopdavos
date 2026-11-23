@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   PHARMACY, DELIVERY, PARCELS, PHARMACY_MISSION, PHARMACY_MISSIONS, parcelById,
-  createDelivery, knockFragile, stepRide, doorAt, stepHandover, stepCold, nextParcel
+  createDelivery, knockFragile, stepRide, doorAt, stepHandover, stepCold, nextParcel, eventText
 } from '../js/missions-data-pharmacy.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { missionMedals } from '../js/missions-progress.js';
@@ -264,21 +264,35 @@ test('the medicine round\'s texts in German', async () => {
   const M = PHARMACY_MISSION;
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title), ...PARCELS.map((p) => p.content)]) assert.notEqual(t(s), s, s);
   for (const s of ['Back onto the cargo bike', 'Stop at the door to hand the parcel over', 'Glass aboard: slow down over kerbs', 'Stop in front of the pharmacy', 'The insulin is warm: +45 s']) assert.notEqual(t(s), s, s);
-  assert.equal(t('Insulin cold for 1:02 · 240 m to Mühlestrasse 10'), 'Insulin noch 1:02 kalt · 240 m bis Mühlestrasse 10');
-  assert.equal(t('The insulin is warm (+45 s) · 1.1 km to Mühlestrasse 10'), 'Das Insulin ist warm (+45 s) · 1.1 km bis Mühlestrasse 10');
-  assert.equal(t('Delivered 2/6 · next Palüdastrasse 8, 240 m'), 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 240 m');
-  assert.equal(t('Delivered 2/6 · next Palüdastrasse 8, 1.2 km · fragile 62 %'), 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 1.2 km · zerbrechlich 62 %');
-  assert.equal(t('Delivered 6/6'), 'Abgegeben 6/6');
-  assert.equal(t('Crate empty · 120 m to the pharmacy'), 'Kiste leer · 120 m bis zur Apotheke');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const [insulin, deliver, back] = M.objectives;
+  const door = PARCELS[0].door, pal = PARCELS.find((p) => p.address === 'Palüdastrasse 8');
+  says(insulin.check({ x: door.x + 240, z: door.z, t: 28000, mode: 'cargobike' }, createDelivery()).text, 'Insulin cold for 1:02 · 240 m to Mühlestrasse 10', 'Insulin noch 1:02 kalt · 240 m bis Mühlestrasse 10');
+  says(insulin.check({ x: door.x, z: door.z + 1100, t: 100000, mode: 'cargobike' }, { ...createDelivery(), warm: true }).text, 'The insulin is warm (+45 s) · 1.1 km to Mühlestrasse 10', 'Das Insulin ist warm (+45 s) · 1.1 km bis Mühlestrasse 10');
+  // (the insulin and the syrup delivered, the bike west of the Palüdastrasse's door: the nearest of the rest)
+  const two = createDelivery();
+  for (const p of two.parcels) if (p.id === 'insulin' || p.id === 'syrup') { p.delivered = true; two.delivered++; }
+  says(deliver.check({ x: pal.door.x - 240, z: pal.door.z, mode: 'cargobike' }, two).text, 'Delivered 2/6 · next Palüdastrasse 8, 240 m', 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 240 m');
+  two.parcels.find((p) => p.id === 'eyedrops').condition = 0.62;
+  says(deliver.check({ x: pal.door.x - 1200, z: pal.door.z, mode: 'cargobike' }, two).text, 'Delivered 2/6 · next Palüdastrasse 8, 1.2 km · fragile 62 %', 'Abgegeben 2/6 · nächste: Palüdastrasse 8, 1.2 km · zerbrechlich 62 %');
+  const all = createDelivery(); all.parcels.forEach((p) => { p.delivered = true; }); all.delivered = 6;
+  says(deliver.check({ x: 0, z: 0, mode: 'cargobike' }, all).text, 'Delivered 6/6', 'Abgegeben 6/6');
+  says(back.check({ x: PHARMACY.door.x + 120, z: PHARMACY.door.z, mode: 'cargobike' }, all).text, 'Crate empty · 120 m to the pharmacy', 'Kiste leer · 120 m bis zur Apotheke');
   assert.equal(t('Handing over … 40 %'), 'Übergabe … 40 %');
-  assert.equal(t('Delivered: Insulin (cool box)'), 'Abgegeben: Insulin (Kühlbox)');
-  assert.equal(t('Eye drops (glass) broken: +30 s'), 'Augentropfen (Glas) kaputt: +30 s');
-  assert.equal(t('Bump! The glass at 70 %'), 'Rumms! Das Glas noch bei 70 %');
-  assert.equal(t('Crash! The glass at 20 %'), 'Unfall! Das Glas noch bei 20 %');
+  says(eventText({ type: 'delivered', id: 'insulin' }), 'Delivered: Insulin (cool box)', 'Abgegeben: Insulin (Kühlbox)');
+  says(eventText({ type: 'broken', id: 'eyedrops' }), 'Eye drops (glass) broken: +30 s', 'Augentropfen (Glas) kaputt: +30 s');
+  says(eventText({ type: 'bump', condition: 0.7 }), 'Bump! The glass at 70 %', 'Rumms! Das Glas noch bei 70 %');
+  says(eventText({ type: 'crash', condition: 0.2 }), 'Crash! The glass at 20 %', 'Unfall! Das Glas noch bei 20 %');
+  assert.notEqual(t(eventText({ type: 'warm' })), 'The insulin is warm: +45 s');
   const st = createDelivery();
   st.delivered = 6; st.insulinMs = 48000; st.bumps = 1; st.crashes = 0;
+  assert.deepEqual(M.summary(st), ['6 of 6 parcels delivered · insulin after 0:48', '1 bump · 0 crashes · the glass arrived whole']);
   assert.deepEqual(M.summary(st).map(t), ['6 von 6 Paketen abgegeben · Insulin nach 0:48', '1 Rumms · 0 Unfälle · das Glas kam ganz an']);
   st.warm = true; st.bumps = 3; st.crashes = 1; st.broken = 1;
+  assert.deepEqual(M.summary(st), ['6 of 6 parcels delivered · insulin after 0:48 (warm, +45 s)', '3 bumps · 1 crash · 1 broken (+30 s)']);
   assert.deepEqual(M.summary(st).map(t), ['6 von 6 Paketen abgegeben · Insulin nach 0:48 (warm, +45 s)', '3 Rummse · 1 Unfall · 1 kaputt (+30 s)']);
+  st.insulinMs = null;
+  assert.deepEqual(M.summary(st).map(t)[0], '6 von 6 Paketen abgegeben · Insulin nicht abgegeben (warm, +45 s)');
   setLanguage('en');
 });

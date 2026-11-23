@@ -377,9 +377,10 @@ test('the jetpack demo speaks German', async () => {
 });
 
 test('the avalanche blasting from the helicopter speaks German', async () => {
-  const { HELIBLAST_MISSION, ZONES, START, createBlastState } = await import('../js/missions-data-heliblast.js');
+  const { HELIBLAST_MISSION, ZONES, START, createBlastState, stepBlast } = await import('../js/missions-data-heliblast.js');
   setLanguage('de');
   const m = HELIBLAST_MISSION;
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
   assert.equal(t(m.title), 'Lawinensprengung aus dem Helikopter');
   assert.match(t(m.intro), /^Januar, sieben Uhr morgens/);
   assert.match(t(m.finish), /erste Gondel/);
@@ -396,12 +397,20 @@ test('the avalanche blasting from the helicopter speaks German', async () => {
   const path = [z.x, z.z, z.x, z.z + 300];
   look({ x: z.x, z: z.z + 100, y: 0, agl: 20 }, { ...s, released: [1, null, null, null], paths: [path, null, null, null] });
   look({ x: z.x + 900, z: z.z, y: 0, agl: 20 }, { ...s, released: [1, null, null, null], paths: [path, null, null, null] });
-  for (const note of ['Missed by 12 m: +10 s', 'Caught in the powder cloud: +20 s', 'One at a time: the charge is still burning', 'Too low to throw: climb above 15 m', 'Too high to aim: sink below 45 m', 'No charges left', 'Drop charge', 'Drop']) seen.add(note);
+  // (a charge gone off 12 m outside the first ring: its note is made by the mission, js/messages.js)
+  const missed = { ...createBlastState(), charge: { x: z.x + z.r + 12, y: 0, z: z.z, fuse: 0.01, landed: true, t: 0 } };
+  stepBlast(missed, { x: z.x + 500, y: 300, z: z.z, agl: 300 }, 0.05, () => 0);
+  says(missed.note, 'Missed by 12 m: +10 s', 'Daneben um 12 m: +10 s');
+  for (const note of ['Caught in the powder cloud: +20 s', 'One at a time: the charge is still burning', 'Too low to throw: climb above 15 m', 'Too high to aim: sink below 45 m', 'No charges left', 'Drop charge', 'Drop']) seen.add(note);
   seen.add(m.objectives[2].check({ x: START.x, z: START.z, y: 0, agl: 0 }, s).text);
   for (const text of seen) assert.notEqual(t(text), text, text);
-  assert.equal(t('3.1 km SE · Jakobshorn, north flank'), '3.1 km SO · Jakobshorn, Nordflanke');
-  assert.equal(t('Hover 15–45 m over the slope · now 30 m · 1 charge left'), 'Schwebe 15–45 m über dem Hang · jetzt 30 m · noch 1 Ladung');
-  assert.equal(t(m.summary({ ...s, thrown: 5, hits: 4, misses: 1, cloudHits: 1, penaltyMs: 30000 })[0]), '5 Ladungen geworfen · 4 Zonen ausgelöst · 1 daneben · 1-mal in der Staubwolke (+30 s)');
+  says(m.objectives[0].check({ x: START.x, z: START.z, y: 0, agl: 0 }, s).text, '3.1 km SE · Jakobshorn, north flank', '3.1 km SO · Jakobshorn, Nordflanke');
+  says(m.objectives[0].check({ x: z.x, z: z.z, y: 0, agl: 30 }, { ...s, charges: 1 }).text, 'Hover 15–45 m over the slope · now 30 m · 1 charge left', 'Schwebe 15–45 m über dem Hang · jetzt 30 m · noch 1 Ladung');
+  says(m.objectives[0].check({ x: z.x, z: z.z, y: 0, agl: 30 }, s).text, 'Hover 15–45 m over the slope · now 30 m · 8 charges left', 'Schwebe 15–45 m über dem Hang · jetzt 30 m · noch 8 Ladungen');
+  says(m.objectives[0].check({ x: z.x, z: z.z, y: 20, agl: 20 }, { ...s, charges: 2, charge: { x: z.x, y: 0, z: z.z, fuse: 2.4 } }).text, 'Charge away · fuse 3 s · 2 charges left', 'Ladung unterwegs · Zündschnur 3 s · noch 2 Ladungen');
+  says(m.objectives[0].check({ x: z.x + 900, z: z.z, y: 0, agl: 20 }, { ...s, charges: 1, released: [1, null, null, null], paths: [path, null, null, null] }).text, 'The slope is going · 1 charge left', 'Der Hang geht ab · noch 1 Ladung');
+  says(m.summary({ ...s, thrown: 5, hits: 4, misses: 1, cloudHits: 1, penaltyMs: 30000 })[0], '5 charges thrown · 4 zones released · 1 missed · 1 in the powder cloud (+30 s)', '5 Ladungen geworfen · 4 Zonen ausgelöst · 1 daneben · 1-mal in der Staubwolke (+30 s)');
+  says(m.summary({ ...s, thrown: 1, hits: 1, misses: 0, cloudHits: 0, penaltyMs: 0 })[0], '1 charge thrown · 1 zone released · 0 missed · 0 in the powder cloud (no penalties)', '1 Ladung geworfen · 1 Zone ausgelöst · 0 daneben · 0-mal in der Staubwolke (keine Strafzeit)');
   for (const fail of ['The charge went off right under the helicopter. The crew is shaken, the flight is over.', 'Out of charges: the slopes stay closed today.']) assert.notEqual(t(fail), fail);
 });
 
@@ -606,7 +615,7 @@ test('the ice resurfacer in the Eisstadion speaks German: its steps, hints, HUD,
 });
 
 test('the long break on the SAMD\'s roof speaks German, with a Swiss-German shout or two', async () => {
-  const { SAMD_MISSION: m, ROLES, SIDEKICK, START, createBreak } = await import('../js/missions-data-samd.js');
+  const { SAMD_MISSION: m, ROLES, SIDEKICK, START, DOOR, SPIT, createBreak } = await import('../js/missions-data-samd.js');
   setLanguage('de');
   assert.equal(t(m.title), 'Vom Dach der SAMD');
   assert.match(t(m.intro), /^Ein Schulmorgen an der SAMD/);
@@ -630,11 +639,14 @@ test('the long break on the SAMD\'s roof speaks German, with a Swiss-German shou
   look(m.objectives[1], {}, { ...b, mouth: 'hocking', combo: 3 });
   for (const s of ['Wind', 'Hock', 'Collecting', 'Suspicion', 'Hock, let go to drop', 'Duck', 'aim', 'The Hausmeister!', 'Caught at the parapet: detention', 'Ring!', 'The long break is over', 'The Rektor!', 'Crossing the yard to the Aula']) if (s !== 'Wind') seen.add(s);
   for (const text of seen) assert.notEqual(t(text), text, text);
-  assert.equal(t('21 m to the side door of the SAMD'), '21 m bis zur Seitentür der SAMD');
-  assert.equal(t('120 pts · 1:23 left · combo ×1.5'), '120 Pkt. · noch 1:23 · Kombo ×1.5');
-  assert.equal(t('0 pts · 2:30 left'), '0 Pkt. · noch 2:30');
-  assert.equal(t(m.summary({ brk: { ...b, spits: 31, hits: 17, maxCombo: 5, rektorHits: 2, forbidden: 1 } })[0]), '31 Rotzer · 17 Treffer · beste Serie ×5 · der Rektor 2× · 1-mal tabu');
-  assert.equal(t(m.summary({ brk: { ...b, caught: true } })[1]), 'Vom Hausmeister erwischt: −150 fürs Nachsitzen');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  says(m.objectives[0].check({ x: DOOR.x - 21, z: DOOR.z }).text, '21 m to the side door of the SAMD', '21 m bis zur Seitentür der SAMD');
+  says(m.objectives[1].check({}, { brk: { ...b, points: 120, t: SPIT.breakS - 83, combo: 3 } }).text, '120 pts · 1:23 left · combo ×1.5', '120 Pkt. · noch 1:23 · Kombo ×1.5');
+  says(m.objectives[1].check({}, { brk: { ...b, points: 0, t: 0 } }).text, '0 pts · 2:30 left', '0 Pkt. · noch 2:30');
+  says(m.summary({ brk: { ...b, spits: 31, hits: 17, maxCombo: 5, rektorHits: 2, forbidden: 1 } })[0], '31 gobs · 17 hits · best run ×5 · the Rektor 2× · 1 off limits', '31 Rotzer · 17 Treffer · beste Serie ×5 · der Rektor 2× · 1-mal tabu');
+  says(m.summary({ brk: { ...b, spits: 1, hits: 1, maxCombo: 1, rektorHits: 0, forbidden: 0 } })[0], '1 gob · 1 hit · best run ×1 · the Rektor 0× · 0 off limits', '1 Rotzer · 1 Treffer · beste Serie ×1 · der Rektor 0× · 0-mal tabu');
+  says(m.summary({ brk: { ...b, caught: true } })[1], 'Caught by the Hausmeister: −150 for the detention', 'Vom Hausmeister erwischt: −150 fürs Nachsitzen');
   setLanguage('en');
 });
 
@@ -664,9 +676,20 @@ test('the Parsennbahn machinist speaks German: the steps in every phase, the des
     'Left too early!', 'Departure, with the horn', 'Departure', 'Change to the upper car']) seen.add(s);
   for (const text of seen) assert.notEqual(t(text), text, text);
   assert.equal(t('Höhenweg in 1.2 km · due 4:55 (−12 s) · 30/36 km/h'), 'Höhenweg in 1.2 km · fällig 4:55 (−12 s) · 30/36 km/h');
-  assert.equal(t('Davos Dorf · boarding 12/46 · departure 0:20'), 'Davos Dorf · Einsteigen 12/46 · Abfahrt 0:20');
-  assert.equal(t('Höhenweg · −7 cm from the board'), 'Höhenweg · −7 cm von der Tafel');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const at = (more) => m.objectives[0].check({}, { drive: Object.assign(createDrive(), more) }).text;
+  says(at({ aboard: 12 }), 'Davos Dorf · boarding 12/46 · departure 0:20', 'Davos Dorf · Einsteigen 12/46 · Abfahrt 0:20');
+  says(at({ phase: 'ready', doors: 'closed', t: 12.5 }), 'Doors closed · departure 0:20 (in 8 s)', 'Türen zu · Abfahrt 0:20 (in 8 s)');
+  says(at({ phase: 'ready', doors: 'closed', t: 30 }), 'Doors closed · departure 0:20', 'Türen zu · Abfahrt 0:20');
+  const end = driveLine(createDrive()).runLen;
+  says(at({ phase: 'halt', s: end - 0.07, v: 0 }), 'Höhenweg · −7 cm from the board', 'Höhenweg · −7 cm von der Tafel');
+  says(at({ phase: 'halt', s: end + 1.2, v: 0 }), 'Höhenweg · +1.2 m from the board', 'Höhenweg · +1.2 m von der Tafel');
+  says(at({ phase: 'alight' }), 'Höhenweg · the passengers get off', 'Höhenweg · Die Fahrgäste steigen aus');
+  says(m.objectives[0].check({}, { drive: d }).text, 'Höhenweg: 297 pts', 'Höhenweg: 297 Pkt.');
   const summary = m.summary({ drive: { ...d, overspeed: 4, maxOver: 5, overspeedPenalty: 14 } });
-  assert.equal(t(summary[0]), 'Davos Dorf – Höhenweg: Abfahrt +2 s (Hornsignal) · Ankunft −8 s · −7 cm · Fahrt 50/50 → 297 Pkt.');
+  says(summary[0], 'Davos Dorf – Höhenweg: departure +2 s (horn) · arrival −8 s · −7 cm · ride 50/50 → 297 pts', 'Davos Dorf – Höhenweg: Abfahrt +2 s (Hornsignal) · Ankunft −8 s · −7 cm · Fahrt 50/50 → 297 Pkt.');
+  says(m.summary({ drive: { ...d, results: [{ from: 'Höhenweg', to: 'Weissfluhjoch', departLate: -1, delay: 3, error: 1.24, horn: 0, comfort: 40, total: 180 }] } })[0],
+    'Höhenweg – Weissfluhjoch: departure −1 s · arrival +3 s · +1.2 m · ride 40/50 → 180 pts', 'Höhenweg – Weissfluhjoch: Abfahrt −1 s · Ankunft +3 s · +1.2 m · Fahrt 40/50 → 180 Pkt.');
   assert.equal(t(summary[1]), 'Über dem Limit 4 s (bis +5 km/h): −14 Pkt.');
 });

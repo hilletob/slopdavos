@@ -11,6 +11,7 @@ import {
 } from './vehicle-depots.js';
 import { createTakeover } from './gta-takeover.js';
 import { t } from './i18n.js';
+import { msg } from './messages.js';
 import { missionAllowsTakeover } from './hijack.js';
 import { el } from './dom.js';
 
@@ -538,7 +539,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
         }
         v.x = home.x; v.z = home.z; // (the pad is taken now, for the next stray)
         dirty = true;
-        flash(`The crew flew the ${VEHICLE_LABELS[type]} back to ${home.label}`);
+        flash(msg('The crew flew the {what} back to {where}', 'Die Crew hat den {what} zurück nach {where|t} geflogen', { what: VEHICLE_LABELS[type], where: home.label }));
       }
     }
   }

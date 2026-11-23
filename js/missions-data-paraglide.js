@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-paraglide.js
 // A paraglider flight from the Rinerhorn (js/missions-data.js spreads PARAGLIDE_MISSIONS into MISSIONS; js/missions-paraglide.js
 // has its runtime: the wing, the pilot in the harness, the clouds and birds over the thermals, the vario and the HUD).
@@ -462,8 +463,10 @@ export const PARAGLIDE_MISSION = {
   score: (state) => flightScore(state.flight),
   summary(state) {
     const f = state.flight, t = Math.round(f.airtime), l = f.landing;
-    const how = !l ? 'still in the air' : l.crash ? 'crash landing' : l.onField ? `on the field, ${Math.round(l.distance)} m from the cross` : 'landed out';
-    return [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} in the air · ${fmtDist(f.maxDist)} from the launch · ${Math.round(f.maxY + H0)} m highest · ${how}`];
+    const how = !l ? msg('still in the air', 'noch in der Luft') : l.crash ? msg('crash landing', 'Bruchlandung')
+      : l.onField ? msg('on the field, {m} m from the cross', 'auf dem Landeplatz, {m} m vom Kreuz', { m: Math.round(l.distance) }) : msg('landed out', 'ausserhalb gelandet');
+    return [msg('{time} in the air · {d} from the launch · {h} m highest · {how}', '{time} in der Luft · {d} vom Startplatz · höchstens {h} m · {how|t}',
+      { time: `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, d: fmtDist(f.maxDist), h: Math.round(f.maxY + H0), how })];
   },
   objectives: [
     {
@@ -492,7 +495,7 @@ export const PARAGLIDE_MISSION = {
         return {
           done: onGround(f),
           progress: clamp(f.airtime / PG.timeCap, 0, 1),
-          text: `${flightScore(f)} pts · ${fmtDist(f.maxDist)} from the launch · field ${fmtDist(d)}`,
+          text: msg('{p} pts · {d} from the launch · field {field}', '{p} Pkt. · {d} vom Startplatz · Landeplatz {field}', { p: flightScore(f), d: fmtDist(f.maxDist), field: fmtDist(d) }),
           target: { x: FIELD.x, z: FIELD.z, r: FIELD.r, style: 'pad' },
           hint: f.outside ? 'The edge of the map: turning back' : f.agl < PG.flareAgl * 3 && f.agl > 0.5 ? 'Flare now!' : f.vario > 0.8 ? 'Lift! Circle in it' : null
         };

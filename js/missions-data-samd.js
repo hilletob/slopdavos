@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-samd.js
 // The long break on the roof of the SAMD (js/missions-data.js spreads SAMD_MISSIONS into MISSIONS; js/missions-samd.js
 // has its runtime: the view over the parapet, the reticle on the yard, the gob in flight, the walkers below, their
@@ -392,8 +393,9 @@ export const SAMD_MISSION = {
   summary(state) {
     const b = state.brk;
     if (!b) return [];
-    const lines = [`${b.spits} ${b.spits === 1 ? 'gob' : 'gobs'} · ${b.hits} ${b.hits === 1 ? 'hit' : 'hits'} · best run ×${b.maxCombo} · the Rektor ${b.rektorHits}× · ${b.forbidden} off limits`];
-    if (b.caught) lines.push(`Caught by the Hausmeister: −${SPIT.caughtPenalty} for the detention`);
+    const lines = [msg('{g} {gobs} · {h} {hits} · best run ×{r} · the Rektor {k}× · {f} off limits', '{g} Rotzer · {h} Treffer · beste Serie ×{r} · der Rektor {k}× · {f}-mal tabu',
+      { g: b.spits, gobs: b.spits === 1 ? 'gob' : 'gobs', h: b.hits, hits: b.hits === 1 ? 'hit' : 'hits', r: b.maxCombo, k: b.rektorHits, f: b.forbidden })];
+    if (b.caught) lines.push(msg('Caught by the Hausmeister: −{n} for the detention', 'Vom Hausmeister erwischt: −{n} fürs Nachsitzen', { n: SPIT.caughtPenalty }));
     return lines;
   },
   objectives: [
@@ -402,7 +404,7 @@ export const SAMD_MISSION = {
       title: 'Sneak to the side door',
       check(ctx) {
         const d = Math.hypot(ctx.x - DOOR.x, ctx.z - DOOR.z);
-        return { done: d < DOOR.r, progress: null, text: `${fmtDist(d)} to the side door of the SAMD`, target: { ...DOOR, style: 'plain' }, hint: 'Up the stairs and through the roof hatch' };
+        return { done: d < DOOR.r, progress: null, text: msg('{d} to the side door of the SAMD', '{d} bis zur Seitentür der SAMD', { d: fmtDist(d) }), target: { ...DOOR, style: 'plain' }, hint: 'Up the stairs and through the roof hatch' };
       }
     },
     {
@@ -413,7 +415,9 @@ export const SAMD_MISSION = {
         const b = state.brk;
         if (!b) return { done: false, progress: 0, text: 'Up on the roof …', target: null, hint: null };
         const left = SPIT.breakS - b.t;
-        const text = `${b.points} pts · ${fmtClock(left)} left${b.combo >= 2 ? ` · combo ×${comboMult(b.combo).toFixed(2).replace(/0$/, '')}` : ''}`;
+        const text = b.combo >= 2
+          ? msg('{p} pts · {left} left · combo ×{c}', '{p} Pkt. · noch {left} · Kombo ×{c}', { p: b.points, left: fmtClock(left), c: comboMult(b.combo).toFixed(2).replace(/0$/, '') })
+          : msg('{p} pts · {left} left', '{p} Pkt. · noch {left}', { p: b.points, left: fmtClock(left) });
         const hint = (b.ducked ? 'Ducked: let the yard calm down' : b.suspicion >= SPIT.sus.warn ? 'They are looking up: duck (C)!' : b.mouth === 'hocking' ? 'Let go to drop it' : 'Hold to hock, let go to drop: lead them');
         return { done: b.over, progress: clamp(b.t / SPIT.breakS, 0, 1), text, target: null, hint };
       }

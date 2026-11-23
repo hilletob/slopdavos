@@ -21,6 +21,7 @@
 // shuttle: 0 at the valley station, runLen at the top, its front then 0.3 m short of the track's end: the stop board).
 
 import { BERGBAHNEN } from './bergbahnen-data.js';
+import { msg } from './messages.js';
 import { funicularTrack } from './funicular-track.js';
 
 export const PARSENN_ID = 'parsenn-maschinist';
@@ -345,15 +346,15 @@ function sectionText(d, k) {
   if (d.k < k || d.phase === 'change') return { text: `Change to the upper car at Höhenweg`, hint: null };
   if (d.phase === 'boarding') {
     const left = Math.max(0, Math.ceil(PB.boarding - d.boardT));
-    return { text: `${line.section.from} · boarding ${d.aboard}/${line.section.passengers} · departure ${fmtClock(tt.depart)}`, hint: left > 0 ? 'The passengers are boarding' : 'F: close the doors' };
+    return { text: msg('{from} · boarding {n}/{of} · departure {at}', '{from} · Einsteigen {n}/{of} · Abfahrt {at}', { from: line.section.from, n: d.aboard, of: line.section.passengers, at: fmtClock(tt.depart) }), hint: left > 0 ? 'The passengers are boarding' : 'F: close the doors' };
   }
   if (d.phase === 'ready') {
     const wait = tt.depart - d.t;
-    return { text: `Doors closed · departure ${fmtClock(tt.depart)}${wait > 0 ? ` (in ${Math.ceil(wait)} s)` : ''}`, hint: wait > 0 ? 'B: the horn before you leave' : 'W: lever up, off you go' };
+    return { text: wait > 0 ? msg('Doors closed · departure {at} (in {s} s)', 'Türen zu · Abfahrt {at} (in {s} s)', { at: fmtClock(tt.depart), s: Math.ceil(wait) }) : msg('Doors closed · departure {at}', 'Türen zu · Abfahrt {at}', { at: fmtClock(tt.depart) }), hint: wait > 0 ? 'B: the horn before you leave' : 'W: lever up, off you go' };
   }
   const limit = driveLimit(d), kmh = Math.round(d.v * 3.6), togo = toBoard(d);
-  if (d.phase === 'halt') return { text: `${name} · ${fmtError(-togo)} from the board`, hint: Math.abs(togo) > 0.1 && togo > 0 ? 'Creep on (W) or open the doors (F)' : 'F: open the doors' };
-  if (d.phase === 'alight') return { text: `${name} · the passengers get off`, hint: null };
+  if (d.phase === 'halt') return { text: msg('{name} · {e} from the board', '{name} · {e} von der Tafel', { name, e: fmtError(-togo) }), hint: Math.abs(togo) > 0.1 && togo > 0 ? 'Creep on (W) or open the doors (F)' : 'F: open the doors' };
+  if (d.phase === 'alight') return { text: msg('{name} · the passengers get off', '{name} · Die Fahrgäste steigen aus', { name }), hint: null };
   const hint = kmh > limit + PB.tolerance ? `Too fast: limit ${limit} km/h` : togo < 40 ? 'Stop with the front at the yellow line' : togo < 160 ? 'Slow down for the station' : d.timelapse ? 'Time-lapse ×4 · T: back to normal' : null;
   return { text: `${name} in ${fmtDist(togo)} · due ${fmtClock(tt.arrive)} (${fmtSigned(d.t - tt.arrive)}) · ${kmh}/${limit} km/h`, hint };
 }
@@ -368,7 +369,7 @@ function sectionObjective(k) {
       const d = state.drive;
       if (!d) return { done: false, progress: null, text: `Drive to ${to}`, target: null, hint: null };
       const r = d.results[k];
-      if (r && (k < SECTIONS.length - 1 || d.done)) return { done: true, progress: 1, text: `${to}: ${r.total} pts`, target: null, hint: null };
+      if (r && (k < SECTIONS.length - 1 || d.done)) return { done: true, progress: 1, text: msg('{to}: {p} pts', '{to}: {p} Pkt.', { to, p: r.total }), target: null, hint: null };
       const v = sectionText(d, k);
       const line = d.lines[k];
       return { done: false, progress: d.k === k ? clamp(d.s / line.runLen, 0, 1) : null, text: v.text, target: null, hint: v.hint };
@@ -399,7 +400,9 @@ export const PARSENN_MISSION = {
   summary(state) {
     const d = state.drive;
     if (!d) return [];
-    const lines = d.results.map((r) => `${r.from} – ${r.to}: departure ${fmtSigned(r.departLate)}${r.horn ? ' (horn)' : ''} · arrival ${fmtSigned(r.delay)} · ${fmtError(r.error)} · ride ${r.comfort}/50 → ${r.total} pts`);
+    const lines = d.results.map((r) => msg('{a} – {b}: departure {dep}{horn} · arrival {arr} · {e} · ride {ride}/50 → {p} pts',
+      (p) => `${p.a} – ${p.b}: Abfahrt ${p.dep}${p.horn ? ' (Hornsignal)' : ''} · Ankunft ${p.arr} · ${p.e} · Fahrt ${p.ride}/50 → ${p.p} Pkt.`,
+      { a: r.from, b: r.to, dep: fmtSigned(r.departLate), horn: r.horn ? ' (horn)' : '', arr: fmtSigned(r.delay), e: fmtError(r.error), ride: r.comfort, p: r.total }));
     if (d.overspeed > 0) lines.push(`Over the limit ${Math.round(d.overspeed)} s (up to +${Math.round(d.maxOver)} km/h): −${Math.round(d.overspeedPenalty)} pts`);
     return lines;
   },

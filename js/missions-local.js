@@ -18,6 +18,7 @@ import {
   KIRCHNER, KIRCHNER_PALETTE, kirchnerIndex, nearestPalette, gridMode, templateEdges, scorePainting
 } from './missions-data-local.js';
 import { el } from './dom.js';
+import { msg } from './messages.js';
 
 // js/missions-local.js
 // The runtime of the eight missions at real places of Davos (js/missions-data-local.js has their definitions and the
@@ -364,7 +365,7 @@ const BEER_FEATURE = {
     if (!live(run)) return;
     const stop = run.index >= 1 ? BEER_STOPS[run.index - 1] : null;
     const what = beerStep(st, ctx, st.van, stop);
-    if (what === 'deliver') { blip(run, 'good'); bv.hud.flash(tr(`Delivered: ${stop.name}`)); }
+    if (what === 'deliver') { blip(run, 'good'); bv.hud.flash(tr(msg('Delivered: {what}', 'Abgegeben: {what|t}', { what: stop.name }))); }
     else if (what === 'pick' || what === 'stow') blip(run, 'pock');
   },
   after(run, ctx, dt, cm) {

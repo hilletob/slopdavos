@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-heliblast.js
 // Avalanche control from the helicopter (js/missions-data.js spreads HELIBLAST_MISSIONS into MISSIONS; js/missions-heliblast.js
 // has its runtime: the charge in flight with its burning fuse, the aim ring, the blasts and the avalanches, the key).
@@ -176,7 +177,7 @@ export function stepBlast(state, heli, dt, groundAt, zones = ZONES) {
     } else {
       state.misses++;
       state.penaltyMs += HB.missPenaltyMs;
-      state.note = `Missed by ${Math.round(off - (zone?.r ?? 0))} m: +10 s`;
+      state.note = msg('Missed by {m} m: +10 s', 'Daneben um {m} m: +10 s', { m: Math.round(off - (zone?.r ?? 0)) });
       state.noteT = 4;
     }
   }
@@ -200,7 +201,9 @@ export function stepBlast(state, heli, dt, groundAt, zones = ZONES) {
 /** The helicopter of the frame, as stepBlast wants it */
 export const heliOf = (ctx) => ({ x: ctx.x, y: ctx.y, z: ctx.z, heading: ctx.heading, speed: ctx.speed, verticalSpeed: ctx.verticalSpeed, agl: ctx.agl });
 
-const chargesText = (n) => `${n} ${n === 1 ? 'charge' : 'charges'} left`;
+const chargesText = (n) => msg('{n} {charges} left', (p) => (p.n === 1 ? 'noch 1 Ladung' : `noch ${p.n} Ladungen`), { n, charges: n === 1 ? 'charge' : 'charges' });
+// (the compass in German: east is Ost)
+const COMPASS_DE = { N: 'N', NE: 'NO', E: 'O', SE: 'SO', S: 'S', SW: 'SW', W: 'W', NW: 'NW' };
 
 /** The step of zone i: there, hover in the window, throw, away from the path; done a few seconds after the release */
 function zoneObjective(zone, i) {
@@ -213,21 +216,21 @@ function zoneObjective(zone, i) {
       const fail = state.failed;
       if (age != null) {
         const inside = state.paths[i] && inPath(state.paths[i], zone, ctx.x, ctx.z) && ctx.agl < HB.cloudAgl;
-        return { done: age >= HB.settleS, fail, progress: Math.min(1, age / HB.settleS), text: `The slope is going · ${chargesText(state.charges)}`, target: null, hint: state.note || (inside ? 'Away from the avalanche path!' : 'Watch it run') };
+        return { done: age >= HB.settleS, fail, progress: Math.min(1, age / HB.settleS), text: msg('The slope is going · {left}', 'Der Hang geht ab · {left|t}', { left: chargesText(state.charges) }), target: null, hint: state.note || (inside ? 'Away from the avalanche path!' : 'Watch it run') };
       }
       const c = state.charge;
       if (c) {
         const close = Math.hypot(c.x - ctx.x, c.y - ctx.y, c.z - ctx.z) < HB.dangerR + 15;
-        return { done: false, fail, progress: Math.max(0, c.fuse) / HB.fuse, text: `Charge away · fuse ${Math.max(0, Math.ceil(c.fuse))} s · ${chargesText(state.charges)}`, target, hint: close ? 'Pull up and away from the charge!' : 'Hold off: it goes any second' };
+        return { done: false, fail, progress: Math.max(0, c.fuse) / HB.fuse, text: msg('Charge away · fuse {s} s · {left}', 'Ladung unterwegs · Zündschnur {s} s · {left|t}', { s: Math.max(0, Math.ceil(c.fuse)), left: chargesText(state.charges) }), target, hint: close ? 'Pull up and away from the charge!' : 'Hold off: it goes any second' };
       }
       const dx = zone.x - ctx.x, dz = zone.z - ctx.z, d = Math.hypot(dx, dz);
       if (d > HB.near) {
-        return { done: false, fail, progress: null, text: `${fmtDist(d)} ${compass(dx, dz)} · ${zone.name}`, target, hint: state.note || (i === 0 && d > 1500 ? 'Fly to the yellow ring on the Jakobshorn' : i === 2 && d > 1500 ? 'Across the valley to the Parsenn, below the Weissfluhjoch' : null) };
+        return { done: false, fail, progress: null, text: msg('{d} {dir} · {where}', (p, tr) => `${p.d} ${COMPASS_DE[p.dir]} · ${tr(p.where)}`, { d: fmtDist(d), dir: compass(dx, dz), where: zone.name }), target, hint: state.note || (i === 0 && d > 1500 ? 'Fly to the yellow ring on the Jakobshorn' : i === 2 && d > 1500 ? 'Across the valley to the Parsenn, below the Weissfluhjoch' : null) };
       }
       const agl = Math.round(ctx.agl);
       const hint = state.note
         || (ctx.agl < HB.aglMin ? `Too low: climb above ${HB.aglMin} m` : ctx.agl > HB.aglMax ? `Sink to ${HB.aglMax} m over the snow` : state.aim?.inZone ? 'Drop the charge now' : 'Over the ring: the white mark shows where it lands');
-      return { done: false, fail, progress: null, text: `Hover ${HB.aglMin}–${HB.aglMax} m over the slope · now ${agl} m · ${chargesText(state.charges)}`, target, hint };
+      return { done: false, fail, progress: null, text: msg('Hover {a}–{b} m over the slope · now {h} m · {left}', 'Schwebe {a}–{b} m über dem Hang · jetzt {h} m · {left|t}', { a: HB.aglMin, b: HB.aglMax, h: agl, left: chargesText(state.charges) }), target, hint };
     }
   };
 }
@@ -255,8 +258,10 @@ export const HELIBLAST_MISSION = {
   createState() { return createBlastState(); },
   update() {},
   summary(state) {
-    const pen = state.penaltyMs ? `+${Math.round(state.penaltyMs / 1000)} s` : 'no penalties';
-    return [`${state.thrown} ${state.thrown === 1 ? 'charge' : 'charges'} thrown · ${state.hits} ${state.hits === 1 ? 'zone' : 'zones'} released · ${state.misses} missed · ${state.cloudHits} in the powder cloud (${pen})`];
+    const pen = state.penaltyMs ? msg('+{s} s', '+{s} s', { s: Math.round(state.penaltyMs / 1000) }) : msg('no penalties', 'keine Strafzeit');
+    return [msg('{t} {charges} thrown · {z} {zones} released · {m} missed · {c} in the powder cloud ({pen})',
+      (p, tr) => `${p.t} ${p.t === 1 ? 'Ladung' : 'Ladungen'} geworfen · ${p.z} ${p.z === 1 ? 'Zone' : 'Zonen'} ausgelöst · ${p.m} daneben · ${p.c}-mal in der Staubwolke (${tr(p.pen)})`,
+      { t: state.thrown, charges: state.thrown === 1 ? 'charge' : 'charges', z: state.hits, zones: state.hits === 1 ? 'zone' : 'zones', m: state.misses, c: state.cloudHits, pen })];
   },
   objectives: ZONES.map(zoneObjective)
 };

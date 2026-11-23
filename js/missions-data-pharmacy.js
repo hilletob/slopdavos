@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-pharmacy.js
 // The medicine round by cargo bike (js/missions-data.js lists it; js/missions-pharmacy.js has its runtime: the crate on
 // the bike's deck with the parcels, the markers over the doors, the toasts): its definition and the pure logic behind
@@ -54,6 +55,17 @@ export const PARCELS = [
 ].map((p) => ({ ...p, face: Math.atan2(p.house.x - p.door.x, p.house.z - p.door.z) }));
 
 export const parcelById = (id) => PARCELS.find((p) => p.id === id) || null;
+
+/** The toast of an event of the round (js/missions-pharmacy.js shows it), or null */
+export function eventText(e) {
+  const p = e.id ? parcelById(e.id) : null;
+  if (e.type === 'delivered') return msg('Delivered: {what}', 'Abgegeben: {what|t}', { what: p.content });
+  if (e.type === 'bump') return msg('Bump! The glass at {pct} %', 'Rumms! Das Glas noch bei {pct} %', { pct: Math.round(e.condition * 100) });
+  if (e.type === 'crash') return msg('Crash! The glass at {pct} %', 'Unfall! Das Glas noch bei {pct} %', { pct: Math.round(e.condition * 100) });
+  if (e.type === 'broken') return msg('{what} broken: +30 s', '{what|t} kaputt: +30 s', { what: p.content });
+  if (e.type === 'warm') return 'The insulin is warm: +45 s';
+  return null;
+}
 
 /** The round's scratch state */
 export function createDelivery() {
@@ -167,11 +179,12 @@ export function nextParcel(state, x, z) {
   return best;
 }
 
-const fragileText = (state) => {
+/** The worst of the glass aboard in %, or null (none aboard, or all whole) */
+const fragilePct = (state) => {
   const f = fragileAboard(state);
-  if (!f.length) return '';
+  if (!f.length) return null;
   const worst = Math.min(...f.map((p) => p.condition));
-  return worst < 1 ? ` · fragile ${Math.round(worst * 100)} %` : '';
+  return worst < 1 ? Math.round(worst * 100) : null;
 };
 const handHint = (state) => (state.hand && state.hand.t > 0 ? `Handing over … ${Math.round(clamp(state.hand.t / DELIVERY.handS, 0, 1) * 100)} %` : null);
 const rideHint = (ctx, state, target, d) => {
@@ -217,10 +230,11 @@ export const PHARMACY_MISSION = {
       check(ctx, state) {
         const p = PARCELS[0], s = state.parcels[0];
         const d = Math.hypot(p.door.x - ctx.x, p.door.z - ctx.z);
-        const cold = state.warm ? 'The insulin is warm (+45 s)' : `Insulin cold for ${fmtClock(DELIVERY.coldMs - (ctx.t || 0))}`;
+        const to = { d: fmtDist(d), where: p.address };
         return {
           done: s.delivered, progress: state.warm ? null : clamp(1 - (ctx.t || 0) / DELIVERY.coldMs, 0, 1),
-          text: `${cold} · ${fmtDist(d)} to ${p.address}`,
+          text: state.warm ? msg('The insulin is warm (+45 s) · {d} to {where}', 'Das Insulin ist warm (+45 s) · {d} bis {where}', to)
+            : msg('Insulin cold for {cold} · {d} to {where}', 'Insulin noch {cold} kalt · {d} bis {where}', { ...to, cold: fmtClock(DELIVERY.coldMs - (ctx.t || 0)) }),
           target: { ...p.door, style: 'plain' }, hint: rideHint(ctx, state, p.door, d)
         };
       }
@@ -231,7 +245,10 @@ export const PHARMACY_MISSION = {
       check(ctx, state) {
         const n = nextParcel(state, ctx.x, ctx.z);
         const total = state.parcels.length;
-        const text = n ? `Delivered ${state.delivered}/${total} · next ${n.parcel.address}, ${fmtDist(n.d)}${fragileText(state)}` : `Delivered ${total}/${total}`;
+        const pct = n ? fragilePct(state) : null, next = n && { n: state.delivered, of: total, where: n.parcel.address, d: fmtDist(n.d), pct };
+        const text = n ? (pct == null ? msg('Delivered {n}/{of} · next {where}, {d}', 'Abgegeben {n}/{of} · nächste: {where}, {d}', next)
+          : msg('Delivered {n}/{of} · next {where}, {d} · fragile {pct} %', 'Abgegeben {n}/{of} · nächste: {where}, {d} · zerbrechlich {pct} %', next))
+          : msg('Delivered {n}/{of}', 'Abgegeben {n}/{of}', { n: total, of: total });
         return { done: !n, progress: state.delivered / total, text, target: n ? { ...n.parcel.door, style: 'plain' } : null, hint: rideHint(ctx, state, n?.parcel.door, n?.d ?? Infinity) };
       }
     },
@@ -241,13 +258,17 @@ export const PHARMACY_MISSION = {
       check(ctx, state) {
         const D = PHARMACY.door, d = Math.hypot(ctx.x - D.x, ctx.z - D.z);
         const there = d <= D.r && Math.abs(ctx.speed || 0) < DELIVERY.stopSpeed && ctx.mode === 'cargobike';
-        return { done: there, progress: null, text: `Crate empty · ${fmtDist(d)} to the pharmacy`, target: { ...D, style: 'pad' }, hint: ctx.mode !== 'cargobike' ? 'Back onto the cargo bike' : d <= D.r ? 'Stop in front of the pharmacy' : null };
+        return { done: there, progress: null, text: msg('Crate empty · {d} to the pharmacy', 'Kiste leer · {d} bis zur Apotheke', { d: fmtDist(d) }), target: { ...D, style: 'pad' }, hint: ctx.mode !== 'cargobike' ? 'Back onto the cargo bike' : d <= D.r ? 'Stop in front of the pharmacy' : null };
       }
     }
   ],
   summary(state) {
-    const lines = [`${state.delivered} of ${state.parcels.length} parcels delivered · insulin ${state.insulinMs != null ? `after ${fmtClock(state.insulinMs)}` : 'not delivered'}${state.warm ? ' (warm, +45 s)' : ''}`];
-    lines.push(`${state.bumps} bump${state.bumps === 1 ? '' : 's'} · ${state.crashes} crash${state.crashes === 1 ? '' : 'es'} · ${state.broken ? `${state.broken} broken (+${(state.broken * DELIVERY.brokenPenaltyMs) / 1000} s)` : 'the glass arrived whole'}`);
+    const insulin = state.insulinMs != null ? msg('after {at}', 'nach {at}', { at: fmtClock(state.insulinMs) }) : msg('not delivered', 'nicht abgegeben');
+    const lines = [msg('{a} of {b} parcels delivered · insulin {insulin}{warm}', (p, tr) => `${p.a} von ${p.b} Paketen abgegeben · Insulin ${tr(p.insulin)}${p.warm ? ' (warm, +45 s)' : ''}`,
+      { a: state.delivered, b: state.parcels.length, insulin, warm: state.warm ? ' (warm, +45 s)' : '' })];
+    const glass = state.broken ? msg('{k} broken (+{s} s)', '{k} kaputt (+{s} s)', { k: state.broken, s: (state.broken * DELIVERY.brokenPenaltyMs) / 1000 }) : msg('the glass arrived whole', 'das Glas kam ganz an');
+    lines.push(msg('{b} bump{s1} · {c} crash{s2} · {glass}', (p, tr) => `${p.b} ${p.b === 1 ? 'Rumms' : 'Rummse'} · ${p.c} ${p.c === 1 ? 'Unfall' : 'Unfälle'} · ${tr(p.glass)}`,
+      { b: state.bumps, s1: state.bumps === 1 ? '' : 's', c: state.crashes, s2: state.crashes === 1 ? '' : 'es', glass }));
     return lines;
   }
 };
