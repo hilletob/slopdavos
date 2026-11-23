@@ -3,7 +3,7 @@
 // New texts that change as they are shown (a distance, a count) are better made with msg() (js/messages.js): their German
 // stands beside the English where they are made, and translate() finds it there before any pattern below. The jetpack
 // demo is made that way (js/missions-data-jetpack.js); the patterns for the other missions are still here.
-import { germanOf } from './messages.js';
+import { germanOf, madeOf, germanFrom } from './messages.js';
 
 const STORAGE_KEY = 'slopdavos-language';
 const pairs = [
@@ -2077,6 +2077,30 @@ function translate(value) {
   return match[1] + dynamic + match[3];
 }
 
+// A text made with msg() keeps its record with the node (or the attribute) that shows it: msg() remembers only its last
+// texts (js/messages.js), and a text that stays on show for long (the day in the clock, a dialog's line) must still find its
+// German when the language is switched later
+const keptText = new WeakMap(), keptAttributes = new WeakMap();
+function keptFor(node, name = null) {
+  if (!name) { let k = keptText.get(node); if (!k) keptText.set(node, k = {}); return k; }
+  let byName = keptAttributes.get(node);
+  if (!byName) keptAttributes.set(node, byName = new Map());
+  let k = byName.get(name);
+  if (!k) byName.set(name, k = {});
+  return k;
+}
+function translateKept(kept, original) {
+  if (language === 'en' || typeof original !== 'string') return translate(original);
+  const text = original.trim();
+  const record = madeOf(text);
+  if (record) { kept.text = text; kept.record = record; }
+  else if (kept.record && kept.text === text) {
+    const at = original.indexOf(text);
+    return original.slice(0, at) + germanFrom(kept.record, translate) + original.slice(at + text.length);
+  }
+  return translate(original);
+}
+
 function updateText(node) {
   if (!node.parentElement || node.parentElement.closest('script, style, svg, .language-switch, .player-name, .ai-text')) return;
   const current = node.nodeValue;
@@ -2085,7 +2109,7 @@ function updateText(node) {
     original = current;
     sourceText.set(node, original);
   }
-  const next = translate(original);
+  const next = translateKept(keptFor(node), original);
   translatedText.set(node, next);
   if (current !== next) node.nodeValue = next;
 }
@@ -2100,7 +2124,7 @@ function updateAttributes(element) {
     if (!element.hasAttribute(name)) continue;
     const current = element.getAttribute(name);
     if (!originals.has(name) || current !== rendered.get(name)) originals.set(name, current);
-    const next = translate(originals.get(name));
+    const next = translateKept(keptFor(element, name), originals.get(name));
     rendered.set(name, next);
     if (current !== next) element.setAttribute(name, next);
   }
@@ -2123,13 +2147,16 @@ export function getLanguage() { return language; }
 export function t(value) { return translate(value); }
 export function setLocalizedText(element, source) {
   const original = source || '';
-  const rendered = translate(original);
-  element.textContent = rendered;
-  if (element.firstChild?.nodeType === Node.TEXT_NODE) {
-    sourceText.set(element.firstChild, original);
-    translatedText.set(element.firstChild, rendered);
-  }
+  element.textContent = original;
+  const node = element.firstChild;
+  if (node?.nodeType !== Node.TEXT_NODE) { element.textContent = translate(original); return; }
+  const rendered = translateKept(keptFor(node), original);
+  node.nodeValue = rendered;
+  sourceText.set(node, original);
+  translatedText.set(node, rendered);
 }
+/** A text node's text in the language now (what the page's observer does for every text; for the tests) */
+export function localizeText(node) { updateText(node); }
 export function setLanguage(next) {
   if (next !== 'de' && next !== 'en') return;
   language = next;

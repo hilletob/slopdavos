@@ -825,3 +825,25 @@ test('the Parsennbahn machinist speaks German: the steps in every phase, the des
     'Höhenweg – Weissfluhjoch: departure −1 s · arrival +3 s · +1.2 m · ride 40/50 → 180 pts', 'Höhenweg – Weissfluhjoch: Abfahrt −1 s · Ankunft +3 s · +1.2 m · Fahrt 40/50 → 180 Pkt.');
   assert.equal(t(summary[1]), 'Über dem Limit 4 s (bis +5 km/h): −14 Pkt.');
 });
+
+test('a text made with msg() keeps its German on its node, also once msg() has forgotten it', async () => {
+  const { localizeText } = await import('../js/i18n.js');
+  const { msg } = await import('../js/messages.js');
+  setLanguage('de');
+  const node = { nodeValue: '', parentElement: { closest: () => null } };
+  node.nodeValue = msg('Day {n} · {season}', (p) => `Tag ${p.n} · ${p.season === 'Winter' ? 'Winter' : 'Sommer'}`, { n: 3, season: 'Summer' });
+  localizeText(node);
+  assert.equal(node.nodeValue, 'Tag 3 · Sommer');
+  // (the HUD makes thousands of other texts meanwhile: msg() remembers only the last 3,000)
+  for (let i = 0; i < 3100; i++) msg('{n} m to go', '{n} m bis zum Ziel', { n: i });
+  setLanguage('en');
+  localizeText(node);
+  assert.equal(node.nodeValue, 'Day 3 · Summer');
+  setLanguage('de');
+  localizeText(node);
+  assert.equal(node.nodeValue, 'Tag 3 · Sommer', 'its German was kept with the node');
+  // (a node showing a new text takes that text's German, not the kept one)
+  node.nodeValue = msg('Day {n} · {season}', (p) => `Tag ${p.n} · ${p.season === 'Winter' ? 'Winter' : 'Sommer'}`, { n: 4, season: 'Winter' });
+  localizeText(node);
+  assert.equal(node.nodeValue, 'Tag 4 · Winter');
+});

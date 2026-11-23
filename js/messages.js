@@ -28,9 +28,17 @@ export function msg(en, de, params = {}) {
   return text;
 }
 
-/** The German of a text made with msg(), or undefined; `translate` for the parts marked |t */
+/** The record msg() keeps of a text ({ de, params }), or undefined: js/i18n.js keeps it with the node that shows the text,
+ *  so that a text on show longer than the last LIMIT texts still finds its German after a switch of language */
+export const madeOf = (text) => made.get(text);
+
+/** The German of a record of madeOf(); `translate` for the parts marked |t */
+export function germanFrom(m, translate) {
+  return typeof m.de === 'function' ? m.de(m.params, translate) : fill(m.de, m.params, translate);
+}
+
+/** The German of a text made with msg(), or undefined */
 export function germanOf(text, translate) {
   const m = made.get(text);
-  if (!m) return undefined;
-  return typeof m.de === 'function' ? m.de(m.params, translate) : fill(m.de, m.params, translate);
+  return m ? germanFrom(m, translate) : undefined;
 }
