@@ -175,6 +175,10 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       if (c) opts.push({ source: 'car', ref: c.car, distance: c.distance, label: `Take the ${trafficLabel(c.car)}`, sub: c.car.isPolice ? 'K: blue light' : null });
       const l = findTakeableCar(p, traffic.cars, { parked: true, maxSpeed: Infinity });
       if (l) opts.push({ source: 'car', ref: l.car, distance: l.distance, label: `Get in the ${trafficLabel(l.car)}`, sub: null, parked: true });
+      const tq = findTakeableCar(p, traffic.quads);
+      if (tq) opts.push({ source: 'trafficQuad', ref: tq.car, distance: tq.distance, label: 'Take the quad', sub: null });
+      const lq = findTakeableCar(p, traffic.quads, { parked: true, maxSpeed: Infinity });
+      if (lq) opts.push({ source: 'trafficQuad', ref: lq.car, distance: lq.distance, label: 'Get on the quad', sub: null, parked: true });
       const k = findTakeableBike(p, traffic.bikes);
       if (k) opts.push({ source: 'bike', ref: k.bike, distance: k.distance, label: 'Take the bike', sub: null });
       const parkedCar = lotCars.find(p);
@@ -225,9 +229,11 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
   function leaveBody() {
     if (!body) return;
     const x = car.position.x, z = car.position.z, heading = car.heading;
-    if (body.kind === 'traffic') {
-      const v = body.v;
-      parkVehicle(v, { x, z, yaw: heading });
+    if (body.kind === 'traffic' || (body.kind === 'quad' && body.quad.v)) {
+      // (a car of the traffic, or one of its quads: it stands in the traffic's own draw)
+      const v = body.kind === 'quad' ? body.quad.v : body.v;
+      if (body.kind === 'quad') quads.unwear();
+      parkVehicle(v, { x, z, yaw: heading, y: body.kind === 'quad' ? car.position.y : undefined });
       const d = car.dims;
       const collider = { type: 'takenCar', position: { x, y: car.position.y, z }, heading, dims: { halfW: d.halfW, halfL: d.halfL, top: d.top } };
       const tb = { x, z, prevX: x, prevZ: z, y: car.position.y, sin: Math.sin(heading), cos: Math.cos(heading), halfW: d.halfW, halfL: d.halfL, mass: d.mass, vx: 0, vz: 0, angularVel: 0, parked: 'taken' };
@@ -272,6 +278,14 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       takeLotBay(c.key, cm);
       place('car', c.x, c.z, c.heading, () => setPlayerCarBody({ kind: 'traffic', v, bodyType: v.bodyType, paint: [...v.paint], police: false }));
       car.speed = 0;
+    } else if (a.source === 'trafficQuad') {
+      const v = a.ref, wasParked = !!v.parked;
+      const x = v.x, z = v.z, yaw = (v.yaw || 0) + (v.yawOffset || 0), speed = wasParked ? 0 : Math.max(0, v.speed || 0);
+      dropLeft(v);
+      holdVehicle(v);
+      place('car', x, z, yaw, () => setPlayerCarBody({ kind: 'quad', quad: { v, paint: v.paintHex } }));
+      car.speed = speed * 0.5;
+      if (!wasParked) flee(x, z, yaw, (car.dims?.halfW ?? 0.6) + 0.5, true, 0);
     } else if (a.source === 'quad') {
       const q = a.ref;
       place('car', q.x, q.z, q.heading, () => setPlayerCarBody({ kind: 'quad', quad: q }));
@@ -364,13 +378,19 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
   function state() {
     const d = body?.kind === 'traffic' ? { kind: 'traffic', bodyType: body.bodyType, paint: body.paint.map((c) => +c.toFixed(4)), police: !!body.police, lotBay: body.v?.lotBay || undefined }
       : body?.kind === 'bus' ? { kind: 'bus', index: vbd.buses.indexOf(body.bus) }
-        : body?.kind === 'quad' ? { kind: 'quad', id: body.quad.id } : null;
+        : body?.kind === 'quad' ? (body.quad.v ? { kind: 'quad', slot: body.quad.v.slot } : { kind: 'quad', id: body.quad.id }) : null;
     return { vacant, body: d, quads: quads.state() };
   }
   function restore(s) {
     if (!s) return;
     quads.restore(s.quads);
-    const quad = s.body?.kind === 'quad' ? quads.quads.find((q) => q.id === s.body.id) : null;
+    let quad = s.body?.kind === 'quad' && s.body.id ? quads.quads.find((q) => q.id === s.body.id) : null;
+    if (s.body?.kind === 'quad' && !quad && cm.activeMode === 'car') {
+      // (one of the traffic's quads ridden on: the same one if it is free, else another)
+      const list = traffic?.quads || [], free = (c) => c && !c.held && !c.parked;
+      const v = [list[s.body.slot], ...list].find(free);
+      if (v) { holdVehicle(v); quad = { v, paint: v.paintHex }; }
+    }
     if (quad && cm.activeMode === 'car') setPlayerCarBody({ kind: 'quad', quad });
     else if (s.body && cm.activeMode === 'car') {
       if (s.body.kind === 'traffic' && traffic) {

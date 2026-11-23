@@ -797,9 +797,11 @@ async function initApp() {
   const elGaugeSpeed = [document.querySelector('#hud-cluster .gauge-speed'), document.querySelector('#hud-cluster .gauge-meter')];
   let vehiclePanelSpec = null;
   const vehiclePanelNow = () => (vehiclePanelSpec && (!vehiclePanelSpec.mode || vehiclePanelSpec.mode === controllerManager.activeMode) ? vehiclePanelSpec : null);
+  let modeLabel = '';
   function renderVehiclePanel() {
     const vp = vehiclePanelNow();
-    if (elMode) elMode.textContent = vp?.label || controllerManager.getActiveEntity().label;
+    modeLabel = vp?.label || controllerManager.getActiveEntity().label;
+    if (elMode) elMode.textContent = modeLabel;
     if (elCameraSwitch) elCameraSwitch.style.display = vp?.camera === false ? 'none' : '';
     for (const node of elGaugeSpeed) if (node) node.style.display = vp?.speed === false ? 'none' : '';
   }
@@ -1194,6 +1196,7 @@ async function initApp() {
   // Getting in and out (js/gta.js): the player on foot takes the vehicles standing about (on a first visit by the
   // Bahnhof Davos Platz)
   gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
+  renderVehiclePanel(); // (a taken car, bus or quad ridden on from the save: its name in the cluster, not the van's)
   // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
   const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
   glidingNow = () => freeFlight.gliding; // (only now: building it lists the actions, and they ask)
@@ -1559,6 +1562,8 @@ async function initApp() {
       const altitudeM = Math.round(at.y + FRAME.H0); // metres above sea level (m ü. M.)
 
       renderClock();
+      // (the vehicle's name: changed by a body worn or given back without a mode change, the end of a work mission)
+      if ((vp?.label || activeEnt.label) !== modeLabel) renderVehiclePanel();
       fastForward.update();
       if (elFps) {
         elFps.textContent = String(currentFps);

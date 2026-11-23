@@ -13,7 +13,8 @@ import { QUALITY } from './quality.js';
 // wheels) on the car, with the quad's size, handling (js/missions-data-rural.js QUAD.drive, the mission's), headlamp
 // places and chase camera; the player's figure rides it (PersonRig.ride, the hands following the bars). Got off, it
 // stands where it was left (one mesh each, createParkedQuad, solid) and is brought back to its stand once the player
-// is far away (quadGoesHome). At night the driven quad's lamps glow (setQuadLamps) and the car's two spots shine from
+// is far away (quadGoesHome). A quad of the street traffic (js/traffic.js quads) is taken the same way: wear({ v, paint })
+// with the traffic's vehicle; left, it stands in the traffic's own draw like a taken car. At night the driven quad's lamps glow (setQuadLamps) and the car's two spots shine from
 // its headlamps (car.lightSpec).
 
 const SHOW_RADIUS = QUALITY.mobile ? 140 : 420;
@@ -100,7 +101,7 @@ export function createQuads({ scene, cm, trafficBodies = null }) {
     worn = q;
     q.held = true;
     q.collider = null;
-    drop(q);
+    if (!q.v) drop(q);
     if (q.visual) q.visual.visible = false;
     d.look.paint.value.setHex(q.paint);
     car.chassisPivot.add(d.root);
@@ -119,6 +120,7 @@ export function createQuads({ scene, cm, trafficBodies = null }) {
     for (const w of d.wheels) w.steerPivot.removeFromParent();
     d.rider.riderCrowd.begin();
     d.rider.riderCrowd.end();
+    if (q.v) return; // (one of the traffic's: js/gta-takeover.js leaves it standing in its own system)
     q.held = false;
     if (pose) { q.x = pose.x; q.z = pose.z; q.heading = pose.heading; }
     stand(q);

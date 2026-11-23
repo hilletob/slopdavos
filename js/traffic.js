@@ -28,6 +28,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attribute, cos, mix, positionGeometry, positionLocal, sin, step, vec3 } from 'three/tsl';
 import { inService } from './hijack.js';
+import { QUAD_MODEL, QUAD_PAINTS, QUAD_WHEELS, createQuadInstances } from './quad.js';
 import { GEO } from './nyc-geodata.js';
 
 // js/traffic.js
@@ -484,51 +485,31 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     bike.footSide = riderHash(i, 7) < 0.6 ? 1 : -1;
     bikes.push(bike);
   }
-  // Quads among the cars (the farmers' and the huts' four-wheelers, on the road in Davos the year round): a frame of
-  // boxes on four fat tyres, one instanced draw (the mudguards and the tank white in the geometry, painted per quad by
-  // its instance colour), the rider one of the city's people sitting on it (PersonRig.ride, no cranks). They drive as
-  // the cars do and count with them (update), a little slower.
-  const QUAD_SEAT = { seat: new THREE.Vector3(0, 0.8, -0.26), bars: new THREE.Vector3(0, 1.17, 0.27), gripHalf: 0.28, bracket: new THREE.Vector3(0, 0.42, 0.02), crankLength: 0, pedalHalf: 0.3, lean: 0.2, footDown: 0, footSide: 1, look: 0 };
-  const quadGeo = (() => {
-    const box = (w, h, l, rgb, x, y, z) => paintGeo(new THREE.BoxGeometry(w, h, l).translate(x, y, z), ...rgb);
-    const STEEL = [0.36, 0.38, 0.4], LAMP = [1.6, 1.5, 1.2], TYRE = [0.06, 0.06, 0.07], HUB = [0.5, 0.5, 0.48];
-    const R = 0.31, W = 0.3;
-    const parts = [
-      box(0.62, 0.2, 1.5, DARK, 0, 0.42, 0), // the frame
-      box(0.5, 0.26, 0.5, STEEL, 0, 0.42, -0.02), // the engine
-      box(0.5, 0.24, 0.5, WHITE, 0, 0.74, 0.22), // the tank
-      box(0.42, 0.14, 0.7, DARK, 0, 0.77, -0.3), // the seat
-      box(1.02, 0.07, 0.62, WHITE, 0, 0.72, 0.68), box(1.02, 0.07, 0.62, WHITE, 0, 0.72, -0.68), // the mudguards
-      box(0.6, 0.05, 0.42, STEEL, 0, 0.83, 0.7), box(0.6, 0.05, 0.42, STEEL, 0, 0.83, -0.72), // the racks
-      box(0.74, 0.26, 0.06, DARK, 0, 0.56, 1.1), // the bull bar
-      box(0.3, 0.1, 0.05, LAMP, 0, 0.72, 1.0), // the lamp
-      box(0.3, 0.05, 0.42, DARK, 0.46, 0.34, -0.04), box(0.3, 0.05, 0.42, DARK, -0.46, 0.34, -0.04), // the footrests
-      box(0.66, 0.04, 0.04, DARK, 0, 1.17, 0.27), box(0.05, 0.4, 0.05, DARK, 0, 0.98, 0.34) // the bars on their column
-    ];
-    for (const [x, z] of [[0.56, 0.68], [-0.56, 0.68], [0.56, -0.68], [-0.56, -0.68]]) {
-      parts.push(paintGeo(new THREE.CylinderGeometry(R, R, W, 14).rotateZ(Math.PI / 2).translate(x, R, z), ...TYRE));
-      parts.push(paintGeo(new THREE.CylinderGeometry(R * 0.5, R * 0.5, W + 0.02, 10).rotateZ(Math.PI / 2).translate(x, R, z), ...HUB));
-    }
-    return mergeGeometries(parts);
-  })();
-  const quadInst = new THREE.InstancedMesh(quadGeo, new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 }), NUM_QUADS);
-  quadInst.name = 'Quads';
-  quadInst.frustumCulled = false;
-  quadInst.castShadow = quadInst.receiveShadow = true;
-  const quadPalette = [0xd9601a, 0xb3261e, 0x2f5d3a, 0x1d3b6c, 0xe0b020, 0x3a3d42].map((c) => new THREE.Color(c));
+  // Quads among the cars (the farmers' and the huts' four-wheelers, on the road in Davos the year round): the quad of
+  // js/quad.js, one instanced draw (each its own body colour), the rider one of the city's people sitting on it
+  // (PersonRig.ride, no cranks). They drive as the cars do and count with them (update), a little slower. The player
+  // takes one like a car (js/gta-takeover.js): held, it is not drawn; left standing (parked), it is, without its rider.
+  const QUAD_SEAT = { ...QUAD_MODEL.seat, footDown: 0, footSide: 1, look: 0 };
+  const quadSet = createQuadInstances(NUM_QUADS);
+  const quadInst = quadSet.mesh, quadWheelInst = quadSet.wheels;
+  for (const m of [quadInst, quadWheelInst]) { m.frustumCulled = false; m.castShadow = m.receiveShadow = true; }
+  const quadWheelM = new THREE.Matrix4(), quadWheelR = new THREE.Euler(0, 0, 0, 'YXZ');
+  const quadPalette = [...QUAD_PAINTS, 0x3a3d42];
+  const quadColour = new THREE.Color();
   const quads = [];
   for (let i = 0; i < NUM_QUADS; i++) {
-    const quad = createVehicle(false, 1.08, 0.62, 0.68, CAR_DRIVER, 8.5 + (i % 3) * 0.9);
+    const quad = createVehicle(false, QUAD_MODEL.dims.halfL, QUAD_MODEL.dims.halfW, QUAD_MODEL.wheelZ, CAR_DRIVER, 8.5 + (i % 3) * 0.9);
     const female = riderHash(i, 11) < 0.3;
-    Object.assign(quad, { quad: true, slot: i, rider: new PersonRig({
+    Object.assign(quad, { quad: true, slot: i, paintHex: quadPalette[i % quadPalette.length], rider: new PersonRig({
       seed: i * 3.171 + 0.29, female, scale: (female ? 0.93 : 0.98) + riderHash(i, 14) * 0.08,
       girth: 0.92 + riderHash(i, 15) * 0.2, ...rollHairstyle(riderHash(i, 12), female)
     }) });
     quadInst.setMatrixAt(i, zero);
-    quadInst.setColorAt(i, quadPalette[i % quadPalette.length]);
+    for (let k = 0; k < 4; k++) quadWheelInst.setMatrixAt(i * 4 + k, zero);
+    quadColour.setHex(quad.paintHex).toArray(quadSet.paint.array, i * 3);
     quads.push(quad);
   }
-  group.add(quadInst);
+  group.add(quadInst, quadWheelInst);
   // Cars, buses and bikes interleaved in proportion: the lanes around the focus are filled in this order (update), and
   // where they take only a few (out of town), the first in it would otherwise get them all
   const vehicles = [cars, buses, bikes, quads].flatMap((list) => list.map((v, i) => [(i + 0.5) / list.length, v]))
@@ -1898,15 +1879,32 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   }
 
   // A quad on its four wheels, its rider sitting on it (slot by slot: a quad out of sight or off the road is a zero matrix)
+  function hideQuad(q) {
+    quadInst.setMatrixAt(q.slot, zero);
+    for (let k = 0; k < 4; k++) quadWheelInst.setMatrixAt(q.slot * 4 + k, zero);
+  }
   function renderQuad(q) {
-    if (!q.edge) { quadInst.setMatrixAt(q.slot, zero); return; }
-    elevate(q, 0.68);
-    if (hasView && !visible(q.x, q.z, 6, q.y)) { quadInst.setMatrixAt(q.slot, zero); return; }
+    if (!q.edge && !q.parked) { hideQuad(q); return; }
+    const rotY = q.yaw + q.yawOffset;
+    const step = ((q.x - q.prevX) * Math.sin(rotY) + (q.z - q.prevZ) * Math.cos(rotY)) / QUAD_MODEL.wheelRadius;
+    q.wheelSpin = (q.wheelSpin + Math.sign(step) * Math.min(Math.abs(step), 0.48)) % (Math.PI * 2);
+    elevate(q, QUAD_MODEL.wheelZ); // (one left standing has its height from the player's car, js/gta-takeover.js)
+    if (hasView && !visible(q.x, q.z, 6, q.y)) { hideQuad(q); return; }
     dummy.position.set(q.x, q.y, q.z);
-    dummy.rotation.set(q.pitch + q.slope, q.yaw + q.yawOffset, q.roll, 'YXZ');
+    dummy.rotation.set(q.pitch + q.slope, rotY, q.roll, 'YXZ');
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     quadInst.setMatrixAt(q.slot, dummy.matrix);
+    // the wheels on the body: steered in front, turning with the way driven (the right ones turned half round)
+    QUAD_WHEELS.forEach((w, k) => {
+      quadWheelR.set(w.yaw ? -q.wheelSpin : q.wheelSpin, w.yaw + (w.front ? q.steer || 0 : 0), 0);
+      quadWheelM.makeRotationFromEuler(quadWheelR).setPosition(w.x, w.y, w.z).premultiply(dummy.matrix);
+      quadWheelInst.setMatrixAt(q.slot * 4 + k, quadWheelM);
+    });
+    // the lamps lit while someone rides it
+    const lit = q.edge ? 1 : 0;
+    if (quadSet.lamp.array[q.slot] !== lit) { quadSet.lamp.array[q.slot] = lit; quadSet.lamp.needsUpdate = true; }
+    if (!q.edge) return; // (left standing by the player: nobody on it)
     QUAD_SEAT.look = Math.sin(clock * 0.3 + q.slot) * 0.25;
     q.rider.ride(dummy, 0, QUAD_SEAT);
     riderCrowd.add(q.rider, Math.hypot(q.x - camX, q.y - camY, q.z - camZ));
@@ -2010,6 +2008,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     // Front headlights are off during Midday (0.24) & Golden Hour (0.48); fade in smoothly for Dusk (1.25) & Night (1.55)
     const beamScale = clamp((glow - 0.60) * 1.45, 0.0, 1.28);
     const tailScale = clamp(0.18 + glow * 0.66, 0.24, 1.22);
+    // (the quads' lenses, js/quad.js: lit from dusk on)
+    quadSet.look.head.value = Math.min(1, beamScale) * 3.6;
+    quadSet.look.tail.value = Math.min(1, beamScale) * 1.1;
 
     const maxDualVehicles = HEADLIGHT_POOL_SIZE >> 1;
     const vehCutoff = litVehicleCount > maxDualVehicles
@@ -2218,6 +2219,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       else renderCar(v);
     }
     quadInst.instanceMatrix.needsUpdate = true;
+    quadWheelInst.instanceMatrix.needsUpdate = true;
     const hideEmpty = ++updates > 2;
     riderCrowd.end();
     for (const { mesh, frame, axes, n } of bikeSets) {

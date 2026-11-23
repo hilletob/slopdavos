@@ -231,7 +231,9 @@ function assemble(body, steerAt, wheelL, wheelR) {
   const sp = QUAD_MODEL.steerPivot;
   // one standing: the bars straight, the wheels in their places
   const parked = mergeGeometries([body, steerAt, ...WHEEL_AT.map(([x, z, side]) => (side === 'wheelL' ? wheelL : wheelR).clone().translate(x, R, z))]);
-  return { body, steer: steerAt.clone().translate(-sp.x, -sp.y, -sp.z), wheelL, wheelR, parked };
+  // (the traffic's: body and bars as one, the wheels instanced apart so that they turn)
+  const still = mergeGeometries([body, steerAt]);
+  return { body, steer: steerAt.clone().translate(-sp.x, -sp.y, -sp.z), wheelL, wheelR, parked, still };
 }
 let geos = null;
 let live = new Set(); // the meshes made so far, by role: they get the GLB's geometry when it arrives (then null)
@@ -242,8 +244,8 @@ function geometries() {
   }
   return geos;
 }
-function tracked(mesh, role) {
-  if (live) live.add([mesh, role]);
+function tracked(mesh, role, adapt = null) {
+  if (live) live.add([mesh, role, adapt]);
   return mesh;
 }
 
@@ -270,33 +272,31 @@ function parseQuadGlb(buffer) {
     const position = read(at.POSITION, Float32Array, 3), n8 = read(at.NORMAL, Int8Array, 4);
     const c8 = read(at.COLOR_0, Uint8Array, 4), s8 = read(at._SURF, Uint8Array, 4);
     const index = read(prim.indices, json.accessors[prim.indices].componentType === 5125 ? Uint32Array : Uint16Array, 1);
-    const n = index.length;
-    // (non-indexed, like the procedural parts: they are merged with them)
-    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), color = new Float32Array(n * 3), surf = new Float32Array(n * 4);
+    // (indexed, a third of the vertices of a flat list: the GLB's parts are merged among themselves only)
+    const nv = position.length / 3;
+    const nor = new Float32Array(nv * 3), color = new Float32Array(nv * 3), surf = new Float32Array(nv * 4);
     const linear = new Map();
-    for (let i = 0; i < n; i++) {
-      const v = index[i];
-      for (let k = 0; k < 3; k++) { pos[i * 3 + k] = position[v * 3 + k]; nor[i * 3 + k] = n8[v * 4 + k] / 127; }
+    for (let v = 0; v < nv; v++) {
+      for (let k = 0; k < 3; k++) nor[v * 3 + k] = n8[v * 4 + k] / 127;
       const key = (c8[v * 4] << 16) | (c8[v * 4 + 1] << 8) | c8[v * 4 + 2];
       let lin = linear.get(key);
       if (!lin) { c.setHex(key); linear.set(key, (lin = [c.r, c.g, c.b])); }
-      color.set(lin, i * 3);
-      for (let k = 0; k < 4; k++) surf[i * 4 + k] = s8[v * 4 + k] / 255;
+      color.set(lin, v * 3);
+      for (let k = 0; k < 4; k++) surf[v * 4 + k] = s8[v * 4 + k] / 255;
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(position), 3));
     g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     g.setAttribute('color', new THREE.BufferAttribute(color, 3));
     g.setAttribute('surf', new THREE.BufferAttribute(surf, 4));
+    g.setIndex(new THREE.BufferAttribute(index.slice(), 1));
     out[mesh.name] = g;
   }
   if (!out.body || !out.steer || !out.wheel) throw new Error('parts missing');
   // the right wheel: the left one mirrored (the winding turned back)
   const right = out.wheel.clone().scale(-1, 1, 1);
-  for (const name of ['position', 'normal', 'color', 'surf']) {
-    const a = right.attributes[name], s = a.itemSize, arr = a.array;
-    for (let t = 0; t < arr.length; t += 3 * s) for (let k = 0; k < s; k++) { const v = arr[t + s + k]; arr[t + s + k] = arr[t + 2 * s + k]; arr[t + 2 * s + k] = v; }
-  }
+  const idx = right.index.array;
+  for (let t = 0; t < idx.length; t += 3) { const v = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = v; }
   return assemble(out.body, out.steer, out.wheel, right);
 }
 /** Resolves once the quad's mesh is in use (true) or has failed (false: the procedural quad stays) */
@@ -306,7 +306,7 @@ export const quadReady = (typeof fetch === 'function'
   .then((buffer) => {
     const old = geos;
     geos = parseQuadGlb(buffer);
-    for (const [mesh, role] of live) mesh.geometry = geos[role];
+    for (const [mesh, role, adapt] of live) mesh.geometry = adapt ? adapt(geos[role]) : geos[role];
     live = null;
     if (old) for (const g of new Set(Object.values(old))) g.dispose();
     return true;
@@ -318,13 +318,16 @@ export const quadReady = (typeof fetch === 'function'
   });
 
 /** The quad's material: { material, paint, head, tail } (the body colour and the lamps' glow, uniforms) */
-export function createQuadMaterial(paintHex = QUAD_PAINTS[0]) {
+export function createQuadMaterial(paintHex = QUAD_PAINTS[0], { instanced = false } = {}) {
   const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.06 });
-  const paint = uniform(new THREE.Color(paintHex)), head = uniform(0), tail = uniform(0);
+  // (instanced: the colour from the geometry's `paintColor`, one an instance; createQuadInstances)
+  // (and the lamps switched an instance, by `quadLamp`: 0 for one standing with nobody on it)
+  const paint = instanced ? attribute('paintColor', 'vec3') : uniform(new THREE.Color(paintHex)), head = uniform(0), tail = uniform(0);
   const surf = attribute('surf', 'vec4'), base = attribute('color', 'vec3');
   material.colorNode = mix(base, paint, surf.x);
   material.roughnessNode = surf.y;
-  material.emissiveNode = base.mul(surf.z.mul(head).add(surf.w.mul(tail)));
+  const glow = base.mul(surf.z.mul(head).add(surf.w.mul(tail)));
+  material.emissiveNode = instanced ? glow.mul(attribute('quadLamp', 'float')) : glow;
   return { material, paint, head, tail };
 }
 
@@ -360,6 +363,34 @@ export function createParkedQuad(look) {
   mesh.castShadow = true;
   return mesh;
 }
+
+/**
+ * `count` quads in two draws (the traffic's, js/traffic.js): { mesh, wheels, paint, lamp, look }. `mesh`: body and bars,
+ * each instance's body colour in `paint` (an InstancedBufferAttribute of linear rgb) and its lamps on (1) or off in
+ * `lamp`; `wheels`: 4 * count wheels (the left one, turned half round for the right side), instance 4 * i + k the
+ * quad i's wheel k (front left, front right, rear left, rear right); the lamps' glow in `look`.
+ */
+export function createQuadInstances(count) {
+  const paint = new THREE.InstancedBufferAttribute(new Float32Array(count * 3).fill(0.5), 3);
+  const lamp = new THREE.InstancedBufferAttribute(new Float32Array(count).fill(1), 1);
+  const look = createQuadMaterial(0, { instanced: true });
+  // (the shared geometry's attributes with the instances' beside them)
+  const adapt = (g) => {
+    const out = new THREE.BufferGeometry();
+    for (const name of Object.keys(g.attributes)) out.setAttribute(name, g.attributes[name]);
+    if (g.index) out.setIndex(g.index); // (the GLB's parts are indexed, the procedural ones not)
+    out.setAttribute('paintColor', paint);
+    out.setAttribute('quadLamp', lamp);
+    return out;
+  };
+  const mesh = tracked(new THREE.InstancedMesh(adapt(geometries().still), look.material, count), 'still', adapt);
+  mesh.name = 'Quads';
+  const wheels = tracked(new THREE.InstancedMesh(geometries().wheelL, createQuadMaterial().material, count * 4), 'wheelL');
+  wheels.name = 'QuadWheels';
+  return { mesh, wheels, paint, lamp, look };
+}
+/** Where quad wheel k (createQuadInstances' order) sits on its quad, and its turn about y (the right ones half round) */
+export const QUAD_WHEELS = WHEEL_AT.map(([x, z, side]) => ({ x, y: R, z, yaw: side === 'wheelL' ? 0 : Math.PI, front: z > 0 }));
 
 /**
  * The driven quad's lamps: `night` 0..1 (js/controllers.js beamScale: 0 by day), `high` the full beam, `brake` 0..1.

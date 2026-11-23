@@ -98,8 +98,9 @@ export const QUAD_STANDS = [
   { id: 'quad-heldstab', x: 927.5, z: -1666, heading: 2.4, paint: 1, label: 'Heldstab, Davos Dorf' },
   // on the paved island of the Bahnhof Davos Platz's forecourt, a few steps from the start
   { id: 'quad-platz', x: -661.5, z: 442, heading: -0.6, paint: 0, label: 'Bahnhof Davos Platz' },
-  // at the mouth of the Dischma valley, by the start of the trail
-  { id: 'quad-dischma', x: 1560, z: -158, heading: 1.5, paint: 2, label: 'Dischma' },
+  // at the mouth of the Dischma valley, by the start of the trail (24 m clear of the groomer's depot: in winter the two
+  // prompts would overlap)
+  { id: 'quad-dischma', x: 1544, z: -159.5, heading: 1.5, paint: 2, label: 'Dischma' },
   // on the Schatzalp's terrace, by the funicular's top station
   { id: 'quad-schatzalp', x: -1112.5, z: -587, heading: 0.6, paint: 3, label: 'Schatzalp' }
 ];
