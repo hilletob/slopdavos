@@ -67,10 +67,16 @@ export async function pullBeforeStart(signal) {
   localStorage.setItem(OWNER_KEY, user.id);
 }
 
+// The plain requests below (the page may be on its way out, and the SDK would first wait for its locks) sign with the
+// stored session's access token, read without the SDK
+function storedToken() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token || null; } catch { return null; }
+}
+const restHeaders = (token) => ({ apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' });
+
 function pushWorld(userId) {
   const world = readWorld(localStorage);
-  let token = null;
-  try { token = JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token; } catch { /* */ }
+  const token = storedToken();
   if (!world || !token) return Promise.resolve(false);
   const at = Date.now();
   const body = JSON.stringify({ world, world_at: at });
@@ -81,7 +87,7 @@ function pushWorld(userId) {
   return fetch(`${SUPABASE_URL}/rest/v1/saves?${query}`, {
     method: 'PATCH',
     keepalive: body.length < KEEPALIVE_LIMIT,
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    headers: { ...restHeaders(token), Prefer: 'return=minimal' },
     body
   }).then((response) => response.ok, () => false);
 }
@@ -90,15 +96,14 @@ function pushWorld(userId) {
  *  per device. A plain request, like pushWorld (the page may be on its way out) */
 async function pushStats() {
   const stats = readStats(localStorage);
-  let token = null;
-  try { token = JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token; } catch { /* */ }
+  const token = storedToken();
   if (!stats || !token) return false;
   const body = JSON.stringify({ devices: stats.devices });
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/merge_stats`, {
       method: 'POST',
       keepalive: body.length < KEEPALIVE_LIMIT,
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: restHeaders(token),
       body
     });
     if (!response.ok) return false;
@@ -115,8 +120,7 @@ async function pushStats() {
  *  cells, with no player beside them. A plain request, like pushWorld; what does not get through goes with the next call */
 async function pushHeat(heat) {
   const cells = heat?.take() || [];
-  let token = null;
-  try { token = JSON.parse(localStorage.getItem(SESSION_KEY))?.access_token; } catch { /* */ }
+  const token = storedToken();
   if (!cells.length) return true;
   if (!token) { heat.restore(cells); return false; }
   const body = JSON.stringify({ cells });
@@ -124,7 +128,7 @@ async function pushHeat(heat) {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heat_add`, {
       method: 'POST',
       keepalive: body.length < KEEPALIVE_LIMIT,
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: restHeaders(token),
       body
     });
     // (refused for its shape, or the function is not there yet: these cells are not sent again)
