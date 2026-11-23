@@ -1,4 +1,5 @@
 import { minuteAtHeight, CIVIL_HEIGHT } from './solar.js';
+import { msg } from './messages.js';
 
 // js/game-clock.js
 // The game's own time: the day number and the time of day, and from them the season. No three.js and no DOM in here
@@ -232,3 +233,16 @@ export function applyClockSwitches(clock, search, presetMinute = () => undefined
 
 /** The clock of the page (the tests build their own with createGameClock) */
 export const gameClock = createGameClock({ storage: (() => { try { return globalThis.localStorage ?? null; } catch { return null; } })() });
+
+/** "Day 3 · Summer" for the day of the game (0-based), with a time "Day 3 · Summer · 07:30" (with its German, js/messages.js):
+ *  the clock in the HUD (js/main.js), the missions' list (js/missions.js), the fast-forward's veil (js/fast-forward.js) */
+export function dayText(day, winter, time = null) {
+  const de = (p) => `Tag ${p.n} · ${p.season === 'Winter' ? 'Winter' : 'Sommer'}${p.time ? ` · ${p.time}` : ''}`;
+  const params = { n: day + 1, season: winter ? 'Winter' : 'Summer', time };
+  return time ? msg('Day {n} · {season} · {time}', de, params) : msg('Day {n} · {season}', de, params);
+}
+
+/** When the fast-forward's next season comes: "Tomorrow · 07:00" or "In 3 days · 07:00" */
+export function laterText(days, time) {
+  return days <= 1 ? msg('Tomorrow · {time}', 'Morgen · {time}', { time }) : msg('In {days} days · {time}', 'In {days} Tagen · {time}', { days, time });
+}

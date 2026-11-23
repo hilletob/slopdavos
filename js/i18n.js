@@ -1986,7 +1986,6 @@ function translate(value) {
   const plural = (n, one, many) => (n === '1' ? one : many);
   const medalDe = (m) => enToDe.get(m) || m;
   dynamic = dynamic.replace(/^Mode switch \((.+)\): the mission was aborted\.$/, 'Moduswechsel ($1): Die Mission wurde abgebrochen.');
-  dynamic = dynamic.replace(/^(?:first completion \+(\d+))?(?: · )?(?:(Gold|Silver|Bronze) \+(\d+))?$/, (whole, first, medal, n) => (whole ? [first && `erster Abschluss +${first}`, medal && `${medalDe(medal)} +${n}`].filter(Boolean).join(' · ') : whole));
   const unitDe = { goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', points: 'Punkte', 'WC pts': 'Weltcup-Punkte' };
   dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${n === '1' ? unitDe[unit].replace('Tore', 'Tor') : unitDe[unit]}`);
   dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
@@ -2040,17 +2039,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^Collected (\d+\/\d+) · next ([\d,.]+ (?:m|km))$/, 'Eingesammelt $1 · nächste $2');
   dynamic = dynamic.replace(/: (?:The )?(hill|tube|ramp|loop|centre island|round island|angle|bridge|Two posts) \(Par (\d)\)$/, (whole, name, par) => { const de = { 'Two posts': 'Zwei Pfosten', hill: 'Der Hügel', tube: 'Die Röhre', ramp: 'Die Rampe', loop: 'Der Looping', 'centre island': 'Die Mittelinsel', 'round island': 'Die runde Insel', angle: 'Der Winkel', bridge: 'Die Brücke' }[name]; return de ? `: ${de} (Par ${par})` : whole; });
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
-  const seasonDe = (season) => (season === 'Summer' ? 'Sommer' : 'Winter');
-  dynamic = dynamic.replace(/^Day (\d+) · (Summer|Winter)( · \d\d:\d\d)?$/, (_, n, season, time) => `Tag ${n} · ${seasonDe(season)}${time || ''}`);
-  dynamic = dynamic.replace(/^Opens at (\d\d:\d\d)$/, 'Öffnet um $1');
-  dynamic = dynamic.replace(/^In (summer|winter): in 1 day$/, (_, season) => `Im ${season === 'summer' ? 'Sommer' : 'Winter'}: in 1 Tag`);
-  dynamic = dynamic.replace(/^In (summer|winter): in (\d+) days$/, (_, season, n) => `Im ${season === 'summer' ? 'Sommer' : 'Winter'}: in ${n} Tagen`);
-  dynamic = dynamic.replace(/^Tomorrow · (\d\d:\d\d)$/, 'Morgen · $1').replace(/^In (\d+) days · (\d\d:\d\d)$/, 'In $1 Tagen · $2');
-  dynamic = dynamic.replace(/^(Gold|Silver|Bronze) ([\d:.]+|[\d,.]+ .+)$/, (_, medal, limit) => `${enToDe.get(medal) || medal} ${limit}`);
-  dynamic = dynamic.replace(/^Completed · no medal yet$/, 'Abgeschlossen · noch keine Medaille');
-  dynamic = dynamic.replace(/^(Gold|Silver|Bronze) · best medal$/, (_, medal) => `${enToDe.get(medal) || medal} · beste Medaille`);
-  dynamic = dynamic.replace(/^Best time (.+)$/, 'Bestzeit $1');
-  dynamic = dynamic.replace(/^Rank (\d+) of (\d+)$/, 'Rang $1 von $2');
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)
   if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
     const gapUnits = { points: 'Punkte', pts: 'Pkt.', goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', 'WC pts': 'Weltcup-Punkte' };
@@ -2061,17 +2049,7 @@ function translate(value) {
       .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
       .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
   }
-  dynamic = dynamic.replace(/^Best score (.+)$/, 'Bestwert $1');
-  dynamic = dynamic.replace(/^Best (time|score) (.+)$/, (_, kind, value) => `Bester ${kind === 'time' ? 'Zeitwert' : 'Punktestand'} ${value}`);
-  dynamic = dynamic.replace(/^New best (time|score) (.+) \(was (.+)\)$/, (_, kind, value, old) => `Neuer ${kind === 'time' ? 'Zeitrekord' : 'Punkterekord'} ${value} (vorher ${old})`);
-  dynamic = dynamic.replace(/^First best (time|score) (.+)$/, (_, kind, value) => `Erster ${kind === 'time' ? 'Zeitwert' : 'Punktestand'} ${value}`);
-  dynamic = dynamic.replace(/^(\d+) steps$/, '$1 Schritte');
-  dynamic = dynamic.replace(/^of ([\d,.]+) points$/, 'von $1 Punkten');
   dynamic = dynamic.replace(/^(\d+) pts$/, '$1 Pkt.');
-  dynamic = dynamic.replace(/^Time (.+)$/, 'Zeit $1');
-  dynamic = dynamic.replace(/^first completion \+(\d+)$/, 'erster Abschluss +$1');
-  dynamic = dynamic.replace(/^you hold (Gold|Silver|Bronze): no new points$/, (_, medal) => `${enToDe.get(medal) || medal} bleibt dein Bestwert: keine neuen Punkte`);
-  dynamic = dynamic.replace(/^(Gold|Silver|Bronze) medal$/, (_, medal) => `${enToDe.get(medal) || medal}medaille`);
   // a feedback popup: a known line and its points after two spaces
   dynamic = dynamic.replace(new RegExp(`^(.+?)${POP}$`), (whole, head, tail) => (tail && enToDe.has(head) ? enToDe.get(head) + tail : whole));
   return match[1] + dynamic + match[3];

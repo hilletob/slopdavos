@@ -1,4 +1,4 @@
-import { fastForwardTarget, seasonAt, dayOf, formatClock } from './game-clock.js';
+import { fastForwardTarget, seasonAt, dayOf, formatClock, dayText, laterText } from './game-clock.js';
 import { setLocalizedText } from './i18n.js';
 
 // js/fast-forward.js
@@ -50,7 +50,7 @@ export function buildFastForward({ clock, apply, button, popover, closePopovers 
       clock.takeJump();
       apply(true);
       done?.();
-    }, days > 0 ? `Day ${dayOf(target) + 1} · ${seasonAt(target) === 'winter' ? 'Winter' : 'Summer'} · ${formatClock(target)}` : formatClock(target));
+    }, days > 0 ? dayText(dayOf(target), seasonAt(target) === 'winter', formatClock(target)) : formatClock(target));
   }
 
   // The menu: what "next season" means right now, and no fast-forward while a mission holds the clock
@@ -65,7 +65,7 @@ export function buildFastForward({ clock, apply, button, popover, closePopovers 
     const target = fastForwardTarget('season', clock.total);
     if (seasonName) setLocalizedText(seasonName, seasonAt(target) === 'winter' ? 'To the winter' : 'To the summer');
     const days = dayOf(target) - dayOf(clock.total);
-    if (seasonSub) setLocalizedText(seasonSub, `${days <= 1 ? 'Tomorrow' : `In ${days} days`} · ${formatClock(target)}`);
+    if (seasonSub) setLocalizedText(seasonSub, laterText(days, formatClock(target)));
   });
   popover?.querySelectorAll('[data-ff]').forEach((item) => item.addEventListener('click', () => {
     closePopovers();

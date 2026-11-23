@@ -351,36 +351,72 @@ test('the WEF missions translate names, intros, generated texts and slogans', as
   assert.equal(t('Space on the beat: call, and the crowd answers'), 'Leertaste im Takt: Du rufst, die Menge antwortet');
 });
 
-test('the game\'s clock, the fast-forward and the missions\' windows speak German', () => {
+test('the game\'s clock, the fast-forward and the missions\' windows speak German', async () => {
   setLanguage('de');
-  assert.equal(t('Day 5 · Winter'), 'Tag 5 · Winter');
-  assert.equal(t('Day 1 · Summer'), 'Tag 1 · Sommer');
-  assert.equal(t('Day 12 · Summer · 07:30'), 'Tag 12 · Sommer · 07:30');
+  // (made with msg(), js/messages.js: the texts as the game makes them, then their German)
+  const { dayText, laterText, MINUTES_PER_DAY } = await import('../js/game-clock.js');
+  const { closedText } = await import('../js/mission-windows.js');
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  says(dayText(4, true), 'Day 5 · Winter', 'Tag 5 · Winter');
+  says(dayText(0, false), 'Day 1 · Summer', 'Tag 1 · Sommer');
+  says(dayText(11, false, '07:30'), 'Day 12 · Summer · 07:30', 'Tag 12 · Sommer · 07:30');
   assert.equal(t('Fast-forward'), 'Vorspulen');
   assert.equal(t('To the next morning'), 'Zum nächsten Morgen');
   assert.equal(t('To the winter'), 'Zum Winter');
-  assert.equal(t('In 3 days · 07:00'), 'In 3 Tagen · 07:00');
-  assert.equal(t('Tomorrow · 07:00'), 'Morgen · 07:00');
-  assert.equal(t('Opens at 18:00'), 'Öffnet um 18:00');
-  assert.equal(t('In summer: in 3 days'), 'Im Sommer: in 3 Tagen');
-  assert.equal(t('In winter: in 1 day'), 'Im Winter: in 1 Tag');
+  says(laterText(3, '07:00'), 'In 3 days · 07:00', 'In 3 Tagen · 07:00');
+  says(laterText(1, '07:00'), 'Tomorrow · 07:00', 'Morgen · 07:00');
+  const at = (day, h) => day * MINUTES_PER_DAY + h * 60, mission = (over) => ({ id: 'x', title: 'X', time: 'midday', ...over });
+  const opens = closedText(mission({}), at(1, 22));
+  assert.match(opens, /^Opens at \d\d:\d\d$/);
+  assert.equal(t(opens), opens.replace('Opens at', 'Öffnet um'));
+  says(closedText(mission({ season: 'summer' }), at(5, 12)), 'In summer: in 3 days', 'Im Sommer: in 3 Tagen');
+  says(closedText(mission({ season: 'summer' }), at(7, 12)), 'In summer: in 1 day', 'Im Sommer: in 1 Tag');
+  says(closedText(mission({ season: 'winter' }), at(1, 12)), 'In winter: in 3 days', 'Im Winter: in 3 Tagen');
   assert.equal(t('Wait until then'), 'Bis dann warten');
   assert.equal(t('Ready: the clock starts with your first input'), 'Bereit: Die Stoppuhr läuft ab deiner ersten Eingabe');
-  assert.equal(t('first completion +250'), 'erster Abschluss +250');
-  assert.equal(t(' Silver 4:00'), ' Silber 4:00');
-  assert.equal(t(' Gold 120 pts'), ' Gold 120 Pkt.');
+  const P = await import('../js/missions-progress.js');
+  says(P.medalLimitText('silver', '4:00'), 'Silver 4:00', 'Silber 4:00');
+  says(P.medalLimitText('gold', '120 pts'), 'Gold 120 pts', 'Gold 120 Pkt.');
+  assert.equal(t(' ' + P.medalLimitText('gold', '120 pts')), ' Gold 120 Pkt.', 'the space before it, as in the dialog');
+  says(P.medalText('silver'), 'Silver medal', 'Silbermedaille');
+  says(P.bestMedalText('gold'), 'Gold · best medal', 'Gold · beste Medaille');
+  says(P.noMedalYetText(), 'Completed · no medal yet', 'Abgeschlossen · noch keine Medaille');
+  says(P.pointsOfText('61,500'), 'of 61,500 points', 'von 61,500 Punkten');
+  says(P.stepsText(3), '3 steps', '3 Schritte');
+  says(P.timeText('03:12.4'), 'Time 03:12.4', 'Zeit 03:12.4');
+  says(P.bestText('time', '03:12.4'), 'Best time 03:12.4', 'Bestzeit 03:12.4');
+  says(P.bestText('score', '450 pts'), 'Best score 450 pts', 'Bestwert 450 Pkt.');
+  says(P.firstBestText('time'), 'First best time', 'Erster Zeitwert');
+  says(P.firstBestText('score'), 'First best score', 'Erster Punktestand');
+  says(P.newBestText('time', '02:58.0', '03:12.4'), 'New best time 02:58.0 (was 03:12.4)', 'Neuer Zeitrekord 02:58.0 (vorher 03:12.4)');
+  says(P.newBestText('score', '480 pts', '450 pts'), 'New best score 480 pts (was 450 pts)', 'Neuer Punkterekord 480 Pkt. (vorher 450 Pkt.)');
+  says(P.awardNotesText({ firstClear: true, points: 250 }), `first completion +${P.FIRST_CLEAR_POINTS}`, `erster Abschluss +${P.FIRST_CLEAR_POINTS}`);
+  says(P.awardNotesText({ points: 0, bestMedal: 'gold' }), 'you hold Gold: no new points', 'Gold bleibt dein Bestwert: keine neuen Punkte');
+  const { rankText } = await import('../js/leaderboard-ui.js');
+  says(rankText(3, 17), 'Rank 3 of 17', 'Rang 3 von 17');
   setLanguage('en');
-  assert.equal(t('Opens at 18:00'), 'Opens at 18:00');
+  assert.equal(t(opens), opens);
   setLanguage('de');
 });
 
-test('the end panels: failed and aborted, the awards, the score units and the summaries come in German', () => {
+test('the end panels: failed and aborted, the awards, the score units and the summaries come in German', async () => {
   setLanguage('de');
   assert.equal(t('Mission failed'), 'Mission gescheitert');
   assert.equal(t('Mode switch (car): the mission was aborted.'), 'Moduswechsel (car): Die Mission wurde abgebrochen.');
-  assert.equal(t('first completion +250 · Silver +300'), 'erster Abschluss +250 · Silber +300');
+  {
+    const P = await import('../js/missions-progress.js');
+    const award = { firstClear: true, medalUp: true, medal: 'silver', previousMedal: null, points: P.FIRST_CLEAR_POINTS + P.MEDAL_POINTS.silver };
+    const notes = P.awardNotesText(award);
+    assert.equal(notes, `first completion +${P.FIRST_CLEAR_POINTS} · Silver +${P.MEDAL_POINTS.silver}`);
+    assert.equal(t(notes), `erster Abschluss +${P.FIRST_CLEAR_POINTS} · Silber +${P.MEDAL_POINTS.silver}`);
+  }
   assert.equal(t('3 goals'), '3 Tore');
-  assert.equal(t('Gold 3 goals ahead'), 'Gold 3 Tore Vorsprung');
+  {
+    const { medalLimitText } = await import('../js/missions-progress.js');
+    const limit = medalLimitText('gold', '3 goals ahead');
+    assert.equal(limit, 'Gold 3 goals ahead');
+    assert.equal(t(limit), 'Gold 3 Tore Vorsprung');
+  }
   assert.equal(t('2 shots · 1 hit · 1 missed'), '2 Schüsse · 1 Treffer · 1 daneben');
   assert.equal(t('1 crash (+5 s)'), '1 Sturz (+5 s)');
   assert.equal(t('Over the limit 4 s (up to +7 km/h): −20 pts'), 'Über dem Limit 4 s (bis +7 km/h): −20 Pkt.');
@@ -846,4 +882,11 @@ test('a text made with msg() keeps its German on its node, also once msg() has f
   node.nodeValue = msg('Day {n} · {season}', (p) => `Tag ${p.n} · ${p.season === 'Winter' ? 'Winter' : 'Sommer'}`, { n: 4, season: 'Winter' });
   localizeText(node);
   assert.equal(node.nodeValue, 'Tag 4 · Winter');
+});
+
+test('a text whose part is the text itself does not loop', async () => {
+  const { msg } = await import('../js/messages.js');
+  setLanguage('de');
+  const self = msg('Loop test', (p, tr) => `${tr('Loop test')}!`);
+  assert.equal(t(self), 'Loop test!', 'the part falls back to the patterns, which leave it as it is');
 });

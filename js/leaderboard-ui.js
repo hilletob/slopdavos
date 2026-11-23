@@ -1,5 +1,6 @@
 import { fetchBoard } from './leaderboard.js';
 import { el } from './dom.js';
+import { msg } from './messages.js';
 
 // js/leaderboard-ui.js
 // A list in a mission's intro and end dialog, and the lists of the overview (js/leaderboard-overview.js). textContent only,
@@ -51,10 +52,13 @@ export function boardList(rows, show) {
   return list;
 }
 
+/** "Rank 3 of 17" (with its German, js/messages.js) */
+export const rankText = (rank, players) => msg('Rank {rank} of {players}', 'Rang {rank} von {players}', { rank, players });
+
 /** What the end dialog says about the run (no result: the backend could not be reached, or the run was refused) */
 function runNote(result, signedIn) {
   if (!signedIn) return 'Sign in from the account menu to join the leaderboard.';
-  if (result?.accepted) return `Rank ${result.rank} of ${result.players}`;
+  if (result?.accepted) return rankText(result.rank, result.players);
   return 'This run was not counted. Your result stays on this device.';
 }
 

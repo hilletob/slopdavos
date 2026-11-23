@@ -9,9 +9,9 @@ import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter, QUALITY } from './quality.js';
 import { releaseRenderState } from './gpu-memory.js';
 import { MissionManager, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from './missions-manager.js';
-import { createProgressStore, missionPin, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints } from './missions-progress.js';
+import { createProgressStore, missionPin, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints, medalText, medalLimitText, pointsOfText, stepsText, timeText, bestText, firstBestText, newBestText, awardNotesText } from './missions-progress.js';
 import { buildMissionWorld, drawMissionIcon } from './missions-world.js';
-import { gameClock, formatClock } from './game-clock.js';
+import { gameClock, formatClock, dayText } from './game-clock.js';
 import { missionOpen, closedText, nextOpening, listGroups, searchMatches } from './mission-windows.js';
 import { t as translateUI, setLocalizedText } from './i18n.js';
 import { SNOW_FEATURES } from './missions-snow.js';
@@ -213,12 +213,12 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
   boardsPane.append(el('p', 'mission-dialog-note', 'Loading the leaderboard…'));
 
   const total = el('p', 'mission-list-total');
-  total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ` of ${progress.maxPoints.toLocaleString('en-US')} points`));
+  total.append(el('span', 'mission-score-star', '★'), el('strong', null, progress.points.toLocaleString('en-US')), el('span', null, ' ' + pointsOfText(progress.maxPoints.toLocaleString('en-US'))));
   missionsPane.append(total);
   // The game's time, and for what is closed now when it opens: "Wait until then" fast-forwards, and the list comes back
   // with the mission open (a link in a new tab, or ?mission=<id>, always starts it directly, moving the clock)
   const now = gameClock.total;
-  missionsPane.append(el('p', 'mission-list-time', `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'} · ${formatClock(now)}`));
+  missionsPane.append(el('p', 'mission-list-time', dayText(gameClock.day, gameClock.isWinter, formatClock(now))));
   const waitFor = (m) => {
     const query = missionsPane.querySelector('.mission-search')?.value || '';
     const reopened = fastForward?.go(nextOpening(m, gameClock.total), () => {
@@ -349,7 +349,7 @@ function missionIcon(def, medal, completed) {
   const SIZE = 40, dpr = Math.min(3, globalThis.devicePixelRatio || 1);
   const c = el('canvas', `mission-list-icon${completed ? '' : ' is-open'}`);
   c.width = c.height = Math.round(SIZE * dpr);
-  c.title = medal ? `${MEDAL_LABELS[medal]} medal` : completed ? 'Completed, no medal' : 'Not completed yet';
+  c.title = medal ? medalText(medal) : completed ? 'Completed, no medal' : 'Not completed yet';
   c.setAttribute('role', 'img');
   const g = c.getContext('2d');
   if (g) { g.scale(dpr, dpr); drawMissionIcon(g, def, medal, SIZE / 2, SIZE / 2, SIZE / 2 - 1); }
@@ -359,7 +359,7 @@ function missionIcon(def, medal, completed) {
 /** A medal as a small round badge (grey: none yet; dashed: not completed) */
 function medalBadge(medal, completed = true) {
   const b = el('span', `mission-medal mission-medal-${medal || 'none'}${completed ? '' : ' is-open'}`);
-  b.title = medal ? `${MEDAL_LABELS[medal]} medal` : completed ? 'Completed, no medal' : 'Not completed yet';
+  b.title = medal ? medalText(medal) : completed ? 'Completed, no medal' : 'Not completed yet';
   return b;
 }
 
@@ -370,7 +370,7 @@ function medalLimits(def, current = null) {
   if (!limits) return line;
   for (const m of ['gold', 'silver', 'bronze']) {
     const span = el('span', `mission-limit${current === m ? ' is-held' : ''}`);
-    span.append(medalBadge(m), document.createTextNode(` ${MEDAL_LABELS[m]} ${def.scoreMode ? scoreText(def, limits[m]) : formatTime(limits[m]).replace(/\.\d$/, '')}`));
+    span.append(medalBadge(m), document.createTextNode(' ' + medalLimitText(m, def.scoreMode ? scoreText(def, limits[m]) : formatTime(limits[m]).replace(/\.\d$/, ''))));
     line.append(span);
   }
   return line;
@@ -588,10 +588,10 @@ class MissionRun {
   bestText() {
     if (this.def.scoreMode) {
       const s = this.hooks.progress?.entry(this.def.id)?.bestScore;
-      return Number.isFinite(s) ? `Best score ${Math.round(s)}` : 'No best score yet';
+      return Number.isFinite(s) ? bestText('score', Math.round(s)) : 'No best score yet';
     }
     const best = readBestTimes(globalThis.localStorage)[this.bestKey];
-    return Number.isFinite(best) ? `Best time ${formatTime(best)}` : 'No best time yet';
+    return Number.isFinite(best) ? bestText('time', formatTime(best)) : 'No best time yet';
   }
 
   /** The time penalties the mission has handed out so far (state.penaltyMs: a missed gate, a crash), in ms */
@@ -723,7 +723,7 @@ class MissionRun {
       nodes.unshift(logo);
     }
     const meta = el('p', 'mission-dialog-meta');
-    meta.append(el('span', null, `${this.def.objectives.length} steps`), el('span', null, this.night ? 'Night' : 'Day'),
+    meta.append(el('span', null, stepsText(this.def.objectives.length)), el('span', null, this.night ? 'Night' : 'Day'),
       el('span', 'mission-dialog-best', this.bestText()));
     nodes.push(meta, medalLimits(this.def, this.hooks.progress?.medal(this.def.id)));
     const licence = this.licenceNode(false);
@@ -746,9 +746,9 @@ class MissionRun {
     const line = el('p', 'mission-dialog-meta');
     const fmt = (v) => (scored ? scoreText(this.def, v) : formatTime(v));
     const word = scored ? 'score' : 'time';
-    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? `First best ${word}` : `New best ${word} (was ${fmt(r.previous)})`));
-    else line.append(el('span', null, `Best ${word} ${fmt(r.best)}`));
-    if (scored) line.append(el('span', null, `Time ${formatTime(r.total)}`));
+    if (r.improved) line.append(el('span', 'mission-new-best', r.previous === null ? firstBestText(word) : newBestText(word, fmt(r.best), fmt(r.previous))));
+    else line.append(el('span', null, bestText(word, fmt(r.best))));
+    if (scored) line.append(el('span', null, timeText(formatTime(r.total))));
     nodes.push(line);
     let medalNode = null;
     const award = r.award;
@@ -756,12 +756,8 @@ class MissionRun {
       medalNode = el('div', `mission-award mission-award-${award.medal || 'none'}`);
       const big = el('span', `mission-medal mission-medal-big mission-medal-${award.medal || 'none'}`);
       const words = el('div', 'mission-award-words');
-      words.append(el('strong', null, award.medal ? `${MEDAL_LABELS[award.medal]} medal` : 'No medal this time'));
-      const notes = [];
-      if (award.firstClear) notes.push(`first completion +${FIRST_CLEAR_POINTS}`);
-      if (award.medalUp && award.medal) notes.push(`${MEDAL_LABELS[award.medal]} +${MEDAL_POINTS[award.medal] - (MEDAL_POINTS[award.previousMedal] || 0)}`);
-      if (!award.points) notes.push(award.bestMedal ? `you hold ${MEDAL_LABELS[award.bestMedal]}: no new points` : 'no new points');
-      words.append(el('span', null, notes.join(' · ')));
+      words.append(el('strong', null, award.medal ? medalText(award.medal) : 'No medal this time'));
+      words.append(el('span', null, awardNotesText(award)));
       medalNode.append(big, words, el('span', `mission-award-points${award.points ? '' : ' is-zero'}`, `+${award.points}`));
       nodes.push(medalNode, medalLimits(this.def, award.bestMedal));
     }
@@ -796,7 +792,7 @@ class MissionRun {
   }
 
   showStopped(kicker, reason) {
-    this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', `Time ${formatTime(this.elapsed)}`)],
+    this.dialog(kicker, this.def.title, [el('p', 'mission-dialog-text', reason), el('p', 'mission-dialog-meta', timeText(formatTime(this.elapsed)))],
       [['Restart', 'R', () => this.restart()], ['All missions', null, () => this.hooks.missions?.showList(), true], ['Back to the game', null, () => this.hooks.missions?.stop(), true]]);
   }
 

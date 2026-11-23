@@ -71,7 +71,7 @@ import { bindKeyBar } from './hud-keybar.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
-import { gameClock } from './game-clock.js';
+import { gameClock, dayText } from './game-clock.js';
 import { missionClockTime } from './mission-windows.js';
 import { buildFastForward } from './fast-forward.js';
 import { presetMinute, createSample, sampleDay, wearHoursAt } from './day-cycle.js';
@@ -788,7 +788,7 @@ async function initApp() {
     const key = gameClock.day * 2 + (gameClock.isWinter ? 1 : 0);
     if (key !== clockDayKey && elClockDay) {
       clockDayKey = key;
-      setLocalizedText(elClockDay, `Day ${gameClock.day + 1} · ${gameClock.isWinter ? 'Winter' : 'Summer'}`);
+      setLocalizedText(elClockDay, dayText(gameClock.day, gameClock.isWinter));
     }
   }
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { cameraPosition, color, positionGeometry, positionWorld, sin, smoothstep, time } from 'three/tsl';
 import { MISSIONS, formatDistance, relativeBearing } from './missions-data.js';
-import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS } from './missions-progress.js';
+import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, bestMedalText, noMedalYetText } from './missions-progress.js';
 import { setMissionStartInReach } from './missions-manager.js';
 import { drapeRing, RING_DEPTH } from './missions-props.js';
 import { surfaceHeight } from './terrain.js';
@@ -879,7 +879,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
         const medal = progress.medal(reach.def.id);
         setLocalizedText(promptText, closed ? reach.def.title : `Start ${reach.def.title}`);
         if (closed) setLocalizedText(promptSub, reach.pin.closedLabel);
-        else promptSub.textContent = medal ? `${MEDAL_LABELS[medal]} · best medal` : progress.entry(reach.def.id) ? 'Completed · no medal yet' : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
+        else promptSub.textContent = medal ? bestMedalText(medal) : progress.entry(reach.def.id) ? noMedalYetText() : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
         promptKey.textContent = closed ? 'U' : 'Enter';
         promptWait.hidden = !closed;
         prompt.classList.toggle('is-closed', closed);

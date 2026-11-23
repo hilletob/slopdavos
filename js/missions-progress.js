@@ -1,4 +1,5 @@
 import { readBestTimes } from './missions-data.js';
+import { msg } from './messages.js';
 
 // js/missions-progress.js
 // The player's progress through the missions: medals, points and where the missions start in the open world. No
@@ -219,4 +220,26 @@ export function pinsNear(pins, x, z, radius) {
     if (d <= radius) out.push({ pin, d });
   }
   return out.sort((a, b) => a.d - b.d);
+}
+
+// --- The words of the medals, the points and the bests in the missions' dialogs and pins (with their German,
+// js/messages.js); `kind` is 'time' or 'score', the values as js/missions.js writes them out
+export const medalText = (medal) => msg('{medal} medal', (p, tr) => `${tr(p.medal)}medaille`, { medal: MEDAL_LABELS[medal] });
+export const medalLimitText = (medal, limit) => msg('{medal} {limit}', '{medal|t} {limit|t}', { medal: MEDAL_LABELS[medal], limit });
+export const bestMedalText = (medal) => msg('{medal} · best medal', '{medal|t} · beste Medaille', { medal: MEDAL_LABELS[medal] });
+export const noMedalYetText = () => msg('Completed · no medal yet', 'Abgeschlossen · noch keine Medaille');
+export const pointsOfText = (n) => msg('of {n} points', 'von {n} Punkten', { n });
+export const stepsText = (n) => msg('{n} steps', '{n} Schritte', { n });
+export const timeText = (v) => msg('Time {v}', 'Zeit {v}', { v });
+export const bestText = (kind, v) => (kind === 'time' ? msg('Best time {v}', 'Bestzeit {v}', { v }) : msg('Best score {v}', 'Bestwert {v|t}', { v }));
+export const firstBestText = (kind) => msg('First best {kind}', (p) => (p.kind === 'time' ? 'Erster Zeitwert' : 'Erster Punktestand'), { kind });
+export const newBestText = (kind, v, old) => msg('New best {kind} {v} (was {old})', (p, tr) => `${p.kind === 'time' ? 'Neuer Zeitrekord' : 'Neuer Punkterekord'} ${tr(p.v)} (vorher ${tr(p.old)})`, { kind, v, old });
+/** The end panel's line under the medal: "first completion +250 · Silver +300", or why there are no new points */
+export function awardNotesText(award) {
+  const notes = [];
+  if (award.firstClear) notes.push(msg('first completion +{n}', 'erster Abschluss +{n}', { n: FIRST_CLEAR_POINTS }));
+  if (award.medalUp && award.medal) notes.push(msg('{medal} +{n}', '{medal|t} +{n}', { medal: MEDAL_LABELS[award.medal], n: MEDAL_POINTS[award.medal] - (MEDAL_POINTS[award.previousMedal] || 0) }));
+  if (!award.points) notes.push(award.bestMedal ? msg('you hold {medal}: no new points', '{medal|t} bleibt dein Bestwert: keine neuen Punkte', { medal: MEDAL_LABELS[award.bestMedal] }) : 'no new points');
+  // (one part: that one; several: one line of their Germans, which must not be made under the text of a part itself)
+  return notes.length === 1 ? notes[0] : msg(notes.join(' · '), (p, tr) => p.notes.map(tr).join(' · '), { notes });
 }

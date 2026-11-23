@@ -37,8 +37,12 @@ export function germanFrom(m, translate) {
   return typeof m.de === 'function' ? m.de(m.params, translate) : fill(m.de, m.params, translate);
 }
 
+const rendering = new Set(); // (texts whose German is being made: a part that is the text itself falls back, no loop)
+
 /** The German of a text made with msg(), or undefined */
 export function germanOf(text, translate) {
   const m = made.get(text);
-  return m ? germanFrom(m, translate) : undefined;
+  if (!m || rendering.has(text)) return undefined;
+  rendering.add(text);
+  try { return germanFrom(m, translate); } finally { rendering.delete(text); }
 }

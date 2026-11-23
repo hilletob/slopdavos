@@ -1,6 +1,7 @@
 import { MINUTES_PER_DAY, YEAR_DAYS, dayOf, minuteOfDay, seasonAt, seasonOfDay, formatClock, nextSeasonDay, realSecondsBetween, winterBlendAt } from './game-clock.js';
 import { presetMinute } from './day-cycle.js';
 import { sunHeight, solarNoon, CIVIL_HEIGHT } from './solar.js';
+import { msg } from './messages.js';
 
 // js/mission-windows.js
 // When a mission can be started from its pin: a season (its def.season, null all year) and a state of the sun that follows
@@ -78,12 +79,13 @@ export function closedInfo(def, total) {
   return { kind: 'time', at: formatClock(next) };
 }
 
-/** "Opens at 18:00" / "In summer: in 3 days" (js/i18n.js has the German); '' when it is open */
+/** "Opens at 18:00" / "In summer: in 3 days" (with their German, js/messages.js); '' when it is open */
 export function closedText(def, total) {
   const info = closedInfo(def, total);
   if (!info) return '';
-  if (info.kind === 'time') return `Opens at ${info.at}`;
-  return `In ${info.season}: in ${info.days} day${info.days === 1 ? '' : 's'}`;
+  if (info.kind === 'time') return msg('Opens at {at}', 'Öffnet um {at}', { at: info.at });
+  return msg('In {season}: in {days} day{s}', (p) => `Im ${p.season === 'winter' ? 'Winter' : 'Sommer'}: in ${p.days} ${p.days === 1 ? 'Tag' : 'Tagen'}`,
+    { season: info.season, days: info.days, s: info.days === 1 ? '' : 's' });
 }
 
 /**
