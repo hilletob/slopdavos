@@ -1,11 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, time, uv, vec3 } from 'three/tsl';
+import { abs, float, floor, fract, hash, mix, mx_noise_float, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
-import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { SPITAL, SPITAL_ENTRANCE, hallFrame, onWall, outwardRing, wallFrame, wallStretches } from './spital-data.js';
 
 export { SPITAL, SPITAL_ENTRANCE };
@@ -45,42 +44,27 @@ function materials() {
     return M;
   }
   const U = uv().x, V = uv().y;
-  const dist = positionView.z.negate();
-  const near = float(1).sub(smoothstep(140, 420, dist)); // the windows' frames and blinds
-  const fine = float(1).sub(smoothstep(20, 70, dist)); // the boards' marks, the joints
-  const noise = (s) => mx_noise_float(positionWorld.mul(s)).mul(0.5).add(0.5);
-  const glow = smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow), late = smoothstep(1.3, 1.55, cityUniforms.uInteriorGlow);
-  // A window lit or dark, re-rolled every 5–15 min (a hospital: more of them late at night than a house has)
-  const lit = (cx, cy, seed, share) => {
-    const h = hash(cx.mul(157.1).add(cy.mul(311.7)).add(seed));
-    const slot = time.div(mix(float(300), float(900), hash(h.mul(977)))).add(hash(h.mul(531))).floor();
-    const on = step(hash(h.mul(1.3e4).floor().add(slot.mul(7)).add(seed)), mix(float(share), float(share * 0.8), late));
-    const tone = mix(vec3(1.0, 0.72, 0.42), vec3(0.8, 0.86, 1.0), step(0.7, hash(h.mul(733))));
-    return tone.mul(on).mul(hash(h.mul(41)).mul(0.5).add(0.75));
-  };
+  const near = fade(140, 420); // the windows' frames and blinds
+  const fine = fade(20, 70); // the boards' marks, the joints
+  const glow = nightGlow();
   // Board-marked concrete with a window per bay and floor: a timber frame with a post in its middle, a light blind
   // drawn part of the way down some of them
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
-    const half = attribute('aHalf', 'float'); // half the wall's length; 0: a closed wall
-    const v = V.add(step(V, -1).mul(CLOSED));
-    const bay = floor(U.div(BAY).add(0.5)), bu = U.sub(bay.mul(BAY)); // the bay and the metres from its middle
-    const storey = floor(v.div(STOREY)), fv = v.sub(storey.mul(STOREY)); // the floor and the metres up from its foot
-    const open = step(abs(bay.mul(BAY)).add(WIN.half + 0.4), half);
-    const rect = (hw, lo, hi, e = 0.012) => smoothstep(hw + e, hw - e, abs(bu)).mul(smoothstep(lo - e, lo + e, fv)).mul(smoothstep(hi + e, hi - e, fv));
+    const { half, v, bay, bu, storey, fv, open, rect } = windowGrid({ bay: BAY, storey: STOREY, closed: CLOSED, winHalf: WIN.half });
     const win = rect(WIN.half, WIN.lo, WIN.hi).mul(open);
     const pane = rect(WIN.half - 0.1, WIN.lo + 0.1, WIN.hi - 0.1).mul(float(1).sub(smoothstep(0.05, 0.03, abs(bu)).mul(near))).mul(open);
     // the concrete: the boards' marks every 12 cm, a joint under every floor and between the bays, weathered streaks
     const boards = smoothstep(0.4, 0.5, abs(fract(v.div(0.12)).sub(0.5))).mul(fine);
     const joint = smoothstep(0.035, 0.015, fv).max(smoothstep(0.03, 0.012, abs(abs(bu).sub(BAY / 2))).mul(step(0.5, half))).mul(fine);
-    const weather = noise(0.35).mul(0.6).add(mx_noise_float(positionWorld.mul(vec3(1.6, 0.12, 1.6))).mul(0.2).add(0.2));
+    const weather = worldNoise(0.35).mul(0.6).add(mx_noise_float(positionWorld.mul(vec3(1.6, 0.12, 1.6))).mul(0.2).add(0.2));
     const conc = mix(vec3(0.2, 0.2, 0.188), vec3(0.3, 0.3, 0.283), weather).mul(float(1).sub(boards.mul(0.1))).mul(float(1).sub(joint.mul(0.35)));
     // the window: larch frame, dark glass, the blind
     const id = hash(bay.mul(37.7).add(storey.mul(91.3)).add(half.mul(13.1)));
     const drawn = step(0.55, id).mul(mix(float(0.35), float(1), step(0.85, id))); // none, a third, all the way
     const blind = step(WIN.hi - 0.1 - (WIN.hi - WIN.lo - 0.2), fv).mul(step(float(WIN.hi - 0.1).sub(drawn.mul(WIN.hi - WIN.lo - 0.2)), fv)).mul(pane).mul(near);
     const slats = smoothstep(0.3, 0.5, abs(fract(fv.div(0.08)).sub(0.5))).mul(fine);
-    const glassC = mix(vec3(0.02, 0.026, 0.032), vec3(0.07, 0.085, 0.1), noise(0.07));
+    const glassC = mix(vec3(0.02, 0.026, 0.032), vec3(0.07, 0.085, 0.1), worldNoise(0.07));
     const frameC = mix(vec3(0.33, 0.17, 0.07), vec3(0.4, 0.22, 0.1), id);
     let c = mix(conc, frameC, win);
     c = mix(c, glassC, pane);
@@ -89,7 +73,8 @@ function materials() {
     const shiny = pane.mul(float(1).sub(blind));
     m.roughnessNode = mix(float(0.92), float(0.12), shiny);
     m.metalnessNode = shiny.mul(0.55);
-    m.emissiveNode = lit(bay, storey.add(half.mul(3.3)), 5, 0.42).mul(pane).mul(mix(float(1), float(0.45), blind)).mul(glow.mul(1.15));
+    // (a hospital: more of them lit late at night than a house has)
+    m.emissiveNode = litWindow(bay, storey.add(half.mul(3.3)), 5, { share: 0.42, late: 0.42 * 0.8, tone: twoTones([1.0, 0.72, 0.42], [0.8, 0.86, 1.0], 0.7) }).mul(pane).mul(mix(float(1), float(0.45), blind)).mul(glow.mul(1.15));
     M.concrete = m;
   }
   // The hall's curtain wall: anthracite posts every 1.25 m, a rail every 1.1 m, the panes mirroring the sky; lit at night

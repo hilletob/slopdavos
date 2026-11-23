@@ -1,10 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, time, uv, vec3 } from 'three/tsl';
-import { cityUniforms } from './tsl-materials.js';
+import { abs, float, fract, mix, mx_noise_float, positionWorld, smoothstep, step, vec3 } from 'three/tsl';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, rectMask, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { ALTE_POST, ALTE_POST_ENTRANCE, frontFrame, frontWindows } from './alte-post-data.js';
 
@@ -34,43 +33,29 @@ function materials() {
     M.plaster = SIMPLE_SKINS.windowed([0.4, 0.365, 0.29], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4);
     return M;
   }
-  const U = uv().x, V = uv().y;
-  const dist = positionView.z.negate();
-  const near = float(1).sub(smoothstep(140, 420, dist)), fine = float(1).sub(smoothstep(20, 70, dist));
-  const noise = (s) => mx_noise_float(positionWorld.mul(s)).mul(0.5).add(0.5);
-  const glow = smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow), late = smoothstep(1.3, 1.55, cityUniforms.uInteriorGlow);
-  // A window lit or dark, re-rolled every 5–15 min (a library and museums: few of them late)
-  const lit = (cx, cy, seed, share) => {
-    const h = hash(cx.mul(157.1).add(cy.mul(311.7)).add(seed));
-    const slot = time.div(mix(float(300), float(900), hash(h.mul(977)))).add(hash(h.mul(531))).floor();
-    const on = step(hash(h.mul(1.3e4).floor().add(slot.mul(7)).add(seed)), mix(float(share), float(share * 0.35), late));
-    return mix(vec3(1.0, 0.66, 0.36), vec3(1.0, 0.8, 0.55), step(0.5, hash(h.mul(733)))).mul(on).mul(hash(h.mul(41)).mul(0.5).add(0.75));
-  };
+  const near = fade(140, 420), fine = fade(20, 70);
+  const glow = nightGlow();
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.93, metalness: 0 });
-  const half = attribute('aHalf', 'float'); // half the wall's length; 0: a closed wall
-  const vv = V.add(step(V, -1).mul(CLOSED)).sub(UP); // metres over the ground floor's top
+  // (v: metres over the ground floor's top)
+  const { half, v: vv, bay: bayI, bu, storey, fv, open } = windowGrid({ bay: BAY, storey: STOREY, closed: CLOSED, up: UP, winHalf: WIN.half });
   const upper = step(0, vv);
-  const bayI = floor(U.div(BAY).add(0.5)), bu = U.sub(bayI.mul(BAY));
-  const storey = floor(vv.div(STOREY)), fv = vv.sub(storey.mul(STOREY));
   const gy = vv.add(GROUND_FLOOR); // (on the ground floor: metres over the ground)
-  const open = step(abs(bayI.mul(BAY)).add(WIN.half + 0.4), half);
-  const box = (x, y, hw, lo, hi, e = 0.012) => smoothstep(hw + e, hw - e, abs(x)).mul(smoothstep(lo - e, lo + e, y)).mul(smoothstep(hi + e, hi - e, y));
   // the upper floors: a window of two lights in a white frame, a stone surround
-  const surround = box(bu, fv, WIN.half + SURROUND, WIN.lo - SURROUND, WIN.hi + SURROUND).mul(open).mul(upper);
-  const win = box(bu, fv, WIN.half, WIN.lo, WIN.hi).mul(open).mul(upper);
-  const light = box(abs(bu).sub(WIN.half / 2), fv, WIN.half / 2 - 0.09, WIN.lo + 0.08, WIN.hi - 0.08).mul(float(1).sub(smoothstep(0.03, 0.015, abs(fv.sub(WIN.hi - 0.5))).mul(near))).mul(open).mul(upper);
+  const surround = rectMask(bu, fv, WIN.half + SURROUND, WIN.lo - SURROUND, WIN.hi + SURROUND).mul(open).mul(upper);
+  const win = rectMask(bu, fv, WIN.half, WIN.lo, WIN.hi).mul(open).mul(upper);
+  const light = rectMask(abs(bu).sub(WIN.half / 2), fv, WIN.half / 2 - 0.09, WIN.lo + 0.08, WIN.hi - 0.08).mul(float(1).sub(smoothstep(0.03, 0.015, abs(fv.sub(WIN.hi - 0.5))).mul(near))).mul(open).mul(upper);
   // the ground floor: a smaller window behind bars
-  const gWin = box(bu, gy, 0.8, 1.7, 3.5).mul(open).mul(float(1).sub(upper));
+  const gWin = rectMask(bu, gy, 0.8, 1.7, 3.5).mul(open).mul(float(1).sub(upper));
   const bars = smoothstep(0.34, 0.42, abs(fract(bu.div(0.17)).sub(0.5))).mul(near);
-  const gPane = box(bu, gy, 0.72, 1.78, 3.42).mul(open).mul(float(1).sub(upper));
+  const gPane = rectMask(bu, gy, 0.72, 1.78, 3.42).mul(open).mul(float(1).sub(upper));
   // the plaster, the ground floor's bands with their joints, the course over them
-  const weather = noise(0.4).mul(0.65).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.18).add(0.18));
+  const weather = worldNoise(0.4).mul(0.65).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.18).add(0.18));
   const plaster = mix(vec3(0.36, 0.325, 0.255), vec3(0.45, 0.41, 0.33), weather);
   const joints = smoothstep(0.035, 0.012, abs(fract(gy.div(0.52)).sub(0.5).mul(0.52))).mul(fine);
   const banded = mix(vec3(0.2, 0.185, 0.155), vec3(0.26, 0.24, 0.2), weather).mul(float(1).sub(joints.mul(0.45)));
   const course = smoothstep(-0.32, -0.3, vv).mul(smoothstep(0.06, 0.04, vv));
   const stone = mix(vec3(0.3, 0.275, 0.225), vec3(0.36, 0.33, 0.275), weather);
-  const glassC = mix(vec3(0.02, 0.025, 0.03), vec3(0.07, 0.08, 0.09), noise(0.07));
+  const glassC = mix(vec3(0.02, 0.025, 0.03), vec3(0.07, 0.08, 0.09), worldNoise(0.07));
   let c = mix(banded, plaster, upper);
   c = mix(c, stone, course.max(surround));
   c = mix(c, vec3(0.7, 0.7, 0.68), win);
@@ -81,7 +66,8 @@ function materials() {
   const shiny = light.max(gPane.mul(float(1).sub(bars)));
   m.roughnessNode = mix(float(0.93), float(0.12), shiny);
   m.metalnessNode = shiny.mul(0.5);
-  m.emissiveNode = lit(bayI, storey.add(half.mul(3.3)), 9, 0.4).mul(light).mul(glow.mul(1.1));
+  // (a library and museums: few of them lit late)
+  m.emissiveNode = litWindow(bayI, storey.add(half.mul(3.3)), 9, { share: 0.4, late: 0.4 * 0.35, tone: twoTones([1.0, 0.66, 0.36], [1.0, 0.8, 0.55], 0.5) }).mul(light).mul(glow.mul(1.1));
   M.plaster = m;
   return M;
 }

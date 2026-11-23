@@ -1,12 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, time, uv, vec3 } from 'three/tsl';
+import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, normalWorld, positionWorld, smoothstep, uv, vec3 } from 'three/tsl';
 import { winter } from './season.js';
-import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { RAETIA, RAETIA_ENTRANCE, annexFrame, dormerFrame, frontFrame, gableFrame, toLocal } from './raetia-center-data.js';
 
@@ -51,33 +50,24 @@ function materials() {
     return M;
   }
   const U = uv().x, V = uv().y;
-  const dist = positionView.z.negate();
-  const near = float(1).sub(smoothstep(140, 420, dist)), fine = float(1).sub(smoothstep(30, 110, dist));
-  const noise = (s) => mx_noise_float(positionWorld.mul(s)).mul(0.5).add(0.5);
-  const glow = smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow), late = smoothstep(1.3, 1.55, cityUniforms.uInteriorGlow);
+  const near = fade(140, 420), fine = fade(30, 110);
+  const glow = nightGlow();
   // The plaster of the blocks behind: a window in a light frame per bay and floor, a few lit at night
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.93, metalness: 0 });
-    const half = attribute('aHalf', 'float'); // half the wall's length; 0: a closed wall
-    const v = V.add(step(V, -1).mul(CLOSED));
-    const bay = floor(U.div(BAY).add(0.5)), bu = U.sub(bay.mul(BAY));
-    const storey = floor(v.div(STOREY)), fv = v.sub(storey.mul(STOREY));
-    const open = step(abs(bay.mul(BAY)).add(WIN.half + 0.4), half);
-    const rect = (hw, lo, hi, e = 0.012) => smoothstep(hw + e, hw - e, abs(bu)).mul(smoothstep(lo - e, lo + e, fv)).mul(smoothstep(hi + e, hi - e, fv));
+    const { half, bay, bu, storey, open, rect } = windowGrid({ bay: BAY, storey: STOREY, closed: CLOSED, winHalf: WIN.half });
     const win = rect(WIN.half, WIN.lo, WIN.hi).mul(open);
     const pane = rect(WIN.half - 0.08, WIN.lo + 0.08, WIN.hi - 0.08).mul(float(1).sub(smoothstep(0.04, 0.025, abs(bu)).mul(near))).mul(open);
-    const weather = noise(0.4).mul(0.65).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.18).add(0.18));
+    const weather = worldNoise(0.4).mul(0.65).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.18).add(0.18));
     const plaster = mix(vec3(0.29, 0.265, 0.21), vec3(0.37, 0.34, 0.27), weather);
-    const glassC = mix(vec3(0.02, 0.026, 0.032), vec3(0.07, 0.085, 0.1), noise(0.07));
-    const h = hash(bay.mul(157.1).add(storey.add(half.mul(3.3)).mul(311.7)).add(3));
-    const slot = time.div(mix(float(300), float(900), hash(h.mul(977)))).add(hash(h.mul(531))).floor();
-    const on = step(hash(h.mul(1.3e4).floor().add(slot.mul(7)).add(3)), mix(float(0.4), float(0.12), late));
+    const glassC = mix(vec3(0.02, 0.026, 0.032), vec3(0.07, 0.085, 0.1), worldNoise(0.07));
     let c = mix(plaster, vec3(0.62, 0.62, 0.6), win);
     c = mix(c, glassC, pane);
     m.colorNode = c;
     m.roughnessNode = mix(float(0.93), float(0.12), pane);
     m.metalnessNode = pane.mul(0.5);
-    m.emissiveNode = mix(vec3(1.0, 0.7, 0.4), vec3(0.85, 0.88, 1.0), step(0.6, hash(h.mul(733)))).mul(on).mul(pane).mul(glow.mul(1.05));
+    const lit = litWindow(bay, storey.add(half.mul(3.3)), 3, { share: 0.4, late: 0.12, tone: twoTones([1.0, 0.7, 0.4], [0.85, 0.88, 1.0], 0.6), vary: false });
+    m.emissiveNode = lit.mul(pane).mul(glow.mul(1.05));
     M.wall = m;
   }
   // The sheet metal: the vertex's colour (zinc, copper, dark sheet), a standing seam every 60 cm across u, each sheet a
@@ -88,7 +78,7 @@ function materials() {
     const sheet = floor(U.div(SEAM)), su = abs(fract(U.div(SEAM)).sub(0.5));
     const seam = smoothstep(0.455, 0.48, su).mul(fine);
     const shade = hash(sheet.mul(17.3).add(floor(V.div(4)).mul(5.1))).mul(0.16).add(0.92);
-    const stain = noise(0.5).mul(0.2).add(0.9);
+    const stain = worldNoise(0.5).mul(0.2).add(0.9);
     const c = colour.mul(shade).mul(stain).mul(float(1).sub(seam.mul(0.4)));
     const snow = smoothstep(0.35, 0.6, normalWorld.y).mul(winter);
     m.colorNode = mix(c, vec3(0.84, 0.86, 0.9), snow);

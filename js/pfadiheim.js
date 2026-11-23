@@ -3,10 +3,9 @@ import { abs, float, fract, fwidth, mix, mx_noise_float, positionLocal, position
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
-import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { glassMaterial } from './detail-houses.js';
-import { decalMaterial } from './building-kit.js';
+import { decalMaterial, nightGlow } from './building-kit.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { QUALITY } from './quality.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
@@ -86,7 +85,7 @@ function materials() {
   M.red = std({ roughness: 0.55 }, vec3(0.55, 0.025, 0.03).mul(float(1).sub(slat.mul(0.35))));
   // the downlights under the canopy: lit from dusk on
   M.lamp = std({ roughness: 0.4 }, vec3(0.8, 0.8, 0.78));
-  M.lamp.emissiveNode = vec3(1.0, 0.78, 0.5).mul(smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow).mul(2.2));
+  M.lamp.emissiveNode = vec3(1.0, 0.78, 0.5).mul(nightGlow().mul(2.2));
   M.glass = glassMaterial();
   return M;
 }

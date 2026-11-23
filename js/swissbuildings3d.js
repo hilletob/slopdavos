@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mx_noise_float, positionWorld, normalWorld, cameraPosition, float, smoothstep, fract, step, vertexColor, attribute, vec2, vec3, mix, texture, uv, fwidth, hash as gpuHash, time, sin } from 'three/tsl';
-import { cityUniforms } from './tsl-materials.js';
+import { lateNight, nightGlow } from './building-kit.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { FRAME, lonLatToWorld } from './davos-frame.js';
@@ -613,9 +613,8 @@ function createMaterial(roofMap = false, sharp = 0) {
 // shimmer of single windows: the town still glows from the heli and across the valley.
 function windowLights({ r, kind, along, above, bayW, storeyH, u, v, n, glassMask, shop, rail, wall, near, resolved, winW, winV, upper, windowed }) {
   const { chalet, hotel, plain, church } = kind;
-  const glow = cityUniforms.uInteriorGlow;
-  const night = smoothstep(0.7, 1.45, glow); // golden 0, twilight ~0.7, midnight 1
-  const late = smoothstep(1.3, 1.55, glow); // towards midnight fewer lights
+  const night = nightGlow(); // golden 0, twilight ~0.7, midnight 1
+  const late = lateNight(); // towards midnight fewer lights
   // Integer keys: the wall's facing (front and back walls share `along`), the bay, the storey, the building
   const face = n.x.mul(4).round().add(4).add(n.z.mul(4).round().add(4).mul(9));
   const building = gpuHash(r.add(2).mul(1e6).floor().add(face.mul(3.1e6)));

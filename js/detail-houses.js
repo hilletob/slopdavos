@@ -3,7 +3,7 @@ import { abs, dot, float, floor, fract, hash, mix, mx_noise_float, normalWorld, 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
-import { cityUniforms } from './tsl-materials.js';
+import { lateNight, nightGlow } from './building-kit.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { DETAIL_HOUSES, facadeLayout, facadeUV, fenceRuns, frame, scanRoofY, toWorld } from './detail-houses-data.js';
@@ -387,8 +387,7 @@ export function glassMaterial() {
   const v = mix(float(0.3), float(0.84), pane.y);
   const sky = mix(vec3(0.05, 0.065, 0.085), vec3(0.22, 0.27, 0.33), v);
   m.colorNode = mix(sky, vec3(0.05, 0.05, 0.055), cellar);
-  const iGlow = cityUniforms.uInteriorGlow;
-  const night = smoothstep(0.7, 1.45, iGlow), late = smoothstep(1.3, 1.55, iGlow);
+  const night = nightGlow(), late = lateNight();
   const h = hash(id.add(9173)), hn = (i) => hash(h.mul(1.6e7).floor().add(i));
   const slot = time.div(mix(float(300), float(900), hn(3))).add(hn(4)).floor();
   const on = step(hash(h.mul(1.6e7).floor().add(slot.mul(7)).add(11)), mix(0.5, 0.4, late));

@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { excludeBuildings, carveBuildings } from './swissbuildings3d.js';
-import { cityUniforms } from './tsl-materials.js';
+import { nightGlow } from './building-kit.js';
 import { groundHeight, funicularEnclosedAt, getFunicularTunnels, funicularTunnelParts, TUNNEL_ROOF } from './terrain.js';
 import { funicularTrack } from './funicular-track.js';
 import { QUALITY } from './quality.js';
@@ -1435,11 +1435,11 @@ function buildValleyStation(group, node, next, gauge) {
   // Warm light inside at night: lamps under the beam and on the back wall
   const lamps = boxes([[hole.w - 1.4, 0.12, 0.5, 0, hole.y + hole.h - 0.4, -2.0, 0xfff1d0], [0.6, 0.3, 0.1, -4, ropeY - 3.5, -5.7, 0xfff1d0], [0.6, 0.3, 0.1, 4, ropeY - 3.5, -5.7, 0xfff1d0]]);
   const lampMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xfff1d0, roughness: 0.5 });
-  lampMaterial.emissiveNode = vec3(1.0, 0.72, 0.4).mul(smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow).mul(6));
+  lampMaterial.emissiveNode = vec3(1.0, 0.72, 0.4).mul(nightGlow().mul(6));
   station.add(new THREE.Mesh(lamps, lampMaterial));
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(hole.w - 0.3, hole.h - 0.3), new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false }));
   glow.material.colorNode = vec3(1.0, 0.68, 0.35);
-  glow.material.opacityNode = smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow).mul(0.18);
+  glow.material.opacityNode = nightGlow().mul(0.18);
   glow.position.set(0, hole.y + hole.h / 2, -5.6);
   station.add(glow);
   station.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = o !== glow; });

@@ -1,9 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { attribute, cos, float, floor, fract, hash, mix, mx_noise_float, positionView, positionWorld, sin, smoothstep, uniform, uv, vec3 } from 'three/tsl';
+import { attribute, cos, float, floor, fract, hash, mix, sin, smoothstep, uniform, uv, vec3 } from 'three/tsl';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, worldNoise } from './building-kit.js';
 import { onWall } from './spital-data.js';
 import { ST_JOHANN, spireRing, towerSides } from './st-johann-data.js';
 
@@ -30,11 +30,11 @@ function materials() {
   // Larch shingles gone red-brown: rows of 22 cm, every shingle a shade of its own, the rows' shadow lines
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.82, metalness: 0 });
   const U = uv().x, V = uv().y;
-  const fine = float(1).sub(smoothstep(30, 110, positionView.z.negate()));
+  const fine = fade(30, 110);
   const row = floor(V.div(0.22)), col = floor(U.add(fract(row.mul(0.5)).mul(0.14)).div(0.14));
   const shade = hash(row.mul(57.3).add(col.mul(131.7))).sub(0.5).mul(0.35).mul(fine);
   const edge = smoothstep(0.12, 0.0, fract(V.div(0.22))).mul(fine);
-  const weather = mx_noise_float(positionWorld.mul(0.5)).mul(0.5).add(0.5);
+  const weather = worldNoise(0.5);
   m.colorNode = mix(vec3(0.17, 0.08, 0.045), vec3(0.27, 0.135, 0.07), weather.add(shade)).mul(float(1).sub(edge.mul(0.4)));
   M.shingles = m;
   return M;

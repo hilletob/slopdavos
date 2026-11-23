@@ -1,12 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, float, floor, fract, hash, max, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, time, uv, vec3 } from 'three/tsl';
+import { abs, float, floor, fract, hash, max, mix, mx_noise_float, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
-import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { onWall, outwardRing, pointInRing, wallFrame } from './spital-data.js';
 import { BELVEDERE, balconyBays, clearStretches, facesFront, isOldFront, nameFrame, part, toOld, wallStretches } from './belvedere-data.js';
 
@@ -38,38 +37,30 @@ const C = {
 // Plaster with a window in a white frame per bay and floor (an arched head on the old house), a few lit at night
 function wallMaterial({ storey, bay, window: WIN }, plaster, arch) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
-  const U = uv().x, V = uv().y;
-  const dist = positionView.z.negate(), near = float(1).sub(smoothstep(140, 420, dist));
-  const noise = (s) => mx_noise_float(positionWorld.mul(s)).mul(0.5).add(0.5);
-  const glow = smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow), late = smoothstep(1.3, 1.55, cityUniforms.uInteriorGlow);
-  const half = attribute('aHalf', 'float'); // half the wall's length; 0: a closed wall
-  const v = V.add(step(V, -1).mul(CLOSED));
-  const b = floor(U.div(bay).add(0.5)), bu = U.sub(b.mul(bay));
-  const st = floor(v.div(storey)), fv = v.sub(st.mul(storey));
-  const open = step(abs(b.mul(bay)).add(WIN.half + 0.4), half);
+  const near = fade(140, 420);
+  const glow = nightGlow();
+  const { half, bay: b, bu, storey: st, fv, open, rect: rectIn } = windowGrid({ bay, storey, closed: CLOSED, winHalf: WIN.half });
   const e = 0.015;
   // the opening: a rectangle, on the old house with a half round on it
   const shape = (hw, lo, hi) => {
-    const rect = smoothstep(hw + e, hw - e, abs(bu)).mul(smoothstep(lo - e, lo + e, fv)).mul(smoothstep(hi + e, hi - e, fv));
+    const rect = rectIn(hw, lo, hi, e);
     if (!arch) return rect;
     const r = bu.mul(bu).add(fv.sub(hi).mul(fv.sub(hi))).sqrt();
     return max(rect, smoothstep(hw + e, hw - e, r).mul(step(hi, fv)));
   };
   const win = shape(WIN.half + 0.1, WIN.lo - 0.1, WIN.hi).mul(open);
   const pane = shape(WIN.half - 0.04, WIN.lo, WIN.hi).mul(float(1).sub(smoothstep(0.035, 0.02, abs(bu)).mul(near))).mul(open);
-  const weather = noise(0.35).mul(0.6).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.2).add(0.2));
+  const weather = worldNoise(0.35).mul(0.6).add(mx_noise_float(positionWorld.mul(vec3(1.4, 0.1, 1.4))).mul(0.2).add(0.2));
   const base = vec3(...plaster);
   const wall = mix(base.mul(0.9), base, weather);
-  const glassC = mix(vec3(0.02, 0.026, 0.034), vec3(0.08, 0.095, 0.11), noise(0.07));
-  const h = hash(b.mul(157.1).add(st.add(half.mul(3.3)).mul(311.7)).add(7));
-  const slot = time.div(mix(float(300), float(900), hash(h.mul(977)))).add(hash(h.mul(531))).floor();
-  const on = step(hash(h.mul(1.3e4).floor().add(slot.mul(7)).add(7)), mix(float(0.45), float(0.12), late));
+  const glassC = mix(vec3(0.02, 0.026, 0.034), vec3(0.08, 0.095, 0.11), worldNoise(0.07));
   let c = mix(wall, vec3(0.78, 0.78, 0.76), win);
   c = mix(c, glassC, pane);
   m.colorNode = c;
   m.roughnessNode = mix(float(0.9), float(0.12), pane);
   m.metalnessNode = pane.mul(0.5);
-  m.emissiveNode = mix(vec3(1.0, 0.72, 0.42), vec3(0.88, 0.9, 1.0), step(0.7, hash(h.mul(733)))).mul(on).mul(pane).mul(glow.mul(1.05));
+  const lit = litWindow(b, st.add(half.mul(3.3)), 7, { share: 0.45, late: 0.12, tone: twoTones([1.0, 0.72, 0.42], [0.88, 0.9, 1.0], 0.7), vary: false });
+  m.emissiveNode = lit.mul(pane).mul(glow.mul(1.05));
   return m;
 }
 
@@ -92,14 +83,14 @@ function materials() {
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.08, metalness: 0.85 });
     const U = uv().x, V = uv().y;
-    const near = float(1).sub(smoothstep(140, 420, positionView.z.negate()));
+    const near = fade(140, 420);
     const mu = abs(fract(U.div(1.2)).sub(0.5)), mv = abs(fract(V.div(BELVEDERE.storey)).sub(0.5));
     const frame = smoothstep(0.46, 0.475, mu).max(smoothstep(0.455, 0.47, mv)).mul(near.mul(0.85).add(0.15));
     const paneId = hash(floor(U.div(1.2)).mul(13.1).add(floor(V.div(BELVEDERE.storey)).mul(7.3)));
     m.colorNode = mix(mix(vec3(0.09, 0.15, 0.15), vec3(0.17, 0.25, 0.25), paneId), vec3(0.6, 0.6, 0.58), frame);
     m.roughnessNode = mix(float(0.08), float(0.6), frame);
     m.metalnessNode = mix(float(0.85), float(0.1), frame);
-    m.emissiveNode = vec3(1.0, 0.86, 0.66).mul(float(1).sub(frame)).mul(paneId.mul(0.3).add(0.7)).mul(smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow).mul(0.25));
+    m.emissiveNode = vec3(1.0, 0.86, 0.66).mul(float(1).sub(frame)).mul(paneId.mul(0.3).add(0.7)).mul(nightGlow().mul(0.25));
     M.glass = m;
   }
   return M;

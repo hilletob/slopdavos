@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { abs, float, floor, fract, hash, materialColor, materialEmissive, mix, mx_noise_float, normalWorld, positionView, positionWorld, smoothstep, step, texture, time, uniform, uv, vec3 } from 'three/tsl';
+import { abs, float, floor, fract, hash, materialColor, materialEmissive, mix, mx_noise_float, normalWorld, positionWorld, smoothstep, step, texture, time, uniform, uv, vec3 } from 'three/tsl';
 import { groundHeight, addRaisedSidewalk, TERRAIN } from './terrain.js';
 import { snowyRoof, winter } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
+import { fade, litWindow, nightGlow, worldNoise } from './building-kit.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import {
@@ -43,7 +44,6 @@ excludeBuildings(LANDMARK_EXCLUSIONS);
 // and the window bands' measures are the material's own uniforms (material.color, material.emissive, uniform()) and
 // the graphs are the same: SIMPLE_SKINS, also for js/pfadiheim.js.
 const linear = (rgb) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2]);
-const nightGlow = () => smoothstep(0.7, 1.45, cityUniforms.uInteriorGlow);
 export const SIMPLE_SKINS = {
   /** A plain colour ([r, g, b] linear): the stock standard shader, one program for all of them */
   plain(rgb, roughness, metalness = 0, extra = {}) {
@@ -76,7 +76,7 @@ export const SIMPLE_SKINS = {
 function simpleMaterials() {
   const V = uv().y;
   const iGlow = cityUniforms.uInteriorGlow;
-  const glow = smoothstep(0.7, 1.45, iGlow);
+  const glow = nightGlow();
   const warm = vec3(1.0, 0.66, 0.36);
   const snowRoof = (c) => mix(c, vec3(0.84, 0.86, 0.9), smoothstep(0.35, 0.6, normalWorld.y).mul(winter));
   const make = (c, roughness, metalness = 0, extra = {}) => {
@@ -145,25 +145,18 @@ function materials() {
   if (QUALITY.simpleMaterials) return simpleMaterials();
   const U = uv().x, V = uv().y;
   // pattern detail fades out with distance (no shimmer far off)
-  const dist = positionView.z.negate();
-  const near = float(1).sub(smoothstep(120, 380, dist));
+  const near = fade(120, 380);
   // (boards and seams: a few centimetres, gone sooner)
-  const fine = float(1).sub(smoothstep(18, 60, dist));
-  const noise = (s) => mx_noise_float(positionWorld.mul(s)).mul(0.5).add(0.5);
+  const fine = fade(18, 60);
+  const noise = worldNoise;
   const weather = noise(0.3);
   // Windows only on walls whose v is ≥ 0 (plinths and closed walls carry v − 1000)
   const windowed = step(0, V);
   const iGlow = cityUniforms.uInteriorGlow;
-  const glow = smoothstep(0.7, 1.45, iGlow), late = smoothstep(1.3, 1.55, iGlow);
+  const glow = nightGlow();
   // A window cell lit or dark, re-rolled every 5–15 min; mostly warm, now and then cooler (offices, screens)
-  const lit = (cx, cy, seed, share = 0.6) => {
-    const h = hash(cx.mul(157.1).add(cy.mul(311.7)).add(seed));
-    const slot = time.div(mix(float(300), float(900), hash(h.mul(977)))).add(hash(h.mul(531))).floor();
-    const on = step(hash(h.mul(1.3e4).floor().add(slot.mul(7)).add(seed)), mix(float(share), float(share * 0.7), late));
-    const c = hash(h.mul(733));
-    const tone = mix(mix(vec3(1.0, 0.58, 0.26), vec3(1.0, 0.72, 0.42), step(0.55, c)), vec3(0.75, 0.82, 1.0), step(0.88, c));
-    return tone.mul(on).mul(hash(h.mul(41)).mul(0.5).add(0.75));
-  };
+  const tone = (c) => mix(mix(vec3(1.0, 0.58, 0.26), vec3(1.0, 0.72, 0.42), step(0.55, c)), vec3(0.75, 0.82, 1.0), step(0.88, c));
+  const lit = (cx, cy, seed, share = 0.6) => litWindow(cx, cy, seed, { share, late: share * 0.7, tone });
   const M = {};
   // Larch boards, vertical, 11 cm, honey to silver-brown; ribbon windows where windowed (the north wing)
   {
