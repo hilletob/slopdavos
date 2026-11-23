@@ -2,6 +2,7 @@ import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK } from './account-config.js';
 import { HEAT_CELL, HEAT_ORIGIN, HEAT_SIZE, HEAT_GROUPS } from './heat-trail.js';
 import { LIVE_TOPIC, LIVE_EVENT } from './live-beacon.js';
 import { createView, drawGround, drawLabels } from './heatmap-map.js';
+import { paintHeat, fetchHeat, receiveDot, expireDots, drawDots as paintDots } from './heat-view.js';
 
 // js/landing-heat.js
 // The heat map as a panel of the landing page (index.html, "Where Davos is played"): the map of js/heatmap-map.js with
@@ -10,17 +11,9 @@ import { createView, drawGround, drawLabels } from './heatmap-map.js';
 // landing page imports this only once the panel comes near the screen (the map's data is some megabytes), and the live
 // channel is held only while the panel is in view.
 
-const DOT_GONE = 15000; // ms without a message: the dot goes
-const DOT_GLIDE = 2000; // ms: a dot's way from one message's place to the next
 const FOCUS = [200, -700]; // (between Davos Platz and Davos Dorf)
 const SPAN = [3400, 3800]; // m: at least this much of the valley across and down
 const MIN_SCALE = 0.125; // px a metre (the houses are drawn from 0.12 on)
-const GROUP_COLOURS = ['#f2efe6', '#ffc21a', '#5fd0ff', '#ff7ad9', '#7be08a']; // (as js/heatmap-page.js)
-const RAMP = [[62, 20, 110], [140, 30, 130], [214, 55, 90], [248, 120, 40], [252, 195, 70], [255, 248, 200]];
-const ramp = (t) => {
-  const f = Math.min(0.9999, Math.max(0, t)) * (RAMP.length - 1), i = Math.floor(f), u = f - i;
-  return RAMP[i].map((c, j) => Math.round(c + (RAMP[i + 1][j] - c) * u));
-};
 const TEXT = {
   de: {
     live: (n) => (n === 0 ? 'Gerade niemand unterwegs' : n === 1 ? '1 Spieler unterwegs' : `${n} Spieler unterwegs`),
@@ -64,18 +57,7 @@ export function mountHeat(root, language = 'de') {
     for (const [g, ix, iz, n] of cells || []) {
       if (g >= 0 && g < HEAT_GROUPS.length && ix >= 0 && ix < W && iz >= 0 && iz < H && n > 0) sum[iz * W + ix] += n;
     }
-    const image = heatCtx.createImageData(W, H), data = image.data;
-    let max = 0;
-    heatCells = 0;
-    for (let i = 0; i < sum.length; i++) { if (sum[i] > 0) { heatCells++; if (sum[i] > max) max = sum[i]; } }
-    const scale = 1 / Math.log1p(Math.max(max, 8));
-    for (let i = 0; i < sum.length; i++) {
-      if (!(sum[i] > 0)) continue;
-      const t = Math.log1p(sum[i]) * scale, [r, g, b] = ramp(t);
-      data[i * 4] = r; data[i * 4 + 1] = g; data[i * 4 + 2] = b;
-      data[i * 4 + 3] = Math.round(255 * (0.5 + 0.45 * t));
-    }
-    heatCtx.putImageData(image, 0, 0);
+    heatCells = paintHeat(heatCtx, sum, W, H).cells;
     glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
     glowCtx.imageSmoothingEnabled = true;
     glowCtx.imageSmoothingQuality = 'high';
@@ -87,12 +69,7 @@ export function mountHeat(root, language = 'de') {
 
   async function loadHeat() {
     try {
-      if (!SUPABASE_URL) throw new Error('no backend');
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heat_view`, {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(15000)
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      setHeat((await response.json())?.cells);
+      setHeat(await fetchHeat());
     } catch {
       if (heatState !== 'ready') { heatState = 'failed'; renderInfo(); }
     }
@@ -101,26 +78,11 @@ export function mountHeat(root, language = 'de') {
   // ---- the dots ---------------------------------------------------------------------------------------------------
   const dots = new Map(); // id -> { fromX, fromZ, x, z, at, k, dir }
   let liveState = 'connecting'; // 'connecting' | 'on' | 'off'
-  const place = (d, now) => {
-    const t = Math.min(1, (now - d.at) / DOT_GLIDE);
-    return { x: d.fromX + (d.x - d.fromX) * t, z: d.fromZ + (d.z - d.fromZ) * t };
-  };
-
   function onPos(p) {
-    if (!p || typeof p.id !== 'string' || p.id.length > 24) return;
-    if (p.off) { dots.delete(p.id); renderInfo(); return; }
-    const x = Number(p.x), z = Number(p.z), k = Number(p.k);
-    if (!Number.isFinite(x) || !Number.isFinite(z) || !GROUP_COLOURS[k]) return;
-    const now = performance.now(), old = dots.get(p.id);
-    if (!old && dots.size >= 500) return;
-    const here = old ? place(old, now) : { x, z };
-    const far = Math.hypot(x - here.x, z - here.z);
-    dots.set(p.id, {
-      fromX: far > 400 ? x : here.x, fromZ: far > 400 ? z : here.z, x, z, at: now, k,
-      dir: far > 3 && far <= 400 ? Math.atan2(z - here.z, x - here.x) : old?.dir ?? null
-    });
+    const change = receiveDot(dots, p);
+    if (!change) return;
     renderInfo();
-    animate();
+    if (change === 'set') animate();
   }
 
   // (the channel only while the panel is on the screen: a visitor who scrolls past holds no socket)
@@ -157,7 +119,7 @@ export function mountHeat(root, language = 'de') {
     if (animating) return;
     animating = true;
     requestAnimationFrame(function frame(now) {
-      for (const [id, d] of dots) if (now - d.at > DOT_GONE) { dots.delete(id); renderInfo(); }
+      if (expireDots(dots, now)) renderInfo();
       drawDots(now);
       if (dots.size) requestAnimationFrame(frame);
       else animating = false;
@@ -165,40 +127,7 @@ export function mountHeat(root, language = 'de') {
   }
 
   function drawDots(now = performance.now()) {
-    view.screen(dotCtx);
-    dotCtx.clearRect(0, 0, view.w, view.h);
-    const pulse = (now % 2000) / 2000;
-    for (const d of dots.values()) {
-      const p = place(d, now), x = view.toX(p.x), y = view.toY(p.z);
-      if (x < -30 || y < -30 || x > view.w + 30 || y > view.h + 30) continue;
-      const colour = GROUP_COLOURS[d.k];
-      dotCtx.strokeStyle = colour;
-      dotCtx.globalAlpha = 0.7 * (1 - pulse);
-      dotCtx.lineWidth = 2;
-      dotCtx.beginPath();
-      dotCtx.arc(x, y, 7 + 14 * pulse, 0, Math.PI * 2);
-      dotCtx.stroke();
-      dotCtx.globalAlpha = 1;
-      if (d.dir != null) {
-        dotCtx.save();
-        dotCtx.translate(x, y);
-        dotCtx.rotate(d.dir);
-        dotCtx.fillStyle = colour;
-        dotCtx.beginPath();
-        dotCtx.moveTo(15, 0); dotCtx.lineTo(7, -5); dotCtx.lineTo(7, 5);
-        dotCtx.closePath();
-        dotCtx.fill();
-        dotCtx.restore();
-      }
-      dotCtx.fillStyle = '#0b0e12';
-      dotCtx.beginPath();
-      dotCtx.arc(x, y, 7.5, 0, Math.PI * 2);
-      dotCtx.fill();
-      dotCtx.fillStyle = colour;
-      dotCtx.beginPath();
-      dotCtx.arc(x, y, 5.5, 0, Math.PI * 2);
-      dotCtx.fill();
-    }
+    paintDots(dotCtx, view, dots, now);
   }
 
   // ---- the panel --------------------------------------------------------------------------------------------------

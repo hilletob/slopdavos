@@ -2,6 +2,7 @@ import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK } from './account-config.js';
 import { HEAT_CELL, HEAT_ORIGIN, HEAT_SIZE, HEAT_GROUPS } from './heat-trail.js';
 import { LIVE_TOPIC, LIVE_EVENT } from './live-beacon.js';
 import { createView, drawGround, drawLabels, scaleBar } from './heatmap-map.js';
+import { GROUP_COLOURS, paintHeat as paintCells, fetchHeat, receiveDot, expireDots, drawDots as paintDots } from './heat-view.js';
 
 // js/heatmap-page.js
 // The public heat map (heatmap.html): the map of Davos (js/heatmap-map.js), on it where the players have gone (the
@@ -11,10 +12,7 @@ import { createView, drawGround, drawLabels, scaleBar } from './heatmap-map.js';
 
 const LANG_KEY = 'slopdavos-language';
 const REFRESH = 5 * 60000; // ms: the heat anew
-const DOT_GONE = 15000; // ms without a message: the dot goes
-const DOT_GLIDE = 2000; // ms: a dot's way from one message's place to the next
 const START_BOX = [-3600, -4300, 4200, 4600]; // (the valley from Wolfgang to Frauenkirch)
-export const GROUP_COLOURS = ['#f2efe6', '#ffc21a', '#5fd0ff', '#ff7ad9', '#7be08a'];
 const TEXT = {
   de: {
     live: (n) => (n === 1 ? '1 Spieler unterwegs' : `${n} Spieler unterwegs`), offline: 'Live-Verbindung getrennt',
@@ -28,11 +26,6 @@ const TEXT = {
   }
 };
 // The heat's colours from a few to many passes (dark violet to pale yellow, on the map's graphite)
-const RAMP = [[62, 20, 110], [140, 30, 130], [214, 55, 90], [248, 120, 40], [252, 195, 70], [255, 248, 200]];
-const ramp = (t) => {
-  const f = Math.min(0.9999, Math.max(0, t)) * (RAMP.length - 1), i = Math.floor(f), u = f - i;
-  return RAMP[i].map((c, j) => Math.round(c + (RAMP[i + 1][j] - c) * u));
-};
 
 const base = document.getElementById('map'), top = document.getElementById('dots');
 const ctx = base.getContext('2d'), dotCtx = top.getContext('2d');
@@ -62,32 +55,16 @@ function setHeat(cells) {
 }
 
 function paintHeat() {
-  const image = heatCtx.createImageData(W, H), data = image.data;
   const sum = new Float64Array(W * H);
   for (const g of shown) { const c = counts[g]; for (let i = 0; i < sum.length; i++) sum[i] += c[i]; }
-  heatMax = 0;
-  heatCells = 0;
-  for (let i = 0; i < sum.length; i++) { if (sum[i] > 0) { heatCells++; if (sum[i] > heatMax) heatMax = sum[i]; } }
-  const scale = 1 / Math.log1p(Math.max(heatMax, 8));
-  for (let i = 0; i < sum.length; i++) {
-    if (!(sum[i] > 0)) continue;
-    const t = Math.log1p(sum[i]) * scale, [r, g, b] = ramp(t);
-    data[i * 4] = r; data[i * 4 + 1] = g; data[i * 4 + 2] = b;
-    data[i * 4 + 3] = Math.round(255 * (0.5 + 0.45 * t));
-  }
-  heatCtx.putImageData(image, 0, 0);
+  ({ max: heatMax, cells: heatCells } = paintCells(heatCtx, sum, W, H));
   renderInfo();
   draw();
 }
 
 async function loadHeat() {
   try {
-    if (!SUPABASE_URL) throw new Error('no backend');
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heat_view`, {
-      method: 'POST', headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(15000)
-    });
-    if (!response.ok) throw new Error(String(response.status));
-    setHeat((await response.json())?.cells);
+    setHeat(await fetchHeat());
   } catch {
     if (heatState !== 'ready') { heatState = 'failed'; renderInfo(); } // (the heat shown stays, the next round tries again)
   }
@@ -98,25 +75,10 @@ const dots = new Map(); // id -> { fromX, fromZ, x, z, at, k, dir }
 let liveState = 'connecting'; // 'connecting' | 'on' | 'off'
 
 function onPos(p) {
-  if (!p || typeof p.id !== 'string' || p.id.length > 24) return;
-  if (p.off) { dots.delete(p.id); renderInfo(); return; }
-  const x = Number(p.x), z = Number(p.z), k = Number(p.k);
-  if (!Number.isFinite(x) || !Number.isFinite(z) || !GROUP_COLOURS[k]) return;
-  const now = performance.now(), old = dots.get(p.id);
-  if (!old && dots.size >= 500) return;
-  const here = old ? place(old, now) : { x, z };
-  const far = Math.hypot(x - here.x, z - here.z);
-  dots.set(p.id, {
-    fromX: far > 400 ? x : here.x, fromZ: far > 400 ? z : here.z, x, z, at: now, k,
-    dir: far > 3 && far <= 400 ? Math.atan2(z - here.z, x - here.x) : old?.dir ?? null
-  });
+  const change = receiveDot(dots, p);
+  if (!change) return;
   renderInfo();
-  animate();
-}
-/** Where a dot is drawn now: on its way to the last message's place */
-function place(d, now) {
-  const t = Math.min(1, (now - d.at) / DOT_GLIDE);
-  return { x: d.fromX + (d.x - d.fromX) * t, z: d.fromZ + (d.z - d.fromZ) * t };
+  if (change === 'set') animate();
 }
 
 async function goLive() {
@@ -137,7 +99,7 @@ function animate() {
   if (animating) return;
   animating = true;
   requestAnimationFrame(function frame(now) {
-    for (const [id, d] of dots) if (now - d.at > DOT_GONE) { dots.delete(id); renderInfo(); }
+    if (expireDots(dots, now)) renderInfo();
     drawDots(now);
     if (dots.size) requestAnimationFrame(frame);
     else animating = false;
@@ -145,41 +107,7 @@ function animate() {
 }
 
 function drawDots(now = performance.now()) {
-  view.screen(dotCtx);
-  dotCtx.clearRect(0, 0, view.w, view.h);
-  const pulse = (now % 2000) / 2000;
-  for (const d of dots.values()) {
-    if (!shown.has(d.k)) continue;
-    const p = place(d, now), x = view.toX(p.x), y = view.toY(p.z);
-    if (x < -30 || y < -30 || x > view.w + 30 || y > view.h + 30) continue;
-    const colour = GROUP_COLOURS[d.k];
-    dotCtx.strokeStyle = colour;
-    dotCtx.globalAlpha = 0.7 * (1 - pulse);
-    dotCtx.lineWidth = 2;
-    dotCtx.beginPath();
-    dotCtx.arc(x, y, 7 + 14 * pulse, 0, Math.PI * 2);
-    dotCtx.stroke();
-    dotCtx.globalAlpha = 1;
-    if (d.dir != null) { // (the way it is heading: a tip ahead of the dot)
-      dotCtx.save();
-      dotCtx.translate(x, y);
-      dotCtx.rotate(d.dir);
-      dotCtx.fillStyle = colour;
-      dotCtx.beginPath();
-      dotCtx.moveTo(15, 0); dotCtx.lineTo(7, -5); dotCtx.lineTo(7, 5);
-      dotCtx.closePath();
-      dotCtx.fill();
-      dotCtx.restore();
-    }
-    dotCtx.fillStyle = '#0b0e12';
-    dotCtx.beginPath();
-    dotCtx.arc(x, y, 7.5, 0, Math.PI * 2);
-    dotCtx.fill();
-    dotCtx.fillStyle = colour;
-    dotCtx.beginPath();
-    dotCtx.arc(x, y, 5.5, 0, Math.PI * 2);
-    dotCtx.fill();
-  }
+  paintDots(dotCtx, view, dots, now, shown);
 }
 
 // ---- the page -------------------------------------------------------------------------------------------------------
