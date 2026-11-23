@@ -583,14 +583,15 @@ export const BIG_AIR_MISSION = {
   props: [],
   createState() { return { jumps: [], penaltyMs: 0, airborne: false, note: null }; },
   update() {},
-  summary(state) { return state.jumps.map((j, i) => `Jump ${i + 1}: ${j.name} · ${j.quality} landing · ${j.points} pts`); },
+  summary(state) { return state.jumps.map((j, i) => msg('Jump {n}: {name} · {quality} landing · {pts} pts', 'Sprung {n}: {name} · Landung {quality} · {pts} Pkt.', { n: i + 1, name: j.name, quality: j.quality, pts: j.points })); },
   objectives: Array.from({ length: BIG_AIR_JUMPS }, (_, i) => ({
     id: `jump${i + 1}`,
     title: `Jump ${i + 1} of ${BIG_AIR_JUMPS}`,
     check(ctx, state) {
       const k = BIG_AIR.kicker, last = state.jumps[state.jumps.length - 1];
       const lip = { x: k.x + Math.sin(k.heading) * BIG_AIR.kickerLength, z: k.z + Math.cos(k.heading) * BIG_AIR.kickerLength };
-      const text = last ? `${last.name}: ${last.points} pts · total ${bigAirTotal(state)}` : `${fmtDist(Math.hypot(lip.x - ctx.x, lip.z - ctx.z))} to the kicker`;
+      const text = last ? msg('{name}: {pts} pts · total {total}', '{name}: {pts} Pkt. · total {total}', { name: last.name, pts: last.points, total: bigAirTotal(state) })
+        : msg('{d} to the kicker', '{d} bis zum Kicker', { d: fmtDist(Math.hypot(lip.x - ctx.x, lip.z - ctx.z)) });
       const hint = state.airborne ? 'Spin A/D · flip W/S · grab Space' : state.note || (ctx.mode === 'person' ? 'Down to the kicker: tuck (W) for speed' : null);
       return { done: state.jumps.length > i, progress: null, text, target: state.airborne ? null : { x: lip.x, z: lip.z }, hint };
     }

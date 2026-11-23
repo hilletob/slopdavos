@@ -1,4 +1,5 @@
 import { BEER, BEER_STOPS, beerStep, createBeerState, seededRandom } from './missions-data-local.js';
+import { msg } from './messages.js';
 
 // js/missions-data-gastro.js
 // Three missions behind the counters of Davos Platz (js/missions-data.js spreads GASTRO_MISSIONS into MISSIONS;
@@ -19,9 +20,19 @@ import { BEER, BEER_STOPS, beerStep, createBeerState, seededRandom } from './mis
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
+const mishapsDe = (n) => `${n} ${n === 1 ? 'Panne' : 'Pannen'}`;
 
-/** The "walk to the door" step */
-export function walkInto(spot, title, label, allowModes = ['person']) {
+/** A pop for js/missions-gastro.js flashPop: a line said (`last.text`, a pair of js/i18n.js or made with msg()) with its
+ *  points after two spaces, as one text in both languages */
+export const popText = (last) => (last.points ? msg('{text|t}  {pts}', '{text|t}  {pts}', { text: last.text, pts: `${last.points > 0 ? '+' : ''}${last.points}` }) : last.text);
+/** The bar games' running line (the step's text and the HUD's line) */
+export const barRoundLine = (round, rounds, pts, strikes, max) => msg('Round {round} of {rounds} · {pts} pts · {strikes}/{max} mishaps', 'Runde {round} von {rounds} · {pts} Pkt. · {strikes}/{max} Pannen', { round, rounds, pts, strikes, max });
+/** The bar games' summary: `what` the drinks ('shots' | 'Flämmli') */
+const barSummaryLine = (g, rounds, what, whatDe) => msg('{a} of {b} {what} down · {c} perfect moments · {n} {mishaps}', (q) => `${q.a} von ${q.b} ${whatDe} getrunken · ${q.c} perfekte Momente · ${mishapsDe(q.n)}`,
+  { a: g.drinks, b: rounds, what, c: g.perfect, n: g.strikes, mishaps: g.strikes === 1 ? 'mishap' : 'mishaps' });
+
+/** The "walk to the door" step: `label` the place in English, `to` and `into` its German after "bis" and after "geh" */
+export function walkInto(spot, title, label, to, into, allowModes = ['person']) {
   return {
     id: 'enter',
     title,
@@ -29,7 +40,8 @@ export function walkInto(spot, title, label, allowModes = ['person']) {
     check(ctx) {
       const onFoot = ctx.mode === 'person';
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-      return { done: onFoot && d < spot.r, progress: null, text: onFoot ? `${fmtDist(d)} to ${label}` : `Get out (F) and walk into ${label}`, target: { ...spot, style: 'plain' }, hint: onFoot ? null : 'F: get out' };
+      const text = onFoot ? msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }) : msg('Get out (F) and walk into {where}', 'Steig aus (F) und geh {into}', { where: label, into });
+      return { done: onFoot && d < spot.r, progress: null, text, target: { ...spot, style: 'plain' }, hint: onFoot ? null : 'F: get out' };
     }
   };
 }
@@ -244,13 +256,13 @@ export const SHOTS_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g) return [];
-    const lines = [`${g.drinks} of ${SHOTS.rounds} shots down · ${g.perfect} perfect moments · ${g.strikes} ${g.strikes === 1 ? 'mishap' : 'mishaps'}`];
+    const lines = [barSummaryLine(g, SHOTS.rounds, 'shots', 'Shots')];
     if (g.log.length) lines.push(g.log.map((l) => (l.drank ? `${l.points}` : 'x')).join(' · '));
     if (g.cutOff) lines.push('The barkeeper called time');
     return lines;
   },
   objectives: [
-    walkInto(EX_BAR.door, 'Go into the Ex Bar', 'the Ex Bar'),
+    walkInto(EX_BAR.door, 'Go into the Ex Bar', 'the Ex Bar', 'zur Ex Bar', 'in die Ex Bar'),
     {
       id: 'shots',
       title: `${SHOTS.rounds} rounds of flaming shots`,
@@ -258,7 +270,7 @@ export const SHOTS_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Finding a place at the bar …', target: null, hint: null };
-        return { done: g.done, progress: g.log.length / SHOTS.rounds, text: `Round ${g.round} of ${SHOTS.rounds} · ${shotsScore(g)} pts · ${g.strikes}/${SHOTS.strikes} mishaps`, target: null, hint: 'Space or the button' };
+        return { done: g.done, progress: g.log.length / SHOTS.rounds, text: barRoundLine(g.round, SHOTS.rounds, shotsScore(g), g.strikes, SHOTS.strikes), target: null, hint: 'Space or the button' };
       }
     }
   ]
@@ -613,13 +625,13 @@ export const FLAEMMLI_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g) return [];
-    const lines = [`${g.drinks} of ${FLAEMMLI.rounds} Flämmli down · ${g.perfect} perfect moments · ${g.strikes} ${g.strikes === 1 ? 'mishap' : 'mishaps'}`];
+    const lines = [barSummaryLine(g, FLAEMMLI.rounds, 'Flämmli', 'Flämmli')];
     if (g.log.length) lines.push(g.log.map((l) => (l.drank ? `${l.points}` : 'x')).join(' · '));
     if (g.cutOff) lines.push('The landlord called time');
     return lines;
   },
   objectives: [
-    walkInto(ROT_LIECHTLI.door, 'Go into the Rot Liechtli', 'the Rot Liechtli'),
+    walkInto(ROT_LIECHTLI.door, 'Go into the Rot Liechtli', 'the Rot Liechtli', 'zum Rot Liechtli', 'ins Rot Liechtli'),
     {
       id: 'flaemmli',
       title: `${FLAEMMLI.rounds} rounds of Flämmli`,
@@ -627,7 +639,7 @@ export const FLAEMMLI_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Finding a place at the bar …', target: null, hint: null };
-        return { done: g.done, progress: g.log.length / FLAEMMLI.rounds, text: `Round ${g.round} of ${FLAEMMLI.rounds} · ${flaemmliScore(g)} pts · ${g.strikes}/${FLAEMMLI.strikes} mishaps`, target: null, hint: 'Space or the button' };
+        return { done: g.done, progress: g.log.length / FLAEMMLI.rounds, text: barRoundLine(g.round, FLAEMMLI.rounds, flaemmliScore(g), g.strikes, FLAEMMLI.strikes), target: null, hint: 'Space or the button' };
       }
     }
   ]
@@ -641,10 +653,10 @@ export const FLAEMMLI_MISSION = {
 // footprints of js/davos-geodata.js: the way from the road to the door is free).
 export const PIZZA_HEAVEN = { name: 'Pizza Heaven', door: { x: -559.1, z: -173.4, r: 2.4 }, van: { x: -561.3, z: -180.4, heading: -0.263 } };
 export const PIZZA_STOPS = [
-  { id: 'eisstadion', name: 'the Eisstadion, Talstrasse 41', short: 'Eisstadion', door: { x: -195.5, z: -252.3 }, road: { x: -183.4, z: -267.2 } },
-  { id: 'kongress', name: 'the Kongresszentrum, Talstrasse 49a', short: 'Kongresszentrum', door: { x: 148.2, z: -505.5 }, road: { x: 154.0, z: -505.3 } },
-  { id: 'seehof', name: 'the Hotel Seehof, Promenade 159', short: 'Hotel Seehof', door: { x: 707.1, z: -1505.6 }, road: { x: 717.5, z: -1497.0 } },
-  { id: 'museumstrasse', name: 'Museumstrasse 2, Davos Dorf', short: 'Museumstrasse 2', door: { x: 1012.2, z: -1362.1 }, road: { x: 1010.9, z: -1363.0 } }
+  { id: 'eisstadion', name: 'the Eisstadion, Talstrasse 41', toDe: 'zum Eisstadion, Talstrasse 41', short: 'Eisstadion', door: { x: -195.5, z: -252.3 }, road: { x: -183.4, z: -267.2 } },
+  { id: 'kongress', name: 'the Kongresszentrum, Talstrasse 49a', toDe: 'zum Kongresszentrum, Talstrasse 49a', short: 'Kongresszentrum', door: { x: 148.2, z: -505.5 }, road: { x: 154.0, z: -505.3 } },
+  { id: 'seehof', name: 'the Hotel Seehof, Promenade 159', toDe: 'zum Hotel Seehof, Promenade 159', short: 'Hotel Seehof', door: { x: 707.1, z: -1505.6 }, road: { x: 717.5, z: -1497.0 } },
+  { id: 'museumstrasse', name: 'Museumstrasse 2, Davos Dorf', toDe: 'zur Museumstrasse 2, Davos Dorf', short: 'Museumstrasse 2', door: { x: 1012.2, z: -1362.1 }, road: { x: 1010.9, z: -1363.0 } }
 ];
 export const TOPPINGS = [
   { id: 'tomato', name: 'Tomato', colour: '#c8301e' },
@@ -699,7 +711,7 @@ export function pizzaPick(s, id) {
   const order = PIZZA_ORDERS[s.order];
   if (order.tops[s.picked] !== id) {
     s.mistakes++;
-    s.seq++; s.last = { text: `Not yet: ${TOPPINGS.find((t) => t.id === order.tops[s.picked]).name} next`, points: PIZZA.points.wrong, good: false, seq: s.seq };
+    s.seq++; s.last = { text: msg('Not yet: {top} next', 'Noch nicht: zuerst {top|t}', { top: TOPPINGS.find((t) => t.id === order.tops[s.picked]).name }), points: PIZZA.points.wrong, good: false, seq: s.seq };
     return 'wrong';
   }
   s.picked++;
@@ -707,7 +719,7 @@ export function pizzaPick(s, id) {
   const points = pizzaPoints(order.tops.length, s.t, s.mistakes);
   s.results.push({ name: order.name, t: s.t, mistakes: s.mistakes, points });
   s.score += points;
-  s.seq++; s.last = { text: s.mistakes ? `${order.name}: in the oven` : `${order.name}: flawless!`, points, good: true, seq: s.seq };
+  s.seq++; s.last = { text: s.mistakes ? msg('{name}: in the oven', '{name}: ab in den Ofen', { name: order.name }) : msg('{name}: flawless!', '{name}: makellos!', { name: order.name }), points, good: true, seq: s.seq };
   s.wait = PIZZA.next;
   return 'pizza';
 }
@@ -729,6 +741,15 @@ export function pizzaCarryStep(d, ctx, van, stop) {
   return what;
 }
 export const pizzaScore = (state) => (state.shop?.score || 0) + (state.run?.score || 0);
+/** The pizzas' heat (0-1) as a text */
+export const heatText = (heat) => msg('{n} % hot', '{n} % heiss', { n: Math.round(heat * 100) });
+/** The shop's line: the pizza on the counter, for which stop */
+export const pizzaLine = (s, order, stop) => msg('Pizza {n} of {of}: {name} for {stop}', 'Pizza {n} von {of}: {name} für {stop}', { n: Math.min(s.order + 1, PIZZA_ORDERS.length), of: PIZZA_ORDERS.length, name: order.name, stop: stop.short });
+/** The delivery's line in the van */
+export const pizzaDriveLine = (st, score) => msg('Hot pizzas {h} % · {a}/{b} delivered · {pts} pts{box}', (q) => `Heisse Pizzas ${q.h} % · ${q.a}/${q.b} geliefert · ${q.pts} Pkt.${q.box ? ' · Schachtel in den Armen' : ''}`,
+  { h: Math.round(st.heat * 100), a: st.delivered, b: PIZZA_STOPS.length, pts: score, box: st.carrying ? ' · carrying a box' : '' });
+/** The pop of a delivery: the stop and the heat the box arrived at */
+export const deliveryPopText = (stop, heat) => msg('{stop}: {n} % hot', '{stop}: {n} % heiss', { stop: stop.short, n: Math.round(heat * 100) });
 
 function pizzaDeliverObjective(stop, i) {
   return {
@@ -740,21 +761,23 @@ function pizzaDeliverObjective(stop, i) {
       const done = st.delivered > i;
       const van = st.van;
       const vanD = van ? dist(van, stop.door) : Infinity;
-      const heat = `${Math.round(st.heat * 100)} % hot`;
+      const heat = heatText(st.heat);
       let text, target, hint = null;
       if (ctx.mode === 'car') {
-        text = vanD < BEER.carryMax ? `Park here and get out (F) · ${stop.short}` : `${fmtDist(dist(ctx, stop.road))} to ${stop.name} · ${heat}`;
+        text = vanD < BEER.carryMax ? msg('Park here and get out (F) · {stop}', 'Hier parken und aussteigen (F) · {stop}', { stop: stop.short })
+          : msg('{d} to {where} · {heat}', '{d} bis {to} · {heat|t}', { d: fmtDist(dist(ctx, stop.road)), where: stop.name, to: stop.toDe, heat });
         target = vanD < BEER.carryMax ? { ...stop.door, r: BEER.doorR, style: 'plain' } : { ...stop.road, r: 8, style: 'plain' };
         if (vanD < BEER.carryMax && Math.abs(ctx.speed) < 0.6) hint = 'F: get out';
       } else if (vanD > BEER.carryMax) {
-        text = `The van is ${fmtDist(vanD)} away: drive closer · ${heat}`;
+        text = msg('The van is {d} away: drive closer · {heat}', 'Der Lieferwagen ist {d} entfernt: näher fahren · {heat|t}', { d: fmtDist(vanD), heat });
         target = van ? { ...van, r: BEER.vanR, style: 'plain' } : null;
         hint = 'F: get in';
       } else if (!st.carrying) {
-        text = `Take the box from the back of the van · ${heat}`;
+        text = msg('Take the box from the back of the van · {heat}', 'Schachtel hinten aus dem Lieferwagen nehmen · {heat|t}', { heat });
         target = van ? { ...van, r: BEER.vanR, style: 'plain' } : null;
       } else {
-        text = st.doorT > 0 ? `Handing over … ${stop.short}` : `Carry the box to the door · ${fmtDist(dist(ctx, stop.door))} · ${heat}`;
+        text = st.doorT > 0 ? msg('Handing over … {stop}', 'Übergabe … {stop}', { stop: stop.short })
+          : msg('Carry the box to the door · {d} · {heat}', 'Schachtel zur Tür tragen · {d} · {heat|t}', { d: fmtDist(dist(ctx, stop.door)), heat });
         target = { ...stop.door, r: BEER.doorR, style: 'plain' };
       }
       return { done, progress: st.doorT > 0 ? st.doorT / BEER.handover : null, text, target, hint };
@@ -790,7 +813,7 @@ export const PIZZA_MISSION = {
     return lines;
   },
   objectives: [
-    walkInto(PIZZA_HEAVEN.door, 'Go into Pizza Heaven', 'Pizza Heaven', ['car', 'person']),
+    walkInto(PIZZA_HEAVEN.door, 'Go into Pizza Heaven', 'Pizza Heaven', 'zu Pizza Heaven', 'ins Pizza Heaven', ['car', 'person']),
     {
       id: 'toppings',
       title: `Top ${PIZZA_ORDERS.length} pizzas`,
@@ -798,7 +821,7 @@ export const PIZZA_MISSION = {
       check(ctx, state) {
         const s = state.shop;
         if (!s) return { done: false, progress: 0, text: 'Aprons on …', target: null, hint: null };
-        return { done: s.done, progress: s.results.length / PIZZA_ORDERS.length, text: `Pizza ${Math.min(s.order + 1, PIZZA_ORDERS.length)} of ${PIZZA_ORDERS.length} · ${s.score} pts`, target: null, hint: 'Keys 1-8 or tap the toppings, in the ticket\'s order' };
+        return { done: s.done, progress: s.results.length / PIZZA_ORDERS.length, text: msg('Pizza {n} of {of} · {pts} pts', 'Pizza {n} von {of} · {pts} Pkt.', { n: Math.min(s.order + 1, PIZZA_ORDERS.length), of: PIZZA_ORDERS.length, pts: s.score }), target: null, hint: 'Keys 1-8 or tap the toppings, in the ticket\'s order' };
       }
     },
     ...PIZZA_STOPS.map(pizzaDeliverObjective)

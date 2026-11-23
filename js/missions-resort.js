@@ -10,7 +10,8 @@ import {
   TBAR, TBAR_LIFT_ID, tbarStep, tbarHandOver, tbarTimeTo, tbarSpeed, tbarFrontReady, createTbarGame,
   LAENDLER, LAENDLER_TEMPO, midiHz, thirdBelow, laendlerLevel,
   WAX, WAXES, createWaxBench, waxPick, waxStep, ironHeat, ironBand, waxFor, skiMelted,
-  MARSHAL, ZONES, marshalZones, zoneFree, createMarshal, marshalStep, marshalGesture, marshalActive, marshalCarPose
+  MARSHAL, ZONES, marshalZones, zoneFree, createMarshal, marshalStep, marshalGesture, marshalActive, marshalCarPose,
+  tbarCardText, waxCardText, waxPairText, waxWrongText, marshalCardText, marshalHandText
 } from './missions-data-resort.js';
 import { el } from './dom.js';
 
@@ -530,7 +531,7 @@ const TBAR_FEATURE = {
       b.style.left = `${pct}%`;
     });
     const ready = tbarFrontReady(g);
-    tb.hud.set(`<b>${g.skiers}</b> ${g.skiers === 1 ? 'skier' : 'skiers'} up · ${Math.max(0, Math.ceil(TBAR.length - g.t))} s · rope ${tbarSpeed(g.t).toFixed(1)} m/s${ready ? ' · next pair ready' : ' · moving up …'}${g.queue[0]?.kind === 'kids' ? ' · kids: careful!' : ''}`);
+    tb.hud.set(`<b>${g.skiers}</b> ${tbarCardText(g, Math.max(0, Math.ceil(TBAR.length - g.t)), tbarSpeed(g.t).toFixed(1), ready)}`);
   }
 };
 const _col = new THREE.Color();
@@ -629,7 +630,7 @@ const WAX_FEATURE = {
     for (const e of b.events) {
       if (e.kind === 'burn') blip(run, 'hiss');
       else if (e.kind === 'scrape' || e.kind === 'brush') blip(run, 'scrape');
-      else if (e.kind === 'pair') { wx.pop = { text: `${b.last.customer}: ${b.last.points} pts`, good: e.points >= 70, t: 1.8 }; blip(run, e.points >= 70 ? 'good' : 'bad'); } else if (e.kind === 'wax-wrong') wx.pop = { text: `${e.off === 1 ? 'Close, but' : 'Wrong:'} ${waxFor(b.pair.temp).name} was the wax`, good: false, t: 1.6 };
+      else if (e.kind === 'pair') { wx.pop = { text: waxPairText(b.last), good: e.points >= 70, t: 1.8 }; blip(run, e.points >= 70 ? 'good' : 'bad'); } else if (e.kind === 'wax-wrong') wx.pop = { text: waxWrongText(e.off, waxFor(b.pair.temp).name), good: false, t: 1.6 };
     }
     b.events.length = 0;
     if (wx.pop) { wx.pop.t -= dt; if (wx.pop.t <= 0) wx.pop = null; }
@@ -641,7 +642,7 @@ const WAX_FEATURE = {
     drawBench(wx.c, wx, b);
     const left = Math.max(0, Math.ceil(WAX.length - b.t));
     const stage = { wax: 'read the board, pick the wax (1-5 or tap)', iron: 'drag the iron, or hold → and keep it in the band', scrape: 'scrape, tip to tail: drag, or hold →', brush: 'brush, tip to tail: drag, or hold →' }[b.pair.stage] || '';
-    const html = `<b>${b.score}</b> pts · ${b.pairs.length} pairs · ${left} s · ${stage}`;
+    const html = `<b>${b.score}</b> ${waxCardText(b, left, stage)}`;
     if (wx.info._html !== html) { wx.info._html = html; wx.info.innerHTML = html; }
   }
 };
@@ -743,8 +744,9 @@ function drawBench(c, wx, b) {
     c.fillText(t('Which wax for this snow?'), WW / 2, 342);
   }
   if (wx.pop) {
-    c.font = '900 24px Inter, sans-serif'; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.65)'; c.strokeText(wx.pop.text, WW / 2, 178);
-    c.fillStyle = wx.pop.good ? '#ffe14f' : '#ff8a7a'; c.fillText(t(wx.pop.text), WW / 2, 178);
+    const text = t(wx.pop.text); // (the outline too: it was the English under the German)
+    c.font = '900 24px Inter, sans-serif'; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.65)'; c.strokeText(text, WW / 2, 178);
+    c.fillStyle = wx.pop.good ? '#ffe14f' : '#ff8a7a'; c.fillText(text, WW / 2, 178);
   }
 }
 
@@ -954,8 +956,8 @@ const MARSHAL_FEATURE = {
     // --- the HUD ---
     const chip = (z, label) => { const free = zoneFree(g.zones[z]); return `<span class="rs-zone${free ? '' : ' empty'}" style="border-bottom:3px solid ${ZONE_COLOUR[z]}">${label} <b>${free}</b></span>`; };
     const warn = X.state === 'warn' ? ' <span class="rs-warn">Skiers coming: hold the car!</span>' : X.state === 'on' ? ' <span class="rs-warn">Skiers crossing!</span>' : '';
-    const hand = active ? (active.held ? `held (${Math.ceil(MARSHAL.patience - active.waited)} s)` : `${Math.max(0, Math.round(-active.a))} m to the line`) : 'no car in sight';
-    pm.hud.set(`<b>${Math.max(0, g.score)}</b> pts · ${g.good} good · ${g.crooked} crooked · ${g.blockers} blocking · ${Math.max(0, Math.ceil(MARSHAL.length - g.t))} s · ${hand}${warn}<br>${chip('left', '←')}${chip('straight', '↑')}${chip('right', '→')}`);
+    const hand = marshalHandText(active?.held ? Math.ceil(MARSHAL.patience - active.waited) : null, active && !active.held ? Math.max(0, Math.round(-active.a)) : null);
+    pm.hud.set(`<b>${Math.max(0, g.score)}</b> ${marshalCardText(g, Math.max(0, Math.ceil(MARSHAL.length - g.t)), hand)}${warn}<br>${chip('left', '←')}${chip('straight', '↑')}${chip('right', '→')}`);
   }
 };
 

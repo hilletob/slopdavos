@@ -11,10 +11,28 @@
 //    bay. Score: cars parked well, minus crooked parkers, blockers and close calls with skiers crossing.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 import { BERGBAHNEN } from './bergbahnen-data.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 const fmtClock = (s) => { const v = Math.max(0, Math.ceil(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
+
+// The three games' moving texts in both languages (js/messages.js): made here and in js/missions-resort.js, whose HUD
+// cards put the score in bold before them
+/** The T-bar's card after the bold count: skiers up, the time left, the rope, the next pair */
+export const tbarCardText = (g, left, rope, ready) => msg('{skiers} up · {s} s · rope {rope} m/s{state}{kids}',
+  (q) => `Skifahrer oben · ${q.s} s · Seil ${q.rope} m/s${q.ready ? ' · nächstes Paar bereit' : ' · fährt hoch …'}${q.kids ? ' · Kinder: Vorsicht!' : ''}`,
+  { skiers: g.skiers === 1 ? 'skier' : 'skiers', s: left, rope, state: ready ? ' · next pair ready' : ' · moving up …', ready, kids: g.queue[0]?.kind === 'kids' ? ' · kids: careful!' : '' });
+/** The waxing bench's card after the bold score; `stage` what to do now (a pair of js/i18n.js) */
+export const waxCardText = (b, left, stage) => msg('pts · {n} pairs · {s} s · {stage}', 'Pkt. · {n} Paare · {s} s · {stage|t}', { n: b.pairs.length, s: left, stage });
+/** A pair handed back: the customer and the points */
+export const waxPairText = (last) => msg('{customer}: {pts} pts', '{customer}: {pts} Pkt.', { customer: last.customer, pts: last.points });
+/** The wrong wax picked: `off` 1 a neighbour of the right one */
+export const waxWrongText = (off, wax) => (off === 1 ? msg('Close, but {wax} was the wax', 'Knapp daneben: {wax|t} wäre das richtige Wachs gewesen', { wax }) : msg('Wrong: {wax} was the wax', 'Falsch: {wax|t} wäre das richtige Wachs gewesen', { wax }));
+/** The marshal's card after the bold score; `hand` the car at hand (marshalHandText) */
+export const marshalCardText = (g, left, hand) => msg('pts · {good} good · {crooked} crooked · {blocking} blocking · {s} s · {hand}', 'Pkt. · {good} gut · {crooked} schräg · {blocking} blockiert · {s} s · {hand|t}', { good: g.good, crooked: g.crooked, blocking: g.blockers, s: left, hand });
+/** The car at hand: held (`held` s of patience left), `toLine` m from the line, or none */
+export const marshalHandText = (held, toLine) => (held !== null ? msg('held ({s} s)', 'angehalten ({s} s)', { s: held }) : toLine !== null ? msg('{d} m to the line', '{d} m bis zur Linie', { d: toLine }) : msg('no car in sight', 'kein Auto in Sicht'));
 const round1 = (v) => Math.round(v * 10) / 10;
 
 /** A small seeded random generator (mulberry32) */
@@ -29,13 +47,13 @@ export function seededRandom(seed = 1) {
   };
 }
 
-/** The "walk there" step */
-function walkTo(spot, title, label, id = 'walk') {
+/** The "walk there" step: `to` the place's German after "bis" */
+function walkTo(spot, title, label, to, id = 'walk') {
   return {
     id, title,
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-      return { done: d < spot.r, progress: null, text: `${fmtDist(d)} to ${label}`, target: { ...spot, style: 'plain' }, hint: null };
+      return { done: d < spot.r, progress: null, text: msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }), target: { ...spot, style: 'plain' }, hint: null };
     }
   };
 }
@@ -168,17 +186,17 @@ export const TBAR_MISSION = {
   score: (state) => state.game?.skiers ?? 0,
   summary(state) {
     const g = state.game;
-    return g ? [`${g.pairs} pairs up · ${g.perfects} perfect hand-overs · best run ${g.best} · ${g.knocks} knocked over · ${g.empties} empty bars`] : [];
+    return g ? [msg('{a} pairs up · {b} perfect hand-overs · best run {c} · {d} knocked over · {e} empty bars', '{a} Paare hinauf · {b} perfekte Übergaben · beste Serie {c} · {d} umgeworfen · {e} leere Bügel', { a: g.pairs, b: g.perfects, c: g.best, d: g.knocks, e: g.empties })] : [];
   },
   objectives: [
-    walkTo(TBAR.spot, 'Go to the loading point', 'the loading point'),
+    walkTo(TBAR.spot, 'Go to the loading point', 'the loading point', 'zur Einstiegsstelle'),
     {
       id: 'operate',
       title: 'Send them up (2 min)',
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'The lift is starting …', target: null, hint: null };
-        return { done: g.done, progress: g.t / TBAR.length, text: `${g.skiers} skiers up · ${fmtClock(TBAR.length - g.t)}${g.streak > 2 ? ` · run of ${g.streak}` : ''}`, target: null, hint: 'Space / tap: hand over the bar' };
+        return { done: g.done, progress: g.t / TBAR.length, text: msg('{n} skiers up · {clock}{run}', (q) => `${q.n} Skifahrer oben · ${q.clock}${q.streak ? ` · Serie von ${q.streak}` : ''}`, { n: g.skiers, clock: fmtClock(TBAR.length - g.t), run: g.streak > 2 ? ` · run of ${g.streak}` : '', streak: g.streak > 2 ? g.streak : 0 }), target: null, hint: 'Space / tap: hand over the bar' };
       }
     }
   ]
@@ -418,17 +436,17 @@ export const WAX_MISSION = {
   score: (state) => state.bench?.score ?? 0,
   summary(state) {
     const b = state.bench;
-    return b ? [`${b.pairs.length} pairs waxed · ${b.pairs.map((p) => p.points).join(' · ') || 'no pair finished'}`] : [];
+    return b ? [msg('{n} pairs waxed · {rest}', (q) => `${q.n} Paare gewachst · ${q.list || 'kein Paar fertig'}`, { n: b.pairs.length, rest: b.pairs.map((p) => p.points).join(' · ') || 'no pair finished', list: b.pairs.map((p) => p.points).join(' · ') })] : [];
   },
   objectives: [
-    walkTo(HOFMAENNER.door, 'Go into Sport Hofmänner', 'Hofmänner', 'enter'),
+    walkTo(HOFMAENNER.door, 'Go into Sport Hofmänner', 'Hofmänner', 'Hofmänner', 'enter'),
     {
       id: 'bench',
       title: 'Wax Langlaufski (2:30)',
       check(ctx, state) {
         const b = state.bench;
         if (!b) return { done: false, progress: 0, text: 'The iron is heating up …', target: null, hint: null };
-        return { done: b.done, progress: b.t / WAX.length, text: `${b.score} pts · ${b.pairs.length} pairs · ${fmtClock(WAX.length - b.t)}`, target: null, hint: null };
+        return { done: b.done, progress: b.t / WAX.length, text: msg('{pts} pts · {n} pairs · {clock}', '{pts} Pkt. · {n} Paare · {clock}', { pts: b.score, n: b.pairs.length, clock: fmtClock(WAX.length - b.t) }), target: null, hint: null };
       }
     }
   ]
@@ -665,17 +683,17 @@ export const MARSHAL_MISSION = {
   score: (state) => Math.max(0, state.game?.score ?? 0),
   summary(state) {
     const g = state.game;
-    return g ? [`${g.good} cars parked well · ${g.crooked} crooked · ${g.blockers} blockers · ${g.closes} close calls`] : [];
+    return g ? [msg('{a} cars parked well · {b} crooked · {c} blockers · {d} close calls', '{a} Autos gut geparkt · {b} schräg · {c} blockiert · {d} Beinahe-Unfälle', { a: g.good, b: g.crooked, c: g.blockers, d: g.closes })] : [];
   },
   objectives: [
-    walkTo({ x: MARSHAL.frame.x, z: MARSHAL.frame.z, r: 2.6 }, 'Take your place in the aisle', 'your place'),
+    walkTo({ x: MARSHAL.frame.x, z: MARSHAL.frame.z, r: 2.6 }, 'Take your place in the aisle', 'your place', 'zu deinem Platz'),
     {
       id: 'marshal',
       title: 'Direct the cars (2 min)',
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'The first cars are turning in …', target: null, hint: null };
-        return { done: g.done, progress: g.t / MARSHAL.length, text: `${Math.max(0, g.score)} pts · ${g.good + g.crooked} parked · ${fmtClock(MARSHAL.length - g.t)}`, target: null,
+        return { done: g.done, progress: g.t / MARSHAL.length, text: msg('{pts} pts · {n} parked · {clock}', '{pts} Pkt. · {n} geparkt · {clock}', { pts: Math.max(0, g.score), n: g.good + g.crooked, clock: fmtClock(MARSHAL.length - g.t) }), target: null,
           // (what to do now: the skiers first, then the car in hand, to a side whose arrows are green)
           hint: g.cross.state !== 'idle' ? 'Skiers crossing: stop the car (↓ / Space)' : marshalActive(g) ? 'Wave the car to free bays: ← / ↑ / →' : null };
       }

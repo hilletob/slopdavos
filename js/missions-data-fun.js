@@ -40,14 +40,14 @@ export function seededRandom(seed = 1) {
   };
 }
 
-/** The "walk to the door" step every indoor mission starts with */
-function walkTo(spot, title, label) {
+/** The "walk to the door" step every indoor mission starts with: `to` the place's German after "bis" */
+function walkTo(spot, title, label, to) {
   return {
     id: 'enter',
     title,
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-      return { done: d < spot.r, progress: null, text: `${fmtDist(d)} to ${label}`, target: { ...spot, style: 'plain' }, hint: null };
+      return { done: d < spot.r, progress: null, text: msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }), target: { ...spot, style: 'plain' }, hint: null };
     }
   };
 }
@@ -191,7 +191,7 @@ export const rhythmMedals = (max) => ({ gold: roundTo(max * RHYTHM_MEDAL_SHARE.g
 
 /** A rhythm-game mission at a music venue (`venue`: js/missions-fun.js VENUES has its room, act, crowd and dance): the walk
  *  to `door`, then the song `rhythm`. `action` is the button's word, `tuning` the line before the first note */
-function rhythmMission({ door, doorTitle, doorLabel, stepTitle, tuning, action, ...def }) {
+function rhythmMission({ door, doorTitle, doorLabel, doorTo, stepTitle, tuning, action, ...def }) {
   return {
     mode: 'person',
     features: ['headbang'],
@@ -207,7 +207,7 @@ function rhythmMission({ door, doorTitle, doorLabel, stepTitle, tuning, action, 
       return [`${g.perfect} perfect · ${g.good} good · ${g.miss} missed · best streak ${g.maxCombo}`];
     },
     objectives: [
-      walkTo(door, doorTitle, doorLabel),
+      walkTo(door, doorTitle, doorLabel, doorTo),
       {
         id: 'bang',
         title: stepTitle,
@@ -247,6 +247,7 @@ export const HEADBANG_MISSION = rhythmMission({
   door: BOX_DOOR,
   doorTitle: 'Go into the BOX',
   doorLabel: 'the BOX',
+  doorTo: 'zur BOX',
   stepTitle: 'Headbang on the beat',
   tuning: 'The band is tuning up …',
   action: 'BANG'
@@ -284,6 +285,7 @@ export const BOLGEN_MISSION = rhythmMission({
   door: BOLGEN_DOOR,
   doorTitle: 'Go into the Bolgenschanze',
   doorLabel: 'the Bolgenschanze',
+  doorTo: 'zur Bolgenschanze',
   stepTitle: 'Jump on the beat',
   tuning: 'The DJ is lining up the track …',
   action: 'JUMP'
@@ -588,7 +590,7 @@ export const FOOSBALL_MISSION = {
     return [`Final score ${g.score.p} : ${g.score.a} after ${fmtClock(g.t)} · ${g.kicks} shots`];
   },
   objectives: [
-    walkTo(ONDA_DOOR, 'Go into the Bar La Onda', 'La Onda'),
+    walkTo(ONDA_DOOR, 'Go into the Bar La Onda', 'La Onda', 'La Onda'),
     {
       id: 'match',
       title: 'Win the match (first to 5)',
@@ -848,7 +850,7 @@ export const GONDOLA_MISSION = {
     return [`${gondolaPersons(g)} passengers in ${g.cabins.length} cabins · ${fill} % full on average · ${rows} full rows · ${holes} holes`];
   },
   objectives: [
-    walkTo(JAKOBSHORN_GATE, 'Go to the Jakobshornbahn', 'the valley station'),
+    walkTo(JAKOBSHORN_GATE, 'Go to the Jakobshornbahn', 'the valley station', 'zur Talstation'),
     {
       id: 'load',
       title: 'Pack the cabins (100 s)',
@@ -1020,7 +1022,7 @@ function rhbStopObjective(name, i) {
       if (!d) return { done: false, progress: null, text: `Next stop ${name}`, target: null, hint: 'W: throttle · S: brake' };
       const stop = d.timetable[i];
       const result = d.results[i];
-      if (result) return { done: true, progress: 1, text: result.missed ? `Missed ${name}` : `${name}: ${result.total} pts`, target: null, hint: null };
+      if (result) return { done: true, progress: 1, text: result.missed ? `Missed ${name}` : msg('{name}: {pts} pts', '{name}: {pts} Pkt.', { name, pts: result.total }), target: null, hint: null };
       const togo = stop.s - d.s;
       const limit = rhbLimitAt(d.sections, d.s);
       const delay = d.t - stop.arrive;
@@ -1031,7 +1033,7 @@ function rhbStopObjective(name, i) {
       } else {
         text = `${name} in ${fmtDist(Math.abs(togo))}${togo < 0 ? ' (past the board)' : ''} · due ${fmtClock(stop.arrive)} (${fmtSigned(delay)}) · ${Math.round(d.speed * 3.6)}/${limit} km/h`;
       }
-      return { done: false, progress: null, text, target: ctx.stopTarget || null, hint: d.speed * 3.6 > limit + RHB_DRIVE.tolerance ? `Too fast: limit ${limit} km/h` : null };
+      return { done: false, progress: null, text, target: ctx.stopTarget || null, hint: d.speed * 3.6 > limit + RHB_DRIVE.tolerance ? msg('Too fast: limit {v} km/h', 'Zu schnell: Limit {v} km/h', { v: limit }) : null };
     }
   };
 }

@@ -646,7 +646,7 @@ export const GARBAGE_MISSION = {
         const d = Math.hypot(ctx.x - GARBAGE.kma.x, ctx.z - GARBAGE.kma.z);
         return {
           done: state.unloadT >= GARBAGE.unloadS, progress: state.unloadT / GARBAGE.unloadS,
-          text: state.atKma ? `Unloading … ${Math.round((state.unloadT / GARBAGE.unloadS) * 100)} %` : msg('To the KMA · {d}', 'Zur KMA · {d}', { d: fmtDist(d) }),
+          text: state.atKma ? msg('Unloading … {pct} %', 'Abladen … {pct} %', { pct: Math.round((state.unloadT / GARBAGE.unloadS) * 100) }) : msg('To the KMA · {d}', 'Zur KMA · {d}', { d: fmtDist(d) }),
           target: { x: GARBAGE.kma.x, z: GARBAGE.kma.z, r: GARBAGE.kma.r, style: 'pad' }, hint: state.atKma ? 'Stand still while the press empties' : null
         };
       }
@@ -1238,7 +1238,8 @@ export const CRANE_MISSION = {
   ],
   summary(state) {
     const parts = state.results.map((r) => `${r.err.toFixed(2)} m, ${r.v.toFixed(2)} m/s`);
-    return [msg('Set down: {parts}', 'Abgesetzt: {parts}', { parts: parts.join(' · ') }), `${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.hard} hard ${state.hard === 1 ? 'landing' : 'landings'}`];
+    return [msg('Set down: {parts}', 'Abgesetzt: {parts}', { parts: parts.join(' · ') }), msg('{a} {hits} · {b} hard {landings}', (q) => `${q.a} Treffer · ${q.b} harte ${q.b === 1 ? 'Landung' : 'Landungen'}`,
+      { a: state.hits, hits: state.hits === 1 ? 'hit' : 'hits', b: state.hard, landings: state.hard === 1 ? 'landing' : 'landings' })];
   }
 };
 
@@ -1393,14 +1394,14 @@ export const SNOW_HAUL_MISSION = {
         if (atEnd && state.load < LOADER.capacity * LOADER.minLoad) return { done: false, fail: 'The road is finished and the truck is nearly empty: the snow lies beside it.', text: '', progress: null, target: null, hint: null };
         const share = state.blown > 0 ? Math.round((100 * (state.blown - state.spilled)) / state.blown) : 100;
         const hint = ctx.mode !== 'car' ? 'Back into the blower' : state.blown > 0 && !state.onBed ? 'The stream misses the bed: close up beside the truck' : state.choke ? 'Too fast: the auger chokes and leaves snow' : null;
-        return { done: state.load >= LOADER.capacity - 0.01 || atEnd, progress: state.load / LOADER.capacity, text: `Truck ${volText(state.load)} of ${LOADER.capacity} m³ · ${share} % on the bed`, target: null, hint };
+        return { done: state.load >= LOADER.capacity - 0.01 || atEnd, progress: state.load / LOADER.capacity, text: msg('Truck {v} of {cap} m³ · {share} % on the bed', 'Lastwagen {v} von {cap} m³ · {share} % auf der Brücke', { v: volText(state.load), cap: LOADER.capacity, share }), target: null, hint };
       }
     },
     {
       id: 'swap',
       title: 'Climb into the truck',
       check(ctx, state) {
-        return { done: state.inTruck, progress: null, text: `${volText(state.load)} m³ on board`, target: state.truckAt ? { x: state.truckAt.x, z: state.truckAt.z, r: 4 } : null, hint: state.truckDist > LOADER.swapReach ? 'Drive closer to the truck' : 'E: climb across' };
+        return { done: state.inTruck, progress: null, text: msg('{v} m³ on board', '{v} m³ geladen', { v: volText(state.load) }), target: state.truckAt ? { x: state.truckAt.x, z: state.truckAt.z, r: 4 } : null, hint: state.truckDist > LOADER.swapReach ? 'Drive closer to the truck' : 'E: climb across' };
       }
     },
     {
@@ -1410,7 +1411,7 @@ export const SNOW_HAUL_MISSION = {
         if (ctx.t > LOADER.limitMs) return { done: false, fail: 'The dump has closed for the night: too slow.', text: '', progress: null, target: null, hint: null };
         const d = Math.hypot(ctx.x - TIP_SPOT.x, ctx.z - TIP_SPOT.z);
         const next = nextOnRoute(state, ctx.x, ctx.z);
-        return { done: d <= TIP_SPOT.approachR, progress: state.routeS / TRUCK_ROUTE.length, text: `${fmtDist(d)} to the snow dump · ${volText(state.load)} m³`, target: { x: next.x, z: next.z, r: 6 }, hint: state.shedding ? 'Too fast in the bend: snow over the side' : null };
+        return { done: d <= TIP_SPOT.approachR, progress: state.routeS / TRUCK_ROUTE.length, text: msg('{d} to the snow dump · {v} m³', '{d} bis zur Schneedeponie · {v} m³', { d: fmtDist(d), v: volText(state.load) }), target: { x: next.x, z: next.z, r: 6 }, hint: state.shedding ? 'Too fast in the bend: snow over the side' : null };
       }
     },
     {
@@ -1419,13 +1420,16 @@ export const SNOW_HAUL_MISSION = {
       check(ctx, state) {
         if (state.inLake) return { done: false, fail: 'The truck is in the Davosersee. The Werkhof is not amused.', text: '', progress: null, target: null, hint: null };
         const pose = state.pose;
-        const hint = state.tipped > 0 && state.load > 0 ? 'Hold on: it is sliding' : !pose ? null : !pose.placed ? `Tail to the mark, nose away from the water: ${pose.dist.toFixed(1)} m` : !pose.stopped ? 'Stop the truck' : 'Hold E to tip';
-        return { done: state.load <= 0.01, progress: state.tipped / Math.max(0.01, state.tipped + state.load), text: `${volText(state.load)} m³ left on the bed`, target: pose?.placed ? null : { x: TIP_SPOT.x, z: TIP_SPOT.z, r: TIP_SPOT.r, style: 'pad' }, hint }; // (in place, the marker's column would stand in the view)
+        const hint = state.tipped > 0 && state.load > 0 ? 'Hold on: it is sliding' : !pose ? null : !pose.placed ? msg('Tail to the mark, nose away from the water: {d} m', 'Heck zur Markierung, Front weg vom Wasser: {d} m', { d: pose.dist.toFixed(1) }) : !pose.stopped ? 'Stop the truck' : 'Hold E to tip';
+        return { done: state.load <= 0.01, progress: state.tipped / Math.max(0.01, state.tipped + state.load), text: msg('{v} m³ left on the bed', 'Noch {v} m³ auf der Brücke', { v: volText(state.load) }), target: pose?.placed ? null : { x: TIP_SPOT.x, z: TIP_SPOT.z, r: TIP_SPOT.r, style: 'pad' }, hint }; // (in place, the marker's column would stand in the view)
       }
     }
   ],
   summary(state) {
-    return [`${volText(state.tipped)} of ${LOADER.capacity} m³ in the lake · ${volText(state.spilled)} m³ beside the truck · ${volText(state.shed)} m³ lost in bends`, `${state.hits} ${state.hits === 1 ? 'knock' : 'knocks'} against the truck`];
+    return [
+      msg('{a} of {cap} m³ in the lake · {b} m³ beside the truck · {c} m³ lost in bends', '{a} von {cap} m³ im See · {b} m³ neben dem Lastwagen · {c} m³ in Kurven verloren', { a: volText(state.tipped), cap: LOADER.capacity, b: volText(state.spilled), c: volText(state.shed) }),
+      msg('{n} {knocks} against the truck', '{n} Rempler am Lastwagen', { n: state.hits, knocks: state.hits === 1 ? 'knock' : 'knocks' })
+    ];
   }
 };
 

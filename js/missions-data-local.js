@@ -42,10 +42,8 @@ export function seededRandom(seed = 1) {
   };
 }
 
-/** The "walk to the door" step */
-// (the places walked to that have their German here; the others' lines are left to js/i18n.js)
-const WALK_TO_DE = { 'the bakery': 'zur Bäckerei', 'the Eichhörnliplatz': 'zum Eichhörnliplatz' };
-function walkTo(spot, title, label, id = 'enter') {
+/** The "walk to the door" step: `to` the place's German after "bis" */
+function walkTo(spot, title, label, to, id = 'enter') {
   return {
     id,
     title,
@@ -53,8 +51,7 @@ function walkTo(spot, title, label, id = 'enter') {
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
       const onFoot = ctx.mode === 'person';
-      const to = onFoot && WALK_TO_DE[label];
-      const text = !onFoot ? 'Get off (F) and walk in' : to ? msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }) : `${fmtDist(d)} to ${label}`;
+      const text = !onFoot ? 'Get off (F) and walk in' : msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to });
       return { done: onFoot && d < spot.r, progress: null, text, target: { ...spot, style: 'plain' }, hint: onFoot ? null : 'F: get off' };
     }
   };
@@ -117,7 +114,8 @@ function beerDeliverObjective(stop, i) {
       const vanD = van ? dist(van, stop.door) : Infinity;
       let text, target, hint = null;
       if (ctx.mode === 'car') {
-        text = vanD < BEER.carryMax ? `Park here and get out (F) · ${stop.name}` : `${fmtDist(dist(ctx, stop.road))} to ${stop.name}`;
+        text = vanD < BEER.carryMax ? msg('Park here and get out (F) · {stop}', 'Hier parken und aussteigen (F) · {stop}', { stop: stop.name })
+          : msg('{d} to {where}', '{d} bis {where}', { d: fmtDist(dist(ctx, stop.road)), where: stop.name });
         target = vanD < BEER.carryMax ? { ...stop.door, r: BEER.doorR, style: 'plain' } : { ...stop.road, r: 8, style: 'plain' };
         if (vanD < BEER.carryMax && Math.abs(ctx.speed) < 0.6) hint = 'F: get out';
       } else if (vanD > BEER.carryMax) {
@@ -128,7 +126,7 @@ function beerDeliverObjective(stop, i) {
         text = 'Take a crate from the back of the van';
         target = van ? { ...van, r: BEER.vanR, style: 'plain' } : null;
       } else {
-        text = st.doorT > 0 ? `Handing over … ${stop.name}` : msg('Carry the crate in · {d}', 'Trag die Kiste hinein · {d}', { d: fmtDist(dist(ctx, stop.door)) });
+        text = st.doorT > 0 ? msg('Handing over … {stop}', 'Übergabe … {stop}', { stop: stop.name }) : msg('Carry the crate in · {d}', 'Trag die Kiste hinein · {d}', { d: fmtDist(dist(ctx, stop.door)) });
         target = { ...stop.door, r: BEER.doorR, style: 'plain' };
       }
       return { done, progress: st.doorT > 0 ? st.doorT / BEER.handover : null, text, target, hint };
@@ -297,7 +295,7 @@ export const GIPFELI_MISSION = {
     return lines;
   },
   objectives: [
-    walkTo(WEBER.door, 'Go into the Bäckerei Weber', 'the bakery'),
+    walkTo(WEBER.door, 'Go into the Bäckerei Weber', 'the bakery', 'zur Bäckerei'),
     {
       id: 'form',
       title: `Roll ${GIPFELI.count} Gipfeli`,
@@ -403,7 +401,7 @@ export const RACLETTE_MISSION = {
     return g ? [`${g.served} plates · ${g.perfect} just right · ${g.burnt} burnt · ${g.left} guests left hungry`] : [];
   },
   objectives: [
-    walkTo(KAECH.door, 'Go into Gourmet Käch', 'Käch'),
+    walkTo(KAECH.door, 'Go into Gourmet Käch', 'Käch', 'Käch'),
     {
       id: 'serve',
       title: 'Serve raclette for 90 s',
@@ -792,7 +790,7 @@ export const SQUIRREL_MISSION = {
     return [`${g.fed} squirrels fed · best streak ${g.best} · ${g.fled} scared away`];
   },
   objectives: [
-    walkTo(SQUIRREL_SPOT, 'Walk to the Eichhörnliplatz', 'the Eichhörnliplatz', 'path'),
+    walkTo(SQUIRREL_SPOT, 'Walk to the Eichhörnliplatz', 'the Eichhörnliplatz', 'zum Eichhörnliplatz', 'path'),
     {
       id: 'feed',
       title: 'Feed the squirrels (3 min)',
@@ -1145,7 +1143,7 @@ export const TENNIS_MISSION = {
     return g ? [`Tiebreak ${g.score.p} : ${g.score.a} · ${g.aces} aces · ${g.winners} winners`] : [];
   },
   objectives: [
-    walkTo(FAERBI.door, 'Go into the Sporthalle Färbi', 'the tennis hall'),
+    walkTo(FAERBI.door, 'Go into the Sporthalle Färbi', 'the tennis hall', 'zur Tennishalle'),
     {
       id: 'tiebreak',
       title: 'Play the tiebreak (first to 7)',
@@ -1281,7 +1279,7 @@ export const WATERSLIDE_MISSION = {
     return r ? [`Top speed ${(r.top * 3.6).toFixed(0)} km/h · on the wall ${r.rubT.toFixed(1)} s · jolts ${r.joltT.toFixed(1)} s`] : [];
   },
   objectives: [
-    walkTo(EAU.stairs, 'Up the slide tower', 'the slide tower'),
+    walkTo(EAU.stairs, 'Up the slide tower', 'the slide tower', 'zum Rutschbahnturm'),
     {
       id: 'slide',
       title: 'Slide down!',
@@ -1438,7 +1436,7 @@ export const KIRCHNER_MISSION = {
     return r ? [`Likeness ${Math.round(r.likeness * 100)} % · colour ${Math.round(r.colour * 100)} % · contours ${Math.round(r.contour * 100)} %`] : [];
   },
   objectives: [
-    walkTo(KIRCHNER.easel, 'Go to the easel at the Kirchner Museum', 'the easel'),
+    walkTo(KIRCHNER.easel, 'Go to the easel at the Kirchner Museum', 'the easel', 'zur Staffelei'),
     {
       id: 'paint',
       title: 'Paint the view (3 min)',

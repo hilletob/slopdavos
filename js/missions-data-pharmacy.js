@@ -186,7 +186,7 @@ const fragilePct = (state) => {
   const worst = Math.min(...f.map((p) => p.condition));
   return worst < 1 ? Math.round(worst * 100) : null;
 };
-const handHint = (state) => (state.hand && state.hand.t > 0 ? `Handing over … ${Math.round(clamp(state.hand.t / DELIVERY.handS, 0, 1) * 100)} %` : null);
+const handHint = (state) => (state.hand && state.hand.t > 0 ? msg('Handing over … {pct} %', 'Übergabe … {pct} %', { pct: Math.round(clamp(state.hand.t / DELIVERY.handS, 0, 1) * 100) }) : null);
 const rideHint = (ctx, state, target, d) => {
   if (ctx.mode !== 'cargobike') return 'Back onto the cargo bike';
   const h = handHint(state);

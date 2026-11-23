@@ -1714,7 +1714,7 @@ const snowLoad = {
           const now = performance.now();
           if (now - w.lastHit > 2500 && run.phase === 'running') {
             w.lastHit = now; st.hits++;
-            w.toast.show(`Knocked the truck  -${LOADER.points.hit}`, '#ff8f80', 2);
+            w.toast.show(msg('Knocked the truck  -{p}', 'Lastwagen gerammt  -{p}', { p: LOADER.points.hit }), '#ff8f80', 2);
             run.audio?.thump?.();
           }
         }

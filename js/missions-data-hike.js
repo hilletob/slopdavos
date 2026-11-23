@@ -10,6 +10,7 @@
 import { SCHWARZHORN_ROUTE, JOERISEEN_ROUTE } from './missions-hike-routes.js';
 import { minuteAtHeight, SUNRISE_HEIGHT } from './solar.js';
 import { seededRandom } from './missions-data-expert.js';
+import { msg } from './messages.js';
 
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 const headingTo = (a, b) => Math.atan2(b[0] - a[0], b[1] - a[1]);
@@ -216,7 +217,7 @@ function stageObjective(stage, i, count) {
       return {
         done,
         progress: hikeProgress(h),
-        text: `${fmtDist(h.total - h.furthest)} to go · stage ${i + 1} of ${count}`,
+        text: msg('{d} to go · stage {n} of {of}', 'noch {d} · Etappe {n} von {of}', { d: fmtDist(h.total - h.furthest), n: i + 1, of: count }),
         target: { x: stage.x, z: stage.z, r: HIKE.reach, style: 'plain' },
         hint: h.off > HIKE.offTrail ? 'Off the path: back to the waymarks' : null
       };

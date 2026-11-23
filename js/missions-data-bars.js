@@ -126,6 +126,12 @@ function pushChat(g, who, text) {
   if (g.chats.length > 6) g.chats.shift();
 }
 const nagelSay = (g, who, list) => pushChat(g, who, pick(g.rand, list));
+/** The pops' moving lines (js/missions-gastro.js flashPop puts the points to them) */
+export const winsText = (name) => msg('{who} wins this one', '{who|t} gewinnt diese Partie', { who: name });
+export const inByText = (cm) => msg('In by {cm} cm', '{cm} cm tiefer', { cm: cm.toFixed(1) });
+/** A drink served at `quality` (0-1): its pop's line */
+export const servedText = (name, quality) => (quality > 0.7 ? msg('A fine {name}', 'Ein feiner {name}', { name }) : quality > 0.35 ? msg('{name}: it will do', '{name}: Es geht so', { name })
+  : msg('{name}: nobody says a word', '{name}: Niemand sagt ein Wort', { name }));
 function nagelPop(g, text, points, good) { g.seq++; g.last = { text, points: Math.round(points), good, seq: g.seq }; }
 /** Someone from the lineup who isn't `id`, or nobody when you are alone with them (never) */
 function otherRival(g, id) { return pick(g.rand, g.players.filter((p) => !p.you && p.id !== id)).id; }
@@ -145,7 +151,7 @@ function endNagelnGame(g, winner) {
   } else {
     const better = g.players.filter((p) => p.left < you.left).length;
     if (better === 1) pts = P.runnerUp;
-    nagelPop(g, `${winner.name} wins this one`, pts, false);
+    nagelPop(g, winsText(winner.name), pts, false);
     nagelSay(g, winner.id, NAGELN_LINES.win);
     g.cheer++;
   }
@@ -179,7 +185,7 @@ function nagelStrike(g, player, aim, power) {
   if (you) {
     g.strokes++;
     if (res.kind === 'perfect') { g.perfects++; g.score += P.perfect; nagelPop(g, 'Right on the head!', P.perfect, true); g.cheer++; if (g.rand() < 0.6) nagelSay(g, otherRival(g, 'you'), NAGELN_LINES.youGood); }
-    else if (res.kind === 'hit') nagelPop(g, `In by ${res.drive.toFixed(1)} cm`, 0, true);
+    else if (res.kind === 'hit') nagelPop(g, inByText(res.drive), 0, true);
     else if (res.kind === 'glance') nagelPop(g, 'A glancing blow', 0, false);
     else if (res.kind === 'straighten') nagelPop(g, 'Straightened it again', 0, true);
     else if (res.kind === 'bent') { g.bents++; nagelPop(g, 'Bent the nail: turn lost', 0, false); nagelSay(g, otherRival(g, 'you'), NAGELN_LINES.youBad); }
@@ -264,7 +270,7 @@ export const NAGELN_MISSION = {
     return lines;
   },
   objectives: [
-    walkInto(TIJUANA.door, 'Go into the Tijuana Bar', 'the Tijuana Bar'),
+    walkInto(TIJUANA.door, 'Go into the Tijuana Bar', 'the Tijuana Bar', 'zur Tijuana Bar', 'in die Tijuana Bar'),
     {
       id: 'nageln',
       title: `${NAGELN.games} games of Nageln`,
@@ -488,7 +494,7 @@ function serve(g) {
   g.qualitySum += quality;
   g.log.push({ guest: guest.id, drink: guest.drink, quality, points: Math.round(pts) });
   const name = drinkById(guest.drink).name;
-  baristaPop(g, w.bonus ? 'The usual, remembered!' : quality > 0.7 ? `A fine ${name}` : quality > 0.35 ? `${name}: it will do` : `${name}: nobody says a word`, pts, quality > 0.35);
+  baristaPop(g, w.bonus ? 'The usual, remembered!' : servedText(name, quality), pts, quality > 0.35);
   if (w.bonus) baristaSay(g, guestWho(guest), 'You remembered! Merci vilmal.');
   else if (quality > 0.7) baristaSay(g, guestWho(guest), pick(g.rand, ['Merci vilmal!', 'Now that is coffee.', 'Exactly how it should be.']));
   else if (quality < 0.35) baristaSay(g, guestWho(guest), pick(g.rand, ['Hm. Is the machine new?', 'I have had worse. In Chur.', 'Well. It is warm.']));
@@ -570,7 +576,7 @@ export const BARISTA_MISSION = {
     ];
   },
   objectives: [
-    walkInto(KAFI.door, 'Go into the Kafi Klatsch', 'the Kafi Klatsch'),
+    walkInto(KAFI.door, 'Go into the Kafi Klatsch', 'the Kafi Klatsch', 'zum Kafi Klatsch', 'ins Kafi Klatsch'),
     {
       id: 'barista',
       title: 'Get through the morning rush',

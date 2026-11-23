@@ -46,13 +46,13 @@ export function seededRandom(seed = 1) {
   };
 }
 const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
-function walkTo(spot, title, label) {
+function walkTo(spot, title, label, to) {
   return {
     id: 'enter',
     title,
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-      return { done: d < spot.r, progress: null, text: `${fmtDist(d)} to ${label}`, target: { ...spot, style: 'plain' }, hint: null };
+      return { done: d < spot.r, progress: null, text: msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }), target: { ...spot, style: 'plain' }, hint: null };
     }
   };
 }
@@ -942,7 +942,7 @@ export const DARTS_MISSION = {
     return [`301 checked out in ${g.darts} darts · best turn ${g.best} · ${g.busts} ${g.busts === 1 ? 'bust' : 'busts'}`, g.log.map((l) => (l.bust ? 'bust' : l.total)).join(' · ')];
   },
   objectives: [
-    walkTo(WILDMAN_DOOR, 'Go into The Green Wildman', 'The Green Wildman'),
+    walkTo(WILDMAN_DOOR, 'Go into The Green Wildman', 'The Green Wildman', 'The Green Wildman'),
     {
       id: 'leg',
       title: 'Check out 301 (double out)',

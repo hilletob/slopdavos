@@ -11,10 +11,15 @@
 //    wet, wrap, smooth, sign. Scored: above all the evenness of the wrap, and the time.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 import { seededRandom } from './missions-data-resort.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 const fmtClock = (s) => { const v = Math.max(0, Math.ceil(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
+/** The cast's pop when it is wrapped (js/missions-care.js) */
+export const wrappedText = (gaps, lumps) => msg('{g} gaps · {l} lumps', '{g} Lücken · {l} Klumpen', { g: gaps, l: lumps });
+/** The pop of a patient done: the name and the points */
+export const patientDoneText = (name, pts) => msg('{name}: {pts} pts', '{name}: {pts} Pkt.', { name, pts });
 const headingTo = (a, b) => Math.atan2(b.x - a.x, b.z - a.z);
 
 // =====================================================================================================================
@@ -192,7 +197,7 @@ function shoeFlag(id, spot, title, finished = false) {
       if (done) { state.flags++; state.events.push({ kind: 'flag' }); if (finished) state.finished = true; }
       const blown = state.shoer?.blown;
       return {
-        done, progress: null, text: `${fmtDist(d)} to the flag`,
+        done, progress: null, text: msg('{d} to the flag', '{d} bis zum Fähnli', { d: fmtDist(d) }),
         target: { ...flag, style: 'plain' },
         hint: state.inZone ? 'You are in the Wildruhezone: get out!' : blown ? 'Out of breath: stop for a moment' : null
       };
@@ -219,7 +224,7 @@ export const SNOWSHOE_MISSION = {
   score: shoeScore,
   update: shoeWatch,
   summary(state) {
-    return [`${Math.round(packedShare(state) * 100)} % on the packed line · ${state.zoneEntries} times in the Wildruhezone · ${state.startled} grouse startled · ${state.shoer?.stumbles || 0} stumbles`];
+    return [msg('{a} % on the packed line · {b} times in the Wildruhezone · {c} grouse startled · {d} stumbles', '{a} % auf der Spur · {b}-mal in der Wildruhezone · {c} Birkhühner aufgeschreckt · {d} Stolperer', { a: Math.round(packedShare(state) * 100), b: state.zoneEntries, c: state.startled, d: state.shoer?.stumbles || 0 })];
   },
   objectives: [
     shoeFlag('flag1', SHOE.flags[0], 'Over the Junkerboden'),
@@ -237,7 +242,7 @@ export const SNOWSHOE_MISSION = {
           if (done) { state.seated = false; state.flags++; state.events.push({ kind: 'flag' }); }
           return { done, progress: s ? s.stamina : 1, text: 'Catching your breath: Frauenkirch on the left, Davos Platz up the valley', target: null, hint: null };
         }
-        return { done: false, progress: null, text: `${fmtDist(d)} to the bench`, target: { x: B.x, z: B.z, r: B.r, style: 'plain' }, hint: state.shoer?.blown ? 'Out of breath: stop for a moment' : null };
+        return { done: false, progress: null, text: msg('{d} to the bench', '{d} bis zum Bänkli', { d: fmtDist(d) }), target: { x: B.x, z: B.z, r: B.r, style: 'plain' }, hint: state.shoer?.blown ? 'Out of breath: stop for a moment' : null };
       }
     },
     shoeFlag('finish', SHOE.finish, 'To the Junkerbodenstrasse', true)
@@ -471,7 +476,8 @@ export const CAST_MISSION = {
   score: (state) => state.room?.score ?? 0,
   summary(state) {
     const g = state.room;
-    return g ? [`${g.patients.length} casts · ${g.patients.map((p) => p.points).join(' · ') || 'no cast finished'} · ${g.patients.reduce((a, p) => a + p.parts.gaps, 0)} gaps · ${g.patients.reduce((a, p) => a + p.parts.lumps, 0)} lumps`] : [];
+    return g ? [msg('{n} casts · {rest} · {g} gaps · {l} lumps', (q) => `${q.n} Gipse · ${q.list || 'kein Gips fertig'} · ${q.g} Lücken · ${q.l} Klumpen`,
+      { n: g.patients.length, rest: g.patients.map((p) => p.points).join(' · ') || 'no cast finished', list: g.patients.map((p) => p.points).join(' · '), g: g.patients.reduce((a, p) => a + p.parts.gaps, 0), l: g.patients.reduce((a, p) => a + p.parts.lumps, 0) })] : [];
   },
   objectives: [
     {
@@ -479,7 +485,7 @@ export const CAST_MISSION = {
       title: 'Go into the Spital Davos',
       check(ctx) {
         const d = Math.hypot(ctx.x - CAST_DOOR.x, ctx.z - CAST_DOOR.z);
-        return { done: d < CAST_DOOR.r, progress: null, text: `${fmtDist(d)} to the Spital Davos`, target: { ...CAST_DOOR, style: 'plain' }, hint: null };
+        return { done: d < CAST_DOOR.r, progress: null, text: msg('{d} to the Spital Davos', '{d} bis zum Spital Davos', { d: fmtDist(d) }), target: { ...CAST_DOOR, style: 'plain' }, hint: null };
       }
     },
     {
@@ -488,7 +494,7 @@ export const CAST_MISSION = {
       check(ctx, state) {
         const g = state.room;
         if (!g) return { done: false, progress: 0, text: 'Mixing the plaster …', target: null, hint: null };
-        return { done: g.done, progress: g.i / CAST_PATIENTS.length, text: `Patient ${Math.min(g.i + 1, CAST_PATIENTS.length)} of ${CAST_PATIENTS.length} · ${g.score} pts · ${fmtClock(g.t)}`, target: null, hint: null };
+        return { done: g.done, progress: g.i / CAST_PATIENTS.length, text: msg('Patient {n} of {of} · {pts} pts · {clock}', 'Patient {n} von {of} · {pts} Pkt. · {clock}', { n: Math.min(g.i + 1, CAST_PATIENTS.length), of: CAST_PATIENTS.length, pts: g.score, clock: fmtClock(g.t) }), target: null, hint: null };
       }
     }
   ]

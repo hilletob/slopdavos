@@ -597,12 +597,12 @@ export function botShiftInput(g, M = MINE, { reserve = 12 } = {}) {
 }
 
 // --- The missions --------------------------------------------------------------------------------------------------------
-const walkTo = (spot, title, label, id = 'enter') => ({
+const walkTo = (spot, title, label, to, id = 'enter') => ({
   id,
   title,
   check(ctx) {
     const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-    return { done: d < spot.r, progress: null, text: `${Math.max(0, Math.round(d))} m to ${label}`, target: { ...spot, style: 'plain' }, hint: null };
+    return { done: d < spot.r, progress: null, text: msg('{d} m to {where}', '{d} m bis {to}', { d: Math.max(0, Math.round(d)), where: label, to }), target: { ...spot, style: 'plain' }, hint: null };
   }
 });
 
@@ -640,7 +640,7 @@ export const MINE_MISSION = {
     ];
   },
   objectives: [
-    walkTo(MINE_DOOR, 'Go to the Hilfsstollen of the Silberberg', 'the adit'),
+    walkTo(MINE_DOOR, 'Go to the Hilfsstollen of the Silberberg', 'the adit', 'zum Stollen'),
     {
       id: 'mine',
       title: 'Mine the ore and get out before the lamp dies',
@@ -669,12 +669,12 @@ export const MINE_MISSION = {
 
 // (the stations: the asset's, by name; r: how near counts; title: the plaque's)
 export const TOUR_STATIONS = {
-  barbara: { adit: 'dalvazzer', station: 'barbara', r: 1.6, label: 'St Barbara', title: 'St Barbara' },
-  stope: { adit: 'dalvazzer', station: 'end', r: 2.0, label: 'the stope', title: 'The stope' },
-  y1813: { adit: 'hilfsstollen', station: 'y1813', r: 2.0, label: 'the year 1813', title: '1813' },
-  crossing: { adit: 'hilfsstollen', station: 'crossing', r: 2.4, label: 'the crossing', title: 'The crossing' },
-  y1818: { adit: 'hilfsstollen', station: 'y1818', r: 2.0, label: 'the year 1818', title: '1818' },
-  end: { adit: 'hilfsstollen', station: 'end', r: 2.4, label: 'the far end', title: 'The far end' }
+  barbara: { adit: 'dalvazzer', station: 'barbara', r: 1.6, label: 'St Barbara', to: 'zur heiligen Barbara', title: 'St Barbara' },
+  stope: { adit: 'dalvazzer', station: 'end', r: 2.0, label: 'the stope', to: 'zum Abbau', title: 'The stope' },
+  y1813: { adit: 'hilfsstollen', station: 'y1813', r: 2.0, label: 'the year 1813', to: 'zur Jahreszahl 1813', title: '1813' },
+  crossing: { adit: 'hilfsstollen', station: 'crossing', r: 2.4, label: 'the crossing', to: 'zur Kreuzung', title: 'The crossing' },
+  y1818: { adit: 'hilfsstollen', station: 'y1818', r: 2.0, label: 'the year 1818', to: 'zur Jahreszahl 1818', title: '1818' },
+  end: { adit: 'hilfsstollen', station: 'end', r: 2.4, label: 'the far end', to: 'zum Stollenende', title: 'The far end' }
 };
 
 export const GUIDE = {
@@ -839,7 +839,7 @@ const station = (key) => {
       const q = waitQuiz(state);
       if (q) return q;
       const d = Math.hypot(w.x - p.x, w.z - p.z);
-      return { done: d < st.r, progress: null, text: `${Math.max(0, Math.round(d))} m to ${st.label}`, target: null, hint: null };
+      return { done: d < st.r, progress: null, text: msg('{d} m to {where}', '{d} m bis {to}', { d: Math.max(0, Math.round(d)), where: st.label, to: st.to }), target: null, hint: null };
     }
   };
 };
@@ -865,10 +865,10 @@ export const TOUR_MISSION = {
     const a = Object.values(state.quiz?.answers || {});
     if (!a.length) return [];
     const right = a.filter(Boolean).length;
-    return [`Jöri's questions: ${right} of ${a.length} right${right < a.length ? ` (+${(a.length - right) * GUIDE.penaltyMs / 1000} s)` : ''}`];
+    return [msg("Jöri's questions: {r} of {n} right{penalty}", (q) => `Jöris Fragen: ${q.r} von ${q.n} richtig${q.penalty}`, { r: right, n: a.length, penalty: right < a.length ? ` (+${(a.length - right) * GUIDE.penaltyMs / 1000} s)` : '' })];
   },
   objectives: [
-    walkTo(ADITS.dalvazzer.door, 'Go to the Dalvazzerstollen', 'the Dalvazzerstollen', 'dalvazzer'),
+    walkTo(ADITS.dalvazzer.door, 'Go to the Dalvazzerstollen', 'the Dalvazzerstollen', 'zum Dalvazzerstollen', 'dalvazzer'),
     station('barbara'),
     station('stope'),
     {
@@ -882,10 +882,10 @@ export const TOUR_MISSION = {
         const q = waitQuiz(state);
         if (q && !w.out) return q;
         const d = Math.hypot(w.x, w.z);
-        return { done: !!w.out, progress: null, text: `${Math.max(0, Math.round(d))} m to the portal`, target: null, hint: null };
+        return { done: !!w.out, progress: null, text: msg('{d} m to the portal', '{d} m bis zum Portal', { d: Math.max(0, Math.round(d)) }), target: null, hint: null };
       }
     },
-    walkTo(ADITS.hilfsstollen.door, 'Climb up to the Hilfsstollen', 'the Hilfsstollen', 'hilfsstollen'),
+    walkTo(ADITS.hilfsstollen.door, 'Climb up to the Hilfsstollen', 'the Hilfsstollen', 'zum Hilfsstollen', 'hilfsstollen'),
     station('y1813'),
     station('crossing'),
     station('y1818'),

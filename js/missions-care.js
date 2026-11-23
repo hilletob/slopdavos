@@ -6,7 +6,8 @@ import { poseSkater } from './missions-ice.js';
 import { t } from './i18n.js';
 import {
   SHOE, createShoer, shoeStep, shoeRest, shoeTap, beatNeedle, onPackedLine, packedShare, shoeScore,
-  CAST, CAST_STAGES, createCastGame, castStep, castPickLeg, castPickLength, castConfirm, castInk, castGaps, castLumps, padShare, wrapSpeed, wetWindow
+  CAST, CAST_STAGES, createCastGame, castStep, castPickLeg, castPickLength, castConfirm, castInk, castGaps, castLumps, padShare, wrapSpeed, wetWindow,
+  wrappedText, patientDoneText
 } from './missions-data-care.js';
 import { el } from './dom.js';
 
@@ -605,10 +606,10 @@ const CAST_ROOM = {
       else if (e.kind === 'wrong-length') { cx.pop = { text: 'Wrong length: look where the break is', good: false, t: 1.6 }; blip(run, 'bad'); }
       else if (e.kind === 'right-leg') blip(run, 'good');
       else if (e.kind === 'wet') { cx.pop = e.err === 0 ? { text: 'Just right', good: true, t: 1.2 } : { text: e.soggy ? 'Too soggy' : 'Still dry', good: false, t: 1.2 }; blip(run, e.err === 0 ? 'good' : 'bad'); }
-      else if (e.kind === 'wrapped') { cx.pop = { text: `${e.gaps} gaps · ${e.lumps} lumps`, good: !e.gaps && !e.lumps, t: 1.6 }; blip(run, 'pock'); }
+      else if (e.kind === 'wrapped') { cx.pop = { text: wrappedText(e.gaps, e.lumps), good: !e.gaps && !e.lumps, t: 1.6 }; blip(run, 'pock'); }
       else if (e.kind === 'hardened') { cx.pop = { text: 'The plaster has set', good: false, t: 1.2 }; blip(run, 'pock'); }
       else if (e.kind === 'smoothed') { cx.pop = { text: 'Smooth as a groomed piste', good: true, t: 1.2 }; blip(run, 'good'); }
-      else if (e.kind === 'patient') { cx.pop = { text: `${g.last.name}: ${e.points} pts`, sub: g.last.quip, good: e.points >= 170, t: 3 }; blip(run, 'good'); cx.strokes = []; }
+      else if (e.kind === 'patient') { cx.pop = { text: patientDoneText(g.last.name, e.points), sub: g.last.quip, good: e.points >= 170, t: 3 }; blip(run, 'good'); cx.strokes = []; }
       else if (e.kind === 'stage' && e.stage !== 'sign') blip(run, 'pock');
     }
     g.events.length = 0;

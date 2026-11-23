@@ -10,6 +10,8 @@
 //    2536 m, stationdocu.slf.ch), where you dig a pit and take the profile the way it is really done.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 
+import { msg } from './messages.js';
+
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 const fmtClock = (s) => { const v = Math.max(0, Math.ceil(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
@@ -27,13 +29,13 @@ export function seededRandom(seed = 1) {
   };
 }
 
-/** The "walk there" step */
-function walkTo(spot, title, label, id) {
+/** The "walk there" step: `to` the place's German after "bis" */
+function walkTo(spot, title, label, to, id) {
   return {
     id, title,
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
-      return { done: d < spot.r, progress: null, text: `${fmtDist(d)} to ${label}`, target: { ...spot, style: 'plain' }, hint: null };
+      return { done: d < spot.r, progress: null, text: msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }), target: { ...spot, style: 'plain' }, hint: null };
     }
   };
 }
@@ -242,17 +244,18 @@ export const EYE_MISSION = {
     const g = state.game;
     if (!g) return [];
     const exact = g.results.filter((r) => r.quality.err < 0.01).length;
-    return [`${g.results.length} of ${g.customers.length} customers · ${exact} exact · ${g.results.map((r) => r.quality.total).join(' · ') || 'none finished'}`];
+    const list = g.results.map((r) => r.quality.total).join(' · ');
+    return [msg('{a} of {b} customers · {n} exact · {rest}', (q) => `${q.a} von ${q.b} Kunden · ${q.n} exakt · ${q.list || 'keiner fertig'}`, { a: g.results.length, b: g.customers.length, n: exact, rest: list || 'none finished', list })];
   },
   objectives: [
-    walkTo(MEERKAEMPER.door, 'Go into Meerkämper Optik', 'Meerkämper Optik', 'enter'),
+    walkTo(MEERKAEMPER.door, 'Go into Meerkämper Optik', 'Meerkämper Optik', 'zu Meerkämper Optik', 'enter'),
     {
       id: 'eyetest',
       title: 'Test four customers (3:00)',
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'The first customer sits down …', target: null, hint: null };
-        return { done: g.done, progress: g.t / EYE.length, text: `${g.score} pts · ${g.results.length} of ${g.customers.length} customers · ${fmtClock(EYE.length - g.t)}`, target: null, hint: null };
+        return { done: g.done, progress: g.t / EYE.length, text: msg('{pts} pts · {a} of {b} customers · {clock}', '{pts} Pkt. · {a} von {b} Kunden · {clock}', { pts: g.score, a: g.results.length, b: g.customers.length, clock: fmtClock(EYE.length - g.t) }), target: null, hint: null };
       }
     }
   ]
@@ -444,9 +447,10 @@ export function slfNote(snow) {
   const src = snow?.source;
   if (src?.kind === 'slf') {
     const level = src.level != null ? ` · bulletin level ${src.level}` : '';
-    return { text: `Weissfluhjoch ${slfTime(src.measured)} · ${fmtCm(src.hs)} of snow${level}`, link: SLF_LIVE.link };
+    const text = msg('Weissfluhjoch {when} · {cm} of snow{level}', (q) => `Weissfluhjoch ${q.when} · ${q.cm} Schnee${q.n != null ? ` · Bulletin Stufe ${q.n}` : ''}`, { when: slfTime(src.measured), cm: fmtCm(src.hs), level, n: src.level });
+    return { text, link: SLF_LIVE.link };
   }
-  if (src?.reason === 'shallow') return { text: `SLF: only ${fmtCm(src.hs)} on the Weissfluhjoch today: a training profile`, link: SLF_LIVE.link };
+  if (src?.reason === 'shallow') return { text: msg('SLF: only {cm} on the Weissfluhjoch today: a training profile', 'SLF: Heute nur {cm} auf dem Weissfluhjoch: ein Übungsprofil', { cm: fmtCm(src.hs) }), link: SLF_LIVE.link };
   if (src?.reason === 'stale') return { text: 'SLF: no fresh reading from the Weissfluhjoch: a training profile', link: SLF_LIVE.link };
   return { text: 'No SLF data today: a training profile', link: null };
 }
@@ -636,23 +640,23 @@ export const SNOW_MISSION = {
   summary(state) {
     const r = state.game?.result;
     if (!r) return [];
-    return [`Hardness ${r.hardness} · grain ${r.grain} · temperature ${r.temp} · break ${r.ct} · danger ${r.danger} · time ${r.time}`];
+    return [msg('Hardness {a} · grain {b} · temperature {c} · break {d} · danger {e} · time {f}', 'Härte {a} · Korn {b} · Temperatur {c} · Bruch {d} · Gefahr {e} · Zeit {f}', { a: r.hardness, b: r.grain, c: r.temp, d: r.ct, e: r.danger, f: r.time })];
   },
   objectives: [
-    walkTo(SLF.door, 'Fetch the kit at the SLF', 'the SLF', 'kit'),
+    walkTo(SLF.door, 'Fetch the kit at the SLF', 'the SLF', 'zum SLF', 'kit'),
     {
       id: 'ride',
       title: 'Up with the Parsennbahn',
       check(ctx, state) { return { done: !!state.arrived, progress: null, text: 'Up to the Weissfluhjoch …', target: null, hint: null }; }
     },
-    walkTo(SLF.field, 'Go to the measuring field', 'the measuring field', 'field'),
+    walkTo(SLF.field, 'Go to the measuring field', 'the measuring field', 'zum Versuchsfeld', 'field'),
     {
       id: 'profile',
       title: 'Take the profile',
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Unpacking the kit …', target: null, hint: null };
-        return { done: g.done, progress: null, text: `${SNOW_STAGE_TEXT[g.stage]} · ${fmtClock(g.t)}`, target: null, hint: null };
+        return { done: g.done, progress: null, text: msg('{stage} · {clock}', '{stage|t} · {clock}', { stage: SNOW_STAGE_TEXT[g.stage], clock: fmtClock(g.t) }), target: null, hint: null };
       }
     }
   ]

@@ -5,7 +5,8 @@ import { surfaceHeight } from './terrain.js';
 import {
   SHOTS, createShots, shotsStep, shotsAction, shotsGauge, shotsSway, shotsScore,
   FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliPress, flaemmliRelease, flaemmliGauge, flaemmliSway, flaemmliScore,
-  PIZZA_ORDERS, PIZZA_STOPS, TOPPINGS, createPizzaShop, pizzaShopStep, pizzaPick, pizzaHeatStep, pizzaCarryStep, pizzaScore
+  PIZZA_ORDERS, PIZZA_STOPS, TOPPINGS, createPizzaShop, pizzaShopStep, pizzaPick, pizzaHeatStep, pizzaCarryStep, pizzaScore,
+  popText, barRoundLine, pizzaLine, pizzaDriveLine, deliveryPopText
 } from './missions-data-gastro.js';
 import { el } from './dom.js';
 
@@ -209,7 +210,7 @@ function blip(run, kind = 'pock') {
   o.connect(g); o.start(t); o.stop(t + 0.25);
 }
 function flashPop(node, last) {
-  node.textContent = last.points ? `${last.text}  ${last.points > 0 ? '+' : ''}${last.points}` : last.text;
+  node.textContent = popText(last); // (with its points after two spaces, in both languages)
   node.className = `gs-pop${last.good ? '' : ' bad'}`;
   clearTimeout(node._t);
   node._t = setTimeout(() => { node.textContent = ''; }, 1500);
@@ -462,7 +463,7 @@ const shots = {
     if (sh.shown !== g.drinks) { sh.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
     // the HUD: one line, one gauge, one button
     const ui = sh.ui;
-    setText(ui.line, `Round ${g.round} of ${SHOTS.rounds} · ${shotsScore(g)} pts · ${g.strikes}/${SHOTS.strikes} mishaps`);
+    setText(ui.line, barRoundLine(g.round, SHOTS.rounds, shotsScore(g), g.strikes, SHOTS.strikes));
     showGauge(ui, gauge);
     ui.veil.style.opacity = `${clamp(g.drinks / SHOTS.rounds, 0, 1) * 0.85}`;
   }
@@ -701,7 +702,7 @@ const flaemmli = {
     if (fl.shown !== g.drinks) { fl.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
     // the HUD
     const ui = fl.ui;
-    setText(ui.line, `Round ${g.round} of ${F.rounds} · ${flaemmliScore(g)} pts · ${g.strikes}/${F.strikes} mishaps`);
+    setText(ui.line, barRoundLine(g.round, F.rounds, flaemmliScore(g), g.strikes, F.strikes));
     showGauge(ui, gauge);
     ui.act.classList.toggle('held', !!g.holding);
     ui.caramel.hidden = gauge.caramel === null;
@@ -889,7 +890,7 @@ const pizzaRun = {
     if (what === 'deliver') {
       const d = st.drops[st.drops.length - 1];
       blip(run, 'good');
-      flashPop(pz.ui.drivePop, { text: `${stop.short}: ${Math.round(d.heat * 100)} % hot`, points: d.points, good: d.heat > 0.25 });
+      flashPop(pz.ui.drivePop, { text: deliveryPopText(stop, d.heat), points: d.points, good: d.heat > 0.25 });
     } else if (what === 'pick') blip(run, 'pock');
   },
   after(run, ctx, dt, cm) {
@@ -904,7 +905,7 @@ const pizzaRun = {
       if (key !== pz.ticketKey) {
         pz.ticketKey = key;
         const stop = PIZZA_STOPS.find((p) => p.id === order.stop);
-        setText(pz.ui.line, `Pizza ${Math.min(s.order + 1, PIZZA_ORDERS.length)} of ${PIZZA_ORDERS.length}: ${order.name} for ${stop.short}`);
+        setText(pz.ui.line, pizzaLine(s, order, stop));
         pz.ui.ticket.replaceChildren(...order.tops.map((tid, i) => el('span', `gs-chip${i < s.picked ? ' done' : i === s.picked ? ' next' : ''}`, TOPPINGS.find((x) => x.id === tid).name)));
         drawPizza(pz.ui.c, PZ, order.tops.slice(0, s.picked));
       }
@@ -918,7 +919,7 @@ const pizzaRun = {
       pz.carry.rotation.y = p.heading;
     }
     pz.ui.driveHud.hidden = false;
-    setText(pz.ui.dline, `Hot pizzas ${Math.round(st.heat * 100)} % · ${st.delivered}/${PIZZA_STOPS.length} delivered · ${pizzaScore(run.state)} pts${st.carrying ? ' · carrying a box' : ''}`);
+    setText(pz.ui.dline, pizzaDriveLine(st, pizzaScore(run.state)));
     pz.ui.heatFill.style.transform = `scaleX(${st.heat})`;
   }
 };

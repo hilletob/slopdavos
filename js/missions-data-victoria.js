@@ -373,7 +373,7 @@ export const VICTORIA_MISSION = {
     return lines;
   },
   objectives: [
-    walkInto(VICTORIA.door, 'Go into the Turmhotel Victoria', 'the Turmhotel Victoria'),
+    walkInto(VICTORIA.door, 'Go into the Turmhotel Victoria', 'the Turmhotel Victoria', 'zum Turmhotel Victoria', 'ins Turmhotel Victoria'),
     {
       id: 'housekeeping',
       title: 'Turn round two rooms',

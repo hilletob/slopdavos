@@ -355,7 +355,7 @@ function sectionText(d, k) {
   const limit = driveLimit(d), kmh = Math.round(d.v * 3.6), togo = toBoard(d);
   if (d.phase === 'halt') return { text: msg('{name} · {e} from the board', '{name} · {e} von der Tafel', { name, e: fmtError(-togo) }), hint: Math.abs(togo) > 0.1 && togo > 0 ? 'Creep on (W) or open the doors (F)' : 'F: open the doors' };
   if (d.phase === 'alight') return { text: msg('{name} · the passengers get off', '{name} · Die Fahrgäste steigen aus', { name }), hint: null };
-  const hint = kmh > limit + PB.tolerance ? `Too fast: limit ${limit} km/h` : togo < 40 ? 'Stop with the front at the yellow line' : togo < 160 ? 'Slow down for the station' : d.timelapse ? 'Time-lapse ×4 · T: back to normal' : null;
+  const hint = kmh > limit + PB.tolerance ? msg('Too fast: limit {v} km/h', 'Zu schnell: Limit {v} km/h', { v: limit }) : togo < 40 ? 'Stop with the front at the yellow line' : togo < 160 ? 'Slow down for the station' : d.timelapse ? 'Time-lapse ×4 · T: back to normal' : null;
   return { text: `${name} in ${fmtDist(togo)} · due ${fmtClock(tt.arrive)} (${fmtSigned(d.t - tt.arrive)}) · ${kmh}/${limit} km/h`, hint };
 }
 

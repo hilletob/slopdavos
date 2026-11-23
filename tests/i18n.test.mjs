@@ -52,11 +52,12 @@ test('the Victoria shift translates its steps, rooms, pops and summaries', async
   setLanguage('de');
   assert.equal(t('A shift at the Turmhotel Victoria'), 'Eine Schicht im Turmhotel Victoria');
   assert.match(t('A busy day at the Turmhotel Victoria in Davos Dorf, and half the staff is down with the flu.'), /^Viel los im Turmhotel Victoria/);
-  assert.equal(t('12 m to the Turmhotel Victoria'), '12 m bis zum Turmhotel Victoria');
-  assert.equal(t('Get out (F) and walk into the Turmhotel Victoria'), 'Steig aus (F) und geh ins Turmhotel Victoria');
   // (its moving texts are made with msg(), js/messages.js: made by the games, then translated; a pop is the line said
   // with its points, as js/missions-victoria.js gives it to flashPop)
   const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const door = V.VICTORIA_MISSION.objectives[0], at = (mode) => ({ mode, x: V.VICTORIA.door.x + 12, z: V.VICTORIA.door.z });
+  says(door.check(at('person')).text, '12 m to the Turmhotel Victoria', '12 m bis zum Turmhotel Victoria');
+  says(door.check(at('car')).text, 'Get out (F) and walk into the Turmhotel Victoria', 'Steig aus (F) und geh ins Turmhotel Victoria');
   const pop = (g) => V.popOf(g.last).text;
   const [room204] = V.HOUSEKEEPING.rooms;
   says(V.roomLine(room204.name, 11.4, 180), 'Room 204 · 12 s · 180 pts', 'Zimmer 204 · 12 s · 180 Pkt.');
@@ -122,7 +123,15 @@ test('the bar missions translate names, intros and generated texts', async () =>
   says(bars.nagelnGauge({ ...nageln, step: 'windup', players: [{ ...bars.NAGELN_RIVALS.flurin, you: false }], turn: 0 }).label, 'Flurin swings …', 'Flurin holt aus …');
   says(bars.orderText({ ...bars.createBarista(), served: 2, lost: 0, score: 120 }), 'Order 3 of 12 · 120 pts · 0 walked out', 'Bestellung 3 von 12 · 120 Pkt. · 0 gegangen');
   says(bars.orderLine({ drink: 'schale' }), 'Schale, please!', 'Schale, bitte!');
-  assert.equal(t('12 m to the Tijuana Bar'), '12 m bis zur Tijuana Bar');
+  says(bars.NAGELN_MISSION.objectives[0].check({ mode: 'person', x: bars.TIJUANA.door.x + 12, z: bars.TIJUANA.door.z }).text, '12 m to the Tijuana Bar', '12 m bis zur Tijuana Bar');
+  // the pops (js/missions-bars.js hands g.last to js/missions-gastro.js flashPop, which puts the points to them)
+  const { popText } = await import('../js/missions-data-gastro.js');
+  says(popText({ text: bars.winsText('Flurin'), points: 40 }), 'Flurin wins this one  +40', 'Flurin gewinnt diese Partie  +40');
+  says(popText({ text: bars.inByText(2.345), points: 0 }), 'In by 2.3 cm', '2.3 cm tiefer');
+  says(popText({ text: bars.servedText('Schale', 0.9), points: 85 }), 'A fine Schale  +85', 'Ein feiner Schale  +85');
+  says(popText({ text: bars.servedText('Espresso', 0.5), points: 40 }), 'Espresso: it will do  +40', 'Espresso: Es geht so  +40');
+  says(popText({ text: bars.servedText('Espresso', 0.2), points: -10 }), 'Espresso: nobody says a word  -10', 'Espresso: Niemand sagt ein Wort  -10');
+  says(popText({ text: 'Bent the nail: turn lost', points: -20 }), 'Bent the nail: turn lost  -20', 'Nagel verbogen: Zug verloren  -20');
   assert.equal(t('Bent the nail: turn lost'), 'Nagel verbogen: Zug verloren');
   assert.equal(t('Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.'), 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.');
   setLanguage('en');
@@ -134,18 +143,26 @@ test('the expert missions translate names, intros, generated texts and every tex
   assert.match(t('A busy morning at Meerkämper Optik on the Promenade, and you are the optician.'), /^Ein strenger Morgen/);
   assert.equal(t('Snow profile for the SLF'), 'Schneeprofil fürs SLF');
   assert.match(t('At the SLF in Davos Dorf the avalanche forecasters want a fresh profile.'), /^Beim SLF/);
-  assert.equal(t('12 m to the SLF'), '12 m bis zum SLF');
-  assert.equal(t('12 m to Meerkämper Optik'), '12 m bis zu Meerkämper Optik');
-  assert.equal(t('340 pts · 2 of 4 customers · 1:30'), '340 Pkt. · 2 von 4 Kunden · 1:30');
-  assert.equal(t('Compression test · 2:05'), 'Kompressionstest · 2:05');
-  assert.match(t('Hardness 200 · grain 100 · temperature 150 · break 100 · danger 80 · time 20'), /^Härte 200 · Korn 100/);
-  assert.equal(t('4 of 4 customers · 3 exact · 100 · 90'), '4 von 4 Kunden · 3 exakt · 100 · 90');
+  // (the moving texts are made with msg(), js/messages.js: made by the missions from a state set up for them)
+  const X = await import('../js/missions-data-expert.js');
+  const [kit, , , profile] = X.SNOW_MISSION.objectives;
+  says(kit.check({ x: X.SLF.door.x + 12, z: X.SLF.door.z }).text, '12 m to the SLF', '12 m bis zum SLF');
+  says(X.EYE_MISSION.objectives[0].check({ x: X.MEERKAEMPER.door.x + 12, z: X.MEERKAEMPER.door.z }).text, '12 m to Meerkämper Optik', '12 m bis zu Meerkämper Optik');
+  const eye = { ...X.createEyeTest(1), score: 340, results: [{}, {}], t: X.EYE.length - 90 };
+  says(X.EYE_MISSION.objectives[1].check({}, { game: eye }).text, '340 pts · 2 of 4 customers · 1:30', '340 Pkt. · 2 von 4 Kunden · 1:30');
+  says(profile.check({}, { game: { stage: 'ct', t: 125, done: false } }).text, 'Compression test · 2:05', 'Kompressionstest · 2:05');
+  const result = { hardness: 200, grain: 100, temp: 150, ct: 100, danger: 80, time: 20 };
+  says(X.SNOW_MISSION.summary({ game: { result } })[0], 'Hardness 200 · grain 100 · temperature 150 · break 100 · danger 80 · time 20', 'Härte 200 · Korn 100 · Temperatur 150 · Bruch 100 · Gefahr 80 · Zeit 20');
+  const served = (total, err) => ({ quality: { total, err } });
+  says(X.EYE_MISSION.summary({ game: { ...X.createEyeTest(1), results: [served(100, 0), served(90, 0), served(80, 0), served(70, 0.5)] } })[0], '4 of 4 customers · 3 exact · 100 · 90 · 80 · 70', '4 von 4 Kunden · 3 exakt · 100 · 90 · 80 · 70');
+  says(X.EYE_MISSION.summary({ game: X.createEyeTest(1) })[0], '0 of 4 customers · 0 exact · none finished', '0 von 4 Kunden · 0 exakt · keiner fertig');
   // the snow profile's source line (js/missions-data-expert.js slfNote), with and without the SLF's live data
-  assert.equal(t('SLF: only 14.8 cm on the Weissfluhjoch today: a training profile'), 'SLF: Heute nur 14.8 cm auf dem Weissfluhjoch: ein Übungsprofil');
-  assert.equal(t('Weissfluhjoch 10.02. 12:00 · 182.4 cm of snow · bulletin level 3'), 'Weissfluhjoch 10.02. 12:00 · 182.4 cm Schnee · Bulletin Stufe 3');
-  assert.equal(t('Weissfluhjoch 10.02. 12:00 · 182 cm of snow'), 'Weissfluhjoch 10.02. 12:00 · 182 cm Schnee');
-  assert.equal(t('No SLF data today: a training profile'), 'Heute keine SLF-Daten: ein Übungsprofil');
-  assert.equal(t('SLF: no fresh reading from the Weissfluhjoch: a training profile'), 'SLF: kein frischer Messwert vom Weissfluhjoch: ein Übungsprofil');
+  const note = (source) => X.slfNote({ source }).text;
+  says(note({ reason: 'shallow', hs: 14.8 }), 'SLF: only 14.8 cm on the Weissfluhjoch today: a training profile', 'SLF: Heute nur 14.8 cm auf dem Weissfluhjoch: ein Übungsprofil');
+  says(note({ kind: 'slf', measured: '2026-02-10T11:00:00Z', hs: 182.4, level: 3 }), 'Weissfluhjoch 10.02. 12:00 · 182.4 cm of snow · bulletin level 3', 'Weissfluhjoch 10.02. 12:00 · 182.4 cm Schnee · Bulletin Stufe 3');
+  says(note({ kind: 'slf', measured: '2026-02-10T11:00:00Z', hs: 182, level: null }), 'Weissfluhjoch 10.02. 12:00 · 182 cm of snow', 'Weissfluhjoch 10.02. 12:00 · 182 cm Schnee');
+  says(note(null), 'No SLF data today: a training profile', 'Heute keine SLF-Daten: ein Übungsprofil');
+  says(note({ reason: 'stale' }), 'SLF: no fresh reading from the Weissfluhjoch: a training profile', 'SLF: kein frischer Messwert vom Weissfluhjoch: ein Übungsprofil');
   assert.equal(t('Data: SLF'), 'Daten: SLF');
   assert.equal(t('No break: CTN'), 'Kein Bruch: CTN');
   // every literal the canvas draws goes through t(), and every one of them has its German
@@ -205,16 +222,27 @@ test('the rural missions translate names, intros and generated texts', async () 
   assert.equal(t('Biogas plant'), 'Biogasanlage');
 });
 
-test('the care missions translate names, intros and generated texts', () => {
+test('the care missions translate names, intros and generated texts', async () => {
   setLanguage('de');
   assert.equal(t('Snowshoeing on the Junkerboden'), 'Schneeschuhlaufen am Junkerboden');
   assert.match(t('Fresh snow on the Junkerboden, the terrace above Frauenkirch.'), /^Neuschnee/);
   assert.equal(t('A plaster cast at the Spital'), 'Bein gipsen im Spital');
   assert.match(t('A busy day in the plaster room of the Spital Davos.'), /^Viel los im Gipszimmer/);
-  assert.equal(t('120 m to the flag'), '120 m bis zum Fähnli');
-  assert.equal(t('80 % on the packed line · 1 times in the Wildruhezone · 2 grouse startled · 3 stumbles'), '80 % auf der Spur · 1-mal in der Wildruhezone · 2 Birkhühner aufgeschreckt · 3 Stolperer');
-  assert.equal(t('Patient 2 of 3 · 120 pts · 1:30'), 'Patient 2 von 3 · 120 Pkt. · 1:30');
-  assert.equal(t('2 gaps · 1 lumps'), '2 Lücken · 1 Klumpen');
+  // (the moving texts are made with msg(), js/messages.js: made by the missions from a state set up for them)
+  const C = await import('../js/missions-data-care.js');
+  const shoes = C.SNOWSHOE_MISSION, [flag] = shoes.objectives, bench = shoes.objectives.find((o) => o.id === 'bench');
+  const walk = { ...shoes.createState(), shoer: null };
+  says(flag.check({ x: C.SHOE.flags[0].x + 120, z: C.SHOE.flags[0].z }, walk).text, '120 m to the flag', '120 m bis zum Fähnli');
+  says(bench.check({ x: C.SHOE.bench.x + 80, z: C.SHOE.bench.z }, walk).text, '80 m to the bench', '80 m bis zum Bänkli');
+  says(shoes.summary({ ...walk, walked: 100, packed: 80, zoneEntries: 1, startled: 2, shoer: { stumbles: 3 } })[0], '80 % on the packed line · 1 times in the Wildruhezone · 2 grouse startled · 3 stumbles', '80 % auf der Spur · 1-mal in der Wildruhezone · 2 Birkhühner aufgeschreckt · 3 Stolperer');
+  const cast = C.CAST_MISSION, room = { ...C.createCastGame(), i: 1, score: 120, t: 90 };
+  says(cast.objectives[0].check({ x: -1116.5 + 30, z: 907.5 }).text, '30 m to the Spital Davos', '30 m bis zum Spital Davos');
+  says(cast.objectives[1].check({}, { room }).text, 'Patient 2 of 3 · 120 pts · 1:30', 'Patient 2 von 3 · 120 Pkt. · 1:30');
+  const patient = (points, gaps, lumps) => ({ points, parts: { gaps, lumps } });
+  says(cast.summary({ room: { ...room, patients: [patient(180, 1, 0), patient(150, 1, 1)] } })[0], '2 casts · 180 · 150 · 2 gaps · 1 lumps', '2 Gipse · 180 · 150 · 2 Lücken · 1 Klumpen');
+  says(cast.summary({ room: { ...room, patients: [] } })[0], '0 casts · no cast finished · 0 gaps · 0 lumps', '0 Gipse · kein Gips fertig · 0 Lücken · 0 Klumpen');
+  says(C.wrappedText(2, 1), '2 gaps · 1 lumps', '2 Lücken · 1 Klumpen');
+  says(C.patientDoneText('Herr Buol', 185), 'Herr Buol: 185 pts', 'Herr Buol: 185 Pkt.');
   assert.equal(t('Too soggy'), 'Zu nass');
 });
 
@@ -285,14 +313,71 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('Get out of the car [F]'), 'Aus dem Auto steigen [F]');
   assert.equal(t('Carting the snow to the Davosersee'), 'Schnee abführen an den Davosersee');
   assert.match(t('The drifts on the Bündastrasse have to go.'), /Davosersee/);
-  assert.equal(t('Truck 7.4 of 14 m³ · 96 % on the bed'), 'Lastwagen 7.4 von 14 m³ · 96 % auf der Brücke');
-  assert.equal(t('1.2 km to the snow dump · 14.0 m³'), '1.2 km bis zur Schneedeponie · 14.0 m³');
-  assert.equal(t('Alight  +45'), 'Es brennt  +45');
-  assert.equal(t('Margherita: flawless!  +160'), 'Margherita: makellos!  +160');
-  assert.equal(t('120 m to the Eisstadion, Talstrasse 41 · 80 % hot'), '120 m bis zum Eisstadion, Talstrasse 41 · 80 % heiss');
-  assert.equal(t('5 skiers up · 1:30 · run of 4'), '5 Skifahrer oben · 1:30 · Serie von 4');
+  // the snow haul (made with msg() too)
+  const haul = W.SNOW_HAUL_MISSION, [load, swap, drive, tip] = haul.objectives, snow = W.createSnowState();
+  says(load.check({ t: 0, mode: 'car' }, { ...snow, load: 7.4, blown: 100, spilled: 4, onBed: true }).text, 'Truck 7.4 of 14 m³ · 96 % on the bed', 'Lastwagen 7.4 von 14 m³ · 96 % auf der Brücke');
+  says(swap.check({}, { ...snow, load: 14 }).text, '14.0 m³ on board', '14.0 m³ geladen');
+  says(drive.check({ t: 0, x: W.TIP_SPOT.x + 1200, z: W.TIP_SPOT.z }, { ...snow, load: 14 }).text, '1.2 km to the snow dump · 14.0 m³', '1.2 km bis zur Schneedeponie · 14.0 m³');
+  const backing = tip.check({}, { ...snow, load: 6.5, pose: { placed: false, dist: 3.24 } });
+  says(backing.text, '6.5 m³ left on the bed', 'Noch 6.5 m³ auf der Brücke');
+  says(backing.hint, 'Tail to the mark, nose away from the water: 3.2 m', 'Heck zur Markierung, Front weg vom Wasser: 3.2 m');
+  const [lake, knocks] = haul.summary({ ...snow, tipped: 12.5, spilled: 1.2, shed: 0.3, hits: 1 });
+  says(lake, '12.5 of 14 m³ in the lake · 1.2 m³ beside the truck · 0.3 m³ lost in bends', '12.5 von 14 m³ im See · 1.2 m³ neben dem Lastwagen · 0.3 m³ in Kurven verloren');
+  says(knocks, '1 knock against the truck', '1 Rempler am Lastwagen');
+  says(crane.summary({ ...W.createCraneState(), results: [], hits: 1, hard: 2 })[1], '1 hit · 2 hard landings', '1 Treffer · 2 harte Landungen');
+  says(crane.summary({ ...W.createCraneState(), results: [], hits: 3, hard: 1 })[1], '3 hits · 1 hard landing', '3 Treffer · 1 harte Landung');
+  // the bars' and the pizzas' pops: the line and its points as js/missions-gastro.js flashPop shows them
+  const G = await import('../js/missions-data-gastro.js');
+  says(G.popText({ text: 'Alight', points: 45 }), 'Alight  +45', 'Es brennt  +45');
+  says(G.popText({ text: 'Alight', points: 0 }), 'Alight', 'Es brennt');
+  const shop = G.createPizzaShop();
+  for (const id of G.PIZZA_ORDERS[0].tops) G.pizzaPick(shop, id);
+  says(G.popText(shop.last), `Margherita: flawless!  +${shop.last.points}`, `Margherita: makellos!  +${shop.last.points}`);
+  const sloppy = G.createPizzaShop();
+  G.pizzaPick(sloppy, 'basil');
+  says(G.popText(sloppy.last), `Not yet: Tomato next  ${sloppy.last.points}`, `Noch nicht: zuerst Tomate  ${sloppy.last.points}`);
+  for (const id of G.PIZZA_ORDERS[0].tops) G.pizzaPick(sloppy, id);
+  says(G.popText(sloppy.last), `Margherita: in the oven  +${sloppy.last.points}`, `Margherita: ab in den Ofen  +${sloppy.last.points}`);
+  const eis = G.PIZZA_STOPS[0], deliver = G.PIZZA_MISSION.objectives.find((o) => o.id === 'deliver-eisstadion');
+  const pizzaRun = (over) => ({ run: { ...G.createPizzaRun(), heat: 0.8, van: { x: eis.door.x + 2000, z: eis.door.z }, ...over } });
+  says(deliver.check({ mode: 'car', x: eis.road.x + 120, z: eis.road.z }, pizzaRun()).text, '120 m to the Eisstadion, Talstrasse 41 · 80 % hot', '120 m bis zum Eisstadion, Talstrasse 41 · 80 % heiss');
+  says(deliver.check({ mode: 'person', x: eis.door.x, z: eis.door.z }, pizzaRun()).text, 'The van is 2.0 km away: drive closer · 80 % hot', 'Der Lieferwagen ist 2.0 km entfernt: näher fahren · 80 % heiss');
+  const parked = { van: { x: eis.door.x + 5, z: eis.door.z } };
+  says(deliver.check({ mode: 'car', speed: 0, x: eis.door.x + 5, z: eis.door.z }, pizzaRun(parked)).text, 'Park here and get out (F) · Eisstadion', 'Hier parken und aussteigen (F) · Eisstadion');
+  says(deliver.check({ mode: 'person', x: eis.door.x + 5, z: eis.door.z }, pizzaRun(parked)).text, 'Take the box from the back of the van · 80 % hot', 'Schachtel hinten aus dem Lieferwagen nehmen · 80 % heiss');
+  says(deliver.check({ mode: 'person', x: eis.door.x + 5, z: eis.door.z }, pizzaRun({ ...parked, carrying: true })).text, 'Carry the box to the door · 5 m · 80 % hot', 'Schachtel zur Tür tragen · 5 m · 80 % heiss');
+  says(deliver.check({ mode: 'person', x: eis.door.x, z: eis.door.z }, pizzaRun({ ...parked, carrying: true, doorT: 0.5 })).text, 'Handing over … Eisstadion', 'Übergabe … Eisstadion');
+  says(G.PIZZA_MISSION.objectives[0].check({ mode: 'car', x: 0, z: 0 }).text, 'Get out (F) and walk into Pizza Heaven', 'Steig aus (F) und geh ins Pizza Heaven');
+  says(G.PIZZA_MISSION.objectives.find((o) => o.id === 'toppings').check({}, { shop: { ...G.createPizzaShop(), order: 1, score: 140 } }).text, 'Pizza 2 of 4 · 140 pts', 'Pizza 2 von 4 · 140 Pkt.');
+  says(G.pizzaLine({ order: 0 }, G.PIZZA_ORDERS[0], eis), 'Pizza 1 of 4: Margherita for Eisstadion', 'Pizza 1 von 4: Margherita für Eisstadion');
+  says(G.pizzaDriveLine({ heat: 0.8, delivered: 1, carrying: true }, 420), 'Hot pizzas 80 % · 1/4 delivered · 420 pts · carrying a box', 'Heisse Pizzas 80 % · 1/4 geliefert · 420 Pkt. · Schachtel in den Armen');
+  says(G.popText({ text: G.deliveryPopText(eis, 0.8), points: 130 }), 'Eisstadion: 80 % hot  +130', 'Eisstadion: 80 % heiss  +130');
+  says(G.barRoundLine(2, 6, 140, 1, 3), 'Round 2 of 6 · 140 pts · 1/3 mishaps', 'Runde 2 von 6 · 140 Pkt. · 1/3 Pannen');
+  const shots = { ...G.createShots(), drinks: 5, perfect: 2, strikes: 1, log: [] };
+  says(G.SHOTS_MISSION.summary({ game: shots })[0], '5 of 6 shots down · 2 perfect moments · 1 mishap', '5 von 6 Shots getrunken · 2 perfekte Momente · 1 Panne');
+  says(G.FLAEMMLI_MISSION.summary({ game: { ...G.createFlaemmli(), drinks: 3, perfect: 4, strikes: 0, log: [] } })[0], '3 of 3 Flämmli down · 4 perfect moments · 0 mishaps', '3 von 3 Flämmli getrunken · 4 perfekte Momente · 0 Pannen');
+  // the resort's games
+  const R = await import('../js/missions-data-resort.js');
+  says(R.TBAR_MISSION.objectives[1].check({}, { game: { ...R.createTbarGame(), skiers: 5, t: R.TBAR.length - 90, streak: 4 } }).text, '5 skiers up · 1:30 · run of 4', '5 Skifahrer oben · 1:30 · Serie von 4');
+  says(R.TBAR_MISSION.summary({ game: { ...R.createTbarGame(), pairs: 9, perfects: 4, best: 5, knocks: 1, empties: 2 } })[0], '9 pairs up · 4 perfect hand-overs · best run 5 · 1 knocked over · 2 empty bars', '9 Paare hinauf · 4 perfekte Übergaben · beste Serie 5 · 1 umgeworfen · 2 leere Bügel');
+  says(R.tbarCardText({ skiers: 1, queue: [{ kind: 'kids' }] }, 80, '2.4', true), 'skier up · 80 s · rope 2.4 m/s · next pair ready · kids: careful!', 'Skifahrer oben · 80 s · Seil 2.4 m/s · nächstes Paar bereit · Kinder: Vorsicht!');
+  says(R.tbarCardText({ skiers: 7, queue: [] }, 80, '2.4', false), 'skiers up · 80 s · rope 2.4 m/s · moving up …', 'Skifahrer oben · 80 s · Seil 2.4 m/s · fährt hoch …');
   assert.equal(t('12 skiers'), '12 Skifahrer');
-  assert.equal(t('pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)'), 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
+  says(R.waxCardText({ pairs: [{}, {}, {}] }, 90, 'read the board, pick the wax (1-5 or tap)'), 'pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)', 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
+  says(R.WAX_MISSION.summary({ bench: { pairs: [{ points: 80 }, { points: 65 }] } })[0], '2 pairs waxed · 80 · 65', '2 Paare gewachst · 80 · 65');
+  says(R.WAX_MISSION.summary({ bench: { pairs: [] } })[0], '0 pairs waxed · no pair finished', '0 Paare gewachst · kein Paar fertig');
+  says(R.WAX_MISSION.objectives[1].check({}, { bench: { score: 140, pairs: [{}], t: R.WAX.length - 75 } }).text, '140 pts · 1 pairs · 1:15', '140 Pkt. · 1 Paare · 1:15');
+  says(R.waxPairText({ customer: 'Frau Ambühl', points: 82 }), 'Frau Ambühl: 82 pts', 'Frau Ambühl: 82 Pkt.');
+  says(R.waxWrongText(1, 'Red'), 'Close, but Red was the wax', 'Knapp daneben: Rot wäre das richtige Wachs gewesen');
+  says(R.waxWrongText(2, 'Red'), 'Wrong: Red was the wax', 'Falsch: Rot wäre das richtige Wachs gewesen');
+  const hand = R.marshalHandText, card = (h) => R.marshalCardText({ good: 3, crooked: 1, blockers: 0 }, 70, h);
+  says(card(hand(null, 12)), 'pts · 3 good · 1 crooked · 0 blocking · 70 s · 12 m to the line', 'Pkt. · 3 gut · 1 schräg · 0 blockiert · 70 s · 12 m bis zur Linie');
+  says(card(hand(4, null)), 'pts · 3 good · 1 crooked · 0 blocking · 70 s · held (4 s)', 'Pkt. · 3 gut · 1 schräg · 0 blockiert · 70 s · angehalten (4 s)');
+  says(card(hand(null, null)), 'pts · 3 good · 1 crooked · 0 blocking · 70 s · no car in sight', 'Pkt. · 3 gut · 1 schräg · 0 blockiert · 70 s · kein Auto in Sicht');
+  const marshal = R.MARSHAL_MISSION;
+  says(marshal.summary({ game: { good: 5, crooked: 2, blockers: 1, closes: 0 } })[0], '5 cars parked well · 2 crooked · 1 blockers · 0 close calls', '5 Autos gut geparkt · 2 schräg · 1 blockiert · 0 Beinahe-Unfälle');
+  says(marshal.objectives[1].check({}, { game: { score: 300, good: 5, crooked: 2, t: R.MARSHAL.length - 75, cross: { state: 'idle' }, cars: [] } }).text, '300 pts · 7 parked · 1:15', '300 Pkt. · 7 geparkt · 1:15');
+  says(R.TBAR_MISSION.objectives[0].check({ x: R.TBAR.spot.x + 30, z: R.TBAR.spot.z }).text, '30 m to the loading point', '30 m bis zur Einstiegsstelle');
 });
 
 test('the rope park and the Seehofseeli translate names, intros and generated texts', async () => {
