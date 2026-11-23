@@ -1,11 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, fract, fwidth, mix, mx_noise_float, positionLocal, positionWorld, sin, smoothstep, texture, time, uv, vec3 } from 'three/tsl';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { glassMaterial } from './detail-houses.js';
-import { decalMaterial, nightGlow } from './building-kit.js';
+import { FACES, MergeBuilder, decalMaterial, flatQuad, nightGlow, onFace, wallPiece } from './building-kit.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { QUALITY } from './quality.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
@@ -101,76 +100,8 @@ function flagMaterial(map) {
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------
-class Builder {
-  constructor() { this.parts = new Map(); }
-  add(mat, g) {
-    g = g.index ? g.toNonIndexed() : g;
-    g.clearGroups();
-    for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'uv1'].includes(name)) g.deleteAttribute(name);
-    const n = g.attributes.position.count;
-    if (!g.attributes.normal) g.computeVertexNormals();
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
-    if (!g.attributes.uv1) g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
-    if (!this.parts.has(mat)) this.parts.set(mat, []);
-    this.parts.get(mat).push(g);
-    return g;
-  }
-  box(mat, sx, sy, sz, x, y, z, { ry = 0, rx = 0, rz = 0 } = {}) {
-    const g = new THREE.BoxGeometry(sx, sy, sz);
-    if (rx) g.rotateX(rx);
-    if (rz) g.rotateZ(rz);
-    if (ry) g.rotateY(ry);
-    g.translate(x, y, z);
-    return this.add(mat, g);
-  }
-  // a box from (x0, y0, z0) to (x1, y1, z1)
-  span(mat, x0, x1, y0, y1, z0, z1) { return this.box(mat, x1 - x0, y1 - y0, z1 - z0, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); }
-  cylinder(mat, r, h, x, y, z, seg = 10) {
-    const g = new THREE.CylinderGeometry(r, r, h, seg);
-    g.translate(x, y, z);
-    return this.add(mat, g);
-  }
-  meshes(M) {
-    return [...this.parts].map(([key, list]) => {
-      const mesh = new THREE.Mesh(mergeGeometries(list, false), M[key]);
-      mesh.castShadow = !['glass', 'lamp', 'decal'].includes(key);
-      mesh.receiveShadow = true;
-      mesh.name = `pfadiheim ${key}`;
-      return mesh;
-    });
-  }
-}
-
-// The faces: the outward axis and its sign, and how the shape's x runs along the wall (so that ShapeGeometry's +z turns
-// outward; flip × a is the viewer's right)
-const FACES = {
-  S: { axis: 'z', out: 1, flip: 1 }, N: { axis: 'z', out: -1, flip: -1 },
-  E: { axis: 'x', out: 1, flip: -1 }, W: { axis: 'x', out: -1, flip: 1 }
-};
-const onFace = (face, plane, a, y, d = 0) => {
-  const F = FACES[face], o = plane + F.out * d;
-  return F.axis === 'z' ? [a, y, o] : [o, y, a];
-};
-
-// A flat piece of wall: the polygon pts ([a, y]) on the plane of `face`, with rectangular holes [a0, a1, y0, y1]; uv in
-// metres (a, y), or `uvOf(a, y)`
-function wallPiece(face, plane, pts, holes = [], uvOf = null) {
-  const F = FACES[face];
-  const shape = new THREE.Shape(pts.map(([a, y]) => new THREE.Vector2(F.flip * a, y)));
-  for (const [a0, a1, y0, y1] of holes) shape.holes.push(new THREE.Path([[a0, y0], [a1, y0], [a1, y1], [a0, y1]].map(([a, y]) => new THREE.Vector2(F.flip * a, y))));
-  const g = new THREE.ShapeGeometry(shape).toNonIndexed();
-  const p = g.attributes.position, n = p.count;
-  const nor = new Float32Array(n * 3), uvs = new Float32Array(n * 2);
-  for (let i = 0; i < n; i++) {
-    const a = F.flip * p.getX(i), y = p.getY(i);
-    if (F.axis === 'z') p.setXYZ(i, a, y, plane); else p.setXYZ(i, plane, y, a);
-    nor[i * 3 + (F.axis === 'z' ? 2 : 0)] = F.out;
-    [uvs[i * 2], uvs[i * 2 + 1]] = uvOf ? uvOf(a, y) : [a, y];
-  }
-  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  return g;
-}
+// The parts merged per material (js/building-kit.js MergeBuilder; every part with a second uv, the glass' window numbers)
+const PIECES = { name: 'pfadiheim', unshadowed: ['glass', 'lamp', 'decal'], uv1: true };
 const rectPts = (a0, a1, y0, y1) => [[a0, y0], [a1, y0], [a1, y1], [a0, y1]];
 
 // A flat quad on a face showing an atlas piece (`key`) over a0..a1 × y0..y1, d out from the plane
@@ -182,13 +113,7 @@ function decal(B, face, plane, a0, a1, y0, y1, key, d = 0.02) {
   ]));
 }
 
-// A quad from four corners (flat-shaded), turned to face `up` if given
-function quad(a, b, c, d) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...d], 3));
-  g.computeVertexNormals();
-  return g;
-}
+// A triangle, turned to face up if `wantUp`
 function tri(a, b, c, wantUp) {
   const g = new THREE.BufferGeometry();
   const e1 = b.map((v, i) => v - a[i]), e2 = c.map((v, i) => v - a[i]);
@@ -211,7 +136,7 @@ function windowIn(B, face, plane, [a0, a1, y0, y1], { depth = 0.16, panes = 3, b
     const e1 = c[1].map((v, j) => v - c[0][j]), e2 = c[3].map((v, j) => v - c[0][j]);
     const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
     const toMid = mid.map((v, j) => v - (c[0][j] + c[2][j]) / 2);
-    B.add('white', n[0] * toMid[0] + n[1] * toMid[1] + n[2] * toMid[2] > 0 ? quad(...c) : quad(c[0], c[3], c[2], c[1]));
+    B.add('white', n[0] * toMid[0] + n[1] * toMid[1] + n[2] * toMid[2] > 0 ? flatQuad(...c) : flatQuad(c[0], c[3], c[2], c[1]));
   }
   const w = a1 - a0, h = y1 - y0, along = (len, a, y, d, sa, sy, sd) => {
     const [x, yy, z] = P(a, y, d);
@@ -452,14 +377,14 @@ export function buildPfadiheim(scene) {
   root.rotation.y = fr.theta;
   const ground = (lx, lz) => groundHeight(...toWorld(fr, lx, lz)) - baseY;
 
-  const M = materials(), B = new Builder();
+  const M = materials(), B = new MergeBuilder(PIECES);
   buildHouse(B, m);
   buildShed(B, m);
   buildProps(B, ground);
   // (the board by the path, turned towards the Eisbahnstrasse's end and the forecourt)
   const boardGroup = new THREE.Group();
   {
-    const [x, z] = PROPS.board, y = ground(x, z), Bb = new Builder();
+    const [x, z] = PROPS.board, y = ground(x, z), Bb = new MergeBuilder(PIECES);
     for (const sx of [-0.62, 0.62]) Bb.span('timber', sx - 0.05, sx + 0.05, -0.4, 1.95, -0.05, 0.05);
     Bb.span('timber', -0.75, 0.75, 1.1, 1.92, -0.06, -0.02);
     decal(Bb, 'S', -0.02, -0.7, 0.7, 1.15, 1.85, 'board', 0.005);

@@ -3,7 +3,7 @@ import { abs, dot, float, floor, fract, hash, mix, mx_noise_float, normalWorld, 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
-import { lateNight, nightGlow } from './building-kit.js';
+import { FACES, MergeBuilder, flatQuad, lateNight, nightGlow, onFace, wallPiece as facePiece } from './building-kit.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { DETAIL_HOUSES, facadeLayout, facadeUV, fenceRuns, frame, scanRoofY, toWorld } from './detail-houses-data.js';
@@ -57,38 +57,6 @@ function materials() {
   return { facade, boards, plaster, roof, frame: frameMat, glass: glassMaterial(), metal, chimney, fence, door };
 }
 
-// --- Geometry builder: parts collected per material, merged into one mesh each ---------------------------------------------
-class Builder {
-  constructor() { this.parts = new Map(); }
-  add(mat, g) {
-    g = g.index ? g.toNonIndexed() : g;
-    g.clearGroups();
-    for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'uv1'].includes(name)) g.deleteAttribute(name);
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-    if (!this.parts.has(mat)) this.parts.set(mat, []);
-    this.parts.get(mat).push(g);
-    return g;
-  }
-  // A box: size (sx, sy, sz), centre (x, y, z), turned by ry about y and rx about x
-  box(mat, sx, sy, sz, x, y, z, { ry = 0, rx = 0, rz = 0 } = {}) {
-    const g = new THREE.BoxGeometry(sx, sy, sz);
-    if (rx) g.rotateX(rx);
-    if (rz) g.rotateZ(rz);
-    if (ry) g.rotateY(ry);
-    g.translate(x, y, z);
-    return this.add(mat, g);
-  }
-  meshes(M) {
-    return [...this.parts].map(([key, list]) => {
-      const mesh = new THREE.Mesh(mergeGeometries(list, false), M[key]);
-      mesh.castShadow = key !== 'glass';
-      mesh.receiveShadow = true;
-      mesh.name = `detail ${key}`;
-      return mesh;
-    });
-  }
-}
-
 // --- Dischmastrasse 19 ---------------------------------------------------------------------------------------------------------
 // Built to the numbers measured on the owner's 3D scan (js/detail-houses-data.js model), in the house's local frame
 // (x along the ridge to the east gable, z to the south front, y up from the ground). The walls are flat pieces wearing
@@ -96,48 +64,10 @@ class Builder {
 // their uv from facadeUV()); the windows are cut into them, with reveals, sills and glass set back (the sky in the
 // panes by day, lit at night, as in the neighbours' windows).
 
-// The faces: the outward axis and its sign, and how the shape's x runs along the wall (so that ShapeGeometry's +z
-// turns outward)
-const FACES = {
-  S: { axis: 'z', out: 1, flip: 1 }, N: { axis: 'z', out: -1, flip: -1 },
-  E: { axis: 'x', out: 1, flip: -1 }, W: { axis: 'x', out: -1, flip: 1 }
-};
-
-// A flat piece of wall: the polygon `pts` ([a, y]: a along the face, x on S/N, z on E/W) on the plane at `plane` of
-// face `face`, with rectangular holes ([a0, a1, y0, y1]); uv from the bake `bake` (none: zeros)
-function wallPiece(face, plane, pts, holes, bake = null, ctx = null) {
-  const F = FACES[face];
-  const shape = new THREE.Shape(pts.map(([a, y]) => new THREE.Vector2(F.flip * a, y)));
-  for (const [a0, a1, y0, y1] of holes) {
-    shape.holes.push(new THREE.Path([[a0, y0], [a1, y0], [a1, y1], [a0, y1]].map(([a, y]) => new THREE.Vector2(F.flip * a, y))));
-  }
-  const g = new THREE.ShapeGeometry(shape).toNonIndexed();
-  const p = g.attributes.position, n = p.count;
-  const nor = new Float32Array(n * 3), uvs = new Float32Array(n * 2);
-  for (let i = 0; i < n; i++) {
-    const a = F.flip * p.getX(i), y = p.getY(i);
-    if (F.axis === 'z') p.setXYZ(i, a, y, plane); else p.setXYZ(i, plane, y, a);
-    nor[i * 3 + (F.axis === 'z' ? 2 : 0)] = F.out;
-    if (bake) [uvs[i * 2], uvs[i * 2 + 1]] = facadeUV(ctx.layout, ctx.bakes[bake], bake, a, y);
-  }
-  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  return g;
-}
-
-// A quad from four corners (counter-clockwise seen from where it faces), flat-shaded
-function quad(a, b, c, d) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...d], 3));
-  g.computeVertexNormals();
-  return g;
-}
-
-// A point of face `face` at (a, y), `d` out from its plane
-function onFace(face, plane, a, y, d = 0) {
-  const F = FACES[face], o = plane + F.out * d;
-  return F.axis === 'z' ? [a, y, o] : [o, y, a];
-}
+// A flat piece of wall (js/building-kit.js wallPiece: `pts` [a, y], a along the face, x on S/N, z on E/W, rectangular
+// holes [a0, a1, y0, y1]) with its uv from the bake `bake` (none: zeros)
+const wallPiece = (face, plane, pts, holes, bake = null, ctx = null) =>
+  facePiece(face, plane, pts, holes, bake ? (a, y) => facadeUV(ctx.layout, ctx.bakes[bake], bake, a, y) : () => [0, 0]);
 
 // A window in a wall piece: the reveal round the hole back to the glass `depth` behind the plane, the sill, the glass
 // (uv: 0–1 over the pane; uv1.x: the window's number for the night light, uv1.y: 1 for a cellar window in the plinth)
@@ -152,7 +82,7 @@ function windowIn(B, glassParts, face, plane, [a0, a1, y0, y1], depth, id, bake,
     const e1 = c[1].map((v, j) => v - c[0][j]), e2 = c[3].map((v, j) => v - c[0][j]);
     const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
     const toMid = mid.map((v, j) => v - (c[0][j] + c[2][j]) / 2);
-    B.add('frame', n[0] * toMid[0] + n[1] * toMid[1] + n[2] * toMid[2] > 0 ? quad(...c) : quad(c[0], c[3], c[2], c[1]));
+    B.add('frame', n[0] * toMid[0] + n[1] * toMid[1] + n[2] * toMid[2] > 0 ? flatQuad(...c) : flatQuad(c[0], c[3], c[2], c[1]));
   }
   // the sill, standing out under it
   const [sx, sy, sz] = P((a0 + a1) / 2, y0 - 0.025, 0.05);
@@ -473,7 +403,7 @@ export function buildDetailHouses(scene) {
     const body = new THREE.Group();
     body.name = `${house.id} house`;
     body.position.y = foot;
-    const B = new Builder(), glassParts = [];
+    const B = new MergeBuilder({ name: 'detail', unshadowed: ['glass'] }), glassParts = [];
     const ctx = { bakes: m.bakes, layout: facadeLayout(m.bakes) };
     buildDischmastrasse19(B, glassParts, m, ctx);
     const meshes = B.meshes(M);

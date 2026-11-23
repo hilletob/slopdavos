@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { abs, attribute, float, floor, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
 import { cityUniforms } from './tsl-materials.js';
 import { onWall } from './spital-data.js';
@@ -7,7 +8,8 @@ import { onWall } from './spital-data.js';
 // js/st-johann.js, js/belvedere.js, js/marienkirche.js; the night's threshold also js/landmark-buildings.js,
 // js/pfadiheim.js, js/detail-houses.js, js/bergbahnen.js, js/swissbuildings3d.js): the night's glow, the materials'
 // nodes for distance, weathering and windows lit at night, the canvas atlas and its decals, the Builder that collects
-// quads into one mesh per material, a flat roof over an outline. The walls' frames (wallFrame, onWall, outwardRing,
+// quads into one mesh per material, a flat roof over an outline; and for the houses built of pieces on four faces
+// (js/detail-houses.js, js/pfadiheim.js) the MergeBuilder, the faces and their wall pieces. The walls' frames (wallFrame, onWall, outwardRing,
 // pointInRing) are js/spital-data.js', pure maths for the tests.
 
 // --- The night ---------------------------------------------------------------------------------------------------------
@@ -179,4 +181,93 @@ export function flatRoof(B, ring, top, { bucket = 'roof', uvOf = (q) => [q[0], q
     const t = up ? p : [p[0], p[2], p[1]];
     B.tri(bucket, t[0], t[1], t[2], t.map(uvOf), { colour });
   }
+}
+
+// --- The houses built of pieces on four faces (js/detail-houses.js, js/pfadiheim.js) -----------------------------------
+// Parts collected per material, each a geometry of its own, merged into one mesh each: `name` the meshes' prefix,
+// `unshadowed` the materials casting no shadow, `uv1` whether every part carries a second uv (zeros if it has none)
+export class MergeBuilder {
+  constructor({ name, unshadowed = [], uv1 = false }) {
+    this.parts = new Map();
+    Object.assign(this, { name, unshadowed, uv1 });
+  }
+  add(mat, g) {
+    g = g.index ? g.toNonIndexed() : g;
+    g.clearGroups();
+    for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'uv1'].includes(name)) g.deleteAttribute(name);
+    const n = g.attributes.position.count;
+    if (!g.attributes.normal) g.computeVertexNormals();
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+    if (this.uv1 && !g.attributes.uv1) g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+    if (!this.parts.has(mat)) this.parts.set(mat, []);
+    this.parts.get(mat).push(g);
+    return g;
+  }
+  // A box: size (sx, sy, sz), centre (x, y, z), turned by rx about x, rz about z, then ry about y
+  box(mat, sx, sy, sz, x, y, z, { ry = 0, rx = 0, rz = 0 } = {}) {
+    const g = new THREE.BoxGeometry(sx, sy, sz);
+    if (rx) g.rotateX(rx);
+    if (rz) g.rotateZ(rz);
+    if (ry) g.rotateY(ry);
+    g.translate(x, y, z);
+    return this.add(mat, g);
+  }
+  // a box from (x0, y0, z0) to (x1, y1, z1)
+  span(mat, x0, x1, y0, y1, z0, z1) { return this.box(mat, x1 - x0, y1 - y0, z1 - z0, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); }
+  cylinder(mat, r, h, x, y, z, seg = 10) {
+    const g = new THREE.CylinderGeometry(r, r, h, seg);
+    g.translate(x, y, z);
+    return this.add(mat, g);
+  }
+  meshes(M) {
+    return [...this.parts].map(([key, list]) => {
+      const mesh = new THREE.Mesh(mergeGeometries(list, false), M[key]);
+      mesh.castShadow = !this.unshadowed.includes(key);
+      mesh.receiveShadow = true;
+      mesh.name = `${this.name} ${key}`;
+      return mesh;
+    });
+  }
+}
+
+// The faces: the outward axis and its sign, and how the shape's x runs along the wall (so that ShapeGeometry's +z turns
+// outward; flip × a is the viewer's right)
+export const FACES = {
+  S: { axis: 'z', out: 1, flip: 1 }, N: { axis: 'z', out: -1, flip: -1 },
+  E: { axis: 'x', out: 1, flip: -1 }, W: { axis: 'x', out: -1, flip: 1 }
+};
+/** A point of face `face` at (a, y), `d` out from its plane (a along the face: x on S/N, z on E/W) */
+export const onFace = (face, plane, a, y, d = 0) => {
+  const F = FACES[face], o = plane + F.out * d;
+  return F.axis === 'z' ? [a, y, o] : [o, y, a];
+};
+
+/**
+ * A flat piece of wall: the polygon pts ([a, y]) on the plane of `face`, with rectangular holes [a0, a1, y0, y1]; uv in
+ * metres (a, y), or `uvOf(a, y)`
+ */
+export function wallPiece(face, plane, pts, holes = [], uvOf = null) {
+  const F = FACES[face];
+  const shape = new THREE.Shape(pts.map(([a, y]) => new THREE.Vector2(F.flip * a, y)));
+  for (const [a0, a1, y0, y1] of holes) shape.holes.push(new THREE.Path([[a0, y0], [a1, y0], [a1, y1], [a0, y1]].map(([a, y]) => new THREE.Vector2(F.flip * a, y))));
+  const g = new THREE.ShapeGeometry(shape).toNonIndexed();
+  const p = g.attributes.position, n = p.count;
+  const nor = new Float32Array(n * 3), uvs = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const a = F.flip * p.getX(i), y = p.getY(i);
+    if (F.axis === 'z') p.setXYZ(i, a, y, plane); else p.setXYZ(i, plane, y, a);
+    nor[i * 3 + (F.axis === 'z' ? 2 : 0)] = F.out;
+    [uvs[i * 2], uvs[i * 2 + 1]] = uvOf ? uvOf(a, y) : [a, y];
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  return g;
+}
+
+/** A quad from four corners ([x, y, z], counter-clockwise seen from where it faces), flat-shaded */
+export function flatQuad(a, b, c, d) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...d], 3));
+  g.computeVertexNormals();
+  return g;
 }
