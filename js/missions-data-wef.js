@@ -322,8 +322,9 @@ export const WEF_ESCORT_MISSION = {
   update(ctx, state) { escortStep(state.escort, ctx); },
   summary(state) {
     const s = state.escort;
-    return [msg('Cohesion {c} % · composure {k} · {n} crashes · {r} gates rushed', 'Zusammenhalt {c} % · Fassung {k} · {n} Unfälle · {r} Schleusen zu schnell',
-      { c: Math.round(100 * cohesionShare(s)), k: Math.round(s.composure), n: s.crashes, r: s.rushed })];
+    return [msg('Cohesion {c} % · composure {k} · {n} {crashes} · {r} {gates} rushed',
+      (p) => `Zusammenhalt ${p.c} % · Fassung ${p.k} · ${p.n} ${p.n === 1 ? 'Unfall' : 'Unfälle'} · ${p.r} ${p.r === 1 ? 'Schleuse' : 'Schleusen'} zu schnell`,
+      { c: Math.round(100 * cohesionShare(s)), k: Math.round(s.composure), n: s.crashes, crashes: s.crashes === 1 ? 'crash' : 'crashes', r: s.rushed, gates: s.rushed === 1 ? 'gate' : 'gates' })];
   },
   objectives: [
     {

@@ -2104,14 +2104,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^Top speed (\d+) km\/h · on the wall ([\d.]+) s · jolts ([\d.]+) s$/, 'Höchsttempo $1 km/h · an der Wand $2 s · Schläge $3 s');
   dynamic = dynamic.replace(/^Likeness (\d+) % · colour (\d+) % · contours (\d+) %$/, 'Ähnlichkeit $1 % · Farbe $2 % · Konturen $3 %');
   dynamic = dynamic.replace(/^(\d+) shovels thrown onto the heaps · (\d+) % of the path cleared$/, '$1 Schaufeln auf die Haufen geworfen · $2 % des Wegs geräumt');
-  dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${plural(n, 'parkiertes Auto', 'parkierte Autos')} getroffen (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
   dynamic = dynamic.replace(/^(\d+) bed patch(?:es)? trodden \(\+([\d.]+) s\)$/, (_, n, a) => `${n} ${plural(n, 'Beet', 'Beete')} zertrampelt (+${a} s)`);
   dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
   dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
   dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
-  dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
-  dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
-  dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
   dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');

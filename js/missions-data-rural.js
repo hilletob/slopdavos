@@ -258,7 +258,7 @@ export const QUAD_MISSION = {
     quadObjective('back', 'Back to the Heldstab yard', 'back', true)
   ],
   summary(state) {
-    return [msg('{j} clean {jumps} (-{s} s) · {p} mud and snow {patches} crossed', (p) => `${jumpsDe(p.j)} (-${p.s} s) · ${p.p} Schlamm- und Schneefelder durchquert`,
+    return [msg('{j} clean {jumps} (-{s} s) · {p} mud and snow {patches} crossed', (p) => `${jumpsDe(p.j)} (-${p.s} s) · ${p.p} ${p.p === 1 ? 'Schlamm- oder Schneefeld' : 'Schlamm- und Schneefelder'} durchquert`,
       { j: state.jumps, jumps: state.jumps === 1 ? 'jump' : 'jumps', s: (state.jumps * QUAD.airBonusMs) / 1000, p: state.patches, patches: state.patches === 1 ? 'patch' : 'patches' })];
   }
 };

@@ -180,7 +180,7 @@ test('the rural missions translate names, intros and generated texts', async () 
   const home = R.QUAD.finish;
   says(back.check(frame({ x: home.x, z: home.z }), quad({ gates: { town: 5, course: 11, back: 2 } })).text, 'Gate 3/3', 'Tor 3/3');
   says(Q.summary(quad({ jumps: 2, patches: 4 }))[0], '2 clean jumps (-3 s) · 4 mud and snow patches crossed', '2 saubere Sprünge (-3 s) · 4 Schlamm- und Schneefelder durchquert');
-  says(Q.summary(quad({ jumps: 1, patches: 1 }))[0], '1 clean jump (-1.5 s) · 1 mud and snow patch crossed', '1 sauberer Sprung (-1.5 s) · 1 Schlamm- und Schneefelder durchquert');
+  says(Q.summary(quad({ jumps: 1, patches: 1 }))[0], '1 clean jump (-1.5 s) · 1 mud and snow patch crossed', '1 sauberer Sprung (-1.5 s) · 1 Schlamm- oder Schneefeld durchquert');
   says(R.airTimeText(0.83), 'Air time 0.8 s: -1.5 s', 'Flugzeit 0.8 s: -1.5 s');
   const B = R.BIO_MISSION, [collect, unload] = B.objectives;
   // (ten barrels, four handled and three of them on the bed; the nearest left 90 m away)
@@ -321,7 +321,8 @@ test('the WEF missions translate names, intros, generated texts and slogans', as
   says(march.summary({ march: { ...createMarch(), count: 41, perfect: 9, good: 0, miss: 1, onT: 3, totalT: 4, goodwill: 12 } })[0], '41 marchers · chant 90 % · on the route 75 % · goodwill 12', '41 Leute · Sprechchor 90 % · auf der Route 75 % · Wohlwollen 12');
   assert.equal(t('Davos for the Davosers!'), 'Davos den Davosern!');
   says(escort.objectives[0].check(ctx(PICKUP, 0, { dt: ESCORT.boardS - 2.5 }), { escort: createEscort() }).text, 'The delegation is boarding … 3 s', 'Die Delegation steigt ein … 3 s');
-  says(escort.summary({ escort: { ...createEscort(), formT: 90, escortT: 100, composure: 88.2, crashes: 1, rushed: 0 } })[0], 'Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed', 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
+  says(escort.summary({ escort: { ...createEscort(), formT: 90, escortT: 100, composure: 88.2, crashes: 1, rushed: 0 } })[0], 'Cohesion 90 % · composure 88 · 1 crash · 0 gates rushed', 'Zusammenhalt 90 % · Fassung 88 · 1 Unfall · 0 Schleusen zu schnell');
+  says(escort.summary({ escort: { ...createEscort(), formT: 90, escortT: 100, composure: 61, crashes: 2, rushed: 1 } })[0], 'Cohesion 90 % · composure 61 · 2 crashes · 1 gate rushed', 'Zusammenhalt 90 % · Fassung 61 · 2 Unfälle · 1 Schleuse zu schnell');
   assert.equal(t('DAVOS FOR THE DAVOSERS'), 'DAVOS DEN DAVOSERN');
   // (the march's controls: the call, the liaison's answers in the key bar and the hint while the dialog is open)
   assert.equal(t('Call'), 'Rufen');
@@ -636,6 +637,7 @@ test('the Silberberg\'s ore shift speaks German: its HUD, toasts and summary', a
   const [mined, out] = M.summary({ shift: shift({ ore, bonus: 40 }) });
   says(mined, 'Mined: 12.5 kg galena · 4 kg sphalerite · 0.3 kg barren rock', 'Abgebaut: 12.5 kg Bleiglanz · 4 kg Zinkblende · 0.3 kg taubes Gestein');
   says(out, 'Out with 2:10 of oil left: +40 pts', 'Draussen mit 2:10 Öl übrig: +40 Pkt.');
+  says(M.summary({ shift: shift({ ore, bonus: 0 }) })[1], 'Out with 2:10 of oil left.', 'Draussen mit 2:10 Öl übrig.');
   says(M.summary({ shift: shift({ ore, over: 'dark', basket: { kg: 3.5 } }) })[1], 'The lamp went out inside: 3.5 kg in the basket stayed with you.', 'Die Lampe erlosch drinnen: 3.5 kg im Korb blieben bei dir.');
   says(M.summary({ shift: shift({ ore, over: 'dark' }) })[1], 'The lamp went out inside.', 'Die Lampe erlosch drinnen.');
   setLanguage('en');

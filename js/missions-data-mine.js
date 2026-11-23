@@ -636,7 +636,7 @@ export const MINE_MISSION = {
       msg('Mined: {a} galena · {b} sphalerite · {c} barren rock', 'Abgebaut: {a} Bleiglanz · {b} Zinkblende · {c} taubes Gestein', { a: kg(g.ore.galena), b: kg(g.ore.sphalerite), c: kg(g.ore.barren) }),
       g.over === 'dark' ? (g.basket.kg ? msg('The lamp went out inside: {kg} in the basket stayed with you.', 'Die Lampe erlosch drinnen: {kg} im Korb blieben bei dir.', { kg: kg(g.basket.kg) })
         : msg('The lamp went out inside.', 'Die Lampe erlosch drinnen.'))
-        : g.bonus ? msg('Out with {lamp} of oil left: +{pts} pts', 'Draussen mit {lamp} Öl übrig: +{pts} Pkt.', { lamp: fmtClock(g.lamp), pts: g.bonus }) : `Out with ${fmtClock(g.lamp)} of oil left.`
+        : g.bonus ? msg('Out with {lamp} of oil left: +{pts} pts', 'Draussen mit {lamp} Öl übrig: +{pts} Pkt.', { lamp: fmtClock(g.lamp), pts: g.bonus }) : msg('Out with {lamp} of oil left.', 'Draussen mit {lamp} Öl übrig.', { lamp: fmtClock(g.lamp) })
     ];
   },
   objectives: [
