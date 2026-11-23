@@ -1,5 +1,6 @@
 import { DETAIL_HOUSES, frame as houseFrame } from './detail-houses-data.js';
 import { inFlatRing as inRingXZ } from './ring.js';
+import { msg } from './messages.js';
 export { inRingXZ };
 
 // js/missions-data-work.js
@@ -39,6 +40,7 @@ export { inRingXZ };
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
+const picking = (share) => msg('Picking … {p} %', 'Pflücken … {p} %', { p: Math.round(share * 100) });
 const pct = (f) => `${Math.floor(f * 100)} %`;
 
 /** A small deterministic PRNG (the bushes and the mushrooms stand in the same places every run) */
@@ -446,7 +448,10 @@ export const SNOW_BLOWER_MISSION = {
       return { done: state.cleared >= goal, progress: state.cleared / BLOWER.goal, text: `Road cleared ${pct(state.cleared)} of ${pct(BLOWER.goal)}${pen}`, target: null, hint };
     }
   })),
-  summary(state) { return [`${state.hits} parked car${state.hits === 1 ? '' : 's'} hit (+${(state.hits * BLOWER.hitMs) / 1000} s) · cars buried for ${Math.round(state.buried)} s (+${Math.round(state.buried * BLOWER.buryRate)} s)`]; }
+  summary(state) {
+    return [msg('{n} parked car{s} hit (+{a} s) · cars buried for {b} s (+{c} s)', (q) => `${q.n} ${q.n === 1 ? 'parkiertes Auto' : 'parkierte Autos'} angefahren (+${q.a} s) · Autos ${q.b} s lang zugeschüttet (+${q.c} s)`,
+      { n: state.hits, s: state.hits === 1 ? '' : 's', a: (state.hits * BLOWER.hitMs) / 1000, b: Math.round(state.buried), c: Math.round(state.buried * BLOWER.buryRate) })];
+  }
 };
 
 // =====================================================================================================================
@@ -541,7 +546,7 @@ export const LAWN_MISSION = {
       const c = MOWER.frame.toWorld(MOWER.size.u / 2, MOWER.size.v / 2);
       const far = Math.hypot(ctx.x - c.x, ctx.z - c.z) > 22;
       return {
-        done: state.mown >= goal, progress: state.mown / MOWER.goal, text: `Lawn mown ${pct(state.mown)} of ${pct(MOWER.goal)}${beds}`,
+        done: state.mown >= goal, progress: state.mown / MOWER.goal, text: state.trodden ? msg('Lawn mown {a} of {b} · beds trodden {n} (+{s} s)', 'Rasen gemäht: {a} von {b} · Beete zertrampelt {n} (+{s} s)', { a: pct(state.mown), b: pct(MOWER.goal), n: state.trodden, s: (state.trodden * MOWER.bedMs) / 1000 }) : `Lawn mown ${pct(state.mown)} of ${pct(MOWER.goal)}${beds}`,
         target: far ? { x: c.x, z: c.z, r: 4 } : null,
         hint: ctx.mode !== 'car' ? 'Back onto the mower' : state.onBed ? 'Off the flower bed!' : null
       };
@@ -623,13 +628,13 @@ export const GARBAGE_MISSION = {
         if (state.atKma && state.collected > 0 && left.length && Math.abs(ctx.speed) < 1) {
           state.missed = left.length;
           state.penaltyMs = state.missed * GARBAGE.missMs;
-          return { done: true, progress: 1, text: `${left.length} point${left.length === 1 ? '' : 's'} left out (+${(left.length * GARBAGE.missMs) / 1000} s)`, target: null, hint: null };
+          return { done: true, progress: 1, text: msg('{n} point{s} left out (+{t} s)', (q) => `${q.n} ${q.n === 1 ? 'Sammelstelle' : 'Sammelstellen'} ausgelassen (+${q.t} s)`, { n: left.length, s: left.length === 1 ? '' : 's', t: (left.length * GARBAGE.missMs) / 1000 }), target: null, hint: null };
         }
         let next = null, bd = Infinity;
         for (const s of left) { const d = Math.hypot(s.x - ctx.x, s.z - ctx.z); if (d < bd) { bd = d; next = s; } }
         const loading = state.loading;
         const text = `Collected ${state.collected}/${state.stops.length}${next ? ` · next ${fmtDist(bd)}` : ''}`;
-        const hint = ctx.mode !== 'car' ? 'Back into the truck' : loading ? `Loading … ${Math.round((loading.t / GARBAGE.loadS) * 100)} %` : next && bd < 14 ? 'Stop with the tail at the bins' : null;
+        const hint = ctx.mode !== 'car' ? 'Back into the truck' : loading ? msg('Loading … {p} %', 'Laden … {p} %', { p: Math.round((loading.t / GARBAGE.loadS) * 100) }) : next && bd < 14 ? 'Stop with the tail at the bins' : null;
         return { done: !left.length, progress: state.collected / state.stops.length, text, target: next ? { x: next.x, z: next.z, r: 2.5 } : null, hint };
       }
     },
@@ -641,7 +646,7 @@ export const GARBAGE_MISSION = {
         const d = Math.hypot(ctx.x - GARBAGE.kma.x, ctx.z - GARBAGE.kma.z);
         return {
           done: state.unloadT >= GARBAGE.unloadS, progress: state.unloadT / GARBAGE.unloadS,
-          text: state.atKma ? `Unloading … ${Math.round((state.unloadT / GARBAGE.unloadS) * 100)} %` : `To the KMA · ${fmtDist(d)}`,
+          text: state.atKma ? `Unloading … ${Math.round((state.unloadT / GARBAGE.unloadS) * 100)} %` : msg('To the KMA · {d}', 'Zur KMA · {d}', { d: fmtDist(d) }),
           target: { x: GARBAGE.kma.x, z: GARBAGE.kma.z, r: GARBAGE.kma.r, style: 'pad' }, hint: state.atKma ? 'Stand still while the press empties' : null
         };
       }
@@ -742,7 +747,7 @@ export const ALPINE_ROSES_MISSION = {
         if (ctx.t > ALPINE_ROSES_MISSION.timeLimitMs) return { done: false, fail: 'The sun is down behind the Strela: too slow.', text: '', progress: state.picked / ROSES.goal, target: null, hint: null };
         const b = nearestBush(state.bushes, ctx.x, ctx.z, 3.5);
         const pen = state.entries || state.damaged ? ` · ${state.entries ? `reserve ${state.entries}× (+${(state.entries * ROSES.zoneMs) / 1000} s)` : ''}${state.entries && state.damaged ? ', ' : ''}${state.damaged ? `${state.damaged} damaged (+${(state.damaged * ROSES.damageMs) / 1000} s)` : ''}` : '';
-        const hint = state.inZone ? 'Nature reserve: out of here!' : state.picking ? `Picking … ${Math.round((state.picking.t / ROSES.pickS) * 100)} %`
+        const hint = state.inZone ? 'Nature reserve: out of here!' : state.picking ? picking(state.picking.t / ROSES.pickS)
           : b && Math.hypot(b.x - ctx.x, b.z - ctx.z) <= ROSES.reach ? (b.bloom ? 'In flower: hold Space to pick' : 'No flowers on this one: leave it') : null;
         // (the way to the field from afar)
         const f = ROSES.field, cx = (f.x0 + f.x1) / 2, cz = (f.z0 + f.z1) / 2;
@@ -854,7 +859,8 @@ export const MUSHROOM_MISSION = {
         const timeUp = ctx.t >= MUSHROOMS.timeMs;
         const left = Math.max(0, MUSHROOMS.timeMs - ctx.t);
         const m = state.items ? nearestMushroom(state.items, ctx.x, ctx.z, MUSHROOMS.describeAt) : null;
-        const hint = state.picking ? `Picking … ${Math.round((state.picking.t / MUSHROOMS.pickS) * 100)} %` : m ? `${MUSHROOM_KINDS[m.kind].desc}${Math.hypot(m.x - ctx.x, m.z - ctx.z) <= MUSHROOMS.reach ? ' · Space: into the basket' : ''}` : null;
+        const desc = m && MUSHROOM_KINDS[m.kind].desc;
+        const hint = state.picking ? picking(state.picking.t / MUSHROOMS.pickS) : m ? (Math.hypot(m.x - ctx.x, m.z - ctx.z) <= MUSHROOMS.reach ? msg('{desc} · Space: into the basket', '{desc|t} · Space: in den Korb', { desc }) : desc) : null;
         const f = MUSHROOMS.field;
         const far = ctx.x < f.x0 - 15 || ctx.x > f.x1 + 15 || ctx.z < f.z0 - 15 || ctx.z > f.z1 + 15;
         return {
@@ -880,8 +886,9 @@ export const MUSHROOM_MISSION = {
     const r = state.result || mushroomControl(state.basket);
     const count = {};
     for (const k of state.basket) count[k] = (count[k] || 0) + 1;
-    const lines = Object.entries(count).map(([k, n]) => `${n}× ${MUSHROOM_KINDS[k].name} ${MUSHROOM_KINDS[k].points > 0 ? '+' : ''}${MUSHROOM_KINDS[k].points * n}`);
-    return [lines.join(' · ') || 'An empty basket', `${r.edible} edible · ${r.rejected} thrown out${r.poisonous ? ` (${r.poisonous} poisonous!)` : ''}`];
+    const parts = Object.entries(count).map(([k, n]) => ({ n, kind: MUSHROOM_KINDS[k].name, pts: `${MUSHROOM_KINDS[k].points > 0 ? '+' : ''}${MUSHROOM_KINDS[k].points * n}` }));
+    const line = parts.map((q) => `${q.n}× ${q.kind} ${q.pts}`).join(' · ');
+    return [(parts.length && msg('{line}', (_, tr) => parts.map((q) => `${q.n}× ${tr(q.kind)} ${q.pts}`).join(' · '), { line })) || 'An empty basket', `${r.edible} edible · ${r.rejected} thrown out${r.poisonous ? ` (${r.poisonous} poisonous!)` : ''}`];
   }
 };
 
@@ -1025,6 +1032,10 @@ export function stepCrane(c, input, dt, wind = null, maxRope = CRANE.ropeMax) {
   }
   return c;
 }
+
+// (the loads in German, for the crane's texts; js/missions-work.js's toast names the next one)
+export const CRANE_LOAD_DE = { 'concrete bucket': 'Betonkübel', 'rebar bundle': 'Armierungsbund', 'hotel jacuzzi': 'Hotel-Jacuzzi' };
+export const craneNextText = (name) => msg('Next: the {load} in the yard', 'Als Nächstes: {de} auf dem Werkplatz', { load: name, de: CRANE_LOAD_DE[name] });
 
 export const createCraneState = () => ({ cab: false, index: 0, carried: false, seated: false, seatV: 0, lifted: false, lx: 0, ly: 0, lz: 0, hits: 0, hard: 0, results: [], cool: 0, t: 0, view: null });
 
@@ -1195,7 +1206,7 @@ export const CRANE_MISSION = {
       title: 'Climb the crane',
       check(ctx, state) {
         const d = Math.hypot(ctx.x - CRANE.ladder.x, ctx.z - CRANE.ladder.z);
-        return { done: state.cab, progress: null, text: `${fmtDist(d)} to the crane ladder`, target: { x: CRANE.ladder.x, z: CRANE.ladder.z, r: CRANE.ladderR }, hint: 'Walk (W) to the ladder at the foot of the mast: you climb up into the cab by yourself' };
+        return { done: state.cab, progress: null, text: msg('{d} to the crane ladder', '{d} bis zur Kranleiter', { d: fmtDist(d) }), target: { x: CRANE.ladder.x, z: CRANE.ladder.z, r: CRANE.ladderR }, hint: 'Walk (W) to the ladder at the foot of the mast: you climb up into the cab by yourself' };
       }
     },
     ...CRANE_LOADS.map((load, i) => ({
@@ -1205,15 +1216,17 @@ export const CRANE_MISSION = {
         if (ctx.t > CRANE.limitMs) return { done: false, fail: 'The site closes for the day: too slow.', text: '', progress: null, target: null, hint: null };
         const v = state.view;
         const hits = state.hits ? ` · ${state.hits} ${state.hits === 1 ? 'hit' : 'hits'}` : '';
-        let text = `Take the ${load.name}${hits}`, hint = null;
+        const p = { load: load.name, de: CRANE_LOAD_DE[load.name], hits, hitsDe: state.hits ? ` · ${state.hits} Treffer` : '' };
+        let text = msg('Take the {load}{hits}', '{de} anhängen{hitsDe}', p), hint = null;
         // (the hint: the next move with its key, js/missions-work.js towerCrane keeps state.view.move up to date)
         const move = v?.move ? CRANE_MOVES[v.move] : null;
         if (state.carried && state.seated && state.lifted) {
           const err = Math.hypot(state.lx - load.pad.x, state.lz - load.pad.z);
-          text = `${num(err)} m off the mark${hits}`;
+          text = msg('{d} m off the mark{hits}', '{d} m neben der Markierung{hitsDe}', { ...p, d: num(err) });
           hint = move || (err <= CRANE.padR ? CRANE_MOVES.release : CRANE_MOVES.offSpot);
         } else if (v) {
-          text = `${state.carried ? `Set the ${load.name} down` : `Take the ${load.name}`}: ${num(v.dist)} m off · ${num(Math.max(0, v.above))} m above · swing ${num(v.swing)} m${hits}`;
+          text = msg(`${state.carried ? 'Set the {load} down' : 'Take the {load}'}: {d} m off · {h} m above · swing {s} m{hits}`, `{de} ${state.carried ? 'absetzen' : 'anhängen'}: {d} m daneben · {h} m darüber · Pendeln {s} m{hitsDe}`,
+            { ...p, d: num(v.dist), h: num(Math.max(0, v.above)), s: num(v.swing) });
           if (!state.carried && v.ready) hint = CRANE_MOVES.take;
           else if (v.swing > 1.2 && !(state.carried && state.seated)) hint = state.carried ? 'Swinging: meet the swing with a small move the same way' : 'The hook swings: meet the swing with a small move the same way';
           else if (v.move === 'lowerLoad' && v.wind > 0.12) hint = 'Gusts: the load drifts. Hold it over the mark and lower it with Q in a lull';
@@ -1225,7 +1238,7 @@ export const CRANE_MISSION = {
   ],
   summary(state) {
     const parts = state.results.map((r) => `${r.err.toFixed(2)} m, ${r.v.toFixed(2)} m/s`);
-    return [`Set down: ${parts.join(' · ')}`, `${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.hard} hard ${state.hard === 1 ? 'landing' : 'landings'}`];
+    return [msg('Set down: {parts}', 'Abgesetzt: {parts}', { parts: parts.join(' · ') }), `${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.hard} hard ${state.hard === 1 ? 'landing' : 'landings'}`];
   }
 };
 

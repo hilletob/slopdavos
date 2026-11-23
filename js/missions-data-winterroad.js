@@ -1,4 +1,5 @@
 import { DAVOS_DATA } from './davos-geodata.js';
+import { msg } from './messages.js';
 import { makeRoute, routePoint } from './missions-data-work.js';
 
 // js/missions-data-winterroad.js
@@ -330,6 +331,9 @@ export function profileTime(route, heightAt, T, { vmax = T.drive.speed, step = 5
 // =====================================================================================================================
 // The missions
 const placeName = { waegerhus: 'the Wägerhus', waegerhuetta: 'the Wägerhütta', hospiz: 'the Flüela Hospiz', islen: 'Islen', clavadel: 'Clavadel', frauenkirch: 'Frauenkirch' };
+// (the same in German, after "bis")
+const placeTo = { waegerhus: 'zum Wägerhus', waegerhuetta: 'zur Wägerhütta', hospiz: 'zum Flüela Hospiz', islen: 'Islen', clavadel: 'Clavadel', frauenkirch: 'Frauenkirch' };
+const timesDe = (n) => `${n}-mal im Schneewall`;
 export const SPIN_HINT = 'Wheels spinning: ease off the throttle (tap W)';
 export const BANK_HINT = 'In the snowbank: back onto the road';
 
@@ -345,10 +349,11 @@ function driveTo(id, title, route, road, place, sEnd, { chains = false, to = sEn
       if (chains && state.chains?.snapped) return { done: false, fail: 'A chain snapped: snow chains are good for 50 km/h at most.', text: '', progress: null, target: null, hint: null };
       const left = Math.max(0, to - dr.best);
       const v = Math.round(kmh(Math.abs(ctx.speed || 0)));
-      let text = `${fmtDist(left)} to ${placeName[place]} · ${v} km/h`;
-      if (dr.banks) text += ` · ${dr.banks} ${dr.banks === 1 ? 'time' : 'times'} in the snowbank`;
+      const text = msg(dr.banks ? '{d} to {where} · {v} km/h · {n} {times} in the snowbank' : '{d} to {where} · {v} km/h',
+        (q) => `${q.d} bis ${q.to} · ${q.v} km/h${q.n ? ` · ${timesDe(q.n)}` : ''}`,
+        { d: fmtDist(left), where: placeName[place], to: placeTo[place], v, n: dr.banks, times: dr.banks === 1 ? 'time' : 'times' });
       const p = routePoint(route, Math.min(route.length, dr.best + 60));
-      const hint = chains && state.chainWarn ? `Chains rattling at ${v} km/h: slow down below 50!` : dr.inBank ? BANK_HINT : (state.traction?.spin || 0) > SPIN.show ? SPIN_HINT : null;
+      const hint = chains && state.chainWarn ? msg('Chains rattling at {v} km/h: slow down below 50!', 'Die Ketten rasseln bei {v} km/h: unter 50 bremsen!', { v }) : dr.inBank ? BANK_HINT : (state.traction?.spin || 0) > SPIN.show ? SPIN_HINT : null;
       return { done: dr.best >= sEnd - 2, progress: clamp(dr.best / sEnd, 0, 1), text, target: { x: p.x, z: p.z, r: road.half + 1, style: 'plain' }, hint };
     }
   };
@@ -391,7 +396,8 @@ export const SUMMER_TYRES_MISSION = {
   },
   summary(state) {
     const d = state.drive, tr = state.traction;
-    return [`Wheelspin ${Math.round(tr.spinTime)} s · ${d.banks} ${d.banks === 1 ? 'time' : 'times'} in the snowbank · ${d.crashes} ${d.crashes === 1 ? 'crash' : 'crashes'}`];
+    return [msg('Wheelspin {s} s · {n} {times} in the snowbank · {c} {crashes}', (q) => `Durchdrehen ${q.s} s · ${timesDe(q.n)} · ${q.c} ${q.c === 1 ? 'Unfall' : 'Unfälle'}`,
+      { s: Math.round(tr.spinTime), n: d.banks, times: d.banks === 1 ? 'time' : 'times', c: d.crashes, crashes: d.crashes === 1 ? 'crash' : 'crashes' })];
   },
   objectives: [
     driveTo('hairpins', 'Up through the hairpins', FLUELA_TOP, FLUELA_ROAD, 'hospiz', FLUELA_HAIRPINS, { to: FLUELA_TOP.length }),
@@ -443,7 +449,8 @@ export const SNOW_CHAINS_MISSION = {
   },
   summary(state) {
     const d = state.drive, c = state.chains;
-    return [`${c.slips} ${c.slips === 1 ? 'chain slipped' : 'chains slipped'} · top speed ${Math.round(kmh(d.top))} km/h · ${d.banks} ${d.banks === 1 ? 'time' : 'times'} in the snowbank`];
+    return [msg('{k} {slipped} · top speed {v} km/h · {n} {times} in the snowbank', (q) => `${q.k}-mal Kette abgerutscht · Höchsttempo ${q.v} km/h · ${timesDe(q.n)}`,
+      { k: c.slips, slipped: c.slips === 1 ? 'chain slipped' : 'chains slipped', v: Math.round(kmh(d.top)), n: d.banks, times: d.banks === 1 ? 'time' : 'times' })];
   },
   objectives: [
     {
@@ -456,7 +463,7 @@ export const SNOW_CHAINS_MISSION = {
         return {
           done: ctx.mode === 'car' && here && stopped,
           progress: null,
-          text: here ? 'Stop here, on the right' : `${fmtDist(d)} to Islen · ${Math.round(kmh(Math.abs(ctx.speed || 0)))} km/h`,
+          text: here ? 'Stop here, on the right' : msg('{d} to Islen · {v} km/h', '{d} bis Islen · {v} km/h', { d: fmtDist(d), v: Math.round(kmh(Math.abs(ctx.speed || 0))) }),
           target: { x: PULLOVER.x, z: PULLOVER.z, r: PULLOVER.r, style: 'pad' },
           hint: here && !stopped ? 'Brake (S) to a stop' : (state.traction?.spin || 0) > SPIN.show ? SPIN_HINT : null
         };
@@ -471,18 +478,19 @@ export const SNOW_CHAINS_MISSION = {
         const fitted = c.fitted;
         if (ctx.mode === 'car') {
           const moved = car ? Math.hypot(car.x - PULLOVER.x, car.z - PULLOVER.z) > PULLOVER.r + 3 : false;
-          return { done: false, progress: fitted / 2, text: `Chains on ${fitted} of 2 wheels`, target: moved ? { x: PULLOVER.x, z: PULLOVER.z, r: PULLOVER.r, style: 'pad' } : null, hint: moved ? 'Back to the pull-in' : 'F: get out' };
+          return { done: false, progress: fitted / 2, text: msg('Chains on {n} of 2 wheels', 'Ketten an {n} von 2 Rädern', { n: fitted }), target: moved ? { x: PULLOVER.x, z: PULLOVER.z, r: PULLOVER.r, style: 'pad' } : null, hint: moved ? 'Back to the pull-in' : 'F: get out' };
         }
         let target = null, text, hint = null;
         const w = c.at >= 0 ? c.wheels[c.at] : null;
         if (!w) {
           const next = c.wheels.find((q) => !q.done);
           if (next && car) { const p = chainSpot(car, next.side); target = { x: p.x, z: p.z, r: 0.7, style: 'plain' }; }
-          text = next ? `Chains on ${fitted} of 2 wheels · go to the ${next.side} rear wheel` : 'Chains on';
+          text = next ? msg('Chains on {n} of 2 wheels · go to the {side} rear wheel', (q) => `Ketten an ${q.n} von 2 Rädern · geh zum ${q.side === 'left' ? 'linken' : 'rechten'} Hinterrad`, { n: fitted, side: next.side }) : 'Chains on';
         } else {
           const side = w.side === 'left' ? 'Left' : 'Right';
           const step = CHAIN_STEPS[w.step];
-          text = step === 'lay' ? `${side} rear wheel: lay the chain out` : step === 'pull' ? `${side} rear wheel: pull it over the tyre` : `${side} rear wheel: tension the chain`;
+          const work = step === 'lay' ? ['lay the chain out', 'Kette auslegen'] : step === 'pull' ? ['pull it over the tyre', 'über den Pneu ziehen'] : ['tension the chain', 'Kette spannen'];
+          text = msg('{side} rear wheel: {work}', (q) => `Hinterrad ${q.side === 'Left' ? 'links' : 'rechts'}: ${q.de}`, { side, work: work[0], de: work[1] });
           hint = step === 'lay' ? 'Hold Space' : step === 'pull' ? 'Space when the needle is in the green' : 'Tap Space quickly';
         }
         return { done: fitted >= 2, progress: (fitted + (w ? (w.step + (w.step === 0 ? w.t / CHAINS.layS : w.step === 2 ? w.tension : 0)) / 3 : 0)) / 2, text, target, hint };

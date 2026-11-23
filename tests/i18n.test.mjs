@@ -214,8 +214,11 @@ test('the care missions translate names, intros and generated texts', () => {
   assert.equal(t('Too soggy'), 'Zu nass');
 });
 
-test('gastro, resort and après-ski missions translate names, intros and generated texts', () => {
+test('gastro, resort and après-ski missions translate names, intros and generated texts', async () => {
+  const W = await import('../js/missions-data-work.js');
   setLanguage('de');
+  // (the work missions' moving texts are made with msg(), js/messages.js: made by the mission from a state set up for it, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
   assert.equal(t('Flämmli in the Rot Liechtli'), 'Flämmli im Rot Liechtli');
   assert.match(t('Evening in the Rot Liechtli, the little pub in Davos Platz. A Flämmli is a Swiss shot.'), /^Abend im Rot Liechtli/);
   assert.match(t('Friday night at Pizza Heaven, the Pizzakurier on the Promenade.'), /^Freitagabend im Pizza Heaven/);
@@ -235,13 +238,32 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('JUMP'), 'SPRINGEN');
   assert.equal(t('Crane driver at the Hotel Derby'), 'Kranführer beim Hotel Derby');
   assert.match(t('A new wing for the Hotel Derby in Davos Dorf, and the crane driver is off sick.'), /Turmkran/);
-  assert.equal(t('Set the hotel jacuzzi down: 3.2 m off · 1.0 m above · swing 0.4 m · 2 hits'), 'Hotel-Jacuzzi absetzen: 3.2 m daneben · 1.0 m darüber · Pendeln 0.4 m · 2 Treffer');
-  assert.equal(t('45 m to the crane ladder'), '45 m bis zur Kranleiter');
+  const crane = W.CRANE_MISSION, jacuzzi = crane.objectives.find((o) => o.id === 'jacuzzi'), rebar = crane.objectives.find((o) => o.id === 'rebar');
+  const view = { dist: 3.2, above: 1, swing: 0.4, move: null };
+  says(jacuzzi.check({ t: 0 }, { ...W.createCraneState(), carried: true, hits: 2, view }).text, 'Set the hotel jacuzzi down: 3.2 m off · 1.0 m above · swing 0.4 m · 2 hits', 'Hotel-Jacuzzi absetzen: 3.2 m daneben · 1.0 m darüber · Pendeln 0.4 m · 2 Treffer');
+  says(rebar.check({ t: 0 }, { ...W.createCraneState(), hits: 1, view }).text, 'Take the rebar bundle: 3.2 m off · 1.0 m above · swing 0.4 m · 1 hit', 'Armierungsbund anhängen: 3.2 m daneben · 1.0 m darüber · Pendeln 0.4 m · 1 Treffer');
+  says(rebar.check({ t: 0 }, W.createCraneState()).text, 'Take the rebar bundle', 'Armierungsbund anhängen');
+  const pad = W.CRANE_LOADS.find((l) => l.id === 'rebar').pad;
+  says(rebar.check({ t: 0 }, { ...W.createCraneState(), carried: true, seated: true, lifted: true, lx: pad.x + 0.6, lz: pad.z, hits: 3 }).text, '0.6 m off the mark · 3 hits', '0.6 m neben der Markierung · 3 Treffer');
+  says(crane.objectives[0].check({ x: W.CRANE.ladder.x + 45, z: W.CRANE.ladder.z }, W.createCraneState()).text, '45 m to the crane ladder', '45 m bis zur Kranleiter');
+  says(crane.summary({ ...W.createCraneState(), results: [{ err: 0.42, v: 0.31 }, { err: 1.5, v: 0.8 }] })[0], 'Set down: 0.42 m, 0.31 m/s · 1.50 m, 0.80 m/s', 'Abgesetzt: 0.42 m, 0.31 m/s · 1.50 m, 0.80 m/s');
   assert.equal(t('Hold A: slew the jib round towards the yellow ring on the load'), 'A halten: Schwenk den Ausleger zum gelben Ring bei der Last');
-  assert.equal(t('Next: the rebar bundle in the yard'), 'Als Nächstes: Armierungsbund auf dem Werkplatz');
-  assert.equal(t('2× Fliegenpilz (fly agaric) -50 · 3× Steinpilz (porcini) +45'), '2× Fliegenpilz -50 · 3× Steinpilz +45');
-  assert.match(t('Bright red cap with white flakes, white gills, a ring on the stem · Space: into the basket'), /^Leuchtend roter Hut .* · Space: in den Korb$/);
-  assert.equal(t('1 parked car hit (+5 s) · cars buried for 3 s (+2 s)'), '1 parkiertes Auto angefahren (+5 s) · Autos 3 s lang zugeschüttet (+2 s)');
+  says(W.craneNextText('rebar bundle'), 'Next: the rebar bundle in the yard', 'Als Nächstes: Armierungsbund auf dem Werkplatz');
+  const mush = W.MUSHROOM_MISSION;
+  says(mush.summary({ ...mush.createState(), basket: ['flyAgaric', 'flyAgaric', 'porcini', 'porcini', 'porcini'] })[0], '2× Fliegenpilz (fly agaric) -50 · 3× Steinpilz (porcini) +45', '2× Fliegenpilz -50 · 3× Steinpilz +45');
+  const fly = { kind: 'flyAgaric', x: 10, z: 10 };
+  const near = mush.objectives[0].check({ x: 10.5, z: 10, t: 0 }, { ...mush.createState(), items: [fly] }).hint;
+  assert.equal(near, `${W.MUSHROOM_KINDS.flyAgaric.desc} · Space: into the basket`);
+  assert.match(t(near), /^Leuchtend roter Hut .* · Space: in den Korb$/);
+  says(mush.objectives[0].check({ x: 10, z: 10, t: 0 }, { ...mush.createState(), picking: { t: W.MUSHROOMS.pickS / 4 } }).hint, 'Picking … 25 %', 'Pflücken … 25 %');
+  says(W.SNOW_BLOWER_MISSION.summary({ hits: 1, buried: 3, penaltyMs: 0 })[0], `1 parked car hit (+${W.BLOWER.hitMs / 1000} s) · cars buried for 3 s (+${Math.round(3 * W.BLOWER.buryRate)} s)`, `1 parkiertes Auto angefahren (+${W.BLOWER.hitMs / 1000} s) · Autos 3 s lang zugeschüttet (+${Math.round(3 * W.BLOWER.buryRate)} s)`);
+  says(W.SNOW_BLOWER_MISSION.summary({ hits: 2, buried: 0, penaltyMs: 0 })[0], `2 parked cars hit (+${(2 * W.BLOWER.hitMs) / 1000} s) · cars buried for 0 s (+0 s)`, `2 parkierte Autos angefahren (+${(2 * W.BLOWER.hitMs) / 1000} s) · Autos 0 s lang zugeschüttet (+0 s)`);
+  says(W.LAWN_MISSION.objectives[0].check({ x: 0, z: 0, t: 0, mode: 'car' }, { ...W.LAWN_MISSION.createState(), mown: 0.4, trodden: 2 }).text, 'Lawn mown 40 % of 93 % · beds trodden 2 (+4 s)', 'Rasen gemäht: 40 % von 93 % · Beete zertrampelt 2 (+4 s)');
+  const garbage = W.GARBAGE_MISSION, g = garbage.createState();
+  says(garbage.objectives[0].check({ x: 0, z: 0, speed: 0, mode: 'car' }, { ...g, atKma: true, collected: 8, stops: g.stops.map((p, i) => ({ ...p, done: i > 0 })) }).text, `1 point left out (+${W.GARBAGE.missMs / 1000} s)`, `1 Sammelstelle ausgelassen (+${W.GARBAGE.missMs / 1000} s)`);
+  says(garbage.objectives[0].check({ x: 0, z: 0, speed: 0, mode: 'car' }, { ...g, atKma: true, collected: 7, stops: g.stops.map((p, i) => ({ ...p, done: i > 1 })) }).text, `2 points left out (+${(2 * W.GARBAGE.missMs) / 1000} s)`, `2 Sammelstellen ausgelassen (+${(2 * W.GARBAGE.missMs) / 1000} s)`);
+  says(garbage.objectives[0].check({ x: 0, z: 0, speed: 0, mode: 'car' }, { ...g, loading: { t: W.GARBAGE.loadS / 2 } }).hint, 'Loading … 50 %', 'Laden … 50 %');
+  says(garbage.objectives[1].check({ x: W.GARBAGE.kma.x + 1200, z: W.GARBAGE.kma.z, speed: 0, dt: 0 }, g).text, 'To the KMA · 1.2 km', 'Zur KMA · 1.2 km');
   assert.equal(t('300 m · 1 round left · 2 missed'), '300 m · noch 1 Schuss · 2 daneben');
   assert.equal(t('Rescue under way … 3 s'), 'Rettung läuft … 3 s');
   assert.equal(t('Set down: zero speed, steady'), 'Aufsetzen: stillstehen, ruhig halten');
@@ -274,19 +296,32 @@ test('the rope park and the Seehofseeli translate names, intros and generated te
   assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
 });
 
-test('the WEF missions translate names, intros, generated texts and slogans', () => {
+test('the WEF missions translate names, intros, generated texts and slogans', async () => {
+  const { WEF_ESCORT_MISSION: escort, ANTI_WEF_MISSION: march, WEF_GATES, PICKUP, DROPOFF, DETOUR_TURN, RALLY, LIAISON, MARCH_WP1, ESCORT, MARCH, createEscort, createMarch } = await import('../js/missions-data-wef.js');
   setLanguage('de');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const ctx = (at, dx, o = {}) => ({ x: at.x + dx, z: at.z, speed: 0, blueLight: true, dt: 0, t: 0, ...o });
+  const gate = escort.objectives.find((o) => o.id === WEF_GATES[0].id), drop = escort.objectives.find((o) => o.id === 'dropoff');
   assert.equal(t('Escort at the WEF'), 'Eskorte am WEF');
   assert.equal(t('Lead the anti-WEF march'), 'Anti-WEF-Demo anführen');
   assert.match(t('January, the World Economic Forum, and Davos is a fortress.'), /^Januar/);
   assert.match(t('The Forum is in town, and so is the registered counter-march.'), /^Das Forum/);
-  assert.equal(t('120 m to the Promenade gate · under 30 km/h'), '120 m bis zur Schleuse Promenade · unter 30 km/h');
-  assert.equal(t('1.2 km to the Kongresszentrum'), '1.2 km bis zum Kongresszentrum');
-  assert.equal(t('34 marchers · 90 m to the rally point'), '34 Leute · 90 m bis zum Kundgebungsplatz');
-  assert.equal(t('34 marchers · 90 m on the Promenade'), '34 Leute · noch 90 m auf der Promenade');
+  says(gate.check(ctx(WEF_GATES[0], 120), { escort: createEscort() }).text, '120 m to the Promenade gate · under 30 km/h', '120 m bis zur Schleuse Promenade · unter 30 km/h');
+  says(escort.objectives[0].check(ctx(PICKUP, 40), { escort: createEscort() }).text, '40 m to the Bahnhof Davos Dorf · stop ahead of the limousines', '40 m bis zum Bahnhof Davos Dorf · vor den Limousinen anhalten');
+  says(escort.objectives.find((o) => o.id === 'radio').check(ctx(DETOUR_TURN, 300), { escort: { ...createEscort(), radioed: true } }).text, '300 m to the Scalettastrasse', '300 m bis zur Scalettastrasse');
+  says(drop.check(ctx(DROPOFF, 1200), { escort: createEscort() }).text, '1.2 km to the Kongresszentrum', '1.2 km bis zum Kongresszentrum');
+  says(drop.check(ctx(DROPOFF, 0, { dt: 0.5 }), { escort: createEscort() }).text, `The door opens … ${Math.ceil(ESCORT.dropS - 0.5)} s`, `Die Tür geht auf … ${Math.ceil(ESCORT.dropS - 0.5)} s`);
+  says(march.objectives[2].check(ctx(RALLY, 90), { march: { ...createMarch(), count: 34 } }).text, '34 marchers · 90 m to the rally point', '34 Leute · 90 m bis zum Kundgebungsplatz');
+  says(march.objectives[1].check(ctx(LIAISON, 50), { march: { ...createMarch(), count: 34 } }).text, '34 marchers · 50 m to the police liaison', '34 Leute · 50 m bis zur Polizei-Verbindungsperson');
+  says(march.objectives[0].check(ctx(MARCH_WP1, 90), { march: { ...createMarch(), count: 34 } }).text, '34 marchers · 90 m on the Promenade', '34 Leute · noch 90 m auf der Promenade');
+  says(march.objectives[0].check(ctx(MARCH_WP1, 90), { march: { ...createMarch(), action: { kind: 'stop', left: 2.2 } } }).text, 'Everybody stands still … 3 s', 'Alle stehen still … 3 s');
+  says(march.objectives[0].check(ctx(MARCH_WP1, 90), { march: { ...createMarch(), action: { kind: 'sit', left: 4 } } }).text, 'Sit-in … 4 s', 'Sitzstreik … 4 s');
+  says(march.objectives[3].check(ctx(RALLY, 0, { dt: 1 }), { march: createMarch() }).text, `The closing speech … ${Math.ceil(MARCH.speechS - 1)} s`, `Die Schlussrede … ${Math.ceil(MARCH.speechS - 1)} s`);
+  says(march.summary({ march: { ...createMarch(), count: 41, perfect: 9, good: 0, miss: 1, onT: 3, totalT: 4, goodwill: 12 } })[0], '41 marchers · chant 90 % · on the route 75 % · goodwill 12', '41 Leute · Sprechchor 90 % · auf der Route 75 % · Wohlwollen 12');
   assert.equal(t('Davos for the Davosers!'), 'Davos den Davosern!');
-  assert.equal(t('The delegation is boarding … 3 s'), 'Die Delegation steigt ein … 3 s');
-  assert.equal(t('Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed'), 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
+  says(escort.objectives[0].check(ctx(PICKUP, 0, { dt: ESCORT.boardS - 2.5 }), { escort: createEscort() }).text, 'The delegation is boarding … 3 s', 'Die Delegation steigt ein … 3 s');
+  says(escort.summary({ escort: { ...createEscort(), formT: 90, escortT: 100, composure: 88.2, crashes: 1, rushed: 0 } })[0], 'Cohesion 90 % · composure 88 · 1 crashes · 0 gates rushed', 'Zusammenhalt 90 % · Fassung 88 · 1 Unfälle · 0 Schleusen zu schnell');
   assert.equal(t('DAVOS FOR THE DAVOSERS'), 'DAVOS DEN DAVOSERN');
   // (the march's controls: the call, the liaison's answers in the key bar and the hint while the dialog is open)
   assert.equal(t('Call'), 'Rufen');
@@ -526,21 +561,49 @@ test('the sledges, the snow, the ice, the Seehofseeli and the splitboard say the
   setLanguage('en');
 });
 
-test('the local missions, the Silberberg and the gastro rooms say their keys, games and next steps in German', () => {
+test('the local missions, the Silberberg and the gastro rooms say their keys, games and next steps in German', async () => {
   setLanguage('de');
   assert.equal(t('Take a crate from the back of the van'), 'Nimm hinten im Bus eine Kiste');
-  assert.equal(t('Stow them in the back of the van (1/2)'), 'Verstau sie hinten im Bus (1/2)');
-  assert.equal(t('The van is 1.2 km away: drive closer to BOX Davos'), 'Der Bus ist 1.2 km weg: fahr näher heran · BOX Davos');
-  assert.equal(t('6:52 · 12 min to 7:00 · 1.3 km to the Hotel Montana'), '6:52 · noch 12 min bis 7:00 · 1.3 km zum Hotel Montana');
-  assert.equal(t('12 m to the bakery'), '12 m bis zur Bäckerei');
-  assert.equal(t('120 m to the stand · the herd is uneasy: too close'), '120 m bis zum Hochsitz · die Herde wird unruhig: zu nah');
-  assert.equal(t('3 rounds · 120 pts · herd 140 m'), '3 Schuss · 120 Pkt. · Herde 140 m');
-  assert.equal(t('Not allowed: a nanny (female)! Fine and penalty (-150)'), 'Nicht erlaubt: eine Geiss! Busse und Strafpunkte (-150)');
-  assert.equal(t('Missed: the herd bolts up the slope (-20)'), 'Daneben: Die Herde flieht den Hang hinauf (-20)');
-  assert.equal(t('4 fed · 120 pts · 2:10 · streak 3'), '4 gefüttert · 120 Pkt. · 2:10 · Serie 3');
-  assert.equal(t('42 km/h · 120 m to the pool'), '42 km/h · noch 120 m bis zum Becken');
-  assert.equal(t('2:10 left'), 'noch 2:10');
-  assert.equal(t('12 m to go'), 'noch 12 m');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission from a state set up for it, then translated)
+  const L = await import('../js/missions-data-local.js');
+  const { msg } = await import('../js/messages.js');
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const beer = L.BEER_MISSION, box = L.BEER_STOPS.find((b) => b.id === 'box');
+  says(beer.objectives[0].check({ mode: 'person' }, { beer: { ...L.createBeerState(), carrying: true, loaded: 1 } }).text, 'Stow them in the back of the van (1/2)', 'Verstau sie hinten im Bus (1/2)');
+  says(beer.objectives[0].check({ mode: 'person' }, { beer: L.createBeerState() }).text, 'Fetch crates at the brewery door (0/2)', 'Hol Kisten an der Brauereitür (0/2)');
+  const atBox = { mode: 'person', x: box.door.x + 30, z: box.door.z };
+  says(beer.objectives[5].check(atBox, { beer: { ...L.createBeerState(), van: { x: box.door.x + 1200, z: box.door.z } } }).text, 'The van is 1.2 km away: drive closer to BOX Davos', 'Der Bus ist 1.2 km weg: fahr näher heran · BOX Davos');
+  says(beer.objectives[5].check(atBox, { beer: { ...L.createBeerState(), carrying: true, van: { x: box.door.x + 10, z: box.door.z } } }).text, 'Carry the crate in · 30 m', 'Trag die Kiste hinein · 30 m');
+  const montana = L.GIPFELI_HOTELS.find((h) => h.id === 'montana'), ride = L.GIPFELI_MISSION.objectives.find((o) => o.id === 'hotel-montana');
+  const bike = (min) => ({ mode: 'cyclist', x: montana.road.x + 1300, z: montana.road.z, speed: 5, t: ((min - L.GIPFELI.clockStart) / L.GIPFELI.clockRate) * 1000 });
+  says(ride.check(bike(6 * 60 + 52), { gipfeli: { ...L.createGipfeli(), rideStart: 0 } }).text, '6:52 · 8 min to 7:00 · 1.3 km to the Hotel Montana', '6:52 · noch 8 min bis 7:00 · 1.3 km zum Hotel Montana');
+  says(ride.check(bike(7 * 60 + 3), { gipfeli: { ...L.createGipfeli(), rideStart: 0 } }).text, '7:03 · late! · 1.3 km to the Hotel Montana', '7:03 · zu spät! · 1.3 km zum Hotel Montana');
+  says(L.GIPFELI_MISSION.objectives[0].check({ mode: 'person', x: L.WEBER.door.x + 12, z: L.WEBER.door.z }).text, '12 m to the bakery', '12 m bis zur Bäckerei');
+  const spot = L.SQUIRREL_MISSION.objectives[0].check({ mode: 'person', x: 0, z: 0 }).target;
+  says(L.SQUIRREL_MISSION.objectives[0].check({ mode: 'person', x: spot.x, z: spot.z + 40 }).text, '40 m to the Eichhörnliplatz', '40 m bis zum Eichhörnliplatz');
+  const ibex = L.IBEX_MISSION, hunt = L.createHunt(3);
+  says(ibex.objectives[0].check({ x: L.IBEX.stand.x + 120, z: L.IBEX.stand.z }, { hunt: { ...hunt, alarmWhy: 'too close' } }).text, '120 m to the stand · the herd is uneasy: too close', '120 m bis zum Hochsitz · die Herde wird unruhig: zu nah');
+  says(ibex.objectives[0].check({ x: L.IBEX.stand.x + 120, z: L.IBEX.stand.z }, { hunt: { ...hunt, alarmWhy: 'the wind carries your scent' } }).text, '120 m to the stand · the herd is uneasy: the wind carries your scent', '120 m bis zum Hochsitz · die Herde wird unruhig: der Wind trägt deine Witterung hin');
+  says(ibex.objectives[0].check({ x: L.IBEX.stand.x + 120, z: L.IBEX.stand.z }, { hunt }).text, '120 m to the stand', '120 m bis zum Hochsitz');
+  const herd = L.herdCentre(hunt.herd);
+  says(ibex.objectives[1].check({ x: herd.x + 140, z: herd.z }, { hunt: { ...hunt, ammo: 3, score: 120 } }).text, '3 rounds · 120 pts · herd 140 m', '3 Schuss · 120 Pkt. · Herde 140 m');
+  says(ibex.objectives[1].check({ x: herd.x + 140, z: herd.z }, { hunt: { ...hunt, ammo: 1, score: -40 } }).text, '1 round · 0 pts · herd 140 m', '1 Schuss · 0 Pkt. · Herde 140 m');
+  const nanny = L.ibexShotResult({ animal: { sex: 'f', age: 'adult', horn: 0.3 }, zone: 'vitals', t: 180 }, 180);
+  const buck = L.ibexShotResult({ animal: { sex: 'm', age: 'old', horn: 0.92 }, zone: 'vitals', t: 180 }, 180);
+  const miss = L.ibexShotResult(null, 200);
+  const shots = ibex.summary({ hunt: { ...hunt, shots: [nanny, buck, miss].map((r) => ({ ...r, range: 180 })) } });
+  says(nanny.text, 'Not allowed: a nanny (female)! Fine and penalty', 'Nicht erlaubt: eine Geiss! Busse und Strafpunkte');
+  says(shots[0], 'Not allowed: a nanny (female)! Fine and penalty (-150)', 'Nicht erlaubt: eine Geiss! Busse und Strafpunkte (-150)');
+  says(shots[1], `Clean shot on the buck (92 cm horns) at 180 m (+${buck.points})`, `Sauberer Schuss auf den Bock (92 cm Hörner) auf 180 m (+${buck.points})`);
+  says(shots[2], 'Missed: the herd bolts up the slope (-20)', 'Daneben: Die Herde flieht den Hang hinauf (-20)');
+  const squirrels = L.createSquirrelGame(L.squirrelSpots());
+  const feed = (g) => L.SQUIRREL_MISSION.objectives[1].check({ x: L.SEEPROMENADE[0], z: L.SEEPROMENADE[1] }, { game: { ...squirrels, ...g } }).text;
+  says(feed({ fed: 4, score: 120, t: L.SQUIRREL.length - 130, streak: 3 }), '4 fed · 120 pts · 2:10 · streak 3', '4 gefüttert · 120 Pkt. · 2:10 · Serie 3');
+  says(feed({ fed: 4, score: 120, t: L.SQUIRREL.length - 130, streak: 1 }), '4 fed · 120 pts · 2:10', '4 gefüttert · 120 Pkt. · 2:10');
+  says(L.WATERSLIDE_MISSION.objectives[1].check({}, { rider: { ...L.createRider(), v: 42 / 3.6, s: L.slideLength() - 120 } }).text, '42 km/h · 120 m to the pool', '42 km/h · noch 120 m bis zum Becken');
+  says(L.KIRCHNER_MISSION.objectives[1].check({}, { paint: { t: L.KIRCHNER.length - 130, result: null } }).text, '2:10 left', 'noch 2:10');
+  // (the slide's HUD in js/missions-local.js, which needs three.js, makes its metres to go the same way)
+  says(msg('{n} m to go', 'noch {n} m', { n: 12 }), '12 m to go', 'noch 12 m');
   // the key bar's lines (run.actions kind 'hint') and the games' canvas words
   const words = [
     'roll the dough down', 'or tap steadily', 'scrape a plate', 'or across the cheese', 'scope', 'hold: hold your breath', 'fire', 'lower the scope',

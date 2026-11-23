@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 import { createRhythm, createHeadbang, headbangTap, headbangAdvance } from './missions-data-fun.js';
 
 // js/missions-data-wef.js
@@ -131,7 +132,7 @@ export function yieldStep(speed, side, dt, { brake = 6, kerb = 2.3, rate = 1.6 }
 // =========================================================================================================================
 // 1. The escort
 export const ESCORT_START = { x: 967, z: -1701, heading: -0.739 }; // (on the Bahnhofstrasse, a little before Heldstab and the quad's pin)
-export const PICKUP = { x: 848.4, z: -1562.2, r: 7, name: 'the Bahnhof Davos Dorf' };
+export const PICKUP = { x: 848.4, z: -1562.2, r: 7, name: 'the Bahnhof Davos Dorf', toDe: 'zum Bahnhof Davos Dorf' };
 // The service lane in front of the station, the limousines waiting on it (OSM), to its mouth on the Bahnhofstrasse
 export const ESCORT_SEED = [919, -1631.1, 878, -1574.9, 875.5, -1572.5, 871, -1570.7, 866.5, -1571.4, 860.8, -1574.6];
 // Bahnhofstrasse, Promenade, Scalettastrasse, Promenade, Kurgartenstrasse, Talstrasse, the drive to the Kongresszentrum:
@@ -140,16 +141,16 @@ export const ESCORT_ROUTE_PTS = [860.8, -1574.6, 785.2, -1476.9, 777.9, -1470.6,
 export const ESCORT_ROUTE = routeOf(ESCORT_ROUTE_PTS);
 export const ESCORT_LENGTH = trailLength(ESCORT_ROUTE);
 export const WEF_GATES = [
-  { id: 'gate-promenade', x: 565.5, z: -1141.5, r: 11, name: 'the Promenade gate', title: 'Security gate on the Promenade' },
-  { id: 'gate-scaletta', x: 210, z: -767.4, r: 11, name: 'the Scalettastrasse gate', title: 'Security gate on the Scalettastrasse' },
-  { id: 'gate-kurgarten', x: -180, z: -361.3, r: 11, name: 'the Kurgartenstrasse gate', title: 'Security gate on the Kurgartenstrasse' },
-  { id: 'gate-talstrasse', x: 72, z: -374.6, r: 11, name: 'the Talstrasse gate', title: 'Security gate on the Talstrasse' }
+  { id: 'gate-promenade', x: 565.5, z: -1141.5, r: 11, name: 'the Promenade gate', toDe: 'zur Schleuse Promenade', title: 'Security gate on the Promenade' },
+  { id: 'gate-scaletta', x: 210, z: -767.4, r: 11, name: 'the Scalettastrasse gate', toDe: 'zur Schleuse Scalettastrasse', title: 'Security gate on the Scalettastrasse' },
+  { id: 'gate-kurgarten', x: -180, z: -361.3, r: 11, name: 'the Kurgartenstrasse gate', toDe: 'zur Schleuse Kurgartenstrasse', title: 'Security gate on the Kurgartenstrasse' },
+  { id: 'gate-talstrasse', x: 72, z: -374.6, r: 11, name: 'the Talstrasse gate', toDe: 'zur Schleuse Talstrasse', title: 'Security gate on the Talstrasse' }
 ];
-export const DROPOFF = { x: 181, z: -471.5, r: 8, name: 'the Kongresszentrum' };
+export const DROPOFF = { x: 181, z: -471.5, r: 8, name: 'the Kongresszentrum', toDe: 'zum Kongresszentrum' };
 // The Promenade in front of the Kongresszentrum is shut: a snow blower has broken down at the barrier. The turn into the
 // Scalettastrasse is the last way round.
 export const ROADBLOCK = { x: 385, z: -719.6, r: 7 };
-export const DETOUR_TURN = { x: 432, z: -770, r: 18, name: 'the Scalettastrasse' };
+export const DETOUR_TURN = { x: 432, z: -770, r: 18, name: 'the Scalettastrasse', toDe: 'zur Scalettastrasse' };
 
 export const ESCORT = {
   boardS: 4, // s at the station
@@ -294,7 +295,7 @@ function gateObjective(gate) {
         else { st.last = 'Gate open, the soldiers salute'; st.lastAt = ctx.t; }
       }
       const fail = failOf(st);
-      const text = `${formatDistance(d)} to ${gate.name} · under 30 km/h`;
+      const text = msg('{d} to {where} · under 30 km/h', '{d} bis {to} · unter 30 km/h', { d: formatDistance(d), where: gate.name, to: gate.toDe });
       const target = d < 130 ? { x: gate.x, z: gate.z, r: gate.r, style: 'hazard' } : routeAhead(ESCORT_ROUTE, st.routeS, 70, until);
       return { done: inside && !fail, progress: null, text, target, hint: blueHint(ctx), fail };
     }
@@ -321,7 +322,8 @@ export const WEF_ESCORT_MISSION = {
   update(ctx, state) { escortStep(state.escort, ctx); },
   summary(state) {
     const s = state.escort;
-    return [`Cohesion ${Math.round(100 * cohesionShare(s))} % · composure ${Math.round(s.composure)} · ${s.crashes} crashes · ${s.rushed} gates rushed`];
+    return [msg('Cohesion {c} % · composure {k} · {n} crashes · {r} gates rushed', 'Zusammenhalt {c} % · Fassung {k} · {n} Unfälle · {r} Schleusen zu schnell',
+      { c: Math.round(100 * cohesionShare(s)), k: Math.round(s.composure), n: s.crashes, r: s.rushed })];
   },
   objectives: [
     {
@@ -333,8 +335,8 @@ export const WEF_ESCORT_MISSION = {
         st.boardT = here ? st.boardT + ctx.dt : Math.max(0, st.boardT - ctx.dt);
         const done = st.boardT >= ESCORT.boardS;
         if (done) st.boarded = true;
-        const text = d > PICKUP.r ? `${formatDistance(d)} to ${PICKUP.name} · stop ahead of the limousines`
-          : !ctx.blueLight ? 'Blue light on (K) for the delegation' : Math.abs(ctx.speed) >= 0.5 ? 'Stop here' : `The delegation is boarding … ${Math.ceil(ESCORT.boardS - st.boardT)} s`;
+        const text = d > PICKUP.r ? msg('{d} to {where} · stop ahead of the limousines', '{d} bis {to} · vor den Limousinen anhalten', { d: formatDistance(d), where: PICKUP.name, to: PICKUP.toDe })
+          : !ctx.blueLight ? 'Blue light on (K) for the delegation' : Math.abs(ctx.speed) >= 0.5 ? 'Stop here' : msg('The delegation is boarding … {s} s', 'Die Delegation steigt ein … {s} s', { s: Math.ceil(ESCORT.boardS - st.boardT) });
         return { done, progress: clamp(st.boardT / ESCORT.boardS, 0, 1), text, target: { x: PICKUP.x, z: PICKUP.z, r: PICKUP.r, style: 'pad' }, hint: blueHint(ctx) };
       }
     },
@@ -348,7 +350,7 @@ export const WEF_ESCORT_MISSION = {
           st.unannounced = true;
           lose(st, ESCORT.noRadio, 'Unannounced at the turn: the gates scramble', ctx);
         }
-        const text = st.radioed ? `${formatDistance(d)} to ${DETOUR_TURN.name}` : 'Control: a snow blower has broken down at the Kongress. Radio the detour: J';
+        const text = st.radioed ? msg('{d} to {where}', '{d} bis {to}', { d: formatDistance(d), where: DETOUR_TURN.name, to: DETOUR_TURN.toDe }) : 'Control: a snow blower has broken down at the Kongress. Radio the detour: J';
         const fail = failOf(st);
         return { done: at && !fail, progress: null, text, target: d < 130 ? { x: DETOUR_TURN.x, z: DETOUR_TURN.z, r: DETOUR_TURN.r, style: 'hazard' } : routeAhead(ESCORT_ROUTE, st.routeS, 70), hint: st.radioed ? blueHint(ctx) : 'Radio: J', fail };
       }
@@ -365,7 +367,7 @@ export const WEF_ESCORT_MISSION = {
         const done = st.dropT >= ESCORT.dropS;
         if (done) st.arrived = true;
         const fail = failOf(st);
-        const text = d > DROPOFF.r ? `${formatDistance(d)} to ${DROPOFF.name}` : !closed ? 'Wait for the limousines' : Math.abs(ctx.speed) >= 0.5 ? 'Stop at the door' : `The door opens … ${Math.ceil(ESCORT.dropS - st.dropT)} s`;
+        const text = d > DROPOFF.r ? msg('{d} to {where}', '{d} bis {to}', { d: formatDistance(d), where: DROPOFF.name, to: DROPOFF.toDe }) : !closed ? 'Wait for the limousines' : Math.abs(ctx.speed) >= 0.5 ? 'Stop at the door' : msg('The door opens … {s} s', 'Die Tür geht auf … {s} s', { s: Math.ceil(ESCORT.dropS - st.dropT) });
         return { done: done && !fail, progress: clamp(st.dropT / ESCORT.dropS, 0, 1), text, target: { x: DROPOFF.x, z: DROPOFF.z, r: DROPOFF.r, style: 'pad' }, hint: blueHint(ctx), fail };
       }
     }
@@ -383,7 +385,7 @@ export const MARCH_LENGTH = trailLength(MARCH_ROUTE);
 export const MARCH_SEED = [590.8, -1277.8, 578.6, -1217.6, 574, -1190];
 export const MARCH_START = { x: 574, z: -1190, heading: Math.atan2(553.1 - 574, -1071.4 + 1190) };
 export const LIAISON = { x: 501.9, z: -871.9, r: 10, standX: 508.5, standZ: -874.4 };
-export const RALLY = { x: 447.5, z: -772.6, r: 10, name: 'the rally point' };
+export const RALLY = { x: 447.5, z: -772.6, r: 10, name: 'the rally point', toDe: 'zum Kundgebungsplatz' };
 export const FENCE = { x: 414, z: -744.4, r: 9 };
 export const MARCH = {
   playerMax: 4.4, // m/s: nobody runs with a megaphone (the runtime holds the walker to it)
@@ -574,8 +576,8 @@ const marchFail = (st) => (st.permit ? 'The liaison politely folds up your permi
 const marchHint = (st) => (st.dialog ? 'Answer the liaison: 1, 2 or 3' : st.action ? null : st.gap > MARCH.gapGood ? 'Too fast: wait for the crowd' : 'Space on the beat: call, and the crowd answers');
 const marchText = (st, text) => {
   if (st.dialog) return 'The police liaison wants a word';
-  if (st.action?.kind === 'stop') return `Everybody stands still … ${Math.ceil(st.action.left)} s`;
-  if (st.action?.kind === 'sit') return `Sit-in … ${Math.ceil(st.action.left)} s`;
+  if (st.action?.kind === 'stop') return msg('Everybody stands still … {s} s', 'Alle stehen still … {s} s', { s: Math.ceil(st.action.left) });
+  if (st.action?.kind === 'sit') return msg('Sit-in … {s} s', 'Sitzstreik … {s} s', { s: Math.ceil(st.action.left) });
   if (st.action?.kind === 'back') return 'Back to the agreed route';
   return text;
 };
@@ -607,7 +609,8 @@ export const ANTI_WEF_MISSION = {
   update(ctx, state) { marchStep(state.march, ctx); },
   summary(state) {
     const s = state.march;
-    return [`${s.count} marchers · chant ${Math.round(chantQuality(s) * 100)} % · on the route ${Math.round(routeShare(s) * 100)} % · goodwill ${s.goodwill}`];
+    return [msg('{n} marchers · chant {c} % · on the route {r} % · goodwill {g}', '{n} Leute · Sprechchor {c} % · auf der Route {r} % · Wohlwollen {g}',
+      { n: s.count, c: Math.round(chantQuality(s) * 100), r: Math.round(routeShare(s) * 100), g: s.goodwill })];
   },
   objectives: [
     {
@@ -615,7 +618,7 @@ export const ANTI_WEF_MISSION = {
       title: 'March down the Promenade',
       check(ctx, state) {
         const st = state.march, d = dist2d(ctx, MARCH_WP1), fail = marchFail(st);
-        return { done: d <= MARCH_WP1.r && !fail, progress: clamp(st.routeS / WP1_ARC, 0, 1), text: marchText(st, `${st.count} marchers · ${formatDistance(d)} on the Promenade`), target: routeAhead(MARCH_ROUTE, st.routeS, 30, WP1_ARC), hint: marchHint(st), fail };
+        return { done: d <= MARCH_WP1.r && !fail, progress: clamp(st.routeS / WP1_ARC, 0, 1), text: marchText(st, msg('{n} marchers · {d} on the Promenade', '{n} Leute · noch {d} auf der Promenade', { n: st.count, d: formatDistance(d) })), target: routeAhead(MARCH_ROUTE, st.routeS, 30, WP1_ARC), hint: marchHint(st), fail };
       }
     },
     {
@@ -624,7 +627,7 @@ export const ANTI_WEF_MISSION = {
       check(ctx, state) {
         const st = state.march, d = dist2d(ctx, LIAISON), fail = marchFail(st);
         if (d <= LIAISON.r && !st.dialog && !st.action && !st.liaisonDone) openDialog(st, 'liaison', ctx);
-        return { done: st.liaisonDone && !fail, progress: null, text: marchText(st, `${st.count} marchers · ${formatDistance(d)} to the police liaison`), target: { x: LIAISON.x, z: LIAISON.z, r: LIAISON.r, style: 'hazard' }, hint: marchHint(st), fail };
+        return { done: st.liaisonDone && !fail, progress: null, text: marchText(st, msg('{n} marchers · {d} to the police liaison', '{n} Leute · {d} bis zur Polizei-Verbindungsperson', { n: st.count, d: formatDistance(d) })), target: { x: LIAISON.x, z: LIAISON.z, r: LIAISON.r, style: 'hazard' }, hint: marchHint(st), fail };
       }
     },
     {
@@ -632,7 +635,7 @@ export const ANTI_WEF_MISSION = {
       title: 'On to the rally point',
       check(ctx, state) {
         const st = state.march, d = dist2d(ctx, RALLY), fail = marchFail(st);
-        return { done: d <= RALLY.r && !fail, progress: null, text: marchText(st, `${st.count} marchers · ${formatDistance(d)} to ${RALLY.name}`), target: d < 60 ? { x: RALLY.x, z: RALLY.z, r: RALLY.r, style: 'pad' } : routeAhead(MARCH_ROUTE, st.routeS, 30), hint: marchHint(st), fail };
+        return { done: d <= RALLY.r && !fail, progress: null, text: marchText(st, msg('{n} marchers · {d} to {where}', '{n} Leute · {d} bis {to}', { n: st.count, d: formatDistance(d), where: RALLY.name, to: RALLY.toDe })), target: d < 60 ? { x: RALLY.x, z: RALLY.z, r: RALLY.r, style: 'pad' } : routeAhead(MARCH_ROUTE, st.routeS, 30), hint: marchHint(st), fail };
       }
     },
     {
@@ -644,7 +647,7 @@ export const ANTI_WEF_MISSION = {
         st.speechT = here && closed ? st.speechT + ctx.dt : Math.max(0, st.speechT - ctx.dt * 0.5);
         const done = st.speechT >= MARCH.speechS && !fail;
         if (done) st.arrived = true;
-        const text = !here ? 'Stand on the rally point' : !closed ? 'Wait for the crowd' : `The closing speech … ${Math.ceil(MARCH.speechS - st.speechT)} s`;
+        const text = !here ? 'Stand on the rally point' : !closed ? 'Wait for the crowd' : msg('The closing speech … {s} s', 'Die Schlussrede … {s} s', { s: Math.ceil(MARCH.speechS - st.speechT) });
         return { done, progress: clamp(st.speechT / MARCH.speechS, 0, 1), text: marchText(st, text), target: { x: RALLY.x, z: RALLY.z, r: RALLY.r, style: 'pad' }, hint: marchHint(st), fail };
       }
     }

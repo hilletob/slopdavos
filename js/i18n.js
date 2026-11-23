@@ -1847,74 +1847,11 @@ function translate(value) {
   dynamic = dynamic.replace(/^Too fast: limit (\d+) km\/h$/, 'Zu schnell: Limit $1 km/h');
   // the handing over of the medicine round by cargo bike (js/missions-data-pharmacy.js) and of the post's round (js/missions-data-post.js)
   dynamic = dynamic.replace(/^Handing over … (\d+) %$/, 'Übergabe … $1 %');
-  // the WEF week (js/missions-data-wef.js)
+  // the hike's stages (js/missions-data-hike.js; once in the WEF week's rules)
   dynamic = dynamic.replace(/^(.+) to go · stage (\d+) of (\d+)$/, 'noch $1 · Etappe $2 von $3');
-  dynamic = dynamic.replace(/ · under 30 km\/h$/, ' · unter 30 km/h').replace(/ · stop ahead of the limousines$/, ' · vor den Limousinen anhalten');
-  dynamic = dynamic.replace(/^The delegation is boarding … (\d+) s$/, 'Die Delegation steigt ein … $1 s').replace(/^The door opens … (\d+) s$/, 'Die Tür geht auf … $1 s');
-  dynamic = dynamic.replace(/^Cohesion (\d+) % · composure (\d+) · (\d+) crashes · (\d+) gates rushed$/, 'Zusammenhalt $1 % · Fassung $2 · $3 Unfälle · $4 Schleusen zu schnell');
-  dynamic = dynamic.replace(/^(\d+) marchers · chant (\d+) % · on the route (\d+) % · goodwill (\d+)$/, '$1 Leute · Sprechchor $2 % · auf der Route $3 % · Wohlwollen $4');
-  dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) on the Promenade$/, '$1 Leute · noch $2 auf der Promenade');
-  dynamic = dynamic.replace(/^(\d+) marchers · ([\d,.]+ (?:m|km)) to (.+)$/, (whole, n, d, label) => (placeDe.has(label) ? `${n} Leute · ${d} bis ${placeDe.get(label)[0]}` : whole));
-  dynamic = dynamic.replace(/^Everybody stands still … (\d+) s$/, 'Alle stehen still … $1 s').replace(/^Sit-in … (\d+) s$/, 'Sitzstreik … $1 s').replace(/^The closing speech … (\d+) s$/, 'Die Schlussrede … $1 s');
-  // winter driving: summer tyres on the Flüela, snow chains over Clavadel (js/missions-data-winterroad.js)
-  {
-    const placeW = { 'the Wägerhus': 'zum Wägerhus', 'the Wägerhütta': 'zur Wägerhütta', 'the Flüela Hospiz': 'zum Flüela Hospiz', Islen: 'Islen', Clavadel: 'Clavadel', Frauenkirch: 'Frauenkirch' };
-    const times = (n) => (n ? ` · ${n}-mal im Schneewall` : '');
-    dynamic = dynamic
-      .replace(/^([\d.]+ (?:m|km)) to (the Wägerhus|the Wägerhütta|the Flüela Hospiz|Islen|Clavadel|Frauenkirch) · (\d+) km\/h(?: · (\d+) times? in the snowbank)?$/, (_, d, p, v, n) => `${d} bis ${placeW[p]} · ${v} km/h${times(n)}`)
-      .replace(/^Chains on (\d) of 2 wheels(?: · go to the (left|right) rear wheel)?$/, (_, n, s) => `Ketten an ${n} von 2 Rädern${s ? ` · geh zum ${s === 'left' ? 'linken' : 'rechten'} Hinterrad` : ''}`)
-      .replace(/^(Left|Right) rear wheel: (lay the chain out|pull it over the tyre|tension the chain)$/, (_, s, w) => `Hinterrad ${s === 'Left' ? 'links' : 'rechts'}: ${{ 'lay the chain out': 'Kette auslegen', 'pull it over the tyre': 'über den Pneu ziehen', 'tension the chain': 'Kette spannen' }[w]}`)
-      .replace(/^Chains rattling at (\d+) km\/h: slow down below 50!$/, 'Die Ketten rasseln bei $1 km/h: unter 50 bremsen!')
-      .replace(/^Wheelspin (\d+) s · (\d+) times? in the snowbank · (\d+) (crash|crashes)$/, (_, s, n, c, w) => `Durchdrehen ${s} s · ${n}-mal im Schneewall · ${c} ${w === 'crash' ? 'Unfall' : 'Unfälle'}`)
-      .replace(/^(\d+) chains? slipped · top speed (\d+) km\/h · (\d+) times? in the snowbank$/, '$1-mal Kette abgerutscht · Höchsttempo $2 km/h · $3-mal im Schneewall');
-  }
-  // the local missions (js/missions-data-local.js, js/missions-local.js; before the generic rules below)
-  {
-    const whyDe = { 'too close': 'zu nah', 'you are running': 'du rennst', 'the wind carries your scent': 'der Wind trägt deine Witterung hin' };
-    const ibexDe = { kid: 'ein Kitz', 'nanny (female)': 'eine Geiss', 'young buck': 'ein junger Bock', 'old buck': 'ein alter Bock' };
-    dynamic = dynamic
-      .replace(/^The van is ([\d.]+ k?m) away: drive closer to (.+)$/, (_, d, where) => `Der Bus ist ${d} weg: fahr näher heran · ${where}`)
-      .replace(/^Fetch crates at the brewery door \((\d+\/\d+)\)$/, 'Hol Kisten an der Brauereitür ($1)')
-      .replace(/^Stow them in the back of the van \((\d+\/\d+)\)$/, 'Verstau sie hinten im Bus ($1)')
-      .replace(/^Carry the crate in · (.+)$/, (_, d) => `Trag die Kiste hinein · ${d}`)
-      .replace(/^(\d+:\d\d) · (?:(late!)|(\d+) min to 7:00) · ([\d.]+ k?m) to the (.+)$/, (_, clock, late, n, d, hotel) => `${clock} · ${late ? 'zu spät!' : `noch ${n} min bis 7:00`} · ${d} zum ${hotel}`)
-      .replace(/^([\d.]+ k?m) to (the bakery|the Eichhörnliplatz)$/, (_, d, w) => `${d} bis ${w === 'the bakery' ? 'zur Bäckerei' : 'zum Eichhörnliplatz'}`)
-      .replace(/^([\d.]+ k?m) to the stand · the herd is uneasy: (too close|you are running|the wind carries your scent)$/, (_, d, why) => `${d} bis zum Hochsitz · die Herde wird unruhig: ${whyDe[why]}`)
-      .replace(/^(\d+) rounds? · (-?\d+) pts · herd ([\d.]+ k?m)$/, (_, n, p, d) => `${n} Schuss · ${p} Pkt. · Herde ${d}`)
-      .replace(/^Not allowed: a (kid|nanny \(female\)|young buck|old buck)! Fine and penalty( \([+\-−]?\d+\))?$/, (_, a, pts) => `Nicht erlaubt: ${ibexDe[a]}! Busse und Strafpunkte${pts || ''}`)
-      .replace(/^Clean shot on the buck \((\d+) cm horns\) at (\d+) m( \([+\-−]?\d+\))?$/, 'Sauberer Schuss auf den Bock ($1 cm Hörner) auf $2 m$3')
-      .replace(/^(\d+) fed · (-?\d+) pts · (\d+:\d\d)(?: · streak (\d+))?$/, (_, n, p, c, s) => `${n} gefüttert · ${p} Pkt. · ${c}${s ? ` · Serie ${s}` : ''}`)
-      .replace(/^(\d+) km\/h · ([\d.]+ k?m) to the pool$/, (_, v, d) => `${v} km/h · noch ${d} bis zum Becken`)
-      .replace(/^(\d+:\d\d) left$/, 'noch $1')
-      .replace(/^(\d+) m to go$/, 'noch $1 m');
-    // (a shot of the ibex hunt in the end panel: its line and its points in brackets)
-    dynamic = dynamic.replace(/^(.+?) (\([+\-−]?\d+\))$/, (whole, head, pts) => (enToDe.has(head) ? `${enToDe.get(head)} ${pts}` : whole));
-  }
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
-  // the crane at the Hotel Derby, the snow haul (js/missions-data-work.js)
-  const craneLoadDe = { 'concrete bucket': 'Betonkübel', 'rebar bundle': 'Armierungsbund', 'hotel jacuzzi': 'Hotel-Jacuzzi' };
-  const craneHits = (rest) => (rest || '').replace(/ · (\d+) hits?$/, (_, n) => ` · ${n} Treffer`);
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the crane ladder$/, '$1 bis zur Kranleiter');
-  dynamic = dynamic.replace(/^Take the (concrete bucket|rebar bundle|hotel jacuzzi): ([\d.]+) m off · ([\d.]+) m above · swing ([\d.]+) m( · \d+ hits?)?$/, (_, l, d, h, s, rest) => `${craneLoadDe[l]} anhängen: ${d} m daneben · ${h} m darüber · Pendeln ${s} m${craneHits(rest)}`);
-  dynamic = dynamic.replace(/^Set the (concrete bucket|rebar bundle|hotel jacuzzi) down: ([\d.]+) m off · ([\d.]+) m above · swing ([\d.]+) m( · \d+ hits?)?$/, (_, l, d, h, s, rest) => `${craneLoadDe[l]} absetzen: ${d} m daneben · ${h} m darüber · Pendeln ${s} m${craneHits(rest)}`);
-  dynamic = dynamic.replace(/^Take the (concrete bucket|rebar bundle|hotel jacuzzi)( · \d+ hits?)?$/, (_, l, rest) => `${craneLoadDe[l]} anhängen${craneHits(rest)}`);
-  dynamic = dynamic.replace(/^([\d.]+) m off the mark( · \d+ hits?)?$/, (_, d, rest) => `${d} m neben der Markierung${craneHits(rest)}`);
-  dynamic = dynamic.replace(/^Set down: (.+)$/, 'Abgesetzt: $1');
-  dynamic = dynamic.replace(/^Set down  \+(\d+)$/, 'Abgesetzt  +$1');
-  dynamic = dynamic.replace(/^Hard landing  -(\d+)$/, 'Harte Landung  -$1');
-  dynamic = dynamic.replace(/^Hit!  -(\d+)$/, 'Getroffen!  -$1');
-  dynamic = dynamic.replace(/^Next: the (concrete bucket|rebar bundle|hotel jacuzzi) in the yard$/, (_, l) => `Als Nächstes: ${craneLoadDe[l]} auf dem Werkplatz`);
-  // the other work missions' generated lines (js/missions-data-work.js, js/missions-work.js)
-  dynamic = dynamic.replace(/^Parked car hit! \+([\d.]+) s$/, 'Parkiertes Auto angefahren! +$1 s').replace(/^Flower bed! \+([\d.]+) s$/, 'Blumenbeet! +$1 s');
-  dynamic = dynamic.replace(/^Not in flower: bush damaged \+([\d.]+) s$/, 'Nicht in Blüte: Strauch beschädigt +$1 s').replace(/^Into the basket \((\d+\/\d+)\)$/, 'In den Korb ($1)');
-  dynamic = dynamic.replace(/^Picking … (\d+) %$/, 'Pflücken … $1 %').replace(/^Loading … (\d+) %$/, 'Laden … $1 %').replace(/^To the KMA · ([\d,.]+ (?:m|km))$/, 'Zur KMA · $1');
-  dynamic = dynamic.replace(/^(.+) · Space: into the basket$/, (whole, desc) => (enToDe.has(desc) ? `${enToDe.get(desc)} · Space: in den Korb` : whole));
-  if (/^\d+× /.test(dynamic)) dynamic = dynamic.split(' · ').map((p) => p.replace(/^(\d+)× (.+) ([+-]?\d+)$/, (whole, n, kind, pts) => (enToDe.has(kind) ? `${n}× ${enToDe.get(kind)} ${pts}` : whole))).join(' · ');
-  dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${n === '1' ? 'parkiertes Auto' : 'parkierte Autos'} angefahren (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
-  dynamic = dynamic.replace(/^Lawn mown (.+) of (.+) · beds trodden (\d+) \(\+([\d.]+) s\)$/, 'Rasen gemäht: $1 von $2 · Beete zertrampelt $3 (+$4 s)');
-  dynamic = dynamic.replace(/^(\d+) points? left out \(\+([\d.]+) s\)$/, (_, n, s) => `${n} ${n === '1' ? 'Sammelstelle' : 'Sammelstellen'} ausgelassen (+${s} s)`);
   // the first missions (js/missions-data.js: the Dischma trail, Rega, avalanche blasting, the motorbike crash)
   dynamic = dynamic.replace(/^Trail (\d+) % groomed · ([\d,.]+ (?:m|km)) of ([\d,.]+ (?:m|km))$/, 'Loipe $1 % präpariert · $2 von $3');
   dynamic = dynamic.replace(/^(Landed|Rescue under way|Treating the patient|Vehicle in position|Placing the cone) … (\d+) s$/, (_, what, n) => `${{ Landed: 'Gelandet', 'Rescue under way': 'Rettung läuft', 'Treating the patient': 'Patient wird versorgt', 'Vehicle in position': 'Fahrzeug in Position', 'Placing the cone': 'Kegel wird aufgestellt' }[what]} … ${n} s`);

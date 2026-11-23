@@ -21,6 +21,8 @@
 //    scored by likeness to a posterised template, colour and contours. By points.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 
+import { msg } from './messages.js';
+
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
@@ -41,6 +43,8 @@ export function seededRandom(seed = 1) {
 }
 
 /** The "walk to the door" step */
+// (the places walked to that have their German here; the others' lines are left to js/i18n.js)
+const WALK_TO_DE = { 'the bakery': 'zur Bäckerei', 'the Eichhörnliplatz': 'zum Eichhörnliplatz' };
 function walkTo(spot, title, label, id = 'enter') {
   return {
     id,
@@ -49,7 +53,9 @@ function walkTo(spot, title, label, id = 'enter') {
     check(ctx) {
       const d = Math.hypot(ctx.x - spot.x, ctx.z - spot.z);
       const onFoot = ctx.mode === 'person';
-      return { done: onFoot && d < spot.r, progress: null, text: onFoot ? `${fmtDist(d)} to ${label}` : 'Get off (F) and walk in', target: { ...spot, style: 'plain' }, hint: onFoot ? null : 'F: get off' };
+      const to = onFoot && WALK_TO_DE[label];
+      const text = !onFoot ? 'Get off (F) and walk in' : to ? msg('{d} to {where}', '{d} bis {to}', { d: fmtDist(d), where: label, to }) : `${fmtDist(d)} to ${label}`;
+      return { done: onFoot && d < spot.r, progress: null, text, target: { ...spot, style: 'plain' }, hint: onFoot ? null : 'F: get off' };
     }
   };
 }
@@ -115,14 +121,14 @@ function beerDeliverObjective(stop, i) {
         target = vanD < BEER.carryMax ? { ...stop.door, r: BEER.doorR, style: 'plain' } : { ...stop.road, r: 8, style: 'plain' };
         if (vanD < BEER.carryMax && Math.abs(ctx.speed) < 0.6) hint = 'F: get out';
       } else if (vanD > BEER.carryMax) {
-        text = `The van is ${fmtDist(vanD)} away: drive closer to ${stop.name}`;
+        text = msg('The van is {d} away: drive closer to {where}', 'Der Bus ist {d} weg: fahr näher heran · {where}', { d: fmtDist(vanD), where: stop.name });
         target = van ? { ...van, r: BEER.vanR, style: 'plain' } : null;
         hint = 'F: get in';
       } else if (!st.carrying) {
         text = 'Take a crate from the back of the van';
         target = van ? { ...van, r: BEER.vanR, style: 'plain' } : null;
       } else {
-        text = st.doorT > 0 ? `Handing over … ${stop.name}` : `Carry the crate in · ${fmtDist(dist(ctx, stop.door))}`;
+        text = st.doorT > 0 ? `Handing over … ${stop.name}` : msg('Carry the crate in · {d}', 'Trag die Kiste hinein · {d}', { d: fmtDist(dist(ctx, stop.door)) });
         target = { ...stop.door, r: BEER.doorR, style: 'plain' };
       }
       return { done, progress: st.doorT > 0 ? st.doorT / BEER.handover : null, text, target, hint };
@@ -162,8 +168,8 @@ export const BEER_MISSION = {
         const st = state.beer;
         let text, target;
         if (ctx.mode !== 'person') { text = 'Get out (F) and load the crates'; target = { ...BREWERY.door, style: 'plain' }; }
-        else if (!st.carrying) { text = `Fetch crates at the brewery door (${st.loaded}/${BEER.loads})`; target = { ...BREWERY.door, style: 'plain' }; }
-        else { text = `Stow them in the back of the van (${st.loaded}/${BEER.loads})`; target = st.van ? { ...st.van, r: BEER.vanR, style: 'plain' } : null; }
+        else if (!st.carrying) { text = msg('Fetch crates at the brewery door ({n}/{of})', 'Hol Kisten an der Brauereitür ({n}/{of})', { n: st.loaded, of: BEER.loads }); target = { ...BREWERY.door, style: 'plain' }; }
+        else { text = msg('Stow them in the back of the van ({n}/{of})', 'Verstau sie hinten im Bus ({n}/{of})', { n: st.loaded, of: BEER.loads }); target = st.van ? { ...st.van, r: BEER.vanR, style: 'plain' } : null; }
         return { done: st.phase !== 'load', progress: st.loaded / BEER.loads, text, target, hint: ctx.mode === 'person' ? null : 'F: get out' };
       }
     },
@@ -258,7 +264,9 @@ function gipfeliHotelObjective(h, i) {
       const there = ctx.mode === 'cyclist' && d < h.road.r && Math.abs(ctx.speed) < 1.2;
       if (there && g.deliveries.length === i) g.deliveries.push({ id: h.id, clock, points: deliveryPoints(clock) });
       const late = clock > GIPFELI.deadline;
-      const text = ctx.mode !== 'cyclist' ? 'Get on the bike (F) in front of the bakery' : `${fmtDayClock(clock)}${late ? ' · late!' : ` · ${Math.ceil(GIPFELI.deadline - clock)} min to 7:00`} · ${fmtDist(d)} to the ${h.name}`;
+      const text = ctx.mode !== 'cyclist' ? 'Get on the bike (F) in front of the bakery' : msg(late ? '{clock} · late! · {d} to the {hotel}' : '{clock} · {n} min to 7:00 · {d} to the {hotel}',
+        (q) => `${q.clock} · ${q.late ? 'zu spät!' : `noch ${q.n} min bis 7:00`} · ${q.d} zum ${q.hotel}`,
+        { clock: fmtDayClock(clock), late, n: Math.ceil(GIPFELI.deadline - clock), d: fmtDist(d), hotel: h.name });
       return { done: g.deliveries.length > i, progress: null, text, target: { ...h.road, style: 'plain' }, hint: ctx.mode === 'cyclist' ? (d < h.road.r ? 'Stop at the door' : null) : 'F: get on the bike' };
     }
   };
@@ -489,13 +497,19 @@ export function ballistics(range, wind, heading) {
   return { side: -cross * IBEX.drift * tof, drop: 0.5 * 9.81 * (tof * tof - tz * tz) };
 }
 
+// (the shot's line in both languages: made again for the end panel, js/messages.js keeps only the recent ones)
+const IBEX_DE = { kid: 'ein Kitz', 'nanny (female)': 'eine Geiss', 'young buck': 'ein junger Bock', 'old buck': 'ein alter Bock' };
+const shotText = (r) => (r.kind === 'forbidden' ? msg('Not allowed: a {label}! Fine and penalty', (q) => `Nicht erlaubt: ${IBEX_DE[q.label]}! Busse und Strafpunkte`, { label: r.label })
+  : r.kind === 'clean' ? msg('Clean shot on the buck ({horn} cm horns) at {at} m', 'Sauberer Schuss auf den Bock ({horn} cm Hörner) auf {at} m', { horn: r.horn, at: r.at }) : r.text);
+const shotWith = (r) => ({ ...r, text: shotText(r) });
+
 /** The verdict on a hit (or a miss: hit null): points and a line */
 export function ibexShotResult(hit, range) {
   const P = IBEX.points;
   if (!hit) return { kind: 'miss', points: P.miss, text: 'Missed: the herd bolts up the slope' };
   const a = hit.animal;
-  if (!legalIbex(a)) return { kind: 'forbidden', points: P.forbidden, text: `Not allowed: a ${ibexLabel(a)}! Fine and penalty` };
-  if (hit.zone === 'vitals') return { kind: 'clean', points: P.clean + Math.round(Math.max(0, range - 120) * P.distance), text: `Clean shot on the buck (${Math.round(a.horn * 100)} cm horns) at ${Math.round(range)} m` };
+  if (!legalIbex(a)) return shotWith({ kind: 'forbidden', points: P.forbidden, label: ibexLabel(a) });
+  if (hit.zone === 'vitals') return shotWith({ kind: 'clean', points: P.clean + Math.round(Math.max(0, range - 120) * P.distance), horn: Math.round(a.horn * 100), at: Math.round(range) });
   return { kind: 'body', points: P.body, text: 'Hit, but not clean: aim behind the shoulder' };
 }
 
@@ -568,6 +582,8 @@ export function huntShoot(h, o, d) {
   return res;
 }
 
+const ALARM_DE = { 'too close': 'zu nah', 'you are running': 'du rennst', 'the wind carries your scent': 'der Wind trägt deine Witterung hin' };
+
 export const IBEX_MISSION = {
   id: 'ibex-hunt',
   title: 'Ibex hunt: the Bündner Hochjagd',
@@ -587,7 +603,7 @@ export const IBEX_MISSION = {
   score: (state) => Math.max(0, state.hunt.score),
   summary(state) {
     const h = state.hunt;
-    return h.shots.length ? h.shots.map((s) => `${s.text} (${s.points >= 0 ? '+' : ''}${s.points})`) : ['No shot fired'];
+    return h.shots.length ? h.shots.map((s) => msg('{line} ({pts})', '{line|t} ({pts})', { line: shotText(s), pts: `${s.points >= 0 ? '+' : ''}${s.points}` })) : ['No shot fired'];
   },
   objectives: [
     {
@@ -596,7 +612,7 @@ export const IBEX_MISSION = {
       check(ctx, state) {
         const h = state.hunt;
         const d = dist(ctx, IBEX.stand);
-        return { done: d < IBEX.stand.r, progress: null, text: `${fmtDist(d)} to the stand${h.alarmWhy ? ` · the herd is uneasy: ${h.alarmWhy}` : ''}`, target: { ...IBEX.stand, style: 'plain' }, hint: 'Walk, do not run' };
+        return { done: d < IBEX.stand.r, progress: null, text: msg(h.alarmWhy ? '{d} to the stand · the herd is uneasy: {why}' : '{d} to the stand', (q) => `${q.d} bis zum Hochsitz${q.why ? ` · die Herde wird unruhig: ${ALARM_DE[q.why]}` : ''}`, { d: fmtDist(d), why: h.alarmWhy }), target: { ...IBEX.stand, style: 'plain' }, hint: 'Walk, do not run' };
       }
     },
     {
@@ -605,7 +621,7 @@ export const IBEX_MISSION = {
       check(ctx, state) {
         const h = state.hunt;
         const c = herdCentre(h.herd);
-        return { done: h.done, progress: null, text: `${h.ammo} ${h.ammo === 1 ? 'round' : 'rounds'} · ${Math.max(0, h.score)} pts · herd ${fmtDist(dist(ctx, c))}`, target: null, hint: 'Turn to the herd, put the crosshair on an old buck, then Z for the scope · Q / E: zoom · Shift: hold breath · Space / click: fire' };
+        return { done: h.done, progress: null, text: msg('{n} {rounds} · {p} pts · herd {d}', '{n} Schuss · {p} Pkt. · Herde {d}', { n: h.ammo, rounds: h.ammo === 1 ? 'round' : 'rounds', p: Math.max(0, h.score), d: fmtDist(dist(ctx, c)) }), target: null, hint: 'Turn to the herd, put the crosshair on an old buck, then Z for the scope · Q / E: zoom · Shift: hold breath · Space / click: fire' };
       }
     }
   ]
@@ -786,7 +802,7 @@ export const SQUIRREL_MISSION = {
         const off = on && on.d > 18;
         return {
           done: g.done, progress: g.t / SQUIRREL.length,
-          text: `${g.fed} fed · ${g.score} pts · ${fmtClock(SQUIRREL.length - g.t)}${g.streak > 1 ? ` · streak ${g.streak}` : ''}`,
+          text: msg(g.streak > 1 ? '{n} fed · {p} pts · {clock} · streak {s}' : '{n} fed · {p} pts · {clock}', (q) => `${q.n} gefüttert · ${q.p} Pkt. · ${q.clock}${q.s > 1 ? ` · Serie ${q.s}` : ''}`, { n: g.fed, p: g.score, clock: fmtClock(SQUIRREL.length - g.t), s: g.streak }),
           target: off ? { x: on.x, z: on.z } : null,
           hint: off ? 'Back to the lakeside path' : 'Stand still, hold E (Nut)'
         };
@@ -1273,7 +1289,7 @@ export const WATERSLIDE_MISSION = {
       check(ctx, state) {
         const r = state.rider;
         if (!r) return { done: false, progress: 0, text: 'Sit down at the top …', target: null, hint: null };
-        return { done: r.done, progress: r.s / slideLength(), text: `${(r.v * 3.6).toFixed(0)} km/h · ${fmtDist(slideLength() - r.s)} to the pool`, target: null, hint: 'A / D or ← / →: lean into the bends' };
+        return { done: r.done, progress: r.s / slideLength(), text: msg('{v} km/h · {d} to the pool', '{v} km/h · noch {d} bis zum Becken', { v: (r.v * 3.6).toFixed(0), d: fmtDist(slideLength() - r.s) }), target: null, hint: 'A / D or ← / →: lean into the bends' };
       }
     }
   ]
@@ -1430,7 +1446,7 @@ export const KIRCHNER_MISSION = {
       check(ctx, state) {
         const p = state.paint;
         if (!p) return { done: false, progress: 0, text: 'Setting up the easel …', target: null, hint: null };
-        return { done: !!p.result, progress: Math.min(1, p.t / KIRCHNER.length), text: p.result ? 'Finished' : `${fmtClock(KIRCHNER.length - p.t)} left`, target: null, hint: 'Paint with the mouse / a finger · Done when you are happy' };
+        return { done: !!p.result, progress: Math.min(1, p.t / KIRCHNER.length), text: p.result ? 'Finished' : msg('{clock} left', 'noch {clock}', { clock: fmtClock(KIRCHNER.length - p.t) }), target: null, hint: 'Paint with the mouse / a finger · Done when you are happy' };
       }
     }
   ]

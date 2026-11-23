@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   WINTERROAD_MISSIONS, SUMMER_TYRES_MISSION, SNOW_CHAINS_MISSION, FLUELA, FLUELA_TOP, CLAVADEL, FLUELA_S, CLAVADEL_S, FLUELA_ROAD, PLACES, PULLOVER,
   TYRES, CHAINS, SPIN, STUCK_S, BANK_PENALTY_MS, createTraction, stepTraction, slopePull, createDrive, stepDrive, createChains, stepChains, chainSpot,
-  needleAt, stepChainStrain, profileTime, chainWays, projectNear, kmh
+  needleAt, stepChainStrain, profileTime, chainWays, projectNear, kmh, CHAIN_STEPS
 } from '../js/missions-data-winterroad.js';
 import { routePoint } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -312,13 +312,37 @@ test('the winter drives speak German: names, intros, objectives, the HUD\'s text
     de(m.title); de(m.intro); de(m.finish);
     for (const o of m.objectives) de(o.title);
   }
-  assert.equal(de('1.2 km to the Flüela Hospiz · 31 km/h'), '1.2 km bis zum Flüela Hospiz · 31 km/h');
-  assert.equal(de('350 m to Islen · 20 km/h · 1 time in the snowbank'), '350 m bis Islen · 20 km/h · 1-mal im Schneewall');
-  assert.equal(de('Chains on 1 of 2 wheels · go to the right rear wheel'), 'Ketten an 1 von 2 Rädern · geh zum rechten Hinterrad');
-  assert.equal(de('Left rear wheel: pull it over the tyre'), 'Hinterrad links: über den Pneu ziehen');
-  assert.equal(de('Chains rattling at 52 km/h: slow down below 50!'), 'Die Ketten rasseln bei 52 km/h: unter 50 bremsen!');
-  assert.equal(de('Wheelspin 12 s · 2 times in the snowbank · 1 crash'), 'Durchdrehen 12 s · 2-mal im Schneewall · 1 Unfall');
-  assert.equal(de('1 chain slipped · top speed 47 km/h · 0 times in the snowbank'), '1-mal Kette abgerutscht · Höchsttempo 47 km/h · 0-mal im Schneewall');
+  // (the HUD's moving texts are made with msg(), js/messages.js: made by the mission from a state set up for it, then translated)
+  const says = (made, en, deText) => { assert.equal(made, en); assert.equal(t(made), deText); };
+  const kmhOf = (v) => v / 3.6;
+  const S = SUMMER_TYRES_MISSION, C = SNOW_CHAINS_MISSION;
+  const fl = S.createState();
+  fl.drive.best = FLUELA_TOP.length - 1200;
+  says(S.objectives[1].check(frame({ speed: kmhOf(31) }), fl).text, '1.2 km to the Flüela Hospiz · 31 km/h', '1.2 km bis zum Flüela Hospiz · 31 km/h');
+  fl.drive.banks = 2;
+  says(S.objectives[1].check(frame({ speed: kmhOf(31) }), fl).text, '1.2 km to the Flüela Hospiz · 31 km/h · 2 times in the snowbank', '1.2 km bis zum Flüela Hospiz · 31 km/h · 2-mal im Schneewall');
+  says(C.objectives[0].check(frame({ x: PULLOVER.x + 350, z: PULLOVER.z, speed: kmhOf(20) }), C.createState()).text, '350 m to Islen · 20 km/h', '350 m bis Islen · 20 km/h');
+  const cl = C.createState();
+  cl.drive.best = CLAVADEL_S.clavadel - 350;
+  cl.drive.banks = 1;
+  says(C.objectives[3].check(frame({ speed: kmhOf(20) }), cl).text, '350 m to Clavadel · 20 km/h · 1 time in the snowbank', '350 m bis Clavadel · 20 km/h · 1-mal im Schneewall');
+  cl.chainWarn = true;
+  says(C.objectives[3].check(frame({ speed: kmhOf(52) }), cl).hint, 'Chains rattling at 52 km/h: slow down below 50!', 'Die Ketten rasseln bei 52 km/h: unter 50 bremsen!');
+  const ch = C.createState();
+  ch.chains.wheels[0].done = true;
+  ch.chains.fitted = 1;
+  says(C.objectives[1].check(frame({ mode: 'car' }), ch).text, 'Chains on 1 of 2 wheels', 'Ketten an 1 von 2 Rädern');
+  says(C.objectives[1].check(frame({ mode: 'person' }), ch).text, `Chains on 1 of 2 wheels · go to the ${ch.chains.wheels[1].side} rear wheel`, `Ketten an 1 von 2 Rädern · geh zum ${ch.chains.wheels[1].side === 'left' ? 'linken' : 'rechten'} Hinterrad`);
+  const wheel = ch.chains.wheels.findIndex((w) => w.side === 'left');
+  ch.chains.at = wheel;
+  for (const [step, en, deText] of [['lay', 'lay the chain out', 'Kette auslegen'], ['pull', 'pull it over the tyre', 'über den Pneu ziehen'], ['tension', 'tension the chain', 'Kette spannen']]) {
+    ch.chains.wheels[wheel].step = CHAIN_STEPS.indexOf(step);
+    says(C.objectives[1].check(frame({ mode: 'person' }), ch).text, `Left rear wheel: ${en}`, `Hinterrad links: ${deText}`);
+  }
+  says(S.summary({ traction: { spinTime: 12.2 }, drive: { banks: 2, crashes: 1 } })[0], 'Wheelspin 12 s · 2 times in the snowbank · 1 crash', 'Durchdrehen 12 s · 2-mal im Schneewall · 1 Unfall');
+  says(S.summary({ traction: { spinTime: 0 }, drive: { banks: 1, crashes: 3 } })[0], 'Wheelspin 0 s · 1 time in the snowbank · 3 crashes', 'Durchdrehen 0 s · 1-mal im Schneewall · 3 Unfälle');
+  says(C.summary({ chains: { slips: 1 }, drive: { top: kmhOf(47), banks: 0 } })[0], '1 chain slipped · top speed 47 km/h · 0 times in the snowbank', '1-mal Kette abgerutscht · Höchsttempo 47 km/h · 0-mal im Schneewall');
+  says(C.summary({ chains: { slips: 2 }, drive: { top: kmhOf(47), banks: 1 } })[0], '2 chains slipped · top speed 47 km/h · 1 time in the snowbank', '2-mal Kette abgerutscht · Höchsttempo 47 km/h · 1-mal im Schneewall');
   // every fail, hint and toast of the two files
   const texts = [
     ...readFileSync(new URL('../js/missions-winterroad.js', import.meta.url), 'utf8').matchAll(/\bt\('((?:[^'\\]|\\.)*)'\)/g)

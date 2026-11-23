@@ -13,11 +13,12 @@ import {
   GARBAGE, stepGarbage,
   ROSES, createRoseBushes, nearestBush, stepPicking,
   MUSHROOMS, createMushrooms, nearestMushroom,
-  CRANE, CRANE_WING, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneNextMove, craneHook, craneTrolley, craneWind, swingOf,
+  CRANE, CRANE_WING, craneNextText, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneNextMove, craneHook, craneTrolley, craneWind, swingOf,
   LOADER, TIP_SPOT, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, stepChute, shedInBend, tipPose, stepTip, blowerHitsTruck, depositHeap, inRingXZ
 } from './missions-data-work.js';
 import { VEHICLES, holdButton, bindHold, holdKey, holding, createToast, particles, lump, GridMesh } from './missions-kit.js';
 import { inFlatRing as inRing } from './ring.js';
+import { msg } from './messages.js';
 
 // js/missions-work.js
 // The runtime of the eight work missions (js/missions-data-work.js has their definitions and the pure logic; js/missions.js
@@ -756,7 +757,7 @@ const snowBlower = {
         const now = performance.now();
         if (now - w.lastHit > 2500 && run.phase === 'running') {
           w.lastHit = now; st.hits++; st.penaltyMs += BLOWER.hitMs;
-          w.toast.show(`Parked car hit! +${BLOWER.hitMs / 1000} s`, '#ff8f80', 2);
+          w.toast.show(msg('Parked car hit! +{s} s', 'Parkiertes Auto angefahren! +{s} s', { s: BLOWER.hitMs / 1000 }), '#ff8f80', 2);
           run.audio?.thump?.();
         }
       }
@@ -869,7 +870,7 @@ const mower = {
       const trodden = stepMower(w.grid, g, f, car.speed || 0);
       if (trodden && run.phase === 'running') {
         st.trodden += trodden; st.penaltyMs += trodden * MOWER.bedMs; w.bedT = 1.5;
-        w.toast.show(`Flower bed! +${(trodden * MOWER.bedMs) / 1000} s`, '#ff8f80', 1.2);
+        w.toast.show(msg('Flower bed! +{s} s', 'Blumenbeet! +{s} s', { s: (trodden * MOWER.bedMs) / 1000 }), '#ff8f80', 1.2);
       }
       st.mown = lawnMown(w.grid);
       if (st.mown > before) mower.clippings(run, car, dt);
@@ -1047,7 +1048,7 @@ const alpineRoses = {
           b.damaged = true; st.damaged++; st.penaltyMs += ROSES.damageMs;
           w.bushMesh.setColorAt(b.i, _c.setRGB(2.2, 1.3, 0.6));
           w.bushMesh.instanceColor.needsUpdate = true;
-          w.toast.show(`Not in flower: bush damaged +${ROSES.damageMs / 1000} s`, '#ff8f80', 1.6);
+          w.toast.show(msg('Not in flower: bush damaged +{s} s', 'Nicht in Blüte: Strauch beschädigt +{s} s', { s: ROSES.damageMs / 1000 }), '#ff8f80', 1.6);
         }
         w.keyHold = false;
       }
@@ -1152,7 +1153,7 @@ const mushrooms = {
         st.basket.push(m.kind);
         picked = true;
         w.keyHold = false;
-        w.toast.show(`Into the basket (${st.basket.length}/${MUSHROOMS.basket})`, '#f3d9a4', 1.1);
+        w.toast.show(msg('Into the basket ({n}/{of})', 'In den Korb ({n}/{of})', { n: st.basket.length, of: MUSHROOMS.basket }), '#f3d9a4', 1.1);
       }
     } else st.picking = null;
     // (redrawn when the player has moved a few metres, or one was picked)
@@ -1437,8 +1438,8 @@ const towerCrane = {
       const placed = w.site.loads[st.index - 1];
       w.loads[st.index - 1].sling.visible = false;
       w.loads[st.index - 1].mesh.position.set(last.x, last.y, last.z);
-      if (last.hard) w.toast.show(`Hard landing  -${Math.round(CRANE.points.hard * placed.fragile)}`, '#ff8f80', 2);
-      else w.toast.show(`Set down  +${Math.round(last.points)}`, '#a8ffb0', 1.6);
+      if (last.hard) w.toast.show(msg('Hard landing  -{p}', 'Harte Landung  -{p}', { p: Math.round(CRANE.points.hard * placed.fragile) }), '#ff8f80', 2);
+      else w.toast.show(msg('Set down  +{p}', 'Abgesetzt  +{p}', { p: Math.round(last.points) }), '#a8ffb0', 1.6);
       // (what comes next, after the score: the next load in the yard, its yellow ring)
       w.nextIn = w.site.loads[st.index] ? 1.7 : 0;
     } else if (r === 'off-spot') w.toast.show('Not on the marked spot: E lifts it again', '#ff8f80', 1.6);
@@ -1448,7 +1449,7 @@ const towerCrane = {
   update(run, ctx, dt, cm) {
     const w = run.work, st = run.state, C = w.crane, S = w.site;
     w.toast.update(dt);
-    if (w.nextIn > 0 && (w.nextIn -= dt) <= 0 && !st.carried && S.loads[st.index]) w.toast.show(`Next: the ${S.loads[st.index].name} in the yard`, '#ffe9a6', 2.2);
+    if (w.nextIn > 0 && (w.nextIn -= dt) <= 0 && !st.carried && S.loads[st.index]) w.toast.show(craneNextText(S.loads[st.index].name), '#ffe9a6', 2.2);
     if (st.cab) {
       towerCrane.hold(run);
       w.t += dt;
@@ -1467,7 +1468,7 @@ const towerCrane = {
       const floor = st.carried ? (st.seated ? st.ly + load.half.y * 2 + CRANE.sling - 0.3 : -Infinity) : craneSurface(S, hookNow.x, hookNow.z) + 0.5;
       stepCrane(C, input, Math.min(dt, 0.05), wind, S.jibY - floor);
       const ev = stepCraneLoad(C, S, st, dt);
-      if (ev === 'hit') { w.toast.show(`Hit!  -${CRANE.points.hit}`, '#ff8f80', 1.6); run.audio?.thump?.(); }
+      if (ev === 'hit') { w.toast.show(msg('Hit!  -{p}', 'Getroffen!  -{p}', { p: CRANE.points.hit }), '#ff8f80', 1.6); run.audio?.thump?.(); }
       else if (ev === 'seated' && st.lifted) {
         if (st.seatV > CRANE.hardLanding) { w.toast.show('Too hard!', '#ff8f80', 1.4); run.audio?.thump?.(); }
       }

@@ -1525,7 +1525,7 @@ const WATERSLIDE_FEATURE = {
     const seg = slideAt(r.s);
     const eq = thetaEq(r.v, seg.curve), dev = (r.theta - eq) * Math.sign(seg.curve || 1);
     const line = seg.curve === 0 ? 'straight' : dev > SLIDE.rubFree ? 'too high: braking!' : dev < -SLIDE.joltFree ? 'too low: bumpy' : 'ideal line';
-    ws.hud.set(ws.countdown > 0 ? `<b>${Math.ceil(ws.countdown)}</b> … ${tr('get ready: A / D lean into the bends')}` : r.done ? `<b>${tr('Splash!')}</b> ${(r.t).toFixed(1)} s ${tr('on the slide')}` : `<b>${(r.v * 3.6).toFixed(0)}</b> km/h · ${tr(line)} · ${tr(`${Math.round(slideLength() - r.s)} m to go`)}`);
+    ws.hud.set(ws.countdown > 0 ? `<b>${Math.ceil(ws.countdown)}</b> … ${tr('get ready: A / D lean into the bends')}` : r.done ? `<b>${tr('Splash!')}</b> ${(r.t).toFixed(1)} s ${tr('on the slide')}` : `<b>${(r.v * 3.6).toFixed(0)}</b> km/h · ${tr(line)} · ${tr(msg('{n} m to go', 'noch {n} m', { n: Math.round(slideLength() - r.s) }))}`);
   }
 };
 
