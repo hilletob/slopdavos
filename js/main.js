@@ -43,6 +43,7 @@ import { buildSpital } from './spital.js';
 import { buildAltePost } from './alte-post.js';
 import { buildStJohann } from './st-johann.js';
 import { buildRaetiaCenter } from './raetia-center.js';
+import { buildMarienkirche } from './marienkirche.js';
 import { placeOnTerrain, liftColliders, streamTerrain, releaseWaterLevel, refreshTerrainChunks, constrainToTunnel } from './terrain.js';
 import { WorldStreamer, groundBuilder, paintBuilder, trackBuilder, parkingBuilder, vectorGroundBuilder } from './world-stream.js';
 import { buildVectorGround, groundCoverage, streamGroundMarkings } from './vector-ground.js';
@@ -370,6 +371,7 @@ async function initApp() {
   const spital = skipped('spital') ? { colliders: [] } : buildSpital(scene); // the Spital Davos: concrete, reliefs, the entrance hall (js/spital.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
+  const marienkirche = skipped('marienkirche') ? { colliders: [] } : buildMarienkirche(scene); // the Marienkirche: the tower with its quoins, belfry and spire, the nave and the transept (js/marienkirche.js)
   const stJohann = skipped('stjohann') ? { setTime: NOOP } : buildStJohann(scene); // the tower of St. Johann with its twisted spire, its dials at the game's time (js/st-johann.js)
   markInit('cityGrid');
   await breathe();
@@ -435,7 +437,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (their fire escapes and shop fronts too; the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...raetiaCenter.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...boroughs.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...raetiaCenter.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }
