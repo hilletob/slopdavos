@@ -235,14 +235,19 @@ test('the Fondue Night speaks German', async () => {
     assert.match(t(m.intro), /^Drupal Mountain Camp, Open Source on top of the world, und heute Abend der Klassiker/);
     assert.match(t(m.finish), /Kufen/);
     for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
-    assert.equal(t('The camp waits at the entrance · 35 m'), 'Das Camp wartet beim Eingang · 35 m');
-    assert.equal(t('The fondue table on the terrace · 43 m'), 'Der Fonduetisch auf der Terrasse · 43 m');
-    assert.equal(t('Figure eights 5/8'), 'Achten 5/8');
-    assert.equal(t('Figure eights 5/8 · caught 2× (+16 s)'), 'Achten 5/8 · 2× angebrannt (+16 s)');
-    assert.equal(t('8 figure eights · nothing caught'), '8 Achten · nichts angebrannt');
-    assert.equal(t('8 figure eights · caught on the bottom 1× (+8 s) · 3 circles'), '8 Achten · 1× angebrannt (+8 s) · 3-mal im Kreis gerührt');
-    assert.equal(t('Flämmli with effect · 1 crash (+5 s) · top speed 84 km/h'), 'Flämmli mit Wirkung · 1 Sturz (+5 s) · Höchsttempo 84 km/h');
-    assert.equal(t('Flämmli without effect · 0 crashes · top speed 79 km/h'), 'Flämmli ohne Wirkung · 0 Stürze · Höchsttempo 79 km/h');
+    // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+    const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+    says(m.objectives[0].check(frame({ x: KONGRESS_DOOR.x + 35, z: KONGRESS_DOOR.z }), m.createState()).text, 'The camp waits at the entrance · 35 m', 'Das Camp wartet beim Eingang · 35 m');
+    says(m.objectives[1].check(frame({ x: FONDUE_TABLE.x + 43, z: FONDUE_TABLE.z }), m.createState()).text, 'The fondue table on the terrace · 43 m', 'Der Fonduetisch auf der Terrasse · 43 m');
+    says(stirGauge({ ...createStir(), eights: 5 }).text, 'Figure eights 5/8', 'Achten 5/8');
+    says(stirGauge({ ...createStir(), eights: 5, strikes: 2 }).text, 'Figure eights 5/8 · caught 2× (+16 s)', 'Achten 5/8 · 2× angebrannt (+16 s)');
+    const evening = (stir, choice, crashes, kmh) => m.summary({ ...m.createState(), stir: { ...createStir(), ...stir }, choice, crashes, topSpeed: kmh / 3.6 });
+    const [clean, tipsy] = evening({ eights: 8 }, 'tipsy', 1, 84);
+    says(clean, '8 figure eights · nothing caught', '8 Achten · nichts angebrannt');
+    says(tipsy, 'Flämmli with effect · 1 crash (+5 s) · top speed 84 km/h', 'Flämmli mit Wirkung · 1 Sturz (+5 s) · Höchsttempo 84 km/h');
+    const [caught, sober] = evening({ eights: 8, strikes: 1, circles: 3 }, 'sober', 0, 79);
+    says(caught, '8 figure eights · caught on the bottom 1× (+8 s) · 3 circles', '8 Achten · 1× angebrannt (+8 s) · 3-mal im Kreis gerührt');
+    says(sober, 'Flämmli without effect · 0 crashes · top speed 79 km/h', 'Flämmli ohne Wirkung · 0 Stürze · Höchsttempo 79 km/h');
     // every line the panel can show at the table
     const st = m.createState();
     for (const last of [null, 'eight', 'circle', 'splash', 'slow', 'burnt']) { st.stir.last = last; const h = stirGauge(st.stir).hint; assert.notEqual(t(h), h, h); }

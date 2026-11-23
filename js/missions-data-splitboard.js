@@ -36,6 +36,7 @@
 //   (the signal from 50 m: the arrow and the distance), the fine search under 3 m, the probe (hold Space), the shovel
 //   (hold Space), +30 s. A second avalanche ends the tour.
 // Judged by time. The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z).
+import { msg } from './messages.js';
 import { lineLength, pointAt, buildCheckpoints, updateCheckpoints, crossGate } from './missions-data-snow.js';
 
 const TAU = Math.PI * 2;
@@ -95,8 +96,8 @@ export const SPLIT = {
   down: { spacing: 135, first: 90, half: 22, reach: 90, missMs: 8000 }, // the gates of flags
   // the group check at the start: first Reto's transceiver on search finds yours sending, then the other way round
   groupCheck: [
-    { id: 'send', label: 'Send check: Reto searches, you send', hold: 1.3 },
-    { id: 'receive', label: 'Receive check: you search, Reto sends', hold: 1.3 }
+    { id: 'send', label: 'Send check: Reto searches, you send', de: 'Sendecheck: Reto sucht, du sendest', hold: 1.3 },
+    { id: 'receive', label: 'Receive check: you search, Reto sends', de: 'Empfangscheck: du suchst, Reto sendet', hold: 1.3 }
   ],
   // the touring partner: in your track behind you, the whole tour
   partner: {
@@ -128,12 +129,12 @@ export const SPLIT = {
   // the tail to the tip, folded glue to glue and into the jacket; the halves slid together under the hooks; the clips
   // closed; the bindings across the board onto the pucks, the pins in; stepped in, the straps closed
   transition: [
-    { id: 'skin1', label: 'Skin off the first half', hold: 1.3 },
-    { id: 'skin2', label: 'Skin off the second half', hold: 1.3 },
-    { id: 'join', label: 'Halves together, hooks in', hold: 1.0 },
-    { id: 'clips', label: 'Close the clips', hold: 0.6 },
-    { id: 'bind', label: 'Bindings across, pins in', hold: 1.0 },
-    { id: 'strap', label: 'Step in, straps tight', hold: 0.8 }
+    { id: 'skin1', label: 'Skin off the first half', de: 'Fell von der ersten Hälfte', hold: 1.3 },
+    { id: 'skin2', label: 'Skin off the second half', de: 'Fell von der zweiten Hälfte', hold: 1.3 },
+    { id: 'join', label: 'Halves together, hooks in', de: 'Hälften zusammen, Haken einhängen', hold: 1.0 },
+    { id: 'clips', label: 'Close the clips', de: 'Clips schliessen', hold: 0.6 },
+    { id: 'bind', label: 'Bindings across, pins in', de: 'Bindungen quer, Pins rein', hold: 1.0 },
+    { id: 'strap', label: 'Step in, straps tight', de: 'Einsteigen, Riemen zu', hold: 0.8 }
   ],
   timeLimitMs: 50 * 60 * 1000
 };
@@ -444,15 +445,21 @@ function override(ctx, state) {
   if (!rs || rs.stage === 'out') return null;
   const d = Math.hypot(rs.x - ctx.x, rs.z - ctx.z), R = SPLIT.rescue;
   const text = rs.stage === 'search'
-    ? (d > R.range ? `${RETO} is buried! Search: no signal yet, go down the avalanche` : `${RETO} is buried! Signal: ${d.toFixed(1)} m`)
+    ? (d > R.range ? `${RETO} is buried! Search: no signal yet, go down the avalanche` : msg('{who} is buried! Signal: {d} m', '{who} ist verschüttet! Signal: {d} m', { who: RETO, d: d.toFixed(1) }))
     : rs.stage === 'probe' ? 'Fine search: probe (hold Space)' : 'Probe hit: dig him out (hold Space)';
   const hint = rs.stage === 'search' ? (d > R.range ? 'Transceiver on search: down the fall line in strips' : d > 10 ? 'Coarse search: follow the arrow' : 'Close: slow down, fine search') : null;
   return { done: false, progress: rs.stage === 'search' ? null : rs.t / (rs.stage === 'probe' ? R.probe : R.dig), text, target: null, hint };
 }
+/** The toast for a gate gone by on the way down (js/missions-splitboard.js) */
+export const gateMissedText = (n) => msg('Gate {n} missed: +{s} s', 'Tor {n} verpasst: +{s} s', { n, s: SPLIT.down.missMs / 1000 });
+/** "Wait for Reto: 90 m behind" */
+const waitText = (state) => msg('Wait for {who}: {m} m behind', 'Auf {who} warten: {m} m zurück', { who: RETO, m: Math.round(state.retoBehind) });
+/** A held step with its count: "Close the clips (4/6)" */
+const stepText = (s, i, n) => msg('{label} ({i}/{n})', '{de} ({i}/{n})', { label: s.label, de: s.de, i, n });
 /** The partner's line in the HUD (way behind; keeping his spacing; the warning before a slab) */
 function partnerHint(state) {
   if (state.risk?.exposed) return 'Steep slope above 35°: avalanche danger – back to the track';
-  if (state.retoBehind > SPLIT.partner.waitAt) return `Wait for ${RETO}: ${Math.round(state.retoBehind)} m behind`;
+  if (state.retoBehind > SPLIT.partner.waitAt) return waitText(state);
   if (state.retoSpaced) return `Over 30°: ${RETO} keeps 10 m spacing behind you`;
   return null;
 }
@@ -468,7 +475,8 @@ function upObjective([id, title, toS]) {
       if (o) return o;
       if (ctx.t > SPLIT.timeLimitMs) return { done: false, fail: 'The sun has turned the snow to mush: too late for the descent today.', text: '', progress: null, target: null };
       const up = state.up, cp = up.cps[up.next], n = up.cps.length, sk = up.skipped != null ? up.cps[up.skipped] : null;
-      const text = sk ? `Marker pole ${sk.i + 1} missed: back to it` : `Marker pole ${Math.min(n, up.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}`;
+      const text = sk ? msg('Marker pole {n} missed: back to it', 'Markierstange {n} verpasst: zurück zu ihr', { n: sk.i + 1 })
+        : msg('Marker pole {i}/{n} · {d}', 'Markierstange {i}/{n} · {d}', { i: Math.min(n, up.next + 1), n, d: cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : '' });
       const hint = partnerHint(state) || (state.slipping ? 'Too steep: the skins slip! Zig-zag across the slope' : state.steepHint ? 'Steep: zig-zag, Space for a kick turn' : null);
       return { done: up.next > last, progress: Math.min(1, (up.next ? up.cps[up.next - 1].s : 0) / UP_LEN), text, target: cp ? { x: cp.x, z: cp.z, r: SPLIT.up.radius, style: sk ? 'hazard' : 'plain' } : null, hint };
     }
@@ -486,10 +494,11 @@ function downObjective([id, title, toS]) {
       if (o) return o;
       const d = state.down, g = d.gates[d.next], n = d.gates.length;
       // (at the Stafelalp: together, or it isn't done)
-      if (end && d.next > last && state.retoBehind > SPLIT.partner.downGap + 12) return { done: false, progress: 1, text: `Wait for ${RETO}`, target: null, hint: `${RETO}: ${Math.round(state.retoBehind)} m behind` };
-      const text = `Gate ${Math.min(n, d.next + 1)}/${n}${d.missed ? ` · ${d.missed} missed (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : ''}`;
+      if (end && d.next > last && state.retoBehind > SPLIT.partner.downGap + 12) return { done: false, progress: 1, text: `Wait for ${RETO}`, target: null, hint: msg('{who}: {m} m behind', '{who}: {m} m zurück', { who: RETO, m: Math.round(state.retoBehind) }) };
+      const text = msg('Gate {i}/{n}{missed}', (p) => `Tor ${p.i}/${p.n}${p.m ? ` · ${p.m} verpasst (+${p.s} s)` : ''}`,
+        { i: Math.min(n, d.next + 1), n, missed: d.missed ? ` · ${d.missed} missed (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : '', m: d.missed, s: (d.missed * SPLIT.down.missMs) / 1000 });
       const lastEv = state.lastGate;
-      const hint = (lastEv && !lastEv.pass && ctx.t - lastEv.t < 2500 ? `Gate missed: +${SPLIT.down.missMs / 1000} s` : null) || partnerHint(state);
+      const hint = (lastEv && !lastEv.pass && ctx.t - lastEv.t < 2500 ? msg('Gate missed: +{s} s', 'Tor verpasst: +{s} s', { s: SPLIT.down.missMs / 1000 }) : null) || partnerHint(state);
       return { done: d.next > last, progress: d.next / n, text, target: g ? { x: g.x, z: g.z, r: g.half, style: 'plain' } : null, hint };
     }
   };
@@ -545,8 +554,12 @@ export const SPLITBOARD_MISSION = {
   summary(state) {
     const d = state.down;
     return [
-      `${state.kicks} kick turn${state.kicks === 1 ? '' : 's'} · ${Math.round(state.slipT)} s slipping${state.rescues ? ` · ${RETO} dug out of an avalanche (+${SPLIT.rescue.penaltyMs / 1000} s)` : ''}`,
-      `${d.passed} of ${d.gates.length} gates · ${d.missed} missed${d.missed ? ` (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : ''} · top speed ${Math.round(state.topSpeed * 3.6)} km/h`
+      msg('{n} kick turn{s} · {t} s slipping{rescue}',
+        (p) => `${p.n} ${p.n === 1 ? 'Spitzkehre' : 'Spitzkehren'} · ${p.t} s gerutscht${p.r ? ` · ${p.who} aus einer Lawine ausgegraben (+${p.pen} s)` : ''}`,
+        { n: state.kicks, s: state.kicks === 1 ? '' : 's', t: Math.round(state.slipT), rescue: state.rescues ? ` · ${RETO} dug out of an avalanche (+${SPLIT.rescue.penaltyMs / 1000} s)` : '',
+          r: state.rescues, who: RETO, pen: SPLIT.rescue.penaltyMs / 1000 }),
+      msg('{p} of {n} gates · {m} missed{pen} · top speed {v} km/h', '{p} von {n} Toren · {m} verpasst{pen} · Höchsttempo {v} km/h',
+        { p: d.passed, n: d.gates.length, m: d.missed, pen: d.missed ? ` (+${(d.missed * SPLIT.down.missMs) / 1000} s)` : '', v: Math.round(state.topSpeed * 3.6) })
     ];
   },
   objectives: [
@@ -556,7 +569,7 @@ export const SPLITBOARD_MISSION = {
       allowModes: ['person'],
       check(ctx, state) {
         const c = state.check, st = SPLIT.groupCheck[Math.min(c.step, SPLIT.groupCheck.length - 1)];
-        return { done: c.done, progress: transitionShare(c, SPLIT.groupCheck), text: `${st.label} (${c.step + 1}/${SPLIT.groupCheck.length})`, target: null, hint: 'Hold Space' };
+        return { done: c.done, progress: transitionShare(c, SPLIT.groupCheck), text: stepText(st, c.step + 1, SPLIT.groupCheck.length), target: null, hint: 'Hold Space' };
       }
     },
     ...UP_PARTS.map(upObjective),
@@ -569,7 +582,7 @@ export const SPLITBOARD_MISSION = {
         if (o) return o;
         const tr = state.trans, st = SPLIT.transition[Math.min(tr.step, SPLIT.transition.length - 1)];
         const wait = state.retoBehind > SPLIT.partner.beside + 8;
-        return { done: tr.done, progress: transitionShare(tr), text: tr.done ? 'Ready to ride' : `${st.label} (${tr.step + 1}/${SPLIT.transition.length})`, target: null, hint: wait ? `Wait for ${RETO}: ${Math.round(state.retoBehind)} m behind` : 'Hold Space' };
+        return { done: tr.done, progress: transitionShare(tr), text: tr.done ? 'Ready to ride' : stepText(st, tr.step + 1, SPLIT.transition.length), target: null, hint: wait ? waitText(state) : 'Hold Space' };
       }
     },
     ...DOWN_PARTS.map(downObjective)

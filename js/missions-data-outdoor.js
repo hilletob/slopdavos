@@ -13,6 +13,7 @@
 //    The skating itself is js/missions-data-ice.js's hockey skater (js/missions-ice.js `skates`).
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 import { seededRandom } from './missions-data-ice.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapAngle = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
@@ -221,7 +222,7 @@ const crossingObjective = (leg, i) => ({
     const done = g.cleared > 2 + i;
     if (g.stage === 'deck') return { done, progress: g.clips / 2, text: deckText(g), target: null, hint: 'Space: clip · W: walk' };
     if (g.stage === 'dangle') return { done, progress: null, text: 'Dangling in your harness: the guide winches you back', target: null, hint: null };
-    return { done, progress: leg.len ? clamp(g.s / leg.len, 0, 1) : null, text: `${Math.max(0, Math.ceil(leg.len - g.s))} m to the next deck`, target: null, hint: 'A/D: lean against the sway · W: walk on' };
+    return { done, progress: leg.len ? clamp(g.s / leg.len, 0, 1) : null, text: msg('{m} m to the next deck', '{m} m bis zur nächsten Plattform', { m: Math.max(0, Math.ceil(leg.len - g.s)) }), target: null, hint: 'A/D: lean against the sway · W: walk on' };
   }
 });
 const zipLeg = ROPE_LEGS[ROPE_LEGS.length - 1];
@@ -252,7 +253,7 @@ export const SEILPARK_MISSION = {
       title: 'Walk to the first tree',
       check(ctx, g) {
         const d = Math.hypot(ctx.x - ROPE_LADDER.x, ctx.z - ROPE_LADDER.z);
-        return { done: g.cleared >= 1, progress: null, text: `${Math.round(d)} m to the ladder`, target: { x: ROPE_LADDER.x, z: ROPE_LADDER.z, r: ROPE.ladderR }, hint: null };
+        return { done: g.cleared >= 1, progress: null, text: msg('{m} m to the ladder', '{m} m bis zur Leiter', { m: Math.round(d) }), target: { x: ROPE_LADDER.x, z: ROPE_LADDER.z, r: ROPE.ladderR }, hint: null };
       }
     },
     {
@@ -801,7 +802,7 @@ export const POND_MISSION = {
       title: 'Skate to the centre spot',
       check(ctx) {
         const d = Math.hypot(ctx.x - POND.spot.x, ctx.z - POND.spot.z);
-        return { done: d <= POND.spot.r, progress: null, text: `${Math.round(d)} m to the face-off`, target: { ...POND.spot, style: 'plain' }, hint: null };
+        return { done: d <= POND.spot.r, progress: null, text: msg('{m} m to the face-off', '{m} m bis zum Bully', { m: Math.round(d) }), target: { ...POND.spot, style: 'plain' }, hint: null };
       }
     },
     {

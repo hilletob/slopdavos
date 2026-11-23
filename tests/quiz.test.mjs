@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   QUIZ, QUIZ_PERIOD, QUIZ_MAX_SCORE, QUIZ_QUESTIONS, QUIZ_BOTS, QUIZ_MISSIONS, GIGI_MISSION, GIGI, getQuestion, halfOf, pickQuestions, parseGuess, formatNumber,
   scoreGuess, botGuess, tableSeats, createRound, phaseAt, roundPhase, roundLength, lockGuess, mergeGuesses, hasGuessed, guessOf, cutWaiting, endGuessing, questionResult,
-  tableStandings, gigiLine, quizTexts, seededRandom, seenQuestions, noteQuestions, quizHandoff
+  tableStandings, gigiLine, quizTexts, seededRandom, seenQuestions, noteQuestions, quizHandoff, questionText
 } from '../js/missions-data-quiz.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
@@ -466,7 +466,7 @@ test('every text of the round has its German: the questions, the units, Gigi, th
   const source = [read('js/missions-quiz.js'), read('js/quiz-ui.js')].join('\n');
   const texts = [
     ...quizTexts(), GIGI_MISSION.title, GIGI_MISSION.intro, GIGI_MISSION.finish, ...GIGI_MISSION.objectives.map((o) => o.title),
-    'Gigi takes a sip', 'Type a number and press Enter', 'Question 2 of 3', '8 m to Gigi’s table', 'Place 2 of 5 at the table', 'You pay the round', 'The round is on the others', 'Someone else pays the round',
+    'Gigi takes a sip', 'Type a number and press Enter', 'You pay the round', 'The round is on the others', 'Someone else pays the round',
     'The host starts the next round.', 'More than 10 at the table: the first 10 play, the others the next round.', 'Play together', 'You', 'pts', '2310 pts',
     // (every text the card and the lobby hand to t() or to the page)
     ...[...source.matchAll(/tr\('((?:[^'\\]|\\.)+)'\)/g)].map((m) => m[1]),
@@ -480,9 +480,13 @@ test('every text of the round has its German: the questions, the units, Gigi, th
     assert.notEqual(de, text, `no German for: ${text}`);
     assert.doesNotMatch(de, /ß/, `Swiss spelling: ${de}`);
   }
-  assert.equal(t('Question 2 of 3'), 'Frage 2 von 3');
   assert.equal(t('Question {n} of {m}'), 'Frage {n} von {m}');
-  assert.equal(t('8 m to Gigi’s table'), '8 m bis zu Gigis Tisch');
+  // (the running texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };
+  says(questionText(2, 3), 'Question 2 of 3', 'Frage 2 von 3');
+  const T = QUIZ.table, near = { mode: 'person', x: T.x + 8, z: T.z, y: 0, t: 0, dt: 0.1 };
+  says(GIGI_MISSION.objectives[0].check(near, GIGI_MISSION.createState()).text, '8 m to Gigi’s table', '8 m bis zu Gigis Tisch');
+  says(GIGI_MISSION.summary({ game: { done: true, place: 2, seats: 5, pays: false } })[0], 'Place 2 of 5 at the table', 'Platz 2 von 5 am Tisch');
   assert.match(t(GIGI_MISSION.intro), /^Après-Ski unter der Schirmbar/);
   // (the placeholders survive the translation)
   for (const text of new Set(texts)) for (const hole of text.match(/\{\w+\}/g) || []) assert.ok(t(text).includes(hole), `${text}: ${hole}`);

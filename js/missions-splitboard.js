@@ -7,7 +7,7 @@ import { createToast, particles } from './missions-kit.js';
 import { createRider, stepRider, riderSpeed, travelHeading, BOARD_PARAMS } from './missions-data-snow.js';
 import {
   SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, createSkinner, stepSkinner, stepTransition, slopeAt, slopeAlong,
-  createTrail, addToTrail, trailEnd, createPartner, stepPartner, lineOffset, stepRisk, burialSpot, searchView, createRescue, stepRescue
+  createTrail, addToTrail, trailEnd, createPartner, stepPartner, lineOffset, stepRisk, burialSpot, searchView, createRescue, stepRescue, gateMissedText
 } from './missions-data-splitboard.js';
 
 // js/missions-splitboard.js
@@ -893,7 +893,7 @@ const splitboard = {
       s.gates.shown[i] = res[i];
       _c.set(res[i] === 'pass' ? FLAG.pass : res[i] === 'miss' ? FLAG.miss : FLAG.red);
       s.gates.flags.setColorAt(i * 2, _c); s.gates.flags.setColorAt(i * 2 + 1, _c);
-      if (res[i] === 'miss') s.toast.show(`Gate ${i + 1} missed: +${SPLIT.down.missMs / 1000} s`, '#ffb3a8', 1.6);
+      if (res[i] === 'miss') s.toast.show(gateMissedText(i + 1), '#ffb3a8', 1.6);
       changed = true;
     }
     if (changed) s.gates.flags.instanceColor.needsUpdate = true;

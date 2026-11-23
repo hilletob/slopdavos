@@ -8,7 +8,7 @@ import {
   rhythmSection, createHeadbang, headbangTap, headbangAdvance, headbangMultiplier,
   FOOSBALL, FOOSBALL_TABLES, createFoosball, foosballStep, manY,
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, createGondola, gondolaMove, gondolaRotate, gondolaDrop, gondolaDepart, gondolaStep, gondolaCabinScore, gondolaScore, gondolaPersons,
-  RHB_DRIVE, createRhbDrive, rhbDriveStep, rhbLimitAt, rhbDriveScore
+  RHB_DRIVE, createRhbDrive, rhbDriveStep, rhbLimitAt, rhbDriveScore, FUN_TEXT
 } from './missions-data-fun.js';
 import { el } from './dom.js';
 
@@ -1251,7 +1251,7 @@ const FOOSBALL_FEATURE = {
     // the HUD
     const s = `${g.score.p} : ${g.score.a}`;
     if (fb.score.textContent !== s) fb.score.textContent = s;
-    const line = `You (red) vs La Onda (blue) · ${g.rods[active].role}${fb.rod === null ? ' (auto)' : ''}`;
+    const line = FUN_TEXT.foosball(g.rods[active].role, fb.rod === null);
     if (fb.sub.textContent !== line) fb.sub.textContent = line;
     if (run.phase === 'done' || run.phase === 'failed') fb.hud.hidden = true;
   }
@@ -1437,7 +1437,7 @@ const GONDOLA_FEATURE = {
       if (ev.type === 'lock') gp.blips.thud(0.7);
       if (ev.type === 'depart') {
         gp.blips.tone(660, 0.25, { type: 'triangle', vol: 0.1, slide: 1.5 });
-        gp.flash.textContent = `Cabin ${ev.cabin}: ${ev.persons} passengers · ${Math.round(ev.fill * 100)} % full${ev.rows ? ` · ${ev.rows} full row${ev.rows > 1 ? 's' : ''}` : ''}${ev.holes ? ` · ${ev.holes} holes` : ''} → ${ev.points >= 0 ? '+' : ''}${ev.points}`;
+        gp.flash.textContent = FUN_TEXT.cabinGone(ev);
         gp.flash.style.color = ev.points >= 200 ? '#7dffb0' : ev.points > 0 ? '#ffe14f' : '#ff6b6b';
         clearTimeout(gp.flashTimer);
         gp.flashTimer = setTimeout(() => { gp.flash.textContent = ''; }, 3500);
@@ -1525,7 +1525,7 @@ const GONDOLA_FEATURE = {
     const score = String(gondolaScore(g));
     if (gp.big.textContent !== score) gp.big.textContent = score;
     const now = gondolaCabinScore(g.grid, g.placed);
-    const line = gp.startIn > 0 ? 'The cabin comes in …' : g.departing ? 'The cabin is leaving …' : `${gondolaPersons(g)} up · cabin ${g.cabin}: ${now.persons} aboard, ${Math.round(now.fill * 100)} % · ${Math.ceil(Math.max(0, GONDOLA.seconds - g.t))} s`;
+    const line = gp.startIn > 0 ? 'The cabin comes in …' : g.departing ? 'The cabin is leaving …' : FUN_TEXT.cabinLine(gondolaPersons(g), g.cabin, now.persons, now.fill, Math.ceil(Math.max(0, GONDOLA.seconds - g.t)));
     if (gp.sub.textContent !== line) gp.sub.textContent = line;
     if (g.next !== gp.sig) {
       gp.sig = g.next;
@@ -1633,11 +1633,11 @@ const RHB_FEATURE = {
     for (const sec of d.sections) if (sec.from > d.s && sec.from - d.s < 1500 && sec.kmh < limit && (!ahead || sec.from < ahead.from)) ahead = sec;
     const stop = d.timetable[d.index];
     const parts = [];
-    if (stop) parts.push(`Stop board ${stop.name.replace('Davos ', '')}: ${Math.round(stop.s - d.s)} m`);
+    if (stop) parts.push(FUN_TEXT.stopBoard(stop.name.replace('Davos ', ''), Math.round(stop.s - d.s)));
     if (ahead) parts.push(`${ahead.kmh} km/h in ${Math.round(ahead.from - d.s)} m`);
-    if (d.phase === 'halt') parts.push(d.halt.dwell < RHB_DRIVE.dwell ? `Doors open · ${Math.ceil(RHB_DRIVE.dwell - d.halt.dwell)} s` : 'Doors closed: depart');
-    parts.push(`Score ${rhbDriveScore(d)}`);
-    const text = parts.join(' · ');
+    if (d.phase === 'halt') parts.push(d.halt.dwell < RHB_DRIVE.dwell ? FUN_TEXT.doorsOpen(Math.ceil(RHB_DRIVE.dwell - d.halt.dwell)) : 'Doors closed: depart');
+    parts.push(FUN_TEXT.score(rhbDriveScore(d)));
+    const text = FUN_TEXT.cab(parts);
     if (rd.info.textContent !== text) rd.info.textContent = text;
     // the timetable: due and actual
     const sig = `${d.index}|${d.results.length}|${Math.floor(d.t)}`;
@@ -1647,7 +1647,7 @@ const RHB_FEATURE = {
       rd.table.replaceChildren(...d.timetable.map((st, i) => {
         const tr = el('tr', i === d.index ? 'is-next' : i < d.index ? 'is-done' : '');
         const r = d.results[i];
-        const actual = r ? (r.missed ? 'missed' : `${fmt(st.arrive + r.delay)} (${r.delay >= 0 ? '+' : '−'}${Math.abs(Math.round(r.delay))} s)`) : i === d.index ? `now ${fmt(d.t)}` : '';
+        const actual = r ? (r.missed ? 'missed' : `${fmt(st.arrive + r.delay)} (${r.delay >= 0 ? '+' : '−'}${Math.abs(Math.round(r.delay))} s)`) : i === d.index ? FUN_TEXT.now(fmt(d.t)) : '';
         tr.append(el('td', null, st.name.replace('Davos ', '')), el('td', null, fmt(st.arrive)), el('td', null, actual), el('td', null, r ? `${r.total} pts` : ''));
         return tr;
       }));

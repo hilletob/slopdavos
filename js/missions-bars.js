@@ -4,8 +4,8 @@ import { t, setLocalizedText } from './i18n.js';
 import { raiseArm } from './missions-fun.js';
 import { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, Room, blip, flashPop } from './missions-gastro.js';
 import {
-  NAGELN, NAGELN_RIVALS, NAGELN_LINEUPS, createNageln, nagelnStep, nagelnPress, nagelnGauge, nagelnScore,
-  BARISTA, DRINKS, RUSH, REGULARS, TABLE_FOLK, STATIONS, STATION_INFO, drinkById, createBarista, baristaStep, baristaAction, baristaPick, baristaGauge, baristaScore
+  NAGELN, NAGELN_RIVALS, NAGELN_LINEUPS, createNageln, nagelnStep, nagelnPress, nagelnGauge, nagelnLine,
+  BARISTA, DRINKS, RUSH, REGULARS, TABLE_FOLK, STATIONS, STATION_INFO, drinkById, orderText, createBarista, baristaStep, baristaAction, baristaPick, baristaGauge
 } from './missions-data-bars.js';
 
 // js/missions-bars.js
@@ -313,7 +313,7 @@ const nageln = {
     ng.bubbles.update(dt, ctx.camera, ng.room.origin);
     // the HUD
     const gauge = nagelnGauge(g), ui = ng.ui;
-    setLoc(ui.line, `Game ${g.gameNo} of ${NAGELN.games} · round ${g.round} · ${g.wins} won · ${nagelnScore(g)} pts`);
+    setLoc(ui.line, nagelnLine(g));
     setLoc(ui.label, gauge.label);
     const key = `${g.gameNo}/${g.turn}/${g.players.map((p) => `${p.left.toFixed(1)}${p.bent ? 'b' : ''}`).join('/')}`;
     if (key !== ng.chipKey) {
@@ -555,7 +555,7 @@ const barista = {
     br.bubbles.update(dt, ctx.camera, br.room.origin);
     // the HUD
     const ui = br.ui, gauge = baristaGauge(g);
-    setLoc(ui.line, `Order ${Math.min(g.served + g.lost + 1, RUSH.length)} of ${RUSH.length} · ${baristaScore(g)} pts · ${g.lost} walked out`);
+    setLoc(ui.line, orderText(g));
     setLoc(ui.label, gauge.label);
     ui.temp.hidden = gauge.temp === null;
     if (gauge.temp !== null) ui.temp.textContent = `${gauge.temp} °C`;

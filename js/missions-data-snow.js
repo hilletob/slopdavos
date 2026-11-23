@@ -1,4 +1,5 @@
 import { SKI_PISTES } from './ski-pistes-data.js';
+import { msg } from './messages.js';
 
 // js/missions-data-snow.js
 // The mountain missions (js/missions-data.js lists them; js/missions-snow.js has their runtime: the skis, the board, the
@@ -519,10 +520,12 @@ export const SLALOM_MISSION = {
       title: `Through the ${SLALOM_GATES} gates`,
       check(ctx, state) {
         const n = state.gates.length, g = state.gates[state.next];
-        const fail = state.missed > SLALOM_MAX_MISSES ? `Disqualified: ${state.missed} gates missed.` : null;
-        const text = `Gate ${Math.min(n, state.next + 1)}/${n} · ${state.passed} clean${state.missed ? ` · ${state.missed} missed (+${(state.missed * SLALOM_MISS_MS) / 1000} s)` : ''}`;
+        const fail = state.missed > SLALOM_MAX_MISSES ? msg('Disqualified: {n} gates missed.', 'Disqualifiziert: {n} Tore verpasst.', { n: state.missed }) : null;
+        const pen = (state.missed * SLALOM_MISS_MS) / 1000;
+        const text = msg('Gate {g}/{of} · {c} clean{missed}', (p) => `Tor ${p.g}/${p.of} · ${p.c} sauber${p.m ? ` · ${p.m} verpasst (+${p.s} s)` : ''}`,
+          { g: Math.min(n, state.next + 1), of: n, c: state.passed, missed: state.missed ? ` · ${state.missed} missed (+${pen} s)` : '', m: state.missed, s: pen });
         const last = state.last;
-        const hint = last && !last.pass && ctx.t - last.t < 2500 ? `Gate ${last.i + 1} missed: +${SLALOM_MISS_MS / 1000} s` : null;
+        const hint = last && !last.pass && ctx.t - last.t < 2500 ? msg('Gate {n} missed: +{s} s', 'Tor {n} verpasst: +{s} s', { n: last.i + 1, s: SLALOM_MISS_MS / 1000 }) : null;
         return { done: state.next >= n, progress: state.next / n, text, target: g ? { x: g.x, z: g.z, r: g.half, style: 'plain' } : null, hint, fail };
       }
     },
@@ -531,7 +534,7 @@ export const SLALOM_MISSION = {
       title: 'Over the finish line',
       check(ctx, state) {
         const f = state.finishLine;
-        return { done: state.finished, progress: null, text: `${fmtDist(Math.hypot(f.x - ctx.x, f.z - ctx.z))} to the finish`, target: { x: f.x, z: f.z }, hint: null };
+        return { done: state.finished, progress: null, text: msg('{d} to the finish', '{d} bis zum Ziel', { d: fmtDist(Math.hypot(f.x - ctx.x, f.z - ctx.z)) }), target: { x: f.x, z: f.z }, hint: null };
       }
     }
   ]
@@ -615,8 +618,11 @@ const mtbSection = (id, title, toS) => ({
     const cp = state.cps[state.next];
     const n = state.cps.length;
     const skipped = state.skipped != null ? state.cps[state.skipped] : null;
-    const text = skipped ? `Checkpoint ${skipped.i + 1} missed: ride back to it` : `Checkpoint ${Math.min(n, state.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}${state.crashes ? ` · ${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'} (+${(state.crashes * MTB_CRASH_MS) / 1000} s)` : ''}`;
-    const hint = skipped ? 'Shortcut: a checkpoint was missed' : state.crashT > 0 ? `Crash! +${MTB_CRASH_MS / 1000} s` : state.wobble > 0 ? 'Skidding! Ease off A/D and brake (S)' : ctx.mode !== 'cyclist' ? 'Back on the bike' : null;
+    const c = state.crashes, s = (c * MTB_CRASH_MS) / 1000;
+    const text = skipped ? msg('Checkpoint {n} missed: ride back to it', 'Checkpoint {n} verpasst: zurück dorthin', { n: skipped.i + 1 })
+      : msg('Checkpoint {n}/{of} · {d}{pen}', (p) => `Checkpoint ${p.n}/${p.of} · ${p.d}${p.c ? ` · ${p.c} ${p.c === 1 ? 'Sturz' : 'Stürze'} (+${p.s} s)` : ''}`,
+        { n: Math.min(n, state.next + 1), of: n, d: cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : '', pen: c ? ` · ${c} ${c === 1 ? 'crash' : 'crashes'} (+${s} s)` : '', c, s });
+    const hint = skipped ? 'Shortcut: a checkpoint was missed' : state.crashT > 0 ? msg('Crash! +{s} s', 'Sturz! +{s} s', { s: MTB_CRASH_MS / 1000 }) : state.wobble > 0 ? 'Skidding! Ease off A/D and brake (S)' : ctx.mode !== 'cyclist' ? 'Back on the bike' : null;
     return { done: state.next > last, progress: state.next / n, text, target: cp ? { x: cp.x, z: cp.z, r: 6, style: skipped ? 'hazard' : 'plain' } : null, hint };
   }
 });
@@ -653,3 +659,11 @@ export const MTB_MISSION = {
 };
 
 export const SNOW_MISSIONS = [SLALOM_MISSION, BIG_AIR_MISSION, MTB_MISSION];
+
+// The runtime's moving texts (js/missions-snow.js), with their German beside them (js/messages.js)
+export const SNOW_TEXT = {
+  /** The slalom's toast for a gate gone by */
+  gateMissed: (n) => msg('Gate {n} missed', 'Tor {n} verpasst', { n }),
+  /** The bike race's toast under "Crash!" */
+  tooFast: () => msg('Too fast for that turn: +{s} s', 'Zu schnell für diese Kurve: +{s} s', { s: MTB_CRASH_MS / 1000 })
+};

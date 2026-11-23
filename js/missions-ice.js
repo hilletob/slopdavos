@@ -4,7 +4,7 @@ import { EISSTADION, trackOutline, pointInRing } from './landmark-buildings-data
 import {
   SKATE_PARAMS, createSkater, stepSkater, skaterNeedle, TRACK, TRACK_LANES, trackPoint, spineDistance, LAP_LENGTH,
   RINK, HOCKEY, rinkLocal, rinkWorld, rinkHeadingLocal, rinkHeadingWorld, clampToRink, stepPenalty, crossingY, PENALTY_RESULT_TEXT,
-  SHEET, CURLING, sheetLocal, sheetWorld, sheetHeading, throwStone, stepStones, settleStones, curlingScore, stonePoints, curlingSpeed
+  SHEET, CURLING, sheetLocal, sheetWorld, sheetHeading, throwStone, stepStones, settleStones, curlingScore, stonePoints, curlingSpeed, ICE_TEXT
 } from './missions-data-ice.js';
 import { el } from './dom.js';
 
@@ -1201,7 +1201,7 @@ const curling = {
         if (c.settle > 1.4) {
           const phase = settleStones(g);
           const cur = g.stones[g.current];
-          curling.say(run, cur.out === 'hog' ? 'Hogged: short of the hog line, removed' : cur.out ? 'Out of play' : stonePoints(cur.s, cur.t) ? `In the house: ${stonePoints(cur.s, cur.t)} points` : 'Short of the house', !cur.out && stonePoints(cur.s, cur.t) > 0);
+          curling.say(run, cur.out === 'hog' ? 'Hogged: short of the hog line, removed' : cur.out ? 'Out of play' : stonePoints(cur.s, cur.t) ? ICE_TEXT.inHouse(stonePoints(cur.s, cur.t)) : 'Short of the house', !cur.out && stonePoints(cur.s, cur.t) > 0);
           if (phase === 'aim') { c.mode = 'aim'; g.aim = 0; g.charge = 0; c.armed = !k.up; curling.toHack(run); }
           else c.mode = 'done';
         }
@@ -1213,7 +1213,7 @@ const curling = {
     if (ui.meter.fill.style.width !== pct) { ui.meter.fill.style.width = pct; ui.meter.needle.style.left = pct; }
     const curlT = g.curl > 0 ? 'Curl ↻ right' : 'Curl ↺ left';
     if (ui.curl.textContent !== curlT) ui.curl.textContent = curlT;
-    const aimT = `Aim ${g.aim >= 0 ? '+' : '−'}${Math.abs(g.aim * 180 / Math.PI).toFixed(1)}°`;
+    const aimT = ICE_TEXT.aim(g.aim);
     if (ui.aim.textContent !== aimT) ui.aim.textContent = aimT;
     const info = `Stone ${Math.min(CURLING.stones, g.stones.length + (c.mode === 'aim' ? 1 : 0))}/${CURLING.stones} · ${curlingScore(g)} pts`;
     if (ui.info.textContent !== info) ui.info.textContent = info;

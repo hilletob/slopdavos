@@ -1681,20 +1681,7 @@ const pairs = [
 const enToDe = new Map(pairs);
 // Long mission introductions are keyed by their unique opening phrase. The live values
 // contain numbers calculated by the mission definitions, so exact string keys are brittle.
-const tobogganDe = (text) => text.replace(/(\d+) bumps?/, (_, n) => `${n} ${n === '1' ? 'Rumms' : 'Rummse'}`).replace(/(\d+) rams?/, (_, n) => `${n}-mal aufgefahren`);
 
-// the splitboard transition's steps, shown with their count: "Close the clips (4/6)"
-const SPLIT_STEPS_DE = {
-  'Skin off the first half': 'Fell von der ersten Hälfte', 'Skin off the second half': 'Fell von der zweiten Hälfte', 'Halves together, hooks in': 'Hälften zusammen, Haken einhängen',
-  'Close the clips': 'Clips schliessen', 'Bindings across, pins in': 'Bindungen quer, Pins rein', 'Step in, straps tight': 'Einsteigen, Riemen zu'
-};
-// the Pfadi Davos mission's held steps, shown with their count: "Peg the edges (4/5)" (js/missions-data-pfadi.js)
-const PFADI_STEPS_DE = {
-  'Lay out the six tarps': 'Die sechs Blachen auslegen', 'Button the tarps together': 'Die Blachen zusammenknöpfen', 'Set up the poles and the ridge': 'Stangen und First aufstellen',
-  'Peg the edges': 'Ränder verhäringen', 'Tension the guy lines': 'Abspannschnüre spannen',
-  'Lay the stones in a ring': 'Steine im Kreis legen', 'Tinder nest in the middle': 'Zundernest in die Mitte', 'Kindling as a tipi': 'Anfeuerholz als Tipi', 'Logs round it': 'Scheiter darum herum'
-};
-const PFADI_WOOD_DE = { 'dry twigs': 'dürre Zweige', kindling: 'Anfeuerholz', 'a log': 'ein Scheit' };
 const missionIntros = [
   ['Drupal Mountain Camp, open source on top of the world', 'Drupal Mountain Camp, Open Source on top of the world, und heute Abend der Klassiker: die Fondue Night. Triff das Camp beim Kongresszentrum, fahr auf die Schatzalp und rühr das Fondue: Zeichne mit Maus oder Finger eine Acht durchs Caquelon. Im Kreis gerührt scheidet der Käse, zu langsam brennt er am Boden an. Danach ein Flämmli, mit oder ohne Wirkung, du entscheidest: Mit Wirkung läuft der Schlitten schneller, aber die Hörner reagieren träge und das Tal schwankt. Und dann auf dem Hornschlitten die Schlittelbahn hinunter nach Davos Platz, 2,3 km Kehren im Fackelschein, auf Zeit. Jeder Sturz kostet 5 s.'],
   ["Après-ski under the umbrella bar at the foot of the Jakobshorn", "Après-Ski unter der Schirmbar am Fuss des Jakobshorns. Der Gigi, Skilehrer vo Arosa, hält am Stammtisch Hof und behauptet, die Davoser kennten ihr eigenes Tal nicht. Er stellt drei Fragen, alle tippen eine Zahl, verdeckt, bis er die Lösung vorliest. Je näher, desto mehr Punkte; die dritte Frage zählt doppelt; wer Letzter wird, zahlt die Runde. Spiel gegen die Stammgäste oder bring bis zu zehn Spieler an den Tisch."],
@@ -1852,14 +1839,8 @@ function translate(value) {
   // gastro / resort / après-ski missions (before the generic rules below, which would mangle these)
   dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+?)( · .+)?$/, (whole, d, label, rest) => (placeDe.has(label) ? `${d} bis ${placeDe.get(label)[0]}${rest || ''}` : whole));
   dynamic = dynamic.replace(/^Get out \(F\) and walk into (.+)$/, (whole, label) => (placeDe.get(label)?.[1] ? `Steig aus (F) und geh ${placeDe.get(label)[1]}` : whole));
-  // the first missions (js/missions-data.js: the Dischma trail, Rega, avalanche blasting, the motorbike crash)
-  dynamic = dynamic.replace(/^Trail (\d+) % groomed · ([\d,.]+ (?:m|km)) of ([\d,.]+ (?:m|km))$/, 'Loipe $1 % präpariert · $2 von $3');
-  dynamic = dynamic.replace(/^(Landed|Rescue under way|Treating the patient|Vehicle in position|Placing the cone) … (\d+) s$/, (_, what, n) => `${{ Landed: 'Gelandet', 'Rescue under way': 'Rettung läuft', 'Treating the patient': 'Patient wird versorgt', 'Vehicle in position': 'Fahrzeug in Position', 'Placing the cone': 'Kegel wird aufgestellt' }[what]} … ${n} s`);
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) · hover low over the casualty \(< 3 m\) or land$/, '$1 · tief über dem Verletzten schweben (< 3 m) oder landen');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the Spital Rega pad$/, '$1 bis zum Rega-Landeplatz beim Spital').replace(/^([\d,.]+ (?:m|km)) to the Flüelapassstrasse$/, '$1 bis zur Flüelapassstrasse');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the landing zone \(meadow south of the road\)$/, '$1 bis zum Landeplatz (Wiese südlich der Strasse)');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the marker, stand there for 2 s$/, '$1 bis zur Markierung, dort 2 s stehen bleiben');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) · (\d+) rounds? left( · (\d+) missed)?$/, (_, d, n, m, k) => `${d} · noch ${n} Schuss${m ? ` · ${k} daneben` : ''}`);
+  // the snow haul's truck (js/missions-data-work.js) and the pizzas' heat (js/missions-data-gastro.js); the first missions'
+  // texts (js/missions-data.js: the Dischma trail, Rega, avalanche blasting, the motorbike crash) are made with msg()
   dynamic = dynamic.replace(/^(\d+) (?:hit|hits) · (\d+) hard (?:landing|landings)$/, (_, a, b) => `${a} Treffer · ${b} harte ${b === '1' ? 'Landung' : 'Landungen'}`);
   dynamic = dynamic.replace(/^Truck ([\d.]+) of (\d+) m³ · (\d+) % on the bed$/, 'Lastwagen $1 von $2 m³ · $3 % auf der Brücke');
   dynamic = dynamic.replace(/^([\d.]+) m³ on board$/, '$1 m³ geladen');
@@ -1870,28 +1851,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^([\d.]+) of (\d+) m³ in the lake · ([\d.]+) m³ beside the truck · ([\d.]+) m³ lost in bends$/, '$1 von $2 m³ im See · $3 m³ neben dem Lastwagen · $4 m³ in Kurven verloren');
   dynamic = dynamic.replace(/^(\d+) (?:knock|knocks) against the truck$/, (_, n) => `${n} Rempler am Lastwagen`);
   dynamic = dynamic.replace(/(\d+) % hot\b/g, '$1 % heiss');
-  // (the Sommerrodelbahn: js/missions-data-sledge.js)
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish(?: · (.+))?$/, (_, d, rest) => `${d} bis zum Ziel${rest ? ` · ${tobogganDe(rest)}` : ''}`);
-  dynamic = dynamic.replace(/^(\d+ (?:bump|bumps) · \d+ (?:ram|rams)) · top speed (\d+) km\/h$/, (_, c, v) => `${tobogganDe(c)} · Höchsttempo ${v} km/h`);
-  dynamic = dynamic.replace(/^Over the wall! \+(\d+) s$/, 'Über die Wand! +$1 s');
-  // (the horn sledge, the bike race, the slalom: js/missions-data-sledge.js, js/missions-data-snow.js, js/missions-snow.js)
-  // the Fondue Night (js/missions-data-fondue.js)
-  dynamic = dynamic.replace(/^The camp waits at the entrance · ([\d,.]+ (?:m|km))$/, 'Das Camp wartet beim Eingang · $1');
-  dynamic = dynamic.replace(/^The fondue table on the terrace · ([\d,.]+ (?:m|km))$/, 'Der Fonduetisch auf der Terrasse · $1');
-  dynamic = dynamic.replace(/^Figure eights (\d+\/\d+)(?: · caught (\d+)× (\(\+\d+ s\)))?$/, (_, n, c, s) => `Achten ${n}${c ? ` · ${c}× angebrannt ${s}` : ''}`);
-  dynamic = dynamic.replace(/^(\d+) figure eights · (?:nothing caught|caught on the bottom (\d+)× (\(\+\d+ s\)))(?: · (\d+) circles?)?$/, (_, n, c, s, k) => `${n} Achten · ${c ? `${c}× angebrannt ${s}` : 'nichts angebrannt'}${k ? ` · ${k}-mal im Kreis gerührt` : ''}`);
-  dynamic = dynamic.replace(/^Flämmli (with|without) effect · (\d+) (?:crash|crashes)( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, (_, w, n, s, v) => `Flämmli ${w === 'with' ? 'mit' : 'ohne'} Wirkung · ${n} ${n === '1' ? 'Sturz' : 'Stürze'}${s || ''} · Höchsttempo ${v} km/h`);
-  dynamic = dynamic.replace(/^(Into the net|Off the run|Tipped over)! \+(\d+) s$/, (_, w, n) => `${{ 'Into the net': 'Ins Netz', 'Off the run': 'Von der Bahn abgekommen', 'Tipped over': 'Umgekippt' }[w]}! +${n} s`);
-  dynamic = dynamic.replace(/^Checkpoint (\d+) missed: (?:back up to it|ride back to it)$/, 'Checkpoint $1 verpasst: zurück dorthin');
-  dynamic = dynamic.replace(/^Checkpoint (\d+\/\d+) · ([\d,.]+ (?:m|km)) · (\d+) (?:crash|crashes) \((\+[\d.]+ s)\)$/, (_, n, d, c, s) => `Checkpoint ${n} · ${d} · ${c} ${c === '1' ? 'Sturz' : 'Stürze'} (${s})`);
-  dynamic = dynamic.replace(/^Gate (\d+) missed$/, 'Tor $1 verpasst');
-  dynamic = dynamic.replace(/^Crash! \+(\d+) s$/, 'Sturz! +$1 s').replace(/^Too fast for that turn: \+(\d+) s$/, 'Zu schnell für diese Kurve: +$1 s');
-  dynamic = dynamic.replace(/^Disqualified: (\d+) gates missed\.$/, 'Disqualifiziert: $1 Tore verpasst.');
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+) · (\d+) clean(?: · (\d+) missed \((\+[\d.]+ s)\))?$/, (_, g, c, m, s) => `Tor ${g} · ${c} sauber${m ? ` · ${m} verpasst (${s})` : ''}`);
-  // (curling, the penalty shot: js/missions-ice.js, js/missions-data-ice.js)
-  dynamic = dynamic.replace(/^Aim ([+−][\d.]+°)$/, 'Richtung $1');
-  dynamic = dynamic.replace(/^In the house: (\d+) points?$/, (_, n) => `Im Haus: ${n} ${n === '1' ? 'Punkt' : 'Punkte'}`);
-  dynamic = dynamic.replace(/^(GOAL!|Saved by the goalie|Poke check: the goalie took the puck|The puck went backwards: no goal|Too slow: time is up|Wide of the goal|Off the post!) · (\d+) goals?$/, (_, r, n) => `${translate(r)} · ${n} ${n === '1' ? 'Tor' : 'Tore'}`);
+  // (the Sommerrodelbahn, the horn sledge, the bike race, the slalom: js/missions-data-sledge.js, js/missions-data-snow.js,
+  // js/missions-snow.js; the Fondue Night: js/missions-data-fondue.js: their texts are made with msg())
+  // (curling, the penalty shot: js/missions-ice.js, js/missions-data-ice.js: made with msg())
+  // (a popped line with its points, the pizzas, the Flämmli and the flaming shots: js/missions-data-gastro.js)
   const popped = /^(\S.*?)(  [+\-−]?\d+)$/.exec(dynamic);
   if (popped && enToDe.has(popped[1])) dynamic = enToDe.get(popped[1]) + popped[2];
   dynamic = dynamic.replace(new RegExp(`^Not yet: (.+) next${POP}$`), (_, top, tail) => `Noch nicht: zuerst ${enToDe.get(top) || top}${tail}`);
@@ -1901,61 +1864,19 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
   dynamic = dynamic.replace(/^(\d+) of (\d+) shots down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Shots getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
   dynamic = dynamic.replace(/^(\d+) rounds of flaming shots$/, '$1 Runden Flaming Shots');
-  // the fun and sport missions' HUDs (js/missions-fun.js, js/missions-sport.js, their data): the table football, the
-  // cabin, the RhB's cab, Davos Nordic, the minigolf, the darts, the bowl
-  {
-    const role = '(Goalie|Defence|Midfield|Attack)', nth = '(\\d+)(?:st|nd|rd|th)';
-    const dartDe = (l) => l.replace(/^Double (\d+)$/, 'Doppel $1').replace(/^Treble (\d+)$/, 'Triple $1').replace(/^Miss$/, 'Daneben');
-    dynamic = dynamic
-      .replace(new RegExp(`^You \\(red\\) vs La Onda \\(blue\\) · ${role}( \\(auto\\))?$`), (_, r, auto) => `Du (rot) gegen La Onda (blau) · ${enToDe.get(r)}${auto ? ' (automatisch)' : ''}`)
-      .replace(new RegExp(`^You (\\d+) : (\\d+) La Onda · (\\d+:\\d\\d) · ${role}$`), (_, a, b, c, r) => `Du ${a} : ${b} La Onda · ${c} · ${enToDe.get(r)}`)
-      .replace(/^(\d+) up · cabin (\d+): (\d+) aboard, (\d+) % · (\d+) s$/, '$1 oben · Gondel $2: $3 an Bord, $4 % · $5 s')
-      .replace(/^(\d+) pts · (\d+) up · cabin (\d+) (\d+) % · (\d+:\d\d)$/, '$1 Pkt. · $2 oben · Gondel $3: $4 % · $5')
-      .replace(/^Cabin (\d+): (\d+) passengers · (\d+) % full(?: · (\d+) full rows?)?(?: · (\d+) holes)? → ([+-]?\d+)$/, (_, c, n, f, rows, holes, p) => `Gondel ${c}: ${n} Fahrgäste · ${f} % voll${rows ? ` · ${rows} ${rows === '1' ? 'volle Reihe' : 'volle Reihen'}` : ''}${holes ? ` · ${holes} ${holes === '1' ? 'Loch' : 'Löcher'}` : ''} → ${p}`)
-      .replace(/^now (\d+:\d\d)$/, 'jetzt $1');
-    if (/^(?:Stop board|Doors|Score -?\d|\d+ km\/h in)/.test(dynamic)) {
-      dynamic = dynamic.replace(/Stop board (.+?): (-?\d+) m/, 'Haltetafel $1: $2 m').replace(/Doors open · (\d+) s/, 'Türen offen · $1 s')
-        .replace('Doors closed: depart', 'Türen zu: abfahren').replace(/(^| · )Score (-?\d+)$/, '$1Punkte $2');
-    }
-    dynamic = dynamic
-      .replace(new RegExp(`^([\\d.]+ k?m) of ([\\d.]+ km) · (?:Split (\\d+)|(Finish)) in ([\\d.]+ k?m) · (\\d+) km/h(?: · last split ${nth} (.+))?$`), (_, a, b, n, fin, c, v, p, gap) => `${a} von ${b} · ${fin ? 'Ziel' : `Zwischenzeit ${n}`} in ${c} · ${v} km/h${p ? ` · letzte Zwischenzeit ${p}. ${gap}` : ''}`)
-      .replace(/^Start in (\d+)( …)?$/, 'Los in $1$2')
-      .replace(/^Split (\d+) at (\d+\.\d) km$/, 'Zwischenzeit $1 bei $2 km')
-      .replace(/^Split (\d+) · (.+)$/, 'Zwischenzeit $1 · $2').replace(/^SPLIT (\d+)$/, 'ZWISCHENZEIT $1').replace(/^Bib (\d+)$/, 'Startnummer $1')
-      .replace(new RegExp(`^${nth} of (\\d+)$`), '$1. von $2').replace(new RegExp(`^${nth} place$`), '$1. Platz').replace(new RegExp(`^${nth}$`), '$1.');
-    if (/^[\d.]+ k?m: /.test(dynamic)) dynamic = dynamic.replace(/\((\d+)(?:st|nd|rd|th), /g, '($1., ');
-    dynamic = dynamic
-      .replace(/^(\d+) strokes$/, '$1 Schläge')
-      .replace(/^Game shot! (.+)$/, (_, l) => `Spiel gewonnen! ${dartDe(l)}`)
-      .replace(/^(Double \d+|Treble \d+|Bullseye|Bull 25) · (\d+)$/, (_, l, n) => `${dartDe(l)} · ${n}`)
-      .replace(/^back to (\d+)$/, 'zurück auf $1')
-      .replace(/^301 double out · (\d+) left$/, '301 Double Out · noch $1')
-      .replace(/^Dart (\d+) of (\d+) · turn (\d+), dart (\d+)$/, 'Pfeil $1 von $2 · Runde $3, Pfeil $4')
-      .replace(/^darts: (\d+)$/, 'Pfeile: $1')
-      .replace(/^Combo ×(\d+) · (\d+)$/, 'Kombo ×$1 · $2')
-      .replace(/^(.+): combo lost$/, (_, n) => `${enToDe.get(n) || n}: Kombo verloren`);
-  }
-  // Gigi's guessing round (js/missions-data-quiz.js)
-  dynamic = dynamic.replace(/^(\d+) m to Gigi’s table$/, '$1 m bis zu Gigis Tisch').replace(/^Question (\d+) of (\d+)$/, 'Frage $1 von $2').replace(/^Place (\d+) of (\d+) at the table$/, 'Platz $1 von $2 am Tisch');
-  // Nageln, Barista (js/missions-data-bars.js)
+  // (the fun and sport missions' HUDs: js/missions-fun.js, js/missions-sport.js, their data: the table football, the
+  // cabin, the RhB's cab, Davos Nordic, the minigolf, the darts, the bowl: made with msg(); but for two made once and
+  // kept on show: the splits' step titles, made as the module loads, and the bib, made as the race is set up)
+  dynamic = dynamic.replace(/^Split (\d+) at (\d+\.\d) km$/, 'Zwischenzeit $1 bei $2 km').replace(/^Bib (\d+)$/, 'Startnummer $1');
+  // (Gigi's guessing round: js/missions-data-quiz.js, js/missions-quiz.js: made with msg())
+  // Nageln, Barista (js/missions-data-bars.js): the step's title, made as the module loads, and the pops (their points
+  // are put to them in js/missions-gastro.js flashPop); the rest is made with msg()
   dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
-  dynamic = dynamic.replace(/^Game (\d+) of (\d+) · round (\d+) · (\d+) won · (\d+) pts$/, 'Partie $1 von $2 · Runde $3 · $4 gewonnen · $5 Pkt.');
-  dynamic = dynamic.replace(/^Game (\d+) of (\d+) · (\d+) won · (\d+) strokes · (\d+) pts$/, 'Partie $1 von $2 · $3 gewonnen · $4 Schläge · $5 Pkt.');
-  dynamic = dynamic.replace(/^Game (\d+) of (\d+): nails ready$/, 'Partie $1 von $2: Nägel bereit');
-  dynamic = dynamic.replace(/^You win game (\d+)$/, 'Du gewinnst Partie $1');
-  dynamic = dynamic.replace(/^(.+) wins game (\d+)$/, (_, who, n) => `${enToDe.get(who) || who} gewinnt Partie ${n}`);
-  dynamic = dynamic.replace(/^(.+) swings …$/, (_, who) => `${enToDe.get(who) || who} holt aus …`);
   dynamic = dynamic.replace(new RegExp(`^(.+) wins this one${POP}$`), (_, who, tail) => `${enToDe.get(who) || who} gewinnt diese Partie${tail}`);
   dynamic = dynamic.replace(new RegExp(`^In by ([\\d.]+) cm${POP}$`), '$1 cm tiefer$2');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) games won · (\d+) strokes · (\d+) perfect · (\d+) bent · (\d+) missed$/, '$1 von $2 Partien gewonnen · $3 Schläge · $4 perfekt · $5 verbogen · $6 daneben');
-  dynamic = dynamic.replace(/^Order (\d+) of (\d+) · (\d+) pts · (\d+) walked out$/, 'Bestellung $1 von $2 · $3 Pkt. · $4 gegangen');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) orders served · quality (\d+) % · (\d+) flawless · (\d+) walked out$/, '$1 von $2 Bestellungen serviert · Qualität $3 % · $4 makellos · $5 gegangen');
-  dynamic = dynamic.replace(/^Usuals remembered: (\d+) of (\d+)$/, '«Wie immer» gemerkt: $1 von $2');
   dynamic = dynamic.replace(new RegExp(`^A fine (.+?)${POP}$`), 'Ein feiner $1$2');
   dynamic = dynamic.replace(new RegExp(`^(.+): it will do${POP}$`), '$1: Es geht so$2');
   dynamic = dynamic.replace(new RegExp(`^(.+): nobody says a word${POP}$`), '$1: Niemand sagt ein Wort$2');
-  dynamic = dynamic.replace(/^(.+), please!$/, '$1, bitte!');
-  dynamic = dynamic.replace(/^(.+)! After all these years\.$/, '$1! Nach all den Jahren.');
   dynamic = dynamic.replace(/^Round (\d+) of (\d+) · (\d+) pts · (\d+)\/(\d+) mishaps$/, 'Runde $1 von $2 · $3 Pkt. · $4/$5 Pannen');
   dynamic = dynamic.replace(/^Top (\d+) pizzas$/, 'Belege $1 Pizzas');
   dynamic = dynamic.replace(/^Pizza (\d+) of (\d+) · (\d+) pts$/, 'Pizza $1 von $2 · $3 Pkt.');
@@ -1993,28 +1914,9 @@ function translate(value) {
   });
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
-  // the rope park, the Seehofseeli
-  dynamic = dynamic.replace(/^(\d+) m to the ladder$/, '$1 m bis zur Leiter');
-  dynamic = dynamic.replace(/^(\d+) m to the next deck$/, '$1 m bis zur nächsten Plattform');
-  dynamic = dynamic.replace(/^(\d+) m to the face-off$/, '$1 m bis zum Bully');
-  // Pfadi Davos (js/missions-data-pfadi.js)
-  dynamic = dynamic.replace(/^([\d.]+) (m|km) to the camp in the Mattawald$/, (_, d, u) => `${d} ${u} bis zum Lagerplatz im Mattawald`);
-  dynamic = dynamic.replace(/^Firewood (\d+\/\d+) · twigs (\d+\/\d+) · kindling (\d+\/\d+) · logs (\d+\/\d+)$/, 'Feuerholz $1 · Reisig $2 · Anfeuerholz $3 · Scheiter $4');
-  dynamic = dynamic.replace(/^Hold Space: pick up (dry twigs|kindling|a log)$/, (_, w) => `Space halten: ${PFADI_WOOD_DE[w]} aufheben`);
-  dynamic = dynamic.replace(/^Sparks in the tinder (\d\/\d)$/, 'Funken im Zunder $1').replace(/^Ember (\d+) %$/, 'Glut $1 %');
-  dynamic = dynamic.replace(/^To the fireplace: (.+)$/, 'Zur Feuerstelle: $1').replace(/^To the tent spot: (.+)$/, 'Zum Zeltplatz: $1');
-  dynamic = dynamic.replace(/^To the next firewood: (.+)$/, 'Zum nächsten Feuerholz: $1');
-  dynamic = dynamic.replace(/^(\d+) good strikes? · (\d+) missed the steel$/, (_, n, m) => `${n} ${n === '1' ? 'guter Schlag' : 'gute Schläge'} · ${m} am Stahl vorbei`);
-  dynamic = dynamic.replace(/^(.+) \((\d\/\d)\)$/, (all, l, n) => (PFADI_STEPS_DE[l] ? `${PFADI_STEPS_DE[l]} (${n})` : all));
-  // the splitboard tour on the Chörbschhorn (js/missions-data-splitboard.js)
-  dynamic = dynamic.replace(/^Marker pole (\d+\/\d+) · ([\d,.]+ (?:m|km))$/, 'Markierstange $1 · $2').replace(/^Marker pole (\d+) missed: back to it$/, 'Markierstange $1 verpasst: zurück zu ihr');
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+) · (\d+) missed \(\+(\d+) s\)$/, 'Tor $1 · $2 verpasst (+$3 s)').replace(/^Gate (\d+) missed: \+(\d+) s$/, 'Tor $1 verpasst: +$2 s').replace(/^Gate missed: \+(\d+) s$/, 'Tor verpasst: +$1 s');
-  dynamic = dynamic.replace(/^(.+) \((\d\/\d)\)$/, (all, l, n) => (SPLIT_STEPS_DE[l] ? `${SPLIT_STEPS_DE[l]} (${n})` : all));
-  dynamic = dynamic.replace(/^(\d+) kick turns? · (\d+) s slipping( · Reto dug out of an avalanche \(\+(\d+) s\))?$/, (_, n, t, r, p) => `${n} ${n === '1' ? 'Spitzkehre' : 'Spitzkehren'} · ${t} s gerutscht${r ? ` · Reto aus einer Lawine ausgegraben (+${p} s)` : ''}`);
-  dynamic = dynamic.replace(/^(Send check: Reto searches, you send|Receive check: you search, Reto sends) \((\d\/\d)\)$/, (_, l, n) => `${l.startsWith('Send') ? 'Sendecheck: Reto sucht, du sendest' : 'Empfangscheck: du suchst, Reto sendet'} (${n})`);
-  dynamic = dynamic.replace(/^Reto is buried! Signal: ([\d.]+) m$/, (_, d) => `Reto ist verschüttet! Signal: ${d} m`);
-  dynamic = dynamic.replace(/^Wait for Reto: (\d+) m behind$/, 'Auf Reto warten: $1 m zurück').replace(/^Reto: (\d+) m behind$/, 'Reto: $1 m zurück');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) gates · (\d+) missed( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, '$1 von $2 Toren · $3 verpasst$4 · Höchsttempo $5 km/h');
+  // (the rope park, the Seehofseeli: js/missions-data-outdoor.js; made with msg())
+  // (Pfadi Davos: js/missions-data-pfadi.js; the splitboard tour on the Chörbschhorn: js/missions-data-splitboard.js,
+  // js/missions-splitboard.js: made with msg())
   // the rope park and the hockey on the Seehofseeli, then generic lines (the loading screen, the map, the vehicles, the missions)
   dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
   dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');

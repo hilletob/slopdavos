@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 import {
   createRider, stepRider, riderSpeed, travelHeading, pointAt, lineLength, buildCheckpoints, updateCheckpoints,
   SKI_PARAMS, SNOW_GRAVITY
@@ -299,9 +300,12 @@ export const sledgeSection = ({ id, title, toS, tip }) => ({
     const cp = state.cps[state.next];
     const n = state.cps.length;
     const skipped = state.skipped != null ? state.cps[state.skipped] : null;
-    const pen = state.crashes ? ` · ${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'} (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '';
-    const text = skipped ? `Checkpoint ${skipped.i + 1} missed: back up to it` : `Checkpoint ${Math.min(n, state.next + 1)}/${n} · ${cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : ''}${pen}`;
-    const hint = state.crashT > 0 ? (state.why === 'net' ? `Into the net! +${SLEDGE_CRASH_MS / 1000} s` : state.why === 'lost' ? `Off the run! +${SLEDGE_CRASH_MS / 1000} s` : `Tipped over! +${SLEDGE_CRASH_MS / 1000} s`)
+    const c = state.crashes, s = (c * SLEDGE_CRASH_MS) / 1000;
+    const text = skipped ? msg('Checkpoint {n} missed: back up to it', 'Checkpoint {n} verpasst: zurück dorthin', { n: skipped.i + 1 })
+      : msg('Checkpoint {n}/{of} · {d}{pen}', (p) => `Checkpoint ${p.n}/${p.of} · ${p.d}${p.c ? ` · ${p.c} ${p.c === 1 ? 'Sturz' : 'Stürze'} (+${p.s} s)` : ''}`,
+        { n: Math.min(n, state.next + 1), of: n, d: cp ? fmtDist(Math.hypot(cp.x - ctx.x, cp.z - ctx.z)) : '', pen: c ? ` · ${c} ${c === 1 ? 'crash' : 'crashes'} (+${s} s)` : '', c, s });
+    const p = { s: SLEDGE_CRASH_MS / 1000 };
+    const hint = state.crashT > 0 ? (state.why === 'net' ? msg('Into the net! +{s} s', 'Ins Netz! +{s} s', p) : state.why === 'lost' ? msg('Off the run! +{s} s', 'Von der Bahn abgekommen! +{s} s', p) : msg('Tipped over! +{s} s', 'Umgekippt! +{s} s', p))
       : state.tip > SLEDGE_TRACK.tipWarn ? 'Tipping! Ease off A/D and brake (S)'
       : state.off ? 'Deep snow: steer back onto the run'
       : ctx.mode !== 'person' ? 'Back on the sledge' : tip;
@@ -540,11 +544,14 @@ const TOBOGGAN_SECTIONS = [
 ];
 const TOBOGGAN_LENGTH = 455.6;
 
+const bumpsText = (n) => msg('{n} {w}', (p) => `${p.n} ${p.n === 1 ? 'Rumms' : 'Rummse'}`, { n, w: n === 1 ? 'bump' : 'bumps' });
+const ramsText = (n) => msg('{n} {w}', '{n}-mal aufgefahren', { n, w: n === 1 ? 'ram' : 'rams' });
+/** '1 bump · 2 rams (+11 s)', or '' for a clean run so far */
 const penaltyText = (state) => {
   const parts = [];
-  if (state.bumps) parts.push(`${state.bumps} ${state.bumps === 1 ? 'bump' : 'bumps'}`);
-  if (state.rams) parts.push(`${state.rams} ${state.rams === 1 ? 'ram' : 'rams'}`);
-  return parts.length ? ` · ${parts.join(' · ')} (+${state.penaltyMs / 1000} s)` : '';
+  if (state.bumps) parts.push(bumpsText(state.bumps));
+  if (state.rams) parts.push(ramsText(state.rams));
+  return parts.length ? msg('{parts} (+{s} s)', (p, tr) => `${p.items.map(tr).join(' · ')} (+${p.s} s)`, { parts: parts.join(' · '), items: parts, s: state.penaltyMs / 1000 }) : '';
 };
 
 const tobogganSection = ({ id, title, toS, tip }) => ({
@@ -552,14 +559,14 @@ const tobogganSection = ({ id, title, toS, tip }) => ({
   title,
   check(ctx, state) {
     const end = Math.min(toS, state.length - TOBOGGAN.finishAt);
-    const hint = state.stopT > 0 ? `Over the wall! +${TOBOGGAN.bumpMs / 1000} s`
+    const hint = state.stopT > 0 ? msg('Over the wall! +{s} s', 'Über die Wand! +{s} s', { s: TOBOGGAN.bumpMs / 1000 })
       : state.wall > 0.08 ? 'Too fast for this bend: brake (S) and lean!'
       : state.familyGap < 16 ? 'A family ahead: do not ram them, brake (S)!'
       : ctx.mode !== 'person' ? 'Back on the sledge' : tip;
     return {
       done: state.s >= end,
       progress: clamp(state.s / state.length, 0, 1),
-      text: `${fmtDist(state.length - state.s)} to the finish${penaltyText(state)}`,
+      text: ((pen) => msg('{d} to the finish{rest}', (p, tr) => `${p.d} bis zum Ziel${p.pen ? ` · ${tr(p.pen)}` : ''}`, { d: fmtDist(state.length - state.s), rest: pen ? ` · ${pen}` : '', pen }))(penaltyText(state)),
       target: state.finish && toS === Infinity ? { x: state.finish.x, z: state.finish.z, r: 4, style: 'plain' } : null,
       hint
     };
@@ -593,7 +600,7 @@ export const TOBOGGAN_MISSION = {
     return { s: TOBOGGAN.startS, length: TOBOGGAN_LENGTH, finish: { x: p.x, z: p.z }, wall: 0, stopT: 0, bumps: 0, rams: 0, penaltyMs: 0, familyGap: Infinity, topSpeed: 0 };
   },
   summary(state) {
-    return [`${state.bumps} ${state.bumps === 1 ? 'bump' : 'bumps'} · ${state.rams} ${state.rams === 1 ? 'ram' : 'rams'} · top speed ${Math.round(state.topSpeed * 3.6)} km/h`];
+    return [msg('{b} · {r} · top speed {v} km/h', '{b|t} · {r|t} · Höchsttempo {v} km/h', { b: bumpsText(state.bumps), r: ramsText(state.rams), v: Math.round(state.topSpeed * 3.6) })];
   },
   objectives: TOBOGGAN_SECTIONS.map(tobogganSection)
 };

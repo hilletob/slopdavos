@@ -7,7 +7,7 @@ import { t as tr, getLanguage } from './i18n.js';
 import { QUALITY } from './quality.js';
 import {
   QUIZ, GIGI, QUIZ_BOTS, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, roundPhase, lockGuess, cutWaiting,
-  hasGuessed, questionResult, tableStandings, gigiLine, parseGuess, formatNumber
+  hasGuessed, questionResult, tableStandings, gigiLine, parseGuess, formatNumber, questionText
 } from './missions-data-quiz.js';
 import { el } from './dom.js';
 
@@ -791,7 +791,7 @@ const QUIZ_FEATURE = {
     run.state.game = {
       done, score: mine?.points ?? 0, place: mine?.place ?? rows.length, seats: rows.length, pays: !!mine && mine.id === rows[rows.length - 1].id,
       progress: done ? 1 : (p.q + (p.phase === 'reveal' ? 1 : p.phase === 'guess' ? 0.5 : 0)) / n,
-      text: p.phase === 'lead' ? 'Gigi takes a sip' : `Question ${Math.min(p.q + 1, n)} of ${n}`,
+      text: p.phase === 'lead' ? 'Gigi takes a sip' : questionText(Math.min(p.q + 1, n), n),
       hint: (p.phase === 'ask' || p.phase === 'guess') && mine && round.guesses.get(table.me.id)[p.q] === null ? 'Type a number and press Enter' : null
     };
     if (done) { g.scored = round.seed; table.rest?.(); }

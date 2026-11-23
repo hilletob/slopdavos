@@ -17,6 +17,8 @@
 // All of them are scored by points (scoreMode: 'points', js/missions-progress.js): def.score(state) is the run's score
 // and def.medals the lowest score for each medal.
 
+import { msg } from './messages.js';
+
 export const FUN_SCORE_MODE = 'points';
 
 // --- Small helpers (pure) --------------------------------------------------------------------------------------------
@@ -598,7 +600,7 @@ export const FOOSBALL_MISSION = {
         return {
           done: g.done && g.winner === 'p', fail,
           progress: Math.max(g.score.p, g.score.a) / FOOSBALL.goalsToWin,
-          text: `You ${g.score.p} : ${g.score.a} La Onda · ${fmtClock(g.t)} · ${g.rods[g.active].role}`,
+          text: msg('You {p} : {a} La Onda · {c} · {role}', 'Du {p} : {a} La Onda · {c} · {role|t}', { p: g.score.p, a: g.score.a, c: fmtClock(g.t), role: g.rods[g.active].role }),
           target: null,
           hint: 'W/S or mouse: slide · Space/click: shoot · 1-4: rod, Q: auto'
         };
@@ -858,7 +860,8 @@ export const GONDOLA_MISSION = {
         return {
           done: g.done && !g.departing,
           progress: Math.min(1, g.t / GONDOLA.seconds),
-          text: `${gondolaScore(g)} pts · ${gondolaPersons(g)} up · cabin ${g.cabin} ${Math.round(now.fill * 100)} % · ${fmtClock(GONDOLA.seconds - g.t)}`,
+          text: msg('{pts} pts · {up} up · cabin {c} {f} % · {clock}', '{pts} Pkt. · {up} oben · Gondel {c}: {f} % · {clock}',
+            { pts: gondolaScore(g), up: gondolaPersons(g), c: g.cabin, f: Math.round(now.fill * 100), clock: fmtClock(GONDOLA.seconds - g.t) }),
           target: null,
           hint: '←/→ move · ↑ turn · Space drop · E send the cabin'
         };
@@ -1079,3 +1082,24 @@ export const FOOSBALL_MINI_MISSION = {
 };
 
 export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION, RHB_MISSION, BOLGEN_MISSION, FOOSBALL_MINI_MISSION];
+
+// The runtime's moving texts (js/missions-fun.js), with their German beside them (js/messages.js)
+export const FUN_TEXT = {
+  /** The table football's line under the score: the rod in play, (auto) while the game picks it */
+  foosball: (role, auto) => msg('You (red) vs La Onda (blue) · {role}{auto}', (p, tr) => `Du (rot) gegen La Onda (blau) · ${tr(p.role)}${p.auto ? ' (automatisch)' : ''}`,
+    { role, auto: auto ? ' (auto)' : '' }),
+  /** The cabin's flash as it leaves (a 'depart' event of gondolaStep) */
+  cabinGone: (ev) => msg('Cabin {c}: {n} passengers · {f} % full{rows}{holes} → {pts}',
+    (p) => `Gondel ${p.c}: ${p.n} Fahrgäste · ${p.f} % voll${p.r ? ` · ${p.r} ${p.r === 1 ? 'volle Reihe' : 'volle Reihen'}` : ''}${p.h ? ` · ${p.h} ${p.h === 1 ? 'Loch' : 'Löcher'}` : ''} → ${p.pts}`,
+    { c: ev.cabin, n: ev.persons, f: Math.round(ev.fill * 100), rows: ev.rows ? ` · ${ev.rows} full row${ev.rows > 1 ? 's' : ''}` : '', holes: ev.holes ? ` · ${ev.holes} holes` : '', r: ev.rows, h: ev.holes, pts: `${ev.points >= 0 ? '+' : ''}${ev.points}` }),
+  /** The cabin's line while it fills: people up, the cabin, aboard, how full, seconds left */
+  cabinLine: (up, cabin, persons, fill, s) => msg('{up} up · cabin {c}: {n} aboard, {f} % · {s} s', '{up} oben · Gondel {c}: {n} an Bord, {f} % · {s} s',
+    { up, c: cabin, n: persons, f: Math.round(fill * 100), s }),
+  /** The RhB cab's line: its parts (made with the three below, or plain) joined */
+  cab: (parts) => msg('{text}', (p, tr) => p.parts.map(tr).join(' · '), { text: parts.join(' · '), parts }),
+  stopBoard: (name, m) => msg('Stop board {name}: {m} m', 'Haltetafel {name}: {m} m', { name, m }),
+  doorsOpen: (s) => msg('Doors open · {s} s', 'Türen offen · {s} s', { s }),
+  score: (n) => msg('Score {n}', 'Punkte {n}', { n }),
+  /** The timetable's next stop, the clock now */
+  now: (clock) => msg('now {c}', 'jetzt {c}', { c: clock })
+};

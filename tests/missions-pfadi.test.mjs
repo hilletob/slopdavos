@@ -186,16 +186,27 @@ test('the texts have their German', async () => {
   assert.match(t(m.intro), /Mattawald/);
   assert.notEqual(t(m.finish), m.finish);
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
-  for (const s of [...PFADI.tentSteps, ...PFADI.ringSteps]) assert.notEqual(t(`${s.label} (1/5)`), `${s.label} (1/5)`, s.label);
-  assert.equal(t('Peg the edges (4/5)'), 'Ränder verhäringen (4/5)');
-  assert.equal(t('1.2 km to the camp in the Mattawald'), '1.2 km bis zum Lagerplatz im Mattawald');
-  assert.equal(t('Firewood 3/8 · twigs 1/3 · kindling 0/2 · logs 2/3'), 'Feuerholz 3/8 · Reisig 1/3 · Anfeuerholz 0/2 · Scheiter 2/3');
-  assert.equal(t('Hold Space: pick up a log'), 'Space halten: ein Scheit aufheben');
-  assert.equal(t('Sparks in the tinder 2/3'), 'Funken im Zunder 2/3');
-  assert.equal(t('Ember 45 %'), 'Glut 45 %');
-  assert.equal(t('To the fireplace: 12 m'), 'Zur Feuerstelle: 12 m');
-  assert.equal(t('To the tent spot: 12 m'), 'Zum Zeltplatz: 12 m');
-  assert.equal(t('3 good strikes · 2 missed the steel'), '3 gute Schläge · 2 am Stahl vorbei');
+  // (the running texts are made with msg(), js/messages.js: made by the mission from a state set up for it, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };
+  const view = (id, ctx, over) => m.objectives.find((o) => o.id === id).check(frame(ctx), { ...m.createState(), ...over });
+  const { tent, fire, camp } = PFADI_PLACES;
+  for (const [id, key, steps] of [['tent', 'tent', PFADI.tentSteps], ['ring', 'ring', PFADI.ringSteps]]) {
+    steps.forEach((s, i) => { const text = view(id, tent, { [key]: { ...createSteps(), step: i } }).text; assert.equal(text, `${s.label} (${i + 1}/${steps.length})`); assert.notEqual(t(text), text, text); });
+  }
+  says(view('tent', tent, { tent: { ...createSteps(), step: 3 } }).text, 'Peg the edges (4/5)', 'Ränder verhäringen (4/5)');
+  says(view('walk', { x: camp.x + 1200, z: camp.z }, { routeS: ROUTE_LENGTH - 1200 }).text, '1.2 km to the camp in the Mattawald', '1.2 km bis zum Lagerplatz im Mattawald');
+  const wood = createWood();
+  for (const w of [wood[0], wood[5], wood[6]]) w.picked = true; // (a twig, two logs)
+  const lastLog = wood[7];
+  const woodView = view('wood', lastLog, { wood });
+  says(woodView.text, 'Firewood 3/8 · twigs 1/3 · kindling 0/2 · logs 2/3', 'Feuerholz 3/8 · Reisig 1/3 · Anfeuerholz 0/2 · Scheiter 2/3');
+  says(woodView.hint, 'Hold Space: pick up a log', 'Space halten: ein Scheit aufheben');
+  says(view('spark', fire, { flint: { ...createFlint(), ember: 2 * PFADI.strike.ember } }).text, 'Sparks in the tinder 2/3', 'Funken im Zunder 2/3');
+  says(view('blow', fire, { blow: { ...createBlow(), glow: 0.45 } }).text, 'Ember 45 %', 'Glut 45 %');
+  says(view('ring', { x: fire.x + 12, z: fire.z }, {}).hint, 'To the fireplace: 12 m', 'Zur Feuerstelle: 12 m');
+  says(view('tent', { x: tent.x + 12, z: tent.z }, {}).hint, 'To the tent spot: 12 m', 'Zum Zeltplatz: 12 m');
+  says(m.summary({ ...m.createState(), flint: { ...createFlint(), good: 3, misses: 2 } })[0], '3 good strikes · 2 missed the steel', '3 gute Schläge · 2 am Stahl vorbei');
+  says(m.summary({ ...m.createState(), flint: { ...createFlint(), good: 1, misses: 0 } })[0], '1 good strike · 0 missed the steel', '1 guter Schlag · 0 am Stahl vorbei');
   for (const s of ['Follow the trail signs: sticks laid as arrows', 'Space when the needle is in the green', 'Out of breath: let go and breathe in', 'Hold Space: blow gently', 'It catches! The fire grows', 'The Spatz stands', 'Ready to light', 'Picking up …', 'Strike', 'Blow']) assert.notEqual(t(s), s, s);
   setLanguage('en');
 });

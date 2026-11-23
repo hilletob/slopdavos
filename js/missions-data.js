@@ -1,4 +1,5 @@
 import { DAVOS_DATA } from './davos-geodata.js';
+import { msg } from './messages.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { SNOW_MISSIONS } from './missions-data-snow.js'; // the slalom, the big air, the mountain bike race
 import { FUN_MISSIONS } from './missions-data-fun.js'; // the BOX, La Onda, the Carjöl lift, the RhB driver
@@ -303,7 +304,7 @@ export const DISCHMA_MISSION = {
       check(ctx, state) {
         const frac = doneFraction(state.samples);
         const next = nearestUndone(state.samples, ctx.x, ctx.z);
-        const text = `Trail ${Math.round(frac * 100)} % groomed · ${formatDistance(frac * state.length)} of ${formatDistance(state.length)}`;
+        const text = msg('Trail {pct} % groomed · {done} of {all}', 'Loipe {pct} % präpariert · {done} von {all}', { pct: Math.round(frac * 100), done: formatDistance(frac * state.length), all: formatDistance(state.length) });
         return { done: frac >= DISCHMA_TARGET, progress: Math.min(1, frac / DISCHMA_TARGET), text, target: next ? { x: next.x, z: next.z } : null, hint: tillerHint(ctx) };
       }
     }
@@ -331,7 +332,7 @@ const padLanding = (pad, idle = LAND_SECONDS) => ({
     const d = dist2d(ctx, pad);
     const down = d < pad.r && ctx.agl < 1 && Math.abs(ctx.speed) < 0.6 && Math.abs(ctx.verticalSpeed) < 0.6;
     state.land = down ? (state.land || 0) + ctx.dt : 0;
-    const text = down ? `Landed … ${Math.ceil(idle - state.land)} s` : d < 40 ? 'Set down on the pad (H), hold steady' : `${formatDistance(d)} to the Spital Rega pad`;
+    const text = down ? msg('Landed … {n} s', 'Gelandet … {n} s', { n: Math.ceil(idle - state.land) }) : d < 40 ? 'Set down on the pad (H), hold steady' : msg('{d} to the Spital Rega pad', '{d} bis zum Rega-Landeplatz beim Spital', { d: formatDistance(d) });
     return { done: state.land >= idle, progress: Math.min(1, state.land / idle), text, target: { ...pad, style: 'pad' }, hint: lightHint(ctx) };
   }
 });
@@ -377,7 +378,8 @@ export const REGA_MISSION = {
         const d = dist2d(ctx, state.patient);
         const close = d < 8 && ctx.agl < 3 && Math.abs(ctx.speed) < 2.5 && Math.abs(ctx.verticalSpeed) < 1.5 && !lightHint(ctx);
         state.hover = close ? state.hover + ctx.dt : 0;
-        const text = close ? `Rescue under way … ${Math.ceil(HOVER_SECONDS - state.hover)} s` : d < 8 ? 'Lower: under 3 m above the snow, hold steady' : `${formatDistance(d)} · hover low over the casualty (< 3 m) or land`;
+        const text = close ? msg('Rescue under way … {n} s', 'Rettung läuft … {n} s', { n: Math.ceil(HOVER_SECONDS - state.hover) }) : d < 8 ? 'Lower: under 3 m above the snow, hold steady'
+          : msg('{d} · hover low over the casualty (< 3 m) or land', '{d} · tief über dem Verletzten schweben (< 3 m) oder landen', { d: formatDistance(d) });
         return { done: state.hover >= HOVER_SECONDS, progress: Math.min(1, state.hover / HOVER_SECONDS), text, target: { ...state.patient, r: 8 }, hint: lightHint(ctx) };
       }
     },
@@ -429,7 +431,7 @@ export const LAWINEN_MISSION = {
       const done = state.hits > i;
       const fail = !done && state.ammo <= 0 && !state.inFlight ? 'Out of ammo' : null;
       const d = dist2d(ctx, zone);
-      return { done, progress: null, text: `${formatDistance(d)} · ${state.ammo} ${state.ammo === 1 ? 'round' : 'rounds'} left${state.misses ? ` · ${state.misses} missed` : ''}`, target: { ...zone, style: 'hazard' }, hint: state.inFlight ? 'Shell in flight …' : null, fail };
+      return { done, progress: null, text: msg('{d} · {n} {rounds} left{missed}', (p) => `${p.d} · noch ${p.n} Schuss${p.k ? ` · ${p.k} daneben` : ''}`, { d: formatDistance(d), n: state.ammo, rounds: state.ammo === 1 ? 'round' : 'rounds', missed: state.misses ? ` · ${state.misses} missed` : '', k: state.misses }), target: { ...zone, style: 'hazard' }, hint: state.inFlight ? 'Shell in flight …' : null, fail };
     }
   }))
 };
@@ -480,7 +482,7 @@ export const TOEFF_MISSION = {
       title: 'Fly to the accident site',
       check(ctx) {
         const d = dist2d(ctx, TOEFF_SITE);
-        return { done: d < 150 && ctx.agl < 120, progress: null, text: `${formatDistance(d)} to the Flüelapassstrasse`, target: TOEFF_SITE, hint: lightHint(ctx) };
+        return { done: d < 150 && ctx.agl < 120, progress: null, text: msg('{d} to the Flüelapassstrasse', '{d} bis zur Flüelapassstrasse', { d: formatDistance(d) }), target: TOEFF_SITE, hint: lightHint(ctx) };
       }
     },
     {
@@ -490,7 +492,7 @@ export const TOEFF_MISSION = {
         const d = dist2d(ctx, TOEFF_LANDING);
         const down = d < TOEFF_LANDING.r && ctx.agl < 1 && Math.abs(ctx.speed) < 0.6 && Math.abs(ctx.verticalSpeed) < 0.6;
         state.landed = down ? state.landed + ctx.dt : 0;
-        const text = down ? 'Touched down …' : d < TOEFF_LANDING.r ? 'Set down: zero speed, steady' : `${formatDistance(d)} to the landing zone (meadow south of the road)`;
+        const text = down ? 'Touched down …' : d < TOEFF_LANDING.r ? 'Set down: zero speed, steady' : msg('{d} to the landing zone (meadow south of the road)', '{d} bis zum Landeplatz (Wiese südlich der Strasse)', { d: formatDistance(d) });
         return { done: state.landed >= LANDED_SECONDS, progress: Math.min(1, state.landed / LANDED_SECONDS), text, target: { ...TOEFF_LANDING, style: 'pad' }, hint: lightHint(ctx) };
       }
     },
@@ -500,7 +502,7 @@ export const TOEFF_MISSION = {
       check(ctx, state) {
         const down = dist2d(ctx, TOEFF_LANDING) < TOEFF_LANDING.r + 3 && ctx.agl < 1.5 && Math.abs(ctx.speed) < 1;
         state.treat = down ? state.treat + ctx.dt : 0;
-        const text = down ? `Treating the patient … ${Math.ceil(TREAT_SECONDS - state.treat)} s` : 'Stay on the ground: the crew is with the patient';
+        const text = down ? msg('Treating the patient … {n} s', 'Patient wird versorgt … {n} s', { n: Math.ceil(TREAT_SECONDS - state.treat) }) : 'Stay on the ground: the crew is with the patient';
         return { done: state.treat >= TREAT_SECONDS, progress: Math.min(1, state.treat / TREAT_SECONDS), text, target: { ...TOEFF_LANDING, style: 'pad' }, hint: null };
       }
     },
@@ -546,7 +548,7 @@ export const TOEFF_POLIZEI_MISSION = {
       check(ctx, state) {
         const inside = inZone(TOEFF_SECURE, ctx.x, ctx.z) && Math.abs(ctx.speed) < 0.3 && ctx.blueLight;
         state.secure = inside ? state.secure + ctx.dt : 0;
-        const text = inside ? `Vehicle in position … ${Math.ceil(3 - state.secure)} s` : 'Park across the marked zone, blue lights on, zero speed';
+        const text = inside ? msg('Vehicle in position … {n} s', 'Fahrzeug in Position … {n} s', { n: Math.ceil(3 - state.secure) }) : 'Park across the marked zone, blue lights on, zero speed';
         return { done: state.secure >= 3, progress: Math.min(1, state.secure / 3), text, target: { ...TOEFF_SECURE, style: 'hazard' }, hint: blueHint(ctx) };
       }
     },
@@ -560,7 +562,8 @@ export const TOEFF_POLIZEI_MISSION = {
         state.cones[i] = here ? state.cones[i] + ctx.dt : 0;
         const done = state.cones[i] >= 2;
         if (done) state.conesDone = i + 1;
-        const text = !onFoot ? 'Get out: F (on foot)' : here ? `Placing the cone … ${Math.ceil(2 - state.cones[i])} s` : `${formatDistance(dist2d(ctx, cone))} to the marker, stand there for 2 s`;
+        const text = !onFoot ? 'Get out: F (on foot)' : here ? msg('Placing the cone … {n} s', 'Kegel wird aufgestellt … {n} s', { n: Math.ceil(2 - state.cones[i]) })
+          : msg('{d} to the marker, stand there for 2 s', '{d} bis zur Markierung, dort 2 s stehen bleiben', { d: formatDistance(dist2d(ctx, cone)) });
         return { done, progress: Math.min(1, state.cones[i] / 2), text, target: { ...cone, style: 'hazard' }, hint: onFoot ? null : 'Get out of the car [F]' };
       }
     })),

@@ -4,7 +4,7 @@ import {
   SPLITBOARD_MISSION, SPLITBOARD_MISSIONS, SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, skinPace, climbRate, kickTurnHeading,
   createSkinner, stepSkinner, glideSpeed, slopeAt, createTransition, stepTransition, transitionShare, ascentPoles, descentGates, updateGates,
   skinBot, rideBot, createTrail, addToTrail, trailEnd, trailPoint, createPartner, stepPartner, lineOffset, createRisk, stepRisk,
-  burialSpot, searchView, createRescue, stepRescue
+  burialSpot, searchView, createRescue, stepRescue, gateMissedText
 } from '../js/missions-data-splitboard.js';
 import { createRider, stepRider, riderSpeed, updateCheckpoints, lineLength, BOARD_PARAMS } from '../js/missions-data-snow.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -251,18 +251,31 @@ test('German: the names, the intro, the steps and the running texts', async () =
   assert.equal(t(m.title), 'Splitboardtour aufs Chörbschhorn');
   assert.match(t(m.intro), /^Ein klarer Wintertag auf dem Strelapass/);
   for (const o of m.objectives) assert.notEqual(t(o.title), o.title, o.title);
-  assert.equal(t('Marker pole 3/20 · 120 m'), 'Markierstange 3/20 · 120 m');
-  assert.equal(t('Gate 3/18 · 2 missed (+16 s)'), 'Tor 3/18 · 2 verpasst (+16 s)');
-  assert.equal(t('Close the clips (4/6)'), 'Clips schliessen (4/6)');
-  for (const st of SPLIT.transition) assert.notEqual(t(`${st.label} (1/6)`), `${st.label} (1/6)`, st.label);
+  // (the running texts are made with msg(), js/messages.js: made by the mission from a state set up for it, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };
+  const view = (id, ctx, over) => m.objectives.find((o) => o.id === id).check(frame(ctx), { ...m.createState(), ...over });
+  const st = m.createState(), poles = st.up.cps.length, gateCount = st.down.gates.length, pole = st.up.cps[2];
+  says(view('traverse', { x: pole.x + 120, z: pole.z }, { up: { ...st.up, next: 2 } }).text, `Marker pole 3/${poles} · 120 m`, `Markierstange 3/${poles} · 120 m`);
+  says(view('traverse', pole, { up: { ...st.up, next: 3, skipped: 1 } }).text, 'Marker pole 2 missed: back to it', 'Markierstange 2 verpasst: zurück zu ihr');
+  says(view('ridge-down', st.down.gates[2], { down: { ...st.down, next: 2, missed: 2 } }).text, `Gate 3/${gateCount} · 2 missed (+16 s)`, `Tor 3/${gateCount} · 2 verpasst (+16 s)`);
+  says(view('transition', SPLIT_PLACES.start, { trans: { ...st.trans, step: 3 } }).text, 'Close the clips (4/6)', 'Clips schliessen (4/6)');
+  SPLIT.transition.forEach((s, i) => { const text = view('transition', SPLIT_PLACES.start, { trans: { ...st.trans, step: i } }).text; assert.equal(text, `${s.label} (${i + 1}/6)`); assert.notEqual(t(text), text, text); });
+  says(view('transition', SPLIT_PLACES.start, { retoBehind: 90 }).hint, 'Wait for Reto: 90 m behind', 'Auf Reto warten: 90 m zurück');
   assert.match(t(m.intro), /Wo die Spur abfällt, gleiten die Felle/);
-  assert.equal(t('2 kick turns · 5 s slipping'), '2 Spitzkehren · 5 s gerutscht');
-  assert.equal(t('2 kick turns · 5 s slipping · Reto dug out of an avalanche (+30 s)'), '2 Spitzkehren · 5 s gerutscht · Reto aus einer Lawine ausgegraben (+30 s)');
-  assert.equal(t('Send check: Reto searches, you send (1/2)'), 'Sendecheck: Reto sucht, du sendest (1/2)');
-  assert.equal(t('Reto is buried! Signal: 23.4 m'), 'Reto ist verschüttet! Signal: 23.4 m');
-  assert.equal(t('Wait for Reto: 85 m behind'), 'Auf Reto warten: 85 m zurück');
+  const tour = (over) => m.summary({ ...m.createState(), kicks: 2, slipT: 5, ...over });
+  says(tour({})[0], '2 kick turns · 5 s slipping', '2 Spitzkehren · 5 s gerutscht');
+  says(tour({ rescues: 1 })[0], '2 kick turns · 5 s slipping · Reto dug out of an avalanche (+30 s)', '2 Spitzkehren · 5 s gerutscht · Reto aus einer Lawine ausgegraben (+30 s)');
+  says(view('transceiver', SPLIT_PLACES.start, {}).text, 'Send check: Reto searches, you send (1/2)', 'Sendecheck: Reto sucht, du sendest (1/2)');
+  const slab = { stage: 'search', x: pole.x, z: pole.z, t: 0 };
+  says(view('traverse', { x: pole.x + 23.4, z: pole.z }, { rescue: slab }).text, 'Reto is buried! Signal: 23.4 m', 'Reto ist verschüttet! Signal: 23.4 m');
+  says(view('traverse', pole, { retoBehind: 85 }).hint, 'Wait for Reto: 85 m behind', 'Auf Reto warten: 85 m zurück');
+  const end = st.down.gates.length;
+  says(view('stafel', st.down.gates[end - 1], { down: { ...st.down, next: end }, retoBehind: 60 }).hint, 'Reto: 60 m behind', 'Reto: 60 m zurück');
+  says(view('ridge-down', st.down.gates[1], { down: { ...st.down, next: 1 }, lastGate: { i: 0, pass: false, t: 0 } }).hint, 'Gate missed: +8 s', 'Tor verpasst: +8 s');
+  says(gateMissedText(4), 'Gate 4 missed: +8 s', 'Tor 4 verpasst: +8 s');
   assert.equal(t('Steep slope above 35°: avalanche danger – back to the track'), 'Steilhang über 35°: Lawinengefahr – zurück in die Spur');
-  assert.equal(t('16 of 18 gates · 2 missed (+16 s) · top speed 80 km/h'), '16 von 18 Toren · 2 verpasst (+16 s) · Höchsttempo 80 km/h');
+  says(tour({ down: { ...st.down, gates: st.down.gates.slice(0, 18), passed: 16, missed: 2 }, topSpeed: 80 / 3.6 })[1], '16 of 18 gates · 2 missed (+16 s) · top speed 80 km/h', '16 von 18 Toren · 2 verpasst (+16 s) · Höchsttempo 80 km/h');
+  says(tour({ down: { ...st.down, gates: st.down.gates.slice(0, 18), passed: 18, missed: 0 }, topSpeed: 72 / 3.6 })[1], '18 of 18 gates · 0 missed · top speed 72 km/h', '18 von 18 Toren · 0 verpasst · Höchsttempo 72 km/h');
   assert.notEqual(t(m.finish), m.finish);
   setLanguage('en');
 });

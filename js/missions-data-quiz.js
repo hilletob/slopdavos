@@ -12,6 +12,10 @@
 // Gigi says comes from the seed, so everyone hears the same one in their own language.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz).
 
+import { msg } from './messages.js';
+
+/** The round's line in the HUD: the question asked */
+export const questionText = (n, of) => msg('Question {n} of {of}', 'Frage {n} von {of}', { n, of });
 export const QUIZ = {
   // (free ground east of the Skistrasse, 17 m off it, 24 m from Bolgen Plaza's wall, 52 m from the bike race's pin)
   table: { x: -490, z: 566, r: 3.4 },
@@ -452,7 +456,7 @@ export const GIGI_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g?.done) return [];
-    return [`Place ${g.place} of ${g.seats} at the table`, g.pays ? 'You pay the round' : g.place === 1 ? 'The round is on the others' : 'Someone else pays the round'];
+    return [msg('Place {n} of {of} at the table', 'Platz {n} von {of} am Tisch', { n: g.place, of: g.seats }), g.pays ? 'You pay the round' : g.place === 1 ? 'The round is on the others' : 'Someone else pays the round'];
   },
   objectives: [
     {
@@ -461,7 +465,7 @@ export const GIGI_MISSION = {
       allowModes: ['person'],
       check(ctx, state) {
         const d = Math.hypot(ctx.x - QUIZ.table.x, ctx.z - QUIZ.table.z);
-        return { done: !!state.seated || (ctx.mode === 'person' && d < QUIZ.table.r), progress: null, text: `${fmtDist(d)} to Gigi’s table`, target: { ...QUIZ.table, style: 'plain' }, hint: null };
+        return { done: !!state.seated || (ctx.mode === 'person' && d < QUIZ.table.r), progress: null, text: msg('{d} to Gigi’s table', '{d} bis zu Gigis Tisch', { d: fmtDist(d) }), target: { ...QUIZ.table, style: 'plain' }, hint: null };
       }
     },
     {

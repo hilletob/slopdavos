@@ -12,7 +12,7 @@ import {
   racerAt, aiSpeed,
   MINIGOLF, MINIGOLF_SITE, MINIGOLF_EXCLUDE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
-  BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA
+  BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA, SPORT_TEXT
 } from './missions-data-sport.js';
 import { el } from './dom.js';
 
@@ -38,7 +38,6 @@ import { el } from './dom.js';
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const fmtSec = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(1).padStart(4, '0')}`; };
-const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const INTERIOR_LIFT = 400; // m: the bar room floats this high above its door (out of sight of the town)
 
 // --- Styles (injected once a run; no shared stylesheet edit) ----------------------------------------------------------
@@ -425,10 +424,10 @@ const xcSkis = {
     if (!st.style) return;
     xc.ui.meter.set(xcNeedle(xc.skier, xc.P));
     setText(xc.ui.speed, `${(xc.skier.speed * 3.6).toFixed(0)} km/h`);
-    setText(xc.ui.clock, st.started ? fmtSec(st.finishT ?? st.raceT) : `Start in ${Math.ceil(st.countdown)}`);
+    setText(xc.ui.clock, st.started ? fmtSec(st.finishT ?? st.raceT) : SPORT_TEXT.startIn(Math.ceil(st.countdown)));
     if (st.started && st.field) {
       const place = st.finishT !== null ? st.place : livePlace(st);
-      setText(xc.ui.place, `${ordinal(place)} of ${st.field.length + 1}`);
+      setText(xc.ui.place, SPORT_TEXT.placeOf(place, st.field.length + 1));
     }
     if (xc.flashAt && performance.now() - xc.flashAt > 900) { xc.ui.flash.textContent = ''; xc.flashAt = 0; }
   },
@@ -470,7 +469,7 @@ const xcRace = {
     run.group.add(g);
     // the start / finish arch, a timing clock beside it, the split gantries
     g.add(buildArch(['DAVOS NORDIC', t('START · FINISH')], 0.0, 8.5));
-    XC_SPLITS.forEach((m, i) => g.add(buildArch([t(`SPLIT ${i + 1}`), t(`${(m / 1000).toFixed(1)} km`)], m, 7.5, { bg: '#1d5bc4', h: 3.6 })));
+    XC_SPLITS.forEach((m, i) => g.add(buildArch([t(SPORT_TEXT.splitArch(i + 1)), t(`${(m / 1000).toFixed(1)} km`)], m, 7.5, { bg: '#1d5bc4', h: 3.6 })));
     // the stadium: fences either side of the first and last 70 m (red boards), the grandstand crowd behind them
     const boards = [], spots = [];
     const fence = (s0, s1, side) => {
@@ -536,12 +535,13 @@ const xcRace = {
     // the splits as they come
     if (st.splits.length > R.announced) {
       const sp = st.splits[R.announced++];
-      if (ui) bigText(run, ui.big, `${ordinal(sp.place)}`, `Split ${R.announced} · ${fmtSec(sp.t)} · ${sp.gap >= 0 ? '+' : '−'}${Math.abs(sp.gap).toFixed(1)} s`, 2200);
+      if (ui) bigText(run, ui.big, SPORT_TEXT.place(sp.place),
+        SPORT_TEXT.split(R.announced, `${fmtSec(sp.t)} · ${sp.gap >= 0 ? '+' : '−'}${Math.abs(sp.gap).toFixed(1)} s`), 2200);
       R.blips.bell();
     }
     if (st.finishT !== null && !R.finished) {
       R.finished = true;
-      if (ui) bigText(run, ui.big, `${ordinal(st.place)} place`, fmtSec(st.finishT), 3000);
+      if (ui) bigText(run, ui.big, SPORT_TEXT.finished(st.place), fmtSec(st.finishT), 3000);
       R.blips.bell();
       R.cheer = 4;
     }
@@ -903,7 +903,7 @@ const minigolf = {
         }
       }
       if (g.ball.holed) {
-        if (!mg.wait) { mg.wait = 1.8; const s = g.strokes[g.hole]; bigText(run, mg.ui.big, strokeName(s, course.holes[g.hole].par), `${s} ${s === 1 ? 'stroke' : 'strokes'}`, 1700); }
+        if (!mg.wait) { mg.wait = 1.8; const s = g.strokes[g.hole]; bigText(run, mg.ui.big, strokeName(s, course.holes[g.hole].par), SPORT_TEXT.strokes(s), 1700); }
         mg.wait -= dt;
         if (mg.wait <= 0) { mg.wait = 0; minigolfNext(g); mg.aim = 0; mg.cam = null; }
       }
@@ -1077,7 +1077,7 @@ function drawChalk(ch, game) {
   const log = game ? game.log.slice(-8) : [];
   log.forEach((l, i) => g.fillText(l.bust ? t('bust') : String(l.total), W / 2, 290 + i * 40));
   g.font = '26px "Comic Sans MS", "Chalkboard", sans-serif';
-  g.fillText(t(game ? `darts: ${game.darts}` : 'game on'), W / 2, H - 40);
+  g.fillText(t(game ? SPORT_TEXT.darts(game.darts) : 'game on'), W / 2, H - 40);
   ch.tex.needsUpdate = true;
 }
 
@@ -1313,9 +1313,9 @@ const darts = {
         const r = x01Dart(g, f.res);
         dd.blips.thud(0.9);
         if (f.res.score > 0) dd.stuck.push(f.mesh); else { f.mesh.removeFromParent(); disposeTree(f.mesh); }
-        const flashTxt = r.result === 'bust' ? ['BUST', 'is-bad'] : r.result === 'checkout' ? [`Game shot! ${f.res.label}`, 'is-gold'] : [f.res.label === 'Miss' ? 'Miss' : `${f.res.label} · ${f.res.score}`, f.res.mult === 3 || f.res.num === 25 ? 'is-gold' : f.res.score ? 'is-good' : 'is-bad'];
+        const flashTxt = r.result === 'bust' ? ['BUST', 'is-bad'] : r.result === 'checkout' ? [SPORT_TEXT.gameShot(f.res.label), 'is-gold'] : [f.res.label === 'Miss' ? 'Miss' : SPORT_TEXT.hit(f.res.label, f.res.score), f.res.mult === 3 || f.res.num === 25 ? 'is-gold' : f.res.score ? 'is-good' : 'is-bad'];
         dd.ui.flash.textContent = flashTxt[0]; dd.ui.flash.className = `sport-flash ${flashTxt[1]}`;
-        if (r.result === 'bust') bigText(run, dd.ui.big, 'BUST', `back to ${g.remaining}`, 1300);
+        if (r.result === 'bust') bigText(run, dd.ui.big, 'BUST', SPORT_TEXT.backTo(g.remaining), 1300);
         if (f.res.mult === 3 && f.res.num === 20) bigText(run, dd.ui.big, 'T20!', '', 700);
         drawChalk(dd.parts.chalk, g);
         if (r.turnOver && !g.done) dd.wait = 1.3;
@@ -1327,8 +1327,8 @@ const darts = {
       dd.wait -= dt;
       if (dd.wait <= 0) { for (const m of dd.stuck) { m.removeFromParent(); disposeTree(m); } dd.stuck.length = 0; }
     }
-    setText(dd.ui.title, `301 double out · ${g.remaining} left`);
-    setText(dd.ui.line, `Dart ${Math.min(DART.maxDarts, g.darts + 1)} of ${DART.maxDarts} · turn ${Math.floor(g.darts / 3) + 1}, dart ${(g.darts % 3) + 1}`);
+    setText(dd.ui.title, SPORT_TEXT.x01(g.remaining));
+    setText(dd.ui.line, SPORT_TEXT.dartLine(g.darts));
   },
   after(run, ctx, dt) {
     const dd = run.dd;
@@ -1601,7 +1601,7 @@ const skateBowl = {
         if (combo && combo.count > 1) bigText(run, sb.ui.big, `×${comboMultiplier(combo)}`, e.trick.name, 900);
       } else {
         sb.blips.tone(150, 0.35, { slide: 0.5, vol: 0.2 });
-        setText(sb.ui.trick, `${e.trick.name}: combo lost`); sb.ui.trick.className = 'sport-flash is-bad';
+        setText(sb.ui.trick, SPORT_TEXT.comboLost(e.trick.name)); sb.ui.trick.className = 'sport-flash is-bad';
         bigText(run, sb.ui.big, 'Bail!', '', 800);
       }
       sb.flashAt = performance.now();
@@ -1660,7 +1660,7 @@ const skateBowl = {
     setText(sb.ui.time, st.started ? `${left.toFixed(1)} s` : 'Drop in: W');
     setText(sb.ui.score, `${skateTotal(st.score)} pts`);
     const c = st.score.combo;
-    setText(sb.ui.combo, c && c.count > 1 ? `Combo ×${comboMultiplier(c)} · ${comboValue(c)}` : '');
+    setText(sb.ui.combo, c && c.count > 1 ? SPORT_TEXT.combo(comboMultiplier(c), comboValue(c)) : '');
     const b = st.boarder;
     sb.ui.bal.hidden = !(b && b.mode === 'grind');
     if (b && b.mode === 'grind') sb.ui.balNeedle.style.left = `${clamp((b.grind.b + 1) / 2, 0, 1) * 100}%`;

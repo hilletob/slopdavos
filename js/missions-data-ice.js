@@ -1,4 +1,5 @@
 import { EISBAHN, EISSTADION } from './landmark-buildings-data.js';
+import { msg } from './messages.js';
 
 // js/missions-data-ice.js
 // The ice missions (js/missions-data.js lists them in MISSIONS; js/missions-ice.js has their runtime: the skates, the
@@ -526,7 +527,7 @@ export const HOCKEY_PENALTY_MISSION = {
       const done = g.attempt > i; // (the result shown, the next penalty lined up)
       const goalPt = rinkWorld(HOCKEY.goalX, 0);
       const last = g.results.length > i ? PENALTY_RESULT_TEXT[g.results[i]] : null;
-      const text = last ? `${last} · ${g.goals} ${g.goals === 1 ? 'goal' : 'goals'}` : g.phase === 'shot' ? 'Shot!' : `${g.goals} ${g.goals === 1 ? 'goal' : 'goals'} · ${Math.max(0, HOCKEY.timeLimit - g.t).toFixed(0)} s left`;
+      const text = last ? msg('{last} · {n} {goals}', (p, tr) => `${tr(p.last)} · ${p.n} ${p.n === 1 ? 'Tor' : 'Tore'}`, { last, n: g.goals, goals: g.goals === 1 ? 'goal' : 'goals' }) : g.phase === 'shot' ? 'Shot!' : `${g.goals} ${g.goals === 1 ? 'goal' : 'goals'} · ${Math.max(0, HOCKEY.timeLimit - g.t).toFixed(0)} s left`;
       // (no marker over the goal: it would stand in front of the goalie; the arrow points the way)
       void goalPt;
       return { done, progress: g.phase === 'skate' ? clamp(g.maxX / (HOCKEY.goalX - 4), 0, 1) : null, text, target: null, hint: g.phase === 'skate' ? 'Shoot: Space' : null };
@@ -723,3 +724,11 @@ export const CURLING_MISSION = {
 };
 
 export const ICE_MISSIONS = [SPEED_SKATING_MISSION, HOCKEY_PENALTY_MISSION, CURLING_MISSION];
+
+// The runtime's moving texts (js/missions-ice.js), with their German beside them (js/messages.js)
+export const ICE_TEXT = {
+  /** A stone come to rest in the house */
+  inHouse: (n) => msg('In the house: {n} points', (p) => `Im Haus: ${p.n} ${p.n === 1 ? 'Punkt' : 'Punkte'}`, { n }),
+  /** The curling's aim (rad, + to the right) in degrees */
+  aim: (rad) => msg('Aim {a}', 'Richtung {a}', { a: `${rad >= 0 ? '+' : '−'}${Math.abs(rad * 180 / Math.PI).toFixed(1)}°` })
+};

@@ -3,7 +3,7 @@ import { groundHeight } from './terrain.js';
 import { createRiderFigure } from './winter-sports.js';
 import {
   createRider, stepRider, riderSpeed, travelHeading, SKI_PARAMS, BOARD_PARAMS, SNOW_GRAVITY,
-  bigAirProfile, bigAirU, recordBigAirJump, BIG_AIR_JUMPS, MTB_CRASH_MS, MTB_SKID
+  bigAirProfile, bigAirU, recordBigAirJump, BIG_AIR_JUMPS, MTB_CRASH_MS, MTB_SKID, SNOW_TEXT
 } from './missions-data-snow.js';
 
 // js/missions-snow.js
@@ -312,7 +312,7 @@ function updateSlalomCourse(run) {
     _c.set(res === 'pass' ? GATE_COLOURS.pass : res === 'miss' ? GATE_COLOURS.miss : GATE_COLOURS[st.gates[i].colour]);
     // (the poles keep their colour; the flags tell passed and missed)
     c.flags.setColorAt(i * 2, _c); c.flags.setColorAt(i * 2 + 1, _c);
-    if (res === 'miss') run.snow.toast.show(`Gate ${i + 1} missed`, '+3 s', '#ffb3a8', 1.6);
+    if (res === 'miss') run.snow.toast.show(SNOW_TEXT.gateMissed(i + 1), '+3 s', '#ffb3a8', 1.6);
     changed = true;
   }
   if (changed) c.flags.instanceColor.needsUpdate = true;
@@ -530,7 +530,7 @@ const mtbFeature = {
       st.crashes++;
       st.penaltyMs += MTB_CRASH_MS;
       bike.speed = 0;
-      m.toast.show('Crash!', `Too fast for that turn: +${MTB_CRASH_MS / 1000} s`, '#ff8f80', 2);
+      m.toast.show('Crash!', SNOW_TEXT.tooFast(), '#ff8f80', 2);
       run.audio?.thump?.();
     }
   }

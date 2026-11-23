@@ -26,6 +26,7 @@
 //      glow full, the kindling catches and the fire grows by itself.
 // Judged by time. The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z).
 
+import { msg } from './messages.js';
 import { PFADIHEIM_START } from './pfadiheim-data.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -72,11 +73,11 @@ export const PFADI = {
   // half width at the ground (m)
   tent: { yaw: Math.atan2(PFADI_PLACES.fire.x - PFADI_PLACES.tent.x, PFADI_PLACES.fire.z - PFADI_PLACES.tent.z), length: 3.8, height: 2.3, half: 1.7 }, // (a group's Spatz of six Blachen)
   tentSteps: [
-    { id: 'lay', label: 'Lay out the six tarps', hold: 1.6 },
-    { id: 'button', label: 'Button the tarps together', hold: 1.8 },
-    { id: 'poles', label: 'Set up the poles and the ridge', hold: 1.5 },
-    { id: 'pegs', label: 'Peg the edges', hold: 1.6 },
-    { id: 'guys', label: 'Tension the guy lines', hold: 1.2 }
+    { id: 'lay', label: 'Lay out the six tarps', de: 'Die sechs Blachen auslegen', hold: 1.6 },
+    { id: 'button', label: 'Button the tarps together', de: 'Die Blachen zusammenknöpfen', hold: 1.8 },
+    { id: 'poles', label: 'Set up the poles and the ridge', de: 'Stangen und First aufstellen', hold: 1.5 },
+    { id: 'pegs', label: 'Peg the edges', de: 'Ränder verhäringen', hold: 1.6 },
+    { id: 'guys', label: 'Tension the guy lines', de: 'Abspannschnüre spannen', hold: 1.2 }
   ],
   wood: {
     reach: 1.8, pickS: 0.35,
@@ -88,10 +89,10 @@ export const PFADI = {
     ]
   },
   ringSteps: [
-    { id: 'stones', label: 'Lay the stones in a ring', hold: 1.4 },
-    { id: 'tinder', label: 'Tinder nest in the middle', hold: 0.8 },
-    { id: 'kindling', label: 'Kindling as a tipi', hold: 1.0 },
-    { id: 'logs', label: 'Logs round it', hold: 1.0 }
+    { id: 'stones', label: 'Lay the stones in a ring', de: 'Steine im Kreis legen', hold: 1.4 },
+    { id: 'tinder', label: 'Tinder nest in the middle', de: 'Zundernest in die Mitte', hold: 0.8 },
+    { id: 'kindling', label: 'Kindling as a tipi', de: 'Anfeuerholz als Tipi', hold: 1.0 },
+    { id: 'logs', label: 'Logs round it', de: 'Scheiter darum herum', hold: 1.0 }
   ],
   // flint and steel: the needle sweeps 0 → 1 → 0 in `period` s; a strike in [lo, hi] throws its sparks into the tinder
   strike: { period: 1.3, lo: 0.64, hi: 0.82, cooldown: 0.3, need: 3, ember: 0.36, fade: 0.04 },
@@ -102,6 +103,7 @@ export const PFADI = {
   timeLimitMs: 15 * 60 * 1000
 };
 export const WOOD_NAMES = { twigs: 'dry twigs', kindling: 'kindling', log: 'a log' };
+const WOOD_NAMES_DE = { twigs: 'dürre Zweige', kindling: 'Anfeuerholz', log: 'ein Scheit' };
 export const WOOD_NEED = { twigs: 3, kindling: 2, log: 3 };
 
 // --- The way ---------------------------------------------------------------------------------------------------------
@@ -285,6 +287,9 @@ export function campBot(state, step, me, P = PFADI) {
 const ID = 'pfadi-spatz';
 const near = (ctx, p, r) => Math.hypot(ctx.x - p.x, ctx.z - p.z) <= r;
 const toPlace = (ctx, p) => fmtDist(Math.hypot(ctx.x - p.x, ctx.z - p.z));
+/** A held step with its count: "Peg the edges (4/5)" */
+const stepText = (s, i, n) => msg('{label} ({i}/{n})', '{de} ({i}/{n})', { label: s.label, de: s.de, i, n });
+const toFire = (ctx) => msg('To the fireplace: {d}', 'Zur Feuerstelle: {d}', { d: toPlace(ctx, PFADI_PLACES.fire) });
 
 export const PFADI_MISSION = {
   id: ID,
@@ -315,7 +320,7 @@ export const PFADI_MISSION = {
   },
   summary(state) {
     const f = state.flint;
-    return [`${f.good} good strike${f.good === 1 ? '' : 's'} · ${f.misses} missed the steel`];
+    return [msg('{n} good strike{s} · {m} missed the steel', (p) => `${p.n} ${p.n === 1 ? 'guter Schlag' : 'gute Schläge'} · ${p.m} am Stahl vorbei`, { n: f.good, s: f.good === 1 ? '' : 's', m: f.misses })];
   },
   objectives: [
     {
@@ -329,7 +334,7 @@ export const PFADI_MISSION = {
         const close = left < 60;
         return {
           done: near(ctx, C, PFADI.campRadius), progress: clamp(state.routeS / ROUTE_LENGTH, 0, 1),
-          text: `${fmtDist(left)} to the camp in the Mattawald`,
+          text: msg('{d} to the camp in the Mattawald', '{d} bis zum Lagerplatz im Mattawald', { d: fmtDist(left) }),
           target: close ? { x: C.x, z: C.z, r: PFADI.campRadius } : { x: p.x, z: p.z, r: 6 },
           hint: state.routeS < 40 ? 'Follow the trail signs: sticks laid as arrows' : null
         };
@@ -341,9 +346,9 @@ export const PFADI_MISSION = {
       check(ctx, state) {
         const S = PFADI.tentSteps, st = state.tent, s = S[Math.min(st.step, S.length - 1)];
         return {
-          done: st.done, progress: stepsShare(st, S), text: st.done ? 'The Spatz stands' : `${s.label} (${st.step + 1}/${S.length})`,
+          done: st.done, progress: stepsShare(st, S), text: st.done ? 'The Spatz stands' : stepText(s, st.step + 1, S.length),
           target: state.nearTent ? null : { x: PFADI_PLACES.tent.x, z: PFADI_PLACES.tent.z, r: 2.4 },
-          hint: state.nearTent ? 'Hold Space' : `To the tent spot: ${toPlace(ctx, PFADI_PLACES.tent)}`
+          hint: state.nearTent ? 'Hold Space' : msg('To the tent spot: {d}', 'Zum Zeltplatz: {d}', { d: toPlace(ctx, PFADI_PLACES.tent) })
         };
       }
     },
@@ -356,9 +361,11 @@ export const PFADI_MISSION = {
         const close = w && Math.hypot(w.x - ctx.x, w.z - ctx.z) <= PFADI.wood.reach;
         return {
           done: c.all >= n, progress: c.all / n,
-          text: `Firewood ${c.all}/${n} · twigs ${c.twigs}/${WOOD_NEED.twigs} · kindling ${c.kindling}/${WOOD_NEED.kindling} · logs ${c.log}/${WOOD_NEED.log}`,
+          text: msg('Firewood {a}/{n} · twigs {t}/{tn} · kindling {k}/{kn} · logs {l}/{ln}', 'Feuerholz {a}/{n} · Reisig {t}/{tn} · Anfeuerholz {k}/{kn} · Scheiter {l}/{ln}',
+            { a: c.all, n, t: c.twigs, tn: WOOD_NEED.twigs, k: c.kindling, kn: WOOD_NEED.kindling, l: c.log, ln: WOOD_NEED.log }),
           target: w ? { x: w.x, z: w.z, r: 1.4 } : null,
-          hint: state.picking ? 'Picking up …' : close ? `Hold Space: pick up ${WOOD_NAMES[w.kind]}` : w ? `To the next firewood: ${toPlace(ctx, w)}` : null
+          hint: state.picking ? 'Picking up …' : close ? msg('Hold Space: pick up {w}', 'Space halten: {de} aufheben', { w: WOOD_NAMES[w.kind], de: WOOD_NAMES_DE[w.kind] })
+            : w ? msg('To the next firewood: {d}', 'Zum nächsten Feuerholz: {d}', { d: toPlace(ctx, w) }) : null
         };
       }
     },
@@ -368,9 +375,9 @@ export const PFADI_MISSION = {
       check(ctx, state) {
         const S = PFADI.ringSteps, st = state.ring, s = S[Math.min(st.step, S.length - 1)];
         return {
-          done: st.done, progress: stepsShare(st, S), text: st.done ? 'Ready to light' : `${s.label} (${st.step + 1}/${S.length})`,
+          done: st.done, progress: stepsShare(st, S), text: st.done ? 'Ready to light' : stepText(s, st.step + 1, S.length),
           target: state.nearFire ? null : { x: PFADI_PLACES.fire.x, z: PFADI_PLACES.fire.z, r: 1.6 },
-          hint: state.nearFire ? 'Hold Space' : `To the fireplace: ${toPlace(ctx, PFADI_PLACES.fire)}`
+          hint: state.nearFire ? 'Hold Space' : toFire(ctx)
         };
       }
     },
@@ -380,9 +387,9 @@ export const PFADI_MISSION = {
       check(ctx, state) {
         const f = state.flint, S = PFADI.strike;
         return {
-          done: f.lit, progress: f.ember, text: `Sparks in the tinder ${f.lit ? S.need : Math.min(S.need - 1, Math.round(f.ember / S.ember))}/${S.need}`,
+          done: f.lit, progress: f.ember, text: msg('Sparks in the tinder {n}/{of}', 'Funken im Zunder {n}/{of}', { n: f.lit ? S.need : Math.min(S.need - 1, Math.round(f.ember / S.ember)), of: S.need }),
           target: state.nearFire ? null : { x: PFADI_PLACES.fire.x, z: PFADI_PLACES.fire.z, r: 1.6 },
-          hint: state.nearFire ? 'Space when the needle is in the green' : `To the fireplace: ${toPlace(ctx, PFADI_PLACES.fire)}`
+          hint: state.nearFire ? 'Space when the needle is in the green' : toFire(ctx)
         };
       }
     },
@@ -393,9 +400,9 @@ export const PFADI_MISSION = {
         const b = state.blow;
         return {
           done: b.caught && b.fire >= 1, progress: b.caught ? b.fire : b.glow,
-          text: b.caught ? 'It catches! The fire grows' : `Ember ${Math.round(b.glow * 100)} %`,
+          text: b.caught ? 'It catches! The fire grows' : msg('Ember {n} %', 'Glut {n} %', { n: Math.round(b.glow * 100) }),
           target: state.nearFire ? null : { x: PFADI_PLACES.fire.x, z: PFADI_PLACES.fire.z, r: 1.6 },
-          hint: !state.nearFire ? `To the fireplace: ${toPlace(ctx, PFADI_PLACES.fire)}` : b.caught ? null : b.out ? 'Out of breath: let go and breathe in' : 'Hold Space: blow gently'
+          hint: !state.nearFire ? toFire(ctx) : b.caught ? null : b.out ? 'Out of breath: let go and breathe in' : 'Hold Space: blow gently'
         };
       }
     }

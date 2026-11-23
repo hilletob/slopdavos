@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 import { buildCheckpoints, updateCheckpoints, pointAt } from './missions-data-snow.js';
 import { createCourse, runHeading, projectOnRun, sledgeSection, SLEDGE_PARAMS, SLEDGE_OFF_PARAMS, SLEDGE_TRACK, SLEDGE_CRASH_MS } from './missions-data-sledge.js';
 
@@ -199,7 +200,8 @@ const STIR_HINTS = {
 /** The HUD's line and hint for the pot */
 export function stirGauge(g) {
   return {
-    text: `Figure eights ${Math.min(g.eights, STIR.goal)}/${STIR.goal}${g.strikes ? ` · caught ${g.strikes}× (+${(g.strikes * STIR.burnMs) / 1000} s)` : ''}`,
+    text: msg('Figure eights {n}/{of}{caught}', (p) => `Achten ${p.n}/${p.of}${p.c ? ` · ${p.c}× angebrannt (+${p.s} s)` : ''}`,
+      { n: Math.min(g.eights, STIR.goal), of: STIR.goal, caught: g.strikes ? ` · caught ${g.strikes}× (+${(g.strikes * STIR.burnMs) / 1000} s)` : '', c: g.strikes, s: (g.strikes * STIR.burnMs) / 1000 }),
     hint: (g.last && STIR_HINTS[g.last]) || 'Draw a figure of eight through the pot with the mouse or your finger',
     burn: clamp(g.burn, 0, 1)
   };
@@ -359,8 +361,14 @@ export const FONDUE_MISSION = {
   summary(state) {
     const g = state.stir;
     return [
-      `${g.eights} figure eights${g.strikes ? ` · caught on the bottom ${g.strikes}× (+${(g.strikes * STIR.burnMs) / 1000} s)` : ' · nothing caught'}${g.circles ? ` · ${g.circles} ${g.circles === 1 ? 'circle' : 'circles'}` : ''}`,
-      `Flämmli ${state.choice === 'tipsy' ? 'with effect' : 'without effect'} · ${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'}${state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : ''} · top speed ${Math.round(state.topSpeed * 3.6)} km/h`
+      msg('{n} figure eights{caught}{circles}',
+        (p) => `${p.n} Achten · ${p.c ? `${p.c}× angebrannt (+${p.s} s)` : 'nichts angebrannt'}${p.k ? ` · ${p.k}-mal im Kreis gerührt` : ''}`,
+        { n: g.eights, caught: g.strikes ? ` · caught on the bottom ${g.strikes}× (+${(g.strikes * STIR.burnMs) / 1000} s)` : ' · nothing caught',
+          circles: g.circles ? ` · ${g.circles} ${g.circles === 1 ? 'circle' : 'circles'}` : '', c: g.strikes, s: (g.strikes * STIR.burnMs) / 1000, k: g.circles }),
+      msg('Flämmli {effect} · {n} {crashes}{pen} · top speed {v} km/h',
+        (p) => `Flämmli ${p.tipsy ? 'mit' : 'ohne'} Wirkung · ${p.n} ${p.n === 1 ? 'Sturz' : 'Stürze'}${p.pen} · Höchsttempo ${p.v} km/h`,
+        { effect: state.choice === 'tipsy' ? 'with effect' : 'without effect', tipsy: state.choice === 'tipsy', n: state.crashes, crashes: state.crashes === 1 ? 'crash' : 'crashes',
+          pen: state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '', v: Math.round(state.topSpeed * 3.6) })
     ];
   },
   objectives: [
@@ -369,7 +377,7 @@ export const FONDUE_MISSION = {
       title: 'Meet the camp at the Kongress',
       check(ctx) {
         const d = Math.hypot(ctx.x - KONGRESS_DOOR.x, ctx.z - KONGRESS_DOOR.z);
-        return { done: d <= KONGRESS_DOOR.r, progress: null, text: `The camp waits at the entrance · ${fmtDist(d)}`, target: { ...KONGRESS_DOOR, style: 'plain' }, hint: 'Walk to the entrance between the flags' };
+        return { done: d <= KONGRESS_DOOR.r, progress: null, text: msg('The camp waits at the entrance · {d}', 'Das Camp wartet beim Eingang · {d}', { d: fmtDist(d) }), target: { ...KONGRESS_DOOR, style: 'plain' }, hint: 'Walk to the entrance between the flags' };
       }
     },
     {
@@ -379,7 +387,7 @@ export const FONDUE_MISSION = {
         const d = Math.hypot(ctx.x - FONDUE_TABLE.x, ctx.z - FONDUE_TABLE.z);
         // (still down in the town: the Schatzalpbahn is on its way, js/missions-fondue.js cuts)
         if (d > 400 && !state.arrived) return { done: false, progress: null, text: 'With the Schatzalpbahn up to the Schatzalp …', target: null, hint: null };
-        return { done: near(ctx, FONDUE_TABLE), progress: null, text: `The fondue table on the terrace · ${fmtDist(d)}`, target: { ...FONDUE_TABLE, style: 'plain' }, hint: 'The caquelon is on the flame: to the table' };
+        return { done: near(ctx, FONDUE_TABLE), progress: null, text: msg('The fondue table on the terrace · {d}', 'Der Fonduetisch auf der Terrasse · {d}', { d: fmtDist(d) }), target: { ...FONDUE_TABLE, style: 'plain' }, hint: 'The caquelon is on the flame: to the table' };
       }
     },
     {

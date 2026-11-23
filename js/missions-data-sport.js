@@ -21,6 +21,8 @@
 //  - The Schüssla: the concrete bowl the Davos skaters designed, opened 2019 in the Freizeitareal / Adventure Park
 //    Färich at the mouth of the Flüelatal (Südostschweiz); not in OSM: its concrete pad located on the orthophoto.
 
+import { msg } from './messages.js';
+
 const TAU = Math.PI * 2;
 const G = 9.81;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -328,7 +330,10 @@ export const DAVOS_NORDIC_MISSION = {
     const r = state.race;
     const lines = [];
     if (r.results) lines.push(r.results.map((e, i) => `${i + 1}. ${e.name}${e.player ? '' : ` (${e.nation})`} ${fmtTime(e.t * 1000)}`).join(' · '));
-    if (r.splits.length) lines.push(r.splits.map((sp) => `${fmtDist(sp.s)}: ${fmtTime(sp.t * 1000)} (${ordinal(sp.place)}, ${fmtGap(sp.gap)})`).join(' · '));
+    if (r.splits.length) {
+      const parts = r.splits.map((sp) => msg('{d}: {t} ({place}, {gap})', '{d}: {t} ({k}., {gap})', { d: fmtDist(sp.s), t: fmtTime(sp.t * 1000), place: ordinal(sp.place), k: sp.place, gap: fmtGap(sp.gap) }));
+      lines.push(msg('{text}', (p, tr) => p.parts.map(tr).join(' · '), { text: parts.join(' · '), parts }));
+    }
     const sk = r.skier;
     if (sk) lines.push(`${XC_PARAMS[r.style]?.label || ''} · top speed ${((r.maxSpeed || 0) * 3.6).toFixed(1)} km/h · ${sk.power} power strokes of ${sk.strokes}${sk.stumbles ? ` · ${sk.stumbles} stumbles` : ''}`);
     return lines;
@@ -346,13 +351,13 @@ export const DAVOS_NORDIC_MISSION = {
       title: 'On the start line',
       check(ctx, state) {
         const r = state.race;
-        return { done: r.started, progress: 1 - r.countdown / XC_COUNTDOWN, text: r.started ? 'Go!' : `Start in ${Math.ceil(r.countdown)} …`, target: null, hint: null };
+        return { done: r.started, progress: 1 - r.countdown / XC_COUNTDOWN, text: r.started ? 'Go!' : msg('Start in {n} …', 'Los in {n} …', { n: Math.ceil(r.countdown) }), target: null, hint: null };
       }
     },
     ...XC_SPLITS.map((mark, i) => ({
       id: `split${i + 1}`,
       title: `Split ${i + 1} at ${fmtDist(mark)}`,
-      check(ctx, state) { return xcView(ctx, state, mark, `Split ${i + 1}`); }
+      check(ctx, state) { return xcView(ctx, state, mark, msg('Split {n}', 'Zwischenzeit {n}', { n: i + 1 })); }
     })),
     {
       id: 'finish',
@@ -369,7 +374,10 @@ function xcView(ctx, state, mark, label) {
   const target = linePoint(XC_LINE, Math.min(XC_LENGTH, r.s + 40));
   const ahead = mark - r.s;
   const last = r.splits[r.splits.length - 1];
-  const text = `${fmtDist(r.s)} of ${fmtDist(XC_LENGTH)} · ${label} in ${fmtDist(Math.max(0, ahead))} · ${((ctx.speed || 0) * 3.6).toFixed(0)} km/h${last ? ` · last split ${ordinal(last.place)} ${fmtGap(last.gap)}` : ''}`;
+  const text = msg('{s} of {len} · {label} in {ahead} · {v} km/h{last}',
+    (p, tr) => `${p.s} von ${p.len} · ${tr(p.label)} in ${p.ahead} · ${p.v} km/h${p.k ? ` · letzte Zwischenzeit ${p.k}. ${p.gap}` : ''}`,
+    { s: fmtDist(r.s), len: fmtDist(XC_LENGTH), label, ahead: fmtDist(Math.max(0, ahead)), v: ((ctx.speed || 0) * 3.6).toFixed(0),
+      last: last ? ` · last split ${ordinal(last.place)} ${fmtGap(last.gap)}` : '', k: last?.place, gap: last ? fmtGap(last.gap) : '' });
   const hint = r.off > XC_OFF_COURSE ? 'Off the course: back onto the trail' : r.off > 4 ? 'Deep snow: back into the tracks' : null;
   return { done, progress: clamp((r.s - prevMark) / (mark - prevMark || 1), 0, 1), text, target: { x: target.x, z: target.z }, hint };
 }
@@ -616,7 +624,7 @@ export function minigolfNext(g) {
 export const minigolfTotal = (g) => g.strokes.reduce((a, b) => a + b, 0);
 /** The points: 7 a hole minus its strokes (a hole in one 6), over the holes played */
 export const minigolfScore = (g) => g.history.reduce((a, h) => a + (g.course.phys.maxStrokes - h.strokes), 0);
-export const strokeName = (strokes, par) => (strokes === 1 ? 'Hole in one!' : ['Albatross', 'Eagle', 'Birdie', 'Par', 'Bogey', 'Double bogey'][strokes - par + 3] || `${strokes} strokes`);
+export const strokeName = (strokes, par) => (strokes === 1 ? 'Hole in one!' : ['Albatross', 'Eagle', 'Birdie', 'Par', 'Bogey', 'Double bogey'][strokes - par + 3] || msg('{n} strokes', '{n} Schläge', { n: strokes }));
 
 // The course's middle (the pin) and each lane's frame in the world
 export const MINIGOLF_SITE = { x: 406.0, z: -170.6 };
@@ -818,6 +826,8 @@ export const ICE_MINIGOLF_MISSION = {
 export const BOARD = { bull: 0.00635, outerBull: 0.0159, trebleIn: 0.099, trebleOut: 0.107, doubleIn: 0.162, doubleOut: 0.170, height: 1.73, oche: 2.37 };
 export const SECTORS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
 
+/** A field's label in German, for the texts that show it: 'Double 16' -> 'Doppel 16' (the bull's keep their name) */
+export const dartLabelDe = (label) => label.replace(/^Double (\d+)$/, 'Doppel $1').replace(/^Treble (\d+)$/, 'Triple $1').replace(/^Miss$/, 'Daneben');
 /** The field at (x, y) on the board (m from its centre, y up): { score, mult, num, label, double } */
 export function scoreDart(x, y, B = BOARD) {
   const r = Math.hypot(x, y);
@@ -1269,3 +1279,27 @@ export const SKATE_BOWL_MISSION = {
 };
 
 export const SPORT_MISSIONS = [DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, ICE_MINIGOLF_MISSION, DARTS_MISSION, SKATE_BOWL_MISSION];
+
+// The runtime's moving texts (js/missions-sport.js), with their German beside them (js/messages.js)
+export const SPORT_TEXT = {
+  // Davos Nordic: the countdown, the place in the field, the split gantries, the splits and the finish as they come
+  startIn: (n) => msg('Start in {n}', 'Los in {n}', { n }),
+  placeOf: (place, n) => msg('{place} of {n}', '{k}. von {n}', { place: ordinal(place), k: place, n }),
+  splitArch: (n) => msg('SPLIT {n}', 'ZWISCHENZEIT {n}', { n }),
+  place: (place) => msg('{place}', '{k}.', { place: ordinal(place), k: place }),
+  split: (n, rest) => msg('Split {n} · {rest}', 'Zwischenzeit {n} · {rest}', { n, rest }),
+  finished: (place) => msg('{place} place', '{k}. Platz', { place: ordinal(place), k: place }),
+  // the minigolf: the strokes a hole took
+  strokes: (n) => msg('{n} {w}', (p) => `${p.n} ${p.n === 1 ? 'Schlag' : 'Schläge'}`, { n, w: n === 1 ? 'stroke' : 'strokes' }),
+  // the darts: the chalk board, the flash of a dart, the bust, the title and the line
+  darts: (n) => msg('darts: {n}', 'Pfeile: {n}', { n }),
+  gameShot: (label) => msg('Game shot! {l}', (p) => `Spiel gewonnen! ${dartLabelDe(p.l)}`, { l: label }),
+  hit: (label, score) => msg('{l} · {s}', (p) => `${dartLabelDe(p.l)} · ${p.s}`, { l: label, s: score }),
+  backTo: (n) => msg('back to {n}', 'zurück auf {n}', { n }),
+  x01: (left) => msg('301 double out · {n} left', '301 Double Out · noch {n}', { n: left }),
+  dartLine: (darts) => msg('Dart {a} of {b} · turn {c}, dart {d}', 'Pfeil {a} von {b} · Runde {c}, Pfeil {d}',
+    { a: Math.min(DART.maxDarts, darts + 1), b: DART.maxDarts, c: Math.floor(darts / 3) + 1, d: (darts % 3) + 1 }),
+  // the bowl: a combo lost on a trick, the combo running
+  comboLost: (trick) => msg('{n}: combo lost', '{n|t}: Kombo verloren', { n: trick }),
+  combo: (m, v) => msg('Combo ×{m} · {v}', 'Kombo ×{m} · {v}', { m, v })
+};

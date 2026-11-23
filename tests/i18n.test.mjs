@@ -25,6 +25,8 @@ globalThis.localStorage = {
 globalThis.window = { dispatchEvent() {} };
 
 const { getLanguage, setLanguage, t } = await import('../js/i18n.js');
+// a text made with msg() (js/messages.js) by the mission's own code: its English, then its German
+const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };
 
 test('browser language selects German and translates static and generated game text', () => {
   assert.equal(getLanguage(), 'de');
@@ -108,16 +110,18 @@ test('the Victoria shift translates its steps, rooms, pops and summaries', async
   assert.equal(t(pop(whites)), 'Whites  +28');
 });
 
-test('the bar missions translate names, intros and generated texts', () => {
+test('the bar missions translate names, intros and generated texts', async () => {
   setLanguage('de');
   assert.equal(t('Nageln in the Tijuana Bar'), 'Nageln in der Tijuana Bar');
   assert.match(t('Rock’n’roll in the Tijuana Bar on the Talstrasse, and tonight the stump comes out.'), /^Rock’n’Roll in der Tijuana Bar/);
   assert.equal(t('Barista at the Kafi Klatsch'), 'Barista im Kafi Klatsch');
   assert.match(t('Morning rush at the Kafi Klatsch on the Promenade.'), /^Morgenansturm im Kafi Klatsch/);
-  assert.equal(t('Game 2 of 3 · round 4 · 1 won · 350 pts'), 'Partie 2 von 3 · Runde 4 · 1 gewonnen · 350 Pkt.');
-  assert.equal(t('Flurin swings …'), 'Flurin holt aus …');
-  assert.equal(t('Order 3 of 12 · 120 pts · 0 walked out'), 'Bestellung 3 von 12 · 120 Pkt. · 0 gegangen');
-  assert.equal(t('Schale, please!'), 'Schale, bitte!');
+  const bars = await import('../js/missions-data-bars.js');
+  const nageln = { ...bars.createNageln(), gameNo: 2, round: 4, wins: 1, score: 350 };
+  says(bars.nagelnLine(nageln), 'Game 2 of 3 · round 4 · 1 won · 350 pts', 'Partie 2 von 3 · Runde 4 · 1 gewonnen · 350 Pkt.');
+  says(bars.nagelnGauge({ ...nageln, step: 'windup', players: [{ ...bars.NAGELN_RIVALS.flurin, you: false }], turn: 0 }).label, 'Flurin swings …', 'Flurin holt aus …');
+  says(bars.orderText({ ...bars.createBarista(), served: 2, lost: 0, score: 120 }), 'Order 3 of 12 · 120 pts · 0 walked out', 'Bestellung 3 von 12 · 120 Pkt. · 0 gegangen');
+  says(bars.orderLine({ drink: 'schale' }), 'Schale, please!', 'Schale, bitte!');
   assert.equal(t('12 m to the Tijuana Bar'), '12 m bis zur Tijuana Bar');
   assert.equal(t('Bent the nail: turn lost'), 'Nagel verbogen: Zug verloren');
   assert.equal(t('Someone has been nailing in the Tijuana again. The whole Talstrasse heard it.'), 'Im Tijuana wurde wieder genagelt. Die ganze Talstrasse hat es gehört.');
@@ -229,8 +233,14 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('Parking marshal at the Jakobshornbahn'), 'Parkplatzeinweiser bei der Jakobshornbahn');
   assert.equal(t('Sommerrodelbahn on the Schatzalp'), 'Sommerrodelbahn auf der Schatzalp');
   assert.match(t('Up on the Schatzalp, above the old sanatorium, a stainless steel trough'), /^Oben auf der Schatzalp/);
-  assert.equal(t('120 m to the finish · 1 bump · 2 rams (+11 s)'), '120 m bis zum Ziel · 1 Rumms · 2-mal aufgefahren (+11 s)');
-  assert.equal(t('2 bumps · 0 rams · top speed 44 km/h'), '2 Rummse · 0-mal aufgefahren · Höchsttempo 44 km/h');
+  // (the Sommerrodelbahn's texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const { TOBOGGAN_MISSION } = await import('../js/missions-data-sledge.js');
+  const run = TOBOGGAN_MISSION.createState(), here = { mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0 };
+  const down = (over) => TOBOGGAN_MISSION.objectives[0].check(here, { ...run, s: run.length - 120, ...over }).text;
+  says(down({ bumps: 1, rams: 2, penaltyMs: 11000 }), '120 m to the finish · 1 bump · 2 rams (+11 s)', '120 m bis zum Ziel · 1 Rumms · 2-mal aufgefahren (+11 s)');
+  says(down({ bumps: 3, penaltyMs: 9000 }), '120 m to the finish · 3 bumps (+9 s)', '120 m bis zum Ziel · 3 Rummse (+9 s)');
+  says(down({}), '120 m to the finish', '120 m bis zum Ziel');
+  says(TOBOGGAN_MISSION.summary({ ...run, bumps: 2, rams: 0, topSpeed: 44 / 3.6 })[0], '2 bumps · 0 rams · top speed 44 km/h', '2 Rummse · 0-mal aufgefahren · Höchsttempo 44 km/h');
   assert.match(t('A bluebird winter morning and half of Davos wants up the Jakobshorn.'), /^Ein Wintermorgen/);
   assert.equal(t('Après-ski at the Bolgenschanze'), 'Après-Ski in der Bolgenschanze');
   assert.match(t('Last run done, boots still on: the après-ski party at the Bolgenschanze.'), /SPRINGEN/);
@@ -264,8 +274,13 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   says(garbage.objectives[0].check({ x: 0, z: 0, speed: 0, mode: 'car' }, { ...g, atKma: true, collected: 7, stops: g.stops.map((p, i) => ({ ...p, done: i > 1 })) }).text, `2 points left out (+${(2 * W.GARBAGE.missMs) / 1000} s)`, `2 Sammelstellen ausgelassen (+${(2 * W.GARBAGE.missMs) / 1000} s)`);
   says(garbage.objectives[0].check({ x: 0, z: 0, speed: 0, mode: 'car' }, { ...g, loading: { t: W.GARBAGE.loadS / 2 } }).hint, 'Loading … 50 %', 'Laden … 50 %');
   says(garbage.objectives[1].check({ x: W.GARBAGE.kma.x + 1200, z: W.GARBAGE.kma.z, speed: 0, dt: 0 }, g).text, 'To the KMA · 1.2 km', 'Zur KMA · 1.2 km');
-  assert.equal(t('300 m · 1 round left · 2 missed'), '300 m · noch 1 Schuss · 2 daneben');
-  assert.equal(t('Rescue under way … 3 s'), 'Rettung läuft … 3 s');
+  // (the first missions' texts, js/missions-data.js, made with msg() too)
+  const { LAWINEN_MISSION, REGA_MISSION } = await import('../js/missions-data.js');
+  const zone = LAWINEN_MISSION.zones[0], blast = LAWINEN_MISSION.createState();
+  says(LAWINEN_MISSION.objectives[0].check({ x: zone.x + 300, z: zone.z }, { ...blast, ammo: 1, misses: 2 }).text, '300 m · 1 round left · 2 missed', '300 m · noch 1 Schuss · 2 daneben');
+  says(LAWINEN_MISSION.objectives[0].check({ x: zone.x + 1250, z: zone.z }, { ...blast }).text, '1.3 km · 12 rounds left', '1.3 km · noch 12 Schuss');
+  const rega = REGA_MISSION.createState(), pickup = REGA_MISSION.objectives.find((o) => o.id === 'pickup');
+  says(pickup.check({ ...rega.patient, agl: 1, speed: 0, verticalSpeed: 0, dt: 2 }, rega).text, 'Rescue under way … 3 s', 'Rettung läuft … 3 s');
   assert.equal(t('Set down: zero speed, steady'), 'Aufsetzen: stillstehen, ruhig halten');
   assert.equal(t('Get out of the car [F]'), 'Aus dem Auto steigen [F]');
   assert.equal(t('Carting the snow to the Davosersee'), 'Schnee abführen an den Davosersee');
@@ -280,14 +295,19 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   assert.equal(t('pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)'), 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
 });
 
-test('the rope park and the Seehofseeli translate names, intros and generated texts', () => {
+test('the rope park and the Seehofseeli translate names, intros and generated texts', async () => {
   setLanguage('de');
   assert.equal(t('Rope park in the Färich'), 'Seilpark im Färich');
   assert.match(t('The Adventure Park Färich, in the trees at the mouth of the Flüela valley.'), /^Der Adventure Park Färich/);
   assert.equal(t('Hockey on the Seehofseeli'), 'Hockey auf dem Seehofseeli');
   assert.match(t('Dusk on the Seehof Seeli, the little pond.'), /^Abenddämmerung/);
   assert.equal(t('Clip your carabiners: Space (1/2)'), 'Karabiner einhängen: Space (1/2)');
-  assert.equal(t('12 m to the next deck'), '12 m bis zur nächsten Plattform');
+  // (the ways to go are made with msg(), js/messages.js: made by the mission, then translated)
+  const { SEILPARK_MISSION, POND_MISSION, ROPE_LEGS, ROPE_LADDER, POND } = await import('../js/missions-data-outdoor.js');
+  const rope = SEILPARK_MISSION.createState(), byId = (m, id) => m.objectives.find((o) => o.id === id);
+  says(byId(SEILPARK_MISSION, 'crossing1').check({}, { ...rope, stage: 'cross', st: 0, s: ROPE_LEGS[0].len - 12 }).text, '12 m to the next deck', '12 m bis zur nächsten Plattform');
+  says(byId(SEILPARK_MISSION, 'ladder').check({ x: ROPE_LADDER.x + 30, z: ROPE_LADDER.z }, rope).text, '30 m to the ladder', '30 m bis zur Leiter');
+  says(byId(POND_MISSION, 'spot').check({ x: POND.spot.x + 25, z: POND.spot.z }).text, '25 m to the face-off', '25 m bis zum Bully');
   assert.equal(t('1 fall · 0 forgotten · soft landing'), '1 Sturz · 0 vergessen · weiche Landung');
   assert.equal(t('You 2 : 1 Locals · 2:05'), 'Du 2 : 1 Einheimische · 2:05');
   assert.equal(t('Won 5 : 2 · your goals: 3'), 'Gewonnen 5 : 2 · deine Tore: 3');
@@ -484,40 +504,65 @@ test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say th
   assert.equal(t(rooms), 'Zimmer 204: 6 von 6 Arbeiten · Die Turmsuite: 5 von 7 Arbeiten');
   const watch = HIKE_MISSIONS[0].objectives.at(-1).check({}, HIKE_MISSIONS[0].createState());
   assert.notEqual(t(watch.hint), watch.hint);
-  assert.equal(t('To the next firewood: 14 m'), 'Zum nächsten Feuerholz: 14 m');
+  // (the Pfadi's ways are made with msg(), js/messages.js: made by the mission, then translated)
+  const { PFADI_MISSION, createWood } = await import('../js/missions-data-pfadi.js');
+  const wood = createWood();
+  for (const w of wood.slice(1)) w.picked = true;
+  const gather = PFADI_MISSION.objectives.find((o) => o.id === 'wood').check({ mode: 'person', x: wood[0].x + 14, z: wood[0].z, t: 0 }, { ...PFADI_MISSION.createState(), wood });
+  says(gather.hint, 'To the next firewood: 14 m', 'Zum nächsten Feuerholz: 14 m');
   assert.equal(t('Over the terrace: hold Q to sink and touch down'), 'Über der Terrasse: Q halten zum Sinken und Aufsetzen');
 });
 
 test('the fun, bar, sport and golf missions translate their HUDs, key bars and running texts', async () => {
   setLanguage('de');
   const cases = {
-    'You (red) vs La Onda (blue) · Midfield (auto)': 'Du (rot) gegen La Onda (blau) · Mittelfeld (automatisch)',
-    'You 2 : 1 La Onda · 1:23 · Goalie': 'Du 2 : 1 La Onda · 1:23 · Torhüter',
-    '23 up · cabin 4: 7 aboard, 62 % · 37 s': '23 oben · Gondel 4: 7 an Bord, 62 % · 37 s',
-    '120 pts · 23 up · cabin 4 62 % · 1:12': '120 Pkt. · 23 oben · Gondel 4: 62 % · 1:12',
-    'Cabin 3: 9 passengers · 81 % full · 1 full row · 2 holes → +240': 'Gondel 3: 9 Fahrgäste · 81 % voll · 1 volle Reihe · 2 Löcher → +240',
-    'Stop board Dorf: 412 m · 40 km/h in 230 m · Score 340': 'Haltetafel Dorf: 412 m · 40 km/h in 230 m · Punkte 340',
-    'Doors open · 12 s · Score 90': 'Türen offen · 12 s · Punkte 90',
-    'now 3:12': 'jetzt 3:12',
-    '0 m of 4.3 km · Split 1 in 1.1 km · 12 km/h': '0 m von 4.3 km · Zwischenzeit 1 in 1.1 km · 12 km/h',
-    '1.2 km of 4.3 km · Finish in 3.1 km · 22 km/h · last split 3rd +4.2 s': '1.2 km von 4.3 km · Ziel in 3.1 km · 22 km/h · letzte Zwischenzeit 3. +4.2 s',
-    'Start in 3 …': 'Los in 3 …',
     'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km',
-    '3rd of 8': '3. von 8',
-    '2nd place': '2. Platz',
     'Hole 3/9 · The ramp · par 2': 'Loch 3/9 · Die Rampe · Par 2',
-    '4 strokes': '4 Schläge',
-    'Game shot! Double 16': 'Spiel gewonnen! Doppel 16',
-    'Dart 4 of 30 · turn 2, dart 1': 'Pfeil 4 von 30 · Runde 2, Pfeil 1',
-    '301 double out · 120 left': '301 Double Out · noch 120',
-    'Combo ×2 · 340': 'Kombo ×2 · 340',
-    'Bail: combo lost': 'Sturz: Kombo verloren',
     '3 Wood (2)': 'Holz 3 (2)'
   };
   for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
-  // the HUDs' fixed words, the key bars' labels (run.actions, run.hints) and the pieces, roles and holes they name
+  // the moving texts are made with msg(), js/messages.js: by the missions (and the helpers their runtimes call), then translated
   const fun = await import('../js/missions-data-fun.js');
   const sport = await import('../js/missions-data-sport.js');
+  const { FUN_TEXT, FOOSBALL_MISSION, GONDOLA_MISSION, GONDOLA, createFoosball, createGondola } = fun;
+  says(FUN_TEXT.foosball('Midfield', true), 'You (red) vs La Onda (blue) · Midfield (auto)', 'Du (rot) gegen La Onda (blau) · Mittelfeld (automatisch)');
+  says(FUN_TEXT.foosball('Attack', false), 'You (red) vs La Onda (blue) · Attack', 'Du (rot) gegen La Onda (blau) · Sturm');
+  const table = createFoosball();
+  Object.assign(table, { score: { p: 2, a: 1 }, t: 83, active: table.rods.findIndex((r) => r.role === 'Goalie') });
+  says(FOOSBALL_MISSION.objectives.find((o) => o.id === 'match').check({}, { game: table }).text, 'You 2 : 1 La Onda · 1:23 · Goalie', 'Du 2 : 1 La Onda · 1:23 · Torhüter');
+  says(FUN_TEXT.cabinLine(23, 4, 7, 0.62, 37), '23 up · cabin 4: 7 aboard, 62 % · 37 s', '23 oben · Gondel 4: 7 an Bord, 62 % · 37 s');
+  const lift = Object.assign(createGondola(), { cabin: 4, t: GONDOLA.seconds - 72, cabins: [{ persons: 23, points: 120 }] });
+  says(GONDOLA_MISSION.objectives.find((o) => o.id === 'load').check({}, { game: lift }).text, '120 pts · 23 up · cabin 4 0 % · 1:12', '120 Pkt. · 23 oben · Gondel 4: 0 % · 1:12');
+  says(FUN_TEXT.cabinGone({ cabin: 3, persons: 9, fill: 0.81, rows: 1, holes: 2, points: 240 }), 'Cabin 3: 9 passengers · 81 % full · 1 full row · 2 holes → +240', 'Gondel 3: 9 Fahrgäste · 81 % voll · 1 volle Reihe · 2 Löcher → +240');
+  says(FUN_TEXT.cabinGone({ cabin: 5, persons: 4, fill: 0.3, rows: 2, holes: 0, points: -20 }), 'Cabin 5: 4 passengers · 30 % full · 2 full rows → -20', 'Gondel 5: 4 Fahrgäste · 30 % voll · 2 volle Reihen → -20');
+  says(FUN_TEXT.cab([FUN_TEXT.stopBoard('Dorf', 412), '40 km/h in 230 m', FUN_TEXT.score(340)]), 'Stop board Dorf: 412 m · 40 km/h in 230 m · Score 340', 'Haltetafel Dorf: 412 m · 40 km/h in 230 m · Punkte 340');
+  says(FUN_TEXT.cab([FUN_TEXT.doorsOpen(12), FUN_TEXT.score(90)]), 'Doors open · 12 s · Score 90', 'Türen offen · 12 s · Punkte 90');
+  says(FUN_TEXT.cab(['Doors closed: depart', FUN_TEXT.score(-15)]), 'Doors closed: depart · Score -15', 'Türen zu: abfahren · Punkte -15');
+  says(FUN_TEXT.now('3:12'), 'now 3:12', 'jetzt 3:12');
+  const { DAVOS_NORDIC_MISSION: xc, SPORT_TEXT } = sport, nordic = (id) => xc.objectives.find((o) => o.id === id);
+  const race = (over) => ({ race: { ...xc.createState().race, ...over } });
+  says(nordic('split1').check({ speed: 12 / 3.6 }, race({ s: 0 })).text, '0 m of 4.3 km · Split 1 in 1.1 km · 12 km/h', '0 m von 4.3 km · Zwischenzeit 1 in 1.1 km · 12 km/h');
+  says(nordic('finish').check({ speed: 22 / 3.6 }, race({ s: 1200, splits: [{ s: 1100, t: 300, place: 3, gap: 4.2 }] })).text, '1.2 km of 4.3 km · Finish in 3.1 km · 22 km/h · last split 3rd +4.2 s', '1.2 km von 4.3 km · Ziel in 3.1 km · 22 km/h · letzte Zwischenzeit 3. +4.2 s');
+  says(nordic('gun').check({}, race({ started: false, countdown: 2.4 })).text, 'Start in 3 …', 'Los in 3 …');
+  says(SPORT_TEXT.startIn(3), 'Start in 3', 'Los in 3');
+  says(SPORT_TEXT.placeOf(3, 8), '3rd of 8', '3. von 8');
+  says(SPORT_TEXT.finished(2), '2nd place', '2. Platz');
+  says(SPORT_TEXT.place(11), '11th', '11.');
+  says(SPORT_TEXT.split(2, '6:12.4 · +3.1 s'), 'Split 2 · 6:12.4 · +3.1 s', 'Zwischenzeit 2 · 6:12.4 · +3.1 s');
+  says(SPORT_TEXT.splitArch(3), 'SPLIT 3', 'ZWISCHENZEIT 3');
+  says(SPORT_TEXT.strokes(4), '4 strokes', '4 Schläge');
+  says(sport.strokeName(9, 2), '9 strokes', '9 Schläge');
+  const field = (num, mult) => { const c = sport.fieldCentre(num, mult); return sport.scoreDart(c.x, c.y); };
+  says(SPORT_TEXT.gameShot(field(16, 2).label), 'Game shot! Double 16', 'Spiel gewonnen! Doppel 16');
+  says(SPORT_TEXT.gameShot(field(25, 2).label), 'Game shot! Bullseye', 'Spiel gewonnen! Bullseye');
+  says(SPORT_TEXT.hit(field(20, 3).label, 60), 'Treble 20 · 60', 'Triple 20 · 60');
+  says(SPORT_TEXT.backTo(32), 'back to 32', 'zurück auf 32');
+  says(SPORT_TEXT.darts(7), 'darts: 7', 'Pfeile: 7');
+  says(SPORT_TEXT.dartLine(3), `Dart 4 of ${sport.DART.maxDarts} · turn 2, dart 1`, `Pfeil 4 von ${sport.DART.maxDarts} · Runde 2, Pfeil 1`);
+  says(SPORT_TEXT.x01(120), '301 double out · 120 left', '301 Double Out · noch 120');
+  says(SPORT_TEXT.combo(2, 340), 'Combo ×2 · 340', 'Kombo ×2 · 340');
+  says(SPORT_TEXT.comboLost('Bail'), 'Bail: combo lost', 'Sturz: Kombo verloren');
+  // the HUDs' fixed words, the key bars' labels (run.actions, run.hints) and the pieces, roles and holes they name
   const words = [
     'SHOOT', 'La Onda scores', 'slide the rod', 'pick a rod', 'Send cabin', 'Move', 'Turn', 'Drop', 'The cabin is leaving …', 'Doors closed: depart', 'missed',
     'aim, then strike in the green', 'a station · the usual: the drink', 'the station at work: stop in the green',
@@ -533,20 +578,42 @@ test('the sledges, the snow, the ice, the Seehofseeli and the splitboard say the
   setLanguage('de');
   const cases = {
     'A runner lifts: ease off, brake!': 'Eine Kufe hebt ab: nachlassen, bremsen!',
-    'Tipping! Ease off A/D and brake (S)': 'Du kippst! A/D loslassen und bremsen (S)',
-    'Tipped over! +5 s': 'Umgekippt! +5 s',
-    'Checkpoint 3/13 · 84 m · 2 crashes (+10 s)': 'Checkpoint 3/13 · 84 m · 2 Stürze (+10 s)',
-    'Checkpoint 4 missed: back up to it': 'Checkpoint 4 verpasst: zurück dorthin',
-    'Gate 3/20 · 2 clean · 1 missed (+3 s)': 'Tor 3/20 · 2 sauber · 1 verpasst (+3 s)',
-    'Gate 7 missed': 'Tor 7 verpasst',
-    'Crash! +5 s': 'Sturz! +5 s',
-    'Aim −1.5°': 'Richtung −1.5°',
-    'In the house: 1 point': 'Im Haus: 1 Punkt',
-    'Saved by the goalie · 2 goals': 'Vom Goalie gehalten · 2 Tore'
+    'Tipping! Ease off A/D and brake (S)': 'Du kippst! A/D loslassen und bremsen (S)'
   };
   for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
-  // the sections' tips (the objectives' hints while nothing else needs saying) and the key bars' labels
+  // the moving texts are made with msg(), js/messages.js: by the missions (and the helpers their runtimes call), then translated
   const { HORN_SLEDGE_MISSION, TOBOGGAN_MISSION } = await import('../js/missions-data-sledge.js');
+  const { SLALOM_MISSION, MTB_MISSION, SNOW_TEXT } = await import('../js/missions-data-snow.js');
+  const { HOCKEY_PENALTY_MISSION, ICE_TEXT } = await import('../js/missions-data-ice.js');
+  const on = (mode, p, d = 0) => ({ mode, x: p.x + d, y: 0, z: p.z, heading: 0, speed: 0, dt: 0.1, t: 1000 });
+  const horn = HORN_SLEDGE_MISSION.createState(), cps = horn.cps.length;
+  const sledge = (over, d = 0) => HORN_SLEDGE_MISSION.objectives[0].check(on('sledge', horn.cps[over.next ?? 0], d), { ...horn, ...over });
+  says(sledge({ crashT: 1, why: 'tip' }).hint, 'Tipped over! +5 s', 'Umgekippt! +5 s');
+  says(sledge({ crashT: 1, why: 'net' }).hint, 'Into the net! +5 s', 'Ins Netz! +5 s');
+  says(sledge({ crashT: 1, why: 'lost' }).hint, 'Off the run! +5 s', 'Von der Bahn abgekommen! +5 s');
+  says(sledge({ next: 2, crashes: 2 }, 84).text, `Checkpoint 3/${cps} · 84 m · 2 crashes (+10 s)`, `Checkpoint 3/${cps} · 84 m · 2 Stürze (+10 s)`);
+  says(sledge({ next: 4, skipped: 3 }).text, 'Checkpoint 4 missed: back up to it', 'Checkpoint 4 verpasst: zurück dorthin');
+  const run = TOBOGGAN_MISSION.createState();
+  says(TOBOGGAN_MISSION.objectives[0].check(on('sledge', run.finish), { ...run, stopT: 1 }).hint, 'Over the wall! +3 s', 'Über die Wand! +3 s');
+  const slalom = SLALOM_MISSION.createState(), gates = slalom.gates.length;
+  const through = SLALOM_MISSION.objectives[0].check(on('person', slalom.gates[2]), { ...slalom, next: 2, passed: 2, missed: 1, last: { i: 1, pass: false, t: 0 } });
+  says(through.text, `Gate 3/${gates} · 2 clean · 1 missed (+3 s)`, `Tor 3/${gates} · 2 sauber · 1 verpasst (+3 s)`);
+  says(through.hint, 'Gate 2 missed: +3 s', 'Tor 2 verpasst: +3 s');
+  says(SLALOM_MISSION.objectives[0].check(on('person', slalom.gates[9]), { ...slalom, next: 9, missed: 8 }).fail, 'Disqualified: 8 gates missed.', 'Disqualifiziert: 8 Tore verpasst.');
+  says(SLALOM_MISSION.objectives[1].check(on('person', slalom.finishLine, 150), slalom).text, '150 m to the finish', '150 m bis zum Ziel');
+  says(SNOW_TEXT.gateMissed(7), 'Gate 7 missed', 'Tor 7 verpasst');
+  const bike = MTB_MISSION.createState();
+  says(MTB_MISSION.objectives[0].check(on('cyclist', bike.cps[0]), { ...bike, crashT: 1 }).hint, 'Crash! +5 s', 'Sturz! +5 s');
+  says(MTB_MISSION.objectives[0].check(on('cyclist', bike.cps[0]), { ...bike, next: 3, skipped: 1 }).text, 'Checkpoint 2 missed: ride back to it', 'Checkpoint 2 verpasst: zurück dorthin');
+  says(SNOW_TEXT.tooFast(), 'Too fast for that turn: +5 s', 'Zu schnell für diese Kurve: +5 s');
+  says(ICE_TEXT.aim((-1.5 * Math.PI) / 180), 'Aim −1.5°', 'Richtung −1.5°');
+  says(ICE_TEXT.aim((2 * Math.PI) / 180), 'Aim +2.0°', 'Richtung +2.0°');
+  says(ICE_TEXT.inHouse(1), 'In the house: 1 points', 'Im Haus: 1 Punkt');
+  says(ICE_TEXT.inHouse(4), 'In the house: 4 points', 'Im Haus: 4 Punkte');
+  const shootout = HOCKEY_PENALTY_MISSION.createState().game;
+  says(HOCKEY_PENALTY_MISSION.objectives[0].check({}, { game: { ...shootout, attempt: 1, results: ['save'], goals: 2 } }).text, 'Saved by the goalie · 2 goals', 'Vom Goalie gehalten · 2 Tore');
+  says(HOCKEY_PENALTY_MISSION.objectives[0].check({}, { game: { ...shootout, attempt: 1, results: ['goal'], goals: 1 } }).text, 'GOAL! · 1 goal', 'TOR! · 1 Tor');
+  // the sections' tips (the objectives' hints while nothing else needs saying) and the key bars' labels
   const tips = [HORN_SLEDGE_MISSION, TOBOGGAN_MISSION].flatMap((m) => {
     const st = m.createState(), s = m.start;
     return m.objectives.map((o) => o.check({ mode: 'person', x: s.x, y: 0, z: s.z, heading: 0, speed: 0, dt: 0.1, t: 0 }, st).hint);

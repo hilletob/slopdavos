@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 import { seededRandom } from './missions-data-local.js';
 import { walkInto } from './missions-data-gastro.js';
 
@@ -220,9 +221,9 @@ export function nagelnGauge(g) {
   const per = nagelnPeriods(g.gameNo), N = NAGELN;
   if (g.step === 'aim') return { label: 'Aim: stop the hammer over the nail', button: 'Aim', value: triangle(g.stepT, per.aim), lo: 0.5 - N.aimGlance / 2, hi: 0.5 + N.aimGlance / 2 };
   if (g.step === 'power') return { label: 'Power: strike in the green', button: 'Strike', value: triangle(g.stepT, per.power), lo: N.sweet[0], hi: N.sweet[1] };
-  if (g.step === 'windup' || g.step === 'after') { const p = g.players[g.turn]; return { label: p.you ? 'Your stroke' : `${p.name} swings …`, button: null, value: null, lo: 0, hi: 0 }; }
-  if (g.step === 'call') return { label: `Game ${g.gameNo} of ${N.games}: nails ready`, button: null, value: null, lo: 0, hi: 0 };
-  return { label: g.winner ? `${g.winner.you ? 'You win' : `${g.winner.name} wins`} game ${g.gameNo}` : '', button: null, value: null, lo: 0, hi: 0 };
+  if (g.step === 'windup' || g.step === 'after') { const p = g.players[g.turn]; return { label: p.you ? 'Your stroke' : msg('{who} swings …', (q, tr) => `${tr(q.who)} holt aus …`, { who: p.name }), button: null, value: null, lo: 0, hi: 0 }; }
+  if (g.step === 'call') return { label: msg('Game {n} of {of}: nails ready', 'Partie {n} von {of}: Nägel bereit', { n: g.gameNo, of: N.games }), button: null, value: null, lo: 0, hi: 0 };
+  return { label: !g.winner ? '' : g.winner.you ? msg('You win game {n}', 'Du gewinnst Partie {n}', { n: g.gameNo }) : msg('{who} wins game {n}', (q, tr) => `${tr(q.who)} gewinnt Partie ${q.n}`, { who: g.winner.name, n: g.gameNo }), button: null, value: null, lo: 0, hi: 0 };
 }
 
 /** The one button: aims, then strikes. Returns 'aim' | 'strike' | null */
@@ -257,7 +258,8 @@ export const NAGELN_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g) return [];
-    const lines = [`${g.wins} of ${NAGELN.games} games won · ${g.strokes} strokes · ${g.perfects} perfect · ${g.bents} bent · ${g.misses} missed`];
+    const lines = [msg('{w} of {of} games won · {s} strokes · {p} perfect · {b} bent · {m} missed', '{w} von {of} Partien gewonnen · {s} Schläge · {p} perfekt · {b} verbogen · {m} daneben',
+      { w: g.wins, of: NAGELN.games, s: g.strokes, p: g.perfects, b: g.bents, m: g.misses })];
     if (g.log.length) lines.push(g.log.map((l) => `${l.won ? '✓' : '✗'} ${l.strokes}`).join(' · '));
     return lines;
   },
@@ -270,7 +272,7 @@ export const NAGELN_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Finding a place at the stump …', target: null, hint: null };
-        return { done: g.done, progress: g.log.length / NAGELN.games, text: `Game ${g.gameNo} of ${NAGELN.games} · ${g.wins} won · ${g.strokes} strokes · ${nagelnScore(g)} pts`, target: null, hint: 'Space or the button' };
+        return { done: g.done, progress: g.log.length / NAGELN.games, text: msg('Game {n} of {of} · {w} won · {s} strokes · {pts} pts', 'Partie {n} von {of} · {w} gewonnen · {s} Schläge · {pts} Pkt.', { n: g.gameNo, of: NAGELN.games, w: g.wins, s: g.strokes, pts: nagelnScore(g) }), target: null, hint: 'Space or the button' };
       }
     }
   ]
@@ -377,7 +379,13 @@ export function createBarista(seed = 31) {
 
 const baristaPop = (g, text, points, good) => { g.seq++; g.last = { text, points: Math.round(points), good, seq: g.seq }; };
 const baristaSay = pushChat;
-const orderLine = (guest) => (guest.usual ? 'The usual, please!' : guest.regular ? REGULARS[guest.regular].first : `${drinkById(guest.drink).name}, please!`);
+/** The HUD's line at the stump (js/missions-bars.js) */
+export const nagelnLine = (g) => msg('Game {n} of {of} · round {r} · {w} won · {pts} pts', 'Partie {n} von {of} · Runde {r} · {w} gewonnen · {pts} Pkt.',
+  { n: g.gameNo, of: NAGELN.games, r: g.round, w: g.wins, pts: nagelnScore(g) });
+/** The HUD's line in the rush (also js/missions-bars.js) */
+export const orderText = (g) => msg('Order {n} of {of} · {pts} pts · {lost} walked out', 'Bestellung {n} von {of} · {pts} Pkt. · {lost} gegangen',
+  { n: Math.min(g.served + g.lost + 1, RUSH.length), of: RUSH.length, pts: baristaScore(g), lost: g.lost });
+export const orderLine = (guest) => (guest.usual ? 'The usual, please!' : guest.regular ? REGULARS[guest.regular].first : msg('{drink}, please!', '{drink}, bitte!', { drink: drinkById(guest.drink).name }));
 const guestWho = (guest) => guest.regular || `guest${guest.id}`;
 
 /** Starts on the guest at the head of the queue: picking a regular's usual, or the first station */
@@ -513,7 +521,7 @@ export function baristaPick(g, id) {
     g.work.bonus = false;
     g.asked++;
     g.work.picking = false;
-    baristaSay(g, guestWho(guest), `${drinkById(guest.drink).name}! After all these years.`);
+    baristaSay(g, guestWho(guest), msg('{drink}! After all these years.', '{drink}! Nach all den Jahren.', { drink: drinkById(guest.drink).name }));
     toStation(g, 0);
     return 'ask';
   }
@@ -556,8 +564,9 @@ export const BARISTA_MISSION = {
     if (!g) return [];
     const quality = g.served ? Math.round((g.qualitySum / g.served) * 100) : 0;
     return [
-      `${g.served} of ${RUSH.length} orders served · quality ${quality} % · ${g.perfectOrders} flawless · ${g.lost} walked out`,
-      `Usuals remembered: ${g.usuals} of 3`
+      msg('{n} of {of} orders served · quality {q} % · {f} flawless · {lost} walked out', '{n} von {of} Bestellungen serviert · Qualität {q} % · {f} makellos · {lost} gegangen',
+        { n: g.served, of: RUSH.length, q: quality, f: g.perfectOrders, lost: g.lost }),
+      msg('Usuals remembered: {n} of 3', '«Wie immer» gemerkt: {n} von 3', { n: g.usuals })
     ];
   },
   objectives: [
@@ -569,7 +578,7 @@ export const BARISTA_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Tying on the apron …', target: null, hint: null };
-        return { done: g.done, progress: (g.served + g.lost) / RUSH.length, text: `Order ${Math.min(g.served + g.lost + 1, RUSH.length)} of ${RUSH.length} · ${baristaScore(g)} pts · ${g.lost} walked out`, target: null, hint: 'Space or the buttons' };
+        return { done: g.done, progress: (g.served + g.lost) / RUSH.length, text: orderText(g), target: null, hint: 'Space or the buttons' };
       }
     }
   ]
