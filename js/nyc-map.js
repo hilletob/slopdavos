@@ -7,23 +7,6 @@ import {
   ISLAND_BOUNDS,
   getIslandBoundsAtZ,
   MANHATTAN_COASTLINE,
-  WATERFRONT_PIERS,
-  NJ_SHORELINE_POLYGON,
-  BROOKLYN_POLYGONS,
-  QUEENS_POLYGONS,
-  BRONX_POLYGONS,
-  STATEN_ISLAND_POLYGON,
-  UPPER_MANHATTAN_POLYGON,
-  WESTCHESTER_POLYGON,
-  NASSAU_POLYGON,
-  ROOSEVELT_ISLAND_POLYGON,
-  GOVERNORS_ISLAND_POLYGON,
-  RANDALLS_ISLAND_POLYGON,
-  LIBERTY_ISLAND_POLYGON,
-  ELLIS_ISLAND_POLYGON,
-  MILL_ROCK_POLYGON,
-  EAST_RIVER_BRIDGES,
-  OUTER_BRIDGES,
   getLocationLabel,
   isTypingInField,
   waterAt,
@@ -49,10 +32,6 @@ const GRID_BEARING = (GEO.frame && GEO.frame.bearingDeg) ?? 0; // Berlin axes fo
 const MAP = {
   water: '#0a1118',
   land: '#151a20',
-  landEdge: '#252c35',
-  islands: '#162019',
-  islandsEdge: '#26392c',
-  piers: '#283039',
   streets: '#363f4b', // Manhattan inside its bulkhead line: the roadway left between the blocks
   shore: '#4f5b6b',
   park: '#19301f',
@@ -60,9 +39,6 @@ const MAP = {
   block: '#1c2128',
   blockEdge: '#272e37',
   settlement: '#262c35', // the built-up areas on the overview, in place of the blocks & houses
-  lawn: '#1e3a26',
-  drive: '#2c4033',
-  transverse: '#22332a',
   pond: '#0f2535',
   pondEdge: '#1d3d54',
   buildings: ['#242a32', '#2b323c', '#343c48'],
@@ -71,8 +47,6 @@ const MAP = {
   landmarkEdge: 'rgba(255, 255, 255, 0.38)',
   mainRoads: '#3a434f',
   highway: '#b27a35',
-  bridge: '#c08a3e',
-  ringbahn: '#a88963',
   route: '#ffc21a',
   search: '#5fd0ff',
   halo: 'rgba(8, 11, 15, 0.9)'
@@ -267,24 +241,9 @@ let LAYERS = null;
 function mapLayers() {
   if (LAYERS) return LAYERS;
   const L = {};
-  const rings = (list) => list.filter((p) => p && p.length > 2);
-
-  // Land around the harbour: New Jersey, Brooklyn, Queens, the Bronx, Staten Island and Upper Manhattan (outlined), the
-  // horizon fillers beyond the city line (not outlined); the East River & harbour islands
-  L.land = new Path2D();
-  for (const ring of rings([NJ_SHORELINE_POLYGON, ...(BROOKLYN_POLYGONS || []), ...(QUEENS_POLYGONS || []), ...(BRONX_POLYGONS || []),
-    STATEN_ISLAND_POLYGON, UPPER_MANHATTAN_POLYGON])) addRing(L.land, ring);
-  L.fillers = new Path2D();
-  for (const ring of rings([WESTCHESTER_POLYGON, NASSAU_POLYGON])) addRing(L.fillers, ring);
-  L.islands = new Path2D();
-  for (const ring of rings([RANDALLS_ISLAND_POLYGON, ROOSEVELT_ISLAND_POLYGON, GOVERNORS_ISLAND_POLYGON, LIBERTY_ISLAND_POLYGON,
-    ELLIS_ISLAND_POLYGON, MILL_ROCK_POLYGON])) addRing(L.islands, ring);
-
-  // Manhattan inside its bulkhead line, and its piers
+  // The mapped area
   L.manhattan = new Path2D();
   addRing(L.manhattan, MANHATTAN_COASTLINE);
-  L.piers = new Path2D();
-  for (const p of WATERFRONT_PIERS) if (p.ring) addRing(L.piers, p.ring);
 
   // Parkland (NYC Parks properties), the curb islands (blocks: raised sidewalks & lots) and the park blocks, exactly
   // as city-grid.js / buildings.js treat them
@@ -297,13 +256,8 @@ function mapLayers() {
   // Central Park: meadows, water bodies, the drives and the sunken transverse roads
   const cp = GEO.centralPark || {};
   L.cpBounds = cp.bounds || null;
-  L.cpLawns = new Path2D();
-  for (const l of cp.lawns || []) addRing(L.cpLawns, l.ring);
   L.cpWater = new Path2D();
   for (const w of cp.water || []) { addRing(L.cpWater, w.ring); for(const hole of w.holes||[])addHole(L.cpWater,hole); }
-  L.cpDrives = new Path2D();
-  L.cpTransverses = new Path2D();
-  for (const d of cp.drives || []) addLine(d.transverse ? L.cpTransverses : L.cpDrives, d.pts);
 
   // Street network at low zoom (avenues & wide streets, once the gaps between blocks are under a pixel) and the shore
   // highways (FDR Drive, West St / West Side Hwy, Harlem River Dr, Henry Hudson Pkwy)
@@ -315,16 +269,6 @@ function mapLayers() {
     } else if (r.w >= 15) L.mainRoads.line(r.pts);
   }
 
-  // Actual irregular Berlin road surfaces, with bridge decks drawn over the Spree.
-  L.airfields=[];
-  for (const feature of GEO.berlin?.aeroways || []) {
-    const path = new Path2D(), polygon = Boolean(feature.ring?.length);
-    if (polygon) {
-      addRing(path, feature.ring);
-      for (const hole of feature.holes || []) addRing(path, hole);
-    } else if (feature.pts?.length) addLine(path, feature.pts);
-    L.airfields.push({ path, polygon, width: feature.width || (feature.kind === 'runway' ? 45 : 15) });
-  }
   // The mapped roads, in tiles (a view strokes only those it overlaps) and by the zoom they show from (ROAD_MIN_S)
   L.berlinRoads=[]; L.berlinBridges=[];
   if (GEO.irregular) {
@@ -346,17 +290,6 @@ function mapLayers() {
     const s = LANDMARK_SITES[name];
     if (s && s.ring) addRing(L.landmarks, s.ring);
   }
-
-  L.ringbahn = new Path2D();
-  for (const polygon of GEO.berlin?.meta.ringbahn?.polygons || []) addRing(L.ringbahn, polygon.ring);
-
-  // Bridges, Manhattan landing to the far landing, deck width to scale
-  L.bridges = [...EAST_RIVER_BRIDGES, ...OUTER_BRIDGES].map((br) => {
-    const path = new Path2D();
-    path.moveTo(br.a.x, br.a.z);
-    path.lineTo(br.b.x, br.b.z);
-    return { path, width: br.width || 25 };
-  });
 
   LAYERS = L;
   return L;
@@ -616,8 +549,6 @@ class NYCMapSystem {
     this.miniCache = null; // { canvas, cx, cz, s, version }: the radar's ground layers, twice the radar's size
     const elCounts = document.getElementById('fullmap-counts');
     if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT} streets · ${BLOCKS.length.toLocaleString('en-US')} blocks`;
-    const ringLegend = document.getElementById('ringbahn-legend');
-    if (ringLegend) ringLegend.hidden = !GEO.berlin?.meta.ringbahn;
 
     // The map is drawn grid north up; the compass needle points to true north, 29° to its left
     const needle = document.getElementById('map-compass-needle');
@@ -1001,24 +932,8 @@ class NYCMapSystem {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // 1. Land around the harbour & the islands
+    // 1. The mapped area
     ctx.fillStyle = MAP.land;
-    ctx.fill(L.fillers);
-    ctx.fill(L.land);
-    ctx.fillStyle = MAP.islands;
-    ctx.fill(L.islands);
-    if (!isMinimap) {
-      ctx.lineWidth = px(1.4);
-      ctx.strokeStyle = MAP.landEdge;
-      ctx.stroke(L.land);
-      ctx.strokeStyle = MAP.islandsEdge;
-      ctx.stroke(L.islands);
-    }
-
-    // 2. Piers, then Manhattan (roadway deck colour: the streets are the gaps between the blocks) in its bulkhead line
-    ctx.fillStyle = MAP.piers;
-    ctx.fill(L.piers);
-    ctx.fillStyle = GEO.irregular ? MAP.land : MAP.streets;
     ctx.fill(L.manhattan);
     ctx.strokeStyle = MAP.shore;
     ctx.lineWidth = px(isMinimap ? 1.6 : 2.0);
@@ -1048,24 +963,10 @@ class NYCMapSystem {
       }
     }
 
-    ctx.fillStyle = MAP.streets;
-    ctx.strokeStyle = MAP.streets;
-    for (const field of L.airfields) {
-      if (field.polygon) ctx.fill(field.path, 'evenodd');
-      else { ctx.lineWidth = Math.max(field.width, px(0.5)); ctx.stroke(field.path); }
-    }
     for(const r of L.berlinRoads){if(s<r.minS)continue;ctx.strokeStyle=r.pedestrian?MAP.blockEdge:MAP.streets;ctx.lineWidth=Math.max(r.width,px(.5));r.layer.each(v,(p)=>ctx.stroke(p));}
 
     // 4. Mapped park water bodies and the Spree
     if (v.sees(L.cpBounds)) {
-      ctx.fillStyle = MAP.lawn;
-      ctx.fill(L.cpLawns);
-      ctx.strokeStyle = MAP.drive;
-      ctx.lineWidth = Math.max(px(1), 7);
-      ctx.stroke(L.cpDrives);
-      ctx.strokeStyle = MAP.transverse;
-      ctx.lineWidth = Math.max(px(1), 10);
-      ctx.stroke(L.cpTransverses);
       ctx.fillStyle = MAP.pond;
       ctx.fill(L.cpWater);
       ctx.strokeStyle = MAP.pondEdge;
@@ -1113,27 +1014,6 @@ class NYCMapSystem {
     ctx.strokeStyle = MAP.highway;
     ctx.lineWidth = Math.max(px(isMinimap ? 2.4 : 1.6), 14);
     ctx.stroke(L.highways);
-
-    // 9. Bridges
-    ctx.strokeStyle = MAP.bridge;
-    ctx.lineCap = 'butt';
-    for (const br of L.bridges) {
-      ctx.lineWidth = Math.max(px(2), br.width);
-      ctx.stroke(br.path);
-    }
-    ctx.lineCap = 'round';
-
-    // The actual railway loop makes the expansion boundary visible at city scale.
-    if (!isMinimap && GEO.berlin?.meta.ringbahn) {
-      ctx.strokeStyle = MAP.halo;
-      ctx.lineWidth = px(4);
-      ctx.stroke(L.ringbahn);
-      ctx.strokeStyle = MAP.ringbahn;
-      ctx.lineWidth = px(1.5);
-      ctx.setLineDash([px(7), px(4)]);
-      ctx.stroke(L.ringbahn);
-      ctx.setLineDash([]);
-    }
 
     // 10. Search highlight: every stretch of the matching streets
     if (this.searchPath && !isMinimap) {

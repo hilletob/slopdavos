@@ -4,7 +4,6 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   SIGNAL_TIMING,
   blockAt,
-  fromOldFrame,
   BERLIN_DATA,
   waterAt
 } from './city-config.js';
@@ -419,8 +418,7 @@ function buildStreetDetails(scene) {
   const canyonShafts = berlinStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse/.test(s.name)).filter((s, i) => i % 9 === 0).slice(0, 8).map(s => ({ x: s.x, y: 24, z: s.z, rotY: Math.atan2(s.ux, s.uz), rotZ: -0.44 }));
   for (const cs of canyonShafts) {
     const shaft = new THREE.Mesh(godRayGeo, godRayMat);
-    const at = fromOldFrame(cs.x, cs.z); // (authored on the former compressed grid)
-    shaft.position.set(at.x, cs.y, at.z);
+    shaft.position.set(cs.x, cs.y, cs.z);
     shaft.rotation.set(0.12, cs.rotY, cs.rotZ);
     group.add(shaft);
   }

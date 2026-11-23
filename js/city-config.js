@@ -1,5 +1,5 @@
 import { GEO } from './nyc-geodata.js';
-import { lonLatToWorld, lv95ToWorld } from './davos-frame.js';
+import { lv95ToWorld } from './davos-frame.js';
 import { isDrivableTunnel } from './tunnel-profile.js';
 import { streetCorners, inCornerCut } from './street-corners.js';
 
@@ -9,23 +9,13 @@ import { streetCorners, inCornerCut } from './street-corners.js';
 // Kongresszentrum (js/davos-frame.js).
 const BERLIN_DATA = GEO.berlin;
 const toPts = (flat) => { const out=[]; for(let i=0;i<flat.length;i+=2)out.push({x:flat[i],z:flat[i+1]});return out; };
-// Exact WGS84 -> LV95 (js/swiss-projection.js)
-const projectLonLat = (lon,lat) => lonLatToWorld(lon,lat);
 const [minX,minZ,maxX,maxZ] = BERLIN_DATA.meta.bounds;
 const ISLAND_BOUNDS = {minX,maxX,minZ,maxZ,sidewalkHeight:0.22,waterLevel:-2.2};
-const CUT_Z=minZ;
 const MANHATTAN_COASTLINE=toPts(GEO.manhattan);
 const getIslandBoundsAtZ=()=>({westX:minX,eastX:maxX});
-// Davos has an arbitrary mapped street network. Empty legacy grid registries prevent
-// the original corridor builder from inventing axis-aligned Manhattan streets.
-const AVENUES=[], ALL_AVENUES=[], STREETS=[], ALL_STREETS=[];
-const BROADWAY_LINE=[];
-const getBroadwayX=()=>0;
-const WATERFRONT_PIERS=[], EAST_RIVER_BRIDGES=[], OUTER_BRIDGES=[];
-const ROOSEVELT_ISLAND_POLYGON=[],GOVERNORS_ISLAND_POLYGON=[],NJ_SHORELINE_POLYGON=[],LONG_ISLAND_POLYGON=[],LONG_ISLAND_POLYGONS=[],BROOKLYN_POLYGONS=[],QUEENS_POLYGONS=[],BRONX_POLYGONS=[],WESTCHESTER_POLYGON=[],NASSAU_POLYGON=[],UPPER_MANHATTAN_POLYGON=[],BRONX_POLYGON=[],STATEN_ISLAND_POLYGON=[],RANDALLS_ISLAND_POLYGON=[],LIBERTY_ISLAND_POLYGON=[],ELLIS_ISLAND_POLYGON=[],MILL_ROCK_POLYGON=[];
-const LIBERTY_STATUE_POS={x:0,z:0};
-// The legacy park bounds describe a raised Central Park lawn: Davos has none.
-const CENTRAL_PARK_BOUNDS={minX:-99999,maxX:-99998,minZ:-99999,maxZ:-99998};
+// Davos has an arbitrary mapped street network: the grid registries of the corridor builder (js/road-network.js) are
+// empty, so that it invents no axis-aligned streets.
+const ALL_AVENUES=[], ALL_STREETS=[];
 const ROADS=BERLIN_DATA.roads.filter(r=>!r.tunnel||isDrivableTunnel(r.name)).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
 const DRIVABLE=new Set(['motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','residential','unclassified','living_street']);
 const ROAD_DRIVING=ROADS.filter(r=>DRIVABLE.has(r.kind));
@@ -55,12 +45,7 @@ function makeBlock(b,id,park=0){
  return {id,osmId:b.id,poly,holes,rects:[],frames:null,park,parkName:park?b.name:'',rect:false,area:Math.abs(a),minX,maxX,minZ,maxZ,cx,cz,median:false,district:districtAt(cx,cz)};
 }
 const BLOCKS=[...BERLIN_DATA.buildings.filter(b=>!b.part).map((b,i)=>makeBlock(b,i)),...BERLIN_DATA.parks.map((b,i)=>makeBlock(b,'park:'+i,1))];
-const LANDMARK_BLOCKS=new Set();
 const LANDMARK_SITES=GEO.landmarks;
-function getBlockBounds(col,row){return BLOCKS[Number.isInteger(col)?col:0]||{minX:0,maxX:0,minZ:0,maxZ:0,cx:0,cz:0,width:0,depth:0};}
-const avenueNameAt=(a)=>a?.short||a?.name||'';
-const avenueX=()=>0;
-const fromOldFrame=(x,z)=>({x,z});
 // Nearest-road index (labels, sidewalk tests): uniform grid of road segments
 const ROAD_CELL = 64;
 const ROAD_GRID = new Map();
@@ -234,17 +219,6 @@ function sidewalkAt(x,z){
   }
   return null;
 }
-/** Blocks whose bounds overlap a rectangle */
-function blocksInRect(minX, maxX, minZ, maxZ) {
-  const out = new Set();
-  for (let ix = Math.floor(minX / BLOCK_CELL); ix <= Math.floor(maxX / BLOCK_CELL); ix++) {
-    for (let iz = Math.floor(minZ / BLOCK_CELL); iz <= Math.floor(maxZ / BLOCK_CELL); iz++) {
-      const list = BLOCK_GRID.get(ix * 100000 + iz);
-      if (list) for (const b of list) if (b.maxX > minX && b.minX < maxX && b.maxZ > minZ && b.minZ < maxZ) out.add(b);
-    }
-  }
-  return [...out];
-}
 
 
 const WATER_POLYGONS=BERLIN_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
@@ -287,15 +261,12 @@ function nearestDrivingPoint(x,z,name=null){
  return best;
 }
 function arrivalAt(p,name=null){const q=nearestDrivingPoint(p.x,p.z,name)||(name&&nearestDrivingPoint(p.x,p.z));return q?{x:q.x,z:q.z,heading:q.heading}:{...p,heading:0};}
-function arrival(lon,lat,name=null){return arrivalAt(projectLonLat(lon,lat),name);}
 // The start: on the Promenade in Davos Platz between the Eisstadion and the Kirchner Museum, riding along the one-way
 // street towards the Schatzalpbahn and the centre of Davos Platz, the Jakobshorn ahead across the valley
 const spawnPoint=lv95ToWorld(2782080,1185738);
 const defaultSpawn=arrivalAt(spawnPoint,'Promenade');
 // Keep to the right of the carriageway, clear of the kerb furniture
 defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Promenade';
-// Legacy material code samples ordered district bands through streetZ; keep distinct thresholds.
-const streetZ=(n=37)=>defaultSpawn.z+(37-Number(n))*25;
 // Teleport destinations: [id, name, short label, LV95 east, LV95 north, Ortsteil, street to arrive on (exact OSM name, or
 // null for the nearest drivable street), mapped landmark to face (LANDMARK_SITES, from its OSM footprint) or none]
 const NYC_LANDMARKS=[
@@ -370,56 +341,22 @@ function walkSignal(time, isAvenue) {
   return t < walk;
 }
 export {
-  BERLIN_DATA, BERLIN_AREAS, toPts, projectLonLat, pointInPoly, waterAt, waterAtExact, nearestDrivingPoint, defaultSpawn, sidewalkAt, roadCloserThan,
-  AVENUES,
+  BERLIN_DATA, toPts, pointInPoly, waterAt, nearestDrivingPoint, defaultSpawn, sidewalkAt, roadCloserThan,
   ALL_AVENUES,
-  CENTRAL_PARK_BOUNDS,
   getIslandBoundsAtZ,
   MANHATTAN_COASTLINE,
-  getBroadwayX,
-  BROADWAY_LINE,
-  WATERFRONT_PIERS,
-  ROOSEVELT_ISLAND_POLYGON,
-  GOVERNORS_ISLAND_POLYGON,
-  NJ_SHORELINE_POLYGON,
-  LONG_ISLAND_POLYGON,
-  LONG_ISLAND_POLYGONS,
-  BROOKLYN_POLYGONS,
-  QUEENS_POLYGONS,
-  BRONX_POLYGONS,
-  WESTCHESTER_POLYGON,
-  NASSAU_POLYGON,
-  UPPER_MANHATTAN_POLYGON,
-  BRONX_POLYGON,
-  STATEN_ISLAND_POLYGON,
-  RANDALLS_ISLAND_POLYGON,
-  LIBERTY_ISLAND_POLYGON,
-  LIBERTY_STATUE_POS,
-  ELLIS_ISLAND_POLYGON,
-  MILL_ROCK_POLYGON,
-  EAST_RIVER_BRIDGES,
-  OUTER_BRIDGES,
-  STREETS,
   ALL_STREETS,
   ROADS,
   NYC_LANDMARKS,
   LANDMARK_SITES,
   TELEPORT_LOCATIONS,
   ISLAND_BOUNDS,
-  LANDMARK_BLOCKS,
   BLOCKS,
-  CUT_Z,
   SIGNAL_TIMING,
-  streetZ,
-  avenueX,
-  avenueNameAt,
   districtAt,
   blockAt,
-  blocksInRect,
   nearestRoads,
-  getBlockBounds,
   getLocationLabel,
-  fromOldFrame,
   isTypingInField,
   signalPhase,
   walkSignal

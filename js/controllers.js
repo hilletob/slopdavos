@@ -3,11 +3,9 @@ import { uniform, vec3 } from 'three/tsl';
 import { surfaceHeight, groundHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import {
   ISLAND_BOUNDS,
-  CENTRAL_PARK_BOUNDS,
   getIslandBoundsAtZ,
   isTypingInField,
   blockAt,
-  streetZ,
   defaultSpawn,
   waterAt
 } from './city-config.js';
@@ -28,7 +26,6 @@ import { FRAME } from './davos-frame.js';
 import { airObstacleContact } from './air-obstacle-field.js';
 import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
-import { bryantParkLawn } from './landmarks.js';
 import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } from './snowcat.js';
 
 // js/controllers.js
@@ -42,7 +39,7 @@ import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } fro
 // 6. Pistenfahrzeug (snow groomer: tracks, front blade, rear tiller; tank steering, climbs off-road up to ~45°)
 
 // Spawn on 5th Ave at 37th St, facing south down the avenue toward the Empire State Building (34th St)
-const SPAWN_Z = defaultSpawn?.z ?? streetZ(37);
+const SPAWN_Z = defaultSpawn?.z ?? 0;
 const SPAWN_X = defaultSpawn?.x ?? 0;
 const SPAWN_HEADING = defaultSpawn?.heading ?? 0;
 function spawnPosition(lateral, forward, y) {
