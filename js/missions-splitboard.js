@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { createRiderFigure } from './winter-sports.js';
 import { touchLabel, edge } from './missions-ice.js';
-import { createToast, particles } from './missions-work.js';
+import { createToast, particles } from './missions-kit.js';
 import { createRider, stepRider, riderSpeed, travelHeading, BOARD_PARAMS } from './missions-data-snow.js';
 import {
   SPLIT, SPLIT_PLACES, ASCENT_ROUTE, DESCENT_ROUTE, createSkinner, stepSkinner, stepTransition, slopeAt, slopeAlong,

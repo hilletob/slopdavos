@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { VEHICLES } from './missions-work.js';
+import { VEHICLES } from './missions-kit.js';
+import './missions-work.js'; // (registers VEHICLES.blower, .mower, .garbage)
 import './missions-rural.js'; // (registers VEHICLES.quad)
 
 // js/race-ghosts.js

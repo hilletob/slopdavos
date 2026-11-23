@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { painted } from './missions-props.js';
-import { VEHICLES, createToast, particles, lump } from './missions-work.js';
+import { VEHICLES, createToast, particles, lump } from './missions-kit.js';
 import { BODY_SPECS, buildCarGeometry, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import { releaseVehicle } from './hijack.js';
 import { routePoint } from './missions-data-work.js';

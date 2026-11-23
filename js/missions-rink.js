@@ -7,7 +7,7 @@ import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { touchLabel } from './missions-ice.js';
 import { pondIceY } from './missions-outdoor.js';
 import { pondBankPoints } from './missions-data-outdoor.js';
-import { VEHICLES, GridMesh, createToast, particles, lump } from './missions-work.js';
+import { VEHICLES, GridMesh, createToast, particles, lump } from './missions-kit.js';
 import {
   RINK, createRinkIce, resetRinkIce, ringDistance, onIce, stepFreeze, stepSpray, stepBoots, stepConditioner,
   floodedShare, polishedShare, printCount, wetAt

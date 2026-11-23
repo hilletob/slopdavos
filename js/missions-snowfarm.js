@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { surfaceHeight } from './terrain.js';
-import { VEHICLES, createToast, particles, lump } from './missions-work.js';
+import { VEHICLES, createToast, particles, lump } from './missions-kit.js';
 import {
   SNOWFARM, createSnowfarmRoute, createSnowfarmGrid, resetSnowfarmGrid, loopPose, onPad, bedCentre, stepLoading, stepSpread,
   stepTiller, coveredShare, groomedShare, nearestGap, nearestUngroomed

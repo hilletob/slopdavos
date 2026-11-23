@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { t } from './i18n.js';
 import { painted, createHelper } from './missions-props.js';
-import { VEHICLES, createToast, particles, lump } from './missions-work.js';
+import { VEHICLES, createToast, particles, lump } from './missions-kit.js';
 import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import { QUAD_MODEL, QUAD_PAINTS, createQuad, setQuadLamps } from './quad.js';
 import {

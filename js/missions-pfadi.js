@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight, groundNormal } from './terrain.js';
 import { ParticleBatch } from './missions-fx.js';
-import { createToast, particles } from './missions-work.js';
+import { createToast, particles } from './missions-kit.js';
 import {
   PFADI, PFADI_PLACES, PFADI_STEPS, trailMarks, stepCamp, stepPhase, needle
 } from './missions-data-pfadi.js';
