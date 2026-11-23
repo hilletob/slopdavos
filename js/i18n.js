@@ -216,7 +216,7 @@ const pairs = [
   ['Ascend', 'Steigen'], ['Searchlight', 'Suchscheinwerfer'],
   ['Spotlight', 'Suchlicht'],
   ['Beacon', 'Drehlicht'], ['Tiller', 'Fräse'], ['Drag', 'Ziehen'],
-  // the register of actions and the missions' key hints (js/actions.js, js/main.js renderHints, run.hints)
+  // the register of actions and the missions' key hints (js/actions.js, js/hud-keybar.js, run.hints)
   ['Hazard lights', 'Warnblinker'], ['Hazard', 'Warnlicht'],
   ['Left', 'Links'],
   ['Right', 'Rechts'],
