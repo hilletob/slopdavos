@@ -1,5 +1,4 @@
 import { setLocalizedText } from './i18n.js';
-import { FIGURES, applyFigure, chosenFigure, rememberFigure } from './player-figure.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -64,6 +63,7 @@ import { CarRadio } from './car-radio.js';
 import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './frame-guard.js';
 import { markWorldReady } from './world-ready.js';
 import { precompileShaders } from './shader-warmup.js';
+import { setupPopovers, setupFigureMenu, setupCredits, blurClickedButtons } from './hud-dialogs.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -894,106 +894,11 @@ async function initApp() {
     }
   }
 
-  // The player's figure (js/player-figure.js): a choice of six in the menu, kept in this browser
-  const figureDialog = document.getElementById('figure-dialog');
-  const figureGrid = document.getElementById('figure-grid');
-  const figureState = document.getElementById('figure-state');
-  const showFigure = (id) => {
-    const figure = FIGURES.find((f) => f.id === id);
-    if (figureState) setLocalizedText(figureState, figure?.label || '');
-    figureGrid?.querySelectorAll('.figure-option').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.figure === id)));
-  };
-  for (const figure of FIGURES) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'figure-option';
-    button.dataset.figure = figure.id;
-    button.setAttribute('role', 'radio');
-    const img = document.createElement('img');
-    img.src = `./assets/figures/${figure.id}.webp`;
-    img.alt = '';
-    img.loading = 'lazy';
-    const label = document.createElement('span');
-    setLocalizedText(label, figure.label);
-    button.append(img, label);
-    button.addEventListener('click', () => {
-      rememberFigure(figure.id);
-      showFigure(figure.id);
-      window.dispatchEvent(new CustomEvent('slopdavos:save-now')); // (signed in: into the cloud save now, js/account-ui.js)
-      controllerManager.figure = applyFigure(controllerManager, figure.id).catch((e) => console.warn('[player-figure]', e));
-      figureDialog.close();
-    });
-    figureGrid?.append(button);
-  }
-  showFigure(chosenFigure());
-  // The player's character in their own words (js/player-character.js, loaded with the dialog): kept as it is typed
-  const characterField = document.getElementById('figure-character');
-  const characterState = document.getElementById('figure-character-state');
-  let characterStore = null;
-  const loadCharacter = () => (characterStore ||= import('./player-character.js').then((c) => { characterField.value = c.readCharacter(); return c; }));
-  characterField?.addEventListener('input', () => { if (characterState) setLocalizedText(characterState, ''); });
-  characterField?.addEventListener('change', () => loadCharacter().then((c) => {
-    characterField.value = c.rememberCharacter(characterField.value);
-    if (characterState) setLocalizedText(characterState, 'Saved.');
-    window.dispatchEvent(new CustomEvent('slopdavos:save-now')); // (signed in: into the cloud save now)
-  }).catch(() => {}));
-  characterField?.addEventListener('keydown', (e) => e.stopPropagation()); // (typing here drives nothing in the game)
-  document.getElementById('btn-figure-menu')?.addEventListener('click', () => { closePopovers(); if (characterField) loadCharacter().catch(() => {}); figureDialog.showModal(); });
-  figureDialog?.addEventListener('click', (e) => {
-    if (e.target !== figureDialog) return;
-    const r = figureDialog.getBoundingClientRect();
-    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) figureDialog.close();
-  });
-
-  // Data & credits: a native modal <dialog> (Esc and the × close it; so does a click on the backdrop), opened from the
-  // attribution line at the bottom and from the menu
-  const creditsDialog = document.getElementById('credits-dialog');
-  document.getElementById('btn-credits')?.addEventListener('click', () => creditsDialog.showModal());
-  document.getElementById('btn-credits-menu')?.addEventListener('click', () => { closePopovers(); creditsDialog.showModal(); });
-  creditsDialog?.addEventListener('click', (e) => {
-    if (e.target !== creditsDialog) return;
-    const r = creditsDialog.getBoundingClientRect();
-    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-    if (!inside) creditsDialog.close();
-  });
-
-  // Popovers (native [popover]: light dismiss & Esc for free) open against the control that toggles them: data-anchor
-  // names the element they sit above / below, data-align the one whose right edge they line up with
-  const popovers = document.querySelectorAll('.popover[popover]');
-  const supportsPopover = typeof HTMLElement.prototype.togglePopover === 'function';
-  function closePopovers() {
-    if (!supportsPopover) return;
-    popovers.forEach((pop) => {
-      if (pop.matches(':popover-open')) pop.hidePopover();
-    });
-  }
-  popovers.forEach((pop) => {
-    const invoker = document.querySelector(`[popovertarget="${pop.id}"]`);
-    pop.addEventListener('beforetoggle', (e) => {
-      const open = e.newState === 'open';
-      if (invoker) invoker.classList.toggle('is-open', open);
-      if (!open) return;
-      const anchor = document.getElementById(pop.dataset.anchor) || invoker;
-      const align = document.getElementById(pop.dataset.align) || invoker;
-      if (!anchor || !align) return;
-      const r = anchor.getBoundingClientRect();
-      const spaceAbove = Math.max(0, r.top - 20);
-      const spaceBelow = Math.max(0, window.innerHeight - r.bottom - 20);
-      let above = pop.dataset.side === 'above';
-      // The camera control moves to the top on touch screens; open toward the available space.
-      if ((above ? spaceAbove : spaceBelow) < 160) above = spaceAbove > spaceBelow;
-      pop.style.right = `${Math.max(8, window.innerWidth - align.getBoundingClientRect().right)}px`;
-      if (above) {
-        pop.style.top = 'auto';
-        pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
-        pop.style.maxHeight = `${spaceAbove}px`;
-      } else {
-        pop.style.bottom = 'auto';
-        pop.style.top = `${r.bottom + 8}px`;
-        pop.style.maxHeight = `${spaceBelow}px`;
-      }
-    });
-  });
+  // The toolbar's popovers and dialogs (js/hud-dialogs.js)
+  const closePopovers = setupPopovers();
+  setupFigureMenu({ controllerManager, closePopovers });
+  setupCredits({ closePopovers });
+  blurClickedButtons();
 
   cameraButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1006,12 +911,6 @@ async function initApp() {
   const camNextBtn = document.getElementById('cam-next');
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
-
-  // A mouse click mustn't leave the focus on a HUD button, or Space (jump / ascend) and Enter would press it again
-  document.addEventListener('click', (e) => {
-    const btn = e.target instanceof Element ? e.target.closest('button') : null;
-    if (btn && e.detail > 0) btn.blur();
-  });
 
   // Where you are: the place's name over its street corner, drawn as a pair of NYC street-name signs
   const roadNames = new Set(ROADS.map((r) => r.name));
