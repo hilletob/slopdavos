@@ -1,9 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createFireEscapes } from './fire-escapes.js';
 import {
   Fn,
-  float,
   vec2,
   color,
   uv,
@@ -18,8 +16,7 @@ import {
   min,
   mix,
   length,
-  mx_noise_float,
-  mx_worley_noise_float
+  mx_noise_float
 } from 'three/tsl';
 import {
   ISLAND_BOUNDS,
@@ -30,7 +27,6 @@ import {
   createPreWarBuildingMaterial,
   createCurtainWallMaterial,
   createFacadeBoxes,
-  createBillboardMaterial,
   filteredPulse,
   WALL_KINDS
 } from './tsl-materials.js';
@@ -250,7 +246,6 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   const materials = facades.map(([create, opts]) => create({ ...opts, boxLocal: true }));
 
   const buckets = materials.map(() => []);
-  const broadwayBillboards = [];
 
   if (BERLIN_DATA) {
     // Exact OSM rings drive the original facade shaders and detail-streaming
@@ -299,7 +294,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const modern = !warmMasonry && ['office', 'commercial', 'hotel', 'retail'].includes(source.kind) && (height > 30 || tone > 0.72);
       const matIndex = modern ? 3 + Math.floor(rand() * 3) : Math.floor(rand() * 3);
       const detail = { id: source.id, name: source.name, cx, cz, ...bounds, district: districtAt(cx, cz), maxH: height,
-        cornices: [], waterTowers: [], hvacUnits: [], fireEscapes: [], awnings: [], scaffoldSheds: [], yards: [],
+        cornices: [], hvacUnits: [],
         footprints: [{ x0: bounds.minX, x1: bounds.maxX, z0: bounds.minZ, z1: bounds.maxZ, h: height, tone, pts: poly, holes }],
         sourceHeight: source.h, sourceHeightKind: source.heightSource };
       if (base < 1) interiors.push({ minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minZ, maxZ: bounds.maxZ, maxY: height, ring: poly, holes, id: source.id });
@@ -330,15 +325,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
             detail.cornices.push({ x, z, y: eave, w: length + 0.2, h: 0.44, d: 0.85, ry });
             if (height > 13) detail.cornices.push({ x, z, y: 4.4, w: length + 0.12, h: 0.22, d: 0.62, ry });
           }
-          if (shop && length > 9 && rand() < 0.48) {
-            const count = Math.min(3, Math.floor(length / 8));
-            for (let j = 0; j < count; j++) {
-              const t = (j + 0.5) / count;
-              // The upstream awning is long along local Z, unlike facade boxes.
-              detail.awnings.push({ x: a.x + dx * t + nx * 0.8, z: a.z + dz * t + nz * 0.8, y: 3.8,
-                w: 1.65, d: Math.min(6.4, length / count - 1.0), dir: -1, colorIdx: Math.floor(rand() * 5), ry: Math.atan2(nx, nz) + Math.PI / 2 });
-            }
-          }
+          // (the shop awnings that hung here are gone; they took these draws, and the roof units below keep their places)
+          if (shop && length > 9 && rand() < 0.48) for (let j = Math.min(3, Math.floor(length / 8)); j > 0; j--) rand();
         }
       }
       let roof = !drawn ? null : berlinPolygonGeometry(poly, holes, eave + 0.035);
@@ -409,77 +397,11 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }
   });
 
-  // Billboards: one merged mesh per poster theme
-  {
-    const byVariant = new Map();
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    for (const bb of broadwayBillboards) {
-      const g = new THREE.PlaneGeometry(bb.w, bb.h);
-      g.applyMatrix4(m.compose(new THREE.Vector3(bb.x, bb.y, bb.z), q.setFromAxisAngle(up, bb.rotY), new THREE.Vector3(1, 1, 1)));
-      if (!byVariant.has(bb.variant)) byVariant.set(bb.variant, []);
-      byVariant.get(bb.variant).push(g);
-    }
-    for (const [variant, geos] of byVariant) {
-      const mesh = new THREE.Mesh(mergeGeometries(geos), createBillboardMaterial(variant));
-      mesh.name = `TimesSquareBillboards_${variant}`;
-      group.add(mesh);
-      for (const g of geos) g.dispose();
-    }
-  }
-
-  // Rear yards, light courts & project lawns: one thin slab per patch just above the sidewalk (buildings standing on
-  // it hide the rest). Lawn, paving and tree canopies come from world-space noise; detail finer than a pixel fades
-  // to its average so the gardens don't shimmer from the air
-  const yardMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.94, metalness: 0.0 });
-  yardMat.colorNode = Fn(() => {
-    const p = positionWorld.xz;
-    const px = length(fwidth(p)); // metres per pixel
-    const fine = smoothstep(0.9, 0.12, px);
-    const crownLOD = smoothstep(8.0, 3.0, px); // crowns a few pixels wide or more are drawn, smaller ones averaged
-    const grain = mx_noise_float(p.mul(1.9)).mul(fine).mul(0.5).add(0.5);
-    const clump = mx_noise_float(p.mul(0.7).add(5.3)).mul(smoothstep(2.0, 0.4, px)).mul(0.5).add(0.5);
-
-    // Lawns with grey / beige patios & light-court paving
-    const patch = mx_noise_float(p.mul(0.21)).mul(smoothstep(12.0, 4.0, px));
-    const lawn = mix(color(0x5d7a3a), color(0x7a944c), grain);
-    const paving = mix(color(0x8c8679), color(0xa59e90), grain);
-    const ground = mix(lawn, paving, smoothstep(0.15, 0.45, patch));
-
-    // Street-tree-sized (~12 m) & small (~6 m) crowns, domed: sunlit crowns, softer & darker towards their rims
-    const w1 = mx_worley_noise_float(p.mul(0.085));
-    const w2 = mx_worley_noise_float(p.mul(0.16).add(17.0));
-    const crowns = max(smoothstep(0.55, 0.3, w1), smoothstep(0.45, 0.25, w2).mul(0.85));
-    const rim = smoothstep(0.0, 1.0, min(w1.div(0.55), w2.div(0.45)));
-    const leaves = mix(color(0x3f5e2a), color(0x5e7f3b), clump.mul(0.6).add(grain.mul(0.4))).mul(mix(float(1.08), float(0.78), rim));
-    const leavesMean = mix(color(0x3f5e2a), color(0x5e7f3b), 0.5).mul(0.93);
-    return mix(ground, mix(leavesMean, leaves, crownLOD), mix(float(0.5), crowns, crownLOD));
-  })();
-  const yardRects = [];
-  for (const blk of allBlocks) yardRects.push(...blk.yards);
-  if (yardRects.length) {
-    const yardInst = new THREE.InstancedMesh(unitBox, yardMat, yardRects.length);
-    yardRects.forEach((r, i) => {
-      dummy.position.set((r.x0 + r.x1) * 0.5, 0.225, (r.z0 + r.z1) * 0.5);
-      dummy.rotation.set(0, r.ry || 0, 0);
-      dummy.scale.set(r.x1 - r.x0, 0.05, r.z1 - r.z0);
-      dummy.updateMatrix();
-      yardInst.setMatrixAt(i, dummy.matrix);
-    });
-    dummy.rotation.set(0, 0, 0);
-    yardInst.receiveShadow = true;
-    group.add(yardInst);
-  }
-
   // ============================================================================
   // D. QUADTREE-STREAMED HIGH-DETAIL ARCHITECTURAL POOLS (LOD0 around player)
   // ============================================================================
   const MAX_CORNICES = 7000;
-  const MAX_WATER_TOWERS = 1400;
   const MAX_HVAC = 1600;
-  const MAX_AWNINGS = 1800;
-  const MAX_SHEDS = 300;
 
   // 1. Projecting horizontal stone cornices & parapet ledges
   const corniceMat = new THREE.MeshStandardNodeMaterial({ color: 0xc8bca6, roughness: 0.78, metalness: 0.08 });
@@ -488,67 +410,6 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   corniceInst.receiveShadow = true;
   corniceInst.frustumCulled = false;
   group.add(corniceInst);
-
-  // 2. 3-part rooftop cedar water towers with steel hoop bands & open 4-leg steel trestle
-  const woodMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.78 });
-  woodMat.colorNode = Fn(() => {
-    const u = uv();
-    // Preserve the average width of seams and hoops when they become smaller than a pixel.
-    const staveCoord = u.x.mul(28.0);
-    const staveSeam = filteredPulse(fract(staveCoord), 0.46, 0.54, fwidth(staveCoord));
-    const staveTone = mix(color(0x8e6343), color(0x5c3e26), staveSeam.mul(0.55));
-    const bandCoord = u.y.mul(5.0);
-    const isHoop = filteredPulse(fract(bandCoord), 0.42, 0.58, fwidth(bandCoord));
-    return mix(staveTone, color(0x1f2328), isHoop);
-  })();
-  const roofCapMat = new THREE.MeshStandardNodeMaterial({ color: 0x3b4045, roughness: 0.65, metalness: 0.3 });
-  const legMat = new THREE.MeshStandardNodeMaterial({ color: 0x262b30, roughness: 0.45, metalness: 0.68 });
-  const barrelGeo = new THREE.CylinderGeometry(1.65, 1.75, 3.6, 12);
-  const coneGeo = new THREE.ConeGeometry(1.9, 1.5, 12);
-
-  // Open 4-leg structural steel trestle with cross-bracing and top chime deck
-  const trestleParts = [];
-  const legPostGeo = new THREE.BoxGeometry(0.24, 2.75, 0.24);
-  const legPositions = [
-    [-1.05, 0, -1.05],
-    [1.05, 0, -1.05],
-    [-1.05, 0, 1.05],
-    [1.05, 0, 1.05],
-  ];
-  for (const [lx, ly, lz] of legPositions) {
-    const g = legPostGeo.clone();
-    g.rotateZ(lx > 0 ? 0.08 : -0.08);
-    g.rotateX(lz > 0 ? -0.08 : 0.08);
-    g.translate(lx, ly, lz);
-    trestleParts.push(g);
-  }
-  const deckRingGeo = new THREE.CylinderGeometry(1.88, 1.88, 0.22, 12);
-  deckRingGeo.translate(0, 1.22, 0);
-  trestleParts.push(deckRingGeo);
-  const braceX1 = new THREE.BoxGeometry(2.15, 0.14, 0.14);
-  braceX1.translate(0, 0.2, -1.02);
-  trestleParts.push(braceX1);
-  const braceX2 = new THREE.BoxGeometry(2.15, 0.14, 0.14);
-  braceX2.translate(0, 0.2, 1.02);
-  trestleParts.push(braceX2);
-  const braceZ1 = new THREE.BoxGeometry(0.14, 0.14, 2.15);
-  braceZ1.translate(-1.02, -0.45, 0);
-  trestleParts.push(braceZ1);
-  const braceZ2 = new THREE.BoxGeometry(0.14, 0.14, 2.15);
-  braceZ2.translate(1.02, -0.45, 0);
-  trestleParts.push(braceZ2);
-  const riserPipe = new THREE.CylinderGeometry(0.24, 0.24, 2.6, 8);
-  trestleParts.push(riserPipe);
-  const legsGeo = mergeGeometries(trestleParts, false);
-
-  const barrelInst = new THREE.InstancedMesh(barrelGeo, woodMat, MAX_WATER_TOWERS);
-  const coneInst = new THREE.InstancedMesh(coneGeo, roofCapMat, MAX_WATER_TOWERS);
-  const legsInst = new THREE.InstancedMesh(legsGeo, legMat, MAX_WATER_TOWERS);
-  barrelInst.castShadow = barrelInst.receiveShadow = true;
-  coneInst.castShadow = coneInst.receiveShadow = true;
-  legsInst.castShadow = legsInst.receiveShadow = true;
-  barrelInst.frustumCulled = coneInst.frustumCulled = legsInst.frustumCulled = false;
-  group.add(legsInst, barrelInst, coneInst);
 
   // 3. Rooftop mechanical penthouses & HVAC chillers with top exhaust fans & side louvers
   const hvacMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.52, metalness: 0.45 });
@@ -576,105 +437,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   hvacInst.frustumCulled = false;
   group.add(hvacInst);
 
-  // 4. Instanced fire escapes: real steps nearby, lightweight silhouettes in the distance.
-  const fireEscapeSystem = createFireEscapes(group);
-
-  // 5. Ground-floor retail canvas awnings & illuminated storefront fascia signs
-  const awningMat = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.65 });
-  const awningPalette = [
-    new THREE.Color(0x9e222e),
-    new THREE.Color(0x1f593b),
-    new THREE.Color(0x213d68),
-    new THREE.Color(0xd9912b),
-    new THREE.Color(0x2d2d32)
-  ];
-  const awningInst = new THREE.InstancedMesh(unitBox, awningMat, MAX_AWNINGS);
-  awningInst.castShadow = awningInst.receiveShadow = true;
-  awningInst.frustumCulled = false;
-  // Pre-initialize instanceColor buffer so dynamic updates work cleanly
-  for (let i = 0; i < MAX_AWNINGS; i++) {
-    awningInst.setColorAt(i, awningPalette[i % awningPalette.length]);
-  }
-  group.add(awningInst);
-
-  const signThemes = [
-    { bg: '#161210', border: '#c89d54', text: 'KAFI · CONDITOREI', color: '#ffe4a8' },
-    { bg: '#0b5a32', border: '#7fe0a8', text: 'APOTHEKE · DROGERIE', color: '#ffffff' },
-    { bg: '#142b20', border: '#d4af37', text: 'BUCHHANDLUNG · ANTIQUARIAT', color: '#fff2cc' },
-    { bg: '#280a10', border: '#ff5252', text: 'KIOSK · ZEITUNGEN', color: '#ffd180' },
-    { bg: '#101318', border: '#e0e6ed', text: 'BECK · BÄCKEREI', color: '#f5f9ff' }
-  ];
-  const MAX_SIGNS_PER_THEME = Math.ceil(MAX_AWNINGS / signThemes.length) + 32;
-  // Davos's real businesses carry their own signs (js/shops.js): the made-up fascia signs over the awnings stay off
-  const GENERIC_SIGNS = false;
-  // The awnings hang on the OSM footprints, which the swissBUILDINGS3D facades often stand in front of or behind:
-  // in Davos they floated in front of the shop fronts, so they're off too (the businesses' signs are js/shops.js)
-  const GENERIC_AWNINGS = false;
-  const signInsts = signThemes.map((st) => {
-    const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 96;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = st.bg;
-    ctx.fillRect(0, 0, 512, 96);
-    ctx.strokeStyle = st.border;
-    ctx.lineWidth = 6;
-    ctx.strokeRect(6, 6, 500, 84);
-    ctx.fillStyle = st.color;
-    ctx.font = '800 26px Inter, Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(st.text, 256, 50);
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const sMat = new THREE.MeshBasicNodeMaterial({ map: tex });
-    const sInst = new THREE.InstancedMesh(unitBox, sMat, MAX_SIGNS_PER_THEME);
-    sInst.frustumCulled = false;
-    group.add(sInst);
-    return sInst;
-  });
-
-  // 6. Sidewalk construction scaffolding sheds
-  const shedMat = new THREE.MeshStandardNodeMaterial({ color: 0x214f37, roughness: 0.6, metalness: 0.25 });
-  const shedInst = new THREE.InstancedMesh(unitBox, shedMat, MAX_SHEDS);
-  shedInst.castShadow = shedInst.receiveShadow = true;
-  shedInst.frustumCulled = false;
-  group.add(shedInst);
-
-  // 7. Ground-floor storefront clustered SpotLights (awnings/fascia signs)
-  const storeLightGroup = new THREE.Group();
-  storeLightGroup.name = 'StoreClusteredLights';
-  // (the spots are set in world heights (surfaceHeight) every frame: placeOnTerrain must not lift the group too,
-  // which put every shop light 22 m under its street)
-  storeLightGroup.userData.terrain = 'absolute';
-  scene.add(storeLightGroup);
-
-  const storeThemeColors = [
-    new THREE.Color(0xffd896), // Bistro warm gold
-    new THREE.Color(0xd8eeff), // Pharmacy crisp cool white
-    new THREE.Color(0xffe4ad), // Bookstore warm amber
-    new THREE.Color(0xffbe88), // 24hr Deli warm orange-gold
-    new THREE.Color(0xfff2d6)  // Watch boutique warm ivory
-  ];
-
-  const STORE_SPOT_POOL = 28;
-  const storeSpotPool = [];
-  for (let i = 0; i < STORE_SPOT_POOL; i++) {
-    const spot = new THREE.SpotLight(0xffd896, 0, 12.0, 0.84, 0.80, 1.30);
-    spot.castShadow = false;
-    spot.position.set(0, -1000, 0);
-    spot.target.position.set(0, -1001, 0);
-    storeLightGroup.add(spot);
-    storeLightGroup.add(spot.target);
-    storeSpotPool.push(spot);
-  }
-
-  const activeAwnings = [];
   // These details are placed every refresh (they follow the player), after placeOnTerrain has laid the static city on
   // the relief: each takes the surface height under it (cached), since they are built for a flat world
   const ground = (o) => (o.groundY ??= surfaceHeight(o.x, o.z));
-  const spotCandidates = [];
 
   // ============================================================================
   // E. DYNAMIC QUADTREE STREAMING UPDATE AROUND PLAYER / CAMERA
@@ -708,21 +473,14 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const db = (b.cx - focusX) * (b.cx - focusX) + (b.cz - focusZ) * (b.cz - focusZ);
       return da - db;
     });
-    activeAwnings.length = 0;
 
     let corniceCount = 0;
-    let wtCount = 0;
     let hvacCount = 0;
-    fireEscapeSystem.begin();
-    let awningCount = 0;
-    let shedCount = 0;
-    const signCounts = signInsts.map(() => 0);
 
     for (let bIdx = 0; bIdx < nearbyBlocks.length; bIdx++) {
       const blk = nearbyBlocks[bIdx];
       // every piece of a block turned into a frontage frame shares its turn (see placeInFrame)
       dummy.rotation.set(0, blk.ry || 0, 0);
-      const collectNearLights = bIdx < 20;
 
       // 1. Stone cornices & setback ledges, hung just below their roof line (top 0.1h under it, so no two ledges or
       //    roofs share a plane) so roofs & terraces keep their own roofing instead of a stone lid
@@ -735,25 +493,6 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         corniceInst.setMatrixAt(corniceCount++, dummy.matrix);
       }
 
-      // 2. Rooftop cedar water towers
-      for (let i = 0; i < blk.waterTowers.length && wtCount < MAX_WATER_TOWERS; i++) {
-        const wt = blk.waterTowers[i];
-        dummy.scale.set(1, 1, 1);
-
-        dummy.position.set(wt.x, ground(wt) + wt.y + 1.3, wt.z);
-        dummy.updateMatrix();
-        legsInst.setMatrixAt(wtCount, dummy.matrix);
-
-        dummy.position.set(wt.x, ground(wt) + wt.y + 4.2, wt.z);
-        dummy.updateMatrix();
-        barrelInst.setMatrixAt(wtCount, dummy.matrix);
-
-        dummy.position.set(wt.x, ground(wt) + wt.y + 6.7, wt.z);
-        dummy.updateMatrix();
-        coneInst.setMatrixAt(wtCount, dummy.matrix);
-        wtCount++;
-      }
-
       // 3. Rooftop HVAC & mechanical bulkheads
       for (let i = 0; i < blk.hvacUnits.length && hvacCount < MAX_HVAC; i++) {
         const u = blk.hvacUnits[i];
@@ -763,140 +502,17 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         dummy.updateMatrix();
         hvacInst.setMatrixAt(hvacCount++, dummy.matrix);
       }
-
-      // 4. Wrought-iron fire escapes
-      for (const fe of blk.fireEscapes) fireEscapeSystem.add(fe, focusX, focusZ);
-
-      // 5. Retail awnings & illuminated storefront fascia signs
-      for (let i = 0; GENERIC_AWNINGS && i < blk.awnings.length && awningCount < MAX_AWNINGS; i++) {
-        const a = blk.awnings[i];
-        dummy.rotation.set(0, a.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(a.x, ground(a) + a.y, a.z);
-        dummy.scale.set(a.w, 0.75, a.d);
-        dummy.updateMatrix();
-        awningInst.setMatrixAt(awningCount, dummy.matrix);
-        awningInst.setColorAt(awningCount, awningPalette[a.colorIdx % awningPalette.length]);
-
-        const themeIdx = awningCount % signInsts.length;
-        if (GENERIC_SIGNS && signCounts[themeIdx] < MAX_SIGNS_PER_THEME) {
-          dummy.position.set(a.x, ground(a) + 4.68, a.z);
-          dummy.scale.set(0.28, 0.86, a.d * 0.92);
-          dummy.updateMatrix();
-          signInsts[themeIdx].setMatrixAt(signCounts[themeIdx]++, dummy.matrix);
-        }
-        if (collectNearLights) {
-          activeAwnings.push({ a, themeIdx, ry: a.ry ?? blk.ry ?? 0 });
-        }
-        awningCount++;
-      }
-
-      // 6. Sidewalk construction sheds
-      for (let i = 0; i < blk.scaffoldSheds.length && shedCount < MAX_SHEDS; i++) {
-        const s = blk.scaffoldSheds[i];
-        dummy.position.set(s.x, ground(s) + s.y + 3.6, s.z);
-        dummy.scale.set(s.w, 0.85, s.d);
-        dummy.updateMatrix();
-        shedInst.setMatrixAt(shedCount++, dummy.matrix);
-      }
     }
     dummy.rotation.set(0, 0, 0);
 
     corniceInst.count = corniceCount;
     flagRange(corniceInst.instanceMatrix, corniceCount);
 
-    legsInst.count = wtCount;
-    barrelInst.count = wtCount;
-    coneInst.count = wtCount;
-    flagRange(legsInst.instanceMatrix, wtCount);
-    flagRange(barrelInst.instanceMatrix, wtCount);
-    flagRange(coneInst.instanceMatrix, wtCount);
-
     hvacInst.count = hvacCount;
     flagRange(hvacInst.instanceMatrix, hvacCount);
-
-    fireEscapeSystem.end();
-
-    awningInst.count = awningCount;
-    flagRange(awningInst.instanceMatrix, awningCount);
-    if (awningInst.instanceColor) flagRange(awningInst.instanceColor, awningCount);
-
-    signInsts.forEach((sInst, idx) => {
-      sInst.count = signCounts[idx];
-      flagRange(sInst.instanceMatrix, signCounts[idx]);
-    });
-
-    shedInst.count = shedCount;
-    flagRange(shedInst.instanceMatrix, shedCount);
   }
 
-  function smoothFade(d, start, end) {
-    const t = Math.min(1, Math.max(0, (end - d) / (end - start)));
-    return t * t * (3 - 2 * t);
-  }
-
-  function updateLights(camera) {
-    const glow = 0.85;
-    const glowFactor = Math.max(0, (glow - 0.15) / 0.90);
-    if (!camera || glowFactor <= 0.001) {
-      for (let i = 0; i < STORE_SPOT_POOL; i++) {
-        storeSpotPool[i].intensity = 0;
-        storeSpotPool[i].position.set(0, -1000, 0);
-      }
-      return;
-    }
-
-    const camX = camera.position.x;
-    const camY = camera.position.y;
-    const camZ = camera.position.z;
-    const e = camera.matrixWorld.elements;
-    const fwdLen = Math.hypot(e[8], e[10]) || 1;
-    const fwdX = -e[8] / fwdLen;
-    const fwdZ = -e[10] / fwdLen;
-    const STORE_MAX_DIST = 115;
-
-    spotCandidates.length = 0;
-    for (let i = 0; i < activeAwnings.length; i++) {
-      const item = activeAwnings[i];
-      const a = item.a;
-      const dx = a.x - camX;
-      const dz = a.z - camZ;
-      const d2 = dx * dx + dz * dz + camY * camY;
-      if (d2 > STORE_MAX_DIST * STORE_MAX_DIST) continue;
-      const d = Math.sqrt(d2);
-      const forwardDot = dx * fwdX + dz * fwdZ;
-      const effDist = d + Math.max(0, 6.0 - forwardDot) * 2.8;
-      if (effDist >= STORE_MAX_DIST) continue;
-      spotCandidates.push({ item, effDist });
-    }
-    spotCandidates.sort((a, b) => a.effDist - b.effDist);
-
-    const storeCutoff = spotCandidates.length > STORE_SPOT_POOL
-      ? Math.min(STORE_MAX_DIST, spotCandidates[STORE_SPOT_POOL].effDist)
-      : STORE_MAX_DIST;
-    const activeSpots = Math.min(STORE_SPOT_POOL, spotCandidates.length);
-    const spotIntensity = 46 * glowFactor;
-    for (let i = 0; i < STORE_SPOT_POOL; i++) {
-      const spot = storeSpotPool[i];
-      if (i < activeSpots) {
-        const cand = spotCandidates[i];
-        const { a, themeIdx, ry } = cand.item;
-        const fade = smoothFade(cand.effDist, storeCutoff * 0.62, storeCutoff);
-        const sideDir = a.sideDir || 1;
-        const outX = Math.cos(ry) * sideDir;
-        const outZ = -Math.sin(ry) * sideDir;
-        spot.position.set(a.x + outX * 0.45, ground(a) + 4.35, a.z + outZ * 0.45);
-        spot.target.position.set(a.x + outX * 1.85, ground(a), a.z + outZ * 1.85);
-        spot.target.updateMatrixWorld();
-        spot.color.copy(storeThemeColors[themeIdx % storeThemeColors.length]);
-        spot.intensity = spotIntensity * fade;
-      } else {
-        spot.intensity = 0;
-        spot.position.set(0, -1000, 0);
-      }
-    }
-  }
-
-  // Initial Quadtree stream centered at Midtown 5th Ave & 42nd St
+  // The first stream, about the origin
   update(0, 62, true);
 
   scene.add(group);
@@ -906,8 +522,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     interiors,
     quadtree,
     allBlocks,
-    update,
-    updateLights
+    update
   };
 }
 

@@ -38,12 +38,7 @@ import { PATH_BENCHES } from './terrain.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP, OVERPASSES } from './terrain.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
-let centralParkClearings;
 let parkTreeSites;
-let parkLampSites;
-let pavedPlazaRects;
-let sidewalkBlocks;
-let fdrViaduct;
 let berlinStreetSites = [];
 
 const CITY_MERGE_CELL = 1000; // m: tiles of the merged ground layers (roads, sidewalks, curbs, lawns, paint, water)
@@ -267,7 +262,6 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
     const geometry = berlinPolygonGeometry(ring, holes, paved ? 0.055 : 0.045);
     if (paved) setPavingStyle(geometry, 2);
     collect(geometry, paved ? pavingMat : lawnMat);
-    if (paved) pavedPlazaRects.push(berlinBounds(ring));
   }
 
   // Tempelhofer Feld retains the former airport's mapped runway and apron
@@ -940,8 +934,7 @@ async function buildBerlinCityGrid(scene) {
   group.name = 'BerlinMitteCityGrid';
   const { sidewalkMat, curbMat, waterMat } = cityMaterials();
   const footprints = [], sidewalks = [], colliders = [];
-  parkTreeSites = []; parkLampSites = []; pavedPlazaRects = []; sidewalkBlocks = [];
-  centralParkClearings = null; fdrViaduct = null; berlinStreetSites = []; streetSiteKeys.clear();
+  parkTreeSites = []; berlinStreetSites = []; streetSiteKeys.clear();
 
   // The ground is the terrain model itself (swissALTI3D), carved a few metres under the rivers and the lake so that
   // their surfaces (the lowest ground around, see terrain.js) show over a dark bed. The water is built for the whole
@@ -1230,11 +1223,6 @@ export {
   buildCityGrid,
   buildGroundLayers,
   cityMaterials,
-  centralParkClearings,
   parkTreeSites,
-  parkLampSites,
-  pavedPlazaRects,
-  sidewalkBlocks,
-  fdrViaduct,
   berlinStreetSites
 };

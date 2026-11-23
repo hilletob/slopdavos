@@ -433,7 +433,7 @@ async function initApp() {
   }
   markInit('swissbuildings3d');
   const cityBlocks = buildCityBlocks(scene, { bag: !!swissBuildings || skipped('buildings') });
-  if (skipped('buildings')) scene.remove(cityBlocks.group); // (their fire escapes and shop fronts too; the colliders stay)
+  if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
   const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
@@ -596,7 +596,6 @@ async function initApp() {
     highwayTraffic.group,
     vbd.group, // the buses move as whole objects
     levelCrossings.group, // the booms turn
-    scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
     controllerManager.entities.cyclist.helmet,
@@ -1433,7 +1432,6 @@ async function initApp() {
       nextPlayerSave = now + 5000;
     }
     cityBlocks.update(cameraSystem.currentPos.x, cameraSystem.currentPos.z);
-    if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
     snowfall.update(cameraSystem.camera);
