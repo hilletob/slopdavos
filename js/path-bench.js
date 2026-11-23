@@ -13,7 +13,8 @@ import { gridHeight } from './terrain-grid.js';
 
 const BENCH_KINDS = new Set(['footway', 'path', 'track', 'cycleway', 'pedestrian', 'steps']);
 /** Whether the way `r` (a record of DAVOS_DATA.roads) is laid as a bench: the ways off the carriageways, on the ground */
-export const isBenched = (r) => BENCH_KINDS.has(r.kind) && !r.bridge && !r.tunnel && !r.sidewalkWay && !!r.pts && r.pts.length >= 4;
+// (`noBench`: a way a hand-built module lays itself, js/post-coop.js the Silvrettaplatz on its slab)
+export const isBenched = (r) => BENCH_KINDS.has(r.kind) && !r.bridge && !r.tunnel && !r.sidewalkWay && !r.noBench && !!r.pts && r.pts.length >= 4;
 /** Half the width of the bench of way `r` (m) */
 export const benchHalf = (r) => Math.max(0.3, (r.width || 2) / 2);
 

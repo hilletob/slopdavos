@@ -43,6 +43,7 @@ import { buildPfadiheim } from './pfadiheim.js';
 import { buildParkedResurfacers } from './missions-rink.js';
 import { buildSpital } from './spital.js';
 import { buildAltePost } from './alte-post.js';
+import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
 import { buildRaetiaCenter } from './raetia-center.js';
 import { buildBelvedere } from './belvedere.js';
@@ -344,6 +345,7 @@ async function initApp() {
   const pfadiheim = skipped('pfadiheim') ? { colliders: [] } : buildPfadiheim(scene); // the Pfadiheim Davos, after its photographs (js/pfadiheim.js)
   const spital = skipped('spital') ? { colliders: [] } : buildSpital(scene); // the Spital Davos: concrete, reliefs, the entrance hall (js/spital.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
+  const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
   const belvedere = skipped('belvedere') ? { colliders: [] } : buildBelvedere(scene); // the Grandhotel Belvédère: the balconies, the loggias, the old house with its dome (js/belvedere.js)
   const marienkirche = skipped('marienkirche') ? { colliders: [] } : buildMarienkirche(scene); // the Marienkirche: the tower with its quoins, belfry and spire, the nave and the transept (js/marienkirche.js)
@@ -411,7 +413,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }
