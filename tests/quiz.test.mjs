@@ -8,6 +8,7 @@ import {
 } from '../js/missions-data-quiz.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // (js/missions-data-quiz.js is the pure part of Gigi's guessing round; the card, the lobby and the wire are checked on their source,
 // the session against a wire of its own below)
@@ -448,18 +449,8 @@ test('a table that holds together: a lost cut comes with the host\'s guesses, an
 // --- the languages ------------------------------------------------------------------------------------------------------
 test('every text of the round has its German: the questions, the units, Gigi, the regulars, the card, the lobby', async () => {
   const saved = new Map([['slopdavos-language', 'de']]);
-  globalThis.Node ??= { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter ??= { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  if (!globalThis.navigator?.language) Object.defineProperty(globalThis, 'navigator', { value: { language: 'de-CH' }, configurable: true });
   const before = globalThis.localStorage;
-  globalThis.localStorage = { getItem: (k) => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v) };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { t, setLanguage, getLanguage } = await import('../js/i18n.js');
+  const { t, setLanguage, getLanguage } = await loadI18n({ storage: saved });
   setLanguage('de');
   assert.equal(getLanguage(), 'de');
   const same = new Set(['km', 'm', 'm²', 'Zambonis']); // (the same in both languages)

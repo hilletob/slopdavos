@@ -10,6 +10,7 @@ import { MASK_TARGET, routePoint } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 const DT = 1 / 30;
 const S = SNOWFARM;
@@ -284,16 +285,7 @@ test('the objectives: load, spread, the snowcat, groom; the hints follow the wor
 });
 
 test('the snowfarming Loipe speaks German: its title, intro, steps, hints and the generated texts', async () => {
-  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document = {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.localStorage = { getItem() { return null; }, setItem() {} };
-  globalThis.window = { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const M = SNOWFARM_MISSION;
   for (const text of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(text), text, text);

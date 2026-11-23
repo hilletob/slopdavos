@@ -9,6 +9,7 @@ import {
 import { routePoint } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // (js/missions-data-winterroad.js is three.js-free: the van's wheels, the drive along the routes and the chains run on
 // synthetic frames here, the clean runs' times on the real terrain)
@@ -299,13 +300,7 @@ test('the medals: the clean runs (a speed profile on the real terrain) inside go
 });
 
 test('the winter drives speak German: names, intros, objectives, the HUD\'s texts', async () => {
-  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document = { readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' }, body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } }, querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; } };
-  Object.defineProperty(globalThis, 'navigator', { value: { language: 'de-CH' }, configurable: true });
-  globalThis.localStorage = { getItem() { return null; }, setItem() {} };
-  globalThis.window = { dispatchEvent() {} };
-  const { t, setLanguage } = await import('../js/i18n.js');
+  const { t, setLanguage } = await loadI18n();
   setLanguage('de');
   const de = (s) => { const out = t(s); assert.notEqual(out, s, `no German for "${s}"`); return out; };
   for (const m of WINTERROAD_MISSIONS) {

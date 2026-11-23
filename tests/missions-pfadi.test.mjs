@@ -10,6 +10,7 @@ import { medalFor } from '../js/missions-progress.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
 import { TLM_TREES } from '../js/tlm-trees-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // (js/missions-data-pfadi.js is three.js-free: the steps run on synthetic frames, a bot plays the whole camp)
 const DT = 1 / 60;
@@ -168,17 +169,7 @@ test('a bot walks the way and pitches, gathers, builds and lights: inside the go
 });
 
 test('the texts have their German', async () => {
-  globalThis.Node ??= { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter ??= { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  const saved = new Map();
-  globalThis.localStorage ??= { getItem: (k) => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v) };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const m = PFADI_MISSION;
   assert.equal(t(m.title), 'Pfadi Davos: Spatz und Lagerfeuer');

@@ -1,22 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // tests/missions-golf-i18n.test.mjs — the golf mission's HUD texts in German (js/i18n.js's pairs; the moving texts made
 // with msg() by js/missions-data-golf.js GOLF_TEXT and the round's functions), with the
-// same browser stand-ins as tests/i18n.test.mjs (German from the browser's language)
-const saved = new Map();
-globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-globalThis.document = {
-  readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-  body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-  querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-};
-Object.defineProperty(globalThis, 'navigator', { value: { language: 'de-CH' }, configurable: true });
-globalThis.localStorage = { getItem(key) { return saved.get(key) ?? null; }, setItem(key, value) { saved.set(key, value); } };
-globalThis.window = { dispatchEvent() {} };
-
-const { getLanguage, t } = await import('../js/i18n.js');
+// browser stand-ins of tests/helpers/dom-stub.mjs (German from the browser's language)
+const { getLanguage, t } = await loadI18n();
 const { GOLF_MISSION, GOLF_TEXT, shotReport, createBall, strike, simulateBall, windAgainstAim, createRound, endShot } = await import('../js/missions-data-golf.js');
 // a text made by the mission: its English, then its German
 const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };

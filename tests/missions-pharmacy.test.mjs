@@ -8,6 +8,7 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { SHOPS_DATA } from '../js/shops-data.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // (js/missions-data-pharmacy.js is three.js-free: the round, the bumps and a bot riding it run on synthetic frames here)
 
@@ -250,16 +251,7 @@ test('a bot rides the round in straight lines at 8 m/s: insulin in time, everyth
 });
 
 test('the medicine round\'s texts in German', async () => {
-  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.localStorage ??= { getItem() { return null; }, setItem() {} };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const M = PHARMACY_MISSION;
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title), ...PARCELS.map((p) => p.content)]) assert.notEqual(t(s), s, s);

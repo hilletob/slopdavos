@@ -10,6 +10,7 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { readFileSync } from 'node:fs';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 const DT = 1 / 30;
 const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
@@ -158,16 +159,7 @@ test('bots: flooding walking backwards in lanes and resurfacing in lanes make go
 });
 
 test('fresh ice speaks German: the ways to the hydrant and the machine, the flood, the resurfacing and the summary', async () => {
-  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.localStorage ??= { getItem() { return null; }, setItem() {} };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const M = RINK_MISSION;
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);

@@ -12,6 +12,7 @@ import { mergeProgress, cleanProgress, canonical } from '../js/account-merge.js'
 import { travelKind } from '../js/play-stats.js';
 import { MissionManager } from '../js/missions-manager.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // The paragliding licence: the mission paraglider-rinerhorn is its exam, the progress keeps it (and the cloud save), and with
 // it js/paraglide-free.js flies from any slope that falls away (the pure parts of it here, on the real terrain)
@@ -202,16 +203,7 @@ test('the free flight is wired: P in the register, the touch button, the preload
   assert.match(main, /buildFreeFlight\(/); assert.match(main, /freeFlight\.update\(dt\)/); assert.match(main, /gliding: freeFlight\.gliding/);
   // no other binding of P
   for (const f of ['main.js', 'controllers.js', 'gta.js', 'missions-world.js', 'missions.js']) assert.doesNotMatch(readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8'), /'KeyP'/, f);
-  globalThis.Node ??= { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter ??= { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.localStorage ??= { getItem() { return null; }, setItem() {} };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const lic = PARAGLIDE_MISSION.licence;
   assert.equal(t(lic.earned), 'Flugschein erhalten!');

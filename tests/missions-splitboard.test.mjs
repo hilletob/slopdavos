@@ -10,6 +10,7 @@ import { createRider, stepRider, riderSpeed, updateCheckpoints, lineLength, BOAR
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // (js/missions-data-splitboard.js is three.js-free: the skinner and the board run on synthetic slopes here, the bots on the
 // real terrain)
@@ -235,17 +236,7 @@ test('the gates and the poles are spaced along their lines, the last gate at the
 });
 
 test('German: the names, the intro, the steps and the running texts', async () => {
-  const saved = new Map();
-  globalThis.Node ??= { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter ??= { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.localStorage ??= { getItem: (k) => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v) };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   setLanguage('de');
   const m = SPLITBOARD_MISSION;
   assert.equal(t(m.title), 'Splitboardtour aufs Chörbschhorn');

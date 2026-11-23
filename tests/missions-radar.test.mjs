@@ -9,6 +9,7 @@ import {
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 const DT = 1 / 30;
 const EYE = { x: LASER_SPOT.x, z: LASER_SPOT.z };
@@ -238,18 +239,7 @@ test('the mission steps: park on the verge, set up the laser on foot, then the c
 });
 
 test('every text of the mission has its German', async () => {
-  // (the page as tests/i18n.test.mjs stubs it)
-  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.document = {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  Object.defineProperty(globalThis, 'navigator', { value: { language: 'de-CH' }, configurable: true });
-  globalThis.localStorage = { getItem: () => null, setItem() {} };
-  globalThis.window = { dispatchEvent() {} };
-  const { t, setLanguage } = await import('../js/i18n.js');
+  const { t, setLanguage } = await loadI18n();
   setLanguage('de');
   const m = RADAR_MISSION, texts = [m.title, m.intro, m.finish];
   const state = m.createState();

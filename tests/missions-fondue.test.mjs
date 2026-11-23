@@ -11,6 +11,7 @@ import {
   STIR, createStir, stirPoint, stirLift, stirStep, stirGauge, fondueStir, lemniscate, circleStroke,
   chooseFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll, TIPSY, schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK
 } from '../js/missions-data-fondue.js';
+import { loadI18n } from './helpers/dom-stub.mjs';
 
 // tests/missions-fondue.test.mjs
 // The Drupal Mountain Camp's Fondue Night (js/missions-data-fondue.js is three.js-free): the places, the figure of
@@ -218,16 +219,7 @@ test('the whole evening with synthetic frames, and what the panel says on the wa
 });
 
 test('the Fondue Night speaks German', async () => {
-  globalThis.document ??= {
-    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
-    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
-    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
-  };
-  globalThis.Node ??= { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-  globalThis.NodeFilter ??= { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
-  globalThis.localStorage ??= { getItem() { return null; }, setItem() {} };
-  globalThis.window ??= { dispatchEvent() {} };
-  const { setLanguage, t } = await import('../js/i18n.js');
+  const { setLanguage, t } = await loadI18n();
   const m = FONDUE_MISSION;
   setLanguage('de');
   try {
