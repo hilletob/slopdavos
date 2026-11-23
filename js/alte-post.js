@@ -3,7 +3,7 @@ import { abs, float, fract, mix, mx_noise_float, positionWorld, smoothstep, step
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, rectMask, twoTones, windowGrid, worldNoise } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, flatRoof, litWindow, nightGlow, rectMask, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { ALTE_POST, ALTE_POST_ENTRANCE, frontFrame, frontWindows } from './alte-post-data.js';
 
@@ -324,13 +324,7 @@ function buildPart(B, part) {
     // the eaves: a stone course standing out under the roof's edge
     if (part.cornice) B.box('trim', F, -0.35, F.len + 0.35, 0, 0.35, top - 0.3, top + 0.06, C.cornice, { top: 'roof' });
   }
-  const contour = ring.map(([x, z]) => new THREE.Vector2(x, z));
-  for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(contour, [])) {
-    const p = [ring[i], ring[j], ring[k]].map(([x, z]) => [x, top, z]);
-    const up = (p[1][2] - p[0][2]) * (p[2][0] - p[0][0]) - (p[1][0] - p[0][0]) * (p[2][2] - p[0][2]) > 0;
-    const t = up ? p : [p[0], p[2], p[1]];
-    B.tri('roof', t[0], t[1], t[2], t.map((q) => [q[0], q[2]]));
-  }
+  flatRoof(B, ring, top);
 }
 
 // The portal on the Promenade, the sgraffito over it, the firs' band

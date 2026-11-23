@@ -4,7 +4,7 @@ import { groundHeight } from './terrain.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, flatRoof, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { SPITAL, SPITAL_ENTRANCE, hallFrame, onWall, outwardRing, wallFrame, wallStretches } from './spital-data.js';
 
 export { SPITAL, SPITAL_ENTRANCE };
@@ -234,14 +234,7 @@ function buildPart(B, part) {
         [[st.from - mid, v(y0)], [st.to - mid, v(y0)], [st.to - mid, v(top)], [st.from - mid, v(top)]], { half: windows ? len / 2 : 0 });
     }
   }
-  const contour = ring.map(([x, z]) => new THREE.Vector2(x, z));
-  for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(contour, [])) {
-    const p = [ring[i], ring[j], ring[k]].map(([x, z]) => [x, top, z]);
-    // (facing up whichever way the triangulation turned)
-    const up = (p[1][2] - p[0][2]) * (p[2][0] - p[0][0]) - (p[1][0] - p[0][0]) * (p[2][2] - p[0][2]) > 0;
-    const t = up ? p : [p[0], p[2], p[1]];
-    B.tri('roof', t[0], t[1], t[2], t.map((q) => [q[0], q[2]]));
-  }
+  flatRoof(B, ring, top);
 }
 
 // The colours of the trim (linear)

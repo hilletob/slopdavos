@@ -5,7 +5,7 @@ import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
-import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, flatRoof, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { RAETIA, RAETIA_ENTRANCE, annexFrame, dormerFrame, frontFrame, gableFrame, toLocal } from './raetia-center-data.js';
 
@@ -203,16 +203,9 @@ function buildPart(B, part, zinc) {
     const v = (y) => y - high + UP - (windows ? 0 : CLOSED);
     B.quad('wall', P(0, y0), P(F.len, y0), P(F.len, yb), P(0, ya), [[-h, v(y0)], [h, v(y0)], [h, v(yb)], [-h, v(ya)]], { half: windows ? h : 0 });
   }
-  const contour = ring.map(([x, z]) => new THREE.Vector2(x, z));
+  // (the zinc's seams run up the slope: u along the eaves)
   const metal = part.roof === 'zinc' && zinc === 'sheet';
-  for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(contour, [])) {
-    const p = [ring[i], ring[j], ring[k]].map((q) => [q[0], top(q), q[1]]);
-    // (facing up whichever way the triangulation turned)
-    const up = (p[1][2] - p[0][2]) * (p[2][0] - p[0][0]) - (p[1][0] - p[0][0]) * (p[2][2] - p[0][2]) > 0;
-    const t = up ? p : [p[0], p[2], p[1]];
-    // (the zinc's seams run up the slope: u along the eaves)
-    B.tri(metal ? 'sheet' : 'roof', t[0], t[1], t[2], t.map((q) => (metal ? toLocal(q[0], q[2]) : [q[0], q[2]])), { colour: metal ? C.zinc : null });
-  }
+  flatRoof(B, ring, top, metal ? { bucket: 'sheet', uvOf: (q) => toLocal(q[0], q[2]), colour: C.zinc } : {});
 }
 
 // The dormers: a copper box out of the slope, its front a dark pane
