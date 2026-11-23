@@ -26,6 +26,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       # Optional: the high-resolution imagery (npm run data:hires, ~0.4 GB, not in git: the browser prefers it when it is
       # there). Building it here downloads from swisstopo's public WMS on every deploy (~10-15 min; cwebp and PIL needed);

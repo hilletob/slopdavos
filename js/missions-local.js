@@ -9,7 +9,7 @@ import { QUALITY } from './quality.js';
 import { t as tr } from './i18n.js'; // (tr: the games below keep their `t` for times and the tennis state)
 import {
   BREWERY, BEER_STOPS, beerStep,
-  GIPFELI, createRoll, rollStep, rollPoints, rollVerdict, gipfeliNext, gipfeliScore,
+  GIPFELI, rollStep, rollPoints, rollVerdict, gipfeliNext, gipfeliScore,
   RACLETTE, createRaclette, racletteStep, racletteScrape, meltGrade,
   IBEX, legalIbex, ibexLabel, ibexScale, ibexRayHit, ballistics, ibexAlarm, herdCentre, stepHerd, huntShoot,
   SEEPROMENADE, SQUIRREL, squirrelSpots, stepSquirrels,

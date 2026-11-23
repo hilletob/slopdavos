@@ -1,5 +1,4 @@
 import * as THREE from 'three/webgpu';
-import { bryantParkLawn } from './landmarks.js';
 import { groundHeight, cameraGround } from './terrain.js';
 import { lv95ToWorld } from './davos-frame.js';
 

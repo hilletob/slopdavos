@@ -7,7 +7,7 @@ import { t as tr, getLanguage } from './i18n.js';
 import { QUALITY } from './quality.js';
 import {
   QUIZ, GIGI, QUIZ_BOTS, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, roundPhase, lockGuess, cutWaiting,
-  hasGuessed, guessOf, questionResult, tableStandings, gigiLine, parseGuess, formatNumber
+  hasGuessed, questionResult, tableStandings, gigiLine, parseGuess, formatNumber
 } from './missions-data-quiz.js';
 
 // js/missions-quiz.js

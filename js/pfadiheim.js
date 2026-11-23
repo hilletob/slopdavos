@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, float, fract, fwidth, mix, mx_noise_float, positionLocal, positionWorld, sin, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
+import { abs, float, fract, fwidth, mix, mx_noise_float, positionLocal, positionWorld, sin, smoothstep, texture, time, uv, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';

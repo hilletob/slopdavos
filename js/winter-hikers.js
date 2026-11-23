@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, vec2, vec3, color, attribute, attributeArray, instanceIndex, varying, sin, cos, abs, fract, mix, step, smoothstep, max, normalize, positionLocal } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, color, attribute, instanceIndex, varying, sin, cos, abs, fract, mix, step, smoothstep, max, normalize, positionLocal } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PERSON_BONES as BONE, buildPersonGeometry, createPersonMaterial, PersonRig, poseBuffer } from './pedestrians.js';
 import { surfaceHeight, groundHeight } from './terrain.js';

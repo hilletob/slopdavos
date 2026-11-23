@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, float, fract, mix, mx_noise_float, positionWorld, smoothstep, time, uv, vec2, vec3 } from 'three/tsl';
+import { attribute, float, mix, mx_noise_float, positionWorld, smoothstep, time, uv, vec2, vec3 } from 'three/tsl';
 import { STREAMS } from './streams-data.js';
 import { groundHeight } from './terrain.js';
 import { winter, snowAltitude } from './season.js';

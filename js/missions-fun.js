@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { color, float, positionGeometry, smoothstep, uniform } from 'three/tsl';
+import { float, positionGeometry, smoothstep, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HAIRSTYLE, PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { surfaceHeight } from './terrain.js';

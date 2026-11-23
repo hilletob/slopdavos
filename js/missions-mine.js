@@ -5,7 +5,7 @@ import { groundHeight } from './terrain.js';
 import { parseAdit, aditUrl } from './silberberg-asset.js';
 import { t } from './i18n.js';
 import {
-  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, railAt, stationPoint, mineSeedOfDay, shiftScore, nearestBin,
+  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, stationPoint, mineSeedOfDay, shiftScore, nearestBin,
   GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, GUIDE_CALLS, createGuide, stepGuide, answerQuiz
 } from './missions-data-mine.js';
 

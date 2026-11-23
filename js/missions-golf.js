@@ -4,7 +4,7 @@ import {
   CLUBS, clubById, BALL_R, HOLE_R, SURFACES, surfaceAt, createBall, strike, stepBall, previewFlight, slopeAt,
   currentHole, distanceToPin, beginShot, endShot, nextHole, createMeter, meterStart, meterPower, meterAccuracy, meterStep,
   accuracyLabel, METER, toPar, formatToPar, GREEN_SLOPE_BOOST, PUTT_MAX,
-  landingFor, shotTable, powerFor, carryAt, windAgainstAim, lieToll, shotReport, alongAim
+  landingFor, shotTable, powerFor, carryAt, windAgainstAim, shotReport, alongAim
 } from './missions-data-golf.js';
 
 // js/missions-golf.js

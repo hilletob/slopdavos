@@ -1,6 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { cameraPosition, color, positionGeometry, positionWorld, sin, smoothstep, step, time } from 'three/tsl';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { cameraPosition, color, positionGeometry, positionWorld, sin, smoothstep, time } from 'three/tsl';
 import { MISSIONS, formatDistance, relativeBearing } from './missions-data.js';
 import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS } from './missions-progress.js';
 import { setMissionStartInReach } from './missions-manager.js';

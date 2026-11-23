@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, float, fract, max, min, mix, positionGeometry, positionView, smoothstep, step, uv } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
-import { airObstacleField, KIND, PYLON_FROM, armHalf } from './air-obstacle-field.js';
+import { airObstacleField, KIND, PYLON_FROM } from './air-obstacle-field.js';
 import { cullInstanced } from './scene-culling.js';
 
 // The registered air navigation obstacles of Davos, drawn (js/air-obstacle-field.js has the geometry and the contact

@@ -9,7 +9,7 @@ import { poseSkater } from './missions-ice.js';
 import { t } from './i18n.js';
 import {
   XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, XC_PLAYER_BIB, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
-  racerAt, aiSpeed, placeAt,
+  racerAt, aiSpeed,
   MINIGOLF, MINIGOLF_SITE, MINIGOLF_EXCLUDE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
   BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA

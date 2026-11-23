@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, cos, dot, float, fract, max, min, mix, mx_noise_float, positionLocal, positionWorld, sin, smoothstep, step, time, vec2, vec3 } from 'three/tsl';
+import { abs, attribute, cos, dot, float, fract, min, mix, mx_noise_float, positionLocal, positionWorld, sin, smoothstep, step, time, vec2, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GOLF } from './golf-data.js';
 import { DAVOS_DATA } from './davos-geodata.js';

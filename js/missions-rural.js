@@ -6,7 +6,7 @@ import { VEHICLES, createToast, particles, lump } from './missions-work.js';
 import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import { QUAD_MODEL, QUAD_PAINTS, createQuad, setQuadLamps } from './quad.js';
 import {
-  QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_GATES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
+  QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
   BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_ROUTE, bioLoad, rejectBarrel, stopAtBed, stepBioStops
 } from './missions-data-rural.js';
 

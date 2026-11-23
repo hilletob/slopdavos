@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, float, max, mix, positionGeometry, positionLocal, select, vec3 } from 'three/tsl';
+import { attribute, float, max, positionGeometry, positionLocal, select, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { groundHeight } from './terrain.js';
