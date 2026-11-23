@@ -64,6 +64,7 @@ import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './fram
 import { markWorldReady } from './world-ready.js';
 import { precompileShaders } from './shader-warmup.js';
 import { setupPopovers, setupFigureMenu, setupCredits, blurClickedButtons } from './hud-dialogs.js';
+import { createLoadingScreen } from './loading-screen.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -120,59 +121,8 @@ addEventListener('unhandledrejection', (e) => boot.error('unhandled: ' + errorTe
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
-  const loadingOverlay = document.getElementById('loading-overlay');
-  const loadingStatus = document.getElementById('loading-status');
-  const loadingTrack = loadingOverlay ? loadingOverlay.querySelector('.loader-track') : null;
-  const loadingFill = document.getElementById('loading-progress');
-  // The loading bar fills by the clock, over the time the last start took on this device (css/style.css is-timed: an
-  // animation on the compositor, the main thread paints nothing while it builds the town), and the first frame fills it
-  const LOAD_TIME_KEY = 'slopdavos-load-ms';
-  const loadStarted = performance.now();
-  if (loadingTrack) {
-    let last = NaN;
-    try { last = Number(localStorage.getItem(LOAD_TIME_KEY)); } catch { /* (storage off: the default) */ }
-    const expected = last >= 3000 && last <= 600000 ? last : (QUALITY.mobile ? 80000 : 45000);
-    loadingTrack.style.setProperty('--load-time', `${Math.round(expected)}ms`);
-    loadingTrack.classList.remove('is-indeterminate');
-    loadingTrack.classList.add('is-timed');
-  }
-  const setLoadingProgress = (p) => {
-    if (!loadingFill) return;
-    if (loadingTrack) loadingTrack.classList.remove('is-indeterminate', 'is-timed');
-    loadingFill.style.transform = `scaleX(${Math.min(1, Math.max(0, p))})`;
-  };
-
-  if (loadingStatus) {
-    loadingStatus.textContent = 'Getting the city ready…';
-  }
-  // The last start never got to its first frame: say where it stopped (and what went wrong, if anything was caught)
-  if (boot.previous && loadingOverlay) {
-    const note = document.createElement('p');
-    note.className = 'loader-crash-note';
-    note.style.cssText = 'margin-top:12px;font-size:12px;opacity:.75;max-width:90vw;word-break:break-word';
-    note.textContent = `Previous launch stopped at: ${boot.previous.stage}` + (boot.previous.errors?.length ? ` · ${boot.previous.errors.join(' | ')}` : '');
-    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
-    console.warn('[boot] the previous start stopped at', boot.previous);
-  }
-  // The last start's GPU trouble (js/gpu-diagnostics.js), also when it came after the first frame: the last shader
-  // module made and the first errors
-  const gpuLog = previousGpuLog();
-  if ((gpuLog?.errors?.length || gpuLog?.lost) && loadingOverlay) {
-    const note = document.createElement('p');
-    note.className = 'loader-crash-note';
-    note.style.cssText = 'margin-top:8px;font-size:11px;opacity:.7;max-width:90vw;word-break:break-word';
-    const last = gpuLog.last?.at(-1);
-    note.textContent = `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}` + (last ? ` · last shader #${last.n} ${last.label} ${last.length} B #${last.hash}` : '');
-    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
-    console.warn('[gpu] the previous start:', gpuLog);
-  }
-  // This start leaves systems out (?qset=skip:..., js/quality.js)
-  if (skipLabel() && loadingOverlay) {
-    const note = document.createElement('p');
-    note.style.cssText = 'margin-top:8px;font-size:12px;opacity:.8';
-    note.textContent = `skip: ${skipLabel()}`;
-    (loadingStatus?.parentElement || loadingOverlay).appendChild(note);
-  }
+  // The loading screen (js/loading-screen.js): its line, its bar, the notes on a last start that went wrong
+  const loading = createLoadingScreen({ previous: boot.previous, gpuLog: previousGpuLog(), skip: skipLabel() });
 
   // (?memhud=1: the read-out for a real phone, js/mem-hud.js; loaded and hooked in only with the switch)
   const memHud = /[?&]memhud=(1|true)\b/.test(location.search) ? await import('./mem-hud.js') : null;
@@ -256,9 +206,7 @@ async function initApp() {
   const snowfall = skipped('snowfall') ? { update: NOOP } : buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
   markInit('lighting');
 
-  if (loadingStatus) {
-    loadingStatus.textContent = 'Opening the streets…';
-  }
+  loading.say('Opening the streets…');
 
   // 3. Build Davos' ground, landmarks, blocks, street details & traffic. The engine builds them for a flat world: the
   // static scenery is laid onto the terrain once built (terrain.js); swissBUILDINGS3D and the ground are already in place.
@@ -278,7 +226,7 @@ async function initApp() {
   // iOS killed it); a breath first lets Safari give the old one back before the heavy builders start
   const breath = QUALITY.mobile ? movedHere() : 0;
   if (breath) {
-    if (loadingStatus) loadingStatus.textContent = 'Moving the town…';
+    loading.say('Moving the town…');
     await new Promise((resolve) => setTimeout(resolve, breath));
   }
   const cityGrid = await buildCityGrid(scene); // (async: the mobile profile pauses within, js/city-grid.js)
@@ -425,7 +373,7 @@ async function initApp() {
       // (`near`: the tiles around the player the start waits for; the rest of the valley's come in while playing)
       onProgress: (done, total, near) => {
         if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${near} (of ${total})`);
-        if (loadingStatus && !swissBuildings) loadingStatus.textContent = `Raising the houses around you ${Math.min(done, near)}/${near}…`;
+        if (!swissBuildings) loading.say(`Raising the houses around you ${Math.min(done, near)}/${near}…`);
       }
     });
     swissBuildings = await stream.ready;
@@ -1139,9 +1087,7 @@ async function initApp() {
 
   // The loading screen stays up while the shaders compile (precompileShaders() & the warm-up frame, see the loop) and
   // until the first frame is on screen
-  if (loadingStatus) {
-    loadingStatus.textContent = 'Bringing Davos to life…';
-  }
+  loading.say('Bringing Davos to life…');
 
   // The terrain chunks around the start in full (the rest stream in and out with the camera, js/terrain.js)
   streamTerrain(cameraSystem.camera.position, { all: true });
@@ -1149,7 +1095,7 @@ async function initApp() {
   if (QUALITY.precompile !== false) {
     await precompileShaders({
       renderer, renderPipeline, scene, camera: cameraSystem.camera, scenePass: skipped('postfx') ? null : scenePass, sceneMRT,
-      status: loadingStatus, mark: markInit, boot
+      status: loading.status, mark: markInit, boot
     });
   }
   // (the mobile profile: what the precompile uploaded leaves JavaScript before the first frame adds its own)
@@ -1323,20 +1269,14 @@ async function initApp() {
           shaderModules() { return shaderModuleStats(); },
         };
         initTimings = null;
-        if (loadingOverlay) {
-          loadingOverlay.classList.add('hidden');
-          // (faded out: its picture is let go of and its animations stop)
-          setTimeout(() => { if (loadingOverlay.classList.contains('hidden')) loadingOverlay.classList.add('is-gone'); }, 900);
-        }
-        // (how long this start took: the next one's bar runs by it)
-        try { localStorage.setItem(LOAD_TIME_KEY, String(Math.round(performance.now() - loadStarted))); } catch { /* (storage off) */ }
+        loading.done();
         audioSystem.ready = true;
         // From now on, every few seconds: the static scenery's vertex data leaves JavaScript once it is on the GPU
         // (js/gpu-memory.js; what has not been drawn yet keeps its arrays until it is)
         releaseStatic();
         setInterval(releaseStatic, 5000);
         setTimeout(buildDeferred, 2000);
-        setLoadingProgress(1);
+        loading.progress(1);
         memHud?.startMemHud({ renderer, scene, state: () => ({ season: gameClock.season, winterScenery: winterSceneryPending() ? 'not built' : 'built' }) });
       });
     }
