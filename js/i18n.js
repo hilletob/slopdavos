@@ -1,8 +1,8 @@
 // UI language. English is the source language for the existing interface.
 // The observer also covers HUD and mission panels created after startup.
 // New texts that change as they are shown (a distance, a count) are better made with msg() (js/messages.js): their German
-// stands beside the English where they are made, and translate() finds it there before any pattern below. The jetpack
-// demo is made that way (js/missions-data-jetpack.js); the patterns for the other missions are still here.
+// stands beside the English where they are made, and translate() finds it there before the pairs below. Every text the
+// game makes that changes is made that way; translate() keeps one pattern, for the points' unit.
 import { germanOf, madeOf, germanFrom } from './messages.js';
 import { KEYS } from './storage-keys.js';
 
@@ -1250,7 +1250,7 @@ const pairs = [
   ["Breaks from the wrist: high. From the elbow: considerable. From the shoulder: moderate. No break: low. 30 cm of fresh snow: one level more.", "Bruch aus dem Handgelenk: gross. Aus dem Ellbogen: erheblich. Aus der Schulter: mässig. Kein Bruch: gering. 30 cm Neuschnee: eine Stufe mehr."],
   ["No break: CTN", "Kein Bruch: CTN"],
   ["SLF bulletin", "SLF-Bulletin"],
-  // (where the pit comes from: js/missions-data-expert.js slfNote; the numbered lines are in translate() below)
+  // (where the pit comes from: js/missions-data-expert.js slfNote, which makes its numbered lines with msg())
   ["Data: SLF", "Daten: SLF"],
   ["No SLF data today: a training profile", "Heute keine SLF-Daten: ein Übungsprofil"],
   ["SLF: no fresh reading from the Weissfluhjoch: a training profile", "SLF: kein frischer Messwert vom Weissfluhjoch: ein Übungsprofil"],
@@ -1785,36 +1785,13 @@ function translate(value) {
   if (translated) return match[1] + translated + match[3];
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
-  let dynamic = match[2];
-  // (the missions' moving texts are made with msg(): the gastro, bar, resort, care and expert missions, the snow haul,
-  // the hike, the Parsennbahn's and the RhB's limits, the handing over and the unloading; the walks to a door name their
-  // place in both languages, and a pop is its line said with its points after two spaces, js/missions-data-gastro.js
-  // popText; the steps' titles made as their modules load say themselves through their titleText(), js/missions.js
-  // stepTitle, and the splits' and the bib are made when shown)
-  dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
-  // (the other missions' moving texts and summaries are made with msg() too.) Then generic lines: the score unit of the
-  // hockey and the leaderboards
-  dynamic = dynamic.replace(/(-?\d+) goals ahead\b/g, (_, n) => `${n} ${n === '1' ? 'Tor' : 'Tore'} Vorsprung`);
-  // The end panels' scores (the units of js/missions-progress.js), the mission aborted by js/missions.js and the crane's
-  // summary without a load set down (js/missions-data-work.js: msg() gives 'Set down: ', the page shows it trimmed)
-  const medalDe = (m) => enToDe.get(m) || m;
-  const unitDe = { goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', points: 'Punkte', 'WC pts': 'Weltcup-Punkte' };
-  dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${n === '1' ? unitDe[unit].replace('Tore', 'Tor') : unitDe[unit]}`);
-  dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
-  dynamic = dynamic.replace(/^Set down:\s*$/, 'Abgesetzt:');
-  // then the points' unit wherever it is left
-  dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
-  // the leaderboards' comparison (js/leaderboard-ui.js compareText)
-  if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {
-    const gapUnits = { points: 'Punkte', pts: 'Pkt.', goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', 'WC pts': 'Weltcup-Punkte' };
-    const gapDe = (g) => g.replace(/^(-?\d+) (goals ahead|goals|skiers|points|WC pts|pts)$/, (_, n, u) => `${n} ${n === '1' ? gapUnits[u].replace('Tore', 'Tor') : gapUnits[u]}`);
-    dynamic = dynamic
-      .replace(/^You lead by (.+) over place 2$/, (_, g) => `Du führst mit ${gapDe(g).replace(/ Punkte$/, ' Punkten').replace(/ Tore$/, ' Toren')} vor Platz 2`)
-      .replace(/^Place (\d+) of (\d+)/, 'Platz $1 von $2')
-      .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
-      .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
-  }
-  return match[1] + dynamic + match[3];
+  // (every moving text, title, unit and line the game makes says its German where it is made, js/messages.js msg(): the
+  // missions' lines, pops and summaries, the steps' titles made as their modules load through their titleText(),
+  // js/missions.js stepTitle, the scores with their units, js/missions-data.js scoreText, the leaderboards' comparison, the
+  // map, the loading screen and the vehicles.) Left: the points' unit "pts" wherever it is, for the runtimes that still
+  // write "N pts" into their HUDs and toasts themselves (the skate bowl's, the big air's, the RhB's timetable, the
+  // quiz's tables)
+  return match[1] + match[2].replace(/\bpts\b/g, 'Pkt.') + match[3];
 }
 
 // A text made with msg() keeps its record with the node (or the attribute) that shows it: msg() remembers only its last

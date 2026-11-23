@@ -1248,7 +1248,9 @@ export const CRANE_MISSION = {
   ],
   summary(state) {
     const parts = state.results.map((r) => `${r.err.toFixed(2)} m, ${r.v.toFixed(2)} m/s`);
-    return [msg('Set down: {parts}', 'Abgesetzt: {parts}', { parts: parts.join(' · ') }), msg('{a} {hits} · {b} hard {landings}', (q) => `${q.a} Treffer · ${q.b} harte ${q.b === 1 ? 'Landung' : 'Landungen'}`,
+    // (no load set down: no space after the colon, which the page would trim away from the text msg() knows)
+    const setDown = parts.length ? msg('Set down: {parts}', 'Abgesetzt: {parts}', { parts: parts.join(' · ') }) : msg('Set down:', 'Abgesetzt:');
+    return [setDown, msg('{a} {hits} · {b} hard {landings}', (q) => `${q.a} Treffer · ${q.b} harte ${q.b === 1 ? 'Landung' : 'Landungen'}`,
       { a: state.hits, hits: state.hits === 1 ? 'hit' : 'hits', b: state.hard, landings: state.hard === 1 ? 'landing' : 'landings' })];
   }
 };

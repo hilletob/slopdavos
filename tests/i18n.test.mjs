@@ -333,6 +333,7 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   says(rebar.check({ t: 0 }, { ...W.createCraneState(), carried: true, seated: true, lifted: true, lx: pad.x + 0.6, lz: pad.z, hits: 3 }).text, '0.6 m off the mark · 3 hits', '0.6 m neben der Markierung · 3 Treffer');
   says(crane.objectives[0].check({ x: W.CRANE.ladder.x + 45, z: W.CRANE.ladder.z }, W.createCraneState()).text, '45 m to the crane ladder', '45 m bis zur Kranleiter');
   says(crane.summary({ ...W.createCraneState(), results: [{ err: 0.42, v: 0.31 }, { err: 1.5, v: 0.8 }] })[0], 'Set down: 0.42 m, 0.31 m/s · 1.50 m, 0.80 m/s', 'Abgesetzt: 0.42 m, 0.31 m/s · 1.50 m, 0.80 m/s');
+  says(crane.summary({ ...W.createCraneState(), results: [] })[0], 'Set down:', 'Abgesetzt:');
   assert.equal(t('Hold A: slew the jib round towards the yellow ring on the load'), 'A halten: Schwenk den Ausleger zum gelben Ring bei der Last');
   says(W.craneNextText('rebar bundle'), 'Next: the rebar bundle in the yard', 'Als Nächstes: Armierungsbund auf dem Werkplatz');
   const mush = W.MUSHROOM_MISSION;
@@ -410,7 +411,9 @@ test('gastro, resort and après-ski missions translate names, intros and generat
   says(R.TBAR_MISSION.summary({ game: { ...R.createTbarGame(), pairs: 9, perfects: 4, best: 5, knocks: 1, empties: 2 } })[0], '9 pairs up · 4 perfect hand-overs · best run 5 · 1 knocked over · 2 empty bars', '9 Paare hinauf · 4 perfekte Übergaben · beste Serie 5 · 1 umgeworfen · 2 leere Bügel');
   says(R.tbarCardText({ skiers: 1, queue: [{ kind: 'kids' }] }, 80, '2.4', true), 'skier up · 80 s · rope 2.4 m/s · next pair ready · kids: careful!', 'Skifahrer oben · 80 s · Seil 2.4 m/s · nächstes Paar bereit · Kinder: Vorsicht!');
   says(R.tbarCardText({ skiers: 7, queue: [] }, 80, '2.4', false), 'skiers up · 80 s · rope 2.4 m/s · moving up …', 'Skifahrer oben · 80 s · Seil 2.4 m/s · fährt hoch …');
-  assert.equal(t('12 skiers'), '12 Skifahrer');
+  // (a score with its unit, js/missions-data.js scoreText)
+  const { scoreText } = await import('../js/missions-data.js');
+  says(scoreText(R.TBAR_MISSION, 12), '12 skiers', '12 Skifahrer');
   says(R.waxCardText({ pairs: [{}, {}, {}] }, 90, 'read the board, pick the wax (1-5 or tap)'), 'pts · 3 pairs · 90 s · read the board, pick the wax (1-5 or tap)', 'Pkt. · 3 Paare · 90 s · Tafel lesen, Wachs wählen (1–5 oder antippen)');
   says(R.WAX_MISSION.summary({ bench: { pairs: [{ points: 80 }, { points: 65 }] } })[0], '2 pairs waxed · 80 · 65', '2 Paare gewachst · 80 · 65');
   says(R.WAX_MISSION.summary({ bench: { pairs: [] } })[0], '0 pairs waxed · no pair finished', '0 Paare gewachst · kein Paar fertig');
@@ -451,7 +454,10 @@ test('the rope park and the Seehofseeli translate names, intros and generated te
   says(pond({ myAssists: 1 }), 'Won 5 : 2 · your goals: 3 · assists: 1', 'Gewonnen 5 : 2 · deine Tore: 3 · Assists: 1');
   says(pond({ us: 2, them: 2 }), 'Drawn 2 : 2 · your goals: 3', 'Unentschieden 2 : 2 · deine Tore: 3');
   assert.equal(t('Body check: the puck is loose!'), 'Bodycheck: Der Puck ist frei!');
-  assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
+  const { scoreText } = await import('../js/missions-data.js');
+  says(scoreText(POND_MISSION, 3), '3 goals ahead', '3 Tore Vorsprung');
+  says(scoreText(POND_MISSION, 1), '1 goals ahead', '1 Tor Vorsprung');
+  says(scoreText(POND_MISSION, -2), '-2 goals ahead', '-2 Tore Vorsprung');
 });
 
 test('the WEF missions translate names, intros, generated texts and slogans', async () => {
@@ -548,10 +554,22 @@ test('the end panels: failed and aborted, the awards, the score units and the su
     assert.equal(notes, `first completion +${P.FIRST_CLEAR_POINTS} · Silver +${P.MEDAL_POINTS.silver}`);
     assert.equal(t(notes), `erster Abschluss +${P.FIRST_CLEAR_POINTS} · Silber +${P.MEDAL_POINTS.silver}`);
   }
-  assert.equal(t('3 goals'), '3 Tore');
+  // (the scores with their units, js/missions-data.js scoreText: in the medals' limits, the best and the splits too)
   {
-    const { medalLimitText } = await import('../js/missions-progress.js');
-    const limit = medalLimitText('gold', '3 goals ahead');
+    const { scoreText } = await import('../js/missions-data.js');
+    const { HOCKEY_PENALTY_MISSION: penalties, CURLING_MISSION: curling } = await import('../js/missions-data-ice.js');
+    const { DAVOS_NORDIC_MISSION: nordic } = await import('../js/missions-data-sport.js');
+    const { POND_MISSION: pond } = await import('../js/missions-data-outdoor.js');
+    const { RESORT_MISSIONS } = await import('../js/missions-data-resort.js');
+    says(scoreText(penalties, 3), '3 goals', '3 Tore');
+    says(scoreText(penalties, 1), '1 goals', '1 Tor');
+    says(scoreText(curling, 7), '7 points', '7 Punkte');
+    says(scoreText(nordic, 80), '80 WC pts', '80 Weltcup-Punkte');
+    says(scoreText(RESORT_MISSIONS.find((m) => m.scoreUnit === 'skiers'), 1), '1 skiers', '1 Skifahrer');
+    says(scoreText({}, 450.4), '450 pts', '450 Pkt.');
+    const { medalLimitText, bestText } = await import('../js/missions-progress.js');
+    says(bestText('score', scoreText(pond, 4)), 'Best score 4 goals ahead', 'Bestwert 4 Tore Vorsprung');
+    const limit = medalLimitText('gold', scoreText(pond, 3));
     assert.equal(limit, 'Gold 3 goals ahead');
     assert.equal(t(limit), 'Gold 3 Tore Vorsprung');
   }
@@ -565,18 +583,28 @@ test('the end panels: failed and aborted, the awards, the score units and the su
   assert.equal(t('Down the Chüggelibahn'), 'Die Chüggelibahn hinunter');
 });
 
-test('the leaderboards\' comparison and the email sign-in read in German', () => {
+test('the leaderboards\' comparison and the email sign-in read in German', async () => {
   setLanguage('de');
-  assert.equal(t('Place 7 of 23 · 4.1 s behind place 6 · 01:09.1 behind the leader'), 'Platz 7 von 23 · 4.1 s hinter Platz 6 · 01:09.1 hinter der Spitze');
-  assert.equal(t('You lead by 750 points over place 2'), 'Du führst mit 750 Punkten vor Platz 2');
-  assert.equal(t('Place 17 of 37 · 500 points behind place 16 · 15250 points behind the leader'), 'Platz 17 von 37 · 500 Punkte hinter Platz 16 · 15250 Punkte hinter der Spitze');
-  assert.equal(t('Place 2 of 3'), 'Platz 2 von 3');
+  // (made by js/leaderboard-ui.js compareText from the lines of a list, its gaps by the list's kind)
+  const { compareText, listKind, pointsGap } = await import('../js/leaderboard-ui.js');
+  const { formatTime, scoreText } = await import('../js/missions-data.js');
+  const times = listKind({ format: formatTime });
+  const timed = (place, total_ms, is_me = false, players = 23) => ({ place, total_ms, is_me, players });
+  says(compareText([timed(1, 30000), timed(6, 95000), timed(7, 99100, true)], times), 'Place 7 of 23 · 4.1 s behind place 6 · 01:09.1 behind the leader', 'Platz 7 von 23 · 4.1 s hinter Platz 6 · 01:09.1 hinter der Spitze');
+  const points = { value: (r) => r.points, gap: pointsGap };
+  const pointed = (place, pts, is_me = false, players = 37) => ({ place, points: pts, is_me, players });
+  says(compareText([pointed(1, 9000, true), pointed(2, 8250)], points), 'You lead by 750 points over place 2', 'Du führst mit 750 Punkten vor Platz 2');
+  says(compareText([pointed(1, 30000), pointed(16, 15250), pointed(17, 14750, true)], points), 'Place 17 of 37 · 500 points behind place 16 · 15250 points behind the leader', 'Platz 17 von 37 · 500 Punkte hinter Platz 16 · 15250 Punkte hinter der Spitze');
+  says(compareText([pointed(2, 30000, true, 3)], points), 'Place 2 of 3', 'Platz 2 von 3');
+  assert.equal(t(compareText([pointed(1, 9000, true)], points)), 'Du führst');
   assert.equal(t('We sent a code to '), 'Wir haben einen Code geschickt an ');
   assert.equal(t('Leaderboards'), 'Bestenlisten');
-  assert.equal(t('Place 2 of 5 · 3 goals behind place 1'), 'Platz 2 von 5 · 3 Tore hinter Platz 1');
-  assert.equal(t('You lead by 1 goals over place 2'), 'Du führst mit 1 Tor vor Platz 2');
-  assert.equal(t('You lead by 2 goals ahead over place 2'), 'Du führst mit 2 Tore Vorsprung vor Platz 2');
-  assert.equal(t('Place 4 of 9 · 40 pts behind place 3 · 120 pts behind the leader'), 'Platz 4 von 9 · 40 Pkt. hinter Platz 3 · 120 Pkt. hinter der Spitze');
+  const scored = (unit) => listKind({ format: formatTime, score: (v) => scoreText({ scoreUnit: unit }, v) });
+  const row = (place, score, is_me = false, players = 5) => ({ place, score, is_me, players });
+  says(compareText([row(1, 12), row(2, 9, true)], scored('goals')), 'Place 2 of 5 · 3 goals behind place 1', 'Platz 2 von 5 · 3 Tore hinter Platz 1');
+  says(compareText([row(1, 10, true), row(2, 9)], scored('goals')), 'You lead by 1 goals over place 2', 'Du führst mit 1 Tor vor Platz 2');
+  says(compareText([row(1, 5, true), row(2, 3)], scored('goals ahead')), 'You lead by 2 goals ahead over place 2', 'Du führst mit 2 Tore Vorsprung vor Platz 2');
+  says(compareText([row(1, 400, false, 9), row(3, 320, false, 9), row(4, 280, true, 9)], scored('pts')), 'Place 4 of 9 · 40 pts behind place 3 · 120 pts behind the leader', 'Platz 4 von 9 · 40 Pkt. hinter Platz 3 · 120 Pkt. hinter der Spitze');
 });
 
 test('the jetpack demo speaks German', async () => {

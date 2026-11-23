@@ -2,6 +2,7 @@ import { MISSIONS, formatTime, scoreText } from './missions-data.js';
 import { FREE_FLIGHT_BOARD, freeFlightText } from './missions-data-paraglide.js';
 import { fetchBoard, fetchPoints } from './leaderboard.js';
 import { el } from './dom.js';
+import { msg } from './messages.js';
 import { boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
 import { KEYS } from './storage-keys.js';
 
@@ -27,7 +28,7 @@ const POINTS = {
   load: () => fetchPoints(),
   value: (r) => r.points,
   gap: pointsGap,
-  show: (r) => `${r.points} pts`,
+  show: (r) => msg('{n} pts', '{n} Pkt.', { n: r.points }),
   empty: 'No points on the list yet.',
   hint: 'The points of your missions, from your cloud save. Every medal counts.'
 };

@@ -591,7 +591,9 @@ export const MISSIONS = [DISCHMA_MISSION, REGA_MISSION, LAWINEN_MISSION, TOEFF_M
 // limits; a change to a mission's balance gets a new id and the old list closed). Only the day's run is ranked.
 for (const m of MISSIONS) m.board ??= `${m.id}-1`;
 
-/** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points) */
-export const scoreText = (def, v) => `${Math.round(v)} ${def.scoreUnit || 'pts'}`;
+/** A scoreMode mission's score with its unit (def.scoreUnit: 'goals', …; default points), in both languages
+ *  (js/messages.js): the end panels, the splits, the medals' limits, the best and the leaderboards' lines and gaps */
+const SCORE_UNIT_DE = { pts: ['Pkt.', 'Pkt.'], points: ['Punkte', 'Punkte'], goals: ['Tor', 'Tore'], 'goals ahead': ['Tor Vorsprung', 'Tore Vorsprung'], skiers: ['Skifahrer', 'Skifahrer'], 'WC pts': ['Weltcup-Punkte', 'Weltcup-Punkte'] };
+export const scoreText = (def, v) => msg('{n} {unit}', (p) => `${p.n} ${SCORE_UNIT_DE[p.unit]?.[p.n === 1 ? 0 : 1] ?? p.unit}`, { n: Math.round(v), unit: def.scoreUnit || 'pts' });
 
 export const getMission = (id) => MISSIONS.find((m) => m.id === id) || null;

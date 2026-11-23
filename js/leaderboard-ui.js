@@ -10,7 +10,7 @@ import { msg } from './messages.js';
 export const timeGap = (ms, format) => (ms < 60000 ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : format(ms));
 
 /** A gap in points */
-export const pointsGap = (n) => `${Math.max(0, Math.round(n))} points`;
+export const pointsGap = (n) => msg('{n} points', '{n} Punkte', { n: Math.max(0, Math.round(n)) });
 
 /** How a list's lines are shown and compared: by time, or by score (`score(v)` writes one with its unit) */
 export function listKind({ format, score = null }) {
@@ -19,7 +19,8 @@ export function listKind({ format, score = null }) {
 }
 
 /** How the player stands against the others, in one line (null: the player is not on the list). `value(row)`: the line's
- *  time or points, `gap(n)`: a difference written out */
+ *  time or points, `gap(n)`: a difference written out (a time as it is, a score or points made with msg(), so translated
+ *  as a part; "Du führst mit" takes its dative) */
 export function compareText(rows, { value, gap }) {
   const me = rows.find((r) => r.is_me);
   if (!me) return null;
@@ -27,14 +28,14 @@ export function compareText(rows, { value, gap }) {
   const players = me.players;
   if (me.place === 1) {
     const second = at(2);
-    return second ? `You lead by ${gap(Math.abs(value(second) - value(me)))} over place 2` : 'You lead';
+    return second ? msg('You lead by {gap} over place 2', (p, tr) => `Du führst mit ${tr(p.gap).replace(/ Punkte$/, ' Punkten').replace(/ Tore$/, ' Toren')} vor Platz 2`, { gap: gap(Math.abs(value(second) - value(me))) }) : 'You lead';
   }
-  const parts = [`Place ${me.place} of ${players}`];
+  const parts = [msg('Place {place} of {players}', 'Platz {place} von {players}', { place: me.place, players })];
   const above = at(me.place - 1);
-  if (above) parts.push(`${gap(Math.abs(value(me) - value(above)))} behind place ${above.place}`);
+  if (above) parts.push(msg('{gap} behind place {place}', '{gap|t} hinter Platz {place}', { gap: gap(Math.abs(value(me) - value(above))), place: above.place }));
   const first = at(1);
-  if (first && me.place > 2) parts.push(`${gap(Math.abs(value(me) - value(first)))} behind the leader`);
-  return parts.join(' · ');
+  if (first && me.place > 2) parts.push(msg('{gap} behind the leader', '{gap|t} hinter der Spitze', { gap: gap(Math.abs(value(me) - value(first))) }));
+  return parts.length === 1 ? parts[0] : msg(parts.join(' · '), (p, tr) => p.parts.map(tr).join(' · '), { parts });
 }
 
 /** The lines of a list (a gap in the places: …) */
