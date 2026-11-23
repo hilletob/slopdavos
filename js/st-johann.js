@@ -3,7 +3,7 @@ import { attribute, cos, float, floor, fract, hash, mix, mx_noise_float, positio
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, decalMaterial } from './spital.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { onWall } from './spital-data.js';
 import { ST_JOHANN, spireRing, towerSides } from './st-johann-data.js';
 
@@ -48,11 +48,8 @@ export const ATLAS = {
   slit: [388, 180, 40, 100]
 };
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  [c.width, c.height] = ATLAS_SIZE;
-  const g = c.getContext('2d');
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   g.lineCap = 'butt';
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
   // a pointed opening: a slot under a pointed arch
   const lancet = (x, y, w, h, colour) => {
     g.fillStyle = colour; g.beginPath(); g.moveTo(x, y + h); g.lineTo(x, y + w * 0.9);
@@ -77,10 +74,7 @@ function atlasTexture() {
   // The gable's two sound openings, a post between them
   cell('openings', (w, h) => { lancet(6, 4, 46, h - 6, DARK); lancet(68, 4, 46, h - 6, DARK); });
   cell('slit', (w, h) => lancet(4, 2, w - 8, h - 4, DARK));
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- The hands ---------------------------------------------------------------------------------------------------------

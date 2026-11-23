@@ -1,13 +1,16 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
+import { abs, attribute, float, floor, fract, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, time, uv, vec3 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { SPITAL, SPITAL_ENTRANCE, hallFrame, onWall, outwardRing, wallFrame, wallStretches } from './spital-data.js';
 
 export { SPITAL, SPITAL_ENTRANCE };
+// (the Builder and the decals' material were the Spital's first; they are js/building-kit.js')
+export { Builder, decalMaterial };
 
 // The Spital Davos rebuilt by hand (js/spital-data.js), standing in for its swissBUILDINGS3D volume, which the streamed
 // tiles drew as one white block with the town houses' windows: the surveyed volumes in board-marked concrete, a window
@@ -104,15 +107,6 @@ function materials() {
   return M;
 }
 
-export function decalMaterial(map) {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0, transparent: true });
-  const t = texture(map, uv());
-  m.colorNode = t.rgb;
-  m.opacityNode = t.a;
-  m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;
-  return m;
-}
-
 // --- The reliefs and the signs: one canvas atlas (px of 1024) -------------------------------------------------------------
 const ATLAS_SIZE = 1024;
 export const ATLAS = {
@@ -126,9 +120,7 @@ export const ATLAS = {
 const RED = '#d2402f', ORANGE = '#ee8a1d', YELLOW = '#f3c11c', BLUE = '#2b4bb0', GREEN = '#2e9960', TEAL = '#1d7f86';
 
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = ATLAS_SIZE;
-  const g = c.getContext('2d');
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   g.lineCap = 'round';
   g.lineJoin = 'round';
   // (the reliefs stand a hand off the wall: a soft shadow under them)
@@ -156,7 +148,6 @@ function atlasTexture() {
       g.beginPath(); g.arc(a * p0[0] + b * p1[0] + cc * p2[0], a * p0[1] + b * p1[1] + cc * p2[1], (w0 + (w1 - w0) * t) / 2, 0, Math.PI * 2); g.fill();
     }
   };
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
 
   // The sun on the west front: a comb of rays bent over a disc of rings, a blue fan beside it, a red crescent, a wave
   // with its dot and green leaves below
@@ -238,90 +229,10 @@ function atlasTexture() {
     g.fillStyle = '#5b6670'; g.font = '13px Helvetica, Arial, sans-serif';
     ['Notfall', 'Empfang', 'Besucher'].forEach((line, i) => g.fillText(line, w / 2, 262 + i * 30));
   });
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------
-// One mesh per material: quads pushed as two triangles, counter-clockwise seen from their front. (Also the Alte Post's,
-// js/alte-post.js: `atlas` the decals' cells ([x, y, w, h] px) in a canvas of `atlasSize` [w, h], `walls` the bucket
-// (or buckets) whose mesh carries aHalf, `name` the meshes' prefix)
-export class Builder {
-  constructor({ atlas = ATLAS, atlasSize = [ATLAS_SIZE, ATLAS_SIZE], walls = 'concrete', name = 'Spital Davos' } = {}) {
-    this.buckets = new Map();
-    Object.assign(this, { atlas, atlasSize, walls, name });
-  }
-  bucket(name) {
-    let b = this.buckets.get(name);
-    if (!b) this.buckets.set(name, (b = { pos: [], nrm: [], uv: [], half: [], col: [] }));
-    return b;
-  }
-  /** a, b, c, d: [x, y, z] round the quad; uvs: [[u, v] × 4]; `half` (the walls' aHalf), `colour` ([r, g, b], the trim) */
-  quad(name, a, b, c, d, uvs = [[0, 0], [1, 0], [1, 1], [0, 1]], { half = 0, colour = null } = {}) {
-    const B = this.bucket(name);
-    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1;
-    nx /= l; ny /= l; nz /= l;
-    for (const i of [0, 1, 2, 0, 2, 3]) {
-      const p = [a, b, c, d][i];
-      B.pos.push(p[0], p[1], p[2]); B.nrm.push(nx, ny, nz); B.uv.push(uvs[i][0], uvs[i][1]); B.half.push(half);
-      if (colour) B.col.push(colour[0], colour[1], colour[2]);
-    }
-  }
-  tri(name, a, b, c, uvs = [[0, 0], [1, 0], [0, 1]], { colour = null } = {}) {
-    const B = this.bucket(name);
-    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1;
-    [a, b, c].forEach((p, i) => {
-      B.pos.push(p[0], p[1], p[2]); B.nrm.push(nx / l, ny / l, nz / l); B.uv.push(uvs[i][0], uvs[i][1]); B.half.push(0);
-      if (colour) B.col.push(colour[0], colour[1], colour[2]);
-    });
-  }
-  /** A box in a wall's frame: s along it, o out of it, y up; `colour` (the trim) or uv in metres (s or o, y) */
-  box(name, F, s0, s1, o0, o1, y0, y1, colour = null, { top = name } = {}) {
-    const P = (s, o, y) => { const [x, z] = onWall(F, s, o); return [x, y, z]; };
-    const opt = { colour };
-    const face = (a, b, c, d, w, h, bucket = name) => this.quad(bucket, a, b, c, d, [[0, 0], [w, 0], [w, h], [0, h]], bucket === name ? opt : {});
-    const L = s1 - s0, D = o1 - o0, H = y1 - y0;
-    face(P(s0, o1, y0), P(s1, o1, y0), P(s1, o1, y1), P(s0, o1, y1), L, H); // the front (out of the wall)
-    face(P(s1, o0, y0), P(s0, o0, y0), P(s0, o0, y1), P(s1, o0, y1), L, H); // the back
-    face(P(s0, o0, y0), P(s0, o1, y0), P(s0, o1, y1), P(s0, o0, y1), D, H); // the ends
-    face(P(s1, o1, y0), P(s1, o0, y0), P(s1, o0, y1), P(s1, o1, y1), D, H);
-    face(P(s0, o1, y1), P(s1, o1, y1), P(s1, o0, y1), P(s0, o0, y1), L, D, top); // the top
-    face(P(s0, o0, y0), P(s1, o0, y0), P(s1, o1, y0), P(s0, o1, y0), L, D); // the underside
-  }
-  /** A decal from the atlas on a wall: s0–s1 along it (left to right seen from outside), `o` m before it */
-  decal(F, s0, s1, o, y0, y1, key, { mirror = false } = {}) {
-    const [ax, ay, aw, ah] = this.atlas[key], [W, H] = this.atlasSize;
-    const P = (s, y) => { const [x, z] = onWall(F, s, o); return [x, y, z]; };
-    let u0 = ax / W, u1 = (ax + aw) / W;
-    if (mirror) [u0, u1] = [u1, u0];
-    const v0 = 1 - (ay + ah) / H, v1 = 1 - ay / H;
-    this.quad('decal', P(s0, y0), P(s1, y0), P(s1, y1), P(s0, y1), [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
-  }
-  meshes(M) {
-    const out = [];
-    for (const [name, b] of this.buckets) {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
-      g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nrm, 3));
-      g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
-      if ([].concat(this.walls).includes(name)) g.setAttribute('aHalf', new THREE.Float32BufferAttribute(b.half, 1));
-      if (b.col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
-      const mesh = new THREE.Mesh(g, M[name]);
-      mesh.name = `${this.name} ${name}`;
-      mesh.castShadow = name !== 'decal';
-      mesh.receiveShadow = true;
-      out.push(mesh);
-    }
-    return out;
-  }
-}
-
 // A volume: its walls from the base up to its roof (cut into stretches with and without windows), the roof over them
 function buildPart(B, part) {
   const ring = outwardRing(part.ring), top = part.top, y0 = SPITAL.base;
@@ -414,7 +325,7 @@ export function buildSpital(scene) {
   const root = new THREE.Group();
   root.name = 'Spital Davos';
   root.userData.terrain = 'absolute'; // its heights are surveyed (main.js placeOnTerrain leaves it be)
-  const B = new Builder(), M = materials();
+  const B = new Builder({ atlas: ATLAS, atlasSize: [ATLAS_SIZE, ATLAS_SIZE], walls: 'concrete', name: 'Spital Davos' }), M = materials();
   for (const part of SPITAL.parts) buildPart(B, part);
   for (const m of SPITAL.murals) {
     const F = wallFrame(m.a, m.b);

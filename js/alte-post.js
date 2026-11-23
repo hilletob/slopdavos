@@ -4,7 +4,7 @@ import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, decalMaterial } from './spital.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { ALTE_POST, ALTE_POST_ENTRANCE, frontFrame, frontWindows } from './alte-post-data.js';
 
@@ -100,12 +100,9 @@ export const ATLAS = {
 const DARK = '#25242b', BEIGE = '#a39473', PALE = '#b0a283', LINE = '#75684f';
 
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  [c.width, c.height] = ATLAS_SIZE;
-  const g = c.getContext('2d');
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
   const rect = (x, y, w, h, colour) => { g.fillStyle = colour; g.fillRect(x, y, w, h); };
   const disc = (x, y, r, colour) => { g.fillStyle = colour; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
   const poly = (pts, colour) => { g.fillStyle = colour; g.beginPath(); pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y)); g.closePath(); g.fill(); };
@@ -318,10 +315,7 @@ function atlasTexture() {
     g.fillStyle = '#c3c6ca';
     [...text].forEach((ch, i) => { g.fillText(ch, x, h / 2 + 3); x += widths[i]; });
   });
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------

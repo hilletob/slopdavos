@@ -6,7 +6,7 @@ import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
-import { Builder, decalMaterial } from './spital.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { onWall, outwardRing, pointInRing, wallFrame } from './spital-data.js';
 import { BELVEDERE, balconyBays, clearStretches, facesFront, isOldFront, nameFrame, part, toOld, wallStretches } from './belvedere-data.js';
 
@@ -124,10 +124,7 @@ export const ATLAS = (() => {
 const ATLAS_SIZE = [1024, 760];
 
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  [c.width, c.height] = ATLAS_SIZE;
-  const g = c.getContext('2d');
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   const rect = (x, y, w, h, colour) => { g.fillStyle = colour; g.fillRect(x, y, w, h); };
   const PLAST = '#efe9dd', LIGHT = '#f7f4ee', SHADE = 'rgba(90, 80, 60, 0.28)', GLASS = '#2b3644', GLASS2 = '#46576a';
   // A window: its white frame, the panes with a post and a transom, an arched head if `arch`
@@ -240,10 +237,7 @@ function atlasTexture() {
   };
   cell('name', (w, h) => name(w, h, false));
   cell('nameBack', (w, h) => name(w, h, true));
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------

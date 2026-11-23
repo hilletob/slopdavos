@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
-import { Builder, decalMaterial } from './spital.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { onWall, wallFrame } from './spital-data.js';
 import { MARIENKIRCHE, decals, halfWidths, rectWalls, roofHeight, toWorld, towerRect } from './marienkirche-data.js';
 
@@ -36,10 +36,7 @@ export const ATLAS = {
 const rng = (seed) => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  [c.width, c.height] = ATLAS_SIZE;
-  const g = c.getContext('2d');
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   const GLASS = '#14171c', SURROUND = '#f4f1e8', BAR = '#b4b0a4', STONE = ['#6b6a66', '#5d5c59', '#77756f', '#646058', '#55585a'], ASHLAR = ['#8f8d87', '#817f7a', '#9b9891'];
   // a round-arched shape: a rectangle under a half circle
   const arched = (x, y, w, h) => { g.beginPath(); g.moveTo(x, y + h); g.lineTo(x, y + w / 2); g.arc(x + w / 2, y + w / 2, w / 2, Math.PI, 0); g.lineTo(x + w, y + h); g.closePath(); };
@@ -125,10 +122,7 @@ function atlasTexture() {
     g.fillStyle = GLASS; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 12, 0, Math.PI * 2); g.fill();
     g.fillStyle = BAR; g.fillRect(w / 2 - 1.5, 12, 3, h - 24); g.fillRect(12, h / 2 - 1.5, w - 24, 3);
   });
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------

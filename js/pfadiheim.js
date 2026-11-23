@@ -6,6 +6,7 @@ import { snowyRoof } from './season.js';
 import { cityUniforms } from './tsl-materials.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { glassMaterial } from './detail-houses.js';
+import { decalMaterial } from './building-kit.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { QUALITY } from './quality.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
@@ -90,14 +91,6 @@ function materials() {
   return M;
 }
 
-function decalMaterial(map) {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0, transparent: true });
-  const t = texture(map, uv());
-  m.colorNode = t.rgb.mul(0.85); // (the photographs are in full sun)
-  m.opacityNode = t.a;
-  m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;
-  return m;
-}
 // The flag: waving from the pole (local x = 0) out to its fly end, more the farther out
 function flagMaterial(map) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
@@ -484,7 +477,7 @@ export function buildPfadiheim(scene) {
   // The photographs and the flag, once the atlas is in (until then the walls are plain)
   const decals = [[meshes, root], [boardMeshes, boardGroup]].flatMap(([list, parent]) => list.filter((x) => x.name.endsWith('decal')).map((d) => [d, parent]));
   loadAtlas().then((map) => {
-    const dm = decalMaterial(map);
+    const dm = decalMaterial(map, { roughness: 0.8, shade: 0.85 }); // (the photographs are in full sun)
     for (const [d, parent] of decals) { d.material = dm; d.castShadow = false; parent.add(d); }
     const [x, z] = PROPS.flagpole, y = ground(x, z);
     const g = new THREE.PlaneGeometry(1.5, 1.0, 14, 6);

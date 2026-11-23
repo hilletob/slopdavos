@@ -6,7 +6,7 @@ import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
-import { Builder, decalMaterial } from './spital.js';
+import { Builder, atlasCanvas, canvasTexture, decalMaterial } from './building-kit.js';
 import { onWall, outwardRing, wallFrame } from './spital-data.js';
 import { RAETIA, RAETIA_ENTRANCE, annexFrame, dormerFrame, frontFrame, gableFrame, toLocal } from './raetia-center-data.js';
 
@@ -128,12 +128,9 @@ const TENANTS = [
 const BLUE = '#1f4fc4', YELLOW = '#f2c21a';
 
 function atlasTexture() {
-  const c = document.createElement('canvas');
-  [c.width, c.height] = ATLAS_SIZE;
-  const g = c.getContext('2d');
+  const { canvas: c, g, cell } = atlasCanvas(ATLAS_SIZE, ATLAS);
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  const cell = (key, draw) => { const [x, y, w, h] = ATLAS[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
   const rect = (x, y, w, h, colour) => { g.fillStyle = colour; g.fillRect(x, y, w, h); };
   const stroke = (pts, width, colour) => { g.strokeStyle = colour; g.lineWidth = width; g.beginPath(); pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y)); g.stroke(); };
   const relief = (on) => { g.shadowColor = on ? 'rgba(0, 0, 0, 0.5)' : 'transparent'; g.shadowBlur = on ? 4 : 0; g.shadowOffsetX = on ? 3 : 0; g.shadowOffsetY = on ? 4 : 0; };
@@ -194,10 +191,7 @@ function atlasTexture() {
       for (let k = 0; k < 6; k++) rect(x + 16, 66 + k * 18, (pw - 32) * (0.55 + 0.45 * ((i * 7 + k * 5) % 4) / 3), 6, 'rgba(40, 50, 70, 0.55)');
     });
   });
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
+  return canvasTexture(c);
 }
 
 // --- Geometry ------------------------------------------------------------------------------------------------------------
