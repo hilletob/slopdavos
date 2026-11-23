@@ -9,7 +9,7 @@ import { TELEPORT_LOCATIONS, isTypingInField } from './city-config.js';
 import { setWorldCenter, QUALITY } from './quality.js';
 import { releaseRenderState } from './gpu-memory.js';
 import { MissionManager, worldCellsReady, ownsControls, OWN_CONTROLS_CLASS } from './missions-manager.js';
-import { createProgressStore, missionPin, missionMedals, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, entryPoints, medalText, medalLimitText, pointsOfText, stepsText, timeText, bestText, firstBestText, newBestText, awardNotesText } from './missions-progress.js';
+import { createProgressStore, missionPin, missionMedals, MEDAL_LABELS, entryPoints, medalText, upToPointsText, pointsText, modeSwitchText, medalLimitText, pointsOfText, stepsText, timeText, bestText, firstBestText, newBestText, awardNotesText } from './missions-progress.js';
 import { buildMissionWorld, drawMissionIcon } from './missions-world.js';
 import { gameClock, formatClock, dayText } from './game-clock.js';
 import { missionOpen, closedText, nextOpening, listGroups, searchMatches } from './mission-windows.js';
@@ -266,7 +266,7 @@ function showList(manager, progress, note = null, fastForward = null, { tab = 'm
     const d = distanceTo(m);
     if (d !== null) meta.append(el('span', 'mission-row-distance', formatDistance(d)));
     if (entry) meta.append(el('span', null, entry.medal ? MEDAL_LABELS[entry.medal] : 'Completed, no medal'));
-    const score = el('span', 'mission-list-points', entry ? `${entryPoints(entry)} pts` : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`);
+    const score = el('span', 'mission-list-points', entry ? pointsText(entryPoints(entry)) : upToPointsText());
     meta.append(score);
     const b = best[bestTimeKey(m.id)];
     if (m.scoreMode) { if (Number.isFinite(entry?.bestScore)) meta.append(el('span', 'mission-list-best', scoreText(m, entry.bestScore))); }
@@ -979,7 +979,7 @@ class MissionRun {
     const mode = cm.activeMode;
     if (mode !== this.lastMode) {
       const allowed = this.def.objectives[this.index].allowModes || this.def.allowModes || [this.def.mode];
-      if (!allowed.includes(mode)) return this.abort(`Mode switch (${mode}): the mission was aborted.`);
+      if (!allowed.includes(mode)) return this.abort(modeSwitchText(mode));
       // on foot beside the car: the pedestrian steps out of the driver's door
       if (mode === 'person' && this.lastMode === 'car') {
         const car = cm.entities.car;

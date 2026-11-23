@@ -28,10 +28,16 @@ const { getLanguage, setLanguage, t } = await import('../js/i18n.js');
 // a text made with msg() (js/messages.js) by the mission's own code: its English, then its German
 const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de, en); };
 
-test('browser language selects German and translates static and generated game text', () => {
+test('browser language selects German and translates static and generated game text', async () => {
   assert.equal(getLanguage(), 'de');
   assert.equal(t('Golden Hour'), 'Goldene Stunde');
-  assert.equal(t('Start Golf at the Golf Club Davos'), 'Starten: Golf im Golf Club Davos');
+  // (the start's prompt and a pin on the map, js/missions-world.js: made by js/missions-progress.js)
+  const P = await import('../js/missions-progress.js');
+  says(P.startText('Golf at the Golf Club Davos'), 'Start Golf at the Golf Club Davos', 'Starten: Golf im Golf Club Davos');
+  says(P.pinHoverText('Golf at the Golf Club Davos', 'silver', null), 'Mission: Golf at the Golf Club Davos · Silver · Click to set the waypoint', 'Mission: Golf im Golf Club Davos · Silber · Klicken, um den Wegpunkt zu setzen');
+  says(P.pinHoverText('Golden Hour', null, null), 'Mission: Golden Hour · Click to set the waypoint', 'Mission: Goldene Stunde · Klicken, um den Wegpunkt zu setzen');
+  says(P.upToPointsText(), `Up to ${P.FIRST_CLEAR_POINTS + P.MEDAL_POINTS.gold} points`, `Bis zu ${P.FIRST_CLEAR_POINTS + P.MEDAL_POINTS.gold} Punkte`);
+  says(P.pointsText(350), '350 pts', '350 Pkt.');
   assert.match(t("The Natureisbahn Davos, Europe's largest natural ice rink: two laps"), /^Zwei Runden/);
 });
 
@@ -500,10 +506,10 @@ test('the game\'s clock, the fast-forward and the missions\' windows speak Germa
 test('the end panels: failed and aborted, the awards, the score units and the summaries come in German', async () => {
   setLanguage('de');
   assert.equal(t('Mission failed'), 'Mission gescheitert');
-  assert.equal(t('Mode switch (car): the mission was aborted.'), 'Moduswechsel (car): Die Mission wurde abgebrochen.');
   {
     const P = await import('../js/missions-progress.js');
     const award = { firstClear: true, medalUp: true, medal: 'silver', previousMedal: null, points: P.FIRST_CLEAR_POINTS + P.MEDAL_POINTS.silver };
+    says(P.modeSwitchText('car'), 'Mode switch (car): the mission was aborted.', 'Moduswechsel (car): Die Mission wurde abgebrochen.');
     const notes = P.awardNotesText(award);
     assert.equal(notes, `first completion +${P.FIRST_CLEAR_POINTS} · Silver +${P.MEDAL_POINTS.silver}`);
     assert.equal(t(notes), `erster Abschluss +${P.FIRST_CLEAR_POINTS} · Silber +${P.MEDAL_POINTS.silver}`);

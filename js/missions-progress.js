@@ -229,6 +229,20 @@ export const medalText = (medal) => msg('{medal} medal', (p, tr) => `${tr(p.meda
 export const medalLimitText = (medal, limit) => msg('{medal} {limit}', '{medal|t} {limit|t}', { medal: MEDAL_LABELS[medal], limit });
 export const bestMedalText = (medal) => msg('{medal} · best medal', '{medal|t} · beste Medaille', { medal: MEDAL_LABELS[medal] });
 export const noMedalYetText = () => msg('Completed · no medal yet', 'Abgeschlossen · noch keine Medaille');
+/** What a mission not yet completed can give (the missions' list and the start's prompt) */
+export const upToPointsText = () => msg('Up to {n} points', 'Bis zu {n} Punkte', { n: FIRST_CLEAR_POINTS + MEDAL_POINTS.gold });
+/** The points a completed mission has given (the missions' list) */
+export const pointsText = (n) => msg('{n} pts', '{n} Pkt.', { n });
+/** The start's prompt at a mission's pin (js/missions-world.js) */
+export const startText = (title) => msg('Start {title}', 'Starten: {title|t}', { title });
+/** A mission's pin under the pointer on the map: its title, its medal and its window's line if it is closed, each
+ *  translated (js/missions-world.js) */
+export const pinHoverText = (title, medal, closedLabel) => msg(
+  `Mission: {title}${medal ? ' · {medal}' : ''}${closedLabel ? ' · {when}' : ''} · Click to set the waypoint`,
+  `Mission: {title|t}${medal ? ' · {medal|t}' : ''}${closedLabel ? ' · {when|t}' : ''} · Klicken, um den Wegpunkt zu setzen`,
+  { title, medal: MEDAL_LABELS[medal], when: closedLabel });
+/** Why a mission stopped when the player changed to a mode its step does not allow (js/missions.js watchPlayer) */
+export const modeSwitchText = (mode) => msg('Mode switch ({mode}): the mission was aborted.', 'Moduswechsel ({mode}): Die Mission wurde abgebrochen.', { mode });
 export const pointsOfText = (n) => msg('of {n} points', 'von {n} Punkten', { n });
 export const stepsText = (n) => msg('{n} steps', '{n} Schritte', { n });
 export const timeText = (v) => msg('Time {v}', 'Zeit {v}', { v });

@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { cameraPosition, color, positionGeometry, positionWorld, sin, smoothstep, time } from 'three/tsl';
 import { MISSIONS, formatDistance, relativeBearing } from './missions-data.js';
-import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, MEDAL_LABELS, MEDAL_POINTS, FIRST_CLEAR_POINTS, bestMedalText, noMedalYetText } from './missions-progress.js';
+import { missionPin, missionInReach, START_RADIUS, MEDAL_COLOURS, bestMedalText, noMedalYetText, upToPointsText, startText, pinHoverText } from './missions-progress.js';
 import { setMissionStartInReach } from './missions-manager.js';
 import { drapeRing, RING_DEPTH } from './missions-props.js';
 import { surfaceHeight } from './terrain.js';
@@ -814,8 +814,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       const pin = overlay.pick(mx, my, v);
       if (!pin) return null;
       const medal = progress.medal(pin.def.id);
-      const when = pin.closed ? ` · ${t(pin.closedLabel)}` : '';
-      return t(`Mission: ${t(pin.def.title)}${medal ? ` · ${t(MEDAL_LABELS[medal])}` : ''}${when} · Click to set the waypoint`);
+      return pinHoverText(pin.def.title, medal, pin.closed ? pin.closedLabel : null);
     },
     click(mx, my, v) {
       const pin = overlay.pick(mx, my, v);
@@ -877,9 +876,9 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
       setMissionStartInReach(closed ? null : reach?.def.id);
       if (reach) {
         const medal = progress.medal(reach.def.id);
-        setLocalizedText(promptText, closed ? reach.def.title : `Start ${reach.def.title}`);
+        setLocalizedText(promptText, closed ? reach.def.title : startText(reach.def.title));
         if (closed) setLocalizedText(promptSub, reach.pin.closedLabel);
-        else promptSub.textContent = medal ? bestMedalText(medal) : progress.entry(reach.def.id) ? noMedalYetText() : `Up to ${FIRST_CLEAR_POINTS + MEDAL_POINTS.gold} points`;
+        else promptSub.textContent = medal ? bestMedalText(medal) : progress.entry(reach.def.id) ? noMedalYetText() : upToPointsText();
         promptKey.textContent = closed ? 'U' : 'Enter';
         promptWait.hidden = !closed;
         prompt.classList.toggle('is-closed', closed);
