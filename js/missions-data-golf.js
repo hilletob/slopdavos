@@ -14,6 +14,8 @@
 // 95, so that the medals follow the strokes): gold at par − 1 or better, silver at par + 1, bronze at par + 4.
 
 import { GOLF } from './golf-data.js';
+import { inFlatRing as pointInRing } from './ring.js';
+export { pointInRing };
 
 export const G = 9.81;
 export const BALL_R = 0.0214; // m
@@ -68,14 +70,6 @@ const bboxOf = (ring) => {
   return b;
 };
 /** Point in a flat ring [x0, z0, x1, z1, …] */
-export function pointInRing(ring, x, z) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
-    const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
-    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
 
 /** A lookup of the surfaces from golf-data's shape ({ outline, areas }): (x, z) => 'water' | 'bunker' | 'green' |
  *  'tee' | 'fairway' | 'range' | 'rough' (inside the course) | 'out' */

@@ -1,3 +1,5 @@
+import { inPairRing as pointInRing } from './ring.js';
+export { pointInRing };
 // Landmark buildings of Davos Platz rebuilt by hand (js/landmark-buildings.js): the Eisstadion (Vaillant Arena / the HCD's
 // arena), the Kongresszentrum with the Kongress Hotel, the eau-là-là pool beside it, and the Natureisbahn. Pure data and
 // geometry maths, shared by the browser module and the tests. World frame (js/davos-frame.js): x = LV95 E − 2782500,
@@ -211,14 +213,6 @@ export function trackOutline(t = EISBAHN.track, n = 24) {
 
 // --- Polygon helpers ------------------------------------------------------------------------------------------------------
 export const ringPoints = (flat) => { const p = []; for (let i = 0; i < flat.length; i += 2) p.push([flat[i], flat[i + 1]]); return p; };
-export function pointInRing(pts, x, z) {
-  let inside = false;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const a = pts[i], b = pts[j];
-    if ((a[1] > z) !== (b[1] > z) && x < ((b[0] - a[0]) * (z - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
-  }
-  return inside;
-}
 export function ringArea(pts) {
   let s = 0;
   for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; s += a[0] * b[1] - b[0] * a[1]; }

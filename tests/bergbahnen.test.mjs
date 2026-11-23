@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import * as ring from '../js/ring.js';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -15,7 +16,7 @@ const { LIFT_TERMINALS, LIFT_PORTALS } = loadModule(readFileSync(new URL('../js/
     ...Object.fromEntries(['three/webgpu', 'three/tsl', 'three/addons/utils/BufferGeometryUtils.js', 'three/addons/geometries/RoundedBoxGeometry.js', './tsl-materials.js', './quality.js'].map((k) => [k, stub])),
     './terrain.js': { groundHeight: () => 0, funicularEnclosedAt: () => false, getFunicularTunnels: () => [], funicularTunnelParts: () => null, TUNNEL_ROOF: { road: 5.8, rail: 5.5 } },
     './bergbahnen-data.js': { BERGBAHNEN }, './davos-geodata.js': { DAVOS_DATA }, './swissbuildings3d.js': { excludeBuildings() {}, carveBuildings() {} },
-    './funicular-track.js': { funicularTrack }
+    './funicular-track.js': { funicularTrack }, './ring.js': ring
   },
   globals: { Math, Number, Map, Infinity },
   filename: 'bergbahnen.js'

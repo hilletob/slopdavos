@@ -11,6 +11,7 @@ import { QUALITY, worldRegion } from './quality.js';
 import { bayKey, createLotRegistry } from './hijack.js';
 import { tracedMarkings } from './ground-markings-area.js';
 import { GROUND_MARKINGS } from './ground-markings-data.js';
+import { inPointRing as inside } from './ring.js';
 
 // The car parks OSM lacks (private yards and forecourts): their bays read from the paint traced in the aerial photo
 // (js/ground-markings-data.js lots, tools/markings-bays.mjs: kind 'traced', no asphalt of their own, the ground's photo)
@@ -48,14 +49,6 @@ function hash(n) {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 const flatPts = (ring) => { const p = []; for (let i = 0; i < ring.length; i += 2) p.push({ x: ring[i], z: ring[i + 1] }); return p; };
-function inside(poly, x, z) {
-  let c = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) c = !c;
-  }
-  return c;
-}
 const box = (pts) => ({ x0: Math.min(...pts.map((p) => p.x)), x1: Math.max(...pts.map((p) => p.x)), z0: Math.min(...pts.map((p) => p.z)), z1: Math.max(...pts.map((p) => p.z)) });
 
 // Obstacles near the lots: building footprints and water (polygons), roads and aisles (segments with half-widths)

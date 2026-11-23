@@ -1,3 +1,4 @@
+import { inFlatRing as inRing } from './ring.js';
 // Where a signpost stands: beside the ways, not on them. A hiking signpost's site is a junction of the hiking network
 // (swissTLM3D), a winter trail's a point along its line; the ways of the game are OSM's with their mapped widths, and
 // a junction of two 6 m streets is wider than the 1.6 m a post was set aside by. The post is moved out from its site,
@@ -11,15 +12,6 @@ const DRIVE = /^(motorway|trunk|primary|secondary|tertiary|unclassified|resident
 const VERGE = { street: 1.0, path: 0.6, rail: 1.8 };
 const RAIL_HALF = 1.5;
 const TREE_CLEAR = 1.6;
-
-const inRing = (ring, x, z) => {
-  let inside = false;
-  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
-    const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
-    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-};
 
 /**
  * The obstacles of the map (DAVOS_DATA: roads, railways, buildings, water; trees: [x, z, …] of TLM_TREES) in a grid.

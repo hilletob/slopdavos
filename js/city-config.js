@@ -2,6 +2,7 @@ import { GEO } from './nyc-geodata.js';
 import { lv95ToWorld } from './davos-frame.js';
 import { isDrivableTunnel } from './tunnel-profile.js';
 import { streetCorners, inCornerCut } from './street-corners.js';
+import { inPointRing as pointInPoly } from './ring.js';
 
 // Davos spatial adapter for mrdoob/slop-newyork's engine (via colorfield/slop-zurich and the irregular-city data path of
 // the Slop Berlin, Warsaw and Utrecht forks). Legacy export names are retained as API aliases; all visible geography is Davos.
@@ -117,14 +118,6 @@ for (const b of BLOCKS) {
       BLOCK_GRID.get(k).push(b);
     }
   }
-}
-function pointInPoly(poly, x, z) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
-  }
-  return inside;
 }
 // The raised sidewalks along the streets (roads[].sidewalk [left, right] widths, drawn by js/city-grid.js from the curb
 // out): each a strip per piece of the way and side, the strips that touch joined into one sidewalk "block" (stable, with

@@ -37,6 +37,7 @@ function keyboardHarness(nyc = {}) {
     imports: {
       'three/webgpu': {},
       './city-config.js': config,
+      './ring.js': require('../js/ring.js'),
       ...flatTerrainImports,
       'three/tsl': {},
       './tsl-materials.js': {},

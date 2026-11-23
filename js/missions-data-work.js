@@ -1,4 +1,6 @@
 import { DETAIL_HOUSES, frame as houseFrame } from './detail-houses-data.js';
+import { inFlatRing as inRingXZ } from './ring.js';
+export { inRingXZ };
 
 // js/missions-data-work.js
 // Eight missions of everyday work in the Landschaft Davos (js/missions-data.js lists them; js/missions-work.js has their
@@ -1287,11 +1289,6 @@ export function blowerHitsTruck(p, a, truck, L = LOADER, B = BLOWER) {
   return true;
 }
 /** Is (x, z) inside the flat ring [x0, z0, x1, z1, ...]? */
-export function inRingXZ(r, x, z) {
-  let c = false;
-  for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; }
-  return c;
-}
 /** Is the chute's snow, landing at `land` (s, d), on the truck's bed? */
 export function onBed(land, truck, L = LOADER) {
   return Math.abs(land.s - (truck.s - L.bed.back)) <= L.bed.halfL && Math.abs(land.d - truck.d) <= L.bed.halfW;

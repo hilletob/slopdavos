@@ -1,3 +1,5 @@
+import { inPairRing as pointInRing } from './ring.js';
+export { pointInRing };
 // The Spital Davos (Promenade 4, 7270 Davos Platz; js/spital.js): its volumes, the floors' grid, the entrance hall, the
 // murals and the signs. Pure data and frame maths, shared by the browser module and the tests.
 //
@@ -78,14 +80,6 @@ export function ringArea2(ring) {
   let s = 0;
   for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; s += p[0] * q[1] - q[0] * p[1]; }
   return s;
-}
-export function pointInRing(ring, x, z) {
-  let c = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i], b = ring[j];
-    if ((a[1] > z) !== (b[1] > z) && x < ((b[0] - a[0]) * (z - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
-  }
-  return c;
 }
 
 /** The stretches of the wall a → b kept free of windows ([from, to] m along it), from the murals on that wall

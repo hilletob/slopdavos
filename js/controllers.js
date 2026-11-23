@@ -27,6 +27,7 @@ import { airObstacleContact } from './air-obstacle-field.js';
 import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } from './snowcat.js';
+import { inPointRing as pointInRing } from './ring.js';
 
 // js/controllers.js
 // Sculpted, non-blocky GTA 6-style 3D models, animations, and physics controllers
@@ -403,14 +404,6 @@ function collisionBody(mode, radius, heading, margin = 0, dims = null) {
 }
 
 // Is (x, z) within the ring [{ x, z }] (even-odd rule)
-function pointInRing(ring, x, z) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i], b = ring[j];
-    if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
-  }
-  return inside;
-}
 
 // Shared by movement and teleport clearance. World bounds reject distant boxes cheaply; the narrow phase
 // uses a circle for walking/cycling/flying and all four separating axes for an oriented car rectangle.

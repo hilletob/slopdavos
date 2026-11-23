@@ -1,3 +1,5 @@
+import { inFlatRing as pointInRing } from './ring.js';
+export { pointInRing };
 // js/ground-geometry.js — the plain 2-D geometry of the vector ground (js/vector-ground.js): arcs sampled into polylines,
 // polylines stroked into mitred strips with the road paint's attributes (js/parking.js bayLines: `paint` = metres along,
 // period, duty; `side` = the vertex's offset from the line's centre, for the anti-aliased widening; `color`), and the share
@@ -106,14 +108,6 @@ export function strokePolyline(pts, width, colour, out, maxPiece = Infinity) {
 }
 
 // --- Areas -------------------------------------------------------------------------------------------------------------
-export const pointInRing = (ring, x, z) => {
-  let inside = false;
-  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
-    const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
-    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-};
 export const pointInSurface = (s, x, z) => pointInRing(s.ring, x, z) && !(s.holes || []).some((h) => pointInRing(h, x, z));
 
 export function ringBounds(ring) {

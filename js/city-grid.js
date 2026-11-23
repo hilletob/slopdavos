@@ -36,6 +36,7 @@ import { FRAME } from './davos-frame.js';
 import { isBenched } from './path-bench.js';
 import { PATH_BENCHES } from './terrain.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP, OVERPASSES } from './terrain.js';
+import { inFlatRing as inRing } from './ring.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
 let parkTreeSites;
@@ -988,14 +989,6 @@ async function buildBerlinCityGrid(scene) {
     return { ring: a.ring, x0, x1, z0, z1 };
   });
   // (even-odd over a flat [x, z, x, z, …] ring)
-  const inRing = (ring, x, z) => {
-    let inside = false;
-    for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
-      const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
-      if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-    }
-    return inside;
-  };
   const onPlayArea = (x, z) => playAreas.some(({ ring, x0, x1, z0, z1 }) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && inRing(ring, x, z));
   // The funiculars' (js/bergbahnen-data.js) cuttings through the forest: nothing within FUNICULAR_CLEAR of the track
   // (the cars are ~3 m wide, and the passing loop is two tracks side by side)

@@ -9,6 +9,7 @@ import { cityUniforms } from './tsl-materials.js';
 import { groundHeight, funicularEnclosedAt, getFunicularTunnels, funicularTunnelParts, TUNNEL_ROOF } from './terrain.js';
 import { funicularTrack } from './funicular-track.js';
 import { QUALITY } from './quality.js';
+import { inFlatRing as inRing } from './ring.js';
 
 // The mountain railways of Davos (js/bergbahnen-data.js, tools/fetch-bergbahnen.mjs):
 //  - the funiculars — Parsennbahn (Davos Dorf – Höhenweg – Weissfluhjoch: two trains of two coupled cars below, of one
@@ -420,7 +421,6 @@ const SCHATZALP_NAMES = ['ZAUBERBERG'];
 // the open end a concrete portal frame. The hall reaches HALL.out samples (~6 m) out of the footprint (swissBUILDINGS3D's
 // facade may stand off it) and HALL.beyond m past the track's end.
 const HALL = { left: 2.7, right: 5.4, height: 6.2, out: 3, beyond: 6 };
-const inRing = (ring, x, z) => { let inside = false; for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) { if ((ring[i + 1] > z) !== (ring[j + 1] > z) && x < ((ring[j] - ring[i]) * (z - ring[i + 1])) / (ring[j + 1] - ring[i + 1]) + ring[i]) inside = !inside; } return inside; };
 function stationHalls() {
   const halls = [];
   for (const f of BERGBAHNEN.funiculars || []) {
@@ -960,14 +960,6 @@ function buildRopeways(group) {
 // The terminals' own buildings: where OSM maps a small building round a chair lift's end (the terminal's canopy), its
 // swissBUILDINGS3D volume is left out (js/swissbuildings3d.js) and the terminal below stands in its place (as at the
 // Jakobshornbahn's valley station); the OSM footprint still gives the walker's collider
-function insideRing(ring, x, z) {
-  let c = false;
-  for (let i = 0, j = ring.length / 2 - 1; i < ring.length / 2; j = i++) {
-    const xi = ring[2 * i], zi = ring[2 * i + 1], xj = ring[2 * j], zj = ring[2 * j + 1];
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
-  }
-  return c;
-}
 function ringArea(ring) {
   let a = 0;
   for (let i = 0, j = ring.length / 2 - 1; i < ring.length / 2; j = i++) a += ring[2 * j] * ring[2 * i + 1] - ring[2 * i] * ring[2 * j + 1];
@@ -982,7 +974,7 @@ function ringCentre(ring) {
 const CHAIRLIFT_TERMINAL_BUILDINGS = BERGBAHNEN.ropeways.filter((r) => r.kind === 'chair_lift').flatMap((r) => [r.supports[0], r.supports.at(-1)])
   .flatMap((s) => (DAVOS_DATA.buildings || []).filter((b) => {
     const a = ringArea(b.ring), c = ringCentre(b.ring);
-    return (a < 250 && insideRing(b.ring, s.x, s.z)) || (a < 40 && Math.hypot(c.x - s.x, c.z - s.z) < 10);
+    return (a < 250 && inRing(b.ring, s.x, s.z)) || (a < 40 && Math.hypot(c.x - s.x, c.z - s.z) < 10);
   }))
   .map((b) => ({ id: b.id, ...ringCentre(b.ring), r: 5 }));
 excludeBuildings(CHAIRLIFT_TERMINAL_BUILDINGS);
@@ -1137,12 +1129,12 @@ const LIFT_TYPE = { 't-bar': 'tbar', drag_lift: 'tbar', platter: 'tbar', gondola
 function ringDistance(ring, x, z) {
   let d = Infinity;
   for (let i = 0; i < ring.length; i += 2) d = Math.min(d, Math.hypot(ring[i] - x, ring[i + 1] - z));
-  return insideRing(ring, x, z) ? 0 : d;
+  return inRing(ring, x, z) ? 0 : d;
 }
 // How far along the rope (towards `next`) it leaves the footprint `ring`
 function exitDistance(ring, node, next) {
   const span = Math.hypot(next.x - node.x, next.z - node.z) || 1, dx = (next.x - node.x) / span, dz = (next.z - node.z) / span;
-  for (let d = 0; d <= Math.min(60, span * 0.8); d += 0.25) if (!insideRing(ring, node.x + dx * d, node.z + dz * d)) return d;
+  for (let d = 0; d <= Math.min(60, span * 0.8); d += 0.25) if (!inRing(ring, node.x + dx * d, node.z + dz * d)) return d;
   return null;
 }
 export const LIFT_TERMINALS = (() => {
@@ -1156,7 +1148,7 @@ export const LIFT_TERMINALS = (() => {
       if (seen.some((o) => Math.hypot(o.x - node.x, o.z - node.z) < 3)) { t.mode = 'shared'; continue; }
       seen.push(node);
       if (valley && /^Jakobshornbahn Sektion 1/.test(r.name)) { t.mode = 'custom'; continue; }
-      const home = buildings.find((b) => insideRing(b.ring, node.x, node.z));
+      const home = buildings.find((b) => inRing(b.ring, node.x, node.z));
       t.exit = home ? exitDistance(home.ring, node, next) : null;
       t.mode = t.exit != null ? 'housed' : type === 'aerial' ? 'station' : 'frame';
       // (housed: the drawn wall, measured against swissBUILDINGS3D, where the footprint's lies off it)

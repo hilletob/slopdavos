@@ -18,6 +18,7 @@ import {
   LOADER, TIP_SPOT, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, stepChute, shedInBend, tipPose, stepTip, blowerHitsTruck, depositHeap, inRingXZ
 } from './missions-data-work.js';
 import { el } from './dom.js';
+import { inFlatRing as inRing } from './ring.js';
 
 // js/missions-work.js
 // The runtime of the eight work missions (js/missions-data-work.js has their definitions and the pure logic; js/missions.js
@@ -1176,7 +1177,6 @@ let MUSHROOM_SITES = null; // (where they stand: the forest test over swissTLM3D
 function forestTest() {
   const f = MUSHROOMS.field;
   const areas = (TLM_TREES?.areas || []).filter((a) => a.kind === 'forest' && a.rings[0].some((v, i) => i % 2 === 0 && v > f.x0 - 600 && v < f.x1 + 600 && a.rings[0][i + 1] > f.z0 - 600 && a.rings[0][i + 1] < f.z1 + 600));
-  const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
   return (x, z) => areas.some((a) => { let c = false; for (const r of a.rings) if (inRing(r, x, z)) c = !c; return c; });
 }
 function flyAgaricTexture() {
