@@ -34,3 +34,24 @@ test('a bus taken where its lane clips a house is set beside it, towards the roa
   assert.ok(both.x > 0, 'the left wins a tie');
   assert.equal(clearSpotBeside(0, 0, 0, () => false), null, 'nothing near: the caller keeps its place');
 });
+
+// js/vbd.js collidePlayer, taken from the source like hold() above and run over plain bodies
+test('the cargo bike meets a bus with its own box and mass, not the car\'s', async () => {
+  const physics = await import('../js/vehicle-physics.js');
+  const specs = await import('../js/vehicle-specs.js');
+  const start = source.indexOf('  const contact = {}, playerBody = ');
+  const end = source.indexOf('\n  }\n', source.indexOf('  function collidePlayer(pe, mode, controllers) {')) + 4;
+  const makeCollide = new Function('bodies', 'HALF_WIDTH', 'vehicleContact', 'resolveVehicleContact', 'sweptVehicleContact', 'playerContact', 'playerMass', 'RAIL_CAR_CONTACT',
+    `${source.slice(start, end)}\nreturn collidePlayer;`);
+  const bus = () => ({ x: 0, z: 0, prevX: 0, prevZ: 0, y: 0, sin: 0, cos: 1, halfW: 1.275, halfL: 6, mass: 1.4e4, vx: 0, vz: 0, angularVel: 0 });
+  const rider = (x) => ({ position: { x, y: 0, z: 0 }, prevX: x, prevZ: 0, heading: 0, speed: 0 });
+  const collide = (mode, x) => {
+    const pe = rider(x);
+    makeCollide([bus()], 1.275, physics.vehicleContact, physics.resolveVehicleContact, physics.sweptVehicleContact, specs.playerContact, specs.playerMass, specs.RAIL_CAR_CONTACT)(pe, mode, null);
+    return pe.position.x;
+  };
+  // 1.9 m beside the bus's middle: clear of it with the bike's 0.38 m half width, inside it with the car's 0.86 m
+  assert.equal(collide('cargobike', 1.9), 1.9, 'the cargo bike passes beside the bus');
+  assert.ok(collide('car', 1.9) > 1.9, 'the car (its box the same as before) is pushed off it');
+  assert.ok(collide('cargobike', 1.5) > 1.5, 'closer in, the cargo bike is pushed off too');
+});

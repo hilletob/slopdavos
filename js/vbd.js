@@ -734,8 +734,8 @@ export function buildVBD(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return;
-    // (js/vehicle-specs.js; the car the body it wears. The cargo bike counts as the car here, with 80 kg, as it did)
-    const own = mode !== 'cargobike' && playerContact(mode, null);
+    // (js/vehicle-specs.js: the mode's own box; the car the body it wears)
+    const own = playerContact(mode, null);
     const halfW = own ? own.halfW : (pe.dims?.halfW ?? RAIL_CAR_CONTACT.halfW);
     const halfL = own ? own.halfL : (pe.dims?.halfL ?? RAIL_CAR_CONTACT.halfL);
     for (const b of bodies) {
@@ -748,7 +748,7 @@ export function buildVBD(scene) {
       p.prevX = pe.prevX ?? p.x; p.prevZ = pe.prevZ ?? p.z;
       p.sin = Math.sin(heading); p.cos = Math.cos(heading);
       p.halfW = halfW; p.halfL = halfL;
-      p.mass = mode === 'cargobike' ? playerMass('person') : playerMass(mode, pe.dims);
+      p.mass = playerMass(mode, pe.dims);
       p.vx = p.sin * (pe.speed || 0) + (pe.vx || 0);
       p.vz = p.cos * (pe.speed || 0) + (pe.vz || 0);
       p.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;
