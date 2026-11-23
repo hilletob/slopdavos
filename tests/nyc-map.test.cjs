@@ -5,13 +5,15 @@ const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 
 const source = readFileSync(join(__dirname, '../js/nyc-map.js'), 'utf8');
+// (the map's texts are made with msg(): the module itself, it has no imports)
+const messages = loadModule(readFileSync(join(__dirname, '../js/messages.js'), 'utf8'));
 
 for (const [width, height, dpr] of [[500, 300, 1], [320, 180, 1.5], [1920, 1080, 2]]) {
   test(`map clicks match rendered world positions at ${width}x${height}, DPR ${dpr}`, () => {
     const window = { innerWidth: width, innerHeight: height, devicePixelRatio: dpr };
     const { NYCMapSystem } = loadModule(source, {
       globals: { window, performance: { now: () => 0 } },
-      imports: { './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [], ISLAND_BOUNDS: { minX: -1900, maxX: 1900, minZ: -1900, maxZ: 1900 } } }
+      imports: { './messages.js': messages, './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [], ISLAND_BOUNDS: { minX: -1900, maxX: 1900, minZ: -1900, maxZ: 1900 } } }
     });
     const map = Object.create(NYCMapSystem.prototype);
     // Capture the production render viewport; drawing primitives are irrelevant to coordinate conversion.
@@ -103,7 +105,7 @@ function mapHarness() {
   };
   const { NYCMapSystem } = loadModule(source, {
     globals: { window, document },
-    imports: { './nyc-geodata.js': { GEO: { frame: {} } }, './city-config.js': config }
+    imports: { './messages.js': messages, './nyc-geodata.js': { GEO: { frame: {} } }, './city-config.js': config }
   });
   const teleports = [], toggles = [];
   const map = new NYCMapSystem({

@@ -401,7 +401,7 @@ async function initApp() {
       // (`near`: the tiles around the player the start waits for; the rest of the valley's come in while playing)
       onProgress: (done, total, near) => {
         if (!swissBuildings) boot.stage(`swissbuildings3d ${done}/${near} (of ${total})`);
-        if (!swissBuildings) loading.say(`Raising the houses around you ${Math.min(done, near)}/${near}…`);
+        if (!swissBuildings) loading.say(msg('Raising the houses around you {done}/{near}…', 'Die Häuser um dich herum entstehen {done}/{near} …', { done: Math.min(done, near), near }));
       }
     });
     swissBuildings = await stream.ready;

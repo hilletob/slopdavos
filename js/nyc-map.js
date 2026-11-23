@@ -1,4 +1,5 @@
 import { GEO } from './nyc-geodata.js';
+import { msg } from './messages.js';
 import {
   ROADS,
   BLOCKS,
@@ -25,6 +26,13 @@ const MIN_ZOOM = Math.min(0.06, 280 / (ISLAND_BOUNDS.maxX - ISLAND_BOUNDS.minX),
 const MAX_ZOOM = 3.0; // single lots
 const RADAR_SCALE = 0.32; // radar pixels per metre on the ground (zooms out with altitude)
 const GRID_BEARING = (GEO.frame && GEO.frame.bearingDeg) ?? 0; // Berlin axes follow true north
+
+// The map's texts in both languages (js/messages.js): the counts of streets and blocks, the search's placeholder, the
+// player's place and the place under the pointer
+export const countsText = (streets, blocks) => msg('{streets} streets · {blocks} blocks', '{streets} Strassen · {blocks} Blöcke', { streets, blocks: blocks.toLocaleString('en-US') });
+export const searchText = (n) => msg('Search {n} streets & landmarks…', '{n} Strassen und Orte suchen …', { n });
+export const youAreAtText = (place) => msg('You are at {place}', 'Du bist bei {place}', { place });
+export const teleportText = (place) => msg('{place} · Click to teleport here', '{place} · Klicken, um hierher zu teleportieren', { place });
 
 // Map palette, shared by the radar & the atlas (in step with css/style.css): graphite ground with the streets a shade
 // lighter than the blocks they run between, muted parks & water; a taxi-yellow GPS route, white landmarks & player,
@@ -547,8 +555,6 @@ class NYCMapSystem {
     this.miniStreetText = '';
     this.miniScale = RADAR_SCALE;
     this.miniCache = null; // { canvas, cx, cz, s, version }: the radar's ground layers, twice the radar's size
-    const elCounts = document.getElementById('fullmap-counts');
-    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT} streets · ${BLOCKS.length.toLocaleString('en-US')} blocks`;
 
     // The map is drawn grid north up; the compass needle points to true north, 29° to its left
     const needle = document.getElementById('map-compass-needle');
@@ -564,7 +570,10 @@ class NYCMapSystem {
     this.elHoverInfo = document.getElementById('fullmap-hover-info');
     this.elPlayerInfo = document.getElementById('fullmap-player-info');
     this.elSearchInput = document.getElementById('fullmap-search');
-    if (this.elSearchInput) this.elSearchInput.placeholder = `Search ${ROAD_NAME_COUNT} streets & landmarks…`;
+    // (the counts and the search's placeholder made again after a switch of language: made once, they would have
+    // dropped out of what msg() remembers by then, js/messages.js; the player's place likewise on the next frame)
+    this.labelCounts();
+    globalThis.addEventListener?.('languagechange', () => { this.labelCounts(); this.playerInfoText = ''; });
 
     this.isFullMapOpen = false;
     // Full map viewport state (world metres; zoom in CSS pixels per metre)
@@ -739,7 +748,7 @@ class NYCMapSystem {
           const overlayLabel = (this.overlays || []).map((o) => o.hover?.(mx, my, fv)).find(Boolean);
           this.fullCanvas.style.cursor = overlayLabel ? 'pointer' : '';
           if (this.elHoverInfo) {
-            this.elHoverInfo.textContent = overlayLabel || `${getLocationLabel(wPos.x, wPos.z)} · Click to teleport here`;
+            this.elHoverInfo.textContent = overlayLabel || teleportText(getLocationLabel(wPos.x, wPos.z));
           }
         }
       });
@@ -801,6 +810,13 @@ class NYCMapSystem {
         this.renderFullMap();
       }, { passive: false });
     }
+  }
+
+  /** The full map's counts of streets and blocks and the search's placeholder */
+  labelCounts() {
+    const elCounts = document.getElementById('fullmap-counts');
+    if (elCounts) elCounts.textContent = countsText(ROAD_NAME_COUNT, BLOCKS.length);
+    if (this.elSearchInput) this.elSearchInput.placeholder = searchText(ROAD_NAME_COUNT);
   }
 
   /**
@@ -1266,7 +1282,7 @@ class NYCMapSystem {
 
     const ent = this.controllerManager.getActiveEntity();
     if (this.elPlayerInfo) {
-      const text = `You are at ${getLocationLabel(ent.position.x, ent.position.z)}`;
+      const text = youAreAtText(getLocationLabel(ent.position.x, ent.position.z));
       if (text !== this.playerInfoText) {
         this.playerInfoText = text;
         this.elPlayerInfo.textContent = text;

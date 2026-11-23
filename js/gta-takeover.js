@@ -11,6 +11,7 @@ import {
 import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 import { createQuads } from './gta-quads.js';
 import { TRAFFIC_MASS, TRAFFIC_MASS_DEFAULT } from './vehicle-specs.js';
+import { msg } from './messages.js';
 
 // js/gta-takeover.js
 // The GTA mode (js/gta.js): taking over the vehicles on the road (the rules: js/hijack.js). The player's car (the
@@ -172,23 +173,23 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
     const opts = [];
     if (traffic) {
       const c = findTakeableCar(p, traffic.cars);
-      if (c) opts.push({ source: 'car', ref: c.car, distance: c.distance, label: `Take the ${trafficLabel(c.car)}`, sub: c.car.isPolice ? 'K: blue light' : null });
+      if (c) opts.push({ source: 'car', ref: c.car, distance: c.distance, label: msg('Take the {v}', '{v|t} übernehmen', { v: trafficLabel(c.car) }), sub: c.car.isPolice ? 'K: blue light' : null });
       const l = findTakeableCar(p, traffic.cars, { parked: true, maxSpeed: Infinity });
-      if (l) opts.push({ source: 'car', ref: l.car, distance: l.distance, label: `Get in the ${trafficLabel(l.car)}`, sub: null, parked: true });
+      if (l) opts.push({ source: 'car', ref: l.car, distance: l.distance, label: msg('Get in the {v}', 'Einsteigen: {v|t}', { v: trafficLabel(l.car) }), sub: null, parked: true });
       const tq = findTakeableCar(p, traffic.quads);
-      if (tq) opts.push({ source: 'trafficQuad', ref: tq.car, distance: tq.distance, label: 'Take the quad', sub: null });
+      if (tq) opts.push({ source: 'trafficQuad', ref: tq.car, distance: tq.distance, label: msg('Take the quad', 'Quad übernehmen'), sub: null });
       const lq = findTakeableCar(p, traffic.quads, { parked: true, maxSpeed: Infinity });
       if (lq) opts.push({ source: 'trafficQuad', ref: lq.car, distance: lq.distance, label: 'Get on the quad', sub: null, parked: true });
       const k = findTakeableBike(p, traffic.bikes);
       if (k) opts.push({ source: 'bike', ref: k.bike, distance: k.distance, label: 'Take the bike', sub: null });
       const parkedCar = lotCars.find(p);
       if (parkedCar && pickPoolCar(traffic.cars, parkedCar.car.kind, p.x, p.z)) {
-        opts.push({ source: 'lot', ref: parkedCar.car, distance: parkedCar.distance, label: `Get in the ${trafficLabel({ bodyType: parkedCar.car.kind })}`, sub: null, parked: true });
+        opts.push({ source: 'lot', ref: parkedCar.car, distance: parkedCar.distance, label: msg('Get in the {v}', 'Einsteigen: {v|t}', { v: trafficLabel({ bodyType: parkedCar.car.kind }) }), sub: null, parked: true });
       }
     }
     if (vbd?.buses?.length) {
       const b = findTakeableBus(p, vbd.buses, vbd.bodies);
-      if (b) opts.push({ source: 'bus', ref: b.bus, distance: b.distance, label: 'Drive the bus', sub: `Line ${b.bus.ref}${b.bus.art ? ' · articulated' : ''}`, parked: !!b.bus.parked });
+      if (b) opts.push({ source: 'bus', ref: b.bus, distance: b.distance, label: 'Drive the bus', sub: b.bus.art ? msg('Line {ref} · articulated', 'Linie {ref} · Gelenkbus', { ref: b.bus.ref }) : msg('Line {ref}', 'Linie {ref}', { ref: b.bus.ref }), parked: !!b.bus.parked });
     }
     const q = quads.find(p);
     if (q) opts.push({ source: 'quad', ref: q.quad, distance: q.distance, label: 'Get on the quad', sub: q.quad.home?.label && Math.hypot(q.quad.x - q.quad.home.x, q.quad.z - q.quad.home.z) < 1 ? q.quad.home.label : null, parked: true });

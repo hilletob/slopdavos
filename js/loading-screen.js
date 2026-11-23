@@ -1,5 +1,6 @@
 import { QUALITY } from './quality.js';
 import { KEYS } from './storage-keys.js';
+import { msg } from './messages.js';
 
 // js/loading-screen.js
 // The loading screen while the town is built (play.html #loading-overlay): its line of what is going on, its bar, the
@@ -40,7 +41,8 @@ export function createLoadingScreen({ previous = null, gpuLog = null, skip = '' 
     // The last start never got to its first frame: say where it stopped (and what went wrong, if anything was caught)
     if (previous) {
       note('margin-top:12px;font-size:12px;opacity:.75;max-width:90vw;word-break:break-word',
-        `Previous launch stopped at: ${previous.stage}` + (previous.errors?.length ? ` · ${previous.errors.join(' | ')}` : '')).className = 'loader-crash-note';
+        msg('Previous launch stopped at: {where}', 'Letzter Start abgebrochen bei: {where}',
+          { where: previous.stage + (previous.errors?.length ? ` · ${previous.errors.join(' | ')}` : '') })).className = 'loader-crash-note';
       console.warn('[boot] the previous start stopped at', previous);
     }
     // The last start's GPU trouble, also when it came after the first frame: the last shader module made and the first
@@ -48,7 +50,9 @@ export function createLoadingScreen({ previous = null, gpuLog = null, skip = '' 
     if (gpuLog?.errors?.length || gpuLog?.lost) {
       const last = gpuLog.last?.at(-1);
       note('margin-top:8px;font-size:11px;opacity:.7;max-width:90vw;word-break:break-word',
-        `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}` + (last ? ` · last shader #${last.n} ${last.label} ${last.length} B #${last.hash}` : '')).className = 'loader-crash-note';
+        (last
+          ? msg('GPU: {errors} · last shader #{shader}', 'GPU: {errors} · letzter Shader #{shader}', { errors: gpuLog.errors.slice(0, 2).join(' | '), shader: `${last.n} ${last.label} ${last.length} B #${last.hash}` })
+          : `GPU: ${gpuLog.errors.slice(0, 2).join(' | ')}`)).className = 'loader-crash-note';
       console.warn('[gpu] the previous start:', gpuLog);
     }
     // This start leaves systems out

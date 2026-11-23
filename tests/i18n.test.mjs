@@ -32,8 +32,16 @@ test('browser language selects German and translates static and generated game t
   assert.equal(getLanguage(), 'de');
   assert.equal(t('Golden Hour'), 'Goldene Stunde');
   assert.equal(t('Start Golf at the Golf Club Davos'), 'Starten: Golf im Golf Club Davos');
-  assert.equal(t('You are at Davos Platz'), 'Du bist bei Davos Platz');
   assert.match(t("The Natureisbahn Davos, Europe's largest natural ice rink: two laps"), /^Zwei Runden/);
+});
+
+test('the map says its counts, its search, where the player is and the place under the pointer in both languages', async () => {
+  const M = await import('../js/nyc-map.js');
+  setLanguage('de');
+  says(M.youAreAtText('Davos Platz'), 'You are at Davos Platz', 'Du bist bei Davos Platz');
+  says(M.teleportText('Promenade, Davos Platz'), 'Promenade, Davos Platz · Click to teleport here', 'Promenade, Davos Platz · Klicken, um hierher zu teleportieren');
+  says(M.countsText(412, 1873), '412 streets · 1,873 blocks', '412 Strassen · 1,873 Blöcke');
+  says(M.searchText(412), 'Search 412 streets & landmarks…', '412 Strassen und Orte suchen …');
 });
 
 test('language switch updates document language, controls and saved preference', () => {

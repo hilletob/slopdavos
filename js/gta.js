@@ -402,7 +402,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
       if (taking && (!vehicle || taking.distance < vehicle.distance) && (!train || taking.distance < train.distance)) return taking;
       // (a mission's work vehicle on the player's car, js/missions-work.js workVehicle: by its own name)
       const name = (vehicle?.kind === 'entity' && vehicle.type === 'car' && (missionRun()?.vehicle?.label || (missionRun()?.features?.policeCar && 'patrol car'))) || VEHICLE_LABELS[vehicle?.type];
-      if (vehicle) return { kind: 'enter', target: vehicle, label: `Get in the ${name}`, sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
+      if (vehicle) return { kind: 'enter', target: vehicle, label: msg('Get in the {v}', 'Einsteigen: {v|t}', { v: name }), sub: vehicle.kind === 'parked' ? vehicle.ref.label || null : null };
       return null;
     }
     if (!missionAllows('person')) return null;
@@ -684,7 +684,7 @@ export function buildGta({ scene, controllerManager: cm, touchControls, actions 
       const w = winter();
       for (const p of parked) {
         if (!inSeason(p, w)) continue;
-        if (Math.hypot(v.toX(p.x) + v.w / 2 - mx, v.toY(p.z) + v.h / 2 - my) < 9) return `${VEHICLE_LABELS[p.type]}${p.label ? ` · ${p.label}` : ''} · Click to teleport here`;
+        if (Math.hypot(v.toX(p.x) + v.w / 2 - mx, v.toY(p.z) + v.h / 2 - my) < 9) return msg('{what} · Click to teleport here', '{what} · Klicken, um hierher zu teleportieren', { what: `${VEHICLE_LABELS[p.type]}${p.label ? ` · ${p.label}` : ''}` });
       }
       return null;
     }

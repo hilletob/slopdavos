@@ -1785,7 +1785,7 @@ function translate(value) {
   if (translated) return match[1] + translated + match[3];
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
-  let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  let dynamic = match[2];
   // (the missions' moving texts are made with msg(): the gastro, bar, resort, care and expert missions, the snow haul,
   // the hike, the Parsennbahn's and the RhB's limits, the handing over and the unloading; the walks to a door name their
   // place in both languages, and a pop is its line said with its points after two spaces, js/missions-data-gastro.js
@@ -1801,16 +1801,6 @@ function translate(value) {
   // hockey and the leaderboards, the loading screen, the map, the vehicles, the missions' list and pins, and the steps'
   // titles made as their modules load
   dynamic = dynamic.replace(/(-?\d+) goals ahead\b/g, (_, n) => `${n} ${n === '1' ? 'Tor' : 'Tore'} Vorsprung`);
-  dynamic = dynamic.replace(/^Raising the houses around you (\d+\/\d+)…$/, 'Die Häuser um dich herum entstehen $1 …');
-  dynamic = dynamic.replace(/^Previous launch stopped at: (.+)$/, 'Letzter Start abgebrochen bei: $1');
-  dynamic = dynamic.replace(/ · last shader #/, ' · letzter Shader #');
-  dynamic = dynamic.replace(/^(.+) · Click to teleport here$/, '$1 · Klicken, um hierher zu teleportieren');
-  dynamic = dynamic.replace(/^You are at (.+)$/, 'Du bist bei $1');
-  dynamic = dynamic.replace(/^Search (\d+) streets & landmarks…$/, '$1 Strassen und Orte suchen …');
-  dynamic = dynamic.replace(/^Get in the (.+)$/, (_, vehicle) => `Einsteigen: ${enToDe.get(vehicle) || vehicle}`);
-  dynamic = dynamic.replace(/^Take the (.+)$/, (_, vehicle) => `${enToDe.get(vehicle) || vehicle} übernehmen`);
-  dynamic = dynamic.replace(/^Line (.+) · articulated$/, 'Linie $1 · Gelenkbus');
-  dynamic = dynamic.replace(/^Line (.+)$/, 'Linie $1');
   dynamic = dynamic.replace(/^Mission: (.+) · Click to set the waypoint$/, 'Mission: $1 · Klicken, um den Wegpunkt zu setzen');
   dynamic = dynamic.replace(/^Start (.+)$/, (_, title) => `Starten: ${enToDe.get(title) || title}`);
   dynamic = dynamic.replace(/^(.+) · ([\d,.]+ (?:m|km))$/, (_, title, distance) => `${enToDe.get(title) || title} · ${distance}`);
