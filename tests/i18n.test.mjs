@@ -386,17 +386,22 @@ test('the rope park and the Seehofseeli translate names, intros and generated te
   assert.match(t('The Adventure Park Färich, in the trees at the mouth of the Flüela valley.'), /^Der Adventure Park Färich/);
   assert.equal(t('Hockey on the Seehofseeli'), 'Hockey auf dem Seehofseeli');
   assert.match(t('Dusk on the Seehof Seeli, the little pond.'), /^Abenddämmerung/);
-  assert.equal(t('Clip your carabiners: Space (1/2)'), 'Karabiner einhängen: Space (1/2)');
   // (the ways to go are made with msg(), js/messages.js: made by the mission, then translated)
-  const { SEILPARK_MISSION, POND_MISSION, ROPE_LEGS, ROPE_LADDER, POND } = await import('../js/missions-data-outdoor.js');
+  const { SEILPARK_MISSION, POND_MISSION, ROPE_LEGS, ROPE_LADDER, POND, pondLine, carabinersText } = await import('../js/missions-data-outdoor.js');
   const rope = SEILPARK_MISSION.createState(), byId = (m, id) => m.objectives.find((o) => o.id === id);
+  says(byId(SEILPARK_MISSION, 'crossing1').check({}, { ...rope, stage: 'deck', st: 0, clips: 1, block: 0 }).text, 'Clip your carabiners: Space (1/2)', 'Karabiner einhängen: Space (1/2)');
+  says(carabinersText(1), 'Carabiners 1/2', 'Karabiner 1/2');
   says(byId(SEILPARK_MISSION, 'crossing1').check({}, { ...rope, stage: 'cross', st: 0, s: ROPE_LEGS[0].len - 12 }).text, '12 m to the next deck', '12 m bis zur nächsten Plattform');
   says(byId(SEILPARK_MISSION, 'ladder').check({ x: ROPE_LADDER.x + 30, z: ROPE_LADDER.z }, rope).text, '30 m to the ladder', '30 m bis zur Leiter');
   says(byId(POND_MISSION, 'spot').check({ x: POND.spot.x + 25, z: POND.spot.z }).text, '25 m to the face-off', '25 m bis zum Bully');
-  assert.equal(t('1 fall · 0 forgotten · soft landing'), '1 Sturz · 0 vergessen · weiche Landung');
-  assert.equal(t('You 2 : 1 Locals · 2:05'), 'Du 2 : 1 Einheimische · 2:05');
-  assert.equal(t('Won 5 : 2 · your goals: 3'), 'Gewonnen 5 : 2 · deine Tore: 3');
-  assert.equal(t('Won 5 : 2 · your goals: 3 · assists: 1'), 'Gewonnen 5 : 2 · deine Tore: 3 · Assists: 1');
+  says(SEILPARK_MISSION.summary({ ...rope, falls: 1, forgot: 0, crash: false })[0], '1 fall · 0 forgotten · soft landing', '1 Sturz · 0 vergessen · weiche Landung');
+  says(SEILPARK_MISSION.summary({ ...rope, falls: 2, forgot: 1, crash: true })[0], '2 falls · 1 forgotten · mattress at full speed', '2 Stürze · 1 vergessen · mit vollem Tempo in die Matte');
+  says(pondLine({ us: 2, them: 1, sudden: false, clock: POND.clockS - 125 }), 'You 2 : 1 Locals · 2:05', 'Du 2 : 1 Einheimische · 2:05');
+  says(pondLine({ us: 3, them: 3, sudden: true, clock: POND.clockS }), 'You 3 : 3 Locals · next goal wins', 'Du 3 : 3 Einheimische · das nächste Tor entscheidet');
+  const pond = (o) => POND_MISSION.summary({ game: { us: 5, them: 2, myGoals: 3, myAssists: 0, ...o } })[0];
+  says(pond({}), 'Won 5 : 2 · your goals: 3', 'Gewonnen 5 : 2 · deine Tore: 3');
+  says(pond({ myAssists: 1 }), 'Won 5 : 2 · your goals: 3 · assists: 1', 'Gewonnen 5 : 2 · deine Tore: 3 · Assists: 1');
+  says(pond({ us: 2, them: 2 }), 'Drawn 2 : 2 · your goals: 3', 'Unentschieden 2 : 2 · deine Tore: 3');
   assert.equal(t('Body check: the puck is loose!'), 'Bodycheck: Der Puck ist frei!');
   assert.equal(t('3 goals ahead'), '3 Tore Vorsprung');
 });
@@ -502,9 +507,13 @@ test('the end panels: failed and aborted, the awards, the score units and the su
     assert.equal(limit, 'Gold 3 goals ahead');
     assert.equal(t(limit), 'Gold 3 Tore Vorsprung');
   }
-  assert.equal(t('2 shots · 1 hit · 1 missed'), '2 Schüsse · 1 Treffer · 1 daneben');
-  assert.equal(t('1 crash (+5 s)'), '1 Sturz (+5 s)');
-  assert.equal(t('Over the limit 4 s (up to +7 km/h): −20 pts'), 'Über dem Limit 4 s (bis +7 km/h): −20 Pkt.');
+  // (the summaries are made with msg(), js/messages.js: by the missions from a state set up for them)
+  const { LAWINEN_MISSION } = await import('../js/missions-data.js');
+  says(LAWINEN_MISSION.summary({ shots: 2, hits: 1, misses: 1 })[0], '2 shots · 1 hit · 1 missed', '2 Schüsse · 1 Treffer · 1 daneben');
+  const { MTB_MISSION } = await import('../js/missions-data-snow.js');
+  says(MTB_MISSION.summary({ crashes: 1 })[0], '1 crash (+5 s)', '1 Sturz (+5 s)');
+  const { overLimitText } = await import('../js/missions-data-fun.js');
+  says(overLimitText({ overspeed: 4.2, maxOver: 6.8, overspeedPenalty: 20 }), 'Over the limit 4 s (up to +7 km/h): −20 pts', 'Über dem Limit 4 s (bis +7 km/h): −20 Pkt.');
   assert.equal(t('Down the Chüggelibahn'), 'Die Chüggelibahn hinunter');
 });
 
@@ -638,7 +647,6 @@ test('the fun, bar, sport and golf missions translate their HUDs, key bars and r
   setLanguage('de');
   const cases = {
     'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km',
-    'Hole 3/9 · The ramp · par 2': 'Loch 3/9 · Die Rampe · Par 2',
     '3 Wood (2)': 'Holz 3 (2)'
   };
   for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
@@ -646,6 +654,7 @@ test('the fun, bar, sport and golf missions translate their HUDs, key bars and r
   const fun = await import('../js/missions-data-fun.js');
   const sport = await import('../js/missions-data-sport.js');
   const { FUN_TEXT, FOOSBALL_MISSION, GONDOLA_MISSION, GONDOLA, createFoosball, createGondola } = fun;
+  says(sport.SPORT_TEXT.holeTitle(3, 9, 'The ramp', 2), 'Hole 3/9 · The ramp · par 2', 'Loch 3/9 · Die Rampe · Par 2');
   says(FUN_TEXT.foosball('Midfield', true), 'You (red) vs La Onda (blue) · Midfield (auto)', 'Du (rot) gegen La Onda (blau) · Mittelfeld (automatisch)');
   says(FUN_TEXT.foosball('Attack', false), 'You (red) vs La Onda (blue) · Attack', 'Du (rot) gegen La Onda (blau) · Sturm');
   const table = createFoosball();
@@ -928,9 +937,10 @@ test('the Parsennbahn machinist speaks German: the steps in every phase, the des
     'Not at the platform yet', 'Emergency brake!', 'Past the board: the limit switch trips', 'Into the buffer stop!', 'Time-lapse off: a limit ahead', 'No time-lapse here',
     'Left too early!', 'Departure, with the horn', 'Departure', 'Change to the upper car']) seen.add(s);
   for (const text of seen) assert.notEqual(t(text), text, text);
-  assert.equal(t('Höhenweg in 1.2 km · due 4:55 (−12 s) · 30/36 km/h'), 'Höhenweg in 1.2 km · fällig 4:55 (−12 s) · 30/36 km/h');
   // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
   const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const { dueText } = await import('../js/missions-data-fun.js');
+  says(dueText('Höhenweg', '1.2 km', false, '4:55', '−12 s', 30, 36), 'Höhenweg in 1.2 km · due 4:55 (−12 s) · 30/36 km/h', 'Höhenweg in 1.2 km · fällig 4:55 (−12 s) · 30/36 km/h');
   const at = (more) => m.objectives[0].check({}, { drive: Object.assign(createDrive(), more) }).text;
   says(at({ aboard: 12 }), 'Davos Dorf · boarding 12/46 · departure 0:20', 'Davos Dorf · Einsteigen 12/46 · Abfahrt 0:20');
   says(at({ phase: 'ready', doors: 'closed', t: 12.5 }), 'Doors closed · departure 0:20 (in 8 s)', 'Türen zu · Abfahrt 0:20 (in 8 s)');

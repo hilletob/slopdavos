@@ -22,6 +22,7 @@
 
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { msg } from './messages.js';
+import { dueText, overLimitText } from './missions-data-fun.js';
 import { funicularTrack } from './funicular-track.js';
 
 export const PARSENN_ID = 'parsenn-maschinist';
@@ -356,7 +357,7 @@ function sectionText(d, k) {
   if (d.phase === 'halt') return { text: msg('{name} · {e} from the board', '{name} · {e} von der Tafel', { name, e: fmtError(-togo) }), hint: Math.abs(togo) > 0.1 && togo > 0 ? 'Creep on (W) or open the doors (F)' : 'F: open the doors' };
   if (d.phase === 'alight') return { text: msg('{name} · the passengers get off', '{name} · Die Fahrgäste steigen aus', { name }), hint: null };
   const hint = kmh > limit + PB.tolerance ? msg('Too fast: limit {v} km/h', 'Zu schnell: Limit {v} km/h', { v: limit }) : togo < 40 ? 'Stop with the front at the yellow line' : togo < 160 ? 'Slow down for the station' : d.timelapse ? 'Time-lapse ×4 · T: back to normal' : null;
-  return { text: `${name} in ${fmtDist(togo)} · due ${fmtClock(tt.arrive)} (${fmtSigned(d.t - tt.arrive)}) · ${kmh}/${limit} km/h`, hint };
+  return { text: dueText(name, fmtDist(togo), false, fmtClock(tt.arrive), fmtSigned(d.t - tt.arrive), kmh, limit), hint };
 }
 
 function sectionObjective(k) {
@@ -403,7 +404,7 @@ export const PARSENN_MISSION = {
     const lines = d.results.map((r) => msg('{a} – {b}: departure {dep}{horn} · arrival {arr} · {e} · ride {ride}/50 → {p} pts',
       (p) => `${p.a} – ${p.b}: Abfahrt ${p.dep}${p.horn ? ' (Hornsignal)' : ''} · Ankunft ${p.arr} · ${p.e} · Fahrt ${p.ride}/50 → ${p.p} Pkt.`,
       { a: r.from, b: r.to, dep: fmtSigned(r.departLate), horn: r.horn ? ' (horn)' : '', arr: fmtSigned(r.delay), e: fmtError(r.error), ride: r.comfort, p: r.total }));
-    if (d.overspeed > 0) lines.push(`Over the limit ${Math.round(d.overspeed)} s (up to +${Math.round(d.maxOver)} km/h): −${Math.round(d.overspeedPenalty)} pts`);
+    if (d.overspeed > 0) lines.push(overLimitText(d));
     return lines;
   },
   objectives: SECTIONS.map((_, k) => sectionObjective(k))

@@ -1826,15 +1826,9 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
   dynamic = dynamic.replace(/^Top (\d+) pizzas$/, 'Belege $1 Pizzas');
   dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
-  // (the rope park, the Seehofseeli: js/missions-data-outdoor.js; made with msg())
-  // (Pfadi Davos: js/missions-data-pfadi.js; the splitboard tour on the Chörbschhorn: js/missions-data-splitboard.js,
-  // js/missions-splitboard.js: made with msg())
-  // the rope park and the hockey on the Seehofseeli, then generic lines (the loading screen, the map, the vehicles, the missions)
-  dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
-  dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');
-  dynamic = dynamic.replace(/^(\d+) (?:fall|falls) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${a === '1' ? 'Sturz' : 'Stürze'} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'mit vollem Tempo in die Matte'}`);
-  dynamic = dynamic.replace(/^You (\d+) : (\d+) Locals · (.+)$/, (_, a, b, c) => `Du ${a} : ${b} Einheimische · ${c === 'next goal wins' ? 'das nächste Tor entscheidet' : c}`);
-  dynamic = dynamic.replace(/^(Won|Drawn|Lost) (\d+) : (\d+) · your goals: (\d+)(?: · assists: (\d+))?$/, (_, r, a, b, m, n) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[r]} ${a} : ${b} · deine Tore: ${m}${n ? ` · Assists: ${n}` : ''}`);
+  // (the other missions' moving texts and summaries are made with msg() too.) Then generic lines: the score unit of the
+  // hockey and the leaderboards, the loading screen, the map, the vehicles, the missions' list and pins, and the steps'
+  // titles made as their modules load
   dynamic = dynamic.replace(/(-?\d+) goals ahead\b/g, (_, n) => `${n} ${n === '1' ? 'Tor' : 'Tore'} Vorsprung`);
   dynamic = dynamic.replace(/^Raising the houses around you (\d+\/\d+)…$/, 'Die Häuser um dich herum entstehen $1 …');
   dynamic = dynamic.replace(/^Previous launch stopped at: (.+)$/, 'Letzter Start abgebrochen bei: $1');
@@ -1846,7 +1840,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^Take the (.+)$/, (_, vehicle) => `${enToDe.get(vehicle) || vehicle} übernehmen`);
   dynamic = dynamic.replace(/^Line (.+) · articulated$/, 'Linie $1 · Gelenkbus');
   dynamic = dynamic.replace(/^Line (.+)$/, 'Linie $1');
-  dynamic = dynamic.replace(/^You are on (.+)$/, 'Du bist auf $1');
   dynamic = dynamic.replace(/^Mission: (.+) · Click to set the waypoint$/, 'Mission: $1 · Klicken, um den Wegpunkt zu setzen');
   dynamic = dynamic.replace(/^Start (.+)$/, (_, title) => `Starten: ${enToDe.get(title) || title}`);
   dynamic = dynamic.replace(/^(.+) · ([\d,.]+ (?:m|km))$/, (_, title, distance) => `${enToDe.get(title) || title} · ${distance}`);
@@ -1854,8 +1847,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^Stop at (.+)$/, 'Bei $1 anhalten');
   dynamic = dynamic.replace(/^Split (\d+) at (.+)$/, 'Zwischenzeit $1 bei $2');
   dynamic = dynamic.replace(/^Hole (\d+): (.+) \(par (\d+)\)$/, (_, n, name, par) => `Loch ${n}: ${enToDe.get(name) || name} (Par ${par})`);
-  dynamic = dynamic.replace(/^Hole (\d+)\/(\d+) · (.+) · par (\d+)$/, (_, n, of, name, par) => `Loch ${n}/${of} · ${enToDe.get(name) || name} · Par ${par}`);
-  dynamic = dynamic.replace(/^Stroke (\d+) · total (\d+)$/, 'Schlag $1 · total $2');
   dynamic = dynamic.replace(/^Hole (\d+) · Par (\d+)$/, 'Loch $1 · Par $2');
   dynamic = dynamic.replace(/^Lap (\d+) of (\d+): to the finish$/, 'Runde $1 von $2: ins Ziel');
   dynamic = dynamic.replace(/^Lap (\d+) of (\d+)$/, 'Runde $1 von $2');
@@ -1868,84 +1859,19 @@ function translate(value) {
   dynamic = dynamic.replace(/^Jump (\d+) of (\d+)$/, 'Sprung $1 von $2');
   dynamic = dynamic.replace(/^Groom (\d+) % of the trail$/, '$1 % der Loipe präparieren');
   dynamic = dynamic.replace(/^Trigger zone (\d+) of (\d+)$/, 'Zone $1 von $2 auslösen');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the accident site( · .+)?$/, '$1 bis zur Unfallstelle$2');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the finish$/, '$1 bis zum Ziel');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the (.+)$/, '$1 bis zu $2');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to (.+)$/, '$1 bis $2');
-  dynamic = dynamic.replace(/^Next stop (.+)$/, 'Nächster Halt: $1');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) rolled · (\d+) pts$/, '$1 von $2 gerollt · $3 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) pts · (\d+) plates · (.+)$/, '$1 Pkt. · $2 Teller · $3');
-  // the rural missions (js/missions-data-rural.js makes its texts with msg(); left here: the bare gate count, which the
-  // splitboard's descent shows too, and the unloading, which the garbage round shows too)
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+)$/, 'Tor $1');
-  dynamic = dynamic.replace(/^Unloading … (\d+) %$/, 'Abladen … $1 %');
-  dynamic = dynamic.replace(/^Path cleared (.+) of (.+)$/, 'Weg geräumt: $1 von $2');
-  dynamic = dynamic.replace(/^Road cleared (.+) of (.+)$/, 'Strasse geräumt: $1 von $2');
-  dynamic = dynamic.replace(/^Lawn mown (.+) of (.+)$/, 'Rasen gemäht: $1 von $2');
-  dynamic = dynamic.replace(/^Bouquet (\d+\/\d+)(.*)$/, 'Blumenstrauss $1$2');
-  dynamic = dynamic.replace(/^Bouquet of (\d+) · (.+) to go$/, 'Blumenstrauss mit $1 Zweigen · noch $2');
-  dynamic = dynamic.replace(/^Basket (\d+\/\d+) · (.+) left$/, 'Korb $1 · noch $2');
-  dynamic = dynamic.replace(/^Basket of (\d+) · control (.+)$/, 'Korb mit $1 Pilzen · Kontrolle $2');
-  dynamic = dynamic.replace(/^([\d,.]+) left · dart (\d+) · turn (\d+)(.*)$/, '$1 übrig · Pfeil $2 · Runde $3$4');
-  dynamic = dynamic.replace(/^You (\d+) : (\d+) Coach(.*)$/, 'Du $1 : $2 Trainer$3');
-  dynamic = dynamic.replace(/ · your serve$/, ' · dein Aufschlag').replace(/ · coach serves$/, ' · Trainer schlägt auf');
-  dynamic = dynamic.replace(/ · this turn (\d+)$/, ' · in dieser Runde $1');
-  dynamic = dynamic.replace(/ · streak (\d+)/g, ' · Serie $1');
-  // The end panels' summaries and scores (the missions' summary(): each template's words, the numbers as they come)
-  const plural = (n, one, many) => (n === '1' ? one : many);
+  // The end panels' scores (the units of js/missions-progress.js), the mission aborted by js/missions.js, the golf's
+  // summary (js/missions-data-golf.js) and the crane's summary without a load set down (js/missions-data-work.js: msg()
+  // gives 'Set down: ', the page shows it trimmed)
   const medalDe = (m) => enToDe.get(m) || m;
   dynamic = dynamic.replace(/^Mode switch \((.+)\): the mission was aborted\.$/, 'Moduswechsel ($1): Die Mission wurde abgebrochen.');
   const unitDe = { goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', points: 'Punkte', 'WC pts': 'Weltcup-Punkte' };
   dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${n === '1' ? unitDe[unit].replace('Tore', 'Tor') : unitDe[unit]}`);
   dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
-  dynamic = dynamic.replace(/^(\d+) (?:shot|shots) · (\d+) (?:hit|hits) · (\d+) missed$/, (_, a, b, c) => `${a} ${plural(a, 'Schuss', 'Schüsse')} · ${b} Treffer · ${c} daneben`);
-  dynamic = dynamic.replace(/^(\d+) of (\d+) gates clean · (\d+) missed( \(\+[\d.]+ s\))?$/, '$1 von $2 Toren sauber · $3 verpasst$4');
-  dynamic = dynamic.replace(/^(\d+) (?:crash|crashes)( \(\+[\d.]+ s\))?$/, (_, n, s) => `${n} ${plural(n, 'Sturz', 'Stürze')}${s || ''}`);
-  dynamic = dynamic.replace(/^(\d+) (?:crash|crashes)( \(\+[\d.]+ s\))? · (\d+) (?:net|nets) touched · top speed (\d+) km\/h$/, (_, n, s, nets, v) => `${n} ${plural(n, 'Sturz', 'Stürze')}${s || ''} · ${nets} ${plural(nets, 'Netz', 'Netze')} berührt · Höchsttempo ${v} km/h`);
-  dynamic = dynamic.replace(/\bLap (\d+): /g, 'Runde $1: ');
-  dynamic = dynamic.replace(/^(?:(.+) · top|Top) speed ([\d.]+) km\/h · (\d+) power strokes of (\d+)(?: · (\d+) stumbles)?$/, (_, label, v, a, b, c) => `${label ? `${label} · ` : ''}Höchsttempo ${v} km/h · ${a} Kraftschritte von ${b}${c ? ` · ${c} Stolperer` : ''}`);
-  dynamic = dynamic.replace(/^(\d+) of (\d+) scored:/, '$1 von $2 getroffen:');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) stones in the house · (\d+) points$/, '$1 von $2 Steinen im Haus · $3 Punkte');
   dynamic = dynamic.replace(/^(\d+) strokes, par (\d+): (.+)$/, '$1 Schläge, Par $2: $3');
-  dynamic = dynamic.replace(/^(\d+) of (\d+) bars served$/, '$1 von $2 Bars beliefert');
-  dynamic = dynamic.replace(/^(\d+) squirrels fed · best streak (\d+) · (\d+) scared away$/, '$1 Eichhörnchen gefüttert · beste Serie $2 · $3 verscheucht');
-  dynamic = dynamic.replace(/^(\d+) plates · (\d+) just right · (\d+) burnt · (\d+) guests left hungry$/, '$1 Teller · $2 genau richtig · $3 verbrannt · $4 Gäste hungrig gegangen');
-  dynamic = dynamic.replace(/^Tiebreak (\d+) : (\d+) · (\d+) aces · (\d+) winners$/, 'Tiebreak $1 : $2 · $3 Asse · $4 Winner');
-  dynamic = dynamic.replace(/^Top speed (\d+) km\/h · on the wall ([\d.]+) s · jolts ([\d.]+) s$/, 'Höchsttempo $1 km/h · an der Wand $2 s · Schläge $3 s');
-  dynamic = dynamic.replace(/^Likeness (\d+) % · colour (\d+) % · contours (\d+) %$/, 'Ähnlichkeit $1 % · Farbe $2 % · Konturen $3 %');
-  dynamic = dynamic.replace(/^(\d+) shovels thrown onto the heaps · (\d+) % of the path cleared$/, '$1 Schaufeln auf die Haufen geworfen · $2 % des Wegs geräumt');
-  dynamic = dynamic.replace(/^(\d+) bed patch(?:es)? trodden \(\+([\d.]+) s\)$/, (_, n, a) => `${n} ${plural(n, 'Beet', 'Beete')} zertrampelt (+${a} s)`);
-  dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
-  dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
-  dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
-  dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
-  dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
-  dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');
-  dynamic = dynamic.replace(/^(.+) · doors (\d+) s → (-?\d+) pts$/, '$1 · Türen $2 s → $3 Pkt.');
-  dynamic = dynamic.replace(/^Over the limit (\d+) s \(up to \+(\d+) km\/h\): −(\d+) pts$/, 'Über dem Limit $1 s (bis +$2 km/h): −$3 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) tricks( · best: )?/, (_, n, best) => `${n} Tricks${best ? ' · beste: ' : ''}`);
-  dynamic = dynamic.replace(/^(\d+) airs · (\d+) grinds · (\d+) bails?$/, (_, a, b, c) => `${a} Airs · ${b} Grinds · ${c} ${plural(c, 'Sturz', 'Stürze')}`);
-  dynamic = dynamic.replace(/^301 checked out in (\d+) darts · best turn (\d+) · (\d+) busts?$/, (_, a, b, c) => `301 ausgecheckt in ${a} Pfeilen · beste Runde ${b} · ${c}× überworfen`);
-  dynamic = dynamic.replace(/(^| · )bust(?= · |$)/g, '$1überworfen');
-  dynamic = dynamic.replace(/ — (\d+) strokes \(par (\d+), ([+-]?\d+)\)$/, ' — $1 Schläge (Par $2, $3)');
-  dynamic = dynamic.replace(/^(\d+) (?:falls?) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${plural(a, 'Sturz', 'Stürze')} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'volle Fahrt in die Matratze'}`);
-  dynamic = dynamic.replace(/^(Won|Drawn|Lost) (\d+) : (\d+) · your goals: (\d+)(?: · assists: (\d+))?$/, (_, r, a, b, c, n) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[r]} ${a} : ${b} · deine Tore: ${c}${n ? ` · Assists: ${n}` : ''}`);
-  dynamic = dynamic.replace(/^Jump (\d+): (.+) · (.+) landing · (-?\d+) pts$/, 'Sprung $1: $2 · Landung $3 · $4 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) passengers in (\d+) cabins · (\d+) % full on average · (\d+) full rows · (\d+) holes$/, '$1 Fahrgäste in $2 Kabinen · im Schnitt $3 % voll · $4 volle Reihen · $5 Löcher');
   dynamic = dynamic.replace(/^Set down:\s*$/, 'Abgesetzt:');
-  // The steps' running texts
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) · (\d+) rounds left$/, '$1 · noch $2 Schuss');
-  dynamic = dynamic.replace(/^(.+) in ([\d,.]+ (?:m|km)) · due ([\d:]+) \((.+)\) · (\d+)\/(\d+) km\/h$/, '$1 in $2 · fällig $3 ($4) · $5/$6 km/h');
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+) · (\d+) clean$/, 'Tor $1 · $2 sauber');
-  dynamic = dynamic.replace(/^([\d,.]+) m of ([\d,.]+) m · (\d+) km\/h$/, '$1 m von $2 m · $3 km/h');
-  dynamic = dynamic.replace(/^(\d+) goals? · (\d+) s left$/, (_, n, t) => `${n} ${plural(n, 'Tor', 'Tore')} · noch ${t} s`);
-  dynamic = dynamic.replace(/^Stone (\d+) of (\d+) · (\d+) points$/, 'Stein $1 von $2 · $3 Punkte');
+  // The golf's step (golfDe above takes it first) and the minigolf's titles from the rule for "Hole n: … (par n)" above,
+  // the lane's name where js/i18n.js has no pair for it
   dynamic = dynamic.replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, 'Schlag $1 · $2 m zur Fahne · $3');
-  dynamic = dynamic.replace(/^(\d+:\d\d) to the summit · (\d+) s off the path · (before|after) the sun$/, (_, t, off, when) => `${t} bis zum Gipfel · ${off} s abseits vom Weg · ${when === 'before' ? 'vor' : 'nach'} der Sonne`);
-  dynamic = dynamic.replace(/^(\d+:\d\d) for (.+) · (\d+) s off the path$/, '$1 für $2 · $3 s abseits vom Weg');
-  dynamic = dynamic.replace(/^Stroke (\d+) · sliding … · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · gleitet … · total $2 (Par $3)');
-  dynamic = dynamic.replace(/^Stroke (\d+) · total (\d+) \(par (\d+)\)$/, 'Schlag $1 · total $2 (Par $3)');
-  dynamic = dynamic.replace(/^Collected (\d+\/\d+) · next ([\d,.]+ (?:m|km))$/, 'Eingesammelt $1 · nächste $2');
   dynamic = dynamic.replace(/: (?:The )?(hill|tube|ramp|loop|centre island|round island|angle|bridge|Two posts) \(Par (\d)\)$/, (whole, name, par) => { const de = { 'Two posts': 'Zwei Pfosten', hill: 'Der Hügel', tube: 'Die Röhre', ramp: 'Die Rampe', loop: 'Der Looping', 'centre island': 'Die Mittelinsel', 'round island': 'Die runde Insel', angle: 'Der Winkel', bridge: 'Die Brücke' }[name]; return de ? `: ${de} (Par ${par})` : whole; });
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)

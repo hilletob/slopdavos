@@ -27,6 +27,11 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
 const fmtClock = (s) => { const v = Math.max(0, Math.round(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
 const fmtSigned = (s) => `${s >= 0 ? '+' : '−'}${Math.abs(Math.round(s))} s`;
+/** The driver's cab on the way to a stop (here and in js/missions-data-parsenn.js): `past` beyond the board */
+export const dueText = (name, d, past, at, late, kmh, limit) => msg('{name} in {d}{past} · due {at} ({late}) · {kmh}/{limit} km/h', (q) => `${q.name} in ${q.d}${q.over ? ' (an der Tafel vorbei)' : ''} · fällig ${q.at} (${q.late}) · ${q.kmh}/${q.limit} km/h`,
+  { name, d, past: past ? ' (past the board)' : '', over: past, at, late, kmh, limit });
+/** The summary's line for the time over the limit (the RhB's cab, the Parsennbahn) */
+export const overLimitText = (d) => msg('Over the limit {s} s (up to +{v} km/h): −{p} pts', 'Über dem Limit {s} s (bis +{v} km/h): −{p} Pkt.', { s: Math.round(d.overspeed), v: Math.round(d.maxOver), p: Math.round(d.overspeedPenalty) });
 
 /** A small seeded random generator (mulberry32): the same run of numbers for the same seed */
 export function seededRandom(seed = 1) {
@@ -204,7 +209,7 @@ function rhythmMission({ door, doorTitle, doorLabel, doorTo, stepTitle, tuning, 
     summary(state) {
       const g = state.game;
       if (!g) return [];
-      return [`${g.perfect} perfect · ${g.good} good · ${g.miss} missed · best streak ${g.maxCombo}`];
+      return [msg('{a} perfect · {b} good · {c} missed · best streak {d}', '{a} perfekt · {b} gut · {c} verpasst · beste Serie {d}', { a: g.perfect, b: g.good, c: g.miss, d: g.maxCombo })];
     },
     objectives: [
       walkTo(door, doorTitle, doorLabel, doorTo),
@@ -219,7 +224,7 @@ function rhythmMission({ door, doorTitle, doorLabel, doorTo, stepTitle, tuning, 
           return {
             done: g.done,
             progress: Math.min(1, g.t / g.length),
-            text: `${g.score.toLocaleString('en-US')} pts · streak ${g.combo} · ×${headbangMultiplier(g.combo)} · ${fmtClock(left)}`,
+            text: msg('{pts} pts · streak {n} · ×{m} · {clock}', '{pts} Pkt. · Serie {n} · ×{m} · {clock}', { pts: g.score.toLocaleString('en-US'), n: g.combo, m: headbangMultiplier(g.combo), clock: fmtClock(left) }),
             target: null,
             hint: `Space / J / K or ${action} on the beat`
           };
@@ -587,7 +592,7 @@ export const FOOSBALL_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g) return [];
-    return [`Final score ${g.score.p} : ${g.score.a} after ${fmtClock(g.t)} · ${g.kicks} shots`];
+    return [msg('Final score {p} : {a} after {clock} · {n} shots', 'Schlussstand {p} : {a} nach {clock} · {n} Schüsse', { p: g.score.p, a: g.score.a, clock: fmtClock(g.t), n: g.kicks })];
   },
   objectives: [
     walkTo(ONDA_DOOR, 'Go into the Bar La Onda', 'La Onda', 'La Onda'),
@@ -847,7 +852,7 @@ export const GONDOLA_MISSION = {
     if (!g) return [];
     const rows = g.cabins.reduce((a, c) => a + c.rows, 0), holes = g.cabins.reduce((a, c) => a + c.holes, 0);
     const fill = g.cabins.length ? Math.round((100 * g.cabins.reduce((a, c) => a + c.fill, 0)) / g.cabins.length) : 0;
-    return [`${gondolaPersons(g)} passengers in ${g.cabins.length} cabins · ${fill} % full on average · ${rows} full rows · ${holes} holes`];
+    return [msg('{a} passengers in {b} cabins · {c} % full on average · {d} full rows · {e} holes', '{a} Fahrgäste in {b} Kabinen · im Schnitt {c} % voll · {d} volle Reihen · {e} Löcher', { a: gondolaPersons(g), b: g.cabins.length, c: fill, d: rows, e: holes })];
   },
   objectives: [
     walkTo(JAKOBSHORN_GATE, 'Go to the Jakobshornbahn', 'the valley station', 'zur Talstation'),
@@ -1019,7 +1024,7 @@ function rhbStopObjective(name, i) {
     allowModes: ['rhb'],
     check(ctx, state) {
       const d = state.drive;
-      if (!d) return { done: false, progress: null, text: `Next stop ${name}`, target: null, hint: 'W: throttle · S: brake' };
+      if (!d) return { done: false, progress: null, text: msg('Next stop {name}', 'Nächster Halt: {name}', { name }), target: null, hint: 'W: throttle · S: brake' };
       const stop = d.timetable[i];
       const result = d.results[i];
       if (result) return { done: true, progress: 1, text: result.missed ? `Missed ${name}` : msg('{name}: {pts} pts', '{name}: {pts} Pkt.', { name, pts: result.total }), target: null, hint: null };
@@ -1029,9 +1034,10 @@ function rhbStopObjective(name, i) {
       let text;
       if (d.phase === 'halt' && d.index === i) {
         const left = Math.max(0, RHB_DRIVE.dwell - d.halt.dwell);
-        text = left > 0 ? `${name} · doors open ${Math.ceil(left)} s · departure ${fmtClock(stop.depart ?? stop.arrive)}` : `${name} · doors closed, depart at ${fmtClock(stop.depart ?? stop.arrive)}`;
+        const at = fmtClock(stop.depart ?? stop.arrive);
+        text = left > 0 ? msg('{name} · doors open {s} s · departure {at}', '{name} · Türen offen {s} s · Abfahrt {at}', { name, s: Math.ceil(left), at }) : msg('{name} · doors closed, depart at {at}', '{name} · Türen zu, Abfahrt um {at}', { name, at });
       } else {
-        text = `${name} in ${fmtDist(Math.abs(togo))}${togo < 0 ? ' (past the board)' : ''} · due ${fmtClock(stop.arrive)} (${fmtSigned(delay)}) · ${Math.round(d.speed * 3.6)}/${limit} km/h`;
+        text = dueText(name, fmtDist(Math.abs(togo)), togo < 0, fmtClock(stop.arrive), fmtSigned(delay), Math.round(d.speed * 3.6), limit);
       }
       return { done: false, progress: null, text, target: ctx.stopTarget || null, hint: d.speed * 3.6 > limit + RHB_DRIVE.tolerance ? msg('Too fast: limit {v} km/h', 'Zu schnell: Limit {v} km/h', { v: limit }) : null };
     }
@@ -1058,8 +1064,9 @@ export const RHB_MISSION = {
   summary(state) {
     const d = state.drive;
     if (!d) return [];
-    const lines = d.results.map((r) => (r.missed ? `${r.name}: missed` : `${r.name}: ${fmtSigned(r.delay)} · ${r.error >= 0 ? '+' : '−'}${Math.abs(r.error).toFixed(1)} m · doors ${Math.round(r.dwell)} s → ${r.total} pts`));
-    if (d.overspeed > 0) lines.push(`Over the limit ${Math.round(d.overspeed)} s (up to +${Math.round(d.maxOver)} km/h): −${Math.round(d.overspeedPenalty)} pts`);
+    const lines = d.results.map((r) => (r.missed ? msg('{name}: missed', '{name}: verpasst', { name: r.name })
+      : msg('{name}: {delay} · {e} m · doors {s} s → {pts} pts', '{name}: {delay} · {e} m · Türen {s} s → {pts} Pkt.', { name: r.name, delay: fmtSigned(r.delay), e: `${r.error >= 0 ? '+' : '−'}${Math.abs(r.error).toFixed(1)}`, s: Math.round(r.dwell), pts: r.total })));
+    if (d.overspeed > 0) lines.push(overLimitText(d));
     return lines;
   },
   objectives: RHB_DRIVE.stops.map(rhbStopObjective)
@@ -1087,6 +1094,8 @@ export const FUN_MISSIONS = [HEADBANG_MISSION, FOOSBALL_MISSION, GONDOLA_MISSION
 
 // The runtime's moving texts (js/missions-fun.js), with their German beside them (js/messages.js)
 export const FUN_TEXT = {
+  /** The rhythm games' line under the score: the multiplier, the streak, the seconds left */
+  streak: (m, n, s) => msg('×{m} · streak {n} · {s} s', '×{m} · Serie {n} · {s} s', { m, n, s }),
   /** The table football's line under the score: the rod in play, (auto) while the game picks it */
   foosball: (role, auto) => msg('You (red) vs La Onda (blue) · {role}{auto}', (p, tr) => `Du (rot) gegen La Onda (blau) · ${tr(p.role)}${p.auto ? ' (automatisch)' : ''}`,
     { role, auto: auto ? ' (auto)' : '' }),

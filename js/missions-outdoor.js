@@ -7,7 +7,7 @@ import { buildIceHud, edge, meter, poseSkater, touchLabel } from './missions-ice
 import { cheerArms } from './missions-sport.js';
 import {
   ROPE, ROPE_KINDS, ROPE_LADDER, ROPE_LEGS, ROPE_STATIONS, ropeAloft, ropePose, stepRope,
-  POND, POND_POSTS, POND_RING, containPond, inPond, pondAim, pondBankPoints, pondLine, startPondGame, stepPond
+  POND, POND_POSTS, POND_RING, containPond, inPond, pondAim, pondBankPoints, pondLine, startPondGame, stepPond, carabinersText
 } from './missions-data-outdoor.js';
 
 // js/missions-outdoor.js
@@ -342,7 +342,7 @@ const ropePark = {
       mesh.quaternion.setFromAxisAngle(_b.set(leg.dir.x, 0, leg.dir.z), target);
     });
     // HUD
-    setText(rp.ui.clips, g.stage === 'deck' ? `Carabiners ${g.clips}/2` : g.stage === 'cross' ? 'Balance' : '');
+    setText(rp.ui.clips, g.stage === 'deck' ? carabinersText(g.clips) : g.stage === 'cross' ? 'Balance' : '');
     const showNeedle = g.stage === 'cross';
     rp.ui.row.hidden = g.stage !== 'cross' && g.stage !== 'deck';
     rp.ui.mt.m.style.visibility = showNeedle ? 'visible' : 'hidden';

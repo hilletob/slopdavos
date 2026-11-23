@@ -212,7 +212,7 @@ export function ropePose(g, decks, landY, groundY) {
 
 function deckText(g) {
   if (g.block > 0) return 'Clip both carabiners first!';
-  if (g.clips < 2) return `Clip your carabiners: Space (${g.clips}/2)`;
+  if (g.clips < 2) return msg('Clip your carabiners: Space ({n}/2)', 'Karabiner einhängen: Space ({n}/2)', { n: g.clips });
   return ROPE_LEGS[g.st].kind === 'zip' ? 'Clipped: W, step off the deck' : 'Clipped: W, out onto the crossing';
 }
 const crossingObjective = (leg, i) => ({
@@ -245,7 +245,8 @@ export const SEILPARK_MISSION = {
   createState() { return createRopeGame(Math.floor(Math.random() * 1e9)); },
   update() {},
   summary(g) {
-    return [ropeClean(g) ? 'A clean run: no fall, no carabiner forgotten' : `${g.falls} ${g.falls === 1 ? 'fall' : 'falls'} · ${g.forgot} forgotten · ${g.crash ? 'mattress at full speed' : 'soft landing'}`];
+    return [ropeClean(g) ? 'A clean run: no fall, no carabiner forgotten' : msg('{a} {falls} · {b} forgotten · {end}', (q) => `${q.a} ${q.a === 1 ? 'Sturz' : 'Stürze'} · ${q.b} vergessen · ${q.crash ? 'mit vollem Tempo in die Matte' : 'weiche Landung'}`,
+      { a: g.falls, falls: g.falls === 1 ? 'fall' : 'falls', b: g.forgot, end: g.crash ? 'mattress at full speed' : 'soft landing', crash: g.crash })];
   },
   objectives: [
     {
@@ -766,9 +767,11 @@ export function stepPond(g, dt, inp) {
 }
 
 /** Tiny HUD line (the score, the clock) */
+/** The rope park's HUD: the carabiners clipped on the deck */
+export const carabinersText = (n) => msg('Carabiners {n}/2', 'Karabiner {n}/2', { n });
 export function pondLine(g) {
   const clock = g.sudden ? 'next goal wins' : fmtClock(POND.clockS - g.clock);
-  return `You ${g.us} : ${g.them} Locals · ${clock}`;
+  return msg('You {a} : {b} Locals · {clock}', (q) => `Du ${q.a} : ${q.b} Einheimische · ${q.sudden ? 'das nächste Tor entscheidet' : q.clock}`, { a: g.us, b: g.them, clock, sudden: g.sudden });
 }
 
 export const POND_MISSION = {
@@ -794,7 +797,9 @@ export const POND_MISSION = {
   update() {},
   summary(state) {
     const g = state.game;
-    return [`${pondWon(g) ? 'Won' : g.us === g.them ? 'Drawn' : 'Lost'} ${g.us} : ${g.them} · your goals: ${g.myGoals}${g.myAssists ? ` · assists: ${g.myAssists}` : ''}`];
+    const result = pondWon(g) ? 'Won' : g.us === g.them ? 'Drawn' : 'Lost';
+    return [msg('{result} {a} : {b} · your goals: {m}{assists}', (q) => `${{ Won: 'Gewonnen', Drawn: 'Unentschieden', Lost: 'Verloren' }[q.result]} ${q.a} : ${q.b} · deine Tore: ${q.m}${q.n ? ` · Assists: ${q.n}` : ''}`,
+      { result, a: g.us, b: g.them, m: g.myGoals, assists: g.myAssists ? ` · assists: ${g.myAssists}` : '', n: g.myAssists })];
   },
   objectives: [
     {

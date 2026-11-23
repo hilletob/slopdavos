@@ -255,7 +255,9 @@ export const SCHWARZHORN_MISSION = {
   score: (state) => hikeScore(state.hike),
   summary(state) {
     const h = state.hike, t = Math.round(h.arrivedAt ?? h.time);
-    return [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} to the summit · ${Math.round(h.offTime)} s off the path · ${h.arrivedAt !== null && h.arrivedAt <= DAWN.climb ? 'before the sun' : 'after the sun'}`];
+    const before = h.arrivedAt !== null && h.arrivedAt <= DAWN.climb;
+    return [msg('{t} to the summit · {off} s off the path · {when} the sun', (q) => `${q.t} bis zum Gipfel · ${q.off} s abseits vom Weg · ${q.before ? 'vor' : 'nach'} der Sonne`,
+      { t: `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, off: Math.round(h.offTime), when: before ? 'before' : 'after', before })];
   },
   objectives: [
     ...SCHWARZHORN_STAGES.map((s, i) => stageObjective(s, i, SCHWARZHORN_STAGES.length)),
@@ -297,7 +299,7 @@ export const JOERISEEN_MISSION = {
   score: (state) => hikeScore(state.hike),
   summary(state) {
     const h = state.hike, t = Math.round(h.arrivedAt ?? h.time);
-    return [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} for ${fmtDist(h.total)} · ${Math.round(h.offTime)} s off the path`];
+    return [msg('{t} for {d} · {off} s off the path', '{t} für {d} · {off} s abseits vom Weg', { t: `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, d: fmtDist(h.total), off: Math.round(h.offTime) })];
   },
   objectives: JOERISEEN_STAGES.map((s, i) => stageObjective(s, i, JOERISEEN_STAGES.length))
 };

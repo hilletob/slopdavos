@@ -512,7 +512,7 @@ export const SLALOM_MISSION = {
     state.prev = { x: ctx.x, z: ctx.z };
   },
   summary(state) {
-    return [`${state.passed} of ${state.gates.length} gates clean · ${state.missed} missed${state.missed ? ` (+${(state.missed * SLALOM_MISS_MS) / 1000} s)` : ''}`];
+    return [msg('{a} of {b} gates clean · {c} missed{s}', '{a} von {b} Toren sauber · {c} verpasst{s}', { a: state.passed, b: state.gates.length, c: state.missed, s: state.missed ? ` (+${(state.missed * SLALOM_MISS_MS) / 1000} s)` : '' })];
   },
   objectives: [
     {
@@ -652,7 +652,9 @@ export const MTB_MISSION = {
   update(ctx, state) {
     if (ctx.mode === 'cyclist') updateCheckpoints(state, ctx.x, ctx.z, 8);
   },
-  summary(state) { return [`${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'}${state.crashes ? ` (+${(state.crashes * MTB_CRASH_MS) / 1000} s)` : ''}`]; },
+  summary(state) {
+    return [msg('{n} {crashes}{pen}', (q) => `${q.n} ${q.n === 1 ? 'Sturz' : 'Stürze'}${q.pen}`, { n: state.crashes, crashes: state.crashes === 1 ? 'crash' : 'crashes', pen: state.crashes ? ` (+${(state.crashes * MTB_CRASH_MS) / 1000} s)` : '' })];
+  },
   objectives: [
     mtbSection('chueggelibahn', 'Down the Chüggelibahn', MTB_BOLGEN_TRAIL_S),
     mtbSection('bolgen', 'Bolgen Trail to the finish', Infinity)

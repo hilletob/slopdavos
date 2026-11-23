@@ -915,8 +915,8 @@ const minigolf = {
     }
     // the HUD
     const hole = course.holes[Math.min(g.hole, course.holes.length - 1)];
-    setText(mg.ui.title, `Hole ${g.hole + 1}/${course.holes.length} · ${hole.name} · par ${hole.par}`);
-    setText(mg.ui.line, `Stroke ${g.strokes[g.hole] + (g.ball.moving || g.ball.holed ? 0 : 1)} · total ${minigolfTotal(g)}`);
+    setText(mg.ui.title, SPORT_TEXT.holeTitle(g.hole + 1, course.holes.length, hole.name, hole.par));
+    setText(mg.ui.line, SPORT_TEXT.strokeTotal(g.strokes[g.hole] + (g.ball.moving || g.ball.holed ? 0 : 1), minigolfTotal(g)));
     mg.ui.meter.set(mg.drag ? mg.drag.power : mg.power);
     if (mg.lastHole !== g.hole || mg.lastStrokes !== minigolfTotal(g)) {
       mg.lastHole = g.hole; mg.lastStrokes = minigolfTotal(g);

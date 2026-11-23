@@ -1215,7 +1215,7 @@ const curling = {
     if (ui.curl.textContent !== curlT) ui.curl.textContent = curlT;
     const aimT = ICE_TEXT.aim(g.aim);
     if (ui.aim.textContent !== aimT) ui.aim.textContent = aimT;
-    const info = `Stone ${Math.min(CURLING.stones, g.stones.length + (c.mode === 'aim' ? 1 : 0))}/${CURLING.stones} · ${curlingScore(g)} pts`;
+    const info = ICE_TEXT.stone(Math.min(CURLING.stones, g.stones.length + (c.mode === 'aim' ? 1 : 0)), curlingScore(g));
     if (ui.info.textContent !== info) ui.info.textContent = info;
     if (c.flashAt && performance.now() - c.flashAt > 2200) { ui.flash.textContent = ''; c.flashAt = 0; }
   },

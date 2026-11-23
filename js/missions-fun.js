@@ -948,7 +948,7 @@ const HEADBANG_FEATURE = {
       const sc = g.score.toLocaleString('en-US');
       if (hb.score.textContent !== sc) hb.score.textContent = sc;
       const left = Math.max(0, rhythm.length - Math.max(0, t));
-      const line = t < 0 ? venue.countIn : `×${headbangMultiplier(g.combo)} · streak ${g.combo} · ${Math.ceil(left)} s`;
+      const line = t < 0 ? venue.countIn : FUN_TEXT.streak(headbangMultiplier(g.combo), g.combo, Math.ceil(left));
       if (hb.sub.textContent !== line) hb.sub.textContent = line;
     }
     if (run.phase === 'done' || run.phase === 'failed') hb.hud.hidden = true;

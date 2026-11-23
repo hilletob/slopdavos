@@ -10,7 +10,7 @@ import {
   SHOVEL, createShovelGrid, createShovel, stepShovel, shovelCleared,
   BLOWER, BLOWER_CARS, createBlowerRoute, createBlowerGrid, stepBlower, blowerCleared, blowerHitsCar, chuteLanding, routePoint, projectRoute, augerTake,
   MOWER, createLawnGrid, stepMower, lawnMown,
-  GARBAGE, stepGarbage,
+  GARBAGE, stepGarbage, collectedText,
   ROSES, createRoseBushes, nearestBush, stepPicking,
   MUSHROOMS, createMushrooms, nearestMushroom,
   CRANE, CRANE_WING, craneNextText, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneNextMove, craneHook, craneTrolley, craneWind, swingOf,
@@ -952,7 +952,7 @@ const garbageRound = {
       }
     });
     w.binMesh.instanceMatrix.needsUpdate = w.bagMesh.instanceMatrix.needsUpdate = true;
-    if (ev === 'loaded') w.toast.show(`Collected ${st.collected}/${st.stops.length}`, '#c8f7a0', 1.2);
+    if (ev === 'loaded') w.toast.show(collectedText(st, null), '#c8f7a0', 1.2);
     // the packer swings while the crew loads or the truck unloads
     const working = !!st.loading || (st.atKma && st.unloadT > 0 && st.unloadT < GARBAGE.unloadS && run.index === 1);
     w.pack = working ? w.pack + dt * 2.2 : w.pack * Math.max(0, 1 - dt * 3);

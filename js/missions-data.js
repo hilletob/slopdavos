@@ -368,7 +368,7 @@ export const REGA_MISSION = {
       title: 'Fly to the casualty',
       check(ctx, state) {
         const d = dist2d(ctx, state.patient);
-        return { done: d < 60 && ctx.agl < 60, progress: null, text: `${formatDistance(d)} to the accident site`, target: state.patient, hint: lightHint(ctx) };
+        return { done: d < 60 && ctx.agl < 60, progress: null, text: msg('{d} to the accident site', '{d} bis zur Unfallstelle', { d: formatDistance(d) }), target: state.patient, hint: lightHint(ctx) };
       }
     },
     {
@@ -423,7 +423,10 @@ export const LAWINEN_MISSION = {
   props: [],
   createState() { return { shots: 0, hits: 0, misses: 0, ammo: LAWINEN_AMMO, inFlight: false }; },
   update(ctx, state) { if (ctx.shooter) Object.assign(state, ctx.shooter); },
-  summary(state) { return [`${state.shots} ${state.shots === 1 ? 'shot' : 'shots'} · ${state.hits} ${state.hits === 1 ? 'hit' : 'hits'} · ${state.misses} missed`]; },
+  summary(state) {
+    return [msg('{a} {shots} · {b} {hits} · {c} missed', (q) => `${q.a} ${q.a === 1 ? 'Schuss' : 'Schüsse'} · ${q.b} Treffer · ${q.c} daneben`,
+      { a: state.shots, shots: state.shots === 1 ? 'shot' : 'shots', b: state.hits, hits: state.hits === 1 ? 'hit' : 'hits', c: state.misses })];
+  },
   objectives: lawinenZones().map((zone, i, all) => ({
     id: `zone${i + 1}`,
     title: `Trigger zone ${i + 1} of ${all.length}`,
@@ -539,7 +542,7 @@ export const TOEFF_POLIZEI_MISSION = {
       title: 'Drive to the accident site',
       check(ctx) {
         const d = dist2d(ctx, TOEFF_SITE);
-        return { done: d < 120, progress: null, text: `${formatDistance(d)} to the accident site · Flüelapassstrasse`, target: TOEFF_SITE, hint: blueHint(ctx) };
+        return { done: d < 120, progress: null, text: msg('{d} to the accident site · Flüelapassstrasse', '{d} bis zur Unfallstelle · Flüelapassstrasse', { d: formatDistance(d) }), target: TOEFF_SITE, hint: blueHint(ctx) };
       }
     },
     {

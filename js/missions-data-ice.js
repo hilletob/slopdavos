@@ -166,9 +166,10 @@ export function updateRace(race, x, z, tMs = 0, t = TRACK) {
 
 const START_BACK = 4; // m: the skater lines up this far before the start line
 const RACE_START = trackPoint(-START_BACK, 2.2); // (the inner lane, a little out from the line)
-const lapText = (race, i) => {
+/** The lap's metres done, and the speed */
+const lapText = (race, i, kmh) => {
   const run = Math.max(0, race.dist - i * LAP_LENGTH);
-  return `${fmtDist(Math.min(LAP_LENGTH, run))} of ${LAP_LENGTH.toFixed(0)} m`;
+  return msg('{d} of {len} m · {v} km/h', '{d} von {len} m · {v} km/h', { d: fmtDist(Math.min(LAP_LENGTH, run)), len: LAP_LENGTH.toFixed(0), v: kmh });
 };
 
 export const SPEED_SKATING_MISSION = {
@@ -197,8 +198,12 @@ export const SPEED_SKATING_MISSION = {
   summary(state) {
     const r = state.race;
     const lines = [];
-    if (r.lapTimes.length) lines.push(r.lapTimes.map((t, i) => `Lap ${i + 1}: ${fmtTime(t)}`).join(' · '));
-    lines.push(`Top speed ${((r.maxSpeed || 0) * 3.6).toFixed(1)} km/h · ${r.power} power strokes of ${r.strokes}${r.stumbles ? ` · ${r.stumbles} stumbles` : ''}`);
+    if (r.lapTimes.length) {
+      const times = r.lapTimes.map(fmtTime);
+      lines.push(msg('{laps}', (q) => q.times.map((t, i) => `Runde ${i + 1}: ${t}`).join(' · '), { laps: times.map((t, i) => `Lap ${i + 1}: ${t}`).join(' · '), times }));
+    }
+    lines.push(msg('Top speed {v} km/h · {a} power strokes of {b}{stumbles}', (q) => `Höchsttempo ${q.v} km/h · ${q.a} Kraftschritte von ${q.b}${q.n ? ` · ${q.n} Stolperer` : ''}`,
+      { v: ((r.maxSpeed || 0) * 3.6).toFixed(1), a: r.power, b: r.strokes, stumbles: r.stumbles ? ` · ${r.stumbles} stumbles` : '', n: r.stumbles }));
     return lines;
   },
   objectives: Array.from({ length: RACE_LAPS }, (_, i) => ({
@@ -213,7 +218,7 @@ export const SPEED_SKATING_MISSION = {
       const ahead = (i + 1) * LAP_LENGTH - r.dist;
       const line = trackPoint(0, 2);
       const kmh = ((ctx.speed || 0) * 3.6).toFixed(0);
-      const text = `${lapText(r, i)} · ${kmh} km/h`;
+      const text = lapText(r, i, kmh);
       const hint = r.wrongWay > 20 ? 'Wrong way: the race runs counter-clockwise' : spineDistance(ctx.x, ctx.z) > TRACK_LANES.ice ? 'Off the ice: back onto the track' : null;
       return { done, progress: clamp(run / LAP_LENGTH, 0, 1), text, target: ahead < 150 ? { x: line.x, z: line.z, r: 4 } : null, hint };
     }
@@ -517,7 +522,7 @@ export const HOCKEY_PENALTY_MISSION = {
   update() {},
   summary(state) {
     const g = state.game;
-    return [`${g.goals} of ${HOCKEY.attempts} scored: ${g.results.map((r) => (r === 'goal' ? '●' : '○')).join(' ')}`];
+    return [msg('{a} of {b} scored: {shots}', '{a} von {b} getroffen: {shots}', { a: g.goals, b: HOCKEY.attempts, shots: g.results.map((r) => (r === 'goal' ? '●' : '○')).join(' ') })];
   },
   objectives: Array.from({ length: HOCKEY.attempts }, (_, i) => ({
     id: `penalty${i + 1}`,
@@ -527,7 +532,7 @@ export const HOCKEY_PENALTY_MISSION = {
       const done = g.attempt > i; // (the result shown, the next penalty lined up)
       const goalPt = rinkWorld(HOCKEY.goalX, 0);
       const last = g.results.length > i ? PENALTY_RESULT_TEXT[g.results[i]] : null;
-      const text = last ? msg('{last} · {n} {goals}', (p, tr) => `${tr(p.last)} · ${p.n} ${p.n === 1 ? 'Tor' : 'Tore'}`, { last, n: g.goals, goals: g.goals === 1 ? 'goal' : 'goals' }) : g.phase === 'shot' ? 'Shot!' : `${g.goals} ${g.goals === 1 ? 'goal' : 'goals'} · ${Math.max(0, HOCKEY.timeLimit - g.t).toFixed(0)} s left`;
+      const text = last ? msg('{last} · {n} {goals}', (p, tr) => `${tr(p.last)} · ${p.n} ${p.n === 1 ? 'Tor' : 'Tore'}`, { last, n: g.goals, goals: g.goals === 1 ? 'goal' : 'goals' }) : g.phase === 'shot' ? 'Shot!' : msg('{n} {goals} · {s} s left', (p) => `${p.n} ${p.n === 1 ? 'Tor' : 'Tore'} · noch ${p.s} s`, { n: g.goals, goals: g.goals === 1 ? 'goal' : 'goals', s: Math.max(0, HOCKEY.timeLimit - g.t).toFixed(0) });
       // (no marker over the goal: it would stand in front of the goalie; the arrow points the way)
       void goalPt;
       return { done, progress: g.phase === 'skate' ? clamp(g.maxX / (HOCKEY.goalX - 4), 0, 1) : null, text, target: null, hint: g.phase === 'skate' ? 'Shoot: Space' : null };
@@ -707,7 +712,7 @@ export const CURLING_MISSION = {
   summary(state) {
     const g = state.game;
     const ins = g.stones.filter((s) => s.inPlay && stonePoints(s.s, s.t) > 0).length;
-    return [`${ins} of ${CURLING.stones} stones in the house · ${curlingScore(g)} points`];
+    return [msg('{a} of {b} stones in the house · {pts} points', '{a} von {b} Steinen im Haus · {pts} Punkte', { a: ins, b: CURLING.stones, pts: curlingScore(g) })];
   },
   objectives: [0, 1].map((half) => ({
     id: half ? 'stones-5-8' : 'stones-1-4',
@@ -717,7 +722,7 @@ export const CURLING_MISSION = {
       const settled = g.phase === 'done' ? g.stones.length : g.stones.length - (g.phase === 'travel' ? 1 : 0);
       const need = half ? CURLING.stones : CURLING.stones / 2;
       const n = Math.min(CURLING.stones, g.stones.length + (g.phase === 'aim' ? 1 : 0));
-      const text = `Stone ${n} of ${CURLING.stones} · ${curlingScore(g)} points`;
+      const text = msg('Stone {n} of {of} · {pts} points', 'Stein {n} von {of} · {pts} Punkte', { n, of: CURLING.stones, pts: curlingScore(g) });
       return { done: settled >= need && g.phase !== 'travel', progress: clamp((settled - (half ? 4 : 0)) / 4, 0, 1), text, target: null, hint: g.phase === 'travel' ? 'Sweep: hold Space' : g.phase === 'aim' ? 'Hold Space, let go to throw' : null };
     }
   }))
@@ -730,5 +735,7 @@ export const ICE_TEXT = {
   /** A stone come to rest in the house */
   inHouse: (n) => msg('In the house: {n} points', (p) => `Im Haus: ${p.n} ${p.n === 1 ? 'Punkt' : 'Punkte'}`, { n }),
   /** The curling's aim (rad, + to the right) in degrees */
-  aim: (rad) => msg('Aim {a}', 'Richtung {a}', { a: `${rad >= 0 ? '+' : '−'}${Math.abs(rad * 180 / Math.PI).toFixed(1)}°` })
+  aim: (rad) => msg('Aim {a}', 'Richtung {a}', { a: `${rad >= 0 ? '+' : '−'}${Math.abs(rad * 180 / Math.PI).toFixed(1)}°` }),
+  /** The curling's line: the stone in hand, the score */
+  stone: (n, pts) => msg('Stone {n}/{of} · {pts} pts', 'Stein {n}/{of} · {pts} Pkt.', { n, of: CURLING.stones, pts })
 };

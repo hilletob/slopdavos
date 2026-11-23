@@ -342,7 +342,8 @@ export const HORN_SLEDGE_MISSION = {
   },
   summary(state) {
     return [
-      `${state.crashes} ${state.crashes === 1 ? 'crash' : 'crashes'}${state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : ''} · ${state.nets} ${state.nets === 1 ? 'net' : 'nets'} touched · top speed ${Math.round(state.topSpeed * 3.6)} km/h`
+      msg('{n} {crashes}{pen} · {k} {nets} touched · top speed {v} km/h', (q) => `${q.n} ${q.n === 1 ? 'Sturz' : 'Stürze'}${q.pen} · ${q.k} ${q.k === 1 ? 'Netz' : 'Netze'} berührt · Höchsttempo ${q.v} km/h`,
+        { n: state.crashes, crashes: state.crashes === 1 ? 'crash' : 'crashes', pen: state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '', k: state.nets, nets: state.nets === 1 ? 'net' : 'nets', v: Math.round(state.topSpeed * 3.6) })
     ];
   },
   objectives: SECTIONS.map(sledgeSection)

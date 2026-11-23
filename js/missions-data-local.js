@@ -155,7 +155,7 @@ export const BEER_MISSION = {
   update() {},
   summary(state) {
     const b = state.beer;
-    return [`${b.delivered} of ${BEER_STOPS.length} bars served`];
+    return [msg('{a} of {b} bars served', '{a} von {b} Bars beliefert', { a: b.delivered, b: BEER_STOPS.length })];
   },
   objectives: [
     {
@@ -303,7 +303,7 @@ export const GIPFELI_MISSION = {
       check(ctx, state) {
         const g = state.gipfeli;
         const n = g.rolls.length;
-        return { done: g.formed, progress: n / GIPFELI.count, text: `${n} of ${GIPFELI.count} rolled · ${gipfeliScore(g)} pts`, target: null, hint: 'Drag down over the dough · or tap S / ↓ steadily' };
+        return { done: g.formed, progress: n / GIPFELI.count, text: msg('{n} of {of} rolled · {pts} pts', '{n} von {of} gerollt · {pts} Pkt.', { n, of: GIPFELI.count, pts: gipfeliScore(g) }), target: null, hint: 'Drag down over the dough · or tap S / ↓ steadily' };
       }
     },
     ...GIPFELI_HOTELS.map(gipfeliHotelObjective)
@@ -398,7 +398,7 @@ export const RACLETTE_MISSION = {
   score: (state) => Math.max(0, state.game?.score ?? 0),
   summary(state) {
     const g = state.game;
-    return g ? [`${g.served} plates · ${g.perfect} just right · ${g.burnt} burnt · ${g.left} guests left hungry`] : [];
+    return g ? [msg('{a} plates · {b} just right · {c} burnt · {d} guests left hungry', '{a} Teller · {b} genau richtig · {c} verbrannt · {d} Gäste hungrig gegangen', { a: g.served, b: g.perfect, c: g.burnt, d: g.left })] : [];
   },
   objectives: [
     walkTo(KAECH.door, 'Go into Gourmet Käch', 'Käch', 'Käch'),
@@ -409,7 +409,7 @@ export const RACLETTE_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'The grill is heating up …', target: null, hint: null };
-        return { done: g.done, progress: g.t / RACLETTE.length, text: `${Math.max(0, g.score)} pts · ${g.served} plates · ${fmtClock(RACLETTE.length - g.t)}`, target: null, hint: 'Swipe across the cheese / Space: scrape' };
+        return { done: g.done, progress: g.t / RACLETTE.length, text: msg('{pts} pts · {n} plates · {clock}', '{pts} Pkt. · {n} Teller · {clock}', { pts: Math.max(0, g.score), n: g.served, clock: fmtClock(RACLETTE.length - g.t) }), target: null, hint: 'Swipe across the cheese / Space: scrape' };
       }
     }
   ]
@@ -787,7 +787,7 @@ export const SQUIRREL_MISSION = {
   score: (state) => state.game.score,
   summary(state) {
     const g = state.game;
-    return [`${g.fed} squirrels fed · best streak ${g.best} · ${g.fled} scared away`];
+    return [msg('{a} squirrels fed · best streak {b} · {c} scared away', '{a} Eichhörnchen gefüttert · beste Serie {b} · {c} verscheucht', { a: g.fed, b: g.best, c: g.fled })];
   },
   objectives: [
     walkTo(SQUIRREL_SPOT, 'Walk to the Eichhörnliplatz', 'the Eichhörnliplatz', 'zum Eichhörnliplatz', 'path'),
@@ -1140,7 +1140,7 @@ export const TENNIS_MISSION = {
   score: (state) => tennisScore(state.game),
   summary(state) {
     const g = state.game;
-    return g ? [`Tiebreak ${g.score.p} : ${g.score.a} · ${g.aces} aces · ${g.winners} winners`] : [];
+    return g ? [msg('Tiebreak {p} : {a} · {aces} aces · {w} winners', 'Tiebreak {p} : {a} · {aces} Asse · {w} Winner', { p: g.score.p, a: g.score.a, aces: g.aces, w: g.winners })] : [];
   },
   objectives: [
     walkTo(FAERBI.door, 'Go into the Sporthalle Färbi', 'the tennis hall', 'zur Tennishalle'),
@@ -1151,7 +1151,8 @@ export const TENNIS_MISSION = {
       check(ctx, state) {
         const g = state.game;
         if (!g) return { done: false, progress: 0, text: 'Warming up …', target: null, hint: null };
-        return { done: g.done, progress: Math.max(g.score.p, g.score.a) / TENNIS.target, text: `You ${g.score.p} : ${g.score.a} Coach${g.phase === 'serve' ? (g.server === 'p' ? ' · your serve' : ' · coach serves') : ''}`, target: null, hint: 'Space / click as the ball comes: swing · A/D at the swing: aim' };
+        return { done: g.done, progress: Math.max(g.score.p, g.score.a) / TENNIS.target, text: msg('You {p} : {a} Coach{serve}', (q) => `Du ${q.p} : ${q.a} Trainer${{ p: ' · dein Aufschlag', a: ' · Trainer schlägt auf' }[q.server] || ''}`,
+          { p: g.score.p, a: g.score.a, serve: g.phase === 'serve' ? (g.server === 'p' ? ' · your serve' : ' · coach serves') : '', server: g.phase === 'serve' ? g.server : '' }), target: null, hint: 'Space / click as the ball comes: swing · A/D at the swing: aim' };
       }
     }
   ]
@@ -1276,7 +1277,7 @@ export const WATERSLIDE_MISSION = {
   createState() { return { rider: null }; },
   summary(state) {
     const r = state.rider;
-    return r ? [`Top speed ${(r.top * 3.6).toFixed(0)} km/h · on the wall ${r.rubT.toFixed(1)} s · jolts ${r.joltT.toFixed(1)} s`] : [];
+    return r ? [msg('Top speed {v} km/h · on the wall {a} s · jolts {b} s', 'Höchsttempo {v} km/h · an der Wand {a} s · Schläge {b} s', { v: (r.top * 3.6).toFixed(0), a: r.rubT.toFixed(1), b: r.joltT.toFixed(1) })] : [];
   },
   objectives: [
     walkTo(EAU.stairs, 'Up the slide tower', 'the slide tower', 'zum Rutschbahnturm'),
@@ -1433,7 +1434,7 @@ export const KIRCHNER_MISSION = {
   score: (state) => state.paint?.result?.points ?? 0,
   summary(state) {
     const r = state.paint?.result;
-    return r ? [`Likeness ${Math.round(r.likeness * 100)} % · colour ${Math.round(r.colour * 100)} % · contours ${Math.round(r.contour * 100)} %`] : [];
+    return r ? [msg('Likeness {a} % · colour {b} % · contours {c} %', 'Ähnlichkeit {a} % · Farbe {b} % · Konturen {c} %', { a: Math.round(r.likeness * 100), b: Math.round(r.colour * 100), c: Math.round(r.contour * 100) })] : [];
   },
   objectives: [
     walkTo(KIRCHNER.easel, 'Go to the easel at the Kirchner Museum', 'the easel', 'zur Staffelei'),

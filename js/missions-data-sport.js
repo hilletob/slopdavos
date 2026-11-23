@@ -335,7 +335,8 @@ export const DAVOS_NORDIC_MISSION = {
       lines.push(msg('{text}', (p, tr) => p.parts.map(tr).join(' · '), { text: parts.join(' · '), parts }));
     }
     const sk = r.skier;
-    if (sk) lines.push(`${XC_PARAMS[r.style]?.label || ''} · top speed ${((r.maxSpeed || 0) * 3.6).toFixed(1)} km/h · ${sk.power} power strokes of ${sk.strokes}${sk.stumbles ? ` · ${sk.stumbles} stumbles` : ''}`);
+    if (sk) lines.push(msg('{label} · top speed {v} km/h · {a} power strokes of {b}{stumbles}', (q) => `${q.label ? `${q.label} · ` : ''}Höchsttempo ${q.v} km/h · ${q.a} Kraftschritte von ${q.b}${q.n ? ` · ${q.n} Stolperer` : ''}`,
+      { label: XC_PARAMS[r.style]?.label || '', v: ((r.maxSpeed || 0) * 3.6).toFixed(1), a: sk.power, b: sk.strokes, stumbles: sk.stumbles ? ` · ${sk.stumbles} stumbles` : '', n: sk.stumbles }));
     return lines;
   },
   objectives: [
@@ -679,7 +680,7 @@ export const MINIGOLF_MISSION = {
   summary(state) {
     const g = state.game;
     const total = minigolfTotal(g);
-    return [MINIGOLF_HOLES.map((h, i) => `${i + 1}: ${g.strokes[i]}`).join(' · ') + ` — ${total} strokes (par ${MINIGOLF_PAR}, ${total - MINIGOLF_PAR >= 0 ? '+' : ''}${total - MINIGOLF_PAR})`];
+    return [SPORT_TEXT.card(g.strokes, MINIGOLF_HOLES.length, total, MINIGOLF_PAR)];
   },
   objectives: MINIGOLF_HOLES.map((hole, i) => ({
     id: `hole${i + 1}`,
@@ -689,7 +690,7 @@ export const MINIGOLF_MISSION = {
       const g = state.game;
       const done = g.history.length > i;
       const n = g.strokes[i];
-      const text = `Stroke ${n}${g.ball.moving ? ' · rolling …' : ''} · total ${minigolfTotal(g)} (par ${MINIGOLF_PAR})`;
+      const text = SPORT_TEXT.strokeLine(n, g.ball.moving ? 'rolling' : null, minigolfTotal(g), MINIGOLF_PAR);
       return { done, progress: null, text, target: null, hint: g.ball.holed && !done ? strokeName(n, hole.par) : null };
     }
   }))
@@ -801,7 +802,7 @@ export const ICE_MINIGOLF_MISSION = {
   summary(state) {
     const g = state.game;
     const total = minigolfTotal(g);
-    return [ICE_HOLES.map((h, i) => `${i + 1}: ${g.strokes[i]}`).join(' · ') + ` — ${total} strokes (par ${ICE_PAR}, ${total - ICE_PAR >= 0 ? '+' : ''}${total - ICE_PAR})`];
+    return [SPORT_TEXT.card(g.strokes, ICE_HOLES.length, total, ICE_PAR)];
   },
   objectives: ICE_HOLES.map((hole, i) => ({
     id: `hole${i + 1}`,
@@ -811,7 +812,7 @@ export const ICE_MINIGOLF_MISSION = {
       const g = state.game;
       const done = g.history.length > i;
       const n = g.strokes[i];
-      const text = `Stroke ${n}${g.ball.moving ? ' · sliding …' : ''} · total ${minigolfTotal(g)} (par ${ICE_PAR})`;
+      const text = SPORT_TEXT.strokeLine(n, g.ball.moving ? 'sliding' : null, minigolfTotal(g), ICE_PAR);
       return { done, progress: null, text, target: null, hint: g.ball.holed && !done ? strokeName(n, hole.par) : null };
     }
   }))
@@ -939,7 +940,10 @@ export const DARTS_MISSION = {
   summary(state) {
     const g = state.game;
     if (!g) return [];
-    return [`301 checked out in ${g.darts} darts · best turn ${g.best} · ${g.busts} ${g.busts === 1 ? 'bust' : 'busts'}`, g.log.map((l) => (l.bust ? 'bust' : l.total)).join(' · ')];
+    return [
+      msg('301 checked out in {a} darts · best turn {b} · {c} {busts}', '301 ausgecheckt in {a} Pfeilen · beste Runde {b} · {c}× überworfen', { a: g.darts, b: g.best, c: g.busts, busts: g.busts === 1 ? 'bust' : 'busts' }),
+      msg('{log}', (q) => q.turns.map((n) => (n === null ? 'überworfen' : n)).join(' · '), { log: g.log.map((l) => (l.bust ? 'bust' : l.total)).join(' · '), turns: g.log.map((l) => (l.bust ? null : l.total)) })
+    ];
   },
   objectives: [
     walkTo(WILDMAN_DOOR, 'Go into The Green Wildman', 'The Green Wildman', 'The Green Wildman'),
@@ -952,7 +956,8 @@ export const DARTS_MISSION = {
         if (!g) return { done: false, progress: 0, text: 'Chalking the scoreboard …', target: null, hint: null };
         const fail = !g.done && g.darts >= DART.maxDarts ? `Out of darts: ${g.remaining} left after ${g.darts} darts.` : null;
         const hint = checkoutHint(g.remaining);
-        return { done: g.done, fail, progress: 1 - g.remaining / g.start, text: `${g.remaining} left · dart ${g.darts + 1} · turn ${Math.floor(g.darts / 3) + 1}${g.turn.length ? ` · this turn ${g.turnStart - g.remaining}` : ''}`, target: null, hint: hint ? `Checkout: ${hint}` : null };
+        return { done: g.done, fail, progress: 1 - g.remaining / g.start, text: msg('{left} left · dart {d} · turn {t}{now}', (q) => `${q.left} übrig · Pfeil ${q.d} · Runde ${q.t}${q.turn ? ` · in dieser Runde ${q.n}` : ''}`,
+          { left: g.remaining, d: g.darts + 1, t: Math.floor(g.darts / 3) + 1, now: g.turn.length ? ` · this turn ${g.turnStart - g.remaining}` : '', turn: g.turn.length > 0, n: g.turnStart - g.remaining }), target: null, hint: hint ? `Checkout: ${hint}` : null };
       }
     }
   ]
@@ -1255,8 +1260,9 @@ export const SKATE_BOWL_MISSION = {
   score: (state) => skateTotal(state.score),
   summary(state) {
     const sc = state.score, b = state.boarder;
-    const lines = [`${sc.tricks.length} tricks${sc.best ? ` · best: ${sc.best.name} (${sc.best.points})` : ''}`];
-    if (b) lines.push(`${b.airs} airs · ${b.grinds} grinds · ${b.bails} ${b.bails === 1 ? 'bail' : 'bails'}`);
+    const best = sc.best ? `${sc.best.name} (${sc.best.points})` : '';
+    const lines = [msg('{n} tricks{best}', (q) => `${q.n} Tricks${q.name ? ` · beste: ${q.name}` : ''}`, { n: sc.tricks.length, best: best && ` · best: ${best}`, name: best })];
+    if (b) lines.push(msg('{a} airs · {b} grinds · {c} {bails}', (q) => `${q.a} Airs · ${q.b} Grinds · ${q.c} ${q.c === 1 ? 'Sturz' : 'Stürze'}`, { a: b.airs, b: b.grinds, c: b.bails, bails: b.bails === 1 ? 'bail' : 'bails' }));
     return lines;
   },
   objectives: [
@@ -1291,6 +1297,13 @@ export const SPORT_TEXT = {
   finished: (place) => msg('{place} place', '{k}. Platz', { place: ordinal(place), k: place }),
   // the minigolf: the strokes a hole took
   strokes: (n) => msg('{n} {w}', (p) => `${p.n} ${p.n === 1 ? 'Schlag' : 'Schläge'}`, { n, w: n === 1 ? 'stroke' : 'strokes' }),
+  // the minigolf and the ice golf: the step's line (`moving` 'rolling' | 'sliding' | null), the HUD's title and line, the card
+  strokeLine: (n, moving, total, par) => msg('Stroke {n}{moving} · total {total} (par {par})', (p) => `Schlag ${p.n}${{ rolling: ' · rollt …', sliding: ' · gleitet …' }[p.how] || ''} · total ${p.total} (Par ${p.par})`,
+    { n, moving: moving ? ` · ${moving} …` : '', how: moving, total, par }),
+  holeTitle: (n, of, name, par) => msg('Hole {n}/{of} · {name} · par {par}', 'Loch {n}/{of} · {name|t} · Par {par}', { n, of, name, par }),
+  strokeTotal: (n, total) => msg('Stroke {n} · total {total}', 'Schlag {n} · total {total}', { n, total }),
+  card: (strokes, holes, total, par) => msg('{card} — {total} strokes (par {par}, {diff})', '{card} — {total} Schläge (Par {par}, {diff})',
+    { card: Array.from({ length: holes }, (_, i) => `${i + 1}: ${strokes[i]}`).join(' · '), total, par, diff: `${total - par >= 0 ? '+' : ''}${total - par}` }),
   // the darts: the chalk board, the flash of a dart, the bust, the title and the line
   darts: (n) => msg('darts: {n}', 'Pfeile: {n}', { n }),
   gameShot: (label) => msg('Game shot! {l}', (p) => `Spiel gewonnen! ${dartLabelDe(p.l)}`, { l: label }),
