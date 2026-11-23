@@ -7,6 +7,7 @@ import { winter } from './season.js';
 import { QUALITY, segmentInWorld } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, FULL_DAY, groomSample, loipeBase, wearSince } from './groom-map.js';
+import { worldReady } from './world-ready.js';
 
 // The cross-country ski trails of Davos (OSM piste:type=nordic in js/davos-geodata.js: the Landwasser and Flüela
 // trails, the Sertig and Dischma, the Nachtloipe...), groomed into the snow in winter and gone in summer (they fade
@@ -186,9 +187,9 @@ export function buildLoipen(scene) {
   if (posts) group.add(posts);
   group.userData.stats = { trails: trails.length, posts: posts ? posts.count : 0 };
   // Not drawn at all in summer (the trails and posts are faded out then); drawn while the loading screen compiles the
-  // shaders (main.js sets __slopdavos.ready afterwards), so that switching to winter doesn't stall on them
+  // shaders (js/world-ready.js), so that switching to winter doesn't stall on them
   Object.defineProperty(group, 'visible', {
-    get: () => winter.value > 0 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    get: () => winter.value > 0 || !worldReady(),
     set() {}
   });
   scene.add(group);

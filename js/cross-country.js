@@ -11,6 +11,7 @@ import {
   CLASSIC, TECH, createSkiNetwork, createSkier, skierPosition, advanceSkier, keepApart, nearbyStretches, spawnSkier,
   chooseTechnique, paceOnGrade
 } from './cross-country-routes.js';
+import { worldReady } from './world-ready.js';
 
 // Cross-country skiers on the Loipen in winter (js/loipen.js draws the trails; js/cross-country-routes.js runs the
 // traffic): classic skiers in the tracks (diagonal stride, double poling on the flat, a tuck downhill) and skaters on the
@@ -730,9 +731,9 @@ export function buildCrossCountry(scene) {
     stats.techniques = techniques;
   };
 
-  // Not drawn in summer; drawn while the loading screen compiles the shaders (main.js sets __slopdavos.ready afterwards)
+  // Not drawn in summer; drawn while the loading screen compiles the shaders (js/world-ready.js)
   Object.defineProperty(group, 'visible', {
-    get: () => winter.value > 0.5 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    get: () => winter.value > 0.5 || !worldReady(),
     set() {}
   });
   group.userData.crossCountry = api;

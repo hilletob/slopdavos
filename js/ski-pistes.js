@@ -7,6 +7,7 @@ import { winter } from './season.js';
 import { QUALITY, boxInWorld } from './quality.js';
 import { chunkedMeshes } from './scene-culling.js';
 import { bumpedNormal, groomSample, pisteBase, TILLER_HALF, wearSince } from './groom-map.js';
+import { worldReady } from './world-ready.js';
 
 // The downhill ski runs of Davos (Parsenn, Jakobshorn, Schatzalp/Strela, Rinerhorn, Bünda; OSM piste:type=downhill,
 // js/ski-pistes-data.js), groomed into the snow in winter and gone in summer (they fade with season.js's `winter`):
@@ -323,10 +324,10 @@ export function buildSkiPistes(scene) {
   const boards = buildBoards(runs);
   if (boards) group.add(boards);
   group.userData.stats = { runs: runs.length, areas: areas.length, triangles, poles: poles ? poles.count : 0, boards: boards ? boards.count : 0 };
-  // Not drawn at all in summer; drawn while the loading screen compiles the shaders (main.js sets __slopdavos.ready
-  // afterwards), so that switching to winter doesn't stall on them (as js/loipen.js)
+  // Not drawn at all in summer; drawn while the loading screen compiles the shaders (js/world-ready.js)
+  // so that switching to winter doesn't stall on them (as js/loipen.js)
   Object.defineProperty(group, 'visible', {
-    get: () => winter.value > 0 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    get: () => winter.value > 0 || !worldReady(),
     set() {}
   });
   scene.add(group);

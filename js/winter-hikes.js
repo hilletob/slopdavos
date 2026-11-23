@@ -9,6 +9,7 @@ import { boxInWorld } from './quality.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { signpostObstacles, signpostSpot } from './signpost-sites.js';
 import { TLM_TREES } from './tlm-trees-data.js';
+import { worldReady } from './world-ready.js';
 
 // The signposted winter hiking trails of Davos (Winterwanderwege: the Landwasser Winterwanderweg over the meadows of
 // the valley floor, the Hohe Promenade, Schatzalp - Strela, the Dischma, Rinerhorn, Pischa...; ASTRA / SchweizMobil
@@ -245,10 +246,10 @@ export function buildWinterHikes(scene) {
   if (stakes.length) group.add(markerMesh(stakeGeometry(), createMarkerMaterial({ stake: true }), stakes, 'Winterwanderweg stakes', 0.4));
   if (signs.length) group.add(markerMesh(signGeometry(), createMarkerMaterial({ stake: false }), signs, 'Winterwanderweg signposts', 0.3));
   group.userData.stats = { trails: trails.length, km: Math.round(trails.reduce((s, t) => s + t.len, 0) / 100) / 10, stakes: stakes.length, signs: signs.length };
-  // Not drawn at all in summer; drawn while the loading screen compiles the shaders (main.js sets __slopdavos.ready
-  // afterwards), so that switching to winter doesn't stall on them
+  // Not drawn at all in summer; drawn while the loading screen compiles the shaders (js/world-ready.js)
+  // so that switching to winter doesn't stall on them
   Object.defineProperty(group, 'visible', {
-    get: () => winter.value > 0 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    get: () => winter.value > 0 || !worldReady(),
     set() {}
   });
   scene.add(group);

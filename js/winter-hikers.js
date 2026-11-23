@@ -5,6 +5,7 @@ import { PERSON_BONES as BONE, buildPersonGeometry, createPersonMaterial, Person
 import { surfaceHeight, groundHeight } from './terrain.js';
 import { winter } from './season.js';
 import { winterTrails, TRAIL_LIFT } from './winter-hikes.js';
+import { worldReady } from './world-ready.js';
 
 // Winter hikers on the Winterwanderwege (js/winter-hikes.js draws the trails): people in down jackets, beanies,
 // mittens and boots, strolling at 1.1-1.4 m/s alone, in pairs or threes, keeping right, some with trekking poles,
@@ -578,9 +579,9 @@ export function buildWinterHikers(scene) {
   };
   api.position = (g) => { const p = trailPoint(g.trail, g.s, {}, g.hint); return { x: p.x, y: groundAt(p.x, p.z), z: p.z }; }; // (probes)
 
-  // Not drawn in summer; drawn while the loading screen compiles the shaders (main.js sets __slopdavos.ready afterwards)
+  // Not drawn in summer; drawn while the loading screen compiles the shaders (js/world-ready.js)
   Object.defineProperty(group, 'visible', {
-    get: () => winter.value > 0.5 || !(typeof window !== 'undefined' && window.__slopdavos?.ready),
+    get: () => winter.value > 0.5 || !worldReady(),
     set() {}
   });
   group.userData.winterHikers = api;

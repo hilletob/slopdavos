@@ -62,6 +62,7 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { CarRadio } from './car-radio.js';
 import { createFrameGuard, watchDeviceLost, deviceGone, showFault } from './frame-guard.js';
+import { markWorldReady } from './world-ready.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -1501,6 +1502,7 @@ async function initApp() {
           progress: globalThis.__slopdavosProgress,
           heat: publicTrail ? heatTrail : null
         })).catch(() => { /* the game goes on without it */ });
+        markWorldReady();
         // Spike test hooks (tools/probe.mjs, evidence screenshots)
         window.__slopdavos = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
