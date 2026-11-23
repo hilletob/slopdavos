@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-jetpack.js
 // The jetpack demo of the WEF week (js/missions-data.js spreads JETPACK_MISSIONS into MISSIONS; js/missions-jetpack.js has
 // its runtime: the pack on the pilot's back, its flames and steam, the gates of light, the pads and the HUD).
@@ -294,8 +295,9 @@ const gateText = (f) => {
   const g = GATES[f.gate];
   if (!g) return '';
   const d = Math.hypot(g.x - f.x, g.z - f.z), dy = Math.round((f.gateY ?? f.y) - f.y);
-  const height = Math.abs(dy) < 6 ? 'level' : dy > 0 ? `${dy} m up` : `${-dy} m down`;
-  return `Gate ${f.gate + 1}/${GATES.length}: ${g.name} · ${fmtDist(d)} · ${height}`;
+  const height = Math.abs(dy) < 6 ? msg('level', 'gleiche Höhe')
+    : dy > 0 ? msg('{dy} m up', '{dy} m höher', { dy }) : msg('{dy} m down', '{dy} m tiefer', { dy: -dy });
+  return msg('Gate {n}/{of}: {where} · {d} · {height}', 'Tor {n}/{of}: {where|t} · {d} · {height|t}', { n: f.gate + 1, of: GATES.length, where: g.name, d: fmtDist(d), height });
 };
 
 export const JETPACK_MISSION = {
@@ -319,8 +321,13 @@ export const JETPACK_MISSION = {
   createState() { return { flight: createJet(), get penaltyMs() { return this.flight.penaltyMs; } }; },
   summary(state) {
     const f = state.flight, t = Math.round(f.airtime);
-    const pen = f.tumbles || f.bumps ? `${f.tumbles} tumble${f.tumbles === 1 ? '' : 's'} · ${f.bumps} wall${f.bumps === 1 ? '' : 's'} (+${Math.round(f.penaltyMs / 1000)} s)` : 'a clean flight: no penalties';
-    return [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} in the air · ${Math.round(f.burned)} % of a tank burned · ${pen}`];
+    const pen = f.tumbles || f.bumps
+      ? msg('{tu} tumble{s1} · {w} wall{s2} (+{sec} s)',
+        (p) => `${p.tu} ${p.tu === 1 ? 'Purzelbaum' : 'Purzelbäume'} · ${p.w} ${p.w === 1 ? 'Wand' : 'Wände'} (+${p.sec} s)`,
+        { tu: f.tumbles, s1: f.tumbles === 1 ? '' : 's', w: f.bumps, s2: f.bumps === 1 ? '' : 's', sec: Math.round(f.penaltyMs / 1000) })
+      : msg('a clean flight: no penalties', 'sauber geflogen: keine Strafzeit');
+    return [msg('{time} in the air · {pct} % of a tank burned · {pen}', '{time} in der Luft · {pct} % einer Tankfüllung verbrannt · {pen|t}',
+      { time: `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, pct: Math.round(f.burned), pen })];
   },
   objectives: [
     {
@@ -349,7 +356,8 @@ export const JETPACK_MISSION = {
         return {
           done: f.refuelled, fail: failOf(f),
           progress: onPad ? f.fuel / 100 : null,
-          text: onPad && f.refuelling ? `Refuelling … ${Math.round(f.fuel)} %` : `${fmtDist(d)} to ${PAD.name} · tank ${Math.round(f.fuel)} %`,
+          text: onPad && f.refuelling ? msg('Refuelling … {pct} %', 'Tanken … {pct} %', { pct: Math.round(f.fuel) })
+            : msg('{d} to {where} · tank {pct} %', '{d} bis zur Boxencrew an der Promenade · Tank {pct} %', { d: fmtDist(d), where: PAD.name, pct: Math.round(f.fuel) }),
           // (standing on the pad: its column of light out of the way of the pilot and the crew's drums)
           target: onPad ? null : { x: PAD.x, z: PAD.z, r: PAD.r, style: 'pad' },
           // (on the pad: the crew at work, nothing to do but wait; the green column and the HUD show the way there)
@@ -381,7 +389,7 @@ export const JETPACK_MISSION = {
         return {
           done: onTerrace(f), fail: failOf(f),
           progress: null,
-          text: `${fmtDist(d)} to the terrace · tank ${Math.round(f.fuel)} %`,
+          text: msg('{d} to the terrace · tank {pct} %', '{d} bis zur Terrasse · Tank {pct} %', { d: fmtDist(d), pct: Math.round(f.fuel) }),
           target: { x: TERRACE.x, z: TERRACE.z, r: TERRACE.r, style: 'pad' },
           hint: f.phase === 'ground' ? (f.fuel <= 0 ? 'The tank is dry: walk onto the terrace' : 'Not on the terrace: Space, and hop over') : f.fuel < 20 ? 'The tank is nearly dry!' : d < 60 && f.speed > JP.tumbleSpeed ? 'Slow down for the landing: S' : d < 60 ? 'Over the terrace: hold Q to sink and touch down' : null
         };

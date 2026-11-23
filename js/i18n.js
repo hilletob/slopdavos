@@ -1,5 +1,10 @@
 // UI language. English is the source language for the existing interface.
 // The observer also covers HUD and mission panels created after startup.
+// New texts that change as they are shown (a distance, a count) are better made with msg() (js/messages.js): their German
+// stands beside the English where they are made, and translate() finds it there before any pattern below. The jetpack
+// demo is made that way (js/missions-data-jetpack.js); the patterns for the other missions are still here.
+import { germanOf } from './messages.js';
+
 const STORAGE_KEY = 'slopdavos-language';
 const pairs = [
   ['Initializing WebGPURenderer & TSL Shaders...', 'WebGPU-Renderer und TSL-Shader werden initialisiert …'],
@@ -1830,6 +1835,9 @@ function translate(value) {
   if (typeof value !== 'string') return value ?? '';
   if (language === 'en') return value;
   const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(value);
+  // (a text made with msg(): its German was written beside it, js/messages.js)
+  const made = germanOf(match[2], translate);
+  if (made !== undefined) return match[1] + made + match[3];
   const translated = enToDe.get(match[2]);
   if (translated) return match[1] + translated + match[3];
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
@@ -1837,11 +1845,6 @@ function translate(value) {
   let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   // a helicopter flown back to its pad while the player was away (js/gta.js returnStrays)
   dynamic = dynamic.replace(/^The crew flew the (.+) back to (.+)$/, (_, what, where) => `Die Crew hat den ${what} zurück nach ${translate(where)} geflogen`);
-  // the jetpack demo (js/missions-data-jetpack.js, js/missions-jetpack.js)
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+): (.+) · ([\d,.]+ (?:m|km)) · (?:(level)|(\d+) m (up|down))$/, (_, n, where, d, level, dy, dir) => `Tor ${n}: ${translate(where)} · ${d} · ${level ? 'gleiche Höhe' : `${dy} m ${dir === 'up' ? 'höher' : 'tiefer'}`}`);
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+)$/, 'Tor $1').replace(/^Refuelling … (\d+) %$/, 'Tanken … $1 %');
-  dynamic = dynamic.replace(/^([\d,.]+ (?:m|km)) to the pit crew on the Promenade · tank (\d+) %$/, '$1 bis zur Boxencrew an der Promenade · Tank $2 %').replace(/^([\d,.]+ (?:m|km)) to the terrace · tank (\d+) %$/, '$1 bis zur Terrasse · Tank $2 %');
-  dynamic = dynamic.replace(/^(\d+:\d\d) in the air · (\d+) % of a tank burned · (?:(\d+) tumbles? · (\d+) walls? \(\+(\d+) s\)|a clean flight: no penalties)$/, (_, time, pct, tu, w, s) => `${time} in der Luft · ${pct} % einer Tankfüllung verbrannt · ${tu === undefined ? 'sauber geflogen: keine Strafzeit' : `${tu} ${tu === '1' ? 'Purzelbaum' : 'Purzelbäume'} · ${w} ${w === '1' ? 'Wand' : 'Wände'} (+${s} s)`}`);
   // avalanche blasting from the helicopter (js/missions-data-heliblast.js)
   {
     const left = (n) => `${n === '1' ? 'noch 1 Ladung' : `noch ${n} Ladungen`}`;

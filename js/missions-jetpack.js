@@ -21,6 +21,7 @@ import { poseHarness, bonePoint, walkerShadow, saveWalker, restoreWalker } from 
 import { drapeRing, RING_DEPTH } from './missions-props.js';
 import { JP, GATES, PAD, START, TOWN_GATES, stepJet, gatePoint, coursePoints, jetWorld } from './missions-data-jetpack.js';
 import { el } from './dom.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
@@ -404,7 +405,7 @@ const jetpack = {
   },
   event(run, f, e) {
     const jp = run.jp;
-    if (e === 'gate') { jetpack.flash(run, `Gate ${f.gate}/${GATES.length}`); jp.roar.blip(660, 990); run.hooks.actions?.notify?.(); }
+    if (e === 'gate') { jetpack.flash(run, msg('Gate {n}/{of}', 'Tor {n}/{of}', { n: f.gate, of: GATES.length })); jp.roar.blip(660, 990); run.hooks.actions?.notify?.(); }
     else if (e === 'tumble') { jetpack.flash(run, 'Too fast: a tumble! +10 s'); jp.roar.blip(300, 120, 0.3, 0.1); }
     else if (e === 'bump') { jetpack.flash(run, 'A wall! +3 s'); jp.roar.blip(220, 110, 0.2, 0.1); }
     else if (e === 'refuelled') { jetpack.flash(run, 'Tank full: go!'); jp.roar.blip(520, 1040, 0.25); }

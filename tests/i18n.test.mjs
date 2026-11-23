@@ -293,14 +293,24 @@ test('the jetpack demo speaks German', async () => {
     assert.match(t(JETPACK_MISSION.intro), /^Januar, das World Economic Forum\. Ein Start-up aus Zürich/);
     assert.match(t(JETPACK_MISSION.finish), /Zauberbergs/);
     for (const o of JETPACK_MISSION.objectives) assert.notEqual(t(o.title), o.title, o.title);
-    assert.equal(t('Gate 2/9: Kirchner Museum · 162 m · 12 m up'), 'Tor 2/9: Kirchner Museum · 162 m · 12 m höher');
-    assert.equal(t('Gate 6/9: the spire of St. Johann · 1.1 km · level'), 'Tor 6/9: Kirchturm St. Johann · 1.1 km · gleiche Höhe');
-    assert.equal(t('Gate 4/9'), 'Tor 4/9');
-    assert.equal(t('Refuelling … 45 %'), 'Tanken … 45 %');
-    assert.equal(t('365 m to the pit crew on the Promenade · tank 41 %'), '365 m bis zur Boxencrew an der Promenade · Tank 41 %');
-    assert.equal(t('212 m to the terrace · tank 70 %'), '212 m bis zur Terrasse · Tank 70 %');
-    assert.equal(t('1:52 in the air · 107 % of a tank burned · a clean flight: no penalties'), '1:52 in der Luft · 107 % einer Tankfüllung verbrannt · sauber geflogen: keine Strafzeit');
-    assert.equal(t('2:10 in the air · 120 % of a tank burned · 1 tumble · 2 walls (+16 s)'), '2:10 in der Luft · 120 % einer Tankfüllung verbrannt · 1 Purzelbaum · 2 Wände (+16 s)');
+    // (its moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+    const { GATES, PAD, TERRACE, TOWN_GATES } = await import('../js/missions-data-jetpack.js');
+    const [town, refuel, , land] = JETPACK_MISSION.objectives;
+    const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+    const toward = (g, d, dy, more = {}) => Object.assign(createJet({ x: g.x - d, z: g.z, heading: 0 }), { y: 100, gateY: 100 + dy, ...more });
+    says(town.check({}, { flight: toward(GATES[1], 162, 12, { gate: 1 }) }).text, 'Gate 2/9: Kirchner Museum · 162 m · 12 m up', 'Tor 2/9: Kirchner Museum · 162 m · 12 m höher');
+    says(town.check({}, { flight: toward(GATES[5], 1100, 2, { gate: 5 }) }).text, 'Gate 6/9: the spire of St. Johann · 1.1 km · level', 'Tor 6/9: Kirchturm St. Johann · 1.1 km · gleiche Höhe');
+    says(town.check({}, { flight: toward(GATES[2], 90, -20, { gate: 2 }) }).text, 'Gate 3/9: Eisstadion · 90 m · 20 m down', 'Tor 3/9: Eisstadion · 90 m · 20 m tiefer');
+    says(refuel.check({}, { flight: Object.assign(createJet({ ...PAD, heading: 0 }), { gate: TOWN_GATES, fuel: 45, refuelling: true }) }).text, 'Refuelling … 45 %', 'Tanken … 45 %');
+    says(refuel.check({}, { flight: toward(PAD, 365, 0, { gate: TOWN_GATES, fuel: 41, phase: 'air' }) }).text, '365 m to the pit crew on the Promenade · tank 41 %', '365 m bis zur Boxencrew an der Promenade · Tank 41 %');
+    says(land.check({}, { flight: toward(TERRACE, 212, 0, { gate: GATES.length, refuelled: true, fuel: 70, phase: 'air' }) }).text, '212 m to the terrace · tank 70 %', '212 m bis zur Terrasse · Tank 70 %');
+    says(JETPACK_MISSION.summary({ flight: { airtime: 112, burned: 107, tumbles: 0, bumps: 0, penaltyMs: 0 } })[0], '1:52 in the air · 107 % of a tank burned · a clean flight: no penalties', '1:52 in der Luft · 107 % einer Tankfüllung verbrannt · sauber geflogen: keine Strafzeit');
+    says(JETPACK_MISSION.summary({ flight: { airtime: 130, burned: 120, tumbles: 1, bumps: 2, penaltyMs: 16000 } })[0], '2:10 in the air · 120 % of a tank burned · 1 tumble · 2 walls (+16 s)', '2:10 in der Luft · 120 % einer Tankfüllung verbrannt · 1 Purzelbaum · 2 Wände (+16 s)');
+    says(JETPACK_MISSION.summary({ flight: { airtime: 125, burned: 99, tumbles: 2, bumps: 1, penaltyMs: 23000 } })[0], '2:05 in the air · 99 % of a tank burned · 2 tumbles · 1 wall (+23 s)', '2:05 in der Luft · 99 % einer Tankfüllung verbrannt · 2 Purzelbäume · 1 Wand (+23 s)');
+    // (back in English the same texts are English again)
+    setLanguage('en');
+    assert.equal(t('Gate 2/9: Kirchner Museum · 162 m · 12 m up'), 'Gate 2/9: Kirchner Museum · 162 m · 12 m up');
+    setLanguage('de');
     for (const s of ['Space: lift off', 'The tank is nearly dry!', 'Too fast: a tumble! +10 s', 'A wall! +3 s', 'Tank full: go!', 'Slow down for the landing: S', 'Gates', 'Penalty', 'Sink']) assert.notEqual(t(s), s, s);
     for (const o of JETPACK_MISSION.objectives) for (const fl of [Object.assign(createJet(), { phase: 'crashed' }), Object.assign(createJet(), { dry: true })]) assert.notEqual(t(o.check({}, { flight: fl }).fail), o.check({}, { flight: fl }).fail);
   } finally { setLanguage('de'); }
