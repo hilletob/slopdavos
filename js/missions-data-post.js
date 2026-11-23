@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-post.js
 // The postman's round (js/missions-data.js lists it; js/missions-post.js has its runtime: the yellow van, the post boxes,
 // the letters): its definition and the pure logic behind it, three.js-free like the other packages
@@ -141,14 +142,16 @@ export const POST_MISSION = {
         if (state.atOffice && state.emptied > 0 && left.length && !state.near && Math.abs(ctx.speed) < 1) {
           state.missed = left.length;
           state.penaltyMs = state.missed * POST.missMs;
-          return { done: true, progress: 1, text: `${left.length} box${left.length === 1 ? '' : 'es'} left out (+${(left.length * POST.missMs) / 1000} s)`, target: null, hint: null };
+          return { done: true, progress: 1, text: msg('{n} box{es} left out (+{s} s)', (p) => `${p.n} ${p.n === 1 ? 'Briefkasten' : 'Briefkästen'} ausgelassen (+${p.s} s)`, { n: left.length, es: left.length === 1 ? '' : 'es', s: (left.length * POST.missMs) / 1000 }), target: null, hint: null };
         }
         const next = nextBox(state.boxes);
         const d = next ? Math.hypot(next.x - ctx.x, next.z - ctx.z) : 0;
         const e = state.emptying;
-        const text = `Emptied ${state.emptied}/${state.boxes.length} · ${state.letters} letters${next ? ` · next ${fmtDist(d)}` : ''}`;
+        const counts = { n: state.emptied, of: state.boxes.length, l: state.letters, d: fmtDist(d) };
+        const text = next ? msg('Emptied {n}/{of} · {l} letters · next {d}', 'Geleert {n}/{of} · {l} Briefe · nächster {d}', counts)
+          : msg('Emptied {n}/{of} · {l} letters', 'Geleert {n}/{of} · {l} Briefe', counts);
         const hint = ctx.mode !== 'car' ? 'Back into the van'
-          : e ? `Emptying … ${Math.min(100, Math.round((e.t / emptyS(e)) * 100))} %`
+          : e ? msg('Emptying … {pct} %', 'Leeren … {pct} %', { pct: Math.min(100, Math.round((e.t / emptyS(e)) * 100)) })
           : state.near ? (state.still ? 'Hold Space to empty the box' : 'Stop by the post box') : null;
         return { done: !left.length, progress: state.emptied / state.boxes.length, text, target: next ? { x: next.x, z: next.z, r: 2.5 } : null, hint };
       }
@@ -162,14 +165,19 @@ export const POST_MISSION = {
         const d = Math.hypot(ctx.x - POST_OFFICE.x, ctx.z - POST_OFFICE.z);
         return {
           done: state.dropT >= POST.dropS, progress: state.dropT / POST.dropS,
-          text: state.atOffice ? `Handing over … ${Math.min(100, Math.round((state.dropT / POST.dropS) * 100))} %` : `To the post office · ${fmtDist(d)}`,
+          text: state.atOffice ? msg('Handing over … {pct} %', 'Übergabe … {pct} %', { pct: Math.min(100, Math.round((state.dropT / POST.dropS) * 100)) })
+            : msg('To the post office · {d}', 'Zur Poststelle · {d}', { d: fmtDist(d) }),
           target: { x: POST_OFFICE.x, z: POST_OFFICE.z, r: POST_OFFICE.r, style: 'pad' },
           hint: ctx.mode !== 'car' ? 'Back into the van' : state.atOffice ? 'Stand still while the sacks go in' : null
         };
       }
     }
   ],
-  summary(state) { return [`${state.emptied} of ${state.boxes.length} post boxes emptied · ${state.letters} letters${state.missed ? ` · ${state.missed} left out (+${(state.missed * POST.missMs) / 1000} s)` : ''}`]; }
+  summary(state) {
+    const p = { a: state.emptied, of: state.boxes.length, l: state.letters, c: state.missed, s: (state.missed * POST.missMs) / 1000 };
+    return [state.missed ? msg('{a} of {of} post boxes emptied · {l} letters · {c} left out (+{s} s)', '{a} von {of} Briefkästen geleert · {l} Briefe · {c} ausgelassen (+{s} s)', p)
+      : msg('{a} of {of} post boxes emptied · {l} letters', '{a} von {of} Briefkästen geleert · {l} Briefe', p)];
+  }
 };
 
 export const POST_MISSIONS = [POST_MISSION];

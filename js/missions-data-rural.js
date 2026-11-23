@@ -1,4 +1,5 @@
 import { makeRoute, routePoint, stepGarbage, mulberry32 } from './missions-data-work.js';
+import { msg } from './messages.js';
 
 // js/missions-data-rural.js
 // Two missions of the Davos countryside (js/missions-data.js lists them; js/missions-rural.js has their runtime): their
@@ -19,6 +20,13 @@ import { makeRoute, routePoint, stepGarbage, mulberry32 } from './missions-data-
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
+// (the clean jumps in German: one or more)
+const jumpsDe = (n) => `${n} ${n === 1 ? 'sauberer Sprung' : 'saubere Sprünge'}`;
+/** The quad's toast of a clean landing (js/missions-rural.js) */
+export const airTimeText = (air) => msg('Air time {a} s: -{b} s', 'Flugzeit {a} s: -{b} s', { a: air.toFixed(1), b: QUAD.airBonusMs / 1000 });
+/** The green-waste round's toasts (js/missions-rural.js): a clean barrel rejected, a barrel loaded */
+export const wrongRejectText = () => msg('That one was clean: {pts} pts', 'Die war sauber: {pts} Pkt.', { pts: BIO.points.wrongReject });
+export const barrelUpText = (n) => msg('Barrel up: {n} on the bed', 'Fass oben: {n} auf der Ladefläche', { n });
 const smooth = (t) => t * t * (3 - 2 * t);
 
 // =====================================================================================================================
@@ -205,13 +213,14 @@ function quadObjective(id, title, key, last) {
       const d = Math.hypot(ctx.x - g[0], ctx.z - g[1]);
       if (d <= r) {
         state.gates[key] = n + 1;
-        if (n + 1 >= count) return { done: true, progress: 1, text: `Gate ${count}/${count}`, target: null, hint: null };
+        if (n + 1 >= count) return { done: true, progress: 1, text: msg('Gate {n}/{of}', 'Tor {n}/{of}', { n: count, of: count }), target: null, hint: null };
       }
       const next = state.gates[key] || 0;
       const g2 = next < gates.length ? gates[next] : [QUAD.finish.x, QUAD.finish.z];
       // (numbered through the whole course, as on the boards at the gates; the finish is the last)
       const first = QUAD_GATE_LIST.findIndex((g) => g.key === key);
-      const text = `Gate ${first + Math.min(next + 1, count)}/${QUAD_GATE_LIST.length} · ${fmtDist(Math.hypot(ctx.x - g2[0], ctx.z - g2[1]))}${state.jumps ? ` · ${state.jumps} clean ${state.jumps === 1 ? 'jump' : 'jumps'}` : ''}`;
+      const gp = { n: first + Math.min(next + 1, count), of: QUAD_GATE_LIST.length, d: fmtDist(Math.hypot(ctx.x - g2[0], ctx.z - g2[1])), j: state.jumps, jumps: state.jumps === 1 ? 'jump' : 'jumps' };
+      const text = state.jumps ? msg('Gate {n}/{of} · {d} · {j} clean {jumps}', (p) => `Tor ${p.n}/${p.of} · ${p.d} · ${jumpsDe(p.j)}`, gp) : msg('Gate {n}/{of} · {d}', 'Tor {n}/{of} · {d}', gp);
       const hint = state.jump?.air ? 'In the air!'
         : state.surface === 'mud' ? 'Mud: ease off, the quad slides'
           : state.surface === 'snow' ? 'Old snow: hardly any grip'
@@ -248,7 +257,10 @@ export const QUAD_MISSION = {
     quadObjective('course', 'Round the off-road course', 'course', false),
     quadObjective('back', 'Back to the Heldstab yard', 'back', true)
   ],
-  summary(state) { return [`${state.jumps} clean ${state.jumps === 1 ? 'jump' : 'jumps'} (-${(state.jumps * QUAD.airBonusMs) / 1000} s) · ${state.patches} mud and snow ${state.patches === 1 ? 'patch' : 'patches'} crossed`]; }
+  summary(state) {
+    return [msg('{j} clean {jumps} (-{s} s) · {p} mud and snow {patches} crossed', (p) => `${jumpsDe(p.j)} (-${p.s} s) · ${p.p} Schlamm- und Schneefelder durchquert`,
+      { j: state.jumps, jumps: state.jumps === 1 ? 'jump' : 'jumps', s: (state.jumps * QUAD.airBonusMs) / 1000, p: state.patches, patches: state.patches === 1 ? 'patch' : 'patches' })];
+  }
 };
 
 // =====================================================================================================================
@@ -426,10 +438,12 @@ export const BIO_MISSION = {
         for (const s of left) { const d = Math.hypot(s.x - ctx.x, s.z - ctx.z); if (d < bd) { bd = d; next = s; } }
         const handled = state.stops.length - left.length;
         const load = Math.round(bioLoad(state) * 100);
-        const text = `Barrels ${handled}/${state.stops.length} · load ${load} %${next ? ` · next ${next.name} ${fmtDist(bd)}` : ''}`;
+        const bp = { n: handled, of: state.stops.length, load, name: next?.name, d: fmtDist(bd) };
+        const text = next ? msg('Barrels {n}/{of} · load {load} % · next {name} {d}', 'Fässer {n}/{of} · Ladung {load} % · nächstes {name} {d}', bp)
+          : msg('Barrels {n}/{of} · load {load} %', 'Fässer {n}/{of} · Ladung {load} %', bp);
         const l = state.loading;
         const hint = ctx.mode !== 'car' ? 'Back into the truck'
-          : l ? `Loading … ${Math.round((l.t / BIO.loadS) * 100)} % · Space: reject the barrel`
+          : l ? msg('Loading … {pct} % · Space: reject the barrel', 'Laden … {pct} % · Leertaste: Fass stehen lassen', { pct: Math.round((l.t / BIO.loadS) * 100) })
             : state.spoiled ? 'Plastic in the batch: it is spoiled'
               : next && bd < 16 ? 'Stop with the load bed beside the barrel. Plastic in it? Reject!' : null;
         return { done: !left.length, progress: handled / state.stops.length, text, target: next ? { x: next.x, z: next.z, r: 2.5 } : null, hint };
@@ -450,7 +464,8 @@ export const BIO_MISSION = {
         const close = left < 90 && d < 60;
         return {
           done: state.unloaded >= 1, progress: state.unloaded,
-          text: state.atPlant ? `Unloading … ${Math.round(state.unloaded * 100)} %` : `To the hopper · ${fmtDist(g.off ? d : left)}`,
+          text: state.atPlant ? msg('Unloading … {pct} %', 'Abladen … {pct} %', { pct: Math.round(state.unloaded * 100) })
+            : msg('To the hopper · {d}', 'Zum Annahmebunker · {d}', { d: fmtDist(g.off ? d : left) }),
           target: close ? { x: BIO_PLANT.x, z: BIO_PLANT.z, r: BIO.plantR, style: 'pad' } : { x: g.x, z: g.z },
           hint: state.atPlant ? 'Stand still while the barrels are tipped' : close && d < 40 ? 'Stop with the load bed beside the hopper'
             : g.off ? 'Back to the way: the Dischmastrasse to the Duchli Ranch' : g.s < BIO_LINE.length - 420 ? 'Out along the Dischmastrasse: it is cleared in winter' : 'Through the ranch\'s yard and back along the track to the hopper'
@@ -459,7 +474,11 @@ export const BIO_MISSION = {
     }
   ],
   summary(state) {
-    const lines = [`${state.collected - state.spoiledBarrels} clean barrels · ${state.rejected} of 2 plastic barrels rejected${state.wrong ? ` · ${state.wrong} clean left behind` : ''}${state.missed ? ` · ${state.missed} left out` : ''}`];
+    // (the clean barrels left behind and those left out only when there are)
+    const p = { a: state.collected - state.spoiledBarrels, b: state.rejected, c: state.wrong, d: state.missed };
+    const en = `{a} clean barrels · {b} of 2 plastic barrels rejected${p.c ? ' · {c} clean left behind' : ''}${p.d ? ' · {d} left out' : ''}`;
+    const de = `{a} saubere Fässer · {b} von 2 Plastik-Fässern stehen gelassen${p.c ? ' · {c} saubere stehen gelassen' : ''}${p.d ? ' · {d} ausgelassen' : ''}`;
+    const lines = [msg(en, de, p)];
     lines.push(state.spoiled ? 'Batch spoiled: the plastic went into the digester\'s hopper' : 'A clean load from the hotels\' kitchens: the plant manager nods');
     return lines;
   }

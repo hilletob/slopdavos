@@ -1,5 +1,6 @@
 import { RINK, rinkLocal, rinkWorld, rinkHeadingWorld, clampToRink } from './missions-data-ice.js';
 import { forCellsInBox } from './missions-data-work.js';
+import { msg } from './messages.js';
 
 // js/missions-data-zamboni.js
 // The ice resurfacer in the Eisstadion's second intermission (js/missions-data.js spreads ZAMBONI_MISSIONS into MISSIONS;
@@ -23,6 +24,10 @@ import { forCellsInBox } from './missions-data-work.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const pct = (f) => `${Math.floor(f * 100 + 1e-9)} %`;
+/** The HUD's share of the ice done (js/missions-zamboni.js) */
+export const iceText = (share) => msg('Ice {p} %', 'Eis {p} %', { p: Math.floor(share * 100) });
+/** The toast of a hard knock against the boards (js/missions-zamboni.js) */
+export const knockText = () => msg('Hard knock on the boards! −{n}', 'Harter Schlag an die Bande! −{n}', { n: ZAMBONI.points.bump });
 const fmtClock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export const ZAMBONI = {
@@ -327,7 +332,9 @@ export const ZAMBONI_MISSION = {
   score(state) { return zamboniScore(state); },
   summary(state) {
     const m2 = Math.round(state.puddleM2);
-    return [`${pct(state.ice)} of the ice resurfaced · ${state.bumps} hard knock${state.bumps === 1 ? '' : 's'} · ${m2} m² of puddles · water left ${pct(state.water)}`];
+    return [msg('{a} of the ice resurfaced · {n} hard knock{s} · {m2} m² of puddles · water left {w}',
+      (p) => `${p.a} des Eises geglättet · ${p.n} ${p.n === 1 ? 'harter Schlag' : 'harte Schläge'} · ${p.m2} m² Pfützen · Wasser übrig ${p.w}`,
+      { a: pct(state.ice), n: state.bumps, s: state.bumps === 1 ? '' : 's', m2, w: pct(state.water) })];
   },
   objectives: [
     {
@@ -340,7 +347,7 @@ export const ZAMBONI_MISSION = {
         const inside = l.x < -HL + 1;
         return {
           done: state.band >= ZAMBONI.bandGoal, progress: state.band / ZAMBONI.bandGoal,
-          text: `Along the boards ${pct(state.band)} of ${pct(ZAMBONI.bandGoal)} · ${fmtClock(timeLeft(ctx))} left`,
+          text: msg('Along the boards {a} of {b} · {left} left', 'Der Bande entlang {a} von {b} · noch {left}', { a: pct(state.band), b: pct(ZAMBONI.bandGoal), left: fmtClock(timeLeft(ctx)) }),
           target: null,
           hint: offHint(state) || (inside ? 'W: out through the gate onto the ice' : 'First two laps along the boards, close to them')
         };
@@ -354,7 +361,7 @@ export const ZAMBONI_MISSION = {
         if (fail) return fail;
         return {
           done: state.ice >= ZAMBONI.goal, progress: state.ice / ZAMBONI.goal,
-          text: `Ice ${pct(state.ice)} of ${pct(ZAMBONI.goal)} · water ${pct(state.water)} · ${fmtClock(timeLeft(ctx))} left`,
+          text: msg('Ice {a} of {b} · water {w} · {left} left', 'Eis {a} von {b} · Wasser {w} · noch {left}', { a: pct(state.ice), b: pct(ZAMBONI.goal), w: pct(state.water), left: fmtClock(timeLeft(ctx)) }),
           target: null,
           hint: offHint(state) || (state.water < 0.15 ? 'The water is running low: no passes twice' : 'Now the middle: overlap your last pass by a hand\'s width')
         };
@@ -372,7 +379,7 @@ export const ZAMBONI_MISSION = {
         const d = Math.max(0, Math.hypot(l.x - ZAMBONI.home, l.y - ZAMBONI.gate.y));
         return {
           done, progress: null,
-          text: `${Math.round(d)} m to the gate · ${fmtClock(timeLeft(ctx))} left`,
+          text: msg('{d} m to the gate · {left} left', '{d} m bis zum Tor · noch {left}', { d: Math.round(d), left: fmtClock(timeLeft(ctx)) }),
           target: { x: GATE_POINT.x, z: GATE_POINT.z, r: 2.2 },
           hint: state.on ? 'Space: conditioner off, then into the gate' : 'Into the gate: the teams are waiting'
         };

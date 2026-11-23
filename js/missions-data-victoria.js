@@ -1,5 +1,6 @@
 import { seededRandom } from './missions-data-local.js';
 import { walkInto } from './missions-data-gastro.js';
+import { msg } from './messages.js';
 
 // js/missions-data-victoria.js
 // A shift behind the scenes of the Turmhotel Victoria, Alte Flüelastrasse 2, Davos Dorf (building w117012157 of
@@ -22,6 +23,25 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 // to 980.1/-1747.1); the start a few metres down on the forecourt, facing it.
 export const VICTORIA = { door: { x: 968.1, z: -1744.1, r: 2.4 }, start: { x: 970.2, z: -1735.5 } };
 
+/** A room's line: its name, the seconds left, the points (the step's text here, the HUD's in js/missions-victoria.js) */
+export const roomLine = (room, left, score) => msg('{room|t} · {s} s · {pts} pts', '{room|t} · {s} s · {pts} Pkt.', { room, s: Math.ceil(left), pts: Math.round(score) });
+// (the runtime's HUD lines, js/missions-victoria.js, made here in both languages)
+/** The housekeeping label: the chore being scrubbed */
+export const scrubLine = (chore) => msg('{c|t}: scrub left, right, left …', '{c|t}: links, rechts, links wischen …', { c: CHORES[chore].name });
+/** The housekeeping label: no chore picked yet */
+export const backSoonLine = (room) => msg('{who|t} are back soon. Pick a chore', '{who|t} kommen bald zurück. Wähl eine Arbeit', { who: room.guest });
+/** The kitchen's line with the shift's points */
+export const kitchenLine = (g, score) => msg('Lunch service · {a} of {b} dishes · {pts} pts', 'Mittagsservice · {a} von {b} Gerichten · {pts} Pkt.', { a: g.served.length, b: KITCHEN_ORDERS.length, pts: Math.round(score) });
+/** An order's ticket */
+export const tableLine = (o) => msg('Table {n}: {dish}', 'Tisch {n}: {dish}', { n: KITCHEN_ORDERS[o].table, dish: DISHES[KITCHEN_ORDERS[o].dish].name });
+/** A burner's label (n from 1) */
+export const burnerLabel = (n) => msg('Burner {n}', 'Platte {n}', { n });
+/** The laundry's lines with the shift's points: sorting, the mangle */
+export const sortLine = (g, score) => msg('Sorting · item {a} of {b} · {pts} pts', 'Sortieren · Stück {a} von {b} · {pts} Pkt.', { a: g.item + 1, b: LINEN.length, pts: Math.round(score) });
+export const mangleLine = (g, score) => msg('The mangle · sheet {a} of {b} · {pts} pts', 'Die Mangel · Leintuch {a} von {b} · {pts} Pkt.', { a: Math.min(g.sheet + 1, LAUNDRY.sheets), b: LAUNDRY.sheets, pts: Math.round(score) });
+/** The pop of a line said (g.last) for js/missions-gastro.js flashPop: with points, the line and its points after two
+ *  spaces as one text in both languages (flashPop then shows it as it is) */
+export const popOf = (last) => (last.points ? { ...last, text: msg('{text|t}  {pts}', '{text|t}  {pts}', { text: last.text, pts: `${last.points > 0 ? '+' : ''}${last.points}` }), points: 0 } : last);
 const say = (g, text, points, good) => { g.seq++; g.last = { text, points: Math.round(points), good, seq: g.seq }; };
 /** Inside the window: its share of the full points (half at the edge, all in the middle), or null outside */
 function share(v, lo, hi) {
@@ -85,7 +105,7 @@ export function hkStroke(g, side) {
   if (g.prog[`${g.room}:${g.chore}`] < c.strokes) return 'stroke';
   g.done.push(g.chore);
   g.score += c.points;
-  say(g, `${c.name}: done`, c.points, true);
+  say(g, msg('{c|t}: done', '{c|t}: erledigt', { c: c.name }), c.points, true);
   g.chore = hkOpen(g).find((x) => hkAllowed(g, x)) || null;
   g.side = 0;
   if (!hkOpen(g).length) endRoom(g);
@@ -100,8 +120,8 @@ function endRoom(g) {
   if (!open.length) { bonus = H.allDone + Math.round(H.timeBonus * Math.max(0, g.left)); g.perfect++; }
   g.score += bonus;
   g.results.push({ room: hkRoom(g).name, done: g.done.length, of: hkRoom(g).chores.length, left: Math.max(0, g.left), bonus });
-  if (open.length) say(g, `The guest is back: ${open.length} ${open.length === 1 ? 'chore' : 'chores'} undone`, 0, false);
-  else say(g, `Spotless! ${Math.round(Math.max(0, g.left))} s to spare`, bonus, true);
+  if (open.length) say(g, msg('The guest is back: {n} {chores} undone', (p) => `Der Gast ist zurück: ${p.n} ${p.n === 1 ? 'Arbeit' : 'Arbeiten'} nicht erledigt`, { n: open.length, chores: open.length === 1 ? 'chore' : 'chores' }), 0, false);
+  else say(g, msg('Spotless! {s} s to spare', 'Blitzblank! {s} s übrig', { s: Math.round(Math.max(0, g.left)) }), bonus, true);
   g.phase = 'inspect'; g.phaseT = 0; g.chore = null;
 }
 export function hkStep(g, dt) {
@@ -157,14 +177,14 @@ export function kitchenStep(g, dt) {
     if (p.d >= KITCHEN.burnt) {
       g.score += KITCHEN.points.burnt; g.burnt++;
       g.served.push({ order: p.order, d: p.d, points: KITCHEN.points.burnt, burnt: true });
-      say(g, `${DISHES[KITCHEN_ORDERS[p.order].dish].name}: burnt!`, KITCHEN.points.burnt, false);
+      say(g, msg('{dish}: burnt!', '{dish}: angebrannt!', { dish: DISHES[KITCHEN_ORDERS[p.order].dish].name }), KITCHEN.points.burnt, false);
       g.pans[i] = null;
     }
   });
   if (g.served.length >= KITCHEN_ORDERS.length) {
     const bonus = Math.max(0, Math.round((KITCHEN.par - g.t) * KITCHEN.points.quick));
     g.score += bonus;
-    if (bonus) say(g, 'Service! A quick lunch', bonus, true);
+    if (bonus) say(g, msg('Service! A quick lunch', 'Service! Ein schneller Mittag'), bonus, true);
     g.finished = true;
   }
   return g;
@@ -186,13 +206,13 @@ export function kitchenPress(g, i) {
   if (s !== null) {
     points = P.dish * s;
     if (s > 0.85) g.perfect++;
-    say(g, s > 0.85 ? `${name}: perfect!` : `${name}: nicely done`, points, true);
+    say(g, s > 0.85 ? msg('{dish}: perfect!', '{dish}: perfekt!', { dish: name }) : msg('{dish}: nicely done', '{dish}: schön gelungen', { dish: name }), points, true);
   } else if (p.d < K.window[0]) {
     points = p.d < 0.6 ? P.raw : P.under * clamp((p.d - 0.6) / (K.window[0] - 0.6), 0, 1);
-    say(g, p.d < 0.6 ? `${name}: still raw!` : `${name}: a touch underdone`, points, false);
+    say(g, p.d < 0.6 ? msg('{dish}: still raw!', '{dish}: noch roh!', { dish: name }) : msg('{dish}: a touch underdone', '{dish}: etwas zu wenig gar', { dish: name }), points, false);
   } else {
     points = P.over * clamp(1 - (p.d - K.window[1]) / (K.burnt - K.window[1]), 0, 1);
-    say(g, `${name}: rather dark`, points, false);
+    say(g, msg('{dish}: rather dark', '{dish}: ziemlich dunkel', { dish: name }), points, false);
   }
   g.score += points;
   g.served.push({ order: p.order, d: p.d, points: Math.round(points), burnt: false });
@@ -244,13 +264,13 @@ export function laundrySort(g, side) {
   if (white === it.white) {
     points = P.sort + P.quick * clamp(1 - g.itemT / sortWindow(g), 0, 1);
     what = 'right';
-    say(g, white ? 'Whites' : 'Colours', points, true);
+    say(g, white ? msg('Whites', 'Weisses') : msg('Colours', 'Buntes'), points, true);
   } else if (it.white) {
     points = P.grey; what = 'grey';
-    say(g, `${it.name} in the colours: it comes out grey`, points, false);
+    say(g, msg('{it|t} in the colours: it comes out grey', '{it|t} in der Buntwäsche: kommt grau heraus', { it: it.name }), points, false);
   } else {
     points = P.pink; what = 'pink'; g.pink = true;
-    say(g, `${it.name} in the whites: pink sheets!`, points, false);
+    say(g, msg('{it|t} in the whites: pink sheets!', '{it|t} in der Weisswäsche: rosa Leintücher!', { it: it.name }), points, false);
   }
   g.score += points;
   g.sorted.push({ item: g.item, ok: what === 'right', points: Math.round(points) });
@@ -276,7 +296,7 @@ export function laundryStep(g, dt) {
     if (g.itemT >= sortWindow(g)) {
       g.score += P.drop;
       g.sorted.push({ item: g.item, ok: false, points: P.drop });
-      say(g, `${LINEN[g.item].name}: on the floor`, P.drop, false);
+      say(g, msg('{it|t}: on the floor', '{it|t}: auf dem Boden', { it: LINEN[g.item].name }), P.drop, false);
       nextItem(g);
     }
   } else if (g.phase === 'wash') {
@@ -303,7 +323,7 @@ export function laundryStep(g, dt) {
       if (g.pink) points *= 0.6; // (pink sheets go to the staff rooms)
       g.score += points;
       g.sheets.push({ quality: q, jam: false, points: Math.round(points) });
-      say(g, q > 0.9 ? (g.pink ? 'Crisp, if pink' : 'Crisp and smooth!') : q > 0.6 ? 'A crease or two' : 'Creased all over', points, q > 0.6);
+      say(g, q > 0.9 ? (g.pink ? msg('Crisp, if pink', 'Glatt, wenn auch rosa') : msg('Crisp and smooth!', 'Glatt und frisch!')) : q > 0.6 ? 'A crease or two' : 'Creased all over', points, q > 0.6);
       g.sheet++; g.phase = 'gap'; g.phaseT = 0;
     }
   }
@@ -337,11 +357,19 @@ export const VICTORIA_MISSION = {
   score: victoriaScore,
   summary(state) {
     const lines = [];
-    if (state.hk?.results.length) lines.push(state.hk.results.map((r) => `${r.room}: ${r.done} of ${r.of} chores`).join(' · '));
+    if (state.hk?.results.length) {
+      const rooms = state.hk.results.map((r) => msg('{room|t}: {a} of {b} chores', '{room|t}: {a} von {b} Arbeiten', { room: r.room, a: r.done, b: r.of }));
+      // (both rooms as one text, its German of the rooms' Germans)
+      lines.push(rooms.length > 1 ? msg('{list}', (p, tr) => p.parts.map(tr).join(' · '), { list: rooms.join(' · '), parts: rooms }) : rooms[0]);
+    }
     const k = state.kitchen;
-    if (k?.served.length) lines.push(`${k.served.filter((s) => !s.burnt).length} of ${KITCHEN_ORDERS.length} dishes served · ${k.perfect} perfect · ${k.burnt} burnt`);
+    if (k?.served.length) lines.push(msg('{a} of {b} dishes served · {p} perfect · {x} burnt', '{a} von {b} Gerichten serviert · {p} perfekt · {x} angebrannt', { a: k.served.filter((s) => !s.burnt).length, b: KITCHEN_ORDERS.length, p: k.perfect, x: k.burnt }));
     const l = state.laundry;
-    if (l?.sorted.length) lines.push(`${l.sorted.filter((s) => s.ok).length} of ${LINEN.length} sorted right · ${l.sheets.filter((s) => s.quality > 0.9).length} of ${LAUNDRY.sheets} sheets crisp${l.pink ? ' · pink sheets' : ''}`);
+    if (l?.sorted.length) {
+      const p = { a: l.sorted.filter((s) => s.ok).length, b: LINEN.length, c: l.sheets.filter((s) => s.quality > 0.9).length, d: LAUNDRY.sheets };
+      lines.push(l.pink ? msg('{a} of {b} sorted right · {c} of {d} sheets crisp · pink sheets', '{a} von {b} richtig sortiert · {c} von {d} Leintüchern glatt · rosa Leintücher', p)
+        : msg('{a} of {b} sorted right · {c} of {d} sheets crisp', '{a} von {b} richtig sortiert · {c} von {d} Leintüchern glatt', p));
+    }
     return lines;
   },
   objectives: [
@@ -353,7 +381,7 @@ export const VICTORIA_MISSION = {
       check(ctx, state) {
         const g = state.hk;
         if (!g) return { done: false, progress: 0, text: 'Taking the trolley …', target: null, hint: null };
-        return { done: g.finished, progress: (g.results.length + (g.finished ? 0 : hkRoom(g).chores.length ? g.done.length / hkRoom(g).chores.length : 0)) / HOUSEKEEPING.rooms.length, text: `${hkRoom(g).name} · ${Math.ceil(g.left)} s · ${Math.round(g.score)} pts`, target: null, hint: '1-7 or tap: pick a chore · then A, D, A …: scrub' };
+        return { done: g.finished, progress: (g.results.length + (g.finished ? 0 : hkRoom(g).chores.length ? g.done.length / hkRoom(g).chores.length : 0)) / HOUSEKEEPING.rooms.length, text: roomLine(hkRoom(g).name, g.left, g.score), target: null, hint: '1-7 or tap: pick a chore · then A, D, A …: scrub' };
       }
     },
     {
@@ -363,7 +391,7 @@ export const VICTORIA_MISSION = {
       check(ctx, state) {
         const g = state.kitchen;
         if (!g) return { done: false, progress: 0, text: 'Down to the kitchen …', target: null, hint: null };
-        return { done: g.finished, progress: g.served.length / KITCHEN_ORDERS.length, text: `${g.served.length} of ${KITCHEN_ORDERS.length} dishes · ${Math.round(g.score)} pts`, target: null, hint: '1-3 or tap: the ticket onto a burner · again in the green: plate it' };
+        return { done: g.finished, progress: g.served.length / KITCHEN_ORDERS.length, text: msg('{a} of {b} dishes · {pts} pts', '{a} von {b} Gerichten · {pts} Pkt.', { a: g.served.length, b: KITCHEN_ORDERS.length, pts: Math.round(g.score) }), target: null, hint: '1-3 or tap: the ticket onto a burner · again in the green: plate it' };
       }
     },
     {
@@ -374,7 +402,8 @@ export const VICTORIA_MISSION = {
         const g = state.laundry;
         if (!g) return { done: false, progress: 0, text: 'Down to the Lingerie …', target: null, hint: null };
         const p = g.phase === 'sort' ? 0.4 * g.item / LINEN.length : 0.4 + 0.6 * g.sheet / LAUNDRY.sheets;
-        return { done: g.finished, progress: p, text: g.phase === 'sort' ? `Item ${g.item + 1} of ${LINEN.length} · ${Math.round(g.score)} pts` : `Sheet ${Math.min(g.sheet + 1, LAUNDRY.sheets)} of ${LAUNDRY.sheets} · ${Math.round(g.score)} pts`, target: null, hint: g.phase === 'sort' ? 'A / ◀: whites · D / ▶: colours' : 'Hold A or D (◀ ▶): keep the sheet straight' };
+        return { done: g.finished, progress: p, text: g.phase === 'sort' ? msg('Item {a} of {b} · {pts} pts', 'Stück {a} von {b} · {pts} Pkt.', { a: g.item + 1, b: LINEN.length, pts: Math.round(g.score) })
+          : msg('Sheet {a} of {b} · {pts} pts', 'Leintuch {a} von {b} · {pts} Pkt.', { a: Math.min(g.sheet + 1, LAUNDRY.sheets), b: LAUNDRY.sheets, pts: Math.round(g.score) }), target: null, hint: g.phase === 'sort' ? 'A / ◀: whites · D / ▶: colours' : 'Hold A or D (◀ ▶): keep the sheet straight' };
       }
     }
   ]

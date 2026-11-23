@@ -4,7 +4,8 @@ import { el, clamp, live, swallow, gameKey, addStyle, box, cyl, solid, meshOf, t
 import {
   CHORES, CHORE_KEYS, HOUSEKEEPING, hkStep, hkPick, hkStroke, hkRoom, hkAllowed, hkProgress, createHousekeeping,
   DISHES, KITCHEN, KITCHEN_ORDERS, createKitchen, kitchenStep, kitchenPress,
-  LINEN, LAUNDRY, createLaundry, laundrySort, laundryStep, sortWindow, victoriaScore
+  LINEN, LAUNDRY, createLaundry, laundrySort, laundryStep, sortWindow, victoriaScore,
+  roomLine, scrubLine, backSoonLine, kitchenLine, tableLine, burnerLabel, sortLine, mangleLine, popOf
 } from './missions-data-victoria.js';
 
 // js/missions-victoria.js
@@ -417,7 +418,7 @@ const victoria = {
       { id: 'vc-left', kind: 'hold', label: '◀', keys: ['ArrowLeft'], keyboard: false, pad: 'left', touch: false, hint: false, when: inRoom, run: (on) => victoria.side(run, -1, on) },
       { id: 'vc-right', kind: 'hold', label: '▶', keys: ['ArrowRight'], keyboard: false, pad: 'right', touch: false, hint: false, when: inRoom, run: (on) => victoria.side(run, 1, on) },
       { id: 'vc-chore', label: 'Next chore', keys: ['Digit1'], keyboard: false, pad: 'a', touch: false, hint: false, when: at('housekeeping'), run: () => victoria.nextChore(run) },
-      ...['x', 'a', 'b'].map((slot, i) => ({ id: `vc-burner-${i + 1}`, label: `Burner ${i + 1}`, keys: [`Digit${i + 1}`], keyboard: false, pad: slot, touch: false, hint: false, when: at('kitchen'), run: () => victoria.pick(run, i) }))
+      ...['x', 'a', 'b'].map((slot, i) => ({ id: `vc-burner-${i + 1}`, label: burnerLabel(i + 1), keys: [`Digit${i + 1}`], keyboard: false, pad: slot, touch: false, hint: false, when: at('kitchen'), run: () => victoria.pick(run, i) }))
     ]);
   },
   /** The gamepad's chore: the next one in the room's order that may be worked now, after the one in hand */
@@ -519,7 +520,7 @@ const victoria = {
       laundryStep(g, dt);
       if (g.sheets.length > n) blip(run, g.sheets.at(-1).jam ? 'bad' : 'good');
     }
-    if (g.last && g.last.seq !== vc.seq) { vc.seq = g.last.seq; flashPop(vc.ui.pop, g.last); if (g.last.good && id !== 'housekeeping') blip(run, 'good'); }
+    if (g.last && g.last.seq !== vc.seq) { vc.seq = g.last.seq; flashPop(vc.ui.pop, popOf(g.last)); if (g.last.good && id !== 'housekeeping') blip(run, 'good'); }
   },
   after(run, ctx, dt) {
     const vc = run.vc, s = run.state;
@@ -568,8 +569,8 @@ const victoria = {
   },
   hudHousekeeping(run, g, ui) {
     const room = hkRoom(g);
-    setText(ui.line, `${room.name} · ${Math.ceil(g.left)} s · ${Math.round(victoriaScore(run.state))} pts`);
-    setText(ui.label, g.phase === 'inspect' ? 'The Gouvernante has a look …' : g.chore ? `${CHORES[g.chore].name}: scrub left, right, left …` : `${room.guest} are back soon. Pick a chore`);
+    setText(ui.line, roomLine(room.name, g.left, victoriaScore(run.state)));
+    setText(ui.label, g.phase === 'inspect' ? 'The Gouvernante has a look …' : g.chore ? scrubLine(g.chore) : backSoonLine(room));
     show(ui.gauge, false); show(ui.chips, false); show(ui.bar, true); show(ui.pads, true); show(ui.row, true);
     ui.barFill.style.transform = `scaleX(${clamp(g.left / HOUSEKEEPING.time[g.room], 0, 1)})`;
     setText(ui.left, '◀ A'); setText(ui.right, 'D ▶');
@@ -584,16 +585,16 @@ const victoria = {
     }
   },
   hudKitchen(run, g, ui) {
-    setText(ui.line, `Lunch service · ${g.served.length} of ${KITCHEN_ORDERS.length} dishes · ${Math.round(victoriaScore(run.state))} pts`);
+    setText(ui.line, kitchenLine(g, victoriaScore(run.state)));
     setText(ui.label, g.queue.length ? 'New ticket: put it on a free burner' : g.pans.some(Boolean) ? 'Plate each dish in the green' : 'Waiting for the next ticket …');
     show(ui.gauge, false); show(ui.bar, false); show(ui.pads, false); show(ui.row, true);
     show(ui.chips, g.queue.length > 0);
     const chipKey = g.queue.join(',');
-    if (ui.chips._k !== chipKey) { ui.chips._k = chipKey; ui.chips.replaceChildren(...g.queue.map((o, i) => el('span', `gs-chip${i === 0 ? ' next' : ''}`, `Table ${KITCHEN_ORDERS[o].table}: ${DISHES[KITCHEN_ORDERS[o].dish].name}`))); }
-    victoria.row(run, ui, 'kitchen', [0, 1, 2].map((i) => ({ label: `Burner ${i + 1}`, key: i + 1, index: i })), 'three');
+    if (ui.chips._k !== chipKey) { ui.chips._k = chipKey; ui.chips.replaceChildren(...g.queue.map((o, i) => el('span', `gs-chip${i === 0 ? ' next' : ''}`, tableLine(o)))); }
+    victoria.row(run, ui, 'kitchen', [0, 1, 2].map((i) => ({ label: burnerLabel(i + 1), key: i + 1, index: i })), 'three');
     for (const x of ui.buttons) {
       const pan = g.pans[x.index];
-      setText(x.name, pan ? DISHES[KITCHEN_ORDERS[pan.order].dish].name : g.queue.length ? 'Put it on' : `Burner ${x.index + 1}`);
+      setText(x.name, pan ? DISHES[KITCHEN_ORDERS[pan.order].dish].name : g.queue.length ? 'Put it on' : burnerLabel(x.index + 1));
       x.b.classList.toggle('on', !!pan && pan.d >= KITCHEN.window[0] && pan.d <= KITCHEN.window[1]);
       x.b.disabled = !pan && !g.queue.length;
       x.meter.className = '';
@@ -606,7 +607,7 @@ const victoria = {
     show(ui.row, false); show(ui.chips, false); show(ui.pads, g.phase === 'sort' || g.phase === 'mangle');
     if (g.phase === 'sort') {
       const it = LINEN[g.item];
-      setText(ui.line, `Sorting · item ${g.item + 1} of ${LINEN.length} · ${Math.round(victoriaScore(run.state))} pts`);
+      setText(ui.line, sortLine(g, victoriaScore(run.state)));
       if (ui.label._k !== `${g.item}`) { ui.label._k = `${g.item}`; ui.label._src = null; const sw = el('i', 'vc-swatch'); sw.style.background = it.colour; ui.label.replaceChildren(sw, el('span', null, it.name)); }
       show(ui.gauge, false); show(ui.bar, true);
       ui.barFill.style.transform = `scaleX(${clamp(1 - g.itemT / sortWindow(g), 0, 1)})`;
@@ -615,7 +616,7 @@ const victoria = {
     }
     ui.label._k = null;
     show(ui.bar, false);
-    setText(ui.line, `The mangle · sheet ${Math.min(g.sheet + 1, LAUNDRY.sheets)} of ${LAUNDRY.sheets} · ${Math.round(victoriaScore(run.state))} pts`);
+    setText(ui.line, mangleLine(g, victoriaScore(run.state)));
     setText(ui.label, g.phase === 'wash' ? 'The drum turns …' : g.phase === 'mangle' ? 'Keep the sheet straight: hold ◀ or ▶' : g.sheet >= LAUNDRY.sheets ? 'All through' : 'Next sheet …');
     show(ui.gauge, g.phase === 'mangle');
     if (g.phase === 'mangle') {

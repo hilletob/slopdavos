@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   PLOUGH, PLOUGH_MISSION, PLOUGH_MISSIONS, PLOUGH_ZONES, PLOUGH_JOINTS, PLOUGH_JUNCTIONS, WOLFGANG_ROAD,
   createPloughRoute, createPloughGrid, resetPloughGrid, createPoles, laneShare, stepPlough, poleHits, jointCrossed,
-  buriedJunction, boxesOverlap, roadPose, zoneAt, bladeGeometry
+  buriedJunction, boxesOverlap, roadPose, zoneAt, bladeGeometry, buriedText
 } from '../js/missions-data-plough.js';
 import { routePoint } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
@@ -210,14 +210,24 @@ test('the plough speaks German', async () => {
   setLanguage('de');
   const M = PLOUGH_MISSION;
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);
-  assert.equal(t('To the Passhöhe: 1.2 km · lane cleared 45 % of 80 %'), 'Bis zur Passhöhe: 1.2 km · Spur geräumt: 45 % von 80 %');
-  assert.equal(t('To the Seegalerie: 340 m · lane cleared 81 % of 80 %'), 'Bis zur Seegalerie: 340 m · Spur geräumt: 81 % von 80 %');
-  assert.equal(t('the filling station ahead on your throw side: F lifts the blade past it'), 'Einmündung Tankstelle voraus auf der Wurfseite: F hebt die Pflugschar');
-  assert.equal(t('You buried the mouth of Höhwaldstrasse!'), 'Einmündung Höhwaldstrasse zugeschüttet!');
-  assert.equal(t('Up 92 % · down 88 % cleared'), 'Hinauf 92 % · hinunter 88 % geräumt');
-  assert.equal(t('2 snow poles (+6 s) · 1 car hit (+10 s) · snow on the road 3 s (+3 s) · too fast by the houses 4 s (+4 s)'),
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const [up, down] = M.objectives;
+  const L = createPloughRoute().length;
+  says(up.check(frame(), { ...M.createState(), s: L - 1200, north: 0.455 }).text, 'To the Passhöhe: 1.2 km · lane cleared 45 % of 80 %', 'Bis zur Passhöhe: 1.2 km · Spur geräumt: 45 % von 80 %');
+  says(down.check(frame(), { ...M.createState(), s: 340, north: 0.9, south: 0.81 }).text, 'To the Seegalerie: 340 m · lane cleared 81 % of 80 %', 'Bis zur Seegalerie: 340 m · Spur geräumt: 81 % von 80 %');
+  says(up.check(frame(), { ...M.createState(), junctionAhead: 'the filling station' }).hint, 'the filling station ahead on your throw side: F lifts the blade past it', 'Einmündung Tankstelle voraus auf der Wurfseite: F hebt die Pflugschar');
+  says(up.check(frame(), { ...M.createState(), junctionAhead: 'the old Prättigauerstrasse' }).hint, 'the old Prättigauerstrasse ahead on your throw side: F lifts the blade past it', 'Einmündung alte Prättigauerstrasse voraus auf der Wurfseite: F hebt die Pflugschar');
+  says(buriedText('Höhwaldstrasse'), 'You buried the mouth of Höhwaldstrasse!', 'Einmündung Höhwaldstrasse zugeschüttet!');
+  says(buriedText('the filling station'), 'You buried the mouth of the filling station!', 'Einmündung Tankstelle zugeschüttet!');
+  const sum = (over) => M.summary({ ...M.createState(), north: 0.92, south: 0.88, ...over });
+  says(sum({})[0], 'Up 92 % · down 88 % cleared', 'Hinauf 92 % · hinunter 88 % geräumt');
+  says(sum({ poles: 2, hits: 1, roadSec: 3, zoneSec: 4 })[1], '2 snow poles (+6 s) · 1 car hit (+10 s) · snow on the road 3 s (+3 s) · too fast by the houses 4 s (+4 s)',
     '2 Schneestangen (+6 s) · 1 Auto angefahren (+10 s) · Schnee auf der Fahrbahn 3 s (+3 s) · zu schnell bei den Häusern 4 s (+4 s)');
-  assert.equal(t('1 bridge joint (+8 s) · 2 side roads buried (+10 s)'), '1 Brückenfuge (+8 s) · 2 Einmündungen zugeschüttet (+10 s)');
+  says(sum({ joints: 1, buried: 2 })[1], '1 bridge joint (+8 s) · 2 side roads buried (+10 s)', '1 Brückenfuge (+8 s) · 2 Einmündungen zugeschüttet (+10 s)');
+  says(sum({ poles: 1, hits: 3 })[1], '1 snow pole (+3 s) · 3 cars hit (+30 s)', '1 Schneestange (+3 s) · 3 Autos angefahren (+30 s)');
+  says(sum({ buried: 1 })[1], '1 side road buried (+5 s)', '1 Einmündung zugeschüttet (+5 s)');
+  assert.equal(t(sum({})[1]), 'Sauber gefahren: keine Strafzeit');
   for (const s of ['Back into the plough', 'You are throwing the snow onto the road: V swings the blade', 'Houses by the road: below 30 km/h, or the snow flies onto the pavement',
     'Bridge joints ahead: F lifts the blade (or crawl over them)', 'The blade is up: F lowers it', 'Snow pole knocked down! +3 s', 'You hit a car! +10 s',
     'Swing the blade', 'Blade side', 'Lift the blade', 'Snow plough', 'A clean run: no penalties', 'Turn round: the lane down is on the other side',

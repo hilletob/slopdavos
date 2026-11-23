@@ -218,14 +218,23 @@ test('the postman\'s texts in German', async () => {
   for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);
   for (const s of ['Back into the van', 'Hold Space to empty the box', 'Stop by the post box', 'Stand still while the sacks go in', 'Empty', 'Post van',
     'The noon dispatch has left: the letters stay in Davos until tomorrow.']) assert.notEqual(t(s), s, s);
-  assert.equal(t('Emptied 3/8 · 204 letters · next 1.2 km'), 'Geleert 3/8 · 204 Briefe · nächster 1.2 km');
-  assert.equal(t('Emptied 8/8 · 868 letters'), 'Geleert 8/8 · 868 Briefe');
-  assert.equal(t('Emptied 4/8'), 'Geleert 4/8');
-  assert.equal(t('Emptying … 40 %'), 'Leeren … 40 %');
-  assert.equal(t('1 box left out (+45 s)'), '1 Briefkasten ausgelassen (+45 s)');
-  assert.equal(t('2 boxes left out (+90 s)'), '2 Briefkästen ausgelassen (+90 s)');
-  assert.equal(t('Handing over … 75 %'), 'Übergabe … 75 %'); // (the delivery missions' rule)
-  assert.equal(t('To the post office · 340 m'), 'Zur Poststelle · 340 m');
-  assert.equal(t('7 of 8 post boxes emptied · 820 letters · 1 left out (+45 s)'), '7 von 8 Briefkästen geleert · 820 Briefe · 1 ausgelassen (+45 s)');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const [empty, drop] = M.objectives;
+  const round = (n, letters) => { const st = M.createState(); st.boxes.slice(0, n).forEach((b) => { b.done = true; }); return Object.assign(st, { emptied: n, letters }); };
+  const b3 = POST_BOXES[3];
+  says(empty.check(frame({ x: b3.x - 1200, z: b3.z }), round(3, 204)).text, 'Emptied 3/8 · 204 letters · next 1.2 km', 'Geleert 3/8 · 204 Briefe · nächster 1.2 km');
+  says(empty.check(frame(), round(8, 868)).text, 'Emptied 8/8 · 868 letters', 'Geleert 8/8 · 868 Briefe');
+  const busy = Object.assign(round(3, 204), { emptying: { ...POST_BOXES[3], t: 0.4 * emptyS(POST_BOXES[3]) } });
+  says(empty.check(frame({ x: b3.x, z: b3.z }), busy).hint, 'Emptying … 40 %', 'Leeren … 40 %');
+  says(empty.check(frame(), Object.assign(round(7, 820), { atOffice: true })).text, '1 box left out (+45 s)', '1 Briefkasten ausgelassen (+45 s)');
+  says(empty.check(frame(), Object.assign(round(6, 700), { atOffice: true })).text, '2 boxes left out (+90 s)', '2 Briefkästen ausgelassen (+90 s)');
+  says(drop.check(frame({ x: POST_OFFICE.x, z: POST_OFFICE.z, dt: 0 }), Object.assign(round(8, 868), { atOffice: true, dropT: 0.75 * POST.dropS })).text, 'Handing over … 75 %', 'Übergabe … 75 %');
+  says(drop.check(frame({ x: POST_OFFICE.x - 340, z: POST_OFFICE.z }), round(8, 868)).text, 'To the post office · 340 m', 'Zur Poststelle · 340 m');
+  says(M.summary(Object.assign(round(7, 820), { missed: 1 }))[0], '7 of 8 post boxes emptied · 820 letters · 1 left out (+45 s)', '7 von 8 Briefkästen geleert · 820 Briefe · 1 ausgelassen (+45 s)');
+  says(M.summary(round(8, 868))[0], '8 of 8 post boxes emptied · 868 letters', '8 von 8 Briefkästen geleert · 868 Briefe');
+  // (the toast of the runtime, js/missions-post.js, is made the same way)
+  assert.match(readFileSync(new URL('../js/missions-post.js', import.meta.url), 'utf8'), /msg\('Emptied \{n\}\/\{of\}', 'Geleert \{n\}\/\{of\}'/);
   setLanguage('en');
+  assert.equal(t(M.summary(round(8, 868))[0]), '8 of 8 post boxes emptied · 868 letters');
 });

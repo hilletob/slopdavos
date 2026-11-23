@@ -9,7 +9,7 @@ import { createToast, particles } from './missions-kit.js';
 import { QUALITY } from './quality.js';
 import {
   ZAMBONI, createZamboniIce, resetZamboniIce, createMachine, stepMachine, stepConditioner, stepFilm, iceShare, bandShare,
-  puddleArea, machineWorld, inTunnel
+  puddleArea, machineWorld, inTunnel, iceText, knockText
 } from './missions-data-zamboni.js';
 import { el } from './dom.js';
 
@@ -298,7 +298,7 @@ const zamboni = {
     run.group.add(v.group);
     // the HUD: the ice done, the conditioner, the water and the snow tank
     const { hud, flash, big } = buildIceHud(run);
-    const ui = z.ui = { hud, flash, big, ice: el('span', null, 'Ice 0 %'), cond: el('span', null, 'Conditioner off') };
+    const ui = z.ui = { hud, flash, big, ice: el('span', null, iceText(0)), cond: el('span', null, 'Conditioner off') };
     ui.water = meter(); ui.snow = meter();
     for (const mt of [ui.water, ui.snow]) { mt.zone.style.display = 'none'; mt.needle.style.display = 'none'; mt.m.style.width = '110px'; }
     ui.water.fill.style.background = 'linear-gradient(90deg, #2f7fd8, #7cc4ff)';
@@ -405,7 +405,7 @@ const zamboni = {
     if (z.knock) {
       st.bumps = m.bumps;
       rinkSound(run, 'boards', 1);
-      z.toast.show(`Hard knock on the boards! −${ZAMBONI.points.bump}`, '#ff9e8a', 1.8);
+      z.toast.show(knockText(), '#ff9e8a', 1.8);
       z.knock = 0;
     }
     stepFilm(g, dt);
@@ -417,7 +417,7 @@ const zamboni = {
       z.shareT = 0.2;
       Object.assign(st, { ice: iceShare(g), band: bandShare(g), puddleM2: puddleArea(g), water: m.water, snow: m.snow, on: m.on, bumps: m.bumps });
       st.inTunnel = inTunnel(m.x, m.y);
-      const ui = z.ui, ice = `Ice ${Math.floor(st.ice * 100)} %`, cond = m.on ? 'Conditioner on' : 'Conditioner off';
+      const ui = z.ui, ice = iceText(st.ice), cond = m.on ? 'Conditioner on' : 'Conditioner off';
       if (ui.ice.textContent !== ice) ui.ice.textContent = ice;
       if (ui.cond.textContent !== cond) { ui.cond.textContent = cond; ui.cond.style.color = m.on ? '#5be08c' : '#ffc83d'; }
       ui.water.fill.style.width = `${m.water * 100}%`;

@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 // js/missions-data-mine.js
 // The Silberberg mine (js/missions-data.js lists its missions; js/missions-mine.js has their runtime: the adits'
 // portals in the world, the galleries inside, the lamp, the sounds): the definitions and the pure game behind them,
@@ -24,6 +25,20 @@
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapPi = (a) => { a %= Math.PI * 2; if (a > Math.PI) a -= Math.PI * 2; else if (a < -Math.PI) a += Math.PI * 2; return a; };
 const fmtClock = (s) => { const v = Math.max(0, Math.ceil(s)); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
+const kgText = (v) => `${Math.round(v * 10) / 10} kg`;
+// (the ores in German: in a line, and as a label)
+const ORE_DE = { galena: 'Bleiglanz', sphalerite: 'Zinkblende', barren: 'taubes Gestein' };
+const ORE_LABEL_DE = { galena: 'Bleiglanz', sphalerite: 'Zinkblende', barren: 'Taubes Gestein' };
+// The runtime's texts (js/missions-mine.js), made here in both languages
+/** The toast of a piece of ore into the basket */
+export const oreText = (kind, kg) => msg('+{kg} {ore}', (p) => `+${p.kg} ${ORE_DE[p.kind]}`, { kg: kgText(kg), ore: MINE.ores[kind].label.toLowerCase(), kind });
+/** The toast of the basket emptied into an ore bin */
+export const dumpText = (kg, pts) => msg('{kg} into the ore bin: +{pts} pts', '{kg} in den Erzkasten: +{pts} Pkt.', { kg: kgText(kg), pts: Math.round(pts) });
+/** The HUD's line: the basket, the way to the nearest bin, the points */
+export const basketText = (g, binDist) => msg('Basket {kg}/{max} kg · ore bin {d} m · {pts} pts', 'Korb {kg}/{max} kg · Erzkasten {d} m · {pts} Pkt.',
+  { kg: Math.round(g.basket.kg * 10) / 10, max: MINE.basket, d: Math.round(binDist ?? 0), pts: shiftScore(g) });
+/** The vein in reach: its ore, what is left in it */
+export const veinText = (v) => msg('{ore} · {kg} · hold Strike', (p) => `${ORE_LABEL_DE[p.kind]} · ${p.kg} · Zuschlagen halten`, { ore: MINE.ores[v.kind].label, kg: kgText(v.kg - v.mined), kind: v.kind });
 
 /** A small seeded random generator (mulberry32) */
 export function mineRandom(seed = 1) {
@@ -616,10 +631,12 @@ export const MINE_MISSION = {
   summary(state) {
     const g = state.shift;
     if (!g) return [];
-    const kg = (v) => `${Math.round(v * 10) / 10} kg`;
+    const kg = kgText;
     return [
-      `Mined: ${kg(g.ore.galena)} galena · ${kg(g.ore.sphalerite)} sphalerite · ${kg(g.ore.barren)} barren rock`,
-      g.over === 'dark' ? `The lamp went out inside${g.basket.kg ? `: ${kg(g.basket.kg)} in the basket stayed with you` : ''}.` : g.bonus ? `Out with ${fmtClock(g.lamp)} of oil left: +${g.bonus} pts` : `Out with ${fmtClock(g.lamp)} of oil left.`
+      msg('Mined: {a} galena · {b} sphalerite · {c} barren rock', 'Abgebaut: {a} Bleiglanz · {b} Zinkblende · {c} taubes Gestein', { a: kg(g.ore.galena), b: kg(g.ore.sphalerite), c: kg(g.ore.barren) }),
+      g.over === 'dark' ? (g.basket.kg ? msg('The lamp went out inside: {kg} in the basket stayed with you.', 'Die Lampe erlosch drinnen: {kg} im Korb blieben bei dir.', { kg: kg(g.basket.kg) })
+        : msg('The lamp went out inside.', 'Die Lampe erlosch drinnen.'))
+        : g.bonus ? msg('Out with {lamp} of oil left: +{pts} pts', 'Draussen mit {lamp} Öl übrig: +{pts} Pkt.', { lamp: fmtClock(g.lamp), pts: g.bonus }) : `Out with ${fmtClock(g.lamp)} of oil left.`
     ];
   },
   objectives: [
@@ -632,7 +649,7 @@ export const MINE_MISSION = {
       check(ctx, state) {
         const g = state.shift;
         if (!g) return { done: false, progress: 0, text: 'Lighting the lamp …', target: null, hint: null };
-        const text = `${shiftScore(g)} pts · basket ${Math.round(g.basket.kg * 10) / 10}/${MINE.basket} kg · lamp ${fmtClock(g.lamp)}`;
+        const text = msg('{pts} pts · basket {kg}/{max} kg · lamp {lamp}', '{pts} Pkt. · Korb {kg}/{max} kg · Lampe {lamp}', { pts: shiftScore(g), kg: Math.round(g.basket.kg * 10) / 10, max: MINE.basket, lamp: fmtClock(g.lamp) });
         const hint = g.lamp < MINE.lampLow ? 'The lamp is running low: get out!'
           : g.basket.kg >= MINE.basket - 1e-6 ? 'The basket is full: to an ore bin (under a lantern)'
           : g.target ? 'Hold Strike (E / Space) to break the ore'

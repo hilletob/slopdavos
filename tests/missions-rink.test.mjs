@@ -156,3 +156,32 @@ test('bots: flooding walking backwards in lanes and resurfacing in lanes make go
   assert.equal(medalFor(tPolish * 1000, RINK_MISSION.medals), 'gold', `${(tPolish / 60).toFixed(2)} min`);
   assert.ok(tPolish * 1000 > RINK_MISSION.medals.gold * 0.8, 'gold is not given away');
 });
+
+test('fresh ice speaks German: the ways to the hydrant and the machine, the flood, the resurfacing and the summary', async () => {
+  globalThis.Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+  globalThis.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4 };
+  globalThis.document ??= {
+    readyState: 'loading', addEventListener() {}, documentElement: { lang: 'en' },
+    body: { nodeType: 1, matches() { return false; }, closest() { return null; }, hasAttribute() { return false; } },
+    querySelectorAll() { return []; }, createTreeWalker() { return { nextNode() { return false; } }; }
+  };
+  globalThis.localStorage ??= { getItem() { return null; }, setItem() {} };
+  globalThis.window ??= { dispatchEvent() {} };
+  const { setLanguage, t } = await import('../js/i18n.js');
+  setLanguage('de');
+  const M = RINK_MISSION;
+  for (const s of [M.title, M.intro, M.finish, ...M.objectives.map((o) => o.title)]) assert.notEqual(t(s), s, s);
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const [hose, flood, machine, resurface] = M.objectives;
+  const st = M.createState();
+  says(hose.check(frame({ x: RINK.hydrant.x + 12, z: RINK.hydrant.z })).text, '12 m to the hydrant', '12 m bis zum Hydranten');
+  says(flood.check(frame({ x: 727, z: -1419 }), { ...st, flooded: 0.455 }).text, 'Ice flooded 45 % of 88 %', 'Eis geflutet: 45 % von 88 %');
+  says(flood.check(frame({ x: 727, z: -1419 }), { ...st, flooded: 0.455, prints: 7 }).text, 'Ice flooded 45 % of 88 % · 7 footprint cells', 'Eis geflutet: 45 % von 88 % · 7 Felder mit Fussabdrücken');
+  says(machine.check(frame({ x: RINK.machine.x, z: RINK.machine.z + 30 }), st).text, '30 m to the machine', '30 m bis zur Maschine');
+  says(resurface.check(frame({ mode: 'car', x: 727, z: -1419 }), { ...st, polished: 0.615 }).text, 'Ice resurfaced 61 % of 88 %', 'Eis geglättet: 61 % von 88 %');
+  says(M.summary({ ...st, printed: 1, polished: 0.935 })[0], '1 footprint flooded again · 93 % resurfaced', '1 Fussabdruck nochmals geflutet · 93 % geglättet');
+  says(M.summary({ ...st, printed: 3, polished: 0.935 })[0], '3 footprints flooded again · 93 % resurfaced', '3 Fussabdrücke nochmals geflutet · 93 % geglättet');
+  setLanguage('en');
+  assert.equal(t(M.summary({ ...st, printed: 3, polished: 0.935 })[0]), '3 footprints flooded again · 93 % resurfaced');
+});

@@ -26,6 +26,7 @@
 // A column counts as covered when the snow across it would make a layer of 20 cm over the Loipe's 3.5 m once spread.
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 import { MASK_MARGIN, MASK_TARGET, createGrid, makeRoute, routePoint, projectRoute, touch } from './missions-data-work.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const pct = (f) => `${Math.floor(f * 100)} %`;
@@ -315,7 +316,7 @@ export const SNOWFARM_MISSION = {
         if (tooLate(ctx)) return { done: false, fail: LATE, text: '', progress: null, target: null, hint: null };
         const P = SNOWFARM.pad;
         const hint = ctx.mode !== 'car' ? 'Back into the tipper' : state.loading ? 'The loader is filling the bed: stay put' : state.onPad ? null : 'Stop with the bed beside the heap';
-        return { done: state.loads >= 1, progress: state.load / SNOWFARM.capacity, text: `Bed ${pct(state.load / SNOWFARM.capacity)} full`, target: state.onPad ? null : { x: P.x, z: P.z, r: P.r, style: 'pad' }, hint };
+        return { done: state.loads >= 1, progress: state.load / SNOWFARM.capacity, text: msg('Bed {p} full', 'Brücke zu {p} voll', { p: pct(state.load / SNOWFARM.capacity) }), target: state.onPad ? null : { x: P.x, z: P.z, r: P.r, style: 'pad' }, hint };
       }
     },
     {
@@ -331,14 +332,16 @@ export const SNOWFARM_MISSION = {
         else if (state.loading) hint = 'The loader is filling the bed: stay put';
         else if (empty) hint = 'The bed is empty: back to the depot for another load';
         else if (state.piling) hint = 'Standing still: the snow piles up behind you';
-        else if (state.spreading && state.layer < SNOWFARM.coverDepth) hint = `Too fast: ${layerText(state.layer)}, that leaves a gap`;
-        else if (state.spreading && state.layer > 0.6) hint = `Too slow: ${layerText(state.layer)}, the load will run short`;
+        else if (state.spreading && state.layer < SNOWFARM.coverDepth) hint = msg('Too fast: {l}, that leaves a gap', 'Zu schnell: {l}, das gibt eine Lücke', { l: layerText(state.layer) });
+        else if (state.spreading && state.layer > 0.6) hint = msg('Too slow: {l}, the load will run short', 'Zu langsam: {l}, die Ladung reicht nicht', { l: layerText(state.layer) });
         else if (!state.spreading) hint = 'Hold Space: spread';
         // (the next gap: not the one right under the truck, where the marker would stand in the way)
         const gap = state.gap != null ? targetAt(state.gap) : null;
         const target = empty ? (state.onPad ? null : { x: P.x, z: P.z, r: P.r, style: 'pad' }) : gap && Math.hypot(gap.x - ctx.x, gap.z - ctx.z) > 25 ? gap : null;
-        const layer = state.spreading && Number.isFinite(state.layer) ? ` · layer ${layerText(state.layer)}` : '';
-        return { done: state.covered >= SNOWFARM.spreadGoal, progress: state.covered / SNOWFARM.spreadGoal, text: `Loipe covered ${pct(state.covered)} of ${pct(SNOWFARM.spreadGoal)} · bed ${pct(state.load / SNOWFARM.capacity)}${layer}`, target, hint };
+        const p = { a: pct(state.covered), b: pct(SNOWFARM.spreadGoal), c: pct(state.load / SNOWFARM.capacity), l: layerText(state.layer) };
+        const text = state.spreading && Number.isFinite(state.layer) ? msg('Loipe covered {a} of {b} · bed {c} · layer {l}', 'Loipe bedeckt: {a} von {b} · Brücke {c} · Schicht {l}', p)
+          : msg('Loipe covered {a} of {b} · bed {c}', 'Loipe bedeckt: {a} von {b} · Brücke {c}', p);
+        return { done: state.covered >= SNOWFARM.spreadGoal, progress: state.covered / SNOWFARM.spreadGoal, text, target, hint };
       }
     },
     {
@@ -348,7 +351,7 @@ export const SNOWFARM_MISSION = {
       check(ctx, state) {
         const C = SNOWFARM.snowcat;
         const hint = ctx.mode === 'car' ? 'F: get out of the tipper' : state.catDist < 6 ? 'F: get in' : null;
-        return { done: ctx.mode === 'snowcat', progress: null, text: `${Math.round(state.catDist)} m to the snowcat`, target: { x: C.x, z: C.z, r: 4 }, hint };
+        return { done: ctx.mode === 'snowcat', progress: null, text: msg('{d} m to the snowcat', '{d} m bis zum Pistenfahrzeug', { d: Math.round(state.catDist) }), target: { x: C.x, z: C.z, r: 4 }, hint };
       }
     },
     {
@@ -358,13 +361,16 @@ export const SNOWFARM_MISSION = {
       check(ctx, state) {
         if (tooLate(ctx)) return { done: false, fail: LATE, text: '', progress: null, target: null, hint: null };
         const hint = ctx.mode !== 'snowcat' ? 'Back into the snowcat' : ctx.tillerRaised || ctx.tillerLift > SNOWFARM.tiller.maxLift ? 'Lower the tiller [F]' : null;
-        return { done: state.groomed >= SNOWFARM.groomGoal, progress: state.groomed / SNOWFARM.groomGoal, text: `Loipe groomed ${pct(state.groomed)} of ${pct(SNOWFARM.groomGoal)}`, target: (() => { const u = state.ungroomed != null ? targetAt(state.ungroomed) : null; return u && Math.hypot(u.x - ctx.x, u.z - ctx.z) > 25 ? u : null; })(), hint };
+        return { done: state.groomed >= SNOWFARM.groomGoal, progress: state.groomed / SNOWFARM.groomGoal, text: msg('Loipe groomed {a} of {b}', 'Loipe präpariert: {a} von {b}', { a: pct(state.groomed), b: pct(SNOWFARM.groomGoal) }), target: (() => { const u = state.ungroomed != null ? targetAt(state.ungroomed) : null; return u && Math.hypot(u.x - ctx.x, u.z - ctx.z) > 25 ? u : null; })(), hint };
       }
     }
   ],
   summary(state) {
-    const loads = `${state.loads} load${state.loads === 1 ? '' : 's'}`;
-    return [`${loads} · Loipe covered ${pct(state.covered)} · groomed ${pct(state.groomed)}`, `${Math.round((100 * state.wasted) / Math.max(1, state.out))} % of the snow beside the Loipe`];
+    return [
+      msg('{n} load{s} · Loipe covered {a} · groomed {b}', (p) => `${p.n} ${p.n === 1 ? 'Fuhre' : 'Fuhren'} · Loipe bedeckt ${p.a} · präpariert ${p.b}`,
+        { n: state.loads, s: state.loads === 1 ? '' : 's', a: pct(state.covered), b: pct(state.groomed) }),
+      msg('{p} % of the snow beside the Loipe', '{p} % des Schnees neben der Loipe', { p: Math.round((100 * state.wasted) / Math.max(1, state.out)) })
+    ];
   }
 };
 

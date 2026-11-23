@@ -7,7 +7,7 @@ import { releaseVehicle } from './hijack.js';
 import { routePoint } from './missions-data-work.js';
 import {
   PLOUGH, PLOUGH_JOINTS, PLOUGH_JUNCTIONS, createPloughRoute, createPloughGrid, resetPloughGrid, createPoles, laneShare,
-  stepPlough, poleHits, jointCrossed, buriedJunction, boxesOverlap, roadPose, zoneAt, bladeGeometry
+  stepPlough, poleHits, jointCrossed, buriedJunction, boxesOverlap, roadPose, zoneAt, bladeGeometry, buriedText
 } from './missions-data-plough.js';
 
 // js/missions-plough.js
@@ -472,7 +472,7 @@ const plough = {
         if (!w.buriedNow.has(key) && running) {
           w.buriedNow.add(key);
           st.buried++; st.penaltyMs += P.buryMs;
-          w.toast.show(`You buried the mouth of ${buried.name}!`, '#ff8f80', 2.2);
+          w.toast.show(buriedText(buried.name), '#ff8f80', 2.2);
         }
       }
       // the snow poles

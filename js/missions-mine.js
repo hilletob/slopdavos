@@ -5,8 +5,8 @@ import { groundHeight } from './terrain.js';
 import { parseAdit, aditUrl } from './silberberg-asset.js';
 import { t } from './i18n.js';
 import {
-  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, stationPoint, mineSeedOfDay, shiftScore, nearestBin,
-  GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, GUIDE_CALLS, createGuide, stepGuide, answerQuiz
+  MINE, ADITS, TOUR_STATIONS, createMine, createShift, stepShift, createWalker, stepWalk, stationPoint, mineSeedOfDay, nearestBin,
+  GUIDE, GUIDE_SCRIPT, GUIDE_QUIZ, GUIDE_CALLS, createGuide, stepGuide, answerQuiz, oreText, dumpText, basketText, veinText
 } from './missions-data-mine.js';
 
 // js/missions-mine.js
@@ -831,17 +831,16 @@ const mineFeature = {
     if (!g) return;
     const events = [];
     while (left > 1e-6) { const h = Math.min(1 / 60, left); events.push(...stepShift(g, input, h)); left -= h; }
-    const kgs = (v) => `${Math.round(v * 10) / 10} kg`;
     for (const e of events) {
       if (e.type === 'ore') {
         const o = MINE.ores[e.kind];
-        mineFeature.toast(run, t(`+${kgs(e.kg)} ${o.label.toLowerCase()}`), e.kind === 'barren' ? '#d8d0c0' : o.colour, 1.3);
+        mineFeature.toast(run, t(oreText(e.kind, e.kg)), e.kind === 'barren' ? '#d8d0c0' : o.colour, 1.3);
         M.audio?.strike(e.kind);
         I.shake = 0.12;
         placeVeins(I.veins, I.mine);
       } else if (e.type === 'empty') placeVeins(I.veins, I.mine);
       else if (e.type === 'full') mineFeature.toast(run, t('The basket is full: to an ore bin'), '#ffd36b', 1.8);
-      else if (e.type === 'dump') { mineFeature.toast(run, t(`${kgs(e.kg)} into the ore bin: +${Math.round(e.pts)} pts`), '#7dffb0', 2); M.audio?.load(); run.hooks.flashPoints?.(Math.round(e.pts)); }
+      else if (e.type === 'dump') { mineFeature.toast(run, t(dumpText(e.kg, e.pts)), '#7dffb0', 2); M.audio?.load(); run.hooks.flashPoints?.(Math.round(e.pts)); }
       else if (e.type === 'exit') { if (e.bonus) run.hooks.flashPoints?.(e.bonus); }
       else if (e.type === 'low') mineFeature.toast(run, t('The lamp gutters: get out!'), '#ff8f80', 2.4);
       else if (e.type === 'dark') mineFeature.toast(run, t('The lamp has gone out'), '#ff8f80', 3);
@@ -853,10 +852,10 @@ const mineFeature = {
     M.oil.classList.toggle('is-low', g.lamp < MINE.lampLow);
     M.binT = (M.binT || 0) - dt;
     if (M.binT <= 0) { M.binT = 0.25; M.binDist = nearestBin(I.mine, g)?.dist; }
-    const hud = t(`Basket ${Math.round(g.basket.kg * 10) / 10}/${MINE.basket} kg · ore bin ${Math.round(M.binDist ?? 0)} m · ${shiftScore(g)} pts`);
+    const hud = t(basketText(g, M.binDist));
     if (M.basket.textContent !== hud) M.basket.textContent = hud;
     const v = g.target;
-    const label = v && !g.over ? t(`${MINE.ores[v.kind].label} · ${kgs(v.kg - v.mined)} · hold Strike`) : '';
+    const label = v && !g.over ? t(veinText(v)) : '';
     if (M.target.textContent !== label) M.target.textContent = label;
     M.target.style.opacity = label ? '1' : '0';
     if (v) M.target.style.color = v.kind === 'barren' ? '#e8e2d4' : MINE.ores[v.kind].colour;

@@ -2002,35 +2002,6 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
   dynamic = dynamic.replace(/^(\d+) of (\d+) shots down · (\d+) perfect moments · (\d+) (?:mishap|mishaps)$/, (_, a, b, c, n) => `${a} von ${b} Shots getrunken · ${c} perfekte Momente · ${n} ${n === '1' ? 'Panne' : 'Pannen'}`);
   dynamic = dynamic.replace(/^(\d+) rounds of flaming shots$/, '$1 Runden Flaming Shots');
-  // A shift at the Turmhotel Victoria (js/missions-data-victoria.js, js/missions-victoria.js)
-  {
-    const de = (x) => enToDe.get(x) || x;
-    dynamic = dynamic.replace(/^(Room 204|The tower suite) · (\d+) s · (-?\d+) pts$/, (_, room, sec, pts) => `${de(room)} · ${sec} s · ${pts} Pkt.`);
-    dynamic = dynamic.replace(/^(.+) are back soon\. Pick a chore$/, (_, who) => `${de(who)} kommen bald zurück. Wähl eine Arbeit`);
-    dynamic = dynamic.replace(/^(.+): scrub left, right, left …$/, (_, c) => `${de(c)}: links, rechts, links wischen …`);
-    dynamic = dynamic.replace(new RegExp(`^(.+): done${POP}$`), (_, c, tail) => `${de(c)}: erledigt${tail}`);
-    dynamic = dynamic.replace(/^The guest is back: (\d+) (?:chore|chores) undone$/, (_, n) => `Der Gast ist zurück: ${n} ${n === '1' ? 'Arbeit' : 'Arbeiten'} nicht erledigt`);
-    dynamic = dynamic.replace(new RegExp(`^Spotless! (\\d+) s to spare${POP}$`), 'Blitzblank! $1 s übrig$2');
-    dynamic = dynamic.replace(/^(Room 204|The tower suite): (\d+) of (\d+) chores$/, (_, room, a, b) => `${de(room)}: ${a} von ${b} Arbeiten`);
-    dynamic = dynamic.replace(/^(Room 204|The tower suite): (\d+) of (\d+) chores · (Room 204|The tower suite): (\d+) of (\d+) chores$/, (_, r1, a1, b1, r2, a2, b2) => `${de(r1)}: ${a1} von ${b1} Arbeiten · ${de(r2)}: ${a2} von ${b2} Arbeiten`); // (the summary: both rooms)
-    dynamic = dynamic.replace(/^Lunch service · (\d+) of (\d+) dishes · (-?\d+) pts$/, 'Mittagsservice · $1 von $2 Gerichten · $3 Pkt.');
-    dynamic = dynamic.replace(/^(\d+) of (\d+) dishes · (-?\d+) pts$/, '$1 von $2 Gerichten · $3 Pkt.');
-    dynamic = dynamic.replace(/^Burner (\d)$/, 'Platte $1').replace(/^Table (\d+): (.+)$/, 'Tisch $1: $2');
-    dynamic = dynamic.replace(new RegExp(`^(.+): perfect!${POP}$`), '$1: perfekt!$2').replace(new RegExp(`^(.+): nicely done${POP}$`), '$1: schön gelungen$2');
-    dynamic = dynamic.replace(new RegExp(`^(.+): still raw!${POP}$`), '$1: noch roh!$2').replace(new RegExp(`^(.+): a touch underdone${POP}$`), '$1: etwas zu wenig gar$2');
-    dynamic = dynamic.replace(new RegExp(`^(.+): rather dark${POP}$`), '$1: ziemlich dunkel$2').replace(new RegExp(`^(.+): burnt!${POP}$`), '$1: angebrannt!$2');
-    dynamic = dynamic.replace(new RegExp(`^Service! A quick lunch${POP}$`), 'Service! Ein schneller Mittag$1');
-    dynamic = dynamic.replace(/^(\d+) of (\d+) dishes served · (\d+) perfect · (\d+) burnt$/, '$1 von $2 Gerichten serviert · $3 perfekt · $4 angebrannt');
-    dynamic = dynamic.replace(/^Sorting · item (\d+) of (\d+) · (-?\d+) pts$/, 'Sortieren · Stück $1 von $2 · $3 Pkt.').replace(/^Item (\d+) of (\d+) · (-?\d+) pts$/, 'Stück $1 von $2 · $3 Pkt.');
-    dynamic = dynamic.replace(/^The mangle · sheet (\d+) of (\d+) · (-?\d+) pts$/, 'Die Mangel · Leintuch $1 von $2 · $3 Pkt.').replace(/^Sheet (\d+) of (\d+) · (-?\d+) pts$/, 'Leintuch $1 von $2 · $3 Pkt.');
-    dynamic = dynamic.replace(new RegExp(`^Whites${POP}$`), 'Weisses$1').replace(new RegExp(`^Colours${POP}$`), 'Buntes$1');
-    dynamic = dynamic.replace(new RegExp(`^(.+) in the colours: it comes out grey${POP}$`), (_, it, tail) => `${de(it)} in der Buntwäsche: kommt grau heraus${tail}`);
-    dynamic = dynamic.replace(new RegExp(`^(.+) in the whites: pink sheets!${POP}$`), (_, it, tail) => `${de(it)} in der Weisswäsche: rosa Leintücher!${tail}`);
-    dynamic = dynamic.replace(new RegExp(`^(.+): on the floor${POP}$`), (_, it, tail) => `${de(it)}: auf dem Boden${tail}`);
-    dynamic = dynamic.replace(new RegExp(`^Crisp and smooth!${POP}$`), 'Glatt und frisch!$1').replace(new RegExp(`^Crisp, if pink${POP}$`), 'Glatt, wenn auch rosa$1');
-    dynamic = dynamic.replace(new RegExp(`^(A crease or two|Creased all over|Caught in the rollers!)${POP}$`), (_, w, tail) => `${de(w)}${tail}`);
-    dynamic = dynamic.replace(/^(\d+) of (\d+) sorted right · (\d+) of (\d+) sheets crisp( · pink sheets)?$/, (_, a, b, c, d, pink) => `${a} von ${b} richtig sortiert · ${c} von ${d} Leintüchern glatt${pink ? ' · rosa Leintücher' : ''}`);
-  }
   // the fun and sport missions' HUDs (js/missions-fun.js, js/missions-sport.js, their data): the table football, the
   // cabin, the RhB's cab, Davos Nordic, the minigolf, the darts, the bowl
   {
@@ -2145,39 +2116,7 @@ function translate(value) {
   dynamic = dynamic.replace(/^Reto is buried! Signal: ([\d.]+) m$/, (_, d) => `Reto ist verschüttet! Signal: ${d} m`);
   dynamic = dynamic.replace(/^Wait for Reto: (\d+) m behind$/, 'Auf Reto warten: $1 m zurück').replace(/^Reto: (\d+) m behind$/, 'Reto: $1 m zurück');
   dynamic = dynamic.replace(/^(\d+) of (\d+) gates · (\d+) missed( \(\+[\d.]+ s\))? · top speed (\d+) km\/h$/, '$1 von $2 Toren · $3 verpasst$4 · Höchsttempo $5 km/h');
-  // the snow plough over the Wolfgang (js/missions-data-plough.js)
-  dynamic = dynamic.replace(/^To the (Passhöhe|Seegalerie): (.+) · lane cleared (.+) of (.+)$/, (_, w, d, a, b) => `Bis zur ${w}: ${d} · Spur geräumt: ${a} von ${b}`);
-  const ploughPlace = (n) => ({ 'the old Prättigauerstrasse': 'alte Prättigauerstrasse', 'the filling station': 'Tankstelle' }[n] || n);
-  dynamic = dynamic.replace(/^(.+) ahead on your throw side: F lifts the blade past it$/, (_, n) => `Einmündung ${ploughPlace(n)} voraus auf der Wurfseite: F hebt die Pflugschar`);
-  dynamic = dynamic.replace(/^You buried the mouth of (.+)!$/, (_, n) => `Einmündung ${ploughPlace(n)} zugeschüttet!`);
-  dynamic = dynamic.replace(/^Up (.+) · down (.+) cleared$/, 'Hinauf $1 · hinunter $2 geräumt');
-  if (/snow poles? \(|cars? hit \(|bridge joints? \(|side roads? buried|snow on the road \d|too fast by the houses/.test(dynamic)) {
-    dynamic = dynamic
-      .replace(/(^| · )(\d+) snow poles? \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Schneestange' : 'Schneestangen'} (+${s} s)`)
-      .replace(/(^| · )(\d+) cars? hit \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Auto' : 'Autos'} angefahren (+${s} s)`)
-      .replace(/(^| · )(\d+) bridge joints? \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Brückenfuge' : 'Brückenfugen'} (+${s} s)`)
-      .replace(/(^| · )(\d+) side roads? buried \(\+(\d+) s\)/, (_, a, n, s) => `${a}${n} ${n === '1' ? 'Einmündung' : 'Einmündungen'} zugeschüttet (+${s} s)`)
-      .replace(/(^| · )snow on the road (\d+) s \(\+(\d+) s\)/, '$1Schnee auf der Fahrbahn $2 s (+$3 s)')
-      .replace(/(^| · )too fast by the houses (\d+) s \(\+(\d+) s\)/, '$1zu schnell bei den Häusern $2 s (+$3 s)');
-  }
-  // the snowfarming Loipe (js/missions-data-snowfarm.js)
-  dynamic = dynamic.replace(/^Bed (\d+ %) full$/, 'Brücke zu $1 voll').replace(/^(\d+) m to the snowcat$/, '$1 m bis zum Pistenfahrzeug');
-  dynamic = dynamic.replace(/^Loipe covered (.+?) of (.+?) · bed (\d+ %)( · layer (\d+) cm)?$/, (_, a, b, c, _l, n) => `Loipe bedeckt: ${a} von ${b} · Brücke ${c}${n ? ` · Schicht ${n} cm` : ''}`);
-  dynamic = dynamic.replace(/^Too fast: (\d+) cm, that leaves a gap$/, 'Zu schnell: $1 cm, das gibt eine Lücke').replace(/^Too slow: (\d+) cm, the load will run short$/, 'Zu langsam: $1 cm, die Ladung reicht nicht');
-  dynamic = dynamic.replace(/^Loipe groomed (.+) of (.+)$/, 'Loipe präpariert: $1 von $2');
-  dynamic = dynamic.replace(/^(\d+) loads? · Loipe covered (.+) · groomed (.+)$/, (_, n, a, b) => `${n} ${n === '1' ? 'Fuhre' : 'Fuhren'} · Loipe bedeckt ${a} · präpariert ${b}`);
-  dynamic = dynamic.replace(/^(\d+ %) of the snow beside the Loipe$/, '$1 des Schnees neben der Loipe');
-  // fresh ice on the Seehofseeli (js/missions-data-rink.js)
-  dynamic = dynamic.replace(/^(\d+) m to the hydrant$/, '$1 m bis zum Hydranten').replace(/^(\d+) m to the machine$/, '$1 m bis zur Maschine');
-  dynamic = dynamic.replace(/^Ice flooded (.+?) of (.+?)( · (\d+) footprint cells)?$/, (_, a, b, _x, n) => `Eis geflutet: ${a} von ${b}${n ? ` · ${n} Felder mit Fussabdrücken` : ''}`);
-  dynamic = dynamic.replace(/^Ice resurfaced (.+) of (.+)$/, 'Eis geglättet: $1 von $2');
-  dynamic = dynamic.replace(/^(\d+) footprints? flooded again · (.+) resurfaced$/, (_, n, p) => `${n} Fussabdr${n === '1' ? 'uck' : 'ücke'} nochmals geflutet · ${p} geglättet`);
-  // the ice resurfacer in the Eisstadion (js/missions-data-zamboni.js, js/missions-zamboni.js)
-  dynamic = dynamic.replace(/^Along the boards (\d+ %) of (\d+ %) · (\d+:\d\d) left$/, 'Der Bande entlang $1 von $2 · noch $3');
-  dynamic = dynamic.replace(/^Ice (\d+ %) of (\d+ %) · water (\d+ %) · (\d+:\d\d) left$/, 'Eis $1 von $2 · Wasser $3 · noch $4');
-  dynamic = dynamic.replace(/^(\d+) m to the gate · (\d+:\d\d) left$/, '$1 m bis zum Tor · noch $2').replace(/^Ice (\d+ %)$/, 'Eis $1');
-  dynamic = dynamic.replace(/^Hard knock on the boards! −(\d+)$/, 'Harter Schlag an die Bande! −$1');
-  dynamic = dynamic.replace(/^(\d+ %) of the ice resurfaced · (\d+) hard knocks? · (\d+) m² of puddles · water left (\d+ %)$/, (_, a, n, m, w) => `${a} des Eises geglättet · ${n} ${n === '1' ? 'harter Schlag' : 'harte Schläge'} · ${m} m² Pfützen · Wasser übrig ${w}`);
+  // the rope park and the hockey on the Seehofseeli, then generic lines (the loading screen, the map, the vehicles, the missions)
   dynamic = dynamic.replace(/^Clip your carabiners: Space \((\d)\/2\)$/, 'Karabiner einhängen: Space ($1/2)');
   dynamic = dynamic.replace(/^Carabiners (\d)\/2$/, 'Karabiner $1/2');
   dynamic = dynamic.replace(/^(\d+) (?:fall|falls) · (\d+) forgotten · (mattress at full speed|soft landing)$/, (_, a, b, c) => `${a} ${a === '1' ? 'Sturz' : 'Stürze'} · ${b} vergessen · ${c === 'soft landing' ? 'weiche Landung' : 'mit vollem Tempo in die Matte'}`);
@@ -2226,17 +2165,10 @@ function translate(value) {
   dynamic = dynamic.replace(/^Next stop (.+)$/, 'Nächster Halt: $1');
   dynamic = dynamic.replace(/^(\d+) of (\d+) rolled · (\d+) pts$/, '$1 von $2 gerollt · $3 Pkt.');
   dynamic = dynamic.replace(/^(\d+) pts · (\d+) plates · (.+)$/, '$1 Pkt. · $2 Teller · $3');
-  // the rural missions (js/missions-data-rural.js)
-  dynamic = dynamic.replace(/^Gate (\d+\/\d+)(?: · ([\d,.]+ (?:m|km)))?(?: · (\d+) clean (?:jump|jumps))?$/, (_, gate, dist, jumps) => `Tor ${gate}${dist ? ` · ${dist}` : ''}${jumps ? ` · ${jumps} ${jumps === '1' ? 'sauberer Sprung' : 'saubere Sprünge'}` : ''}`);
-  dynamic = dynamic.replace(/^Air time ([\d.]+) s: -([\d.]+) s$/, 'Flugzeit $1 s: -$2 s');
-  dynamic = dynamic.replace(/^(\d+) clean (?:jump|jumps) \(-([\d.]+) s\) · (\d+) mud and snow (?:patch|patches) crossed$/, (_, n, s, p) => `${n} ${n === '1' ? 'sauberer Sprung' : 'saubere Sprünge'} (-${s} s) · ${p} Schlamm- und Schneefelder durchquert`);
-  dynamic = dynamic.replace(/^Barrels (\d+\/\d+) · load (\d+) %(?: · next (.+))?$/, (_, n, l, next) => `Fässer ${n} · Ladung ${l} %${next ? ` · nächstes ${next}` : ''}`);
-  dynamic = dynamic.replace(/^Barrel up: (\d+) on the bed$/, 'Fass oben: $1 auf der Ladefläche');
-  dynamic = dynamic.replace(/^Loading … (\d+) % · Space: reject the barrel$/, 'Laden … $1 % · Leertaste: Fass stehen lassen');
-  dynamic = dynamic.replace(/^To the hopper · (.+)$/, 'Zum Annahmebunker · $1');
+  // the rural missions (js/missions-data-rural.js makes its texts with msg(); left here: the bare gate count, which the
+  // splitboard's descent shows too, and the unloading, which the garbage round shows too)
+  dynamic = dynamic.replace(/^Gate (\d+\/\d+)$/, 'Tor $1');
   dynamic = dynamic.replace(/^Unloading … (\d+) %$/, 'Abladen … $1 %');
-  dynamic = dynamic.replace(/^That one was clean: (-?\d+) pts$/, 'Die war sauber: $1 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) clean barrels · (\d+) of 2 plastic barrels rejected(?: · (\d+) clean left behind)?(?: · (\d+) left out)?$/, (_, a, b, c, d) => `${a} saubere Fässer · ${b} von 2 Plastik-Fässern stehen gelassen${c ? ` · ${c} saubere stehen gelassen` : ''}${d ? ` · ${d} ausgelassen` : ''}`);
   dynamic = dynamic.replace(/^Path cleared (.+) of (.+)$/, 'Weg geräumt: $1 von $2');
   dynamic = dynamic.replace(/^Road cleared (.+) of (.+)$/, 'Strasse geräumt: $1 von $2');
   dynamic = dynamic.replace(/^Lawn mown (.+) of (.+)$/, 'Rasen gemäht: $1 von $2');
@@ -2276,32 +2208,11 @@ function translate(value) {
   dynamic = dynamic.replace(/^(\d+) parked cars? hit \(\+([\d.]+) s\) · cars buried for (\d+) s \(\+(\d+) s\)$/, (_, n, a, b, c) => `${n} ${plural(n, 'parkiertes Auto', 'parkierte Autos')} getroffen (+${a} s) · Autos ${b} s lang zugeschüttet (+${c} s)`);
   dynamic = dynamic.replace(/^(\d+) bed patch(?:es)? trodden \(\+([\d.]+) s\)$/, (_, n, a) => `${n} ${plural(n, 'Beet', 'Beete')} zertrampelt (+${a} s)`);
   dynamic = dynamic.replace(/^(\d+) of (\d+) collection points emptied(?: · (\d+) left out \(\+([\d.]+) s\))?$/, (_, a, b, c, d) => `${a} von ${b} Sammelstellen geleert${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
-  // the postman's round (js/missions-data-post.js)
-  {
-    dynamic = dynamic
-      .replace(/^Emptied (\d+\/\d+) · (\d+) letters(?: · next (.+))?$/, (_, n, l, d) => `Geleert ${n} · ${l} Briefe${d ? ` · nächster ${d}` : ''}`)
-      .replace(/^Emptied (\d+\/\d+)$/, 'Geleert $1')
-      .replace(/^Emptying … (\d+) %$/, 'Leeren … $1 %')
-      .replace(/^(\d+) box(?:es)? left out \(\+(\d+) s\)$/, (_, n, s) => `${n} ${plural(n, 'Briefkasten', 'Briefkästen')} ausgelassen (+${s} s)`)
-      .replace(/^To the post office · (.+)$/, (_, d) => `Zur Poststelle · ${d}`)
-      .replace(/^(\d+) of (\d+) post boxes emptied · (\d+) letters(?: · (\d+) left out \(\+(\d+) s\))?$/, (_, a, b, l, c, d) => `${a} von ${b} Briefkästen geleert · ${l} Briefe${c ? ` · ${c} ausgelassen (+${d} s)` : ''}`);
-  }
   dynamic = dynamic.replace(/^(\d+) sprigs · (\d+) bush(?:es)? damaged · into the reserve (\d+)×$/, (_, a, b, c) => `${a} Zweige · ${b} ${plural(b, 'Strauch', 'Sträucher')} beschädigt · ${c}× ins Schutzgebiet`);
   dynamic = dynamic.replace(/^(\d+) edible · (\d+) thrown out(?: \((\d+) poisonous!\))?$/, (_, a, b, c) => `${a} essbar · ${b} weggeworfen${c ? ` (${c} giftig!)` : ''}`);
   dynamic = dynamic.replace(/^Brought out: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock in (\d+) trips?$/, (_, a, b, c, n) => `Herausgebracht: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein in ${n} ${plural(n, 'Fahrt', 'Fahrten')}`);
   dynamic = dynamic.replace(/^The lamp went out: ([\d.]+) kg of ore stayed inside\.$/, 'Die Lampe ging aus: $1 kg Erz blieben drinnen.');
   dynamic = dynamic.replace(/^Out with (.+) of oil left\.$/, 'Draussen, mit $1 Öl übrig.');
-  // (the Silberberg's ore shift)
-  const oreDe = { galena: 'Bleiglanz', sphalerite: 'Zinkblende', 'barren rock': 'taubes Gestein', Galena: 'Bleiglanz', Sphalerite: 'Zinkblende', 'Barren rock': 'Taubes Gestein' };
-  dynamic = dynamic.replace(/^Mined: ([\d.]+) kg galena · ([\d.]+) kg sphalerite · ([\d.]+) kg barren rock$/, (_, a, b, c) => `Abgebaut: ${a} kg Bleiglanz · ${b} kg Zinkblende · ${c} kg taubes Gestein`);
-  dynamic = dynamic.replace(/^The lamp went out inside: ([\d.]+) kg in the basket stayed with you\.$/, (_, a) => `Die Lampe erlosch drinnen: ${a} kg im Korb blieben bei dir.`);
-  dynamic = dynamic.replace(/^The lamp went out inside\.$/, 'Die Lampe erlosch drinnen.');
-  dynamic = dynamic.replace(/^Out with (\d+:\d\d) of oil left: \+(\d+) pts$/, 'Draussen mit $1 Öl übrig: +$2 Pkt.');
-  dynamic = dynamic.replace(/^(\d+) pts · basket ([\d.]+)\/(\d+) kg · lamp (\d+:\d\d)$/, (_, p, b, m, l) => `${p} Pkt. · Korb ${b}/${m} kg · Lampe ${l}`);
-  dynamic = dynamic.replace(/^Basket ([\d.]+)\/(\d+) kg · ore bin (\d+) m · (\d+) pts$/, (_, b, m, d, p) => `Korb ${b}/${m} kg · Erzkasten ${d} m · ${p} Pkt.`);
-  dynamic = dynamic.replace(/^\+([\d.]+) kg (galena|sphalerite|barren rock)$/, (_, k, o) => `+${k} kg ${oreDe[o]}`);
-  dynamic = dynamic.replace(/^([\d.]+) kg into the ore bin: \+(\d+) pts$/, (_, k, p) => `${k} kg in den Erzkasten: +${p} Pkt.`);
-  dynamic = dynamic.replace(/^(Galena|Sphalerite|Barren rock) · ([\d.]+) kg · hold Strike$/, (_, o, k) => `${oreDe[o]} · ${k} kg · Zuschlagen halten`);
   dynamic = dynamic.replace(/^(\d+) perfect · (\d+) good · (\d+) missed · best streak (\d+)$/, '$1 perfekt · $2 gut · $3 verpasst · beste Serie $4');
   dynamic = dynamic.replace(/^Final score (\d+) : (\d+) after (.+) · (\d+) shots$/, 'Schlussstand $1 : $2 nach $3 · $4 Schüsse');
   dynamic = dynamic.replace(/^(.+): missed$/, '$1: verpasst');

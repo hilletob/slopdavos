@@ -4,6 +4,7 @@ import { painted, createHelper } from './missions-props.js';
 import { VEHICLES, holdButton, createToast, particles, lump } from './missions-kit.js';
 import { BODY_SPECS, buildCarGeometry, buildSteerableWheelGeo, createLoftedCarMaterial } from './actor-models.js';
 import { stepPost } from './missions-data-post.js';
+import { msg } from './messages.js';
 
 // js/missions-post.js
 // The runtime of the postman's round (js/missions-data-post.js has its definition and logic; js/missions.js takes
@@ -217,7 +218,7 @@ const postRound = {
         }
       }
     }
-    if (ev === 'emptied') { w.toast.show(`Emptied ${st.emptied}/${st.boxes.length}`, '#ffd84a', 1.3); }
+    if (ev === 'emptied') { w.toast.show(msg('Emptied {n}/{of}', 'Geleert {n}/{of}', { n: st.emptied, of: st.boxes.length }), '#ffd84a', 1.3); }
     w.toast.update(dt);
   }
 };

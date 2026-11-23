@@ -7,7 +7,8 @@ import { BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo
 import { QUAD_MODEL, QUAD_PAINTS, createQuad, setQuadLamps } from './quad.js';
 import {
   QUAD, QUAD_BUMPS, QUAD_PATCHES, QUAD_ROUTE, QUAD_GATE_LIST, quadNextGate, bumpAt, stepQuad,
-  BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_ROUTE, bioLoad, rejectBarrel, stopAtBed, stepBioStops
+  BIO, BIO_PLANT, BIO_HOPPER, BIO_DIGESTERS, BIO_BARREL, BIO_BED, BIO_BED_SLOTS, BIO_ROUTE, bioLoad, rejectBarrel, stopAtBed, stepBioStops,
+  airTimeText, wrongRejectText, barrelUpText
 } from './missions-data-rural.js';
 
 // js/missions-rural.js
@@ -279,7 +280,7 @@ const quadCourse = {
         car.heaveVel = (car.heaveVel || 0) - 1.8 * hard;
         car.pitchVel = (car.pitchVel || 0) + 1.3 * hard;
         run.audio?.thump?.();
-        if (st.cleanLanding) q.toast.show(`Air time ${st.lastAir.toFixed(1)} s: -${QUAD.airBonusMs / 1000} s`, '#ffd76a', 1.2);
+        if (st.cleanLanding) q.toast.show(airTimeText(st.lastAir), '#ffd76a', 1.2);
       }
       if (st.surface && Math.abs(car.speed) > 2) quadCourse.spray(run, car, st.surface, dt);
     }
@@ -660,14 +661,14 @@ const bioRound = {
     if (!stopAtBed(st, b.truck)) { toast.show('Stop with the load bed beside a barrel first', '#ffd76a', 1.2); return; }
     const r = rejectBarrel(st, b.truck);
     if (r === 'rejected') toast.show('Plastic! The barrel stays behind', '#c8f7a0', 1.6);
-    else if (r === 'wrong') toast.show(`That one was clean: ${BIO.points.wrongReject} pts`, '#ff8f80', 1.6);
+    else if (r === 'wrong') toast.show(wrongRejectText(), '#ff8f80', 1.6);
   },
   update(run, ctx, dt, cm) {
     const b = run.bio, st = run.state, car = cm.entities.car, toast = b.toast;
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
     b.truck = { x: car.position.x, z: car.position.z, heading: car.heading, speed: car.speed || 0 };
     const live = run.phase === 'ready' || run.phase === 'running';
-    if (live && ctx.mode === 'car' && run.index === 0 && stepBioStops(st, b.truck, dt) === 'loaded') toast.show(`Barrel up: ${st.collected} on the bed`, '#c8f7a0', 1.2);
+    if (live && ctx.mode === 'car' && run.index === 0 && stepBioStops(st, b.truck, dt) === 'loaded') toast.show(barrelUpText(st.collected), '#c8f7a0', 1.2);
     if (st.justSpoiled) { st.justSpoiled = false; toast.show('Plastic in the load! The batch is spoiled', '#ff8f80', 2.4); run.audio?.thump?.(); }
     const load = bioLoad(st);
     // the gauge follows the barrels on the bed, and the village has its say

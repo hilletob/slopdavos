@@ -45,32 +45,67 @@ test('language switch updates document language, controls and saved preference',
   assert.equal(buttons[0].pressed, 'true');
 });
 
-test('the Victoria shift translates its steps, rooms, pops and summaries', () => {
+test('the Victoria shift translates its steps, rooms, pops and summaries', async () => {
+  const V = await import('../js/missions-data-victoria.js');
   setLanguage('de');
   assert.equal(t('A shift at the Turmhotel Victoria'), 'Eine Schicht im Turmhotel Victoria');
   assert.match(t('A busy day at the Turmhotel Victoria in Davos Dorf, and half the staff is down with the flu.'), /^Viel los im Turmhotel Victoria/);
   assert.equal(t('12 m to the Turmhotel Victoria'), '12 m bis zum Turmhotel Victoria');
   assert.equal(t('Get out (F) and walk into the Turmhotel Victoria'), 'Steig aus (F) und geh ins Turmhotel Victoria');
-  assert.equal(t('Room 204 · 12 s · 180 pts'), 'Zimmer 204 · 12 s · 180 Pkt.');
-  assert.equal(t('The Müllers from Basel are back soon. Pick a chore'), 'Die Müllers aus Basel kommen bald zurück. Wähl eine Arbeit');
-  assert.equal(t('Fresh towels: done  +60'), 'Frische Tücher: erledigt  +60');
-  assert.equal(t('Make the bed: scrub left, right, left …'), 'Bett machen: links, rechts, links wischen …');
-  assert.equal(t('Spotless! 7 s to spare  +170'), 'Blitzblank! 7 s übrig  +170');
-  assert.equal(t('The guest is back: 2 chores undone'), 'Der Gast ist zurück: 2 Arbeiten nicht erledigt');
-  assert.equal(t('Lunch service · 2 of 8 dishes · 100 pts'), 'Mittagsservice · 2 von 8 Gerichten · 100 Pkt.');
-  assert.equal(t('Capuns: perfect!  +118'), 'Capuns: perfekt!  +118');
-  assert.equal(t('Rösti: burnt!  -40'), 'Rösti: angebrannt!  -40');
-  assert.equal(t('Table 5: Capuns'), 'Tisch 5: Capuns');
-  assert.equal(t('Burner 2'), 'Platte 2');
-  assert.equal(t('Sorting · item 1 of 12 · 248 pts'), 'Sortieren · Stück 1 von 12 · 248 Pkt.');
-  assert.equal(t('Red napkin in the whites: pink sheets!  -40'), 'Rote Serviette in der Weisswäsche: rosa Leintücher!  -40');
-  assert.equal(t('Bed sheet: on the floor  -10'), 'Leintuch: auf dem Boden  -10');
-  assert.equal(t('Caught in the rollers!  -40'), 'In die Walze geraten!  -40');
-  assert.equal(t('Whites  +28'), 'Weisses  +28');
-  assert.equal(t('The tower suite: 5 of 7 chores'), 'Die Turmsuite: 5 von 7 Arbeiten');
-  assert.equal(t('7 of 8 dishes served · 5 perfect · 1 burnt'), '7 von 8 Gerichten serviert · 5 perfekt · 1 angebrannt');
-  assert.equal(t('11 of 12 sorted right · 3 of 5 sheets crisp · pink sheets'), '11 von 12 richtig sortiert · 3 von 5 Leintüchern glatt · rosa Leintücher');
+  // (its moving texts are made with msg(), js/messages.js: made by the games, then translated; a pop is the line said
+  // with its points, as js/missions-victoria.js gives it to flashPop)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const pop = (g) => V.popOf(g.last).text;
+  const [room204] = V.HOUSEKEEPING.rooms;
+  says(V.roomLine(room204.name, 11.4, 180), 'Room 204 · 12 s · 180 pts', 'Zimmer 204 · 12 s · 180 Pkt.');
+  says(V.backSoonLine(room204), 'The Müllers from Basel are back soon. Pick a chore', 'Die Müllers aus Basel kommen bald zurück. Wähl eine Arbeit');
+  const hk = V.createHousekeeping();
+  V.hkPick(hk, 'towels');
+  for (let i = 0; i < V.CHORES.towels.strokes; i++) V.hkStroke(hk, i % 2 ? 1 : -1);
+  says(pop(hk), 'Fresh towels: done  +60', 'Frische Tücher: erledigt  +60');
+  says(V.scrubLine('bed'), 'Make the bed: scrub left, right, left …', 'Bett machen: links, rechts, links wischen …');
+  const spotless = Object.assign(V.createHousekeeping(), { done: ['bed', 'towels', 'bath', 'mirror', 'bin'], left: 7 });
+  V.hkPick(spotless, 'chocolate');
+  V.hkStroke(spotless, -1); V.hkStroke(spotless, 1);
+  says(pop(spotless), 'Spotless! 7 s to spare  +170', 'Blitzblank! 7 s übrig  +170');
+  const late = Object.assign(V.createHousekeeping(), { done: ['bed', 'towels', 'bath', 'mirror'], left: 0.05 });
+  V.hkStep(late, 0.1);
+  says(pop(late), 'The guest is back: 2 chores undone', 'Der Gast ist zurück: 2 Arbeiten nicht erledigt');
+  const lateOne = Object.assign(V.createHousekeeping(), { done: ['bed', 'towels', 'bath', 'mirror', 'bin'], left: 0.05 });
+  V.hkStep(lateOne, 0.1);
+  says(pop(lateOne), 'The guest is back: 1 chore undone', 'Der Gast ist zurück: 1 Arbeit nicht erledigt');
+  says(V.kitchenLine({ served: [{}, {}] }, 100), 'Lunch service · 2 of 8 dishes · 100 pts', 'Mittagsservice · 2 von 8 Gerichten · 100 Pkt.');
+  const kitchen = V.createKitchen();
+  kitchen.pans[0] = { order: 3, d: 1.0137, cook: 11 };
+  V.kitchenPress(kitchen, 0);
+  says(pop(kitchen), 'Capuns: perfect!  +118', 'Capuns: perfekt!  +118');
+  kitchen.pans[0] = { order: 0, d: 1.395, cook: 8.5 };
+  V.kitchenStep(kitchen, 0.1);
+  says(pop(kitchen), 'Rösti: burnt!  -40', 'Rösti: angebrannt!  -40');
+  says(V.tableLine(3), 'Table 5: Capuns', 'Tisch 5: Capuns');
+  says(V.burnerLabel(2), 'Burner 2', 'Platte 2');
+  says(V.sortLine({ item: 0 }, 248), 'Sorting · item 1 of 12 · 248 pts', 'Sortieren · Stück 1 von 12 · 248 Pkt.');
+  const laundry = Object.assign(V.createLaundry(), { item: 1 });
+  V.laundrySort(laundry, -1);
+  says(pop(laundry), 'Red napkin in the whites: pink sheets!  -40', 'Rote Serviette in der Weisswäsche: rosa Leintücher!  -40');
+  const floor = V.createLaundry();
+  V.laundryStep(floor, V.sortWindow(floor) + 0.01);
+  says(pop(floor), 'Bed sheet: on the floor  -10', 'Leintuch: auf dem Boden  -10');
+  const jam = Object.assign(V.createLaundry(), { phase: 'mangle', off: V.LAUNDRY.jam + 0.1 });
+  V.laundryStep(jam, 0.001);
+  says(pop(jam), 'Caught in the rollers!  -40', 'In die Walze geraten!  -40');
+  const whites = Object.assign(V.createLaundry(), { itemT: 0.2 * V.LAUNDRY.sortTime[0] });
+  V.laundrySort(whites, -1);
+  says(pop(whites), 'Whites  +28', 'Weisses  +28');
+  const M = V.VICTORIA_MISSION;
+  says(M.summary({ hk: { results: [{ room: 'The tower suite', done: 5, of: 7 }] } })[0], 'The tower suite: 5 of 7 chores', 'Die Turmsuite: 5 von 7 Arbeiten');
+  const served = [...Array(7).fill({ burnt: false }), { burnt: true }];
+  says(M.summary({ kitchen: { served, perfect: 5, burnt: 1 } })[0], '7 of 8 dishes served · 5 perfect · 1 burnt', '7 von 8 Gerichten serviert · 5 perfekt · 1 angebrannt');
+  const sorted = [...Array(11).fill({ ok: true }), { ok: false }], sheets = [0.95, 0.92, 0.97, 0.7, 0].map((quality) => ({ quality }));
+  says(M.summary({ laundry: { sorted, sheets, pink: true } })[0], '11 of 12 sorted right · 3 of 5 sheets crisp · pink sheets', '11 von 12 richtig sortiert · 3 von 5 Leintüchern glatt · rosa Leintücher');
+  // and back in English, English again
   setLanguage('en');
+  assert.equal(t(pop(whites)), 'Whites  +28');
 });
 
 test('the bar missions translate names, intros and generated texts', () => {
@@ -125,19 +160,44 @@ test('the expert missions translate names, intros, generated texts and every tex
   for (const text of texts) if (!same.has(text)) assert.notEqual(t(text), text, `"${text}" has its German`);
 });
 
-test('the rural missions translate names, intros and generated texts', () => {
+test('the rural missions translate names, intros and generated texts', async () => {
+  const R = await import('../js/missions-data-rural.js');
   setLanguage('de');
   assert.equal(t('Quad ride from Heldstab'), 'Quadfahrt ab Heldstab');
   assert.equal(t('Green waste to the biogas plant'), 'Bioabfall zur Biogasanlage');
   assert.match(t('Heldstab AG on the Bahnhofstrasse in Davos Dorf sells'), /^Die Heldstab AG/);
   assert.match(t("The hotels' kitchens fill a barrel of green waste a day, and it goes to the biogas plant."), /^Die Hotelküchen.*Dischmastrasse/);
-  assert.equal(t('Gate 3/11 · 120 m · 2 clean jumps'), 'Tor 3/11 · 120 m · 2 saubere Sprünge');
-  assert.equal(t('Barrels 4/10 · load 38 % · next 90 m'), 'Fässer 4/10 · Ladung 38 % · nächstes 90 m');
-  assert.equal(t('Barrels 4/10 · load 38 % · next Hotel Seehof 90 m'), 'Fässer 4/10 · Ladung 38 % · nächstes Hotel Seehof 90 m');
   assert.equal(t('Collect the barrels at the hotels'), 'Fässer bei den Hotels einsammeln');
   assert.equal(t('Out along the Dischmastrasse: it is cleared in winter'), 'Hinaus über die Dischmastrasse: Sie wird im Winter geräumt');
-  assert.equal(t('Loading … 40 % · Space: reject the barrel'), 'Laden … 40 % · Leertaste: Fass stehen lassen');
-  assert.equal(t('2 clean jumps (-3 s) · 4 mud and snow patches crossed'), '2 saubere Sprünge (-3 s) · 4 Schlamm- und Schneefelder durchquert');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.05, t: 0, ...over });
+  const Q = R.QUAD_MISSION, [town, , back] = Q.objectives, [gx, gz] = R.QUAD_GATES.town[2];
+  const quad = (over) => ({ ...Q.createState(), gates: { town: 2, course: 0, back: 0 }, ...over });
+  says(town.check(frame({ x: gx - 120, z: gz }), quad({ jumps: 2 })).text, 'Gate 3/19 · 120 m · 2 clean jumps', 'Tor 3/19 · 120 m · 2 saubere Sprünge');
+  says(town.check(frame({ x: gx - 120, z: gz }), quad({ jumps: 1 })).text, 'Gate 3/19 · 120 m · 1 clean jump', 'Tor 3/19 · 120 m · 1 sauberer Sprung');
+  says(town.check(frame({ x: gx, z: gz + 1200 }), quad({ jumps: 0 })).text, 'Gate 3/19 · 1.2 km', 'Tor 3/19 · 1.2 km');
+  const home = R.QUAD.finish;
+  says(back.check(frame({ x: home.x, z: home.z }), quad({ gates: { town: 5, course: 11, back: 2 } })).text, 'Gate 3/3', 'Tor 3/3');
+  says(Q.summary(quad({ jumps: 2, patches: 4 }))[0], '2 clean jumps (-3 s) · 4 mud and snow patches crossed', '2 saubere Sprünge (-3 s) · 4 Schlamm- und Schneefelder durchquert');
+  says(Q.summary(quad({ jumps: 1, patches: 1 }))[0], '1 clean jump (-1.5 s) · 1 mud and snow patch crossed', '1 sauberer Sprung (-1.5 s) · 1 Schlamm- und Schneefelder durchquert');
+  says(R.airTimeText(0.83), 'Air time 0.8 s: -1.5 s', 'Flugzeit 0.8 s: -1.5 s');
+  const B = R.BIO_MISSION, [collect, unload] = B.objectives;
+  // (ten barrels, four handled and three of them on the bed; the nearest left 90 m away)
+  const stops = Array.from({ length: 10 }, (_, i) => ({ i, x: i < 4 ? 0 : i === 4 ? 90 : 5000, z: 0, done: i < 4, name: i === 4 ? 'Hotel Seehof' : 'Hotel Europe', plastic: false }));
+  const bio = (over) => ({ ...B.createState(), stops, collected: 3, ...over });
+  says(collect.check(frame(), bio()).text, 'Barrels 4/10 · load 38 % · next Hotel Seehof 90 m', 'Fässer 4/10 · Ladung 38 % · nächstes Hotel Seehof 90 m');
+  says(collect.check(frame(), bio({ stops: stops.map((s) => ({ ...s, done: true })), collected: 8 })).text, 'Barrels 10/10 · load 100 %', 'Fässer 10/10 · Ladung 100 %');
+  says(collect.check(frame(), bio({ loading: { t: 0.4 * R.BIO.loadS } })).hint, 'Loading … 40 % · Space: reject the barrel', 'Laden … 40 % · Leertaste: Fass stehen lassen');
+  says(R.barrelUpText(4), 'Barrel up: 4 on the bed', 'Fass oben: 4 auf der Ladefläche');
+  says(R.wrongRejectText(), 'That one was clean: -10 pts', 'Die war sauber: -10 Pkt.');
+  says(unload.check(frame({ dt: 0 }), bio({ atPlant: true, unloadT: 0.25 * R.BIO.unloadS })).text, 'Unloading … 25 %', 'Abladen … 25 %');
+  assert.match(unload.check(frame({ x: R.BIO_START.x, z: R.BIO_START.z }), bio()).text, /^To the hopper · [\d.]+ km$/);
+  const hopper = unload.check(frame({ x: R.BIO_START.x, z: R.BIO_START.z }), bio()).text;
+  says(hopper, hopper, hopper.replace('To the hopper', 'Zum Annahmebunker'));
+  says(B.summary(bio({ collected: 8, spoiledBarrels: 0, rejected: 2 }))[0], '8 clean barrels · 2 of 2 plastic barrels rejected', '8 saubere Fässer · 2 von 2 Plastik-Fässern stehen gelassen');
+  says(B.summary(bio({ collected: 7, spoiledBarrels: 1, rejected: 1, wrong: 1, missed: 2 }))[0], '6 clean barrels · 1 of 2 plastic barrels rejected · 1 clean left behind · 2 left out',
+    '6 saubere Fässer · 1 von 2 Plastik-Fässern stehen gelassen · 1 saubere stehen gelassen · 2 ausgelassen');
   assert.equal(t('Biogas plant'), 'Biogasanlage');
 });
 
@@ -354,11 +414,12 @@ test('the crane at the Hotel Derby: every step hint is translated', async () => 
 test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say their controls and next steps in German', async () => {
   setLanguage('de');
   const { RESORT_MISSIONS } = await import('../js/missions-data-resort.js');
-  const { VICTORIA_MISSIONS } = await import('../js/missions-data-victoria.js');
+  const VICTORIA = await import('../js/missions-data-victoria.js');
+  const { VICTORIA_MISSIONS } = VICTORIA;
   const { HIKE_MISSIONS } = await import('../js/missions-data-hike.js');
   // the gamepad's actions of the resort jobs and the Victoria (js/missions-resort.js, js/missions-victoria.js)
   for (const s of ['Hand over the bar', 'pick the wax', 'Previous wax', 'Next wax', 'Take this wax', 'move the tool', 'Tool back', 'Tool on', 'Wave left', 'Wave straight on', 'Wave right', 'Stop the car', 'Next chore', 'Clear the waypoint']) assert.notEqual(t(s), s, s);
-  assert.equal(t('Burner 3'), 'Platte 3');
+  assert.equal(t(VICTORIA.burnerLabel(3)), 'Platte 3');
   // the hints that say what to do now
   const marshal = RESORT_MISSIONS.find((m) => m.id === 'parking-marshal').objectives.find((o) => o.id === 'marshal');
   const g = { score: 0, good: 0, crooked: 0, t: 10, done: false, cars: [], cross: { state: 'warn' } };
@@ -373,7 +434,9 @@ test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say th
     const hint = o.check({}, state).hint;
     assert.notEqual(t(hint), hint, hint);
   }
-  assert.equal(t('Room 204: 6 of 6 chores · The tower suite: 5 of 7 chores'), 'Zimmer 204: 6 von 6 Arbeiten · Die Turmsuite: 5 von 7 Arbeiten');
+  const rooms = VICTORIA_MISSIONS[0].summary({ hk: { results: [{ room: 'Room 204', done: 6, of: 6 }, { room: 'The tower suite', done: 5, of: 7 }] } })[0];
+  assert.equal(rooms, 'Room 204: 6 of 6 chores · The tower suite: 5 of 7 chores');
+  assert.equal(t(rooms), 'Zimmer 204: 6 von 6 Arbeiten · Die Turmsuite: 5 von 7 Arbeiten');
   const watch = HIKE_MISSIONS[0].objectives.at(-1).check({}, HIKE_MISSIONS[0].createState());
   assert.notEqual(t(watch.hint), watch.hint);
   assert.equal(t('To the next firewood: 14 m'), 'Zum nächsten Feuerholz: 14 m');
@@ -483,8 +546,32 @@ test('the local missions, the Silberberg and the gastro rooms say their keys, ga
   setLanguage('en');
 });
 
+test('the Silberberg\'s ore shift speaks German: its HUD, toasts and summary', async () => {
+  const D = await import('../js/missions-data-mine.js');
+  setLanguage('de');
+  // (its moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const M = D.MINE_MISSION, mine = M.objectives.find((o) => o.id === 'mine');
+  const shift = (over) => ({ basket: { galena: 0, sphalerite: 0, barren: 0, kg: 0, pts: 0 }, lamp: 130, delivered: 0, bonus: 0, ore: { galena: 0, sphalerite: 0, barren: 0 }, over: null, target: null, ...over });
+  says(mine.check({}, { shift: shift({ delivered: 120, basket: { kg: 7.25 } }) }).text, '120 pts · basket 7.3/20 kg · lamp 2:10', '120 Pkt. · Korb 7.3/20 kg · Lampe 2:10');
+  says(D.basketText(shift({ delivered: 120, basket: { kg: 7.25 } }), 14.4), 'Basket 7.3/20 kg · ore bin 14 m · 120 pts', 'Korb 7.3/20 kg · Erzkasten 14 m · 120 Pkt.');
+  says(D.oreText('galena', 0.5), '+0.5 kg galena', '+0.5 kg Bleiglanz');
+  says(D.oreText('barren', 1.25), '+1.3 kg barren rock', '+1.3 kg taubes Gestein');
+  says(D.dumpText(12.5, 96.4), '12.5 kg into the ore bin: +96 pts', '12.5 kg in den Erzkasten: +96 Pkt.');
+  says(D.veinText({ kind: 'sphalerite', kg: 6, mined: 1.5 }), 'Sphalerite · 4.5 kg · hold Strike', 'Zinkblende · 4.5 kg · Zuschlagen halten');
+  says(D.veinText({ kind: 'barren', kg: 3, mined: 0 }), 'Barren rock · 3 kg · hold Strike', 'Taubes Gestein · 3 kg · Zuschlagen halten');
+  const ore = { galena: 12.5, sphalerite: 4, barren: 0.25 };
+  const [mined, out] = M.summary({ shift: shift({ ore, bonus: 40 }) });
+  says(mined, 'Mined: 12.5 kg galena · 4 kg sphalerite · 0.3 kg barren rock', 'Abgebaut: 12.5 kg Bleiglanz · 4 kg Zinkblende · 0.3 kg taubes Gestein');
+  says(out, 'Out with 2:10 of oil left: +40 pts', 'Draussen mit 2:10 Öl übrig: +40 Pkt.');
+  says(M.summary({ shift: shift({ ore, over: 'dark', basket: { kg: 3.5 } }) })[1], 'The lamp went out inside: 3.5 kg in the basket stayed with you.', 'Die Lampe erlosch drinnen: 3.5 kg im Korb blieben bei dir.');
+  says(M.summary({ shift: shift({ ore, over: 'dark' }) })[1], 'The lamp went out inside.', 'Die Lampe erlosch drinnen.');
+  setLanguage('en');
+  assert.equal(t(mined), mined);
+});
+
 test('the ice resurfacer in the Eisstadion speaks German: its steps, hints, HUD, keys and summary', async () => {
-  const { ZAMBONI_MISSION, ZAMBONI, createMachine, machineWorld } = await import('../js/missions-data-zamboni.js');
+  const { ZAMBONI_MISSION, ZAMBONI, createMachine, machineWorld, iceText, knockText } = await import('../js/missions-data-zamboni.js');
   setLanguage('de');
   const m = ZAMBONI_MISSION;
   assert.equal(t(m.title), 'Die Eismaschine in der Drittelpause');
@@ -502,14 +589,19 @@ test('the ice resurfacer in the Eisstadion speaks German: its steps, hints, HUD,
   }
   look(middle, at(0, 0, ZAMBONI.timeLimitMs + 1), m.createState());
   look(middle, at(0, 0), { ...m.createState(), dry: true });
-  for (const s of ['Ice 63 %', 'Conditioner on', 'Conditioner off', 'Conditioner', 'Snow tank', 'Water', 'drive', 'brake · back up', 'steer', 'conditioner on/off', 'Overview',
-    'The water tank is empty', 'Water on wet ice: a puddle!', 'Water tank almost empty', 'Hard knock on the boards! −40']) seen.add(s);
+  for (const s of [iceText(0.63), knockText(), 'Conditioner on', 'Conditioner off', 'Conditioner', 'Snow tank', 'Water', 'drive', 'brake · back up', 'steer', 'conditioner on/off', 'Overview',
+    'The water tank is empty', 'Water on wet ice: a puddle!', 'Water tank almost empty']) seen.add(s);
   for (const text of seen) assert.notEqual(t(text), text, text);
-  assert.equal(t('Along the boards 52 % of 90 % · 7:46 left'), 'Der Bande entlang 52 % von 90 % · noch 7:46');
-  assert.equal(t('Ice 63 % of 95 % · water 58 % · 2:05 left'), 'Eis 63 % von 95 % · Wasser 58 % · noch 2:05');
-  assert.equal(t('12 m to the gate · 0:41 left'), '12 m bis zum Tor · noch 0:41');
-  assert.equal(t(m.summary({ ...m.createState(), ice: 0.964, bumps: 2, puddleM2: 3.25, water: 0.31 })[0]), '96 % des Eises geglättet · 2 harte Schläge · 3 m² Pfützen · Wasser übrig 31 %');
-  assert.equal(t(m.summary({ ...m.createState(), ice: 0.95, bumps: 1, puddleM2: 0, water: 0.2 })[0]), '95 % des Eises geglättet · 1 harter Schlag · 0 m² Pfützen · Wasser übrig 20 %');
+  // (its moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const left = (ms) => ZAMBONI.timeLimitMs - ms; // (the clock: ms into the run for the time left)
+  says(boards.check(at(0, 0, left(466000)), { ...m.createState(), band: 0.525 }).text, 'Along the boards 52 % of 90 % · 7:46 left', 'Der Bande entlang 52 % von 90 % · noch 7:46');
+  says(middle.check(at(0, 0, left(125000)), { ...m.createState(), ice: 0.635, water: 0.585 }).text, 'Ice 63 % of 95 % · water 58 % · 2:05 left', 'Eis 63 % von 95 % · Wasser 58 % · noch 2:05');
+  says(gate.check(at(ZAMBONI.home + 12, ZAMBONI.gate.y, left(41000)), { ...m.createState(), ice: 0.96 }).text, '12 m to the gate · 0:41 left', '12 m bis zum Tor · noch 0:41');
+  says(iceText(0.63), 'Ice 63 %', 'Eis 63 %');
+  says(knockText(), 'Hard knock on the boards! −40', 'Harter Schlag an die Bande! −40');
+  says(m.summary({ ...m.createState(), ice: 0.964, bumps: 2, puddleM2: 3.25, water: 0.31 })[0], '96 % of the ice resurfaced · 2 hard knocks · 3 m² of puddles · water left 31 %', '96 % des Eises geglättet · 2 harte Schläge · 3 m² Pfützen · Wasser übrig 31 %');
+  says(m.summary({ ...m.createState(), ice: 0.95, bumps: 1, puddleM2: 0, water: 0.2 })[0], '95 % of the ice resurfaced · 1 hard knock · 0 m² of puddles · water left 20 %', '95 % des Eises geglättet · 1 harter Schlag · 0 m² Pfützen · Wasser übrig 20 %');
   setLanguage('en');
 });
 

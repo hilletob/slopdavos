@@ -303,9 +303,21 @@ test('the snowfarming Loipe speaks German: its title, intro, steps, hints and th
     M.objectives[1].check(frame(), { ...st, spreading: false }), M.objectives[1].check(frame(), { ...st, load: 0, spreading: false }), M.objectives[1].check(frame(), { ...st, spreading: false, piling: true }),
     M.objectives[2].check(frame({ mode: 'person' }), { ...st, catDist: 4 }), M.objectives[2].check(frame(), { ...st, catDist: 30 }), M.objectives[3].check(frame({ mode: 'snowcat', tillerRaised: true }), st), M.objectives[3].check(frame({ mode: 'person' }), st)];
   for (const v of views) for (const text of [v.text, v.hint].filter(Boolean)) assert.notEqual(t(text), text, text);
-  assert.equal(t('Bed 39 % full'), 'Brücke zu 39 % voll');
-  assert.equal(t('Loipe covered 45 % of 90 % · bed 60 % · layer 35 cm'), 'Loipe bedeckt: 45 % von 90 % · Brücke 60 % · Schicht 35 cm');
-  assert.equal(t('Too fast: 12 cm, that leaves a gap'), 'Zu schnell: 12 cm, das gibt eine Lücke');
+  // (the moving texts are made with msg(), js/messages.js: made by the mission, then translated)
+  const says = (made, en, de) => { assert.equal(made, en); assert.equal(t(made), de); };
+  const [load, spread, cat, groom] = M.objectives;
+  says(load.check(frame(), { ...createFarmState(), load: 0.395 * S.capacity }).text, 'Bed 39 % full', 'Brücke zu 39 % voll');
+  const sp = { ...st, covered: 0.455, load: 0.605 * S.capacity, layer: 0.35 };
+  says(spread.check(frame(), sp).text, 'Loipe covered 45 % of 90 % · bed 60 % · layer 35 cm', 'Loipe bedeckt: 45 % von 90 % · Brücke 60 % · Schicht 35 cm');
+  says(spread.check(frame(), { ...sp, spreading: false }).text, 'Loipe covered 45 % of 90 % · bed 60 %', 'Loipe bedeckt: 45 % von 90 % · Brücke 60 %');
+  says(spread.check(frame(), st).hint, 'Too fast: 12 cm, that leaves a gap', 'Zu schnell: 12 cm, das gibt eine Lücke');
+  says(spread.check(frame(), { ...st, layer: 0.8 }).hint, 'Too slow: 80 cm, the load will run short', 'Zu langsam: 80 cm, die Ladung reicht nicht');
+  says(cat.check(frame({ mode: 'person' }), { ...st, catDist: 30 }).text, '30 m to the snowcat', '30 m bis zum Pistenfahrzeug');
+  says(groom.check(frame({ mode: 'snowcat' }), { ...st, groomed: 0.425 }).text, 'Loipe groomed 42 % of 85 %', 'Loipe präpariert: 42 % von 85 %');
+  const sum = (over) => M.summary({ ...st, covered: 0.97, groomed: 0.93, out: 100, wasted: 2, ...over });
+  says(sum({ loads: 2 })[0], '2 loads · Loipe covered 97 % · groomed 93 %', '2 Fuhren · Loipe bedeckt 97 % · präpariert 93 %');
+  says(sum({ loads: 1 })[0], '1 load · Loipe covered 97 % · groomed 93 %', '1 Fuhre · Loipe bedeckt 97 % · präpariert 93 %');
+  says(sum({ loads: 2 })[1], '2 % of the snow beside the Loipe', '2 % des Schnees neben der Loipe');
   for (const line of M.summary({ ...st, loads: 2, covered: 0.97, groomed: 0.93, out: 100, wasted: 2 })) assert.notEqual(t(line), line, line);
   for (const text of ['Spread', 'Full: off to the Loipe', 'Empty: back to the depot', 'Tipper', M.objectives[0].check(frame({ t: S.limitMs + 1 }), st).fail]) assert.notEqual(t(text), text, text);
 });

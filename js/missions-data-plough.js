@@ -1,3 +1,4 @@
+import { msg } from './messages.js';
 import { makeRoute, routePoint, projectRoute } from './missions-data-work.js';
 
 // js/missions-data-plough.js
@@ -276,14 +277,19 @@ const PASS = routePoint(route, route.length);
 const HOME = routePoint(route, 0);
 
 function laneText(state, lane, where, dist) {
-  return `${where}: ${fmtDist(dist)} · lane cleared ${pct(lane === 1 ? state.north : state.south)} of ${pct(PLOUGH.goal)}`;
+  return msg('To the {where}: {d} · lane cleared {a} of {b}', 'Bis zur {where}: {d} · Spur geräumt: {a} von {b}',
+    { where, d: fmtDist(dist), a: pct(lane === 1 ? state.north : state.south), b: pct(PLOUGH.goal) });
 }
+// (a side road's name in German: the two that are not a street's name)
+const junctionDe = (n) => ({ 'the old Prättigauerstrasse': 'alte Prättigauerstrasse', 'the filling station': 'Tankstelle' }[n] || n);
+/** The toast of a side road's mouth buried by the wall (js/missions-plough.js) */
+export const buriedText = (name) => msg('You buried the mouth of {n}!', (p) => `Einmündung ${junctionDe(p.n)} zugeschüttet!`, { n: name });
 function hintFor(ctx, state, lane) {
   if (ctx.mode !== 'car') return 'Back into the plough';
   if (state.roadThrow) return 'You are throwing the snow onto the road: V swings the blade';
   if (state.zoneFast) return `Houses by the road: below 30 km/h, or the snow flies onto the pavement`;
   if (state.jointAhead) return 'Bridge joints ahead: F lifts the blade (or crawl over them)';
-  if (state.junctionAhead) return `${state.junctionAhead} ahead on your throw side: F lifts the blade past it`;
+  if (state.junctionAhead) return msg('{n} ahead on your throw side: F lifts the blade past it', (p) => `Einmündung ${junctionDe(p.n)} voraus auf der Wurfseite: F hebt die Pflugschar`, { n: state.junctionAhead });
   if (!state.lowered && state.moving) return 'The blade is up: F lowers it';
   if (state.offLane && state.lowered && state.moving) return lane === 1 ? 'Keep to the right lane: the blade clears 3.6 m' : 'Keep to the right lane on the way down';
   return null;
@@ -327,7 +333,7 @@ export const PLOUGH_MISSION = {
         const done = state.atPass && state.north >= PLOUGH.goal;
         const dist = route.length - state.s;
         const hint = state.atPass && state.north < PLOUGH.goal ? 'Too much snow left on the lane: go back and clear it' : hintFor(ctx, state, 1);
-        return { done, progress: Math.min(state.north / PLOUGH.goal, state.s / PLOUGH.passS), text: laneText(state, 1, 'To the Passhöhe', dist), target: { x: PASS.x, z: PASS.z, r: 9 }, hint };
+        return { done, progress: Math.min(state.north / PLOUGH.goal, state.s / PLOUGH.passS), text: laneText(state, 1, 'Passhöhe', dist), target: { x: PASS.x, z: PASS.z, r: 9 }, hint };
       }
     },
     {
@@ -341,21 +347,24 @@ export const PLOUGH_MISSION = {
         if (state.north < PLOUGH.goal) hint = 'Snow thrown back onto the lane you cleared: it needs clearing again';
         else if (home && state.south < PLOUGH.goal) hint = 'Too much snow left on the lane: go back and clear it';
         else if (!hint && state.up && state.s > PLOUGH.passS - 40) hint = 'Turn round: the lane down is on the other side';
-        return { done, progress: state.south / PLOUGH.goal, text: laneText(state, 2, 'To the Seegalerie', state.s), target: { x: HOME.x, z: HOME.z, r: 9 }, hint };
+        return { done, progress: state.south / PLOUGH.goal, text: laneText(state, 2, 'Seegalerie', state.s), target: { x: HOME.x, z: HOME.z, r: 9 }, hint };
       }
     }
   ],
   summary(state) {
     const P = PLOUGH;
-    const lines = [`Up ${pct(state.north)} · down ${pct(state.south)} cleared`];
+    const lines = [msg('Up {a} · down {b} cleared', 'Hinauf {a} · hinunter {b} geräumt', { a: pct(state.north), b: pct(state.south) })];
     const pen = [];
-    if (state.poles) pen.push(`${state.poles} snow pole${state.poles === 1 ? '' : 's'} (+${(state.poles * P.poleMs) / 1000} s)`);
-    if (state.hits) pen.push(`${state.hits} car${state.hits === 1 ? '' : 's'} hit (+${(state.hits * P.hitMs) / 1000} s)`);
-    if (state.joints) pen.push(`${state.joints} bridge joint${state.joints === 1 ? '' : 's'} (+${(state.joints * P.jointMs) / 1000} s)`);
-    if (state.buried) pen.push(`${state.buried} side road${state.buried === 1 ? '' : 's'} buried (+${(state.buried * P.buryMs) / 1000} s)`);
-    if (state.roadSec >= 0.5) pen.push(`snow on the road ${Math.round(state.roadSec)} s (+${Math.round(state.roadSec * P.roadRate)} s)`);
-    if (state.zoneSec >= 0.5) pen.push(`too fast by the houses ${Math.round(state.zoneSec)} s (+${Math.round(state.zoneSec * P.zoneRate)} s)`);
-    lines.push(pen.length ? pen.join(' · ') : 'A clean run: no penalties');
+    // (each penalty in both languages: n the count, s the seconds it cost, de its German with the word for one or more)
+    const count = (n, s, en, one, many, de) => msg(en, (p) => de.replace('{w}', p.n === 1 ? one : many).replace('{n}', p.n).replace('{s}', p.s), { n, s1: n === 1 ? '' : 's', s });
+    if (state.poles) pen.push(count(state.poles, (state.poles * P.poleMs) / 1000, '{n} snow pole{s1} (+{s} s)', 'Schneestange', 'Schneestangen', '{n} {w} (+{s} s)'));
+    if (state.hits) pen.push(count(state.hits, (state.hits * P.hitMs) / 1000, '{n} car{s1} hit (+{s} s)', 'Auto', 'Autos', '{n} {w} angefahren (+{s} s)'));
+    if (state.joints) pen.push(count(state.joints, (state.joints * P.jointMs) / 1000, '{n} bridge joint{s1} (+{s} s)', 'Brückenfuge', 'Brückenfugen', '{n} {w} (+{s} s)'));
+    if (state.buried) pen.push(count(state.buried, (state.buried * P.buryMs) / 1000, '{n} side road{s1} buried (+{s} s)', 'Einmündung', 'Einmündungen', '{n} {w} zugeschüttet (+{s} s)'));
+    if (state.roadSec >= 0.5) pen.push(msg('snow on the road {a} s (+{s} s)', 'Schnee auf der Fahrbahn {a} s (+{s} s)', { a: Math.round(state.roadSec), s: Math.round(state.roadSec * P.roadRate) }));
+    if (state.zoneSec >= 0.5) pen.push(msg('too fast by the houses {a} s (+{s} s)', 'zu schnell bei den Häusern {a} s (+{s} s)', { a: Math.round(state.zoneSec), s: Math.round(state.zoneSec * P.zoneRate) }));
+    // (the list as one text, its German of the parts' Germans; a single part is its own text)
+    lines.push(pen.length > 1 ? msg('{list}', (p, tr) => p.parts.map(tr).join(' · '), { list: pen.join(' · '), parts: pen }) : pen[0] || 'A clean run: no penalties');
     return lines;
   }
 };

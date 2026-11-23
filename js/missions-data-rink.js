@@ -15,6 +15,7 @@
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz) (0: +z, south).
 import { POND, POND_RING, inPond } from './missions-data-outdoor.js';
 import { MASK_MARGIN, MASK_TARGET, createGrid, forCellsInBox, gridFraction, makeFrame, touch } from './missions-data-work.js';
+import { msg } from './messages.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const pct = (f) => `${Math.floor(f * 100)} %`;
@@ -225,7 +226,7 @@ export const RINK_MISSION = {
   start: { x: RINK.start.x, z: RINK.start.z, heading: Math.atan2(RINK.hydrant.x - RINK.start.x, RINK.hydrant.z - RINK.start.z) },
   createState() { return { flooded: 0, polished: 0, prints: 0, printed: 0, onWet: false, spraying: false, hose: false }; },
   summary(state) {
-    return [`${state.printed} footprint${state.printed === 1 ? '' : 's'} flooded again · ${pct(state.polished)} resurfaced`];
+    return [msg('{n} footprint{s} flooded again · {p} resurfaced', (p) => `${p.n} Fussabdr${p.n === 1 ? 'uck' : 'ücke'} nochmals geflutet · ${p.p} geglättet`, { n: state.printed, s: state.printed === 1 ? '' : 's', p: pct(state.polished) })];
   },
   objectives: [
     {
@@ -234,7 +235,7 @@ export const RINK_MISSION = {
       allowModes: ['person'],
       check(ctx) {
         const d = Math.hypot(ctx.x - RINK.hydrant.x, ctx.z - RINK.hydrant.z);
-        return { done: d <= 2.2, progress: null, text: `${Math.round(d)} m to the hydrant`, target: { x: RINK.hydrant.x, z: RINK.hydrant.z, r: 1.6 }, hint: null };
+        return { done: d <= 2.2, progress: null, text: msg('{d} m to the hydrant', '{d} m bis zum Hydranten', { d: Math.round(d) }), target: { x: RINK.hydrant.x, z: RINK.hydrant.z, r: 1.6 }, hint: null };
       }
     },
     {
@@ -243,11 +244,11 @@ export const RINK_MISSION = {
       allowModes: ['person'],
       check(ctx, state) {
         if (ctx.t > RINK.timeLimitMs) return { done: false, fail: 'Too late: the skaters are here and the ice is still rough.', text: '', progress: state.flooded, target: null, hint: null };
-        const prints = state.prints ? ` · ${state.prints} footprint cells` : '';
         const far = Math.hypot(ctx.x - POND.centre.x, ctx.z - POND.centre.z) > 40;
         return {
           done: state.flooded >= RINK.floodGoal, progress: state.flooded / RINK.floodGoal,
-          text: `Ice flooded ${pct(state.flooded)} of ${pct(RINK.floodGoal)}${prints}`,
+          text: state.prints ? msg('Ice flooded {a} of {b} · {n} footprint cells', 'Eis geflutet: {a} von {b} · {n} Felder mit Fussabdrücken', { a: pct(state.flooded), b: pct(RINK.floodGoal), n: state.prints })
+            : msg('Ice flooded {a} of {b}', 'Eis geflutet: {a} von {b}', { a: pct(state.flooded), b: pct(RINK.floodGoal) }),
           target: far ? { x: POND.centre.x, z: POND.centre.z, r: 6 } : null,
           hint: fmtHint(state) || (state.spraying ? null : 'Hold Space: spray')
         };
@@ -260,7 +261,7 @@ export const RINK_MISSION = {
       check(ctx, state) {
         const m = state.machineAt || RINK.machine;
         const d = Math.hypot(ctx.x - m.x, ctx.z - m.z);
-        return { done: ctx.mode === 'car', progress: null, text: `${Math.round(d)} m to the machine`, target: { x: m.x, z: m.z, r: 2.5 }, hint: d < 5 ? 'F: get on' : null };
+        return { done: ctx.mode === 'car', progress: null, text: msg('{d} m to the machine', '{d} m bis zur Maschine', { d: Math.round(d) }), target: { x: m.x, z: m.z, r: 2.5 }, hint: d < 5 ? 'F: get on' : null };
       }
     },
     {
@@ -272,7 +273,7 @@ export const RINK_MISSION = {
         const far = Math.hypot(ctx.x - POND.centre.x, ctx.z - POND.centre.z) > 40;
         return {
           done: state.polished >= RINK.polishGoal, progress: state.polished / RINK.polishGoal,
-          text: `Ice resurfaced ${pct(state.polished)} of ${pct(RINK.polishGoal)}`,
+          text: msg('Ice resurfaced {a} of {b}', 'Eis geglättet: {a} von {b}', { a: pct(state.polished), b: pct(RINK.polishGoal) }),
           target: far ? { x: POND.centre.x, z: POND.centre.z, r: 6 } : null,
           hint: ctx.mode !== 'car' ? 'Back onto the machine' : 'Drive slowly over the grey ice, lane beside lane'
         };
