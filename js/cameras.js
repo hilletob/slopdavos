@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { groundHeight, cameraGround } from './terrain.js';
 import { lv95ToWorld } from './davos-frame.js';
+import { VEHICLE_SPECS, CAMERA_DEFAULTS } from './vehicle-specs.js';
 
 // js/cameras.js
 // Multi-camera system supporting Third-Person Chase (with mouse/touch orbit + zoom),
@@ -34,8 +35,9 @@ const VIEWPOINTS = {
 };
 const viewpoint = ([E, N, up]) => { const p = lv95ToWorld(E, N); return new THREE.Vector3(p.x, groundHeight(p.x, p.z) + up, p.z); };
 // The bird's-eye camera (GTA2 style): straight down over the player, north at the top of the screen, pulling up as the
-// player speeds up and leading the view ahead in the direction of travel. Base height by entity type, in metres
-const TOPDOWN_HEIGHT = { person: 28, cyclist: 34, cargobike: 34, car: 45, snowcat: 45, rhb: 65, helicopter: 90 };
+// player speeds up and leading the view ahead in the direction of travel. Base height by entity type, in metres:
+// js/vehicle-specs.js `topdown`, as the presets' other per-mode numbers there (`camera`, else CAMERA_DEFAULTS)
+const cameraSpec = (type) => VEHICLE_SPECS[type]?.camera ?? CAMERA_DEFAULTS;
 const UP_WORLD = new THREE.Vector3(0, 1, 0);
 const UP_NORTH = new THREE.Vector3(0, 0, -1); // world z = 1185500 − N: north is −z
 
@@ -237,8 +239,9 @@ class CameraSystem {
         // (never under the ground behind: Davos' streets lie well below the flat world's y = 0)
         desiredPos.y = Math.max(cameraGround(desiredPos.x, desiredPos.z, entity.position.y) + 0.65, desiredPos.y);
 
-        const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.45 : entity.type === 'cargobike' ? 0.8 : 1.55;
-        const lookAhead = entity.type === 'cargobike' ? 0.35 : 5.2;
+        const cam = cameraSpec(entity.type);
+        const lookUpBias = cam.lookUpBias ?? CAMERA_DEFAULTS.lookUpBias;
+        const lookAhead = cam.lookAhead ?? CAMERA_DEFAULTS.lookAhead;
         desiredLook.set(
           entity.position.x + Math.sin(entity.heading) * lookAhead,
           entity.position.y + entity.cameraTargetOffset.y + lookUpBias - slope * lookAhead,
@@ -248,8 +251,9 @@ class CameraSystem {
       }
 
       case 'action': {
-        const sideOffset = entity.type === 'car' ? 2.65 : entity.type === 'snowcat' ? 3.6 : entity.type === 'rhb' ? 3.4 : (entity.type === 'helicopter' ? 4.2 : 0.95);
-        const backDist = (entity.type === 'car' ? 3.6 : entity.type === 'snowcat' ? 5.4 : entity.type === 'rhb' ? 9 : (entity.type === 'helicopter' ? 8.5 : 2.8)) + speedLag;
+        const action = cameraSpec(entity.type).action ?? CAMERA_DEFAULTS.action;
+        const sideOffset = action.side;
+        const backDist = action.back + speedLag;
         const lowY = entity.type === 'helicopter' ? entity.position.y + 1.2 : entity.position.y + 0.92;
 
         desiredPos.set(
@@ -266,27 +270,11 @@ class CameraSystem {
       }
 
       case 'pov': {
-        let fwdOffset = 0.35;
-        let eyeY = 1.68;
-        if (entity.type === 'car') {
-          fwdOffset = 0.55;
-          eyeY = 1.52;
-        } else if (entity.type === 'cyclist') {
-          fwdOffset = 0.35;
-          eyeY = 1.55;
-        } else if (entity.type === 'cargobike') {
-          fwdOffset = -0.5;
-          eyeY = 1.55;
-        } else if (entity.type === 'helicopter') {
-          fwdOffset = 1.65;
-          eyeY = 1.65;
-        } else if (entity.type === 'snowcat') {
-          fwdOffset = 1.1; // the driver's seat, high up in the cab
-          eyeY = 2.35;
-        } else if (entity.type === 'rhb') {
-          fwdOffset = 0.6; // the train driver's seat behind the raked windscreen (the entity is the cab, on the rails)
-          eyeY = 2.75;
-        }
+        // (the eye over the entity and ahead of it: the driver's seat, the groomer's high in its cab, the train
+        // driver's behind the raked windscreen, the entity being the cab on the rails)
+        const pov = cameraSpec(entity.type).pov ?? CAMERA_DEFAULTS.pov;
+        const fwdOffset = pov.forward;
+        const eyeY = pov.eye;
 
         desiredPos.set(
           entity.position.x + Math.sin(entity.heading) * fwdOffset,
@@ -303,7 +291,7 @@ class CameraSystem {
 
       case 'topdown': {
         // (drags don't orbit here: north stays up, the wheel / a pinch / the pad zoom)
-        const base = TOPDOWN_HEIGHT[entity.type] ?? 30;
+        const base = VEHICLE_SPECS[entity.type]?.topdown ?? 30;
         // the field of view is vertical: on a portrait screen (a phone) the width would shrink to a narrow strip of the
         // street, so the camera climbs until the width shows about what a landscape screen does
         const portrait = this.camera.aspect < 1 ? Math.pow(1 / this.camera.aspect, 0.75) : 1;

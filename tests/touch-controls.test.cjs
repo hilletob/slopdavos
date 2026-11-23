@@ -77,7 +77,7 @@ function harness({ coarse = true, mode = 'person', actions = null } = {}) {
     setTouchInput(action, value) { input[action] = value; },
     clearTouchInput() { for (const action of Object.keys(input)) input[action] = 0; }
   };
-  const { TouchControls } = loadModule(source, { globals: { window, document } });
+  const { TouchControls } = loadModule(source, { globals: { window, document }, imports: { './vehicle-specs.js': require('../js/vehicle-specs.js') } });
   const controls = new TouchControls(controller, { actions });
   return { controls, window, document, media, root, stick, knob, buttons, labels, input, rows };
 }

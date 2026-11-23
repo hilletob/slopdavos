@@ -27,7 +27,7 @@ export const VEHICLE_LABELS = {
 export const ENTER_RADIUS = { car: 3.5, cyclist: 3, helicopter: 6, snowcat: 5 };
 
 /** Half width (across) and half length (along) of each vehicle's outline, m (the controllers' boxes, js/vehicle-specs.js) */
-export const VEHICLE_FOOTPRINTS = Object.fromEntries(['car', 'cyclist', 'helicopter', 'snowcat']
+export const VEHICLE_FOOTPRINTS = Object.fromEntries(Object.keys(VEHICLE_LABELS)
   .map((type) => [type, { halfW: VEHICLE_SPECS[type].box.halfW, halfL: VEHICLE_SPECS[type].box.halfL }]));
 
 /** Getting out: the vehicle must stand still (m/s); the helicopter must have landed (height over the ground, m) */

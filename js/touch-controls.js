@@ -6,9 +6,10 @@
 // from the register of actions (js/actions.js): every action with a touch face is drawn here, holds held, taps tapped,
 // toggles switched, and the register's labels (a mission's "Swing" for the jump) are followed. The two fixed buttons
 // `up` and `down` feed the controllers' inputs straight (an analog hold like the stick); the others call the register.
+import { MODES } from './vehicle-specs.js';
+
 const DEAD_ZONE = 0.15;
 const MAX_RADIUS = 44;
-const MODES = ['person', 'car', 'cyclist', 'cargobike', 'helicopter', 'snowcat', 'rhb'];
 const FIXED_LABELS = (mode) => ({ up: mode === 'helicopter' ? 'Ascend' : 'Jump', down: 'Descend' });
 
 class TouchControls {

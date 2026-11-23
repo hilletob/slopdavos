@@ -61,7 +61,7 @@ function cameraHarness(entity = {
   window.innerHeight = 900;
   const { CameraSystem } = loadModule(source, {
     globals: { window, document },
-    imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './landmarks.js': {}, ...flatTerrainImports }
+    imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './landmarks.js': {}, './vehicle-specs.js': require('../js/vehicle-specs.js'), ...flatTerrainImports }
   });
   const camera = new CameraSystem(canvas, { getActiveEntity: () => entity });
   return {

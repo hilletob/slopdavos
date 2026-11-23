@@ -83,6 +83,7 @@ import { createHeatTrail } from './heat-trail.js';
 import { createLiveBeacon, liveEnabled, setLiveEnabled } from './live-beacon.js';
 import { buildFreeFlight } from './paraglide-free.js';
 import { GTA_START } from './vehicle-depots.js';
+import { VEHICLE_SPECS } from './vehicle-specs.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
 
 // Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
@@ -687,8 +688,6 @@ async function initApp() {
     { id: 'beacon', kind: 'toggle', label: 'Beacon', keys: ['KeyK'], icon: 'i-beacon', when: is('snowcat'), state: () => !!cat()?.beaconOn, run: () => controllerManager.toggleBeacon() },
     { id: 'tiller', kind: 'toggle', label: 'Tiller', keys: ['KeyF'], icon: 'i-tiller', pad: 'right', when: is('snowcat'), state: () => !!cat() && !cat().tillerRaised, run: () => controllerManager.toggleTiller() }
   ]);
-  // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
-  const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
 
   // The key bar at the bottom (js/hud-keybar.js)
   const renderHints = bindKeyBar(elControlsHint, actions);
@@ -1202,7 +1201,7 @@ async function initApp() {
       const mode = controllerManager.activeMode;
       const vp = vehiclePanelNow(), at = vp?.at?.() || activeEnt.position;
       const kmh = Math.round(Math.abs((typeof vp?.speed === 'function' ? vp.speed() : activeEnt.speed) || 0) * 3.6);
-      const topKmh = (typeof vp?.topSpeedKmh === 'function' ? vp.topSpeedKmh() : vp?.topSpeedKmh) || activeEnt.topSpeedKmh || topSpeedKmh[mode] || 80;
+      const topKmh = (typeof vp?.topSpeedKmh === 'function' ? vp.topSpeedKmh() : vp?.topSpeedKmh) || activeEnt.topSpeedKmh || VEHICLE_SPECS[mode]?.topSpeedKmh || 80; // (the mode's: js/vehicle-specs.js)
       const altitudeM = Math.round(at.y + FRAME.H0); // metres above sea level (m ü. M.)
 
       renderClock();

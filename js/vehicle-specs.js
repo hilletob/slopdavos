@@ -20,7 +20,7 @@
 export const VEHICLE_SPECS = {
   person: {
     contact: { halfW: 0.32, halfL: 0.32, mass: 80 },
-    topSpeedKmh: 30, // (the run's boosted 8.2 m/s)
+    topSpeedKmh: 30, // (boosted: js/controllers.js caps the modes at 8.2, 36, 19 & 52 m/s)
     topdown: 28,
     camera: {}
   },

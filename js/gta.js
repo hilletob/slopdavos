@@ -40,7 +40,7 @@ import { el } from './dom.js';
 
 const STATE_KEY = 'slopdavos-gta';
 const STATE_VERSION = 1;
-const VEHICLES = ['car', 'cyclist', 'helicopter', 'snowcat'];
+const VEHICLES = Object.keys(VEHICLE_LABELS); // (the modes one gets into: car, cyclist, helicopter, snowcat)
 // Stand-ins drawn round the camera (the mobile profile: fewer and nearer, to keep the draw calls down)
 const SHOW_RADIUS = QUALITY.mobile ? { car: 260, cyclist: 90, helicopter: 600, snowcat: 320 } : { car: 700, cyclist: 220, helicopter: 1500, snowcat: 900 };
 const MAX_SHOWN = QUALITY.mobile ? 5 : 24;
