@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { CROSSWALK } from './road-network.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
-import { GEO } from './nyc-geodata.js';
+import { GEO } from './geo.js';
 import { worldRegion } from './quality.js';
 import { tracedMarkings } from './ground-markings-area.js';
 

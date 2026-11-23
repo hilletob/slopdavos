@@ -17,7 +17,7 @@ import { el } from './dom.js';
 // column of light in the mission's colour with the start circle at its foot (one instanced mesh for all) and an icon
 // over it ringed in the medal the player holds (one sprite each), drawn only within PIN_RADIUS; the prompt
 // "Enter: Start …" (a button too, for touch screens) while the player stands in a start circle, on foot or in the
-// mission's vehicle; the pins on the radar and the full map (js/nyc-map.js overlays; a click on one sets the map's
+// mission's vehicle; the pins on the radar and the full map (js/town-map.js overlays; a click on one sets the map's
 // waypoint, an arrow in the HUD points the way); the points in the HUD with a "+250" as they come in. Nothing of the
 // world's pins shows while a mission runs. Outside its window (js/mission-windows.js) a pin is grey and says when it
 // opens: Enter doesn't start it, U (or a tap on the prompt) fast-forwards until it does.
@@ -697,7 +697,7 @@ export function buildMissionWorld(scene, { manager, progress, mapSystem, control
   const wayDist = el('strong', 'mission-waypoint-dist');
   wayPanel.addEventListener('click', () => { if (mapSystem?.waypoint?.mission) mapSystem.waypoint = null; });
   wayPanel.append(wayDisc, wayDist);
-  // (with the radar on screen the way is shown there, js/nyc-map.js drawRadarCompass: the needle and the distance)
+  // (with the radar on screen the way is shown there, js/town-map.js drawRadarCompass: the needle and the distance)
   const radar = document.getElementById('minimap-card');
   const radarClear = document.getElementById('minimap-clear');
   way.append(wayPanel);

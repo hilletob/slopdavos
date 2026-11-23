@@ -1,14 +1,14 @@
 import {
   ALL_AVENUES,
   ALL_STREETS,
-  ISLAND_BOUNDS,
-  getIslandBoundsAtZ,
+  TOWN_BOUNDS,
+  getTownBoundsAtZ,
   BLOCKS,
   waterAt,
   nearestRoads,
   sidewalkAt
 } from './city-config.js';
-import { GEO } from './nyc-geodata.js';
+import { GEO } from './geo.js';
 
 // js/road-network.js
 // Drivable road graph derived from the ground layout that city-grid.js actually builds: avenue corridors
@@ -20,8 +20,8 @@ import { GEO } from './nyc-geodata.js';
 // (rx, rz) = (-dz, dx). Lanes are lateral offsets to the right of the centreline, sorted left to right.
 
 const CELL = 32;
-const Z_MIN = Math.floor(ISLAND_BOUNDS.minZ) - 20; // the detailed island, ~129th St to the Battery
-const Z_MAX = Math.ceil(ISLAND_BOUNDS.maxZ) + 20;
+const Z_MIN = Math.floor(TOWN_BOUNDS.minZ) - 20; // the detailed island, ~129th St to the Battery
+const Z_MAX = Math.ceil(TOWN_BOUNDS.maxZ) + 20;
 // (Davos) How much traffic a street carries (js/traffic.js), from its name and its mapped width (a primary road 10 m,
 // a secondary 8, a tertiary 7, the rest 6 or less): 0 the main axes — the Promenade and the Talstrasse through the town,
 // the road in from Wolfgang, the Landwasserstrasse down the valley to Wiesen —, 1 the roads into the side valleys
@@ -85,7 +85,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
 
   function onLand(minX, maxX, minZ, maxZ) {
     for (const z of [minZ, maxZ]) {
-      const shore = getIslandBoundsAtZ(z);
+      const shore = getTownBoundsAtZ(z);
       if (minX < shore.westX + SHORE_MARGIN || maxX > shore.eastX - SHORE_MARGIN) return false;
     }
     // Berlin's Spree crosses the district instead of surrounding it. The original
@@ -1270,7 +1270,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     if (n) n.signal = true;
   }
   // The same signal/right-of-way system uses the mapped Berlin signal locations.
-  if (GEO.irregular) for (const p of GEO.berlin.signals || []) {
+  if (GEO.irregular) for (const p of GEO.town.signals || []) {
     let best = null, distance = 48;
     for (const n of nodes) {
       if (n.shape || !n.in || !n.out) continue;

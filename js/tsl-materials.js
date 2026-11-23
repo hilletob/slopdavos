@@ -55,8 +55,8 @@ import {
   specularF90
 } from 'three/tsl';
 import {
-  ISLAND_BOUNDS,
-  BERLIN_DATA,
+  TOWN_BOUNDS,
+  TOWN_DATA,
   waterAt
 } from './city-config.js';
 import { QUALITY, skipped } from './quality.js';
@@ -1901,9 +1901,9 @@ const waterBoxCover = Fn(([x, a, b, s]) => {
 // Simplification is CPU-only and cached; 64 segments bound fragment-shader cost.
 // Adjacent OSM water polygons often share internal edges, so test both sides and
 // retain only real land/water boundaries. Nearby OSM roofs supply Berlin heights.
-let _berlinReflectionBanks = null;
-function getBerlinReflectionBanks() {
-  if (_berlinReflectionBanks) return _berlinReflectionBanks;
+let _reflectionBanks = null;
+function getReflectionBanks() {
+  if (_reflectionBanks) return _reflectionBanks;
   const simplify = (points, tolerance) => {
     if (points.length < 3) return points;
     const a = points[0], b = points[points.length - 1];
@@ -1918,7 +1918,7 @@ function getBerlinReflectionBanks() {
     return farthest < 0 ? [a, b] : [...simplify(points.slice(0, farthest + 1), tolerance).slice(0, -1), ...simplify(points.slice(farthest), tolerance)];
   };
   const banks = [];
-  for (const water of BERLIN_DATA.water) for (const outline of [water.ring, ...(water.holes || [])]) {
+  for (const water of TOWN_DATA.water) for (const outline of [water.ring, ...(water.holes || [])]) {
     const points = [];
     for (let i = 0; i < outline.length; i += 2) points.push([outline[i], outline[i + 1]]);
     if (points.length < 3) continue;
@@ -1934,13 +1934,13 @@ function getBerlinReflectionBanks() {
     }
   }
   banks.sort((a, b) => b.length - a.length);
-  const buildings = BERLIN_DATA.buildings.filter(b => !b.part && b.h > 5 && b.h < 160).map(b => {
+  const buildings = TOWN_DATA.buildings.filter(b => !b.part && b.h > 5 && b.h < 160).map(b => {
     let x = 0, z = 0;
     for (let i = 0; i < b.ring.length; i += 2) { x += b.ring[i]; z += b.ring[i + 1]; }
     const points = b.ring.length / 2;
     return { x: x / points, z: z / points, h: b.h + (b.roofHeight || 0) };
   });
-  _berlinReflectionBanks = banks.slice(0, 64).map(bank => {
+  _reflectionBanks = banks.slice(0, 64).map(bank => {
     let total = 0, weight = 0;
     for (const building of buildings) {
       const distance = Math.hypot(building.x - bank.x, building.z - bank.z);
@@ -1953,7 +1953,7 @@ function getBerlinReflectionBanks() {
     const skyline = Math.min(145, Math.max(15, (weight ? total / weight : 22) / 0.63));
     return [...bank.a, ...bank.b, Math.round(skyline * 10) / 10];
   });
-  return _berlinReflectionBanks;
+  return _reflectionBanks;
 }
 
 /**
@@ -1977,12 +1977,12 @@ function createWaterMaterial() {
   });
 
   const waveTex = getWaterWaveTexture();
-  const harbourY = ISLAND_BOUNDS ? ISLAND_BOUNDS.waterLevel : -2.2;
+  const harbourY = TOWN_BOUNDS ? TOWN_BOUNDS.waterLevel : -2.2;
   // Keep Berlin's existing water colour and wave mix when lowering its surface.
   // When constant it is a uniform: Firefox's WGSL compiler (naga) rejects the all-constant expressions that a literal
   // would make here and downstream (abstract types outside constant expressions)
   const pondAt = (y) => { const t = Math.min(1, Math.max(0, (y - harbourY - 1.0) / 1.0)); return t * t * (3 - 2 * t); };
-  const pond = BERLIN_DATA ? uniform(pondAt(-0.65)) : smoothstep(harbourY + 1.0, harbourY + 2.0, positionWorld.y);
+  const pond = TOWN_DATA ? uniform(pondAt(-0.65)) : smoothstep(harbourY + 1.0, harbourY + 2.0, positionWorld.y);
 
   // [tile size (m), rotation (rad), RMS slope]: incommensurate scales & angles so no pattern repeats
   const LAYERS = [
@@ -2051,9 +2051,9 @@ function createWaterMaterial() {
   // (the mobile profile, js/quality.js simpleMaterials, and ?qset=skip:water: without the night reflections, whose
   // per-bank ray tests unrolled made this the longest shader of the town, ~89 KB of WGSL)
   if (QUALITY.simpleMaterials || skipped('water')) return mat;
-  const IB = ISLAND_BOUNDS;
-  const reflectionBanks = getBerlinReflectionBanks();
-  mat.userData.berlinReflectionBankCount = reflectionBanks.length;
+  const IB = TOWN_BOUNDS;
+  const reflectionBanks = getReflectionBanks();
+  mat.userData.reflectionBankCount = reflectionBanks.length;
   mat.emissiveNode = Fn(() => {
     const night = smoothstep(0.55, 1.35, cityUniforms.uInteriorGlow);
     const P = positionWorld.xz;

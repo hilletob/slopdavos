@@ -2,8 +2,8 @@ import * as THREE from 'three/webgpu';
 import { uniform, vec3 } from 'three/tsl';
 import { surfaceHeight, groundHeight, deckHeight, ROAD_TOP, SIDEWALK_TOP, sidewalkRise } from './terrain.js';
 import {
-  ISLAND_BOUNDS,
-  getIslandBoundsAtZ,
+  TOWN_BOUNDS,
+  getTownBoundsAtZ,
   isTypingInField,
   blockAt,
   defaultSpawn,
@@ -994,10 +994,10 @@ class ThirdPersonControllerManager {
     const cameraBack = Math.cos(0.09) * entity.chaseDistance;
     const cameraUp = entity.chaseHeight + Math.sin(0.09) * entity.chaseDistance * 0.85;
     const clampPoint = (px, pz) => {
-      pz = Math.max(ISLAND_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(ISLAND_BOUNDS.maxZ + margin, pz));
-      px = Math.max(ISLAND_BOUNDS.minX - margin, Math.min(ISLAND_BOUNDS.maxX + margin, px));
-      if (!heli && getIslandBoundsAtZ) {
-        const shore = getIslandBoundsAtZ(pz);
+      pz = Math.max(TOWN_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(TOWN_BOUNDS.maxZ + margin, pz));
+      px = Math.max(TOWN_BOUNDS.minX - margin, Math.min(TOWN_BOUNDS.maxX + margin, px));
+      if (!heli && getTownBoundsAtZ) {
+        const shore = getTownBoundsAtZ(pz);
         const west = shore.westX + 8, east = shore.eastX - 8;
         if (west > east) return null;
         px = Math.max(west, Math.min(east, px));
@@ -1031,8 +1031,8 @@ class ThirdPersonControllerManager {
     const origin = clampPoint(x, z);
     if (clear(origin)) return origin;
     // Four-metre rings cover nearby streets and courtyards, with bounded work even for a click inside a large block.
-    const cx = origin ? origin.x : Math.max(ISLAND_BOUNDS.minX, Math.min(ISLAND_BOUNDS.maxX, x));
-    const cz = origin ? origin.z : Math.max(ISLAND_BOUNDS.minZ + 30, Math.min(ISLAND_BOUNDS.maxZ, z));
+    const cx = origin ? origin.x : Math.max(TOWN_BOUNDS.minX, Math.min(TOWN_BOUNDS.maxX, x));
+    const cz = origin ? origin.z : Math.max(TOWN_BOUNDS.minZ + 30, Math.min(TOWN_BOUNDS.maxZ, z));
     for (let distance = 4; distance <= 256; distance += 4) {
       for (let i = 0; i < 32; i++) {
         const angle = i * Math.PI / 16;
@@ -2323,10 +2323,10 @@ class ThirdPersonControllerManager {
       entity._lastDryPosition.x = pos.x; entity._lastDryPosition.z = pos.z;
     }
     const m = heli ? 1200 : 0;
-    pos.x = Math.max(ISLAND_BOUNDS.minX - m, Math.min(ISLAND_BOUNDS.maxX + m, pos.x));
-    pos.z = Math.max(ISLAND_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(ISLAND_BOUNDS.maxZ + m, pos.z));
-    if (this.activeMode !== 'helicopter' && getIslandBoundsAtZ) {
-      const shore = getIslandBoundsAtZ(pos.z);
+    pos.x = Math.max(TOWN_BOUNDS.minX - m, Math.min(TOWN_BOUNDS.maxX + m, pos.x));
+    pos.z = Math.max(TOWN_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(TOWN_BOUNDS.maxZ + m, pos.z));
+    if (this.activeMode !== 'helicopter' && getTownBoundsAtZ) {
+      const shore = getTownBoundsAtZ(pos.z);
       const minShoreX = shore.westX + 8.0;
       const maxShoreX = shore.eastX - 8.0;
       if (pos.x < minShoreX) {

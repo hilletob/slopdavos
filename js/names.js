@@ -21,7 +21,7 @@ const WATER = new Set([KIND.lake, KIND.glacier, KIND.stream]);
 const HEIGHTS = new Set([KIND.peak, KIND.pass]);
 const FONT = 'Inter, system-ui, sans-serif';
 
-/** The map layer: { draw(ctx, view, isMinimap) } (js/nyc-map.js overlays) */
+/** The map layer: { draw(ctx, view, isMinimap) } (js/town-map.js overlays) */
 export function namesOverlay() {
   const widths = new Map();
   const layer = cachedMapLayer((ctx, v) => {

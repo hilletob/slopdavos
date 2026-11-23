@@ -19,8 +19,8 @@ import {
   mx_noise_float
 } from 'three/tsl';
 import {
-  ISLAND_BOUNDS,
-  BERLIN_DATA,
+  TOWN_BOUNDS,
+  TOWN_DATA,
   districtAt
 } from './city-config.js';
 import {
@@ -30,7 +30,7 @@ import {
   filteredPulse,
   WALL_KINDS
 } from './tsl-materials.js';
-import { berlinPoints, berlinBounds, berlinPolygonGeometry, nearestBerlinRoad, berlinSpatialGroups, berlinGeometryGroups } from './berlin-geometry.js';
+import { mappedPoints, mappedBounds, mappedPolygonGeometry, nearestMappedRoad, mappedSpatialGroups, mappedGeometryGroups } from './mapped-geometry.js';
 import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
 import { UNSURVEYED_BUILDINGS } from './unsurveyed-buildings-data.js';
 import { surfaceHeight } from './terrain.js';
@@ -157,7 +157,7 @@ export const NEWER_THAN_SWISSBUILDINGS = new Set(UNSURVEYED_BUILDINGS);
 // (but for NEWER_THAN_SWISSBUILDINGS).
 function buildCityBlocks(scene, { bag = false } = {}) {
   const group = new THREE.Group();
-  group.name = BERLIN_DATA ? 'BerlinMitteCityBlocks' : 'ManhattanCityBlocks';
+  group.name = 'TownBlocks';
   const colliders = [];
   // The floor plans of the buildings with walls at the ground (for js/controllers.js: the wall colliders say nothing
   // about the inside, so a teleport into a building would be walled in): { bounds, maxY, ring, holes }
@@ -168,10 +168,10 @@ function buildCityBlocks(scene, { bag = false } = {}) {
 
   // The spatial quadtree of the buildings' street-level details
   const quadtree = new Quadtree({
-    minX: ISLAND_BOUNDS.minX - 50,
-    maxX: ISLAND_BOUNDS.maxX + 50,
-    minZ: ISLAND_BOUNDS.minZ - 50,
-    maxZ: ISLAND_BOUNDS.maxZ + 50
+    minX: TOWN_BOUNDS.minX - 50,
+    maxX: TOWN_BOUNDS.maxX + 50,
+    minZ: TOWN_BOUNDS.minZ - 50,
+    maxZ: TOWN_BOUNDS.maxZ + 50
   }, 6, 9);
   const allBlocks = [];
 
@@ -189,8 +189,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }],
     // 1: Historic Warm Red/Terracotta Brick (Garment District / Chelsea / SoHo / Upper West Side)
     [createPreWarBuildingMaterial, {
-      stoneColor: BERLIN_DATA ? 0xc8b49b : 0xa45a45,
-      trimColor: BERLIN_DATA ? 0xe4dac5 : 0xcab9a0,
+      stoneColor: TOWN_DATA ? 0xc8b49b : 0xa45a45,
+      trimColor: TOWN_DATA ? 0xe4dac5 : 0xcab9a0,
       windowGlassColor: 0x16222e,
       windowWidth: 2.4,
       floorHeight: 3.5,
@@ -200,8 +200,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }],
     // 2: Classic NYC Brownstone & Dark Masonry (Cross-street rowhouses, Village & Harlem)
     [createPreWarBuildingMaterial, {
-      stoneColor: BERLIN_DATA ? 0xb1b4a1 : 0x765443,
-      trimColor: BERLIN_DATA ? 0xd7d9c9 : 0x503a2e,
+      stoneColor: TOWN_DATA ? 0xb1b4a1 : 0x765443,
+      trimColor: TOWN_DATA ? 0xd7d9c9 : 0x503a2e,
       windowGlassColor: 0x151e26,
       windowWidth: 2.2,
       floorHeight: 3.4,
@@ -247,7 +247,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
 
   const buckets = materials.map(() => []);
 
-  if (BERLIN_DATA) {
+  if (TOWN_DATA) {
     // Exact OSM rings drive the original facade shaders and detail-streaming
     // pools. Thin, oriented facade boxes preserve courtyard openings and the
     // angled street walls of Mitte without Manhattan's synthetic block layouts.
@@ -264,13 +264,13 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const b = pts[(i + 1) % pts.length]; return sum + a.x * b.z - b.x * a.z;
     }, 0) / 2;
     let built = 0;
-    for (const source of BERLIN_DATA.buildings || []) {
+    for (const source of TOWN_DATA.buildings || []) {
       if ((LANDMARK_SOURCE_EXCLUSIONS.has(source.id) || LANDMARK_SOURCE_EXCLUSIONS.has(source.osmId))) continue;
       if (!source.ring || source.ring.length < 6) continue;
-      const poly = berlinPoints(source.ring), holes = (source.holes || []).map(berlinPoints);
-      const bounds = berlinBounds(poly);
+      const poly = mappedPoints(source.ring), holes = (source.holes || []).map(mappedPoints);
+      const bounds = mappedBounds(poly);
       const cx = (bounds.minX + bounds.maxX) / 2, cz = (bounds.minZ + bounds.maxZ) / 2;
-      if (cx < ISLAND_BOUNDS.minX - 100 || cx > ISLAND_BOUNDS.maxX + 100 || cz < ISLAND_BOUNDS.minZ - 100 || cz > ISLAND_BOUNDS.maxZ + 100) continue;
+      if (cx < TOWN_BOUNDS.minX - 100 || cx > TOWN_BOUNDS.maxX + 100 || cz < TOWN_BOUNDS.minZ - 100 || cz > TOWN_BOUNDS.maxZ + 100) continue;
       if (LANDMARK_EXCLUSIONS.some(r => cx > r.minX && cx < r.maxX && cz > r.minZ && cz < r.maxZ)) continue;
       if (Math.abs(signedArea(poly)) < 7) continue;
       const base = Math.max(0, source.minHeight || 0);
@@ -310,7 +310,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           // courtyard normals point into the hole instead.
           const normalSign = ringIndex ? -direction : direction;
           const nx = dz / length * normalSign, nz = -dx / length * normalSign;
-          const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestBerlinRoad(x + nx * 3, z + nz * 3, 35) : null;
+          const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestMappedRoad(x + nx * 3, z + nz * 3, 35) : null;
           const shop = !updated && road && road.distance < road.width / 2 + 13 && !['church', 'cathedral', 'school', 'university', 'civic'].includes(source.kind);
           const face = ringIndex ? WALL_KINDS.rear : shop ? WALL_KINDS.shop : WALL_KINDS.entry;
           if (drawn) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
@@ -329,7 +329,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           if (shop && length > 9 && rand() < 0.48) for (let j = Math.min(3, Math.floor(length / 8)); j > 0; j--) rand();
         }
       }
-      let roof = !drawn ? null : berlinPolygonGeometry(poly, holes, eave + 0.035);
+      let roof = !drawn ? null : mappedPolygonGeometry(poly, holes, eave + 0.035);
       if (pitched && drawn) {
         // Hipped/gabled roof on a mapped quadrilateral, preserving every eave
         // corner; no guessed Manhattan towers or rooftop water tanks.
@@ -363,7 +363,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }
     for (let materialIndex = 0; materialIndex < roofBuckets.length; materialIndex++) {
       let firstMesh;
-      for (const cell of berlinGeometryGroups(roofBuckets[materialIndex], fewRoofs ? 3000 : undefined)) for (let i = 0; i < cell.length; i += 250) {
+      for (const cell of mappedGeometryGroups(roofBuckets[materialIndex], fewRoofs ? 3000 : undefined)) for (let i = 0; i < cell.length; i += 250) {
         const pieces = cell.slice(i, i + 250).map(g => {
           if (!g.index) return g;
           const expanded = g.toNonIndexed(); g.dispose(); return expanded;
@@ -376,7 +376,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         pieces.forEach(g => g.dispose());
       }
     }
-    group.userData = { city: 'Berlin', buildings: built, originalFacadeShaders: true, originalDetailStreaming: true };
+    group.userData = { city: 'Davos', buildings: built, originalFacadeShaders: true, originalDetailStreaming: true };
   }
   // ============================================================================
   // C. STATIC ISLAND-WIDE ARCHITECTURAL MASSING (6 TSL Facade Materials)
@@ -387,7 +387,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   buckets.forEach((items, matIdx) => {
     if (items.length === 0) return;
     let firstMesh;
-    for (const cell of BERLIN_DATA ? berlinSpatialGroups(items) : [items]) {
+    for (const cell of TOWN_DATA ? mappedSpatialGroups(items) : [items]) {
       const inst = createFacadeBoxes(materials[matIdx], cell);
       inst.castShadow = true;
       inst.receiveShadow = true;

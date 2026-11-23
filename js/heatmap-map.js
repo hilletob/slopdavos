@@ -7,7 +7,7 @@ import { WORLD_BOUNDS } from './davos-frame.js';
 // The map under the public heat map (heatmap.html, js/heatmap-page.js): Davos drawn from the game's own data (woods,
 // water, roads and paths, the railways, the houses, swisstopo's names) with the canvas, in the world frame of
 // js/davos-frame.js (1 unit = 1 m, x east, z south, north up). No part of the game is loaded for it: the game's map
-// (js/nyc-map.js) hangs on the game's page and on the houses the 3D world builds.
+// (js/town-map.js) hangs on the game's page and on the houses the 3D world builds.
 
 export const PALETTE = {
   ground: '#12161b',

@@ -4,13 +4,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   SIGNAL_TIMING,
   blockAt,
-  BERLIN_DATA,
+  TOWN_DATA,
   waterAt
 } from './city-config.js';
 import { cityUniforms, createGodRayMaterial } from './tsl-materials.js';
 import { createTreeField } from './trees.js';
-import { parkTreeSites, berlinStreetSites } from './city-grid.js';
-import { nearestBerlinRoad } from './berlin-geometry.js';
+import { parkTreeSites, mappedStreetSites } from './city-grid.js';
+import { nearestMappedRoad } from './mapped-geometry.js';
 import { groundHeight, surfaceHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
 import { winter } from './season.js';
@@ -109,7 +109,7 @@ function createWalkSignalMaterial(clock) {
 
 function buildStreetDetails(scene) {
   const group = new THREE.Group();
-  group.name = 'BerlinStreetDetails';
+  group.name = 'StreetDetails';
 
   const dummy = new THREE.Object3D();
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
@@ -224,7 +224,7 @@ function buildStreetDetails(scene) {
     addFootprint(x, z, width, width, true);
   }
 
-  const berlinSignMatrices = new Map();
+  const streetSignMatrices = new Map();
   {
     const expansionStreetSigns = new Set(['Schlesische Straße', 'Skalitzer Straße', 'Kreuzbergstraße', 'Kottbusser Damm',
       'Oranienstraße', 'Bergmannstraße', 'Karl-Marx-Allee', 'Frankfurter Allee', 'Warschauer Straße', 'Boxhagener Straße',
@@ -233,8 +233,8 @@ function buildStreetDetails(scene) {
       dummy.position.set(x, y, z); dummy.rotation.set(0, yaw, 0); dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix(); list.push(dummy.matrix.clone());
     };
-    for (let i = 0; i < berlinStreetSites.length; i++) {
-      const s = berlinStreetSites[i];
+    for (let i = 0; i < mappedStreetSites.length; i++) {
+      const s = mappedStreetSites[i];
       if (waterAt(s.x, s.z) && !s.road.bridge) continue;
       const block = blockAt(s.x, s.z);
       if (block && !block.sidewalk && !block.id?.toString().startsWith('sidewalk') && block.source && !block.park) continue;
@@ -260,14 +260,14 @@ function buildStreetDetails(scene) {
         davosMastSites.push(cobraLampSites[cobraLampSites.length - 1]);
         addPole(s.x, s.z, 0.15);
       }
-      if (s.name && i % 4 === 0 && (berlinSignMatrices.has(s.name) || berlinSignMatrices.size < 70 || expansionStreetSigns.has(s.name))) {
-        if (!berlinSignMatrices.has(s.name)) berlinSignMatrices.set(s.name, []);
-        setMatrix(berlinSignMatrices.get(s.name), s.x, 3.25, s.z, 1.8, 0.33, 0.055, -Math.atan2(s.uz, s.ux));
+      if (s.name && i % 4 === 0 && (streetSignMatrices.has(s.name) || streetSignMatrices.size < 70 || expansionStreetSigns.has(s.name))) {
+        if (!streetSignMatrices.has(s.name)) streetSignMatrices.set(s.name, []);
+        setMatrix(streetSignMatrices.get(s.name), s.x, 3.25, s.z, 1.8, 0.33, 0.055, -Math.atan2(s.uz, s.ux));
       }
     }
     const signalKeys = new Set();
-    for (const signal of BERLIN_DATA.signals || []) {
-      const road = nearestBerlinRoad(signal.x, signal.z, 28);
+    for (const signal of TOWN_DATA.signals || []) {
+      const road = nearestMappedRoad(signal.x, signal.z, 28);
       if (!road) continue;
       const nx = -road.uz, nz = road.ux;
       const side = ((signal.x - road.x) * nx + (signal.z - road.z) * nz) < 0 ? -1 : 1;
@@ -390,14 +390,14 @@ function buildStreetDetails(scene) {
     addKnockable(mastInst, mastLens, davosMastMatrices, davosMastSites, 0.15);
     addKnockable(kandInst, kandGlass, kandelaberMatrices, kandelaberSites, 0.17);
   }
-  if (berlinSignMatrices.size) {
+  if (streetSignMatrices.size) {
     // One draw for every street's name blades (was one per street). The thin blades cast no sun shadow (their poles do).
-    const labels = [...berlinSignMatrices.keys()];
+    const labels = [...streetSignMatrices.keys()];
     const atlas = createStreetSignAtlas(labels);
     const signMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.6 });
     const tile = attribute('aSignTile', 'vec2');
     signMat.colorNode = texture(atlas.texture, uv().add(vec2(tile.x, float(atlas.rows - 1).sub(tile.y))).div(vec2(SIGN_ATLAS_COLS, atlas.rows)));
-    const signs = labels.flatMap((name, i) => berlinSignMatrices.get(name).map((m) => [m, i]));
+    const signs = labels.flatMap((name, i) => streetSignMatrices.get(name).map((m) => [m, i]));
     const signInst = new THREE.InstancedMesh(unitBox.clone(), signMat, signs.length);
     const tiles = new Float32Array(signs.length * 2);
     signs.forEach(([m, i], k) => {
@@ -415,7 +415,7 @@ function buildStreetDetails(scene) {
   // =========================================================================
   const godRayMat = createGodRayMaterial();
   const godRayGeo = new THREE.PlaneGeometry(54, 92);
-  const canyonShafts = berlinStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse/.test(s.name)).filter((s, i) => i % 9 === 0).slice(0, 8).map(s => ({ x: s.x, y: 24, z: s.z, rotY: Math.atan2(s.ux, s.uz), rotZ: -0.44 }));
+  const canyonShafts = mappedStreetSites.filter(s => /Promenade|Talstrasse|Bahnhofstrasse/.test(s.name)).filter((s, i) => i % 9 === 0).slice(0, 8).map(s => ({ x: s.x, y: 24, z: s.z, rotY: Math.atan2(s.ux, s.uz), rotZ: -0.44 }));
   for (const cs of canyonShafts) {
     const shaft = new THREE.Mesh(godRayGeo, godRayMat);
     shaft.position.set(cs.x, cs.y, cs.z);
@@ -427,8 +427,8 @@ function buildStreetDetails(scene) {
   // 6. THE YELLOW POST BOXES ALONG THE STREETS (INSTANCED)
   // =========================================================================
   const mailboxPositions = [];
-  for (let i = 5; i < berlinStreetSites.length; i += 23) {
-    const s = berlinStreetSites[i];
+  for (let i = 5; i < mappedStreetSites.length; i += 23) {
+    const s = mappedStreetSites[i];
     if (!waterAt(s.x, s.z)) mailboxPositions.push([s.x - s.ux * 2, s.z - s.uz * 2]);
   }
   const uspsMat = new THREE.MeshStandardNodeMaterial({ color: 0xe4b92e, roughness: 0.45, metalness: 0.35 });

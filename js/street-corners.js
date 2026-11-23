@@ -26,7 +26,7 @@ let cache = null;
 let cacheRoads = null;
 
 /**
- * The rounded corners of the carriageways of `roads` (BERLIN_DATA.roads: flat pts, width, kind, bridge, tunnel,
+ * The rounded corners of the carriageways of `roads` (TOWN_DATA.roads: flat pts, width, kind, bridge, tunnel,
  * sidewalk), cached for the same array. Each: { C, T1, T2, O, R, a0, a1 (the arc's angles about O, from T1 to T2),
  * curbed, kite, sector (convex polygons: the kite, and the sidewalk inside the arc R - CURB_GAP), fillet (the asphalt:
  * C, T1, the arc, T2), minX, maxX, minZ, maxZ }.
@@ -41,7 +41,7 @@ export function streetCorners(roads) {
     for (let i = 2; i < road.pts.length; i += 2) {
       const a = { x: road.pts[i - 2], z: road.pts[i - 1] }, b = { x: road.pts[i], z: road.pts[i + 1] };
       const len = Math.hypot(b.x - a.x, b.z - a.z);
-      if (len < 0.8) continue; // (as js/berlin-geometry.js berlinRoadSegments)
+      if (len < 0.8) continue; // (as js/mapped-geometry.js mappedRoadSegments)
       const s = { a, b, len, road, h: (road.width || 6) / 2, ux: (b.x - a.x) / len, uz: (b.z - a.z) / len, prev: null, next: null, id: segs.length };
       if (prev && Math.abs(prev.b.x - a.x) + Math.abs(prev.b.z - a.z) < 0.01) { prev.next = s; s.prev = prev; }
       segs.push(s);

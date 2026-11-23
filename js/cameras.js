@@ -12,26 +12,26 @@ const CAMERA_PRESETS = [
   { id: 'action',      name: 'Low-Angle Action',         short: 'Action',      category: 'follow', fov: 60 },
   { id: 'pov',         name: 'First-Person / Cockpit',   short: 'POV / Dash',  category: 'follow', fov: 68 },
   { id: 'topdown',     name: "Bird's-Eye (top-down)",    short: 'Top-Down',    category: 'follow', fov: 42 },
-  { id: 'centralPark', name: 'Promenade Davos Platz', short: 'Promenade', category: 'scenic', fov: 52 },
-  { id: 'fifthAve', name: 'Kongresszentrum', short: 'Kongress', category: 'scenic', fov: 50 },
-  { id: 'timesSquare', name: 'Bahnhof Davos Platz', short: 'Bahnhof Platz', category: 'scenic', fov: 56 },
-  { id: 'chryslerGCT', name: 'Davosersee & Davos Dorf', short: 'Davosersee', category: 'scenic', fov: 50 },
-  { id: 'observatory', name: 'Schatzalp over the valley', short: 'Schatzalp', category: 'scenic', fov: 52 },
-  { id: 'bryantPark', name: 'Eisstadion & Kirchner Museum', short: 'Eisstadion', category: 'scenic', fov: 54 },
-  { id: 'waterfront', name: 'Dischma valley', short: 'Dischma', category: 'scenic', fov: 46 },
+  { id: 'promenade', name: 'Promenade Davos Platz', short: 'Promenade', category: 'scenic', fov: 52 },
+  { id: 'kongress', name: 'Kongresszentrum', short: 'Kongress', category: 'scenic', fov: 50 },
+  { id: 'bahnhofPlatz', name: 'Bahnhof Davos Platz', short: 'Bahnhof Platz', category: 'scenic', fov: 56 },
+  { id: 'davosersee', name: 'Davosersee & Davos Dorf', short: 'Davosersee', category: 'scenic', fov: 50 },
+  { id: 'schatzalp', name: 'Schatzalp over the valley', short: 'Schatzalp', category: 'scenic', fov: 52 },
+  { id: 'eisstadion', name: 'Eisstadion & Kirchner Museum', short: 'Eisstadion', category: 'scenic', fov: 54 },
+  { id: 'dischma', name: 'Dischma valley', short: 'Dischma', category: 'scenic', fov: 46 },
   { id: 'fixed',       name: 'Test camera',              short: 'Test',        category: 'scenic', fov: 55 },
   { id: 'drone',       name: 'Auto-Director Aerial',     short: 'Director',    category: 'scenic', fov: 50 }
 ];
 
 // Davos viewpoints: [LV95 east, north, metres above the terrain] for the camera and the point it looks at
 const VIEWPOINTS = {
-  centralPark: [[2781950, 1185690, 1.8], [2782323, 1186054, 8]], // Promenade by the Schatzalpbahn, up the street towards Dorf
-  fifthAve: [[2782470, 1185960, 4.5], [2782631, 1186090, 12]], // Talstrasse side of the Kongresszentrum
-  timesSquare: [[2781900, 1185140, 9], [2781786, 1184891, 4]], // above the Bahnhofplatz, down at the station of Davos Platz
-  chryslerGCT: [[2784450, 1188850, 18], [2783300, 1187000, 30]], // north shore of the Davosersee, over the lake to Davos Dorf
-  observatory: [[2781222, 1186130, 8], [2783200, 1184800, 40]], // Schatzalp terrace, high over the valley to the Jakobshorn
-  bryantPark: [[2782120, 1185690, 3], [2782265, 1185900, 10]], // Promenade, the Eisstadion and the Kirchner Museum behind it
-  waterfront: [[2783350, 1186450, 60], [2786574, 1182992, 60]] // over the Dischma's mouth, up the valley towards Teufi
+  promenade: [[2781950, 1185690, 1.8], [2782323, 1186054, 8]], // Promenade by the Schatzalpbahn, up the street towards Dorf
+  kongress: [[2782470, 1185960, 4.5], [2782631, 1186090, 12]], // Talstrasse side of the Kongresszentrum
+  bahnhofPlatz: [[2781900, 1185140, 9], [2781786, 1184891, 4]], // above the Bahnhofplatz, down at the station of Davos Platz
+  davosersee: [[2784450, 1188850, 18], [2783300, 1187000, 30]], // north shore of the Davosersee, over the lake to Davos Dorf
+  schatzalp: [[2781222, 1186130, 8], [2783200, 1184800, 40]], // Schatzalp terrace, high over the valley to the Jakobshorn
+  eisstadion: [[2782120, 1185690, 3], [2782265, 1185900, 10]], // Promenade, the Eisstadion and the Kirchner Museum behind it
+  dischma: [[2783350, 1186450, 60], [2786574, 1182992, 60]] // over the Dischma's mouth, up the valley towards Teufi
 };
 const viewpoint = ([E, N, up]) => { const p = lv95ToWorld(E, N); return new THREE.Vector3(p.x, groundHeight(p.x, p.z) + up, p.z); };
 // The bird's-eye camera (GTA2 style): straight down over the player, north at the top of the screen, pulling up as the
@@ -304,52 +304,52 @@ class CameraSystem {
         break;
       }
 
-      case 'centralPark': {
+      case 'promenade': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.centralPark.pos).x += sway;
-        desiredLook.copy(VIEWS.centralPark.look);
+        desiredPos.copy(VIEWS.promenade.pos).x += sway;
+        desiredLook.copy(VIEWS.promenade.look);
         break;
       }
 
-      case 'fifthAve': {
+      case 'kongress': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.fifthAve.pos).x += sway;
-        desiredLook.copy(VIEWS.fifthAve.look);
+        desiredPos.copy(VIEWS.kongress.pos).x += sway;
+        desiredLook.copy(VIEWS.kongress.look);
         break;
       }
 
-      case 'timesSquare': {
+      case 'bahnhofPlatz': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.timesSquare.pos).x += sway;
-        desiredLook.copy(VIEWS.timesSquare.look);
+        desiredPos.copy(VIEWS.bahnhofPlatz.pos).x += sway;
+        desiredLook.copy(VIEWS.bahnhofPlatz.look);
         break;
       }
 
-      case 'chryslerGCT': {
+      case 'davosersee': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.chryslerGCT.pos).x += sway;
-        desiredLook.copy(VIEWS.chryslerGCT.look);
+        desiredPos.copy(VIEWS.davosersee.pos).x += sway;
+        desiredLook.copy(VIEWS.davosersee.look);
         break;
       }
 
-      case 'observatory': {
+      case 'schatzalp': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.observatory.pos).x += sway;
-        desiredLook.copy(VIEWS.observatory.look);
+        desiredPos.copy(VIEWS.schatzalp.pos).x += sway;
+        desiredLook.copy(VIEWS.schatzalp.look);
         break;
       }
 
-      case 'bryantPark': {
+      case 'eisstadion': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.bryantPark.pos).x += sway;
-        desiredLook.copy(VIEWS.bryantPark.look);
+        desiredPos.copy(VIEWS.eisstadion.pos).x += sway;
+        desiredLook.copy(VIEWS.eisstadion.look);
         break;
       }
 
-      case 'waterfront': {
+      case 'dischma': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.copy(VIEWS.waterfront.pos).x += sway;
-        desiredLook.copy(VIEWS.waterfront.look);
+        desiredPos.copy(VIEWS.dischma.pos).x += sway;
+        desiredLook.copy(VIEWS.dischma.look);
         break;
       }
 

@@ -6,7 +6,7 @@ import { drapeOverlay, surfaceHeight, liftColliders } from './terrain.js';
 import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, createLoftedCarMaterial } from './actor-models.js';
 import { createRoadSurfaceMaterial, createRoadPaintMaterial } from './tsl-materials.js';
 import { snowyStreet } from './season.js';
-import { berlinPolygonGeometry } from './berlin-geometry.js';
+import { mappedPolygonGeometry } from './mapped-geometry.js';
 import { QUALITY, worldRegion } from './quality.js';
 import { bayKey, createLotRegistry } from './hijack.js';
 import { tracedMarkings } from './ground-markings-area.js';
@@ -191,7 +191,7 @@ function lotSurface(lot) {
   const ring = flatPts(lot.ring);
   if (ring.length > 2 && ring[0].x === ring[ring.length - 1].x && ring[0].z === ring[ring.length - 1].z) ring.pop();
   if (ring.length < 3) return null;
-  const flatGeometry = berlinPolygonGeometry(ring, [], 0);
+  const flatGeometry = mappedPolygonGeometry(ring, [], 0);
   const draped = drapeOverlay(flatGeometry, { maxEdge: 6, lift: SURFACE_LIFT });
   flatGeometry.dispose();
   return draped;

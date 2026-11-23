@@ -65,7 +65,7 @@ function distanceTo(route, x, z, reach) {
   return best <= reach ? best : Infinity;
 }
 
-/** The map layer: { draw(ctx, view, isMinimap), hover(mx, my, view) } (js/nyc-map.js overlays) */
+/** The map layer: { draw(ctx, view, isMinimap), hover(mx, my, view) } (js/town-map.js overlays) */
 export function tourRoutesOverlay(data) {
   const hiking = ['w', 'b', 'a'].map((c) => ({ c, paths: pathsOf(data.hiking.filter((h) => h.c === c).map((h) => h.pts)) }));
   const prepared = (list, kindOf) => list.map((r) => ({ ...r, kind: kindOf(r), paths: pathsOf(r.lines), bounds: boundsOf(r.lines) }));

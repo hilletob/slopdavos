@@ -20,7 +20,7 @@ import { createBenches } from './path-bench.js';
 const TERRAIN_URL = new URL('../data/davos-terrain.bin', import.meta.url);
 
 // Heights of the drawn surfaces above the terrain. The engine's flat world has the roadway at 0 and raised sidewalks
-// (0.22 m, city-config.js ISLAND_BOUNDS.sidewalkHeight); here the terrain itself is the sidewalk, and the roads are
+// (0.22 m, city-config.js TOWN_BOUNDS.sidewalkHeight); here the terrain itself is the sidewalk, and the roads are
 // laid on it (city-grid.js: 0.06 m layer + drapeOverlay's 0.05 m lift).
 export const ROAD_TOP = 0.11;
 export const SIDEWALK_TOP = 0;

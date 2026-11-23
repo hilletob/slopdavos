@@ -569,7 +569,7 @@ function buildGauge(run) {
   return { load: load.fill, smell: smell.fill, shown: -1 };
 }
 
-/** A mission's way on the radar and the full map (js/nyc-map.js overlays): the line, and its places from `points()`
+/** A mission's way on the radar and the full map (js/town-map.js overlays): the line, and its places from `points()`
  *  ({ x, z, label, done, next, square }: those done left out, the next ringed, square: a depot or a finish) */
 function addRouteOverlay(run, route, points, hex) {
   const map = run.hooks.mapSystem;

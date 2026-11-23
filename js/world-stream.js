@@ -141,7 +141,7 @@ export class WorldStreamer {
 
   /** Builds every cell within reach of (x, z) now (the start: the town before the first frame) */
   async prime(x, z) {
-    this.priming = true; // (the cells of the start collect the street lamps' sites, js/city-grid.js berlinStreetSites)
+    this.priming = true; // (the cells of the start collect the street lamps' sites, js/city-grid.js mappedStreetSites)
     this._pick(x, z);
     await this.settle();
     this.priming = false;

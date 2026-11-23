@@ -456,9 +456,9 @@ test('car turning and impact recovery agree across 30, 60 and 120 Hz', () => {
 
 function teleportHarness(mode, colliders = [], shore = () => ({ westX: -500, eastX: 500 })) {
   const harness = keyboardHarness({
-    ISLAND_BOUNDS: { minX: -500, maxX: 500, minZ: -500, maxZ: 500, sidewalkHeight: 0.22 },
+    TOWN_BOUNDS: { minX: -500, maxX: 500, minZ: -500, maxZ: 500, sidewalkHeight: 0.22 },
     CENTRAL_PARK_BOUNDS: { minX: 1000, maxX: 1100, minZ: 1000, maxZ: 1100 },
-    getIslandBoundsAtZ: shore,
+    getTownBoundsAtZ: shore,
     blockAt: () => null
   });
   const { controller } = harness;

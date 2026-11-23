@@ -1,4 +1,4 @@
-import { GEO } from './nyc-geodata.js';
+import { GEO } from './geo.js';
 import { lv95ToWorld } from './davos-frame.js';
 import { isDrivableTunnel } from './tunnel-profile.js';
 import { streetCorners, inCornerCut } from './street-corners.js';
@@ -8,28 +8,28 @@ import { inPointRing as pointInPoly } from './ring.js';
 // the Slop Berlin, Warsaw and Utrecht forks). Legacy export names are retained as API aliases; all visible geography is Davos.
 // 1 unit = 1 metre, x = LV95 east, z = LV95 south (grid north up), origin on the Promenade between Davos Platz and the
 // Kongresszentrum (js/davos-frame.js).
-const BERLIN_DATA = GEO.berlin;
+const TOWN_DATA = GEO.town;
 const toPts = (flat) => { const out=[]; for(let i=0;i<flat.length;i+=2)out.push({x:flat[i],z:flat[i+1]});return out; };
-const [minX,minZ,maxX,maxZ] = BERLIN_DATA.meta.bounds;
-const ISLAND_BOUNDS = {minX,maxX,minZ,maxZ,sidewalkHeight:0.22,waterLevel:-2.2};
-const MANHATTAN_COASTLINE=toPts(GEO.manhattan);
-const getIslandBoundsAtZ=()=>({westX:minX,eastX:maxX});
+const [minX,minZ,maxX,maxZ] = TOWN_DATA.meta.bounds;
+const TOWN_BOUNDS = {minX,maxX,minZ,maxZ,sidewalkHeight:0.22,waterLevel:-2.2};
+const MAP_FRAME=toPts(GEO.mapFrame);
+const getTownBoundsAtZ=()=>({westX:minX,eastX:maxX});
 // Davos has an arbitrary mapped street network: the grid registries of the corridor builder (js/road-network.js) are
 // empty, so that it invents no axis-aligned streets.
 const ALL_AVENUES=[], ALL_STREETS=[];
-const ROADS=BERLIN_DATA.roads.filter(r=>!r.tunnel||isDrivableTunnel(r.name)).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
+const ROADS=TOWN_DATA.roads.filter(r=>!r.tunnel||isDrivableTunnel(r.name)).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
 const DRIVABLE=new Set(['motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','residential','unclassified','living_street']);
 const ROAD_DRIVING=ROADS.filter(r=>DRIVABLE.has(r.kind));
-const BERLIN_AREAS=(BERLIN_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
+const AREAS=(TOWN_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
  poly:toPts(p.ring),holes:(p.holes||[]).map(toPts)
 }))}));
 // Areas (the municipality, Ortsteile where mapped) from the official boundaries in OSM; bounding boxes keep the polygon tests rare.
-for(const a of BERLIN_AREAS){
+for(const a of AREAS){
  a.minX=Infinity;a.maxX=-Infinity;a.minZ=Infinity;a.maxZ=-Infinity;
  for(const p of a.polygons)for(const q of p.poly){a.minX=Math.min(a.minX,q.x);a.maxX=Math.max(a.maxX,q.x);a.minZ=Math.min(a.minZ,q.z);a.maxZ=Math.max(a.maxZ,q.z);}
 }
 function districtAt(x,z){
- for(const a of BERLIN_AREAS){
+ for(const a of AREAS){
   if(x<a.minX||x>a.maxX||z<a.minZ||z>a.maxZ)continue;
   if(a.polygons.some(p=>pointInPoly(p.poly,x,z)&&!p.holes.some(h=>pointInPoly(h,x,z))))return a.id;
  }
@@ -45,7 +45,7 @@ function makeBlock(b,id,park=0){
  a*=.5;cx=a?cx/(6*a):(minX+maxX)/2;cz=a?cz/(6*a):(minZ+maxZ)/2;
  return {id,osmId:b.id,poly,holes,rects:[],frames:null,park,parkName:park?b.name:'',rect:false,area:Math.abs(a),minX,maxX,minZ,maxZ,cx,cz,median:false,district:districtAt(cx,cz)};
 }
-const BLOCKS=[...BERLIN_DATA.buildings.filter(b=>!b.part).map((b,i)=>makeBlock(b,i)),...BERLIN_DATA.parks.map((b,i)=>makeBlock(b,'park:'+i,1))];
+const BLOCKS=[...TOWN_DATA.buildings.filter(b=>!b.part).map((b,i)=>makeBlock(b,i)),...TOWN_DATA.parks.map((b,i)=>makeBlock(b,'park:'+i,1))];
 const LANDMARK_SITES=GEO.landmarks;
 // Nearest-road index (labels, sidewalk tests): uniform grid of road segments
 const ROAD_CELL = 64;
@@ -172,7 +172,7 @@ const RAISED_GRID = new Map();
   for (const [k, list] of RAISED_GRID) RAISED_GRID.set(k, list.map((i) => strips[i]));
 }
 // The rounded corners of the streets (js/street-corners.js): the asphalt reaches round them, the sidewalks end at their arcs
-const cornerCut = (x, z) => inCornerCut(streetCorners(BERLIN_DATA.roads), x, z);
+const cornerCut = (x, z) => inCornerCut(streetCorners(TOWN_DATA.roads), x, z);
 /** The raised sidewalk block under (x, z), or null (never on a carriageway: junctions, driveways, rounded corners) */
 function raisedSidewalkAt(x, z) {
   const list = RAISED_GRID.get(Math.floor(x / RAISED_CELL) * 100000 + Math.floor(z / RAISED_CELL));
@@ -214,7 +214,7 @@ function sidewalkAt(x,z){
 }
 
 
-const WATER_POLYGONS=BERLIN_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
+const WATER_POLYGONS=TOWN_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
 function waterAtExact(x,z){return WATER_POLYGONS.some(w=>x>=w.minX&&x<=w.maxX&&z>=w.minZ&&z<=w.maxZ&&pointInPoly(w.poly,x,z)&&!w.inner.some(h=>pointInPoly(h,x,z)));}
 // The Davosersee, the Landwasser and the mountain streams are mapped water polygons, and traffic calls waterAt many times per frame.
 // A 4 m grid (scanline even-odd fill) answers inside/outside; only cells crossed by a shoreline use the exact test.
@@ -262,7 +262,7 @@ const defaultSpawn=arrivalAt(spawnPoint,'Promenade');
 defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Promenade';
 // Teleport destinations: [id, name, short label, LV95 east, LV95 north, Ortsteil, street to arrive on (exact OSM name, or
 // null for the nearest drivable street), mapped landmark to face (LANDMARK_SITES, from its OSM footprint) or none]
-const NYC_LANDMARKS=[
+const TOWN_LANDMARKS=[
  ['platz','Bahnhof Davos Platz','Davos Platz',2781839,1185061,'Davos Platz','Talstrasse',null],
  ['spital','Spital Davos · Rega-Landeplatz','Spital',2781361,1184575,'Davos Platz','Promenade',null], // (the pad on the roof, js/helipad.js)
  ['promenade','Promenade · Davos Platz','Promenade',2781944,1185672,'Davos Platz','Promenade',null],
@@ -289,21 +289,21 @@ const NYC_LANDMARKS=[
 // The Davosersee's extent (LV95 2783650-2784740 E, 1187640-1188830 N) names the water the player stands on
 const LAKE_SW=lv95ToWorld(2783600,1187450),LAKE_NE=lv95ToWorld(2784800,1188900);
 const TELEPORT_LOCATIONS={};
-for(const lm of NYC_LANDMARKS){
+for(const lm of TOWN_LANDMARKS){
  const p=arrivalAt(lv95ToWorld(lm.E,lm.N),lm.road);
  TELEPORT_LOCATIONS[lm.id]=Math.hypot(p.x-lm.x,p.z-lm.z)<400?p:arrivalAt(lm);
  const t=TELEPORT_LOCATIONS[lm.id];t.heading=Math.atan2(lm.x-t.x,lm.z-t.z);
 }
-for(const lm of NYC_LANDMARKS)if(!LANDMARK_SITES[lm.name])LANDMARK_SITES[lm.name]={x:lm.x,z:lm.z,w:60,d:60,h:20,ring:[]};
+for(const lm of TOWN_LANDMARKS)if(!LANDMARK_SITES[lm.name])LANDMARK_SITES[lm.name]={x:lm.x,z:lm.z,w:60,d:60,h:20,ring:[]};
 function getLocationLabel(x,z){
- for(const lm of NYC_LANDMARKS)if(Math.hypot(x-lm.x,z-lm.z)<100)return lm.name;
+ for(const lm of TOWN_LANDMARKS)if(Math.hypot(x-lm.x,z-lm.z)<100)return lm.name;
  const nearby=nearestRoads(x,z,100).filter(q=>q.road.raw);
  if(nearby.length>1&&nearby[1].dist<22)return `${nearby[0].road.name} & ${nearby[1].road.name}`;
  if(nearby.length)return nearby[0].road.name;
  if(waterAt(x,z))return x>LAKE_SW.x&&x<LAKE_NE.x&&z<LAKE_SW.z&&z>LAKE_NE.z?'Davosersee':'Landwasser · Davos';
  const district=districtAt(x,z);
  if(district==='city')return 'Davos';
- const name=BERLIN_AREAS.find(a=>a.id===district)?.name||district.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+ const name=AREAS.find(a=>a.id===district)?.name||district.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
  // The neighbouring municipalities clipped by the frame (Klosters, Arosa, Zernez) keep their own name
  return name;
 }
@@ -334,16 +334,16 @@ function walkSignal(time, isAvenue) {
   return t < walk;
 }
 export {
-  BERLIN_DATA, toPts, pointInPoly, waterAt, nearestDrivingPoint, defaultSpawn, sidewalkAt, roadCloserThan,
+  TOWN_DATA, toPts, pointInPoly, waterAt, nearestDrivingPoint, defaultSpawn, sidewalkAt, roadCloserThan,
   ALL_AVENUES,
-  getIslandBoundsAtZ,
-  MANHATTAN_COASTLINE,
+  getTownBoundsAtZ,
+  MAP_FRAME,
   ALL_STREETS,
   ROADS,
-  NYC_LANDMARKS,
+  TOWN_LANDMARKS,
   LANDMARK_SITES,
   TELEPORT_LOCATIONS,
-  ISLAND_BOUNDS,
+  TOWN_BOUNDS,
   BLOCKS,
   SIGNAL_TIMING,
   districtAt,

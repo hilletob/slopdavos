@@ -1,4 +1,4 @@
-import { nearestBerlinRoad } from './berlin-geometry.js';
+import { nearestMappedRoad } from './mapped-geometry.js';
 
 // js/bus-bays.js — the bus bays (Haltebuchten): at these stops the street widens for the bus to pull in, out of the
 // lane. OSM doesn't map them (no bus_bay tags in Davos); they were read off the 0.1 m SWISSIMAGE by eye, where the
@@ -35,7 +35,7 @@ const sameMark = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) < 0.05
 /** The bay of a stop's mark: { nx, nz (out of the street), depth, near (the street's segment), half, t0, t1 } or null */
 function bayOf(mark) {
   const [ax, az, bx, bz] = mark, mx = (ax + bx) / 2, mz = (az + bz) / 2;
-  const near = nearestBerlinRoad(mx, mz, 10);
+  const near = nearestMappedRoad(mx, mz, 10);
   if (!near) return null;
   let nx = mx - near.x, nz = mz - near.z;
   const nl = Math.hypot(nx, nz);
@@ -53,7 +53,7 @@ export function busBayShift(mark) {
 }
 
 let segments = null;
-/** The bays' carriageway pieces, in the form of berlin-geometry.js berlinRoadSegments */
+/** The bays' carriageway pieces, in the form of mapped-geometry.js mappedRoadSegments */
 export function busBaySegments() {
   if (segments) return segments;
   segments = [];

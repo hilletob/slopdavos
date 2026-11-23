@@ -1,4 +1,4 @@
-// A map layer drawn once per view: the full map is redrawn every frame (js/nyc-map.js), and a layer of hundreds of
+// A map layer drawn once per view: the full map is redrawn every frame (js/town-map.js), and a layer of hundreds of
 // kilometres of dashed lines or of hundreds of outlined names stroked anew each frame takes the GPU process down with
 // it (the WebGPU device is lost). The layer is drawn into its own canvas when the view or `extra()` changes, and that
 // canvas is copied on the frames between.

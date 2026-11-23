@@ -30,7 +30,7 @@ import { attribute, cos, mix, positionGeometry, positionLocal, sin, step, vec3 }
 import { inService } from './hijack.js';
 import { QUAD_MODEL, QUAD_PAINTS, QUAD_WHEELS, createQuadInstances } from './quad.js';
 import { VEHICLE_SPECS, TRAFFIC_MASS, TRAFFIC_MASS_DEFAULT, playerContact, playerMass } from './vehicle-specs.js';
-import { GEO } from './nyc-geodata.js';
+import { GEO } from './geo.js';
 
 // js/traffic.js
 // Manhattan traffic and pedestrians on the road graph road-network.js derives from the city as built:
@@ -109,7 +109,7 @@ const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const group = new THREE.Group();
-  group.name = 'ManhattanTrafficAndPedestrians';
+  group.name = 'TrafficAndPedestrians';
   let collisionListener = null;
   const collisionEvent = { a: null, b: null, kind: 'vehicle', x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, speed: 0 };
 
@@ -721,7 +721,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // Edges and signalized intersections around the focus, to place vehicles and pedestrians on
   // Mapped buildings per BUILDING_CELL square (by their first corner), for how built up the area around the focus is
   const buildingCells = new Map();
-  for (const b of GEO.berlin?.buildings || []) {
+  for (const b of GEO.town?.buildings || []) {
     const k = Math.floor(b.ring[0] / BUILDING_CELL) * 100000 + Math.floor(b.ring[1] / BUILDING_CELL);
     buildingCells.set(k, (buildingCells.get(k) || 0) + 1);
   }

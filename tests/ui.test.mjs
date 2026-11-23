@@ -113,3 +113,11 @@ test('one register of actions (js/actions.js): the keys, the key bar, the touch 
     assert.match(i18n, new RegExp(`\\['${text}', '`), `${text} has its German`);
   }
 });
+
+test('every camera button in the toolbar opens a preset js/cameras.js has', () => {
+  const cameras = readFileSync(new URL('../js/cameras.js', import.meta.url), 'utf8');
+  const presets = new Set([...cameras.matchAll(/\{ id: '(\w+)'/g)].map((m) => m[1]));
+  const buttons = [...html.matchAll(/data-camera="(\w+)"/g)].map((m) => m[1]);
+  assert.ok(buttons.length >= 7, 'the scenic views have their buttons');
+  for (const id of buttons) assert.ok(presets.has(id), `data-camera="${id}" has a preset`);
+});

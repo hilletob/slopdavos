@@ -1,4 +1,4 @@
-// tools/build-davos-geodata.mjs — writes js/davos-geodata.js for the engine's irregular-city data path (GEO.berlin)
+// tools/build-davos-geodata.mjs — writes js/davos-geodata.js for the engine's irregular-city data path (GEO.town)
 // Sources (see package.json "data" scripts):
 //   tools/data/cache/osm_davos.json        OpenStreetMap, query tools/data/q_davos.overpassql
 //   tools/data/cache/osm_davos_areas.json  OpenStreetMap quarters (Quartiere), query tools/data/q_davos_areas.overpassql

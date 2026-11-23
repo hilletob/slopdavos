@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   blockAt,
-  BERLIN_DATA,
+  TOWN_DATA,
   nearestRoads,
   roadCloserThan,
   pointInPoly,
@@ -19,7 +19,7 @@ import {
   createRoadPaintMaterial
 } from './tsl-materials.js';
 import { LANDMARK_EXCLUSIONS, BERGHAIN_TREE_SITES } from './landmarks.js';
-import { berlinPoints, berlinBounds, berlinPolygonGeometry, berlinStrip, berlinRoadSegments, berlinGeometryGroups } from './berlin-geometry.js';
+import { mappedPoints, mappedBounds, mappedPolygonGeometry, mappedStrip, mappedRoadSegments, mappedGeometryGroups } from './mapped-geometry.js';
 import { CROSSWALKS } from './crosswalks-data.js';
 import { streetCorners, cornersIn, convexPlanes, inCornerCut } from './street-corners.js';
 import { freezeWater, snowyStreet } from './season.js';
@@ -40,7 +40,7 @@ import { inFlatRing as inRing } from './ring.js';
 
 // Live construction data consumed by the building and street-detail builders after buildCityGrid().
 let parkTreeSites;
-let berlinStreetSites = [];
+let mappedStreetSites = [];
 
 const CITY_MERGE_CELL = 1000; // m: tiles of the merged ground layers (roads, sidewalks, curbs, lawns, paint, water)
 const CITY_MERGE_MAX_VERTICES = 1 << 20; // per merged mesh (non-indexed, ~32 MB of attributes at most)
@@ -194,7 +194,7 @@ async function mergeCollections({ collections, onDeck, absolute }, { mergeCell =
   // cascades) on its own. (Batches of 300 pieces per 750 m cell made ~580 meshes, ~130 drawn from the valley floor;
   // 1 km tiles make ~375, ~70 drawn. Smaller tiles cull better but multiply the draws: 400 m tiles drew ~270.)
   for (const [material, geometries] of collections) {
-    const cells = berlinGeometryGroups(geometries, mergeCell);
+    const cells = mappedGeometryGroups(geometries, mergeCell);
     if (QUALITY.mobile) geometries.length = 0; // (the cells hold them now, and let each batch go once merged)
     for (const cell of cells) for (let i = 0; i < cell.length;) {
       const batch = [];
@@ -242,7 +242,7 @@ const beyondStreetLamps = (road, x, z) => UNLIT_BEYOND.some((e) => e.road.test(r
  * and the crosswalks, the bridges' slabs, parapets and piers; flat-built, laid on the terrain and merged per material.
  * Returns { meshes, colliders (the parapets, flat-world boxes), carveStrips (terrain.js carveRoads: where the drawn
  * terrain sinks under the roads), raised (the sidewalk slabs' polygons, terrain.js addRaisedSidewalk), stats }.
- * `streetSites`: collect the street lamps' sites (berlinStreetSites) along the way (js/street-details.js reads them once).
+ * `streetSites`: collect the street lamps' sites (mappedStreetSites) along the way (js/street-details.js reads them once).
  */
 async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSites = true } = {}) {
   const { roadMat, sidewalkMat, walkMat, curbMat, concreteMat, lawnMat, pavingMat, paintMat, trailMat } = cityMaterials();
@@ -254,34 +254,34 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
     for (let i = 0; i < flat.length; i += 2) { minX = Math.min(minX, flat[i]); maxX = Math.max(maxX, flat[i]); minZ = Math.min(minZ, flat[i + 1]); maxZ = Math.max(maxZ, flat[i + 1]); }
     return region.owns((minX + maxX) / 2, (minZ + maxZ) / 2);
   };
-  for (const park of BERLIN_DATA.parks || []) {
+  for (const park of TOWN_DATA.parks || []) {
     if (!park.ring || park.ring.length < 6 || !ringInWorld(park.ring)) continue;
-    const ring = berlinPoints(park.ring), holes = (park.holes || []).map(berlinPoints);
+    const ring = mappedPoints(park.ring), holes = (park.holes || []).map(mappedPoints);
     const paved = ['square', 'pedestrian', 'plaza'].includes(park.kind);
     // Meadows, woods and lawns are in the orthophoto draped on the terrain (swissimage.js); only plazas are paved over
     if (!paved) continue;
-    const geometry = berlinPolygonGeometry(ring, holes, paved ? 0.055 : 0.045);
+    const geometry = mappedPolygonGeometry(ring, holes, paved ? 0.055 : 0.045);
     if (paved) setPavingStyle(geometry, 2);
     collect(geometry, paved ? pavingMat : lawnMat);
   }
 
   // Tempelhofer Feld retains the former airport's mapped runway and apron
   // surfaces. These are park ground geometry, not new traffic corridors.
-  for (const feature of BERLIN_DATA.aeroways || []) {
+  for (const feature of TOWN_DATA.aeroways || []) {
     if (!ringInWorld(feature.ring || feature.pts || [])) continue;
     if (feature.ring?.length >= 6) {
-      collect(berlinPolygonGeometry(berlinPoints(feature.ring), (feature.holes || []).map(berlinPoints), 0.065), roadMat);
+      collect(mappedPolygonGeometry(mappedPoints(feature.ring), (feature.holes || []).map(mappedPoints), 0.065), roadMat);
     } else if (feature.pts?.length >= 4) {
-      const points = berlinPoints(feature.pts);
+      const points = mappedPoints(feature.pts);
       const halfWidth = Math.max(2, feature.width || (feature.kind === 'runway' ? 45 : 15)) / 2;
-      for (let i = 1; i < points.length; i++) collect(berlinStrip(points[i - 1], points[i], halfWidth, 0.065), roadMat);
+      for (let i = 1; i < points.length; i++) collect(mappedStrip(points[i - 1], points[i], halfWidth, 0.065), roadMat);
     }
   }
 
   // (the segments the region owns are built; those a little beyond it still clip their sidewalks and curbs, and the
   // joints to them are kept, so that the pieces of neighbouring cells meet without a notch)
   // (with the bus bays, js/bus-bays.js: carriageway pieces of their own beside the streets they widen)
-  const allSegments = [...berlinRoadSegments(), ...busBaySegments()];
+  const allSegments = [...mappedRoadSegments(), ...busBaySegments()];
   const roadSegments = region.all ? allSegments : allSegments.filter(s => region.ownsSegment(s.a.x, s.a.z, s.b.x, s.b.z));
   const nearSegments = region.all ? allSegments : allSegments.filter(s => region.segment(s.a.x, s.a.z, s.b.x, s.b.z, 80));
   // Joints: the consecutive segments of a way (OSM's bends are rounded into arcs, tools/build-davos-geodata.mjs) meet at
@@ -453,7 +453,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   let clippedPedestrianPieces = 0, clippedSidewalkPieces = 0, curbRuns = 0, sidewalkSlabs = 0, busMarkings = 0, roundedCorners = 0;
   // Rounded street corners (js/street-corners.js): the curb follows an arc tangent to the two carriageways' edges, the
   // asphalt reaches round to it and the sidewalks end at it
-  const corners = streetCorners(BERLIN_DATA.roads);
+  const corners = streetCorners(TOWN_DATA.roads);
   for (const c of corners.list) {
     if (c.kitePlanes) break; // (cached with the corners)
     c.kitePlanes = convexPlanes(c.kite);
@@ -509,7 +509,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   };
   const slabPiece = (piece, joins) => {
     raised.push(piece); // (where people and the player stand on it: terrain.js addRaisedSidewalk, by the caller)
-    collect(berlinPolygonGeometry(piece, [], SIDEWALK_TOP - 0.05), walkMat); // (drapeOverlay lifts it 0.05 m)
+    collect(mappedPolygonGeometry(piece, [], SIDEWALK_TOP - 0.05), walkMat); // (drapeOverlay lifts it 0.05 m)
     let cx = 0, cz = 0;
     for (const p of piece) { cx += p.x / piece.length; cz += p.z / piece.length; }
     const pos = [], nor = [], uvs = [];
@@ -544,7 +544,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   const YELLOW = new THREE.Color(0xe8ad22);
   const paintStrip = (s, offset, halfWidth = 0.075, duty = 0.5, period = 8, col = null) => {
     if (s.len < 0.1) return;
-    const g = berlinPolygonGeometry(stripPoints(s, halfWidth, offset), [], s.bridge ? 0.081 : 0.071);
+    const g = mappedPolygonGeometry(stripPoints(s, halfWidth, offset), [], s.bridge ? 0.081 : 0.071);
     // (mitered like the asphalt; the dashes run on from the previous segment of the way)
     const p = g.getAttribute('position'), paints = [], sides = [], colors = [], s0 = joints.get(s)?.s0 || 0;
     const centre = [edgePoint(s, 0, offset), edgePoint(s, 1, offset)];
@@ -604,7 +604,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         continue;
       }
       for (const piece of pieces) {
-        const geometry = berlinPolygonGeometry(piece, [], 0.055);
+        const geometry = mappedPolygonGeometry(piece, [], 0.055);
         setPavingStyle(geometry, s.road.kind === 'cycleway' ? 0 : 2);
         collect(geometry, pavingMat);
         clippedPedestrianPieces++;
@@ -617,12 +617,12 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       for (const side of [-1, 1]) {
         const shoulder = stripPoints(s, 1.4, side * (width / 2 + 1.4));
         for (const piece of outsideRoads(shoulder, neighbors, s)) {
-          collect(berlinPolygonGeometry(piece, [], 0.025), sidewalkMat);
+          collect(mappedPolygonGeometry(piece, [], 0.025), sidewalkMat);
           clippedSidewalkPieces++;
         }
       }
     }
-    collect(berlinPolygonGeometry(stripPoints(s, width / 2), [], y), roadMat);
+    collect(mappedPolygonGeometry(stripPoints(s, width / 2), [], y), roadMat);
     const nx = -s.uz, nz = s.ux;
     // Sidewalks along the street ([left, right] of the way: offsets -, +), from the curb (width / 2 .. + 0.16 m) out,
     // clipped out of the other carriageways (junctions, driveways)
@@ -672,7 +672,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
         const key = `${Math.round(x / 14)}/${Math.round(z / 14)}`;
         if (streetSiteKeys.has(key)) continue;
         streetSiteKeys.add(key);
-        berlinStreetSites.push({ x, z, nx: -nx * side, nz: -nz * side, ux: s.ux, uz: s.uz, name: s.road.name || '', road: s.road });
+        mappedStreetSites.push({ x, z, nx: -nx * side, nz: -nz * side, ux: s.ux, uz: s.uz, name: s.road.name || '', road: s.road });
       }
     }
   }
@@ -682,7 +682,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   // straight curbs: 0.16 m wide, its road side on the arc)
   for (const c of corners.list) {
     if (!region.owns(c.O.x, c.O.z)) continue;
-    collect(berlinPolygonGeometry(c.fillet, [], 0.06), roadMat);
+    collect(mappedPolygonGeometry(c.fillet, [], 0.06), roadMat);
     const r = c.R - 0.08, steps = 8;
     for (let k = 0; k < steps; k++) {
       const p0 = c.a0 + (c.a1 - c.a0) * (k / steps), p1 = c.a0 + (c.a1 - c.a0) * ((k + 1) / steps);
@@ -705,9 +705,9 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       S: [[sw * 0.4, 1 - sh, 1, 1], [0, 0.5, sw, 1 - sh * 0.4], [sw * 0.4, 0.5 - sh / 2, 1 - sw * 0.4, 0.5 + sh / 2], [1 - sw, sh * 0.4, 1, 0.5], [0, 0, 1 - sw * 0.4, sh]],
     };
     const LETTER_L = 2.6, LETTER_W = 1.0, GAP = 0.7, WORD = 3 * LETTER_L + 2 * GAP;
-    for (const road of BERLIN_DATA.roads) {
+    for (const road of TOWN_DATA.roads) {
       if (road.bus !== 2 || road.bridge || road.tunnel) continue;
-      const pts = berlinPoints(road.pts), cum = [0];
+      const pts = mappedPoints(road.pts), cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
       const total = cum[cum.length - 1];
       const at = (d) => {
@@ -733,7 +733,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
           for (const [a0, b0, a1, b1] of GLYPHS[ch]) {
             const P = (a, b) => { const u = (a - 0.5) * LETTER_W, v = y0 + b * LETTER_L; return { x: cx + rx * u + fx * v, z: cz + rz * u + fz * v }; };
             const quad = [P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1)];
-            const g = berlinPolygonGeometry(quad, [], 0.071);
+            const g = mappedPolygonGeometry(quad, [], 0.071);
             const mx = (quad[0].x + quad[2].x) / 2, mz = (quad[0].z + quad[2].z) / 2, pp = g.getAttribute('position');
             const paints = [], sides = [], colors = [];
             for (let i = 0; i < pp.count; i++) { paints.push(0, 1, 1); sides.push(pp.getX(i) - mx, pp.getZ(i) - mz); colors.push(YELLOW.r, YELLOW.g, YELLOW.b); }
@@ -758,7 +758,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
       for (let k = 0; k < n; k++) {
         const o = k - (n - 1) / 2, x = c.x + rx * o, z = c.z + rz * o;
         const quad = [[-0.25, -2], [0.25, -2], [0.25, 2], [-0.25, 2]].map(([a, b]) => ({ x: x + rx * a + c.ux * b, z: z + rz * a + c.uz * b }));
-        const g = berlinPolygonGeometry(quad, [], 0.072), pp = g.getAttribute('position');
+        const g = mappedPolygonGeometry(quad, [], 0.072), pp = g.getAttribute('position');
         const paints = [], sides = [], colors = [];
         for (let i = 0; i < pp.count; i++) {
           const across = (pp.getX(i) - x) * rx + (pp.getZ(i) - z) * rz;
@@ -845,7 +845,7 @@ async function buildGroundLayers(region, { mergeCell = CITY_MERGE_CELL, streetSi
   // The road underpasses (tools/underpass.mjs): the lid over the trench, flush with the yard, the walls along the road
   // inside (and a few metres out along the ramps, hiding the sides of the cut), a railing over each mouth.
   collector.deckContext = false;
-  for (const u of BERLIN_DATA.underpasses || []) {
+  for (const u of TOWN_DATA.underpasses || []) {
     if (!region.owns(u.ax + u.ux * u.len / 2, u.az + u.uz * u.len / 2)) continue;
     const nx = -u.uz, nz = u.ux, angle = -Math.atan2(u.uz, u.ux), floor = Math.min(groundHeight(u.ax, u.az), groundHeight(u.ax + u.ux * u.len, u.az + u.uz * u.len));
     // A box from s0 to s1 along the road, from v0 to v1 across it, from y0 to y1
@@ -930,12 +930,12 @@ function quayWalls(rings) {
   return g;
 }
 
-async function buildBerlinCityGrid(scene) {
+async function buildMappedCityGrid(scene) {
   const group = new THREE.Group();
-  group.name = 'BerlinMitteCityGrid';
+  group.name = 'TownGround';
   const { sidewalkMat, curbMat, waterMat } = cityMaterials();
   const footprints = [], sidewalks = [], colliders = [];
-  parkTreeSites = []; berlinStreetSites = []; streetSiteKeys.clear();
+  parkTreeSites = []; mappedStreetSites = []; streetSiteKeys.clear();
 
   // The ground is the terrain model itself (swissALTI3D), carved a few metres under the rivers and the lake so that
   // their surfaces (the lowest ground around, see terrain.js) show over a dark bed. The water is built for the whole
@@ -943,14 +943,14 @@ async function buildBerlinCityGrid(scene) {
   const waterCollector = makeCollector();
   {
     const { collect } = waterCollector;
-    const water = (BERLIN_DATA.water || []).filter(w => w.ring?.length >= 6);
+    const water = (TOWN_DATA.water || []).filter(w => w.ring?.length >= 6);
     for (const feature of water) {
-      const ring = berlinPoints(feature.ring), holes = (feature.holes || []).map(berlinPoints);
+      const ring = mappedPoints(feature.ring), holes = (feature.holes || []).map(mappedPoints);
       // The lake is level; the Limmat and the Sihl fall a few metres across the city and follow their surface
       let lo = Infinity, hi = -Infinity;
       for (const p of ring) { const h = waterSurfaceHeight(p.x, p.z); lo = Math.min(lo, h); hi = Math.max(hi, h); }
-      collect(hi - lo < 0.4 ? berlinPolygonGeometry(ring, holes, lo + 0.04)
-        : drapeOverlay(berlinPolygonGeometry(ring, holes, 0), { surface: 'water', maxEdge: 12, lift: 0.04 }), waterMat, { world: true });
+      collect(hi - lo < 0.4 ? mappedPolygonGeometry(ring, holes, lo + 0.04)
+        : drapeOverlay(mappedPolygonGeometry(ring, holes, 0), { surface: 'water', maxEdge: 12, lift: 0.04 }), waterMat, { world: true });
       // Quay walls: from below the water line up to the bank, every <= 4 m so that both ends follow the terrain
       // (one geometry per shore, not one per piece: thousands of BoxGeometries would be garbage a moment later)
       collect(quayWalls([ring, ...holes]), curbMat, { world: true });
@@ -1087,7 +1087,7 @@ async function buildBerlinCityGrid(scene) {
     parkTreeSites.push({ x, z, y: 0.09, scale, species, yaw: r * Math.PI * 2, tier: 1 });
     tlmShrubs++;
   }
-  for (const tree of BERLIN_DATA.trees || []) {
+  for (const tree of TOWN_DATA.trees || []) {
     if (onMinigolf(tree.x, tree.z)) continue;
     const h = Math.abs(Math.sin(tree.x * 1.9 + tree.z * 8.1));
     parkTreeSites.push({ x: tree.x, z: tree.z, y: 0.09, scale: tree.h ? Math.max(0.45, Math.min(1.8, tree.h / 13)) : 0.66 + h * 0.62,
@@ -1147,10 +1147,10 @@ async function buildBerlinCityGrid(scene) {
       }
     }
   }
-  for (const park of BERLIN_DATA.parks || []) {
+  for (const park of TOWN_DATA.parks || []) {
     if (TLM_TREES?.areas?.length) break; // (the swisstopo woods replace the OSM ones)
     if (!['wood', 'forest'].includes(park.kind) && park.name !== 'Viktoriapark') continue;
-    const ring = berlinPoints(park.ring), holes = (park.holes || []).map(berlinPoints), bounds = berlinBounds(ring);
+    const ring = mappedPoints(park.ring), holes = (park.holes || []).map(mappedPoints), bounds = mappedBounds(ring);
     for (let gx = Math.ceil(bounds.minX / 14); gx <= Math.floor(bounds.maxX / 14); gx++) {
       for (let gz = Math.ceil(bounds.minZ / 14); gz <= Math.floor(bounds.maxZ / 14); gz++) {
         const x = gx * 14 + (hash(gx, gz, 1) - 0.5) * 10, z = gz * 14 + (hash(gx, gz, 2) - 0.5) * 10;
@@ -1171,7 +1171,7 @@ async function buildBerlinCityGrid(scene) {
     group.add(mesh);
   }
   const st = layers?.stats || {};
-  group.userData = { terrain: 'absolute', city: BERLIN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', ...st, mappedTrees: mappedTreeCount, tlmSingle, tlmShrubs, tlmWoodland, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
+  group.userData = { terrain: 'absolute', city: TOWN_DATA.meta.city, source: 'OpenStreetMap, swisstopo swissALTI3D', ...st, mappedTrees: mappedTreeCount, tlmSingle, tlmShrubs, tlmWoodland, landmarkTrees, proceduralWoodlandTrees: parkTreeSites.length - mappedTreeCount - landmarkTrees,
     junctionClippedCurbs: true, junctionClippedSidewalks: true };
   if (layers) console.info(`[sidewalks] ${st.sidewalkSlabs} raised sidewalk pieces, ${st.busMarkings} BUS markings, ${st.crosswalkBars} crosswalk bars, ${st.roundedCorners} rounded corners`);
   // (the mobile profile plants a share of the woods, trees.js: the other sites, ~70 bytes each of 240,000, go now)
@@ -1209,7 +1209,7 @@ function setPavingStyle(geo, style) {
 }
 
 function buildCityGrid(scene) {
-  return buildBerlinCityGrid(scene);
+  return buildMappedCityGrid(scene);
 }
 
 export {
@@ -1217,5 +1217,5 @@ export {
   buildGroundLayers,
   cityMaterials,
   parkTreeSites,
-  berlinStreetSites
+  mappedStreetSites
 };

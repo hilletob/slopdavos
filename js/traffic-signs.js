@@ -3,7 +3,7 @@ import { attribute, float, frontFacing, mix, select, texture, uv, vec2, vec3 } f
 import { TRAFFIC_SIGNS } from './traffic-signs-data.js';
 import { surfaceHeight, sidewalkRise, SIDEWALK_TOP } from './terrain.js';
 import { QUALITY } from './quality.js';
-import { BERLIN_DATA } from './city-config.js';
+import { TOWN_DATA } from './city-config.js';
 import { streetCorners, outOfCornerCut } from './street-corners.js';
 import { busBayShift } from './bus-bays.js';
 
@@ -541,10 +541,10 @@ export function buildTrafficSigns(scene, { network = null, night = null } = {}) 
     }
   }
 
-  const corners = BERLIN_DATA?.roads ? streetCorners(BERLIN_DATA.roads) : null;
+  const corners = TOWN_DATA?.roads ? streetCorners(TOWN_DATA.roads) : null;
   // The carriageways at grade (as js/street-corners.js: no shared surfaces), in 32 m cells, for offCarriageways
   const roadCells = new Map();
-  for (const road of corners ? BERLIN_DATA.roads : []) {
+  for (const road of corners ? TOWN_DATA.roads : []) {
     if (road.tunnel || road.bridge || !road.pts || !CARRIAGEWAY_KINDS.has(road.kind) || (road.kind === 'service' && /platz/i.test(road.name || ''))) continue;
     for (let i = 2; i < road.pts.length; i += 2) {
       const ax = road.pts[i - 2], az = road.pts[i - 1], len = Math.hypot(road.pts[i] - ax, road.pts[i + 1] - az);

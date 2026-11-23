@@ -42,7 +42,7 @@ test('browser language selects German and translates static and generated game t
 });
 
 test('the map says its counts, its search, where the player is and the place under the pointer in both languages', async () => {
-  const M = await import('../js/nyc-map.js');
+  const M = await import('../js/town-map.js');
   setLanguage('de');
   says(M.youAreAtText('Davos Platz'), 'You are at Davos Platz', 'Du bist bei Davos Platz');
   says(M.teleportText('Promenade, Davos Platz'), 'Promenade, Davos Platz · Click to teleport here', 'Promenade, Davos Platz · Klicken, um hierher zu teleportieren');

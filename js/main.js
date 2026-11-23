@@ -4,7 +4,7 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { getLocationLabel, isTypingInField, ROADS, NYC_LANDMARKS, TELEPORT_LOCATIONS } from './city-config.js';
+import { getLocationLabel, isTypingInField, ROADS, TOWN_LANDMARKS, TELEPORT_LOCATIONS } from './city-config.js';
 import { buildCityGrid } from './city-grid.js';
 import { buildLandmarks } from './landmarks.js';
 import { buildCityBlocks } from './buildings.js';
@@ -61,7 +61,7 @@ import { GamepadControls } from './gamepad-controls.js';
 import { actions, bindKeyboard } from './actions.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
 import { LightingSystem } from './lighting.js';
-import { NYCMapSystem } from './nyc-map.js';
+import { MapSystem } from './town-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { CarRadio } from './car-radio.js';
@@ -535,7 +535,7 @@ async function initApp() {
 
   // Island-wide static geometry: chunk & distance-cull the small props, shadow stand-ins for the big casters
   // (scene-culling.js)
-  const cullingRoots = ['BerlinMitteCityGrid', 'BerlinMitteCityBlocks', 'BerlinStreetDetails', 'ManhattanLandmarks']
+  const cullingRoots = ['TownGround', 'TownBlocks', 'StreetDetails', 'Landmarks']
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
   // (no shadow stand-ins without the shadow maps: the mobile profile)
@@ -545,7 +545,7 @@ async function initApp() {
   // map use their own data): js/gpu-memory.js releases them once drawn. Not the trees (their instance buffers are
   // repacked), the moving vehicles, the signs (rebuilt by shops.refine) or the rail crossings (lamp attributes); the
   // buildings once the shop signs have been moved onto their facades (a raycast).
-  const STATIC_ROOTS = new Set(['BerlinMitteCityGrid', 'BerlinStreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
+  const STATIC_ROOTS = new Set(['TownGround', 'StreetDetails', 'surroundings', 'Ski pistes', 'Loipen', 'WinterHikes', 'Golf Club Davos',
     'Streams', 'Parking', 'DavosTrains', 'Bergbahnen', 'ShadowProxy', 'RoadMarkings', 'WorldCells', 'VectorGround', 'VectorGroundMarkings']);
   compact(scene.children.filter((o) => STATIC_ROOTS.has(o.name)));
   if (compacted.geometries) console.info(`[gpu-memory] ${compacted.geometries} geometries ${QUALITY.flatDraws ? 'with byte normals' : 'compacted'}: ${Math.round(compacted.before / 1048576)} MB -> ${Math.round(compacted.after / 1048576)} MB`);
@@ -841,7 +841,7 @@ async function initApp() {
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
 
   // Where you are: the place's name over its street corner (js/hud-location.js)
-  const renderLocation = createLocationSign(elLocation, { roads: ROADS.map((r) => r.name), places: NYC_LANDMARKS.map((l) => l.name) });
+  const renderLocation = createLocationSign(elLocation, { roads: ROADS.map((r) => r.name), places: TOWN_LANDMARKS.map((l) => l.name) });
 
   function teleportTo(x, z, heading = Math.PI) {
     const destination = controllerManager.teleportActiveTo(x, z, heading);
@@ -871,7 +871,7 @@ async function initApp() {
     return destination;
   }
 
-  const mapSystem = new NYCMapSystem({
+  const mapSystem = new MapSystem({
     controllerManager,
     cameraSystem,
     trafficSystem,
@@ -930,13 +930,13 @@ async function initApp() {
         selectCamera('pov', true);
         break;
       case 'Digit8':
-        selectCamera('fifthAve', true);
+        selectCamera('kongress', true);
         break;
       case 'Digit9':
-        selectCamera('timesSquare', true);
+        selectCamera('bahnhofPlatz', true);
         break;
       case 'Digit0':
-        selectCamera('chryslerGCT', true);
+        selectCamera('davosersee', true);
         break;
       case 'KeyV':
         cycleCamera(e.shiftKey ? -1 : 1);
@@ -1166,7 +1166,7 @@ async function initApp() {
       for (const o of culled) o.frustumCulled = true;
       markInit('warmup');
     }
-    // (not behind the full map: it covers the screen, js/nyc-map.js fullMapCovers)
+    // (not behind the full map: it covers the screen, js/town-map.js fullMapCovers)
     if (!warmedUp || !mapSystem.fullMapCovers) renderPipeline.render();
     if (!warmedUp) {
       warmedUp = true;
