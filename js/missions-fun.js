@@ -205,7 +205,7 @@ class Interior {
     this.hadDriver = 'personDriver' in cm;
     this.prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { const p = m.entities.person; p.speed = 0; }; // (the walker waits at the door)
-    this.snow = run.scene.getObjectByName('snowfall');
+    this.snow = run.scene.getObjectByName('precipitation');
   }
   /** The camera at `pos` looking at `look` (interior coordinates) */
   camera(cam, pos, look) {

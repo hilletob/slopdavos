@@ -544,6 +544,7 @@ const pairs = [
   ['Pack up', 'Einpacken'],
   ['W or Space: pull up the wing and run', 'W oder Leertaste: Schirm aufziehen und loslaufen'], ['P: pack it up again', 'P: wieder einpacken'],
   ['Too flat to take off: find a slope that falls away', 'Zu flach zum Starten: Such einen Hang, der abfällt'],
+  ['A thunderstorm: nobody flies now', 'Gewitter: Jetzt fliegt niemand'],
   ['Too steep to run here: find an open slope', 'Zu steil zum Anlaufen: Such einen freien Hang'],
   ['Stand on the open ground to lay out the wing', 'Stell dich auf offenen Boden, um den Schirm auszulegen'],
   ['The slope ran out: the wing comes down', 'Der Hang ist zu Ende: Der Schirm fällt zusammen'],

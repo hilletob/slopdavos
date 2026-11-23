@@ -396,6 +396,60 @@ export function playEvent(ctx, resources, kind, output, options = {}) {
   return event;
 }
 
+// Thunder: a roll of overlapping rumbles (brown noise, its swells at random), from near also the crack of the stroke itself
+// first. Made the first time a thunderstorm comes (four variants, ~6 s each), not at the start.
+function thunderBuffer(ctx, seed, near) {
+  const random = randomSource(seed);
+  const duration = near ? 5.5 : 6.5;
+  const rolls = Array.from({ length: 5 + Math.floor(random() * 4) }, (_, i) => ({
+    at: (i === 0 ? 0 : random() * duration * 0.55) + (near ? 0.04 : 0.25),
+    level: i === 0 ? 1 : 0.35 + random() * 0.6,
+    decay: 0.9 + random() * 1.4
+  }));
+  let brown = 0, mid = 0;
+  return makeBuffer(ctx, duration, (t) => {
+    const white = random() * 2 - 1;
+    brown += (white - brown) * (near ? 0.03 : 0.018);
+    mid += (white - mid) * 0.12;
+    let swell = 0;
+    for (const r of rolls) {
+      if (t < r.at) continue;
+      const u = t - r.at;
+      swell += r.level * (1 - Math.exp(-u * 9)) * Math.exp(-u * r.decay);
+    }
+    const crack = near ? white * Math.exp(-t * 26) * 0.9 + mid * Math.exp(-t * 6) * 0.5 : 0;
+    return brown * swell * 3.2 + mid * swell * (near ? 0.35 : 0.12) + crack;
+  }, 0.7);
+}
+
+/** Thunder (js/lightning.js through js/audio-system.js): `distance` metres (the delay and how dull it sounds), `pan` -1..1 */
+export function playThunder(ctx, resources, output, { distance = 2000, pan = 0, strength = 1, when = ctx.currentTime } = {}) {
+  if (!resources.thunder) {
+    resources.thunder = {
+      near: [11, 12].map((seed) => thunderBuffer(ctx, seed, true)),
+      far: [21, 22].map((seed) => thunderBuffer(ctx, seed, false))
+    };
+  }
+  const near = distance < 1800;
+  const list = near ? resources.thunder.near : resources.thunder.far;
+  const source = ctx.createBufferSource();
+  source.buffer = list[Math.floor(Math.random() * list.length)];
+  source.playbackRate.value = 0.9 + Math.random() * 0.2;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = Math.max(260, 5200 * Math.exp(-distance / 1400));
+  filter.Q.value = 0.5;
+  const gain = ctx.createGain();
+  gain.gain.value = clamp(strength) * (near ? 0.55 : 0.12 + 0.3 * smoothstep(1 - distance / 8000));
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = clamp(pan, -1, 1) * 0.7;
+  source.connect(filter).connect(gain).connect(panner).connect(output);
+  const start = Math.max(ctx.currentTime, finite(when, ctx.currentTime)) + distance / 343;
+  source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); panner.disconnect(); };
+  source.start(start);
+  return source;
+}
+
 function smoothParameter(parameter, timeConstant, epsilon = 0.0001) {
   let target = NaN;
   return (value, now) => {
@@ -412,7 +466,7 @@ export function createWindVoice(ctx, resources, output) {
   master.gain.setTargetAtTime(1, ctx.currentTime, 0.8);
   master.connect(output);
   const nodes = [master], sources = [], channels = [];
-  let disposed = false, remaining = 4;
+  let disposed = false, remaining = 5;
   const disconnect = () => {
     for (const node of nodes) node.disconnect();
   };
@@ -461,20 +515,41 @@ export function createWindVoice(ctx, resources, output) {
     noise.start(ctx.currentTime, i * resources.noise.duration * 0.43);
     gust.start(ctx.currentTime, i * resources.gusts.duration * 0.37);
   }
+  // The rain (js/weather.js): a hiss of high noise, quieter under a roof
+  const rainNoise = ctx.createBufferSource();
+  rainNoise.buffer = resources.noise;
+  rainNoise.loop = true;
+  const rainHigh = ctx.createBiquadFilter();
+  rainHigh.type = 'highpass';
+  rainHigh.frequency.value = 900;
+  const rainLow = ctx.createBiquadFilter();
+  rainLow.type = 'lowpass';
+  rainLow.frequency.value = 6500;
+  const rainGain = ctx.createGain();
+  rainGain.gain.value = 0;
+  rainNoise.connect(rainHigh).connect(rainLow).connect(rainGain).connect(master);
+  const rainLevel = smoothParameter(rainGain.gain, 1.2);
+  sources.push(rainNoise);
+  nodes.push(rainNoise, rainHigh, rainLow, rainGain);
+  rainNoise.onended = () => { if (--remaining === 0) disconnect(); };
+  rainNoise.start(ctx.currentTime, resources.noise.duration * 0.71);
   return {
-    update({ speed = 0, altitude = 0, night = 0, traffic = 0, enclosure = 0 } = {}, now = ctx.currentTime) {
+    // `rain` 0..1 and `weatherWind` 0..1: the weather's (js/weather.js)
+    update({ speed = 0, altitude = 0, night = 0, traffic = 0, enclosure = 0, rain = 0, weatherWind = 0 } = {}, now = ctx.currentTime) {
       if (disposed) return;
       now = Math.max(ctx.currentTime, finite(now, ctx.currentTime));
       const motion = clamp(Math.abs(finite(speed)) / 55);
       const exposure = Math.sqrt(clamp(altitude / 300));
       const quiet = 1 - clamp(Number(night)) * 0.3;
       const shelter = 1 - clamp(enclosure) * 0.65;
+      const blow = clamp(weatherWind);
       for (const channel of channels) {
         // Walls shelter ambient wind; the rush from riding or flying still follows the player's motion.
-        channel.air((0.010 * shelter + motion * 0.012 + exposure * 0.015) * quiet, now);
-        channel.cutoff(1550 + motion * 700 + exposure * 850, now);
+        channel.air((0.010 * shelter * (1 + blow * 2.2) + motion * 0.012 + exposure * 0.015) * quiet, now);
+        channel.cutoff(1550 + motion * 700 + exposure * 850 + blow * 500, now);
         channel.rumble((0.003 + clamp(traffic) * 0.020) * quiet * (1 - exposure * 0.5), now);
       }
+      rainLevel(clamp(rain) * 0.05 * (1 - clamp(enclosure) * 0.6) * (1 - exposure * 0.6), now);
     },
     dispose(immediate = false) {
       if (disposed) return;

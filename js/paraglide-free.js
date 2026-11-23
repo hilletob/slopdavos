@@ -10,7 +10,7 @@ import { groundHeight } from './terrain.js';
 import { gameClock } from './game-clock.js';
 import { OWN_CONTROLS_CLASS } from './missions-manager.js';
 import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
-import { LICENCE_ID, LAUNCH_RULE, FREE_THERMALS, freeThermals, launchSpot, createFlight, onGround, FREE_FLIGHT_BOARD, freeFlightEntry, freeFlightText } from './missions-data-paraglide.js';
+import { LICENCE_ID, LAUNCH_RULE, FREE_THERMALS, freeThermals, weatherAir, launchSpot, createFlight, onGround, FREE_FLIGHT_BOARD, freeFlightEntry, freeFlightText } from './missions-data-paraglide.js';
 import * as THREE from 'three/webgpu';
 import { el } from './dom.js';
 import { msg } from './messages.js';
@@ -24,7 +24,8 @@ const REFUSALS = {
   flat: 'Too flat to take off: find a slope that falls away',
   steep: 'Too steep to run here: find an open slope',
   ground: 'Stand on the open ground to lay out the wing',
-  licence: 'No licence yet: land softly on the field at Glaris.'
+  licence: 'No licence yet: land softly on the field at Glaris.',
+  storm: 'A thunderstorm: nobody flies now'
 };
 const GLYPH = '⌒';
 
@@ -46,17 +47,25 @@ function disposeTree(root) {
   for (const m of materials) { for (const v of Object.values(m)) if (v?.isTexture) v.dispose(); m.dispose(); }
 }
 
-export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = null, touchControls = null, actions = null, missions = null, progress = null, audio = null, mapSystem = null }) {
+export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = null, touchControls = null, actions = null, missions = null, progress = null, audio = null, mapSystem = null, weather = () => null }) {
   let run = null;
   let checkT = 0, licensed = false, spot = null, flashText = null, flashUntil = 0;
   const person = () => cm.entities.person;
   const busy = () => !!missions?.active || !!missions?.listOpen || !!mapSystem?.isFullMapOpen;
   const onFoot = () => cm.activeMode === 'person' && !cm.rhbPassenger;
 
+  // The thermals at the game's time and in its weather (js/weather.js); the flight's wind and sink from the weather too
+  function airNow(f) {
+    const air = weatherAir(weather());
+    if (f) { f.windScale = air.windScale; f.downdraft = air.downdraft; }
+    return freeThermals(gameClock.minute, gameClock.isWinter, FREE_THERMALS, air.sun);
+  }
+
   // --- Out and in again --------------------------------------------------------------------------------------------
   function why() {
     const p = person().position;
     if (p.y - groundHeight(p.x, p.z) > LAUNCH_RULE.agl) return { reason: 'ground' }; // (on a roof, a bridge, in the air)
+    if (weatherAir(weather()).storm) return { reason: 'storm' }; // (js/weather.js: in a thunderstorm nobody flies)
     const s = launchSpot(groundHeight, p.x, p.z, person().heading);
     return s.ok ? { spot: s } : { reason: s.reason };
   }
@@ -75,9 +84,10 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
       free: true, phase: 'running', group, cleanups: [],
       hooks: { controllerManager: cm, cameraSystem, audio },
       state: { flight: createFlight({ x: p.x, z: p.z, heading: s.heading }) },
-      thermalList: FREE_THERMALS, thermals: freeThermals(gameClock.minute, gameClock.isWinter), thermalsT: 2,
+      thermalList: FREE_THERMALS, thermals: [], thermalsT: 2,
       launchT: 0, landedT: 0, jumped: false, lastX: p.x, lastZ: p.z, airborneAt: 0, ranked: null, judged: false
     };
+    run.thermals = airNow(run.state.flight);
     // (what the mission's run offers the feature, js/missions.js: the key bar's hints, the touch buttons relabelled;
     // without them setup() threw and P did nothing)
     const r0 = run;
@@ -204,7 +214,7 @@ export function buildFreeFlight({ scene, controllerManager: cm, cameraSystem = n
     if (run) {
       const r = run, f = r.state.flight;
       r.thermalsT -= dt;
-      if (r.thermalsT <= 0) { r.thermalsT = 2; r.thermals = freeThermals(gameClock.minute, gameClock.isWinter); }
+      if (r.thermalsT <= 0) { r.thermalsT = 2; r.thermals = airNow(f); }
       if (f.phase === 'inflate' || f.phase === 'run') {
         r.launchT += dt;
         if (r.launchT > LAUNCH_MAX) { pack('The slope ran out: the wing comes down'); render(); return; }

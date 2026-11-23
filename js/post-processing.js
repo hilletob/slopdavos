@@ -78,11 +78,13 @@ function createPostProcessing(renderer, sceneColor, reflections) {
     return vec4(color.mul(vignette), 1.0);
   })();
 
-  // A moment of the day (js/day-cycle.js sampleDay): uniforms only, js/main.js steps this every few seconds
-  function applyLook(s) {
+  // A moment of the day (js/day-cycle.js sampleDay): uniforms only, js/main.js steps this every few seconds; `wx` the
+  // weather (js/weather.js): under a grey sky the colours go flatter and duller
+  function applyLook(s, wx = null) {
+    const o = wx ? wx.overcast : 0;
     exposure.value = s.exposure;
-    contrast.value = s.contrast;
-    saturation.value = s.saturation;
+    contrast.value = s.contrast * (1 - 0.12 * o);
+    saturation.value = s.saturation * (1 - 0.2 * o);
     balance.value.set(s.balanceR, s.balanceG, s.balanceB);
     bloomPass.strength.value = s.bloom;
     bloomPass.threshold.value = s.threshold;

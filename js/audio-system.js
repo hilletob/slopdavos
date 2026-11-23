@@ -1,5 +1,5 @@
 import { createSynthResources, createMotorVoice, setControlRate } from './audio-synthesis.js';
-import { createEventResources, playEvent, createWindVoice } from './audio-events.js';
+import { createEventResources, playEvent, playThunder, createWindVoice } from './audio-events.js';
 import { CityAudioSources } from './audio-sources.js';
 import { CityAcoustics } from './audio-acoustics.js';
 
@@ -112,7 +112,8 @@ class CityAudioSystem {
     this.onCollision = (impact) => this.crash(impact);
     for (const system of this.collisionSystems) system.setCollisionListener?.(this.onCollision);
     this.motorParams = { speed: 0, load: 0, verticalSpeed: 0, doppler: 1, seed: 0 };
-    this.windParams = { speed: 0, altitude: 0, night: 0, traffic: 0, enclosure: 0 };
+    this.windParams = { speed: 0, altitude: 0, night: 0, traffic: 0, enclosure: 0, rain: 0, weatherWind: 0 };
+    this.weather = { rain: 0, wind: 0 };
     this.footPosition = { x: 0, y: 0, z: 0, seed: 0 };
     this.onGesture = (event) => {
       if (event.type === 'keydown' && (event.repeat || event.metaKey || event.ctrlKey || /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName))) return;
@@ -508,8 +509,20 @@ class CityAudioSystem {
         }
       }
     }
-    Object.assign(this.windParams, { speed: Math.min(sources.motion, 50), altitude: position.y, traffic: sources.traffic, night: night ? 1 : 0, enclosure });
+    Object.assign(this.windParams, { speed: Math.min(sources.motion, 50), altitude: position.y, traffic: sources.traffic, night: night ? 1 : 0, enclosure, rain: this.weather.rain, weatherWind: this.weather.wind });
     this.wind.update(this.windParams, now);
+  }
+
+  /** The weather (js/weather.js, js/main.js every few seconds): the rain's hiss and the wind's strength */
+  setWeather(rain, wind) {
+    this.weather.rain = rain;
+    this.weather.wind = wind;
+  }
+
+  /** A lightning's thunder (js/lightning.js): late by the sound's way, duller from afar */
+  thunder({ distance, pan, strength }) {
+    if (!this.ready || !this.enabled || this.context?.state !== 'running' || document.hidden) return;
+    playThunder(this.context, this.resources, this.mix, { distance, pan, strength });
   }
 
   dispose() {

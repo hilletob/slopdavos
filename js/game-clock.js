@@ -93,12 +93,27 @@ export function winterBlendAt(total) {
   return d > SEASON_DAYS ? 1 : 0;
 }
 
-/** How hard it snows (js/snowfall.js): from the evening before the snow settles, all winter, until the thaw begins */
+/** The snowfall the calendar demands (js/weather.js adds the weather's own): from the evening before the first snow
+ *  settles until it lies, 06:00 on the first winter day (the weather's course snows on in that slot and lets it go) */
 export function snowfallAt(total) {
   const d = dayOfYear(total), m = minuteOfDay(total);
   if (d === SEASON_DAYS - 1) return m < SNOW_START ? 0 : Math.min(1, (m - SNOW_START) / FIRST_FLAKES);
-  if (d === YEAR_DAYS - 1) return m < THAW_START ? 1 : Math.max(0, 1 - (m - THAW_START) / LAST_FLAKES);
-  return d >= SEASON_DAYS ? 1 : 0;
+  if (d === SEASON_DAYS) return m < SNOW_END ? 1 : 0;
+  return 0;
+}
+
+/** How much of the weather's snowfall the thaw lets through: none once it has begun, after LAST_FLAKES minutes */
+export function thawFlakesAt(total) {
+  const d = dayOfYear(total), m = minuteOfDay(total);
+  return d === YEAR_DAYS - 1 && m >= THAW_START ? Math.max(0, 1 - (m - THAW_START) / LAST_FLAKES) : 1;
+}
+
+/** The roads wet with the melt: through the thaw and three hours after it */
+export function thawWetAt(total) {
+  const d = dayOfYear(total), m = minuteOfDay(total);
+  if (d !== YEAR_DAYS - 1 || m < THAW_START) return 0;
+  const rise = Math.min(1, (m - THAW_START) / 120), dry = Math.min(1, Math.max(0, (m - THAW_END) / 180));
+  return 0.8 * rise * (1 - dry);
 }
 
 /** "07:05" */
@@ -166,7 +181,6 @@ export function createGameClock({ storage = null, key = STORAGE_KEY } = {}) {
     get season() { return seasonAt(total); },
     get isWinter() { return seasonAt(total) === 'winter'; },
     get winterBlend() { return heldWinter === null ? winterBlendAt(total) : heldWinter ? 1 : 0; },
-    get snowfall() { return heldWinter === null ? snowfallAt(total) : heldWinter ? 1 : 0; },
     get frozen() { return frozen; },
     get held() { return held; },
     get text() { return formatClock(total); },

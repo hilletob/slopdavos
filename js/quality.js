@@ -187,7 +187,7 @@ if (QUALITY.groundClasses && QUALITY.orthoSkipCoverage > 1) QUALITY.orthoSkipCov
  * the names; "all" leaves out every one of them, which keeps the terrain with its orthophotos, the player and the camera).
  */
 export const SKIP_NAMES = ['buildings', 'landmarks', 'detailhouses', 'golf', 'ground', 'parking', 'shops', 'streams', 'signs', 'bergbahnen',
-  'rhb', 'traffic', 'pedestrians', 'trees', 'details', 'winter', 'snowfall', 'surroundings', 'lights', 'postfx', 'water'];
+  'rhb', 'traffic', 'pedestrians', 'trees', 'details', 'winter', 'snowfall', 'rainfall', 'surroundings', 'lights', 'postfx', 'water'];
 
 /** The skipped systems' names (a Set; 'all' expanded) */
 export function parseSkip(value) {

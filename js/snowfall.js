@@ -11,7 +11,9 @@ import { groundHeight } from './terrain.js';
 
 const FLAKES = 12000;
 const BOX = 70; // metres, the cube of snow around the camera
-const WIND = new THREE.Vector2(0.55, 0.2); // m/s, the drift with the wind
+// m/s, the drift with the wind at its stiffest (js/weather.js `wind` 0..1); the drift is summed up per frame on the CPU, as
+// a change of wind times the time since the start would throw the whole field sideways
+const WIND = new THREE.Vector2(1.4, 0.5);
 
 // One quad per flake: the corners in `position` (±0.5), the flake's seed (four randoms) in `seed`
 function flakeGeometry(count) {
@@ -41,7 +43,8 @@ function flakeGeometry(count) {
 // `night`: the lighting's night factor uniform (0 day … 1 midnight), so that the flakes dim with the light
 export function buildSnowfall(scene, { night = null } = {}) {
   const fade = uniform(0); // how hard it snows × height fade, set per frame
-  let amount = 0;
+  const drifted = uniform(new THREE.Vector3()); // metres the wind has carried the flakes (summed in update)
+  let amount = 0, windNow = 0.3, last = performance.now();
   const seed = attribute('seed', 'vec4');
   const t = time;
 
@@ -50,7 +53,7 @@ export function buildSnowfall(scene, { night = null } = {}) {
   const phase = seed.x.mul(6.283);
   const wobble = vec3(sin(t.mul(seed.y.mul(0.8).add(0.6)).add(phase)), 0, sin(t.mul(seed.z.mul(0.7).add(0.5)).add(phase.mul(1.7)))).mul(0.45);
   const start = seed.xyz.mul(BOX);
-  const drift = vec3(t.mul(WIND.x), t.mul(speed).negate(), t.mul(WIND.y));
+  const drift = vec3(0, t.mul(speed).negate(), 0).add(drifted);
   // Wrapped into the cube centred on the camera
   const world = mod(start.add(drift).sub(cameraPosition), BOX).sub(BOX / 2).add(cameraPosition).add(wobble);
   const view = cameraViewMatrix.mul(vec4(world, 1));
@@ -80,8 +83,14 @@ export function buildSnowfall(scene, { night = null } = {}) {
   return {
     mesh,
     setAmount(a) { amount = a; },
+    /** The wind, 0 calm .. 1 a stiff breeze (js/weather.js) */
+    setWind(w) { windNow = w; },
     // Per frame: the fade from the snowfall and the camera's height above the ground; nothing drawn while it doesn't snow
     update(camera) {
+      const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      drifted.value.x = (drifted.value.x + WIND.x * windNow * dt) % BOX;
+      drifted.value.z = (drifted.value.z + WIND.y * windNow * dt) % BOX;
       const p = camera.position;
       const ground = groundHeight(p.x, p.z);
       const above = Number.isFinite(ground) ? p.y - ground : 0;

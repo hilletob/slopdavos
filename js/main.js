@@ -25,6 +25,10 @@ import { buildHelipad } from './helipad.js';
 import { buildSkiPistes } from './ski-pistes.js';
 import { buildWinterSports } from './winter-sports.js';
 import { buildSnowfall } from './snowfall.js';
+import { buildRainfall } from './rainfall.js';
+import { buildLightning } from './lightning.js';
+import { createWeather, weatherSwitch, weatherText } from './weather.js';
+import { msg } from './messages.js';
 import { buildStreams } from './streams.js';
 import { buildShops } from './shops.js';
 import { buildBergbahnen } from './bergbahnen.js';
@@ -207,7 +211,20 @@ async function initApp() {
   // (?qset=skip:a+b, js/quality.js: whole systems left out, to find what a device can't take; NOOP stands in for
   // their per-frame hooks)
   const NOOP = () => {};
-  const snowfall = skipped('snowfall') ? { update: NOOP } : buildSnowfall(scene, { night: lightingSystem.uNightFactor }); // falling snow in winter
+  // What falls from the sky (js/weather.js says how hard): in one group, which the missions indoors hide ('precipitation')
+  const precipitation = new THREE.Group();
+  precipitation.name = 'precipitation';
+  scene.add(precipitation);
+  const snowfall = skipped('snowfall') ? { update: NOOP } : buildSnowfall(precipitation, { night: lightingSystem.uNightFactor }); // falling snow in winter
+  const rainfall = skipped('rainfall') ? { update: NOOP } : buildRainfall(precipitation, { night: lightingSystem.uNightFactor }); // rain in summer
+  // A thunderstorm's lightning; its thunder is the audio's (built later: looked up when it strikes)
+  let thunder = null;
+  const lightning = buildLightning(scene, { lighting: lightingSystem, onStrike: (strike) => thunder?.(strike) });
+  // The weather: the clock's course, or held (?weather=<id>, __slopdavos.weather(id); a mission holds its own)
+  const weather = createWeather();
+  const debugWeather = weatherSwitch(location.search);
+  weather.hold(debugWeather);
+  let weatherNow = weather.at(gameClock.total);
   markInit('lighting');
 
   loading.say('Opening the streets…');
@@ -487,6 +504,7 @@ async function initApp() {
   const audioSystem = new CityAudioSystem({ controllerManager, trafficSystem, highwayTraffic, streetDetails }, {
     onStateChange: updateSoundButton
   });
+  thunder = (strike) => audioSystem.thunder(strike);
   const soundState = document.getElementById('sound-state');
   function updateSoundButton() {
     if (!soundButton) return;
@@ -763,10 +781,16 @@ async function initApp() {
     if (gameClock.isWinter && !isWinter() && !force && winterSceneryPending()) fastForward.behindVeil(() => setSeason(true), 'Snow is falling …');
     else setSeason(gameClock.isWinter);
     setWinterBlend(w);
-    snowfall.setAmount?.(gameClock.snowfall);
+    weatherNow = weather.at(gameClock.total);
+    snowfall.setAmount?.(weatherNow.snow);
+    snowfall.setWind?.(weatherNow.wind);
+    rainfall.setAmount?.(weatherNow.rain);
+    rainfall.setWind?.(weatherNow.wind);
+    lightning.setStorm(weatherNow.storm);
+    audioSystem.setWeather(weatherNow.rain, weatherNow.wind);
     sampleDay(gameClock.minute, w, daySample);
-    lightingSystem.applySample(daySample, w, force);
-    colorGrade.applyLook(daySample);
+    lightingSystem.applySample(daySample, w, force, weatherNow);
+    colorGrade.applyLook(daySample, weatherNow);
     if (!skipped('winter')) groomMap.setWearHours(wearHoursAt(gameClock.minute));
   }
   // (the debug switches: __slopdavos.time(id), ?time=: that time of day, held there; time('run') lets it go on)
@@ -780,14 +804,14 @@ async function initApp() {
   // The time and the day in the HUD (only touched when they change)
   const elClockTime = document.getElementById('hud-clock-time');
   const elClockDay = document.getElementById('hud-clock-day');
-  let clockText = '', clockDayKey = -1;
+  let clockText = '', clockDayKey = '';
   function renderClock() {
     const text = gameClock.text;
     if (text !== clockText && elClockTime) { clockText = text; elClockTime.textContent = text; }
-    const key = gameClock.day * 2 + (gameClock.isWinter ? 1 : 0);
+    const key = `${gameClock.day}${gameClock.isWinter ? 'w' : 's'}${weatherNow.id}`;
     if (key !== clockDayKey && elClockDay) {
       clockDayKey = key;
-      setLocalizedText(elClockDay, dayText(gameClock.day, gameClock.isWinter));
+      setLocalizedText(elClockDay, msg('{day|t} · {weather|t}', '{day|t} · {weather|t}', { day: dayText(gameClock.day, gameClock.isWinter), weather: weatherText(weatherNow.id) }));
     }
   }
 
@@ -940,14 +964,17 @@ async function initApp() {
     clock: gameClock, apply: applyClock, closePopovers,
     button: document.getElementById('btn-fastforward'), popover: document.getElementById('ff-popover')
   });
-  // A mission: the clock stands still at its time, in its season's look; afterwards it goes on from there
+  // A mission: the clock stands still at its time, in its season's look and its weather (def.weather, else clear, as the
+  // missions were made); afterwards it goes on from there
   const holdClock = (def, night) => {
     gameClock.hold(missionClockTime(def, night, gameClock.total), def.season || null);
+    weather.hold(def.weather || 'clear');
     gameClock.takeJump();
     applyClock(true);
   };
   const releaseClock = () => {
     gameClock.release();
+    weather.hold(debugWeather);
     gameClock.takeJump();
     applyClock(true);
   };
@@ -958,7 +985,7 @@ async function initApp() {
   gta = buildGta({ scene, controllerManager, touchControls, actions, selectMode, rhb, missions, mapSystem, savePlayerState, traffic: trafficSystem, vbd, trafficBodies, audio: audioSystem });
   renderVehiclePanel(); // (a taken car, bus or quad ridden on from the save: its name in the cluster, not the van's)
   // The free flight (js/paraglide-free.js): with the paragliding licence, P on a slope takes the wing off the back
-  const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem });
+  const freeFlight = buildFreeFlight({ scene, controllerManager, cameraSystem, touchControls, actions, missions, progress: globalThis.__slopdavosProgress, audio: audioSystem, mapSystem, weather: () => weatherNow });
   glidingNow = () => freeFlight.gliding; // (only now: building it lists the actions, and they ask)
   actions.layer('look', [hint(['Drag'], 'Orbit', () => modeNow() !== 'helicopter')]);
   // The register's keyboard: after the missions' own capture listeners; nothing while the map, the missions' list or
@@ -1085,6 +1112,8 @@ async function initApp() {
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
     snowfall.update(cameraSystem.camera);
+    rainfall.update(cameraSystem.camera);
+    lightning.update(realDt, cameraSystem.camera);
     crossCountry.update(dt, cameraSystem.camera);
     winterHikers.update(dt, cameraSystem.camera);
     mapSystem.update();
@@ -1163,6 +1192,9 @@ async function initApp() {
           mode(m) { selectMode(m); },
           camera(id) { selectCamera(id, true); },
           time(id) { if (id === 'run') gameClock.freeze(false); else selectTime(id); },
+          // (a weather held, as ?weather=: clear, fair, cloudy, overcast, fog, rain, snow; 'run' lets the clock's course go on)
+          weather(id) { weather.hold(id === 'run' ? null : id); applyClock(true); return weatherNow; },
+          lightning(hold = 0) { lightning.strikeNow(cameraSystem.camera, hold); },
           clock: gameClock, applyClock, light: lightingSystem, fastForward,
           setCamera(px, py, pz, tx, ty, tz) {
             cameraSystem.fixedPos = new THREE.Vector3(px, py, pz); cameraSystem.fixedLook = new THREE.Vector3(tx, ty, tz);

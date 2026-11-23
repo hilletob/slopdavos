@@ -701,7 +701,7 @@ const mineFeature = {
     document.body.classList.add('mine-indoor');
     const prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; }; // (the walker waits at the door)
-    M.inside = { id, a, group, mine, L, bins, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('snowfall') };
+    M.inside = { id, a, group, mine, L, bins, veins, tools, guide, miner, origin, fade, prevDriver, bob: 0, shake: 0, quake: 0, dark: false, camera: null, prevNear: null, snow: run.scene.getObjectByName('precipitation') };
     M.hud.hidden = !ore;
     M.cross.hidden = !ore;
     run.hooks.actions?.notify(); // (the key bar: the miner's keys)

@@ -18,6 +18,7 @@ import {
   length,
   normalize,
   max,
+  min,
   exp,
   abs,
   select,
@@ -77,6 +78,17 @@ const GLINT_FULL = 2.5; // the direct light at which glints reach full strength
 const BORE_COVER = 6, BORE_RATE = 2.5;
 const BORE_SKY = new THREE.Color().setRGB(1.0, 0.62, 0.3), BORE_GROUND = new THREE.Color().setRGB(0.6, 0.38, 0.2);
 const BORE_FILL = 2.2, BORE_ENV = 0.08;
+// The weather (js/weather.js): how much of the direct light an overcast sky takes, the grey its fill turns to, how much
+// thicker the haze gets under cloud and in the valley fog, and the height the fog's layer thins out over (the clear air's
+// is FOG_HEIGHT: from up the mountains the fog lies below like a sea)
+const OVERCAST_DIRECT = 0.82, OVERCAST_FILL = 0.3;
+const OVERCAST_SKY = new THREE.Color().setRGB(0.6, 0.63, 0.68, THREE.SRGBColorSpace);
+const OVERCAST_HAZE = 2.5, FOG_HAZE = 160;
+const FOG_HEIGHT = 900, VALLEY_FOG_HEIGHT = 140;
+const BAKE_WEATHER = 0.08;
+const STORM_DARK = 0.45; // (a thunderstorm's sky and fill: this much darker than rain's)
+const FLASH_FILL = 2.4, FLASH_ENV = 0.7; // a lightning's flash at its brightest: added to the fill and the environment
+const OVERCAST_SKY_MAX = 0.42; // (the grey's brightness at most: no bright patch where the sun is)
 
 class LightingSystem {
   constructor(scene, renderer = null) {
@@ -117,6 +129,10 @@ class LightingSystem {
     this.uNightFactor = uniform(0.0);
     this.uTwilightBlue = uniform(0.0);
     this.uNightSkyColor = uniform(new THREE.Color(0x0b1528));
+    // The weather's grey (js/weather.js `overcast`): the model's clouds never close the sky, so a grey sky is the model's
+    // brightness without its blue and without the glow round the sun, a little darker overhead than at the horizon
+    this.uOvercast = uniform(0.0);
+    this.uFlash = uniform(0.0); // a lightning's flash (js/lightning.js setFlash)
     const rawSkyNode = this.sky.material.colorNode;
     this.sky.material.colorNode = Fn(() => {
       const raw = rawSkyNode;
@@ -126,8 +142,11 @@ class LightingSystem {
       // they keep their colour): a bright glow and a small bloom, not a white wall over half the view
       const peak = max(max(dayCol.r, dayCol.g), dayCol.b).toVar();
       const limited = float(SKY_KNEE).add(float(SKY_TOP - SKY_KNEE).mul(float(1).sub(exp(peak.sub(SKY_KNEE).div(SKY_TOP - SKY_KNEE).negate())))).div(peak);
-      const finalSky = mix(dayCol.mul(select(peak.greaterThan(SKY_KNEE), limited, float(1))), this.uNightSkyColor, this.uNightFactor);
-      return vec4(finalSky, float(1.0));
+      const shaped = dayCol.mul(select(peak.greaterThan(SKY_KNEE), limited, float(1))).toVar();
+      const luma = shaped.r.mul(0.2126).add(shaped.g.mul(0.7152)).add(shaped.b.mul(0.0722));
+      const grey = vec3(0.93, 0.95, 1.0).mul(min(luma, OVERCAST_SKY_MAX)).mul(float(1).sub(max(up, 0).mul(0.2)));
+      const finalSky = mix(mix(shaped, grey, this.uOvercast.mul(0.92)), this.uNightSkyColor, this.uNightFactor);
+      return vec4(finalSky.add(vec3(0.55, 0.6, 0.8).mul(this.uFlash)), float(1.0));
     })();
 
     // In reversedDepthBuffer mode ([1..0]), camera.far is z = 0.0 (whereas SkyMesh defaults to z = w)
@@ -174,6 +193,7 @@ class LightingSystem {
     this.scene.add(this.hemiLight);
 
     this.sunDisc = 1;
+    this.flash = 0;
     this.bore = 0; // 0 outside .. 1 in a bore
     this.boreAt = 0;
     this.hemiSky = new THREE.Color();
@@ -182,7 +202,7 @@ class LightingSystem {
     this.fill = 0;
     this.env = 0;
     this.sample = createSample();
-    this.baked = { at: -Infinity, x: 0, y: 0, z: 0, night: -1, exposure: -1, turbidity: -1, w: -1 };
+    this.baked = { at: -Infinity, x: 0, y: 0, z: 0, night: -1, exposure: -1, turbidity: -1, w: -1, overcast: -1, fog: -1 };
     this.bakes = 0;
     this.applyPreset('golden');
 
@@ -191,7 +211,7 @@ class LightingSystem {
     // so helicopter / observatory views stay clearer than the horizon.
     this.uFogDensity = uniform(TIME_PRESETS.golden.fogDensity * HAZE);
     this.uWinterHaze = uniform(TIME_PRESETS.golden.wHaze);
-    this.uFogHeight = uniform(900.0);
+    this.uFogHeight = uniform(FOG_HEIGHT);
     if (this.envRenderTarget) this.scene.fogNode = this.createAerialFogNode();
   }
 
@@ -246,49 +266,54 @@ class LightingSystem {
   /**
    * The light of a moment of the day (js/day-cycle.js sampleDay), `w` the season's blend. js/main.js steps this every few
    * seconds: only uniforms change, so nothing recompiles; `bake` forces the environment map, which otherwise follows when
-   * the sky has moved on far enough.
+   * the sky has moved on far enough. `wx`: the weather (js/weather.js sample; none: fair, as before there was weather).
    */
-  applySample(s, w, bake = false) {
+  applySample(s, w, bake = false, wx = null) {
     this.activePresetId = s.presetId;
+    const o = wx ? wx.overcast : 0, f = wx ? wx.fog : 0, st = wx ? wx.storm : 0;
 
     this.sunLight.color.setRGB(s.lightColorR, s.lightColorG, s.lightColorB, THREE.SRGBColorSpace);
-    this.direct = s.sunIntensity;
+    this.direct = s.sunIntensity * (1 - OVERCAST_DIRECT * o) * (1 - 0.5 * st);
     this.sunLight.position.set(s.sunDirX, s.sunDirY, s.sunDirZ);
     this.sunLight.updateMatrixWorld();
 
-    this.hemiSky.setRGB(s.hemiSkyR, s.hemiSkyG, s.hemiSkyB, THREE.SRGBColorSpace);
+    this.hemiSky.setRGB(s.hemiSkyR, s.hemiSkyG, s.hemiSkyB, THREE.SRGBColorSpace).lerp(OVERCAST_SKY, 0.75 * o);
     this.hemiGround.setRGB(s.hemiGroundR, s.hemiGroundG, s.hemiGroundB, THREE.SRGBColorSpace);
-    this.fill = s.hemiIntensity;
+    this.fill = s.hemiIntensity * (1 + OVERCAST_FILL * o) * (1 - STORM_DARK * st);
     this.env = s.envIntensity;
     this.applyBore();
 
     this.scene.fog.color.setRGB(s.fogColorR, s.fogColorG, s.fogColorB, THREE.SRGBColorSpace);
     this.scene.fog.density = s.fogDensity;
-    if (this.uFogDensity) this.uFogDensity.value = s.fogDensity * HAZE;
+    if (this.uFogDensity) this.uFogDensity.value = s.fogDensity * HAZE * (1 + OVERCAST_HAZE * o + FOG_HAZE * f);
+    if (this.uFogHeight) this.uFogHeight.value = FOG_HEIGHT + (VALLEY_FOG_HEIGHT - FOG_HEIGHT) * f;
     if (this.uWinterHaze) this.uWinterHaze.value = s.wHaze;
 
     // The physical Preetham SkyMesh, its air between the summer's and the winter's by the season's blend
     const sky = this.sky;
-    sky.turbidity.value = s.turbidity + (s.wTurbidity - s.turbidity) * w;
+    sky.turbidity.value = s.turbidity + (s.wTurbidity - s.turbidity) * w + 3 * o;
     sky.rayleigh.value = s.rayleigh + (s.wRayleigh - s.rayleigh) * w;
     sky.mieCoefficient.value = (s.mieCoefficient + (s.wMieCoefficient - s.mieCoefficient) * w) * s.skyMie;
-    sky.cloudCoverage.value = s.cloudCoverage + (s.wCloudCoverage - s.cloudCoverage) * w;
+    const cover = s.cloudCoverage + (s.wCloudCoverage - s.cloudCoverage) * w;
+    sky.cloudCoverage.value = wx ? Math.min(1, Math.max(0.04, cover + wx.cloud - 0.4)) : cover;
     sky.mieDirectionalG.value = s.mieDirectionalG;
-    sky.cloudDensity.value = s.cloudDensity;
+    sky.cloudDensity.value = s.cloudDensity + (0.9 - s.cloudDensity) * o;
     sky.sunPosition.value.set(s.skyDirX, s.skyDirY, s.skyDirZ);
-    this.sunDisc = s.sunDisc;
-    sky.showSunDisc.value = s.sunDisc;
-    this.uSkyExposure.value = s.skyExposure;
+    const veiled = Math.min(1, Math.max(0, (o - 0.4) / 0.5));
+    this.sunDisc = s.sunDisc * (1 - veiled * veiled * (3 - 2 * veiled));
+    sky.showSunDisc.value = this.sunDisc;
+    this.uSkyExposure.value = s.skyExposure * (1 - 0.3 * o) * (1 - STORM_DARK * st);
+    this.uOvercast.value = o;
     this.uNightFactor.value = s.nightFactor;
     this.uTwilightBlue.value = s.twilightBlue;
 
     // (the glints on glass and paint: as strong as the light they mirror, none in the gap between sun and moon)
-    cityUniforms.uSunColor.value.setRGB(s.lightColorR, s.lightColorG, s.lightColorB, THREE.SRGBColorSpace).multiplyScalar(Math.min(1, s.sunIntensity / GLINT_FULL));
+    cityUniforms.uSunColor.value.setRGB(s.lightColorR, s.lightColorG, s.lightColorB, THREE.SRGBColorSpace).multiplyScalar(Math.min(1, s.sunIntensity / GLINT_FULL) * (1 - o));
     cityUniforms.uSkyTopColor.value.setRGB(s.skyTopR, s.skyTopG, s.skyTopB, THREE.SRGBColorSpace);
     cityUniforms.uSkyHorizonColor.value.setRGB(s.skyHorizonR, s.skyHorizonG, s.skyHorizonB, THREE.SRGBColorSpace);
     cityUniforms.uSkySunDir.value.set(s.sunDirX, s.sunDirY, s.sunDirZ); // (glints on glass and paint: the light that is there)
     cityUniforms.uInteriorGlow.value = s.interiorGlow;
-    cityUniforms.uRoadWetness.value = s.roadWetness;
+    cityUniforms.uRoadWetness.value = wx ? Math.max(s.roadWetness, wx.wet) : s.roadWetness;
     if (cityUniforms.uCanyonBounce) cityUniforms.uCanyonBounce.value = s.canyonBounce;
 
     const b = this.baked;
@@ -298,11 +323,14 @@ class LightingSystem {
       || Math.abs(s.nightFactor - b.night) > 0.02
       || Math.abs(s.skyExposure - b.exposure) > 0.1 * b.exposure
       || Math.abs(sky.turbidity.value - b.turbidity) > 0.4
-      || Math.abs(w - b.w) > 0.05);
+      || Math.abs(w - b.w) > 0.05
+      || Math.abs(o - b.overcast) > BAKE_WEATHER
+      || Math.abs(f - b.fog) > BAKE_WEATHER);
     if (bake || moved) {
       this.bakeEnvironmentMap();
       b.at = now; b.x = s.skyDirX; b.y = s.skyDirY; b.z = s.skyDirZ;
       b.night = s.nightFactor; b.exposure = s.skyExposure; b.turbidity = sky.turbidity.value; b.w = w;
+      b.overcast = o; b.fog = f;
       this.bakes++;
     }
   }
@@ -313,8 +341,16 @@ class LightingSystem {
     this.sunLight.intensity = this.direct * (1 - k);
     this.hemiLight.color.copy(this.hemiSky).lerp(BORE_SKY, k);
     this.hemiLight.groundColor.copy(this.hemiGround).lerp(BORE_GROUND, k);
-    this.hemiLight.intensity = this.fill + (BORE_FILL - this.fill) * k;
-    this.scene.environmentIntensity = this.env + (BORE_ENV - this.env) * k;
+    this.hemiLight.intensity = this.fill + (BORE_FILL - this.fill) * k + FLASH_FILL * this.flash * (1 - k);
+    this.scene.environmentIntensity = this.env + (BORE_ENV - this.env) * k + FLASH_ENV * this.flash * (1 - k);
+  }
+
+  /** A lightning's flash, 0 .. ~1.5 (js/lightning.js, every frame): the sky, the fill and the environment light up */
+  setFlash(v) {
+    if (v === this.flash) return;
+    this.flash = v;
+    this.uFlash.value = v;
+    this.applyBore();
   }
 
   updateBore(p) {

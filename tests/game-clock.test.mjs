@@ -85,13 +85,12 @@ test('the snow settles over the snowfall night, the thaw takes a day, nothing mo
   for (let t = 0; t < 8 * DAY; t += 1) assert.ok(Math.abs(winterBlendAt(t + 1) - winterBlendAt(t)) < 0.002, `at ${t}`);
 });
 
-test('it snows from the evening before the first snow lies until the thaw begins', () => {
+test('the calendar snows from the evening before the first snow lies until it lies (the weather does the rest)', () => {
   assert.equal(snowfallAt(at(3, 19)), 0);
   assert.equal(snowfallAt(at(3, 21)), 1);
   assert.equal(snowfallAt(at(4, 3)), 1);
-  assert.equal(snowfallAt(at(6, 12)), 1);
-  assert.equal(snowfallAt(at(7, 5)), 1);
-  assert.equal(snowfallAt(at(7, 7)), 0);
+  assert.equal(snowfallAt(at(4, 7)), 0);
+  assert.equal(snowfallAt(at(6, 12)), 0);
   assert.equal(snowfallAt(at(0, 12)), 0);
 });
 
@@ -146,12 +145,10 @@ test('a held mission shows its season whatever the snow is doing', () => {
   const c = createGameClock();
   c.hold(at(7, 12), 'winter'); // (the thaw, half gone)
   assert.equal(c.winterBlend, 1);
-  assert.equal(c.snowfall, 1);
   c.release();
   near(c.winterBlend, 0.5);
   c.hold(at(3, 23), 'summer'); // (the snowfall night)
   assert.equal(c.winterBlend, 0);
-  assert.equal(c.snowfall, 0);
   c.release();
   c.hold(at(3, 23), null);
   assert.ok(c.winterBlend > 0, 'no season of its own: the calendar');

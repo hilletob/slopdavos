@@ -75,10 +75,11 @@ export const DRIFT = { amp: 28, period: 260 }; // m and s of a thermal's wander
  * north-east: the heading 140°, x = sin, z = cos as everywhere here). It swells and veers slowly, weaker close to the ground.
  */
 export const WIND = { toward: 140 * Math.PI / 180, speed: 2.6, swell: 0.35, veer: 0.22, period: 95, groundShare: 0.55, lean: 0.45 };
-/** The wind (m/s over the ground) at the flight's time `t`, `agl` m over the ground: { x, z, speed, toward } */
-export function windAt(t, agl = 200, out = { x: 0, z: 0, speed: 0, toward: 0 }) {
+/** The wind (m/s over the ground) at the flight's time `t`, `agl` m over the ground: { x, z, speed, toward }; `scale` the
+ *  weather's (weatherAir: the free flight; the mission's afternoon is fair) */
+export function windAt(t, agl = 200, out = { x: 0, z: 0, speed: 0, toward: 0 }, scale = 1) {
   const a = (t / WIND.period) * Math.PI * 2;
-  const speed = WIND.speed * (1 + WIND.swell * Math.sin(a) * Math.cos(a * 0.37)) * clamp(WIND.groundShare + (1 - WIND.groundShare) * agl / 150, WIND.groundShare, 1);
+  const speed = scale * WIND.speed * (1 + WIND.swell * Math.sin(a) * Math.cos(a * 0.37)) * clamp(WIND.groundShare + (1 - WIND.groundShare) * agl / 150, WIND.groundShare, 1);
   const toward = WIND.toward + WIND.veer * Math.sin(a * 0.61 + 1.3);
   out.x = Math.sin(toward) * speed; out.z = Math.cos(toward) * speed; out.speed = speed; out.toward = toward;
   return out;
@@ -154,7 +155,8 @@ export function createFlight(start = LAUNCH) {
     x: start.x, y: null, z: start.z, heading: start.heading, x0: start.x, z0: start.z, y0: null,
     v: 0, gs: 0, wind: null, ground: 0, bank: 0, spiral: 0, held: 0, inflate: 0, sink: 0, vy: 0, vario: 0, lift: 0, thermal: null,
     airtime: 0, maxDist: 0, maxY: null, t: 0, acc: 0, agl: 0, steer: 0, brake: 0, accel: 0, turned: 0,
-    outside: false, landing: null, events: []
+    outside: false, landing: null, events: [],
+    windScale: 1, downdraft: 0 // (the weather's, weatherAir: the free flight sets them; m/s of sink the air adds)
   };
 }
 
@@ -264,12 +266,12 @@ function sub(f, input, h, groundAt, thermals) {
   f.heading = wrap(f.heading + omega * h);
   f.turned += omega * h;
   // the wind carries the wing over the ground
-  const wind = f.wind = windAt(f.t, agl, f.wind || {});
+  const wind = f.wind = windAt(f.t, agl, f.wind || {}, f.windScale);
   const gx = Math.sin(f.heading) * vTurn + wind.x, gz = Math.cos(f.heading) * vTurn + wind.z;
   f.gs = Math.hypot(gx, gz);
   f.x += gx * h;
   f.z += gz * h;
-  f.vy = air.lift - sink;
+  f.vy = air.lift - sink - f.downdraft;
   f.y += f.vy * h;
   f.sink = sink; f.lift = air.lift; f.thermal = air.best;
   f.vario += (f.vy - f.vario) * Math.min(1, h / 0.5);
@@ -401,10 +403,25 @@ export function thermalDay(minute, winter = false) {
   const k = h <= 9.5 || h >= 18.5 ? 0 : h < 14 ? (h - 9.5) / 4.5 : (18.5 - h) / 4.5;
   return Math.min(1, k * 1.3) * (winter ? 0.5 : 1);
 }
-/** The free flight's thermals at that time of day (none at night: a glide down in calm air) */
-export function freeThermals(minute, winter = false, list = FREE_THERMALS) {
-  const k = thermalDay(minute, winter);
+/** The free flight's thermals at that time of day (none at night: a glide down in calm air); `sun` the weather's
+ *  (weatherAir: no sun on the faces, no thermals) */
+export function freeThermals(minute, winter = false, list = FREE_THERMALS, sun = 1) {
+  const k = thermalDay(minute, winter) * sun;
   return k < 0.05 ? [] : list.map((th) => ({ ...th, w: th.w * k }));
+}
+
+/** A thunderstorm this strong (js/weather.js `storm`) and nobody lays out a wing */
+export const STORM_LAUNCH = 0.3;
+/**
+ * What the weather (a js/weather.js sample, or null: fair) does to the free flight's air: `sun` how much the thermals
+ * still get (cloud takes the sun off the faces, fog and rain all of it), `windScale` the valley wind's (≈ 2 m/s clear,
+ * ≈ 4 in the rain, over 5 in a thunderstorm), `downdraft` m/s of sink a thunderstorm's air adds, `storm` whether to refuse
+ * the launch.
+ */
+export function weatherAir(wx) {
+  if (!wx) return { sun: 1, windScale: 1, downdraft: 0, storm: false };
+  const sun = (1 - wx.overcast) ** 1.5 * (1 - wx.fog) * (1 - wx.rain);
+  return { sun, windScale: 0.6 + 1.6 * wx.wind, downdraft: 2.5 * wx.storm, storm: wx.storm >= STORM_LAUNCH };
 }
 
 /** Where a wing can be laid out: the ground must fall away ahead (the run and the take-off, as at the Rinerhorn) */

@@ -1386,7 +1386,7 @@ class Interior {
     this.hadDriver = 'personDriver' in cm;
     this.prevDriver = cm.personDriver;
     cm.personDriver = (dt, m) => { m.entities.person.speed = 0; }; // (the walker waits at the door)
-    this.snow = run.scene.getObjectByName('snowfall');
+    this.snow = run.scene.getObjectByName('precipitation');
   }
   camera(cam, pos, look) {
     const o = this.origin;
