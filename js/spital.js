@@ -247,7 +247,7 @@ function atlasTexture() {
 // --- Geometry ------------------------------------------------------------------------------------------------------------
 // One mesh per material: quads pushed as two triangles, counter-clockwise seen from their front. (Also the Alte Post's,
 // js/alte-post.js: `atlas` the decals' cells ([x, y, w, h] px) in a canvas of `atlasSize` [w, h], `walls` the bucket
-// whose mesh carries aHalf, `name` the meshes' prefix)
+// (or buckets) whose mesh carries aHalf, `name` the meshes' prefix)
 export class Builder {
   constructor({ atlas = ATLAS, atlasSize = [ATLAS_SIZE, ATLAS_SIZE], walls = 'concrete', name = 'Spital Davos' } = {}) {
     this.buckets = new Map();
@@ -310,7 +310,7 @@ export class Builder {
       g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
       g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nrm, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
-      if (name === this.walls) g.setAttribute('aHalf', new THREE.Float32BufferAttribute(b.half, 1));
+      if ([].concat(this.walls).includes(name)) g.setAttribute('aHalf', new THREE.Float32BufferAttribute(b.half, 1));
       if (b.col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
       const mesh = new THREE.Mesh(g, M[name]);
       mesh.name = `${this.name} ${name}`;
