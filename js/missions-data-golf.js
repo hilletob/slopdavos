@@ -15,7 +15,41 @@
 
 import { GOLF } from './golf-data.js';
 import { inFlatRing as pointInRing } from './ring.js';
+import { msg } from './messages.js';
 export { pointInRing };
+
+// The golf's moving texts in both languages (js/messages.js): the clubs, the lies, the strikes and the scores in German
+const CLUB_DE = { Driver: 'Driver', '3 Wood': 'Holz 3', '7 Iron': 'Eisen 7', Wedge: 'Wedge', Putter: 'Putter' };
+const LIE_DE = { Tee: 'Abschlag', Fairway: 'Fairway', Green: 'Grün', Rough: 'Rough', Bunker: 'Bunker', Water: 'Wasser', 'Out of bounds': 'Aus' };
+const STRIKE_DE = { 'Perfect strike': 'Perfekt getroffen', 'Slight draw': 'Leichter Draw', 'Slight fade': 'Leichter Fade', Hook: 'Hook', Slice: 'Slice' };
+const SCORE_DE = { 'Hole in one!': 'Hole-in-one!', 'Double bogey': 'Doppel-Bogey', 'Triple bogey': 'Triple-Bogey' };
+const WAY_DE = { further: 'weiter', shorter: 'kürzer', long: 'zu lang', short: 'zu kurz', right: 'rechts', left: 'links' };
+const clubDe = (c) => CLUB_DE[c] || c, lieDe = (l) => LIE_DE[l] || l, scoreDe = (n) => SCORE_DE[n] || n;
+/** "Wind: 4 m shorter, 2 m right": `parts` [[m, way]] */
+const partsText = (head, headDe, parts) => msg('{head}: {parts}', (q) => `${headDe}: ${q.list.map(([m, w]) => `${m} m ${WAY_DE[w]}`).join(', ')}`,
+  { head, parts: parts.map(([m, w]) => `${m} m ${w}`).join(', '), list: parts });
+export const GOLF_TEXT = {
+  /** The card at the top: the hole, its par and length, the stroke, the round against par */
+  card: (h, stroke, total) => msg('{name} · Par {par} · {m} m · Stroke {n} · Total {total}', 'Loch {ref} · Par {par} · {m} m · Schlag {n} · Total {total}',
+    { name: h.name, ref: h.ref, par: h.par, m: Math.round(h.length), n: stroke, total }),
+  /** The hole said as it starts */
+  hole: (h) => msg('{name} · Par {par} · {m} m', 'Loch {ref} · Par {par} · {m} m', { name: h.name, ref: h.ref, par: h.par, m: Math.round(h.length) }),
+  pin: (m) => msg('Pin {m} m', 'Fahne {m} m', { m }),
+  full: (club, putt, m) => msg('{club}: full {kind} {m} m', (q) => `${clubDe(q.club)}: ${q.putt ? 'voller Putt' : 'voller Schwung'} ${q.m} m`, { club, kind: putt ? 'stroke' : 'swing', putt, m }),
+  needs: (pct) => msg('the pin needs {p} %', 'zur Fahne braucht es {p} %', { p: pct }),
+  wind: (m) => msg('wind {m} m', 'Wind {m} m', { m: `${m > 0 ? '+' : '−'}${Math.abs(m)}` }),
+  lieLoss: (lie, pct) => msg('{lie} −{p} %', (q) => `${lieDe(q.lie)} −${q.p} %`, { lie, p: pct }),
+  /** The strike said: the power and the accuracy (`club` null for a putt) */
+  strike: (club, pct, accuracy) => (club ? msg('{club} {p}% · {acc}', (q) => `${clubDe(q.club)} ${q.p} % · ${STRIKE_DE[q.acc]}`, { club, p: pct, acc: accuracy })
+    : msg('{p}% · {acc}', (q) => `${q.p} % · ${STRIKE_DE[q.acc]}`, { p: pct, acc: accuracy })),
+  /** Where the ball came down: the distance and the lie */
+  landed: (m, lie) => msg('{m} m · {lie}', (q) => `${q.m} m · ${lieDe(q.lie)}`, { m, lie }),
+  /** A hole done: its score's name, the strokes on its par, the bonus */
+  holed: (res) => msg('{name}: {n} on a par {par}{bonus}', (q) => `${scoreDe(q.name)}: ${q.n} auf Par ${q.par}${q.b ? ` · Bonus +${q.b}` : ''}`,
+    { name: res.name, n: res.strokes, par: res.par, bonus: res.bonus ? ` · bonus +${res.bonus}` : '', b: res.bonus }),
+  /** A club's button's title: its name and its key */
+  clubKey: (club, key) => msg('{club} ({key})', (q) => `${clubDe(q.club)} (${q.key})`, { club, key })
+};
 
 export const G = 9.81;
 export const BALL_R = 0.0214; // m
@@ -465,23 +499,23 @@ export function shotReport(shot, env = {}) {
     const windy = landingFor(from, { club: c, power: shot.power, heading: h, lie: shot.lie }, { ...env, wind: shot.wind });
     wind = alongAim(windy.x - calm.x, windy.z - calm.z, h);
     curve = alongAim(land.x - windy.x, land.z - windy.z, h);
-    lines.push(shot.state === 'water' || shot.state === 'out' ? `Carry ${r(carry)} m` : `Carry ${r(carry)} m, rolled ${r(roll)} m`);
+    lines.push(shot.state === 'water' || shot.state === 'out' ? msg('Carry {c} m', 'Flug {c} m', { c: r(carry) }) : msg('Carry {c} m, rolled {r} m', 'Flug {c} m, gerollt {r} m', { c: r(carry), r: r(roll) }));
     if (!shot.accuracy) lines.push('Clean strike: straight');
     else if (Math.abs(curve.side) < 1) lines.push(shot.accuracy > 0 ? 'A touch early: nearly straight' : 'A touch late: nearly straight');
-    else lines.push(shot.accuracy > 0 ? `Early: hook, ${r(curve.side)} m left` : `Late: slice, ${r(curve.side)} m right`);
+    else lines.push(shot.accuracy > 0 ? msg('Early: hook, {m} m left', 'Zu früh: Hook, {m} m nach links', { m: r(curve.side) }) : msg('Late: slice, {m} m right', 'Zu spät: Slice, {m} m nach rechts', { m: r(curve.side) }));
     if (Math.abs(wind.long) < 1.5 && Math.abs(wind.side) < 1.5) lines.push('Wind: hardly any effect');
     else {
       const parts = [];
-      if (Math.abs(wind.long) >= 1.5) parts.push(wind.long > 0 ? `${r(wind.long)} m further` : `${r(wind.long)} m shorter`);
-      if (Math.abs(wind.side) >= 1.5) parts.push(wind.side > 0 ? `${r(wind.side)} m right` : `${r(wind.side)} m left`);
-      lines.push(`Wind: ${parts.join(', ')}`);
+      if (Math.abs(wind.long) >= 1.5) parts.push([r(wind.long), wind.long > 0 ? 'further' : 'shorter']);
+      if (Math.abs(wind.side) >= 1.5) parts.push([r(wind.side), wind.side > 0 ? 'right' : 'left']);
+      lines.push(partsText('Wind', 'Wind', parts));
     }
   }
   if (shot.state !== 'holed' && shot.state !== 'water' && shot.state !== 'out' && pinDist >= 0.5) {
     const parts = [];
-    if (Math.abs(toPin.long) >= 1) parts.push(toPin.long > 0 ? `${r(toPin.long)} m long` : `${r(toPin.long)} m short`);
-    if (Math.abs(toPin.side) >= 1) parts.push(toPin.side > 0 ? `${r(toPin.side)} m right` : `${r(toPin.side)} m left`);
-    if (parts.length) lines.push(`Pin: ${parts.join(', ')}`);
+    if (Math.abs(toPin.long) >= 1) parts.push([r(toPin.long), toPin.long > 0 ? 'long' : 'short']);
+    if (Math.abs(toPin.side) >= 1) parts.push([r(toPin.side), toPin.side > 0 ? 'right' : 'left']);
+    if (parts.length) lines.push(partsText('Pin', 'Fahne', parts));
   }
   // the tip: the biggest of the faults (the side's curve, the power against the pin's)
   let tip = '';
@@ -489,7 +523,7 @@ export function shotReport(shot, env = {}) {
   if (shot.state === 'holed') tip = '';
   else if (shot.accuracy && (c.putt ? sideOff > 0.3 : Math.abs(curve.side) > 4)) tip = shot.accuracy > 0 ? 'Tip: wait until the needle is on the green line' : 'Tip: press a little sooner, on the green line';
   else if (shot.need != null && Math.abs(shot.power - shot.need) > (c.putt ? 0.025 : 0.05)) {
-    tip = `Tip: ${Math.round(shot.power * 100)} % power, the pin needed ${Math.round(shot.need * 100)} % (the red mark)`;
+    tip = msg('Tip: {p} % power, the pin needed {n} % (the red mark)', 'Tipp: {p} % Kraft, zur Fahne hätte es {n} % gebraucht (die rote Marke)', { p: Math.round(shot.power * 100), n: Math.round(shot.need * 100) });
   } else if (shot.need == null && !c.putt && toPin.long < -10) tip = 'Out of reach with this club: a longer one, or lay up';
   return { carry, roll, wind, curve, pin: { long: toPin.long, side: toPin.side, d: pinDist }, lines, tip };
 }
@@ -640,17 +674,17 @@ export function endShot(round, b, surf = surfaceAt) {
   } else {
     round.ball = { x: b.x, z: b.z, lie: b.lie === 'cup' ? 'green' : b.lie };
     if (Math.hypot(hole.pin.x - b.x, hole.pin.z - b.z) <= TAP_IN) { round.strokes++; kind = 'tapin'; }
-    else text = `${SURFACES[round.ball.lie]?.label || 'Rough'} · ${Math.round(distanceToPin(round))} m to the pin`;
+    else text = msg('{lie} · {m} m to the pin', (q) => `${lieDe(q.lie)} · ${q.m} m zur Fahne`, { lie: SURFACES[round.ball.lie]?.label || 'Rough', m: Math.round(distanceToPin(round)) });
   }
   let result = null;
   if (kind === 'holed' || kind === 'tapin') {
     result = finishHole(round);
-    text = kind === 'tapin' ? `Tapped in: ${result.name}` : result.name;
+    text = kind === 'tapin' ? msg('Tapped in: {name}', (q) => `Eingelocht: ${scoreDe(q.name)}`, { name: result.name }) : result.name;
   } else if (round.strokes >= hole.par + PICK_UP_OVER_PAR) {
     round.strokes = hole.par + PICK_UP_OVER_PAR;
     result = finishHole(round);
     kind = 'pickup';
-    text = `Picked up: ${result.name}`;
+    text = msg('Picked up: {name}', (q) => `Aufgehoben: ${scoreDe(q.name)}`, { name: result.name });
   } else aimAtPin(round);
   const ev = { kind, text, strokes: round.strokes, result, hole: hole.ref };
   round.log.push(ev);
@@ -739,7 +773,7 @@ export const GOLF_MISSION = {
     const strokes = r.results.reduce((s, x) => s + x.strokes, 0);
     const par = r.results.reduce((s, x) => s + x.par, 0);
     const card = r.results.map((x) => `${x.ref}: ${x.strokes} (${x.name})`).join(' · ');
-    return [`${strokes} strokes, par ${par}: ${formatToPar(strokes - par)}`, card];
+    return [msg('{n} strokes, par {par}: {tp}', '{n} Schläge, Par {par}: {tp}', { n: strokes, par, tp: formatToPar(strokes - par) }), card];
   },
   objectives: GOLF_HOLES.map((hole, k) => ({
     id: `hole-${hole.ref}`,
@@ -749,7 +783,8 @@ export const GOLF_MISSION = {
       const done = r.results.length > k;
       const playing = r.i === k && !done;
       const d = playing ? distanceToPin(r) : hole.length;
-      const text = done ? `${r.results[k].name}` : `Stroke ${r.strokes + (state.inFlight ? 0 : 1)} · ${Math.round(d)} m to the pin · ${SURFACES[r.ball?.lie]?.label || 'Tee'}`;
+      const text = done ? `${r.results[k].name}` : msg('Stroke {n} · {m} m to the pin · {lie}', (q) => `Schlag ${q.n} · ${q.m} m zur Fahne · ${lieDe(q.lie)}`,
+        { n: r.strokes + (state.inFlight ? 0 : 1), m: Math.round(d), lie: SURFACES[r.ball?.lie]?.label || 'Tee' });
       const walking = state.walkTo && playing;
       const target = walking ? { x: state.walkTo.x, z: state.walkTo.z, r: 2.5 } : null;
       return { done, progress: null, text, target, hint: playing ? state.hint || null : null };

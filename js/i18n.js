@@ -729,7 +729,7 @@ const pairs = [
   ['Contour', 'Kontur'], ['Template', 'Vorlage'], ['Clear', 'Löschen'], ['Done', 'Fertig'],
   ['Download PNG', 'PNG herunterladen'], ['Your earlier pictures', 'Deine früheren Bilder'],
   ['Cart to the ball (C)', 'Golfwagen zum Ball (C)'],
-  // the golf mission's HUD (js/missions-golf.js; the generated texts: golfDe below)
+  // the golf mission's HUD (js/missions-golf.js; the generated texts: js/missions-data-golf.js GOLF_TEXT, made with msg())
   ['Space / Swing: putt (A/D aim)', 'Space / Schwung: putten (A/D zielen)'],
   ['Stop the power at the red mark: press again (or let go)', 'Kraft bei der roten Marke stoppen: nochmals drücken (oder loslassen)'],
   ['Strike on the green line: early hooks left, late slices right', 'Auf der grünen Linie schlagen: zu früh gibt einen Hook nach links, zu spät einen Slice nach rechts'],
@@ -1760,38 +1760,7 @@ const missionIntros = [
   ['Last run done, boots still on', 'Letzte Abfahrt geschafft, die Skischuhe noch an: Après-Ski-Party in der Bolgenschanze an der Skistrasse in Davos Platz. Geh hinein und spring mit der Menge: Drücke Space (oder tippe SPRINGEN) genau im Takt, und wenn der DJ zu den Off-Beats wechselt, zwischen den Kicks. Perfekte Treffer zählen mehr, eine Serie vervielfacht deine Punkte bis ×5. Ein Track, 60 Sekunden.'],
   ['A school morning at the SAMD', 'Ein Schulmorgen an der SAMD, der Schweizerischen Alpinen Mittelschule an der Guggerbachstrasse. Gian und Mätti, zwei Internatsschüler mit nichts Besserem zu tun, schleichen sich in der grossen Pause aufs Flachdach. Geh zur Seitentür bei der Einfahrt, dann leg dich an die Brüstung: Unten ist der Pausenhof voll. Das Fadenkreuz bewegst du mit der Maus, durch Ziehen oder mit W/A/S/D; halt die Taste oder die Leertaste zum Aufziehen (grösser: mehr Punkte, langsamer aus dem Mund), lass los, und er fällt. Er fällt zwei Sekunden lang: Halte bei den Leuten vor und achte auf den Wind (der Pfeil). Der Rektor gibt am meisten, der Velofahrer ist schnell. Finger weg vom Hund, vom Chindsgi-Kind und von der Hausmutter. Jeder Treffer lässt den Hof hochschauen: Halte C zum Abtauchen, bis es sich beruhigt, sonst kommt der Hausmeister durch die Dachluke. Nach 2:30 läutet die Glocke.'],
 ];
-const POP = '((?:  [+\\-−]?\\d+)?)'; // a feedback popup's points, after two spaces
 
-/** The golf mission's generated texts (js/missions-golf.js, js/missions-data-golf.js): the card, the plan, the report */
-const GOLF_CLUB_DE = { Driver: 'Driver', '3 Wood': 'Holz 3', '7 Iron': 'Eisen 7', Wedge: 'Wedge', Putter: 'Putter' };
-const GOLF_LIE_DE = { Tee: 'Abschlag', Fairway: 'Fairway', Green: 'Grün', Rough: 'Rough', Bunker: 'Bunker', Water: 'Wasser', 'Out of bounds': 'Aus' };
-const GOLF_STRIKE_DE = { 'Perfect strike': 'Perfekt getroffen', 'Slight draw': 'Leichter Draw', 'Slight fade': 'Leichter Fade', Hook: 'Hook', Slice: 'Slice' };
-const GOLF_SCORE_DE = { 'Hole in one!': 'Hole-in-one!', 'Double bogey': 'Doppel-Bogey', 'Triple bogey': 'Triple-Bogey' };
-const golfPartDe = (p) => p.replace(/^(\d+) m (further|shorter|long|short|right|left)$/, (_, n, w) => `${n} m ${{ further: 'weiter', shorter: 'kürzer', long: 'zu lang', short: 'zu kurz', right: 'rechts', left: 'links' }[w]}`);
-const GOLF_CLUBS = '(Driver|3 Wood|7 Iron|Wedge|Putter)', GOLF_LIES = '(Tee|Fairway|Green|Rough|Bunker|Water|Out of bounds)';
-function golfDe(t) {
-  if (!/(?:Hole|Stroke|Pin|full (?:swing|stroke)|the pin needs|wind|Carry|Putt|Early|Late|Wind|Tip|Tapped|Picked|on a par| m · | m to the pin|%| −\d+ %| \(\d\)$)/.test(t)) return t;
-  return t
-    .replace(/^Hole (\d+) · Par (\d) · (\d+) m · Stroke (\d+) · Total (.+)$/, 'Loch $1 · Par $2 · $3 m · Schlag $4 · Total $5')
-    .replace(/^Hole (\d+) · Par (\d)( · \d+ m)?$/, 'Loch $1 · Par $2$3')
-    .replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, (_, n, d, lie) => `Schlag ${n} · ${d} m zur Fahne · ${GOLF_LIE_DE[lie] || lie}`)
-    .replace(/^Pin (\d+) m$/, 'Fahne $1 m')
-    .replace(new RegExp(`^${GOLF_CLUBS}: full (swing|stroke) (\\d+) m$`), (_, c, k, d) => `${GOLF_CLUB_DE[c]}: ${k === 'swing' ? 'voller Schwung' : 'voller Putt'} ${d} m`)
-    .replace(new RegExp(`^${GOLF_CLUBS} \\((\\d)\\)$`), (_, c, n) => `${GOLF_CLUB_DE[c]} (${n})`)
-    .replace(/^the pin needs (\d+) %$/, 'zur Fahne braucht es $1 %')
-    .replace(/^wind ([+−]\d+ m)$/, 'Wind $1')
-    .replace(new RegExp(`^${GOLF_LIES} −(\\d+) %$`), (_, l, n) => `${GOLF_LIE_DE[l]} −${n} %`)
-    .replace(/^Carry (\d+) m, rolled (\d+) m$/, 'Flug $1 m, gerollt $2 m').replace(/^Carry (\d+) m$/, 'Flug $1 m')
-    .replace(/^Early: hook, (\d+) m left$/, 'Zu früh: Hook, $1 m nach links').replace(/^Late: slice, (\d+) m right$/, 'Zu spät: Slice, $1 m nach rechts')
-    .replace(/^(Wind|Pin): (.+)$/, (whole, k, parts) => (/^\d+ m \w+(, \d+ m \w+)?$/.test(parts) ? `${k === 'Pin' ? 'Fahne' : 'Wind'}: ${parts.split(', ').map(golfPartDe).join(', ')}` : whole))
-    .replace(/^Tip: (\d+) % power, the pin needed (\d+) % \(the red mark\)$/, 'Tipp: $1 % Kraft, zur Fahne hätte es $2 % gebraucht (die rote Marke)')
-    .replace(new RegExp(`^${GOLF_CLUBS} (\\d+)% · (Perfect strike|Slight draw|Slight fade|Hook|Slice)$`), (_, c, p, a) => `${GOLF_CLUB_DE[c]} ${p} % · ${GOLF_STRIKE_DE[a]}`)
-    .replace(/^(\d+)% · (Perfect strike|Slight draw|Slight fade|Hook|Slice)$/, (_, p, a) => `${p} % · ${GOLF_STRIKE_DE[a]}`)
-    .replace(new RegExp(`^(\\d+) m · ${GOLF_LIES}$`), (_, d, l) => `${d} m · ${GOLF_LIE_DE[l]}`)
-    .replace(new RegExp(`^${GOLF_LIES} · (\\d+) m to the pin$`), (_, l, d) => `${GOLF_LIE_DE[l]} · ${d} m zur Fahne`)
-    .replace(/^(Tapped in|Picked up): (.+)$/, (_, k, n) => `${k === 'Tapped in' ? 'Eingelocht' : 'Aufgehoben'}: ${GOLF_SCORE_DE[n] || n}`)
-    .replace(/^(.+): (\d+) on a par (\d)( · bonus \+(\d+))?$/, (_, n, s, p, b, bonus) => `${GOLF_SCORE_DE[n] || n}: ${s} auf Par ${p}${b ? ` · Bonus +${bonus}` : ''}`);
-}
 const sourceText = new WeakMap();
 const sourceAttributes = new WeakMap();
 const translatedText = new WeakMap();
@@ -1814,7 +1783,7 @@ function translate(value) {
   if (translated) return match[1] + translated + match[3];
   const intro = missionIntros.find(([start]) => match[2].startsWith(start));
   if (intro) return match[1] + intro[1] + match[3];
-  let dynamic = golfDe(match[2]).replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
+  let dynamic = match[2].replace(/^(\d+) streets · ([\d,.]+) blocks$/, '$1 Strassen · $2 Blöcke');
   // (the missions' moving texts are made with msg(): the gastro, bar, resort, care and expert missions, the snow haul,
   // the hike, the Parsennbahn's and the RhB's limits, the handing over and the unloading; the walks to a door name their
   // place in both languages, and a pop is its line said with its points after two spaces, js/missions-data-gastro.js
@@ -1859,19 +1828,16 @@ function translate(value) {
   dynamic = dynamic.replace(/^Jump (\d+) of (\d+)$/, 'Sprung $1 von $2');
   dynamic = dynamic.replace(/^Groom (\d+) % of the trail$/, '$1 % der Loipe präparieren');
   dynamic = dynamic.replace(/^Trigger zone (\d+) of (\d+)$/, 'Zone $1 von $2 auslösen');
-  // The end panels' scores (the units of js/missions-progress.js), the mission aborted by js/missions.js, the golf's
-  // summary (js/missions-data-golf.js) and the crane's summary without a load set down (js/missions-data-work.js: msg()
-  // gives 'Set down: ', the page shows it trimmed)
+  // The end panels' scores (the units of js/missions-progress.js), the mission aborted by js/missions.js and the crane's
+  // summary without a load set down (js/missions-data-work.js: msg() gives 'Set down: ', the page shows it trimmed)
   const medalDe = (m) => enToDe.get(m) || m;
   dynamic = dynamic.replace(/^Mode switch \((.+)\): the mission was aborted\.$/, 'Moduswechsel ($1): Die Mission wurde abgebrochen.');
   const unitDe = { goals: 'Tore', 'goals ahead': 'Tore Vorsprung', skiers: 'Skifahrer', points: 'Punkte', 'WC pts': 'Weltcup-Punkte' };
   dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${n === '1' ? unitDe[unit].replace('Tore', 'Tor') : unitDe[unit]}`);
   dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
-  dynamic = dynamic.replace(/^(\d+) strokes, par (\d+): (.+)$/, '$1 Schläge, Par $2: $3');
   dynamic = dynamic.replace(/^Set down:\s*$/, 'Abgesetzt:');
-  // The golf's step (golfDe above takes it first) and the minigolf's titles from the rule for "Hole n: … (par n)" above,
-  // the lane's name where js/i18n.js has no pair for it
-  dynamic = dynamic.replace(/^Stroke (\d+) · (\d+) m to the pin · (.+)$/, 'Schlag $1 · $2 m zur Fahne · $3');
+  // The minigolf's titles (made as js/missions-data-sport.js loads) from the rule for "Hole n: … (par n)" above, the
+  // lane's name where js/i18n.js has no pair for it; then the points' unit wherever it is left
   dynamic = dynamic.replace(/: (?:The )?(hill|tube|ramp|loop|centre island|round island|angle|bridge|Two posts) \(Par (\d)\)$/, (whole, name, par) => { const de = { 'Two posts': 'Zwei Pfosten', hill: 'Der Hügel', tube: 'Die Röhre', ramp: 'Die Rampe', loop: 'Der Looping', 'centre island': 'Die Mittelinsel', 'round island': 'Die runde Insel', angle: 'Der Winkel', bridge: 'Die Brücke' }[name]; return de ? `: ${de} (Par ${par})` : whole; });
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)
@@ -1884,9 +1850,6 @@ function translate(value) {
       .replace(/ · ([^·]+?) behind place (\d+)/, (_, g, p) => ` · ${gapDe(g)} hinter Platz ${p}`)
       .replace(/ · ([^·]+?) behind the leader$/, (_, g) => ` · ${gapDe(g)} hinter der Spitze`);
   }
-  dynamic = dynamic.replace(/^(\d+) pts$/, '$1 Pkt.');
-  // a feedback popup: a known line and its points after two spaces
-  dynamic = dynamic.replace(new RegExp(`^(.+?)${POP}$`), (whole, head, tail) => (tail && enToDe.has(head) ? enToDe.get(head) + tail : whole));
   return match[1] + dynamic + match[3];
 }
 

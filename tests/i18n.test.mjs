@@ -646,8 +646,7 @@ test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say th
 test('the fun, bar, sport and golf missions translate their HUDs, key bars and running texts', async () => {
   setLanguage('de');
   const cases = {
-    'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km',
-    '3 Wood (2)': 'Holz 3 (2)'
+    'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km'
   };
   for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
   // the moving texts are made with msg(), js/messages.js: by the missions (and the helpers their runtimes call), then translated
@@ -655,6 +654,8 @@ test('the fun, bar, sport and golf missions translate their HUDs, key bars and r
   const sport = await import('../js/missions-data-sport.js');
   const { FUN_TEXT, FOOSBALL_MISSION, GONDOLA_MISSION, GONDOLA, createFoosball, createGondola } = fun;
   says(sport.SPORT_TEXT.holeTitle(3, 9, 'The ramp', 2), 'Hole 3/9 · The ramp · par 2', 'Loch 3/9 · Die Rampe · Par 2');
+  const { GOLF_TEXT } = await import('../js/missions-data-golf.js');
+  says(GOLF_TEXT.clubKey('3 Wood', 2), '3 Wood (2)', 'Holz 3 (2)');
   says(FUN_TEXT.foosball('Midfield', true), 'You (red) vs La Onda (blue) · Midfield (auto)', 'Du (rot) gegen La Onda (blau) · Mittelfeld (automatisch)');
   says(FUN_TEXT.foosball('Attack', false), 'You (red) vs La Onda (blue) · Attack', 'Du (rot) gegen La Onda (blau) · Sturm');
   const table = createFoosball();

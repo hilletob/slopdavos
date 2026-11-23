@@ -4,7 +4,7 @@ import {
   CLUBS, clubById, BALL_R, HOLE_R, SURFACES, surfaceAt, createBall, strike, stepBall, previewFlight, slopeAt,
   currentHole, distanceToPin, beginShot, endShot, nextHole, createMeter, meterStart, meterPower, meterAccuracy, meterStep,
   accuracyLabel, METER, toPar, formatToPar, GREEN_SLOPE_BOOST, PUTT_MAX,
-  landingFor, shotTable, powerFor, carryAt, windAgainstAim, shotReport, alongAim
+  landingFor, shotTable, powerFor, carryAt, windAgainstAim, shotReport, alongAim, GOLF_TEXT
 } from './missions-data-golf.js';
 import { el } from './dom.js';
 
@@ -581,7 +581,7 @@ const golf = {
     G.follow = 0;
     G.shotHeading = r.aim;
     run.state.hint = null;
-    golf.say(run, club.putt ? `${Math.round(G.strike.power * 100)}% · ${accuracyLabel(G.strike.accuracy)}` : `${club.label} ${Math.round(G.strike.power * 100)}% · ${accuracyLabel(G.strike.accuracy)}`, G.strike.accuracy === 0);
+    golf.say(run, GOLF_TEXT.strike(club.putt ? null : club.label, Math.round(G.strike.power * 100), accuracyLabel(G.strike.accuracy)), G.strike.accuracy === 0);
     run.audio?.thump?.();
     golf.hideAids(run);
   },
@@ -599,7 +599,7 @@ const golf = {
       if (b.state === 'water') golf.say(run, 'Splash! In the water', false);
       else if (b.state === 'out') golf.say(run, 'Out of bounds', false);
       else if (b.state === 'holed') golf.big(run, 'In the hole!');
-      else if (b.carry) golf.say(run, `${Math.round(Math.hypot(b.x - b.from.x, b.z - b.from.z))} m · ${SURFACES[b.lie]?.label || ''}`, b.lie === 'green' || b.lie === 'fairway');
+      else if (b.carry) golf.say(run, GOLF_TEXT.landed(Math.round(Math.hypot(b.x - b.from.x, b.z - b.from.z)), SURFACES[b.lie]?.label || ''), b.lie === 'green' || b.lie === 'fairway');
       if (G.shot) golf.showReport(run, shotReport({ ...G.shot, carry: b.carry, end: b.state === 'holed' ? G.shot.pin : { x: b.x, z: b.z }, state: b.state }, golf.env(run)));
     }
   },
@@ -614,7 +614,7 @@ const golf = {
     if (ev.result) {
       const res = ev.result;
       golf.big(run, res.name);
-      golf.say(run, `${res.name}: ${res.strokes} on a par ${res.par}${res.bonus ? ` · bonus +${res.bonus}` : ''}`, res.strokes <= res.par);
+      golf.say(run, GOLF_TEXT.holed(res), res.strokes <= res.par);
       G.mode = 'holed';
       G.t = 0;
       return;
@@ -635,7 +635,7 @@ const golf = {
     golf.showReport(run, null); // (a new hole: the last one's report goes)
     G.mode = 'settled'; // (the cart takes the golfer on to the next tee)
     golf.cart(run);
-    golf.say(run, `${currentHole(r).name} · Par ${currentHole(r).par} · ${Math.round(currentHole(r).length)} m`, true);
+    golf.say(run, GOLF_TEXT.hole(currentHole(r)), true);
   },
 
   // --- The aids: the preview arc and its landing, the putt's line and the slope ---------------------------------------
@@ -788,7 +788,7 @@ const golf = {
       const b = el('button', 'golf-club');
       b.type = 'button';
       b.append(document.createTextNode(c.short), el('small', null, c.putt ? `${PUTT_MAX} m` : `${c.carry} m`));
-      b.title = `${c.label} (${i + 1})`;
+      b.title = GOLF_TEXT.clubKey(c.label, i + 1);
       b.dataset.club = c.id;
       run.listen(b, 'pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); golf.setClub(run, c.id); });
       clubs.append(b);
@@ -869,12 +869,12 @@ const golf = {
     if (!h) return;
     const set = (node, text) => { if (node.textContent !== text) node.textContent = text; };
     const tp = toPar(r);
-    set(u.card, `${h.name} · Par ${h.par} · ${Math.round(h.length)} m · Stroke ${r.strokes + (G.mode === 'flight' || G.mode === 'settled' ? 0 : 1)} · Total ${formatToPar(tp)}`);
+    set(u.card, GOLF_TEXT.card(h, r.strokes + (G.mode === 'flight' || G.mode === 'settled' ? 0 : 1), formatToPar(tp)));
     for (const c of u.chips) c.classList.toggle('is-on', c.dataset.club === r.club);
     const rel = (r.wind.dir - r.aim) * 180 / Math.PI;
     u.arrow.style.transform = `rotate(${-rel}deg)`;
     set(u.windText, `${r.wind.speed.toFixed(1)} m/s`);
-    set(u.pin, `Pin ${Math.round(distanceToPin(r))} m`);
+    set(u.pin, GOLF_TEXT.pin(Math.round(distanceToPin(r))));
     const lieKey = G.mode === 'flight' ? G.ball.lie : r.ball?.lie;
     set(u.lie, SURFACES[lieKey]?.label || '');
     const m = G.meter;
@@ -889,13 +889,13 @@ const golf = {
     const club = golf.club(run);
     const aiming = G.mode === 'address' || G.mode === 'down';
     if (aiming && G.table) {
-      set(u.planClub, `${club.label}: full ${club.putt ? 'stroke' : 'swing'} ${Math.round(G.full)} m`);
-      set(u.planNeed, G.need.reach ? `the pin needs ${Math.round(G.need.power * 100)} %` : 'the pin is out of reach');
+      set(u.planClub, GOLF_TEXT.full(club.label, club.putt, Math.round(G.full)));
+      set(u.planNeed, G.need.reach ? GOLF_TEXT.needs(Math.round(G.need.power * 100)) : 'the pin is out of reach');
       u.planNeed.classList.toggle('is-out', !G.need.reach);
       const wl = G.windFull ? Math.round(G.windFull.long) : 0;
-      set(u.planWind, wl ? `wind ${wl > 0 ? '+' : '−'}${Math.abs(wl)} m` : '');
+      set(u.planWind, wl ? GOLF_TEXT.wind(wl) : '');
       const loss = Math.round((G.lieLoss || 0) * 100);
-      set(u.planLie, loss >= 2 ? `${SURFACES[G.ball.lie]?.label || ''} −${loss} %` : '');
+      set(u.planLie, loss >= 2 ? GOLF_TEXT.lieLoss(SURFACES[G.ball.lie]?.label || '', loss) : '');
     } else { set(u.planClub, ''); set(u.planNeed, ''); set(u.planWind, ''); set(u.planLie, ''); }
     u.target.hidden = !(aiming && G.need?.reach);
     if (!u.target.hidden) u.target.style.left = u.at(G.need.power);
