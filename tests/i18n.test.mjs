@@ -1058,3 +1058,21 @@ test('a text whose part is the text itself does not loop', async () => {
   const self = msg('Loop test', (p, tr) => `${tr('Loop test')}!`);
   assert.equal(t(self), 'Loop test!', 'the part falls back to the patterns, which leave it as it is');
 });
+
+test('a text made of parts finds their German too, once msg() has forgotten the parts', async () => {
+  const { localizeText } = await import('../js/i18n.js');
+  const { msg } = await import('../js/messages.js');
+  setLanguage('de');
+  const part = msg('{n} loose parts', '{n} lose Teile', { n: 2 });
+  const notes = [msg('first part +{n}', 'erster Teil +{n}', { n: 5 }), msg('second part +{n}', 'zweiter Teil +{n}', { n: 7 })];
+  const node = { nodeValue: msg('Got {p}', 'Habe {p|t}', { p: part }), parentElement: { closest: () => null } };
+  const list = { nodeValue: msg(notes.join(' · '), (p, tr) => p.notes.map(tr).join(' · '), { notes }), parentElement: { closest: () => null } };
+  localizeText(node); localizeText(list);
+  assert.equal(node.nodeValue, 'Habe 2 lose Teile');
+  for (let i = 0; i < 3100; i++) msg('{n} m to go', '{n} m bis zum Ziel', { n: i });
+  setLanguage('en'); localizeText(node); localizeText(list);
+  assert.equal(node.nodeValue, 'Got 2 loose parts');
+  setLanguage('de'); localizeText(node); localizeText(list);
+  assert.equal(node.nodeValue, 'Habe 2 lose Teile', 'its part\'s German was kept with it');
+  assert.equal(list.nodeValue, 'erster Teil +5 · zweiter Teil +7', 'a list of parts too');
+});

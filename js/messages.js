@@ -20,10 +20,20 @@ export function fill(template, params, tr = (v) => v) {
 }
 
 /** The English text, remembering its German */
+// The records of the parts a text is made of (a value that is itself a text made with msg(), or a list of them), kept
+// with it: its German still finds theirs once msg() has forgotten them
+function partsOf(params) {
+  let parts = null;
+  const keep = (v) => { if (typeof v === 'string' && made.has(v)) (parts ||= new Map()).set(v, made.get(v)); };
+  for (const v of Object.values(params)) { if (Array.isArray(v)) v.forEach(keep); else keep(v); }
+  return parts;
+}
+
 export function msg(en, de, params = {}) {
   const text = fill(en, params);
+  const parts = partsOf(params);
   made.delete(text);
-  made.set(text, { de, params });
+  made.set(text, { de, params, parts });
   if (made.size > LIMIT) made.delete(made.keys().next().value);
   return text;
 }
@@ -34,7 +44,8 @@ export const madeOf = (text) => made.get(text);
 
 /** The German of a record of madeOf(); `translate` for the parts marked |t */
 export function germanFrom(m, translate) {
-  return typeof m.de === 'function' ? m.de(m.params, translate) : fill(m.de, m.params, translate);
+  const tr = m.parts ? (v) => { const part = m.parts.get(v); return part ? germanFrom(part, translate) : translate(v); } : translate;
+  return typeof m.de === 'function' ? m.de(m.params, tr) : fill(m.de, m.params, tr);
 }
 
 const rendering = new Set(); // (texts whose German is being made: a part that is the text itself falls back, no loop)
