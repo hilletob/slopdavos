@@ -251,6 +251,7 @@ function gipfeliHotelObjective(h, i) {
   return {
     id: `hotel-${h.id}`,
     title: `Deliver to the ${h.name}`,
+    titleText: () => msg('Deliver to the {to}', 'Lieferung an {to}', { to: h.name }),
     allowModes: ['cyclist', 'person'],
     check(ctx, state) {
       const g = state.gipfeli;
@@ -299,6 +300,7 @@ export const GIPFELI_MISSION = {
     {
       id: 'form',
       title: `Roll ${GIPFELI.count} Gipfeli`,
+      titleText: () => msg('Roll {n} Gipfeli', '{n} Gipfeli rollen', { n: GIPFELI.count }),
       allowModes: ['person'],
       check(ctx, state) {
         const g = state.gipfeli;

@@ -266,6 +266,7 @@ export const SHOTS_MISSION = {
     {
       id: 'shots',
       title: `${SHOTS.rounds} rounds of flaming shots`,
+      titleText: () => msg('{n} rounds of flaming shots', '{n} Runden Flaming Shots', { n: SHOTS.rounds }),
       allowModes: ['person'],
       check(ctx, state) {
         const g = state.game;
@@ -635,6 +636,7 @@ export const FLAEMMLI_MISSION = {
     {
       id: 'flaemmli',
       title: `${FLAEMMLI.rounds} rounds of Flämmli`,
+      titleText: () => msg('{n} rounds of Flämmli', '{n} Runden Flämmli', { n: FLAEMMLI.rounds }),
       allowModes: ['person'],
       check(ctx, state) {
         const g = state.game;
@@ -755,6 +757,7 @@ function pizzaDeliverObjective(stop, i) {
   return {
     id: `deliver-${stop.id}`,
     title: `Deliver to ${stop.short}`,
+    titleText: () => msg('Deliver to {to}', 'Lieferung an {to}', { to: stop.short }),
     allowModes: ['car', 'person'],
     check(ctx, state) {
       const st = state.run;
@@ -817,6 +820,7 @@ export const PIZZA_MISSION = {
     {
       id: 'toppings',
       title: `Top ${PIZZA_ORDERS.length} pizzas`,
+      titleText: () => msg('Top {n} pizzas', 'Belege {n} Pizzas', { n: PIZZA_ORDERS.length }),
       allowModes: ['person'],
       check(ctx, state) {
         const s = state.shop;

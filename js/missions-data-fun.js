@@ -1021,6 +1021,7 @@ function rhbStopObjective(name, i) {
   return {
     id: `stop${i + 1}`,
     title: `Stop at ${name}`,
+    titleText: () => msg('Stop at {name}', 'Bei {name} anhalten', { name }),
     allowModes: ['rhb'],
     check(ctx, state) {
       const d = state.drive;

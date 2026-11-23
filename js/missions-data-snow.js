@@ -518,6 +518,7 @@ export const SLALOM_MISSION = {
     {
       id: 'gates',
       title: `Through the ${SLALOM_GATES} gates`,
+      titleText: () => msg('Through the {n} gates', 'Durch alle {n} Tore', { n: SLALOM_GATES }),
       check(ctx, state) {
         const n = state.gates.length, g = state.gates[state.next];
         const fail = state.missed > SLALOM_MAX_MISSES ? msg('Disqualified: {n} gates missed.', 'Disqualifiziert: {n} Tore verpasst.', { n: state.missed }) : null;
@@ -587,6 +588,7 @@ export const BIG_AIR_MISSION = {
   objectives: Array.from({ length: BIG_AIR_JUMPS }, (_, i) => ({
     id: `jump${i + 1}`,
     title: `Jump ${i + 1} of ${BIG_AIR_JUMPS}`,
+    titleText: () => msg('Jump {n} of {of}', 'Sprung {n} von {of}', { n: i + 1, of: BIG_AIR_JUMPS }),
     check(ctx, state) {
       const k = BIG_AIR.kicker, last = state.jumps[state.jumps.length - 1];
       const lip = { x: k.x + Math.sin(k.heading) * BIG_AIR.kickerLength, z: k.z + Math.cos(k.heading) * BIG_AIR.kickerLength };

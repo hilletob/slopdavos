@@ -778,6 +778,7 @@ export const GOLF_MISSION = {
   objectives: GOLF_HOLES.map((hole, k) => ({
     id: `hole-${hole.ref}`,
     title: `Hole ${hole.ref} · Par ${hole.par}`,
+    titleText: () => msg('Hole {n} · Par {par}', 'Loch {n} · Par {par}', { n: hole.ref, par: hole.par }),
     check(ctx, state) {
       const r = state.round;
       const done = r.results.length > k;

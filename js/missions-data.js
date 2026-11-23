@@ -302,6 +302,7 @@ export const DISCHMA_MISSION = {
     {
       id: 'groom',
       title: `Groom ${Math.round(DISCHMA_TARGET * 100)} % of the trail`,
+      titleText: () => msg('Groom {n} % of the trail', '{n} % der Loipe präparieren', { n: Math.round(DISCHMA_TARGET * 100) }),
       check(ctx, state) {
         const frac = doneFraction(state.samples);
         const next = nearestUndone(state.samples, ctx.x, ctx.z);
@@ -431,6 +432,7 @@ export const LAWINEN_MISSION = {
   objectives: lawinenZones().map((zone, i, all) => ({
     id: `zone${i + 1}`,
     title: `Trigger zone ${i + 1} of ${all.length}`,
+    titleText: () => msg('Trigger zone {n} of {of}', 'Zone {n} von {of} auslösen', { n: i + 1, of: all.length }),
     check(ctx, state) {
       const done = state.hits > i;
       const fail = !done && state.ammo <= 0 && !state.inFlight ? 'Out of ammo' : null;

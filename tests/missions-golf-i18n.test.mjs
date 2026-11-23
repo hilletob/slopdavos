@@ -19,9 +19,9 @@ test('the golf HUD speaks German: the card, the plan, the steps, the wind, the r
     'headwind from the left': 'Gegenwind von links'
   };
   for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
-  // the steps' titles, made as the module loads (a pattern of js/i18n.js)
+  // the steps' titles, made as the module loads, say themselves when shown (titleText, js/missions.js stepTitle)
   assert.equal(GOLF_MISSION.objectives[1].title, 'Hole 15 · Par 4');
-  assert.equal(t(GOLF_MISSION.objectives[1].title), 'Loch 15 · Par 4');
+  says(GOLF_MISSION.objectives[1].titleText(), 'Hole 15 · Par 4', 'Loch 15 · Par 4');
   // the card, the plan and what is said (js/missions-golf.js makes them with GOLF_TEXT)
   const h14 = { name: 'Hole 14', ref: 14, par: 3, length: 115.3 };
   says(GOLF_TEXT.card(h14, 1, 'E'), 'Hole 14 · Par 3 · 115 m · Stroke 1 · Total E', 'Loch 14 · Par 3 · 115 m · Schlag 1 · Total E');

@@ -66,6 +66,11 @@ import { KEYS } from './storage-keys.js';
 // the run before is torn down (MissionRun.dispose: its meshes, HUD, keys, features, traffic bodies and sounds) and the
 // URL follows along (history.replaceState), so that a link or a reload comes back to the same mission.
 
+/** A step's title as it is shown: a title made as its module loads (with the number of rounds, laps, holes …) says itself in
+ *  both languages through its titleText(), made with js/messages.js msg() when it is drawn (msg() remembers only its last
+ *  texts); the others are pairs in js/i18n.js */
+export const stepTitle = (objective) => objective.titleText?.() ?? objective.title;
+
 const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
 const PERSONAL_WAIT = 10000; // ms: how long a dialog waits for the text written for the player before it shows the mission's own
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
@@ -649,7 +654,7 @@ class MissionRun {
     this.ui.splits.replaceChildren(...this.splits.map((s) => {
       const li = el('li', 'mission-split');
       // (a scoreMode mission: the score after the step, not its time)
-      li.append(el('span', 'mission-split-title', s.title), el('span', 'mission-split-time', Number.isFinite(s.score) ? scoreText(this.def, s.score) : formatTime(s.t)));
+      li.append(el('span', 'mission-split-title', stepTitle(s.step)), el('span', 'mission-split-time', Number.isFinite(s.score) ? scoreText(this.def, s.score) : formatTime(s.t)));
       return li;
     }));
     this.ui.splits.hidden = !this.splits.length;
@@ -768,7 +773,7 @@ class MissionRun {
     let prev = 0;
     for (const s of this.splits) {
       const li = el('li');
-      li.append(el('span', null, s.title), el('span', 'mission-split-lap', `+${formatTime(s.t - prev)}`), el('span', 'mission-split-time', formatTime(s.t)));
+      li.append(el('span', null, stepTitle(s.step)), el('span', 'mission-split-lap', `+${formatTime(s.t - prev)}`), el('span', 'mission-split-time', formatTime(s.t)));
       prev = s.t;
       splits.append(li);
     }
@@ -957,7 +962,7 @@ class MissionRun {
       } else if (view.done) {
         const t = this.phase === 'running' ? now - this.startedAt + this.penaltyMs() : 0;
         if (this.phase === 'ready') { this.phase = 'running'; this.startedAt = now; }
-        this.splits.push({ title: objective.title, t, score: this.def.scoreMode ? this.def.score(this.state) : null });
+        this.splits.push({ title: objective.title, step: objective, t, score: this.def.scoreMode ? this.def.score(this.state) : null });
         this.onObjectiveDone(objective.id);
         this.renderSplits();
         this.index++;
@@ -1051,7 +1056,7 @@ class MissionRun {
     const n = Math.min(this.index + 1, this.def.objectives.length);
     u.stepN.textContent = `${n}/${this.def.objectives.length}`;
     const objective = this.def.objectives[Math.min(this.index, this.def.objectives.length - 1)];
-    u.stepTitle.textContent = this.phase === 'done' ? 'Mission complete' : objective.title;
+    u.stepTitle.textContent = this.phase === 'done' ? 'Mission complete' : stepTitle(objective);
     if (view) {
       if (u.text.textContent !== translateUI(view.text || '')) setLocalizedText(u.text, view.text || '');
       u.bar.hidden = view.progress == null;

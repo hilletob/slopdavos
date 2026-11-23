@@ -634,7 +634,7 @@ const pairs = [
   ['Skating the Schüssla', 'Skaten in der Schüssla'],
   ['Beer run for the Davoser Craft Beer', 'Bierlieferung für Davoser Craft Beer'],
   ['The Weber Gipfeli challenge', 'Die Weber-Gipfeli-Challenge'],
-  ['Raclette at Käch', 'Raclette bei Käch'],
+  ['Raclette at Käch', 'Raclette bei Käch'], ['Serve raclette for 90 s', '90 s Raclette servieren'],
   ['Ibex hunt: the Bündner Hochjagd', 'Steinbockjagd: Bündner Hochjagd'],
   ['Feeding the squirrels at the Davosersee', 'Eichhörnchen am Davosersee füttern'],
   ['Tiebreak in the Färbi tennis hall', 'Tiebreak in der Tennishalle Färbi'],
@@ -1789,33 +1789,12 @@ function translate(value) {
   // (the missions' moving texts are made with msg(): the gastro, bar, resort, care and expert missions, the snow haul,
   // the hike, the Parsennbahn's and the RhB's limits, the handing over and the unloading; the walks to a door name their
   // place in both languages, and a pop is its line said with its points after two spaces, js/missions-data-gastro.js
-  // popText. Left here: the steps' titles made as their modules load, and the splits' and the bib, made once and kept
-  // on show)
-  dynamic = dynamic.replace(/^(\d+) rounds of Flämmli$/, '$1 Runden Flämmli');
-  dynamic = dynamic.replace(/^(\d+) rounds of flaming shots$/, '$1 Runden Flaming Shots');
-  dynamic = dynamic.replace(/^Split (\d+) at (\d+\.\d) km$/, 'Zwischenzeit $1 bei $2 km').replace(/^Bib (\d+)$/, 'Startnummer $1');
-  dynamic = dynamic.replace(/^(\d+) games of Nageln$/, '$1 Partien Nageln');
-  dynamic = dynamic.replace(/^Top (\d+) pizzas$/, 'Belege $1 Pizzas');
+  // popText; the steps' titles made as their modules load say themselves through their titleText(), js/missions.js
+  // stepTitle, and the splits' and the bib are made when shown)
   dynamic = dynamic.replace(/(\d+) skiers$/, '$1 Skifahrer');
   // (the other missions' moving texts and summaries are made with msg() too.) Then generic lines: the score unit of the
-  // hockey and the leaderboards, the loading screen, the map, the vehicles, the missions' list and pins, and the steps'
-  // titles made as their modules load
+  // hockey and the leaderboards
   dynamic = dynamic.replace(/(-?\d+) goals ahead\b/g, (_, n) => `${n} ${n === '1' ? 'Tor' : 'Tore'} Vorsprung`);
-  dynamic = dynamic.replace(/^Stop at (.+)$/, 'Bei $1 anhalten');
-  dynamic = dynamic.replace(/^Split (\d+) at (.+)$/, 'Zwischenzeit $1 bei $2');
-  dynamic = dynamic.replace(/^Hole (\d+): (.+) \(par (\d+)\)$/, (_, n, name, par) => `Loch ${n}: ${enToDe.get(name) || name} (Par ${par})`);
-  dynamic = dynamic.replace(/^Hole (\d+) · Par (\d+)$/, 'Loch $1 · Par $2');
-  dynamic = dynamic.replace(/^Lap (\d+) of (\d+): to the finish$/, 'Runde $1 von $2: ins Ziel');
-  dynamic = dynamic.replace(/^Lap (\d+) of (\d+)$/, 'Runde $1 von $2');
-  dynamic = dynamic.replace(/^Penalty (\d+) of (\d+)$/, 'Penalty $1 von $2');
-  dynamic = dynamic.replace(/^Deliver to the (.+)$/, 'Lieferung an $1');
-  dynamic = dynamic.replace(/^Deliver to (.+)$/, 'Lieferung an $1');
-  dynamic = dynamic.replace(/^Roll (\d+) Gipfeli$/, '$1 Gipfeli rollen');
-  dynamic = dynamic.replace(/^Serve raclette for (\d+) s$/, '$1 s Raclette servieren');
-  dynamic = dynamic.replace(/^Through the (\d+) gates$/, 'Durch alle $1 Tore');
-  dynamic = dynamic.replace(/^Jump (\d+) of (\d+)$/, 'Sprung $1 von $2');
-  dynamic = dynamic.replace(/^Groom (\d+) % of the trail$/, '$1 % der Loipe präparieren');
-  dynamic = dynamic.replace(/^Trigger zone (\d+) of (\d+)$/, 'Zone $1 von $2 auslösen');
   // The end panels' scores (the units of js/missions-progress.js), the mission aborted by js/missions.js and the crane's
   // summary without a load set down (js/missions-data-work.js: msg() gives 'Set down: ', the page shows it trimmed)
   const medalDe = (m) => enToDe.get(m) || m;
@@ -1823,9 +1802,7 @@ function translate(value) {
   dynamic = dynamic.replace(/^(?:(Gold|Silver|Bronze) )?(-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, medal, n, unit) => `${medal ? `${medalDe(medal)} ` : ''}${n} ${n === '1' ? unitDe[unit].replace('Tore', 'Tor') : unitDe[unit]}`);
   dynamic = dynamic.replace(/^Best score (-?\d+) (goals ahead|goals|skiers|points|WC pts)$/, (_, n, unit) => `Bestwert ${n} ${unitDe[unit]}`);
   dynamic = dynamic.replace(/^Set down:\s*$/, 'Abgesetzt:');
-  // The minigolf's titles (made as js/missions-data-sport.js loads) from the rule for "Hole n: … (par n)" above, the
-  // lane's name where js/i18n.js has no pair for it; then the points' unit wherever it is left
-  dynamic = dynamic.replace(/: (?:The )?(hill|tube|ramp|loop|centre island|round island|angle|bridge|Two posts) \(Par (\d)\)$/, (whole, name, par) => { const de = { 'Two posts': 'Zwei Pfosten', hill: 'Der Hügel', tube: 'Die Röhre', ramp: 'Die Rampe', loop: 'Der Looping', 'centre island': 'Die Mittelinsel', 'round island': 'Die runde Insel', angle: 'Der Winkel', bridge: 'Die Brücke' }[name]; return de ? `: ${de} (Par ${par})` : whole; });
+  // then the points' unit wherever it is left
   dynamic = dynamic.replace(/\bpts\b/g, 'Pkt.');
   // the leaderboards' comparison (js/leaderboard-ui.js compareText)
   if (/^(You lead|Place \d+ of \d+)/.test(dynamic)) {

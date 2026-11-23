@@ -274,6 +274,7 @@ export const NAGELN_MISSION = {
     {
       id: 'nageln',
       title: `${NAGELN.games} games of Nageln`,
+      titleText: () => msg('{n} games of Nageln', '{n} Partien Nageln', { n: NAGELN.games }),
       allowModes: ['person'],
       check(ctx, state) {
         const g = state.game;

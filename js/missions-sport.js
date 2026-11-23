@@ -8,7 +8,7 @@ import { poseSkierRig, skierCadence, SKIER_TECH } from './cross-country.js';
 import { poseSkater } from './missions-ice.js';
 import { t } from './i18n.js';
 import {
-  XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, XC_PLAYER_BIB, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
+  XC_PARAMS, XC_LINE, XC_LENGTH, XC_SPLITS, createXcSkier, stepXc, xcNeedle, xcGrade, linePoint, createField,
   racerAt, aiSpeed,
   MINIGOLF, MINIGOLF_SITE, MINIGOLF_EXCLUDE, WALDHUUS_COURSE, ICE_MINIGOLF, ARKADENPLATZ_COURSE, onLane, holeFrame, holeToWorld, holeHeight, windmillAngle, minigolfPutt, minigolfStep, minigolfNext, minigolfTotal, strokeName,
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
@@ -291,7 +291,11 @@ const xcSkis = {
     xc.ui.place = el('span', null, '');
     row.append(el('span', null, 'Rhythm'), mt.m, xc.ui.speed);
     const row2 = el('div', 'sport-row');
-    row2.append(el('span', null, `Bib ${XC_PLAYER_BIB}`), xc.ui.clock, xc.ui.place);
+    // (the bib, made once and on show the whole race, made again on a switch of language: msg() remembers only its last
+    // texts, js/messages.js)
+    const bib = el('span', null, SPORT_TEXT.bib());
+    run.listen(window, 'languagechange', () => { bib.textContent = SPORT_TEXT.bib(); });
+    row2.append(bib, xc.ui.clock, xc.ui.place);
     xc.ui.flash = el('div', 'sport-flash');
     xc.ui.meter = mt;
     xc.ui.choice = choice;

@@ -358,6 +358,7 @@ export const DAVOS_NORDIC_MISSION = {
     ...XC_SPLITS.map((mark, i) => ({
       id: `split${i + 1}`,
       title: `Split ${i + 1} at ${fmtDist(mark)}`,
+      titleText: () => msg('Split {n} at {d}', 'Zwischenzeit {n} bei {d}', { n: i + 1, d: fmtDist(mark) }),
       check(ctx, state) { return xcView(ctx, state, mark, msg('Split {n}', 'Zwischenzeit {n}', { n: i + 1 })); }
     })),
     {
@@ -685,6 +686,7 @@ export const MINIGOLF_MISSION = {
   objectives: MINIGOLF_HOLES.map((hole, i) => ({
     id: `hole${i + 1}`,
     title: `Hole ${i + 1}: ${hole.name} (par ${hole.par})`,
+    titleText: () => msg('Hole {n}: {name} (par {par})', 'Loch {n}: {name|t} (Par {par})', { n: i + 1, name: hole.name, par: hole.par }),
     allowModes: ['person'],
     check(ctx, state) {
       const g = state.game;
@@ -807,6 +809,7 @@ export const ICE_MINIGOLF_MISSION = {
   objectives: ICE_HOLES.map((hole, i) => ({
     id: `hole${i + 1}`,
     title: `Hole ${i + 1}: ${hole.name} (par ${hole.par})`,
+    titleText: () => msg('Hole {n}: {name} (par {par})', 'Loch {n}: {name|t} (Par {par})', { n: i + 1, name: hole.name, par: hole.par }),
     allowModes: ['person'],
     check(ctx, state) {
       const g = state.game;
@@ -1289,6 +1292,8 @@ export const SPORT_MISSIONS = [DAVOS_NORDIC_MISSION, MINIGOLF_MISSION, ICE_MINIG
 // The runtime's moving texts (js/missions-sport.js), with their German beside them (js/messages.js)
 export const SPORT_TEXT = {
   // Davos Nordic: the countdown, the place in the field, the split gantries, the splits and the finish as they come
+  // the player's bib beside the clock
+  bib: () => msg('Bib {n}', 'Startnummer {n}', { n: XC_PLAYER_BIB }),
   startIn: (n) => msg('Start in {n}', 'Los in {n}', { n }),
   placeOf: (place, n) => msg('{place} of {n}', '{k}. von {n}', { place: ordinal(place), k: place, n }),
   splitArch: (n) => msg('SPLIT {n}', 'ZWISCHENZEIT {n}', { n }),

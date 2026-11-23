@@ -209,6 +209,7 @@ export const SPEED_SKATING_MISSION = {
   objectives: Array.from({ length: RACE_LAPS }, (_, i) => ({
     id: `lap${i + 1}`,
     title: i === RACE_LAPS - 1 ? `Lap ${i + 1} of ${RACE_LAPS}: to the finish` : `Lap ${i + 1} of ${RACE_LAPS}`,
+    titleText: () => (i === RACE_LAPS - 1 ? msg('Lap {n} of {of}: to the finish', 'Runde {n} von {of}: ins Ziel', { n: i + 1, of: RACE_LAPS }) : msg('Lap {n} of {of}', 'Runde {n} von {of}', { n: i + 1, of: RACE_LAPS })),
     check(ctx, state) {
       const r = state.race;
       if (r.cut) return { done: false, progress: null, text: 'Disqualified: you cut across the infield', target: null, hint: null, fail: 'Disqualified: you cut across the infield inside the cones.' };
@@ -527,6 +528,7 @@ export const HOCKEY_PENALTY_MISSION = {
   objectives: Array.from({ length: HOCKEY.attempts }, (_, i) => ({
     id: `penalty${i + 1}`,
     title: `Penalty ${i + 1} of ${HOCKEY.attempts}`,
+    titleText: () => msg('Penalty {n} of {of}', 'Penalty {n} von {of}', { n: i + 1, of: HOCKEY.attempts }),
     check(ctx, state) {
       const g = state.game;
       const done = g.attempt > i; // (the result shown, the next penalty lined up)

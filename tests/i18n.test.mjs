@@ -50,6 +50,40 @@ test('the map says its counts, its search, where the player is and the place und
   says(M.searchText(412), 'Search 412 streets & landmarks…', '412 Strassen und Orte suchen …');
 });
 
+test('the steps\' titles made as their modules load say themselves in both languages when shown', async () => {
+  setLanguage('de');
+  const { MISSIONS } = await import('../js/missions-data.js');
+  // (js/missions.js stepTitle shows titleText() where a step has one: its English is the title, byte for byte)
+  const steps = MISSIONS.flatMap((m) => m.objectives.map((o) => [m.id, o]));
+  for (const [id, o] of steps) if (o.titleText) assert.equal(o.titleText(), o.title, `${id} ${o.id}`);
+  const step = (mission, objective) => steps.find(([id, o]) => id === mission && o.id === objective)[1].titleText();
+  says(step('shots-ex-bar', 'shots'), '6 rounds of flaming shots', '6 Runden Flaming Shots');
+  says(step('flaemmli-rot-liechtli', 'flaemmli'), '3 rounds of Flämmli', '3 Runden Flämmli');
+  says(step('nageln-tijuana', 'nageln'), '3 games of Nageln', '3 Partien Nageln');
+  says(step('pizza-heaven', 'toppings'), 'Top 4 pizzas', 'Belege 4 Pizzas');
+  says(step('pizza-heaven', 'deliver-seehof'), 'Deliver to Hotel Seehof', 'Lieferung an Hotel Seehof');
+  says(step('gipfeli-weber', 'hotel-montana'), 'Deliver to the Hotel Montana', 'Lieferung an Hotel Montana');
+  says(step('gipfeli-weber', 'form'), 'Roll 5 Gipfeli', '5 Gipfeli rollen');
+  // (a title without a number made at load is a pair)
+  assert.equal(t(steps.find(([id, o]) => id === 'raclette-kaech' && o.id === 'serve')[1].title), '90 s Raclette servieren');
+  says(step('davos-nordic', 'split1'), 'Split 1 at 1.1 km', 'Zwischenzeit 1 bei 1.1 km');
+  says(step('rhb-driver', 'stop1'), 'Stop at Davos Dorf', 'Bei Davos Dorf anhalten');
+  says(step('golf', 'hole-14'), 'Hole 14 · Par 3', 'Loch 14 · Par 3');
+  says(step('minigolf-waldhaus', 'hole1'), 'Hole 1: The hill (par 2)', 'Loch 1: Der Hügel (Par 2)');
+  says(step('minigolf-waldhaus', 'hole7'), 'Hole 7: Two posts (par 2)', 'Loch 7: Zwei Pfosten (Par 2)');
+  says(step('ice-minigolf', 'hole5'), 'Hole 5: The players\u2019 tunnel (par 2)', 'Loch 5: Der Spielertunnel (Par 2)');
+  says(step('speed-skating', 'lap1'), 'Lap 1 of 2', 'Runde 1 von 2');
+  says(step('speed-skating', 'lap2'), 'Lap 2 of 2: to the finish', 'Runde 2 von 2: ins Ziel');
+  says(step('hockey-penalty', 'penalty3'), 'Penalty 3 of 5', 'Penalty 3 von 5');
+  says(step('ski-slalom', 'gates'), 'Through the 24 gates', 'Durch alle 24 Tore');
+  says(step('big-air', 'jump2'), 'Jump 2 of 3', 'Sprung 2 von 3');
+  says(step('dischma-loipe', 'groom'), 'Groom 90 % of the trail', '90 % der Loipe präparieren');
+  says(step('lawinen-sprengen', 'zone4'), 'Trigger zone 4 of 4', 'Zone 4 von 4 auslösen');
+  // the bib beside the cross-country race's clock
+  const { SPORT_TEXT, XC_PLAYER_BIB } = await import('../js/missions-data-sport.js');
+  says(SPORT_TEXT.bib(), `Bib ${XC_PLAYER_BIB}`, `Startnummer ${XC_PLAYER_BIB}`);
+});
+
 test('language switch updates document language, controls and saved preference', () => {
   setLanguage('en');
   assert.equal(t('Golden Hour'), 'Golden Hour');
@@ -659,10 +693,6 @@ test('the resort jobs, the Victoria, the Pfadi, the hikes and the jetpack say th
 
 test('the fun, bar, sport and golf missions translate their HUDs, key bars and running texts', async () => {
   setLanguage('de');
-  const cases = {
-    'Split 1 at 1.1 km': 'Zwischenzeit 1 bei 1.1 km'
-  };
-  for (const [en, de] of Object.entries(cases)) assert.equal(t(en), de, en);
   // the moving texts are made with msg(), js/messages.js: by the missions (and the helpers their runtimes call), then translated
   const fun = await import('../js/missions-data-fun.js');
   const sport = await import('../js/missions-data-sport.js');
