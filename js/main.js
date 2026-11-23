@@ -226,12 +226,15 @@ async function initApp() {
     try { sessionStorage.setItem(MOVING_KEY, String(breath)); } catch { /* (storage may be off: the new page just builds at once) */ }
   };
   const reloadAfterGone = () => { leavePage(GONE_BREATH); setTimeout(() => window.location.reload(), 50); };
-  watchDeviceLost(renderer.backend.device, {
+  // What a lost or silent GPU does (js/frame-guard.js deviceGone): the player is saved and the page reloads, or, when it
+  // just did, a message with a reload button
+  const whenGone = {
     storage: localStorage,
     save: () => { try { savePlayerState(); gameClock.save(); } catch { /* (lost during the start: nothing to save yet) */ } },
     reload: reloadAfterGone,
     notify: (text) => showFault(`Grafikfehler: ${text}`, reloadAfterGone)
-  });
+  };
+  watchDeviceLost(renderer.backend.device, whenGone);
   console.info(`[renderer] Three.js r${THREE.REVISION}; ${renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback'}`);
   container.dataset.renderer = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback';
   // The profile tightens on the WebGL 2 fallback; the HUD names the backend actually drawing
@@ -410,7 +413,8 @@ async function initApp() {
     const savedSpawn = FRESH_GTA ? null : (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
     drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START })
-      .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`));
+      .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`))
+      .catch((error) => console.warn('[swissimage] draping:', error));
     // (?qset=skip:buildings: no swissBUILDINGS3D, and no OSM buildings in their place either, see buildCityBlocks below)
     if (skipped('buildings')) throw new Error('skipped (?qset=skip:buildings)');
     const stream = swissStream = streamSwissBuildings(scene, {
@@ -1367,12 +1371,7 @@ async function initApp() {
   const frameGuard = createFrameGuard({
     storage: localStorage,
     notify: (text) => showFault(`Spielfehler: ${text}`, reloadAfterGone),
-    gone: (text) => deviceGone(text, {
-      storage: localStorage,
-      save: () => { try { savePlayerState(); gameClock.save(); } catch { /* */ } },
-      reload: reloadAfterGone,
-      notify: (message) => showFault(`Grafikfehler: ${message}`, reloadAfterGone)
-    }),
+    gone: (text) => deviceGone(text, whenGone),
     // what was going on: how long the page had run, and the last shader it asked for (js/gpu-diagnostics.js)
     context: () => {
       const log = globalThis.__slopdavosShaders, shader = log?.last?.at(-1), t = performance.now();
@@ -1611,12 +1610,7 @@ async function initApp() {
     Promise.resolve().then(() => queue.onSubmittedWorkDone()).then(() => { answered = true; }, () => { answered = true; });
     setTimeout(() => {
       if (answered || document.hidden) return;
-      deviceGone('GPU silent after the app came back', {
-        storage: localStorage,
-        save: () => { try { savePlayerState(); gameClock.save(); } catch { /* */ } },
-        reload: reloadAfterGone,
-        notify: (message) => showFault(`Grafikfehler: ${message}`, reloadAfterGone)
-      });
+      deviceGone('GPU silent after the app came back', whenGone);
     }, RESUME_MS);
   });
 }

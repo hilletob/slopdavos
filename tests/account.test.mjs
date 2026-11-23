@@ -67,7 +67,10 @@ test('the login replaces the page and gives the GPU back first, and the page aft
   assert.match(main, /GPU silent after the app came back/, 'a GPU that stays silent after the app comes back reloads the page');
   assert.match(read('js/quality.js'), /oneFrameInFlight: true/);
   assert.match(main, /const reloadAfterGone = \(\) => \{ leavePage\(GONE_BREATH\);/, 'a reload after the GPU is gone leaves the same way, with a longer breath');
-  assert.equal((main.match(/reload: reloadAfterGone/g) || []).length, 3, 'all three device-lost paths (lost, gone in a frame, silent after resume)');
+  assert.match(main, /const whenGone = \{[^]*?reload: reloadAfterGone,[^]*?\n  \};/, 'the device-lost options reload by leaving first');
+  assert.match(main, /watchDeviceLost\(renderer\.backend\.device, whenGone\)/, 'lost');
+  assert.match(main, /gone: \(text\) => deviceGone\(text, whenGone\)/, 'gone in a frame');
+  assert.match(main, /deviceGone\('GPU silent after the app came back', whenGone\)/, 'silent after resume');
   assert.doesNotMatch(main, /reload: \(\) => window\.location\.reload\(\)/, 'no reload after a lost device without leaving first');
 });
 
