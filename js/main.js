@@ -104,6 +104,9 @@ const MOVING_KEY = KEYS.moving, MOVE_BREATH = 2500, GONE_BREATH = 6000;
 /** The breath (ms) the page that left asked for, 0 when none did */
 const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return Number(m) || 0; } catch { return 0; } };
 const FRESH_GTA = !hasGtaState();
+// The player's save, read once as the page starts (a signed-in player's cloud save is in storage by then, js/start.js):
+// the world's centre, the buildings' and orthophotos' start and the restore below all go by it. null: none, or an older one
+const SAVED_PLAYER = (() => { const s = readJson(KEYS.playerState); return s?.version === SAVE_VERSION ? s : null; })();
 
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
@@ -240,7 +243,8 @@ async function initApp() {
   // The part of the valley built in detail (the mobile profile: QUALITY.worldRadius around where the player starts)
   {
     let start = FIRST_START; // (a first visit starts on foot or by bike, see below)
-    if (!FRESH_GTA) try { const s = JSON.parse(localStorage.getItem(KEYS.playerState)); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
+    const p = FRESH_GTA ? null : SAVED_PLAYER?.entities?.[SAVED_PLAYER.activeMode];
+    if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p;
     setWorldCenter(start.x, start.z);
     if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
   }
@@ -384,7 +388,7 @@ async function initApp() {
   let swissStream = null;
   let buildingsSettled = false;
   try {
-    const savedSpawn = FRESH_GTA ? null : (() => { try { const s = JSON.parse(localStorage.getItem(KEYS.playerState)); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
+    const savedSpawn = FRESH_GTA ? null : SAVED_PLAYER?.entities?.[SAVED_PLAYER.activeMode];
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
     drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START })
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`))
@@ -467,8 +471,8 @@ async function initApp() {
   // from an older version) starts by bike on the Talstrasse by the Seehof Seeli (controllers.js PLAYER_STARTS).
   let restored = false;
   try {
-    const saved = JSON.parse(localStorage.getItem(KEYS.playerState));
-    if (saved?.version === SAVE_VERSION) {
+    const saved = SAVED_PLAYER;
+    if (saved) {
       restored = true;
       for (const mode of Object.keys(controllerManager.entities)) {
         if (mode === 'rhb' || mode === 'cargobike') continue; // the train is where the timetable has it
