@@ -7,6 +7,7 @@ import { LEVEL_CROSSINGS } from './level-crossings-data.js';
 import { surfaceHeight, groundHeight, deckHeight, railTunnelHeight } from './terrain.js';
 import { buildLine, routePoint, project } from './rhb-route.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
+import { RAIL_CAR_CONTACT, playerContact, playerMass } from './vehicle-specs.js';
 
 // The Rhaetian Railway through Davos (js/rhb-route.js): red four-car RhB multiple units, in the spirit of the ABe 4/16
 // "Capricorn" that has run Landquart – Davos since 2022, ply the single-track line Wolfgang – Davos Dorf –
@@ -660,8 +661,7 @@ export function buildRhB(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return; // (in the rhb mode the player is the train)
-    const halfW = mode === 'cargobike' ? 0.38 : mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : 0.86;
-    const halfL = mode === 'cargobike' ? 1.34 : mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : 2.18;
+    const { halfW, halfL } = playerContact(mode, RAIL_CAR_CONTACT); // (js/vehicle-specs.js)
     for (const b of bodies) {
       const reach = b.halfL + halfL + HALF_WIDTH;
       if (Math.abs(pe.position.x - b.x) > reach + 2 || Math.abs(pe.position.z - b.z) > reach + 2) continue;
@@ -671,7 +671,7 @@ export function buildRhB(scene) {
       p.prevX = pe.prevX ?? p.x; p.prevZ = pe.prevZ ?? p.z;
       p.sin = Math.sin(heading); p.cos = Math.cos(heading);
       p.halfW = halfW; p.halfL = halfL;
-      p.mass = mode === 'car' ? 1700 : mode === 'cargobike' ? 140 : mode === 'snowcat' ? 9000 : mode === 'cyclist' ? 95 : 80;
+      p.mass = playerMass(mode);
       p.vx = p.sin * (pe.speed || 0) + (pe.vx || 0);
       p.vz = p.cos * (pe.speed || 0) + (pe.vz || 0);
       p.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;

@@ -10,6 +10,8 @@
 // pi/2: east). The places were picked with the terrain loaded (slope, buildings, roads and car parks round them);
 // `season`: 'winter' (the snow groomers: in summer they stay in their sheds), 'all' otherwise.
 
+import { VEHICLE_SPECS } from './vehicle-specs.js';
+
 /** The vehicle types the pedestrian can get into (the controllers' modes) and their names in the prompt */
 export const VEHICLE_LABELS = {
   car: 'VW T3',
@@ -24,13 +26,9 @@ export const VEHICLE_LABELS = {
  */
 export const ENTER_RADIUS = { car: 3.5, cyclist: 3, helicopter: 6, snowcat: 5 };
 
-/** Half width (across) and half length (along) of each vehicle's outline, m (the controllers' boxes) */
-export const VEHICLE_FOOTPRINTS = {
-  car: { halfW: 0.93, halfL: 2.33 },
-  cyclist: { halfW: 0.3, halfL: 0.85 },
-  helicopter: { halfW: 1.3, halfL: 4.6 },
-  snowcat: { halfW: 2.2, halfL: 3.6 }
-};
+/** Half width (across) and half length (along) of each vehicle's outline, m (the controllers' boxes, js/vehicle-specs.js) */
+export const VEHICLE_FOOTPRINTS = Object.fromEntries(['car', 'cyclist', 'helicopter', 'snowcat']
+  .map((type) => [type, { halfW: VEHICLE_SPECS[type].box.halfW, halfL: VEHICLE_SPECS[type].box.halfL }]));
 
 /** Getting out: the vehicle must stand still (m/s); the helicopter must have landed (height over the ground, m) */
 export const EXIT_MAX_SPEED = 0.6;

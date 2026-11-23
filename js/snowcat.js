@@ -3,6 +3,7 @@ import {
   attribute, cameraPosition, cos, float, fract, mix, modelWorldMatrix, positionGeometry, positionLocal, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4
 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { VEHICLE_SPECS } from './vehicle-specs.js';
 
 // js/snowcat.js
 // The player's Pistenfahrzeug, modelled after a PistenBully 600 (built in code, no external model): a red body on two
@@ -18,10 +19,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Footprint (collisions, traffic) and the lamps' places on the model
 const SNOWCAT_MODEL = {
-  halfW: 2.2, // over the tracks / blade wings / tiller
-  halfL: 3.6, // blade lip to the finisher's comb
-  top: 3.45, // roof rack, light bar, beacon & winch boom
-  mass: 9000,
+  // halfW over the tracks / blade wings / tiller, halfL blade lip to the finisher's comb, top the roof rack, light bar,
+  // beacon & winch boom; and its mass (js/vehicle-specs.js)
+  ...VEHICLE_SPECS.snowcat.box,
   beacon: [0, 3.17, -0.35], // centre of the rotating beacon on the roof rack
   flood: [0, 3.09, 1.3], // the roof's LED light bar
   head: [0, 1.25, 2.42] // between the two headlamps in the nose

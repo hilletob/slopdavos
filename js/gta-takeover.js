@@ -10,6 +10,7 @@ import {
 } from './hijack.js';
 import { lotCars, takeLotBay, returnLotBay } from './parking.js';
 import { createQuads } from './gta-quads.js';
+import { TRAFFIC_MASS, TRAFFIC_MASS_DEFAULT } from './vehicle-specs.js';
 
 // js/gta-takeover.js
 // The GTA mode (js/gta.js): taking over the vehicles on the road (the rules: js/hijack.js). The player's car (the
@@ -32,7 +33,6 @@ import { createQuads } from './gta-quads.js';
 // K, as in the mission.
 
 const DEFAULT_TOP = 1.55;
-const MASS = { van: 2400, suv: 1800, hatch: 1300, sedan: 1600, taxi: 1600, truck: 7500 };
 const BUS = { halfW: 1.28, top: 3.2, wheelbase: 5.9, mass: 14000, door: null, chase: [17, 4.6] };
 
 export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
@@ -142,7 +142,7 @@ export function createTakeover({ scene, cm, traffic = null, vbd = null, trafficB
       const halfL = (spec.zFront - spec.zRear) / 2;
       Object.assign(car, {
         wheels: m.wheels, wheelRadius: spec.wheelRadius,
-        dims: { halfW, halfL, top: body.bodyType === 'truck' ? 3.1 : body.bodyType === 'van' ? 2.0 : DEFAULT_TOP, mass: MASS[body.bodyType] || 1600 },
+        dims: { halfW, halfL, top: body.bodyType === 'truck' ? 3.1 : body.bodyType === 'van' ? 2.0 : DEFAULT_TOP, mass: TRAFFIC_MASS[body.bodyType] || TRAFFIC_MASS_DEFAULT },
         drive: driveFor(body.bodyType === 'truck' ? 'truck' : 'car', { wheelbase: 2 * spec.wheelZ, police: body.police }),
         lightSpec: spec, label: body.police ? 'Kapo patrol car' : trafficLabel({ bodyType: body.bodyType }),
         chaseDistance: body.bodyType === 'truck' ? 11.5 : 7.6, chaseHeight: body.bodyType === 'truck' ? 3.2 : 1.75

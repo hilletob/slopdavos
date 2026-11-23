@@ -28,6 +28,7 @@ import { groundBeamsMesh, setPlayerBeam } from './ground-beams.js';
 import { T3, buildVwT3Geometry, buildVwT3WheelGeo, createVwT3Material, upgradeVwT3Body } from './vw-t3.js';
 import { buildSnowcatModel, SNOWCAT_MODEL, BEACON_REV_PER_S, TILLER_RAISED } from './snowcat.js';
 import { inPointRing as pointInRing } from './ring.js';
+import { VEHICLE_SPECS } from './vehicle-specs.js';
 
 // js/controllers.js
 // Sculpted, non-blocky GTA 6-style 3D models, animations, and physics controllers
@@ -149,13 +150,13 @@ function aimBeam(spot, x, y, z, side, b) {
   spot.decay = b.decay;
 }
 // The parked VW T3's box for the other players (its collisionBody below) and the cells of the tree trunks (setTrees)
-const PARKED_T3 = { halfW: 0.93, halfL: 2.33, top: 1.97 };
-// The boxes of the GTA mode's parked stand-ins (js/gta.js): the H145's fuselage and skids, a bicycle
+const PARKED_T3 = VEHICLE_SPECS.car.box;
+// The boxes of the GTA mode's parked stand-ins (js/gta.js): the H145's fuselage and skids, a bicycle (js/vehicle-specs.js)
 const PARKED_DIMS = {
   car: PARKED_T3,
   snowcat: SNOWCAT_MODEL,
-  helicopter: { halfW: 1.3, halfL: 4.6, top: 3.4 },
-  cyclist: { halfW: 0.3, halfL: 0.85, top: 1.1 }
+  helicopter: VEHICLE_SPECS.helicopter.box,
+  cyclist: VEHICLE_SPECS.cyclist.box
 };
 const TREE_CELL = 16;
 // The lamp posts and sign posts (setKnockablePosts): a vehicle at this speed or more knocks one over, slower it stops
@@ -392,14 +393,16 @@ function collisionBody(mode, radius, heading, margin = 0, dims = null) {
   const snowcat = mode === 'snowcat';
   const oriented = car || cargoBike || snowcat;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  const hx = (car ? dims?.halfW ?? 0.93 : cargoBike ? 0.38 : snowcat ? SNOWCAT_MODEL.halfW : radius) + margin;
-  const hz = (car ? dims?.halfL ?? 2.33 : cargoBike ? 1.34 : snowcat ? SNOWCAT_MODEL.halfL : radius) + margin;
+  // (the oriented vehicles' boxes: js/vehicle-specs.js; the car's the body it wears, or the T3's)
+  const box = oriented ? VEHICLE_SPECS[mode].box : null;
+  const hx = (car ? dims?.halfW ?? box.halfW : oriented ? box.halfW : radius) + margin;
+  const hz = (car ? dims?.halfL ?? box.halfL : oriented ? box.halfL : radius) + margin;
   return {
     car, oriented, sin, cos, hx, hz, radius: radius + margin,
     extX: oriented ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: oriented ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: mode === 'helicopter' ? -0.25 : 0,
-    top: mode === 'helicopter' ? 3.2 : car ? dims?.top ?? 1.97 : snowcat ? SNOWCAT_MODEL.top : 1.9
+    top: mode === 'helicopter' ? 3.2 : car ? dims?.top ?? box.top : snowcat ? box.top : 1.9
   };
 }
 

@@ -8,7 +8,7 @@ const { flatTerrainImports } = require('./helpers/flat-terrain.cjs');
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
 // The snow groomer's model module: only its constants are needed here (the builders want three.js)
 const snowcat = loadModule(readFileSync(join(__dirname, '../js/snowcat.js'), 'utf8'), {
-  imports: { 'three/webgpu': {}, 'three/tsl': {}, 'three/addons/utils/BufferGeometryUtils.js': {} }
+  imports: { 'three/webgpu': {}, 'three/tsl': {}, 'three/addons/utils/BufferGeometryUtils.js': {}, './vehicle-specs.js': require('../js/vehicle-specs.js') }
 });
 
 function eventTarget() {
@@ -50,7 +50,8 @@ function keyboardHarness(nyc = {}) {
       './ground-beams.js': {},
       './vw-t3.js': {},
       './landmarks.js': {},
-      './snowcat.js': snowcat
+      './snowcat.js': snowcat,
+      './vehicle-specs.js': require('../js/vehicle-specs.js')
     }
   });
   // Exercise the production event handlers without constructing the scene's 3D models.

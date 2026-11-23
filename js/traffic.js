@@ -29,6 +29,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attribute, cos, mix, positionGeometry, positionLocal, sin, step, vec3 } from 'three/tsl';
 import { inService } from './hijack.js';
 import { QUAD_MODEL, QUAD_PAINTS, QUAD_WHEELS, createQuadInstances } from './quad.js';
+import { VEHICLE_SPECS, TRAFFIC_MASS, TRAFFIC_MASS_DEFAULT, playerContact, playerMass } from './vehicle-specs.js';
 import { GEO } from './nyc-geodata.js';
 
 // js/traffic.js
@@ -519,7 +520,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // 3. PEDESTRIAN SYSTEM
   // =========================================================================
   const player = { active: false, entity: null, x: 0, z: 0, vx: 0, vz: 0, fx: 0, fz: 1,
-    halfW: 0.93, halfL: 2.33 }; // the player's VW T3 (js/vw-t3.js)
+    halfW: VEHICLE_SPECS.car.box.halfW, halfL: VEHICLE_SPECS.car.box.halfL }; // the player's VW T3 (js/vw-t3.js)
   const nearEdges = [];
   const nearSignals = [];
   const pedestrianSystem = createPedestrianSystem(network, {
@@ -1505,7 +1506,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     body.halfW = v.halfWidth;
     // (cars: their own body length — hatchbacks to minibuses)
     body.halfL = v.bus ? 5.72 : v.bike ? 0.95 : v.half - 0.07;
-    body.mass = v.bus ? 12000 : v.bike ? 95 : v.quad ? 340 : v.bodyType === 'truck' ? 7500 : v.bodyType === 'van' ? 2400 : v.isSUV ? 1800 : v.bodyType === 'hatch' ? 1300 : 1600;
+    // (a bike and its rider as the player's, the quad as js/quad.js has it, the cars by their body: js/vehicle-specs.js)
+    body.mass = v.bus ? 12000 : v.bike ? VEHICLE_SPECS.cyclist.contact.mass : v.quad ? QUAD_MODEL.dims.mass : TRAFFIC_MASS[v.bodyType] || TRAFFIC_MASS_DEFAULT;
     body.vx = v.tx * v.speed + v.vx;
     body.vz = v.tz * v.speed + v.vz;
     body.angularVel = v.yawRate + v.yawVel;
@@ -1543,7 +1545,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     a.prevX = prevX; a.prevZ = prevZ;
     a.sin = Math.sin(heading); a.cos = Math.cos(heading);
     a.halfW = player.halfW; a.halfL = player.halfL;
-    a.mass = pe.type === 'snowcat' ? 9000 : pe.type === 'car' ? (pe.dims?.mass ?? 1700) : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
+    a.mass = playerMass(pe.type, pe.dims);
     a.vx = a.sin * (pe.speed || 0) + (pe.vx || 0);
     a.vz = a.cos * (pe.speed || 0) + (pe.vz || 0);
     a.angularVel = pe.type === 'car' ? pe.angularVel || 0 : 0;
@@ -2146,8 +2148,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       player.vx = player.fx * speed + (playerEntity.vx || 0);
       player.vz = player.fz * speed + (playerEntity.vz || 0);
     }
-    player.halfW = activeMode === 'cargobike' ? 0.38 : activeMode === 'cyclist' ? 0.35 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 2.2 : (playerEntity?.dims?.halfW ?? 0.93);
-    player.halfL = activeMode === 'cargobike' ? 1.34 : activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : activeMode === 'snowcat' ? 3.6 : (playerEntity?.dims?.halfL ?? 2.33);
+    // (js/vehicle-specs.js: the car, and the helicopter and the train, as the body the car wears or the T3)
+    const box = playerContact(activeMode, playerEntity?.dims);
+    player.halfW = box?.halfW ?? VEHICLE_SPECS.car.box.halfW;
+    player.halfL = box?.halfL ?? VEHICLE_SPECS.car.box.halfL;
 
     // 1. Cars & buses
     // Limit attempted placements, not just successes, and rotate through the pool so an awkward location

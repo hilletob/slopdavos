@@ -6,6 +6,7 @@ import { VBD_DATA } from './vbd-data.js';
 import { busBays } from './bus-bays.js';
 import { surfaceHeight, ROAD_TOP } from './terrain.js';
 import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './vehicle-physics.js';
+import { RAIL_CAR_CONTACT, playerContact, playerMass } from './vehicle-specs.js';
 import { clipTriangles, roundedRectProfile, bellowsPositions, bellowsIndex, bellowsRingCount, trailerYaw, solveTrailerAxle, wrapAngle, MAX_BEND } from './bus-joint.js';
 import { MAX_SPEED, BRAKE, DWELL, brakingSpeed, stepBus, enterRoute, gapToBody, bodyInTheWay } from './bus-stopping.js';
 
@@ -733,8 +734,10 @@ export function buildVBD(scene) {
   const contact = {}, playerBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 0, halfL: 0, mass: 0, vx: 0, vz: 0, angularVel: 0 };
   function collidePlayer(pe, mode, controllers) {
     if (!pe || mode === 'helicopter' || mode === 'rhb') return;
-    const halfW = mode === 'cyclist' ? 0.35 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 2.2 : (pe.dims?.halfW ?? 0.86);
-    const halfL = mode === 'cyclist' ? 0.85 : mode === 'person' ? 0.32 : mode === 'snowcat' ? 3.6 : (pe.dims?.halfL ?? 2.18);
+    // (js/vehicle-specs.js; the car the body it wears. The cargo bike counts as the car here, with 80 kg, as it did)
+    const own = mode !== 'cargobike' && playerContact(mode, null);
+    const halfW = own ? own.halfW : (pe.dims?.halfW ?? RAIL_CAR_CONTACT.halfW);
+    const halfL = own ? own.halfL : (pe.dims?.halfL ?? RAIL_CAR_CONTACT.halfL);
     for (const b of bodies) {
       if (b.own && mode === 'car') continue; // (the rear car of the bus the player drives)
       const reach = b.halfL + halfL + HALF_WIDTH;
@@ -745,7 +748,7 @@ export function buildVBD(scene) {
       p.prevX = pe.prevX ?? p.x; p.prevZ = pe.prevZ ?? p.z;
       p.sin = Math.sin(heading); p.cos = Math.cos(heading);
       p.halfW = halfW; p.halfL = halfL;
-      p.mass = mode === 'car' ? (pe.dims?.mass ?? 1700) : mode === 'cyclist' ? 95 : mode === 'snowcat' ? 9000 : 80;
+      p.mass = mode === 'cargobike' ? playerMass('person') : playerMass(mode, pe.dims);
       p.vx = p.sin * (pe.speed || 0) + (pe.vx || 0);
       p.vz = p.cos * (pe.speed || 0) + (pe.vz || 0);
       p.angularVel = mode === 'car' ? pe.angularVel || 0 : 0;
