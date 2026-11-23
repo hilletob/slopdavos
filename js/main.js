@@ -66,6 +66,7 @@ import { precompileShaders } from './shader-warmup.js';
 import { setupPopovers, setupFigureMenu, setupCredits, blurClickedButtons } from './hud-dialogs.js';
 import { createLoadingScreen } from './loading-screen.js';
 import { createLocationSign } from './hud-location.js';
+import { bindRadioBadge, radioLogo } from './hud-radio.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -667,37 +668,10 @@ async function initApp() {
   const car = () => controllerManager.entities.car;
   const cat = () => controllerManager.entities.snowcat;
   // The radio (js/car-radio.js): on from the start in the car, the groomer, the Rega helicopter, on the bike and under
-  // the free paraglider (no mode of its own). No keys: the station shows in the speed cluster, as its logo
-  // (assets/logos/radio/) or, until that has loaded, as its name; a click on it goes on to the next station and after
-  // the last one to off (a struck-out radio then, which switches it on again). It pulses while it tunes in and is
-  // dimmed without a signal
+  // the free paraglider (no mode of its own). No keys: the station shows in the speed cluster (js/hud-radio.js)
   let glidingNow = () => false; // (the free flight is built further down)
-  const elRadio = document.getElementById('hud-radio');
-  const elRadioLogo = elRadio?.querySelector('img'), elRadioName = elRadio?.querySelector('.gauge-radio-name');
-  let radioShown;
   const radio = new CarRadio({ audio: audioSystem, mode: modeNow, also: () => glidingNow(), onChange: () => actions.notify() }); // (→ renderRadio below, and the touch button)
-  const radioLogo = (station) => (station?.logo ? new URL(`../assets/logos/radio/${station.logo}`, import.meta.url).href : null);
-  elRadioLogo?.addEventListener('load', () => { if (radioShown) { elRadioLogo.hidden = false; elRadioName.hidden = true; } });
-  elRadioLogo?.addEventListener('error', () => { elRadioLogo.hidden = true; elRadioName.hidden = !radioShown; });
-  elRadio?.addEventListener('click', () => { radio.cycle(); elRadio.blur(); }); // (Space is the jump, not this button)
-  function renderRadio() {
-    if (!elRadio) return;
-    elRadio.hidden = !radio.available();
-    if (elRadio.hidden) return;
-    const station = radio.station;
-    elRadio.classList.toggle('is-off', !station);
-    elRadio.classList.toggle('is-tuning', !!station && radio.status === 'tuning');
-    elRadio.classList.toggle('is-lost', !!station && radio.status === 'error');
-    if (station === radioShown) return;
-    radioShown = station;
-    elRadio.title = station ? station.name : 'Radio off';
-    elRadio.setAttribute('aria-label', elRadio.title);
-    elRadioName.textContent = station ? station.short : '';
-    elRadioName.hidden = !station;
-    elRadioLogo.hidden = true;
-    if (station?.logo) elRadioLogo.src = radioLogo(station);
-    else elRadioLogo.removeAttribute('src');
-  }
+  const renderRadio = bindRadioBadge(document.getElementById('hud-radio'), radio);
   actions.subscribe(renderRadio); // (the mode changed, the wing came out)
   actions.layer('vehicle', [
     { id: 'horn', label: 'Horn', keys: ['KeyB'], icon: 'i-horn', pad: 'l3', when: is('car', 'snowcat', 'rhb'), run: () => { if (mapSystem.isFullMapOpen) return false; audioSystem.honk(controllerManager.getActiveEntity()); } },

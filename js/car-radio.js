@@ -1,6 +1,6 @@
 // js/car-radio.js
 // The radio (a prototype): real stations as live streams while the player sits in a vehicle that has a radio. It is on
-// from the start, on Radio Grischa; a click on the station's logo in the speed cluster (js/main.js renderRadio) goes on
+// from the start, on Radio Grischa; a click on the station's logo in the speed cluster (js/hud-radio.js) goes on
 // to the next station and after the last one to off, with the hiss of a dial between two stations until the next one
 // is there. The station and the switch are kept (localStorage). Out of the vehicle, with the sound muted (N) or the tab hidden the stream is let go altogether (a
 // live stream is not paused: the element drops its source and tunes in anew), so nothing is downloaded that nobody
@@ -21,7 +21,7 @@ const RETRY_MS = 8000; // a station without a signal is tried again
 
 const srg = (path) => `https://stream.srg-ssr.ch/srgssr/${path}/mp3/128`;
 /** `short`: the touch button's face and the speed cluster's badge; `logo`: a file of assets/logos/radio/ shown there
- *  instead (js/main.js renderRadio) */
+ *  instead (js/hud-radio.js) */
 export const RADIO_STATIONS = [
   { id: 'grischa', name: 'Radio Grischa', short: 'Grischa', url: 'https://stream.radiogrischa.ch/radiogrischa/mp3_128', logo: 'grischa.svg' },
   { id: 'srf3', name: 'Radio SRF 3', short: 'SRF 3', url: srg('srf3'), logo: 'srf3.svg' },
