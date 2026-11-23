@@ -1,10 +1,11 @@
 import { QUALITY } from './quality.js';
+import { KEYS } from './storage-keys.js';
 
 // js/loading-screen.js
 // The loading screen while the town is built (play.html #loading-overlay): its line of what is going on, its bar, the
 // notes on the last start that went wrong, and its leaving once the first frame is on screen.
 
-const LOAD_TIME_KEY = 'slopdavos-load-ms';
+const LOAD_TIME_KEY = KEYS.loadTime;
 
 /**
  * `previous`: the last start's breadcrumbs when it never got to its first frame (js/main.js boot); `gpuLog`: the last

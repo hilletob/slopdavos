@@ -1,17 +1,18 @@
-import { STATS_KEY } from './play-stats.js';
+import { KEYS, WORLD_KEYS, CLOUD_KEYS, readJson as readKey, writeJson as writeKey } from './storage-keys.js';
 // js/account-merge.js
 // What a cloud save is and how two of them become one. No DOM and no network (tests/account-merge.test.mjs).
 // - The missions' progress and best times only ever get better, so they merge entry by entry: it does not matter in which
 //   order, or how often, two devices meet.
 // - The world (where the player stands, the parked vehicles, the clock, the player's figure) cannot be merged: the newer one wins, as a whole
 //   (without its GTA state a player's save starts afresh, js/main.js FRESH_GTA).
-// Not in a save: the Kirchner gallery (too big), the language and the sound (they belong to the device), diagnostics.
+// What a save carries is said once, in js/storage-keys.js (`cloud`); not in it: the Kirchner gallery (too big), the
+// language and the sound (they belong to the device), diagnostics.
 
-export const PROGRESS_KEY = 'slopdavos-progress';
-export const BEST_KEY = 'slopdavos-mission-best';
-export const WORLD_KEYS = { player: 'slopdavos-player-state', gta: 'slopdavos-gta', clock: 'slopdavos-clock', figure: 'slopdavos-figure', character: 'slopdavos-character' };
-export const WORLD_AT_KEY = 'slopdavos-world-at';
-export const OWNER_KEY = 'slopdavos-account-owner';
+export const PROGRESS_KEY = KEYS.progress;
+export const BEST_KEY = KEYS.bestTimes;
+export { WORLD_KEYS };
+export const WORLD_AT_KEY = KEYS.worldAt;
+export const OWNER_KEY = KEYS.owner;
 
 const MEDALS = ['bronze', 'silver', 'gold'];
 const PROGRESS_VERSION = 1;
@@ -89,9 +90,7 @@ export function canonical(value) {
   return JSON.stringify(value ?? null);
 }
 
-function readJson(storage, key) {
-  try { return JSON.parse(storage.getItem(key)); } catch { return null; }
-}
+const readJson = (storage, key) => readKey(key, null, storage);
 
 /** The world on this device: { player, gta, clock, figure } (whichever exist), or null */
 export function readWorld(storage) {
@@ -133,9 +132,7 @@ export function mergeSaves(local, remote) {
   };
 }
 
-function writeJson(storage, key, value) {
-  try { storage.setItem(key, JSON.stringify(value)); } catch { /* (storage full or off) */ }
-}
+const writeJson = (storage, key, value) => { writeKey(key, value, storage); }; // (storage full or off: not kept)
 
 /** Into this device's storage, before the game reads it. An empty progress is not written: the game seeds a missing one */
 export function applySave(storage, save) {
@@ -160,7 +157,7 @@ export function ownedByOther(storage, userId) {
 
 /** Forgets the save on this device (it stays in its own account's cloud save) */
 export function clearLocalSave(storage) {
-  for (const key of [PROGRESS_KEY, BEST_KEY, WORLD_AT_KEY, STATS_KEY, ...Object.values(WORLD_KEYS)]) {
+  for (const key of CLOUD_KEYS) { // (the progress, the best times, the world and its time, the play statistics)
     try { storage.removeItem(key); } catch { /* */ }
   }
 }

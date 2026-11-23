@@ -1,3 +1,4 @@
+import { KEYS } from './storage-keys.js';
 // js/car-radio.js
 // The radio (a prototype): real stations as live streams while the player sits in a vehicle that has a radio. It is on
 // from the start, on Radio Grischa; a click on the station's logo in the speed cluster (js/hud-radio.js) goes on
@@ -11,8 +12,8 @@
 // works on iOS too (Safari ignores an element's `volume`). ?radio=direct plays the element by itself instead (should a
 // browser stay silent behind the context; no hiss then).
 
-const STORE = 'davos-radio'; // the station's id
-const STORE_OFF = 'davos-radio-off'; // '1': switched off
+const STORE = KEYS.radio; // the station's id
+const STORE_OFF = KEYS.radioOff; // '1': switched off
 const VOLUME = 0.5;
 const TUNE_MS = 350; // stepping through the stations: the stream starts once the key rests
 const HISS = 0.11; // the dial's noise between two stations

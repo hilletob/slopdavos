@@ -1,3 +1,4 @@
+import { KEYS } from './storage-keys.js';
 // js/play-stats.js
 // How long the player plays and how they get about: the time and the distance of every way of travel (on foot, by car,
 // bus, train, on skis, under a paraglider …). Counted on every device, for a guest too; a signed-in player's counts go
@@ -7,7 +8,7 @@
 // (each line: the one with more play time wins). Time counts only while the player is there: an input in the last
 // IDLE_MS, or the player moving (a ride on the train counts).
 
-export const STATS_KEY = 'slopdavos-stats';
+export const STATS_KEY = KEYS.stats;
 const VERSION = 1;
 const IDLE_MS = 120000;
 const SAVE_EVERY = 15000; // ms

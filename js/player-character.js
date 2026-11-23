@@ -1,9 +1,10 @@
+import { KEYS } from './storage-keys.js';
 // js/player-character.js
 // What the player says about themselves, in their own words (play.html #figure-dialog, under the figures): the missions'
 // writer (js/personal-text.js) writes for that character. Kept in this browser and, signed in, in the account's cloud
 // save with the figure (js/account-merge.js WORLD_KEYS.character). No DOM in here.
 
-export const CHARACTER_KEY = 'slopdavos-character';
+export const CHARACTER_KEY = KEYS.character;
 export const CHARACTER_MAX = 300;
 
 export const cleanCharacter = (text) => String(text ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHARACTER_MAX);

@@ -9,6 +9,7 @@ import { PersonCrowd } from './pedestrians.js';
 import { loadPersonModel } from './person-models.js';
 import { loadPersonClips } from './person-clips.js';
 import { QUALITY } from './quality.js';
+import { KEYS } from './storage-keys.js';
 
 /**
  * The figures to choose from (assets/models/rocketbox-<id>.glb, assets/figures/<id>.webp); the first is the default.
@@ -22,7 +23,7 @@ export const FIGURES = [
   { id: 'f02', label: 'Jumper & skirt' },
   { id: 'police-m01', label: 'Police officer', helmet: false } // (rides in his cap)
 ];
-const KEY = 'slopdavos-figure';
+const KEY = KEYS.figure;
 const known = (id) => FIGURES.some((f) => f.id === id);
 
 /** The chosen figure's id (?qset=playerModel first, then this browser's choice, else the default) */

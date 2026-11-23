@@ -2,12 +2,13 @@ import { languageSwitch } from './i18n.js';
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { isConfigured, signIn, enabledProviders } from './account.js';
 import { emailSignIn } from './account-email.js';
+import { KEYS } from './storage-keys.js';
 
 // js/start-choice.js
 // The question on a first visit: sign in, or play as a guest (js/start.js holds the game back until it is answered). Signing
 // in here costs no second build of the city. The sign-in's SDK is loaded only on the click.
 
-export const CHOICE_KEY = 'slopdavos-start-choice';
+export const CHOICE_KEY = KEYS.startChoice;
 
 /** Resolves when the player goes on as a guest. Signing in leaves the page, so then it never does */
 export function askHowToPlay() {

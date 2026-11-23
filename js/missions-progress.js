@@ -1,5 +1,6 @@
 import { readBestTimes } from './missions-data.js';
 import { msg } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
 // js/missions-progress.js
 // The player's progress through the missions: medals, points and where the missions start in the open world. No
@@ -16,7 +17,7 @@ import { msg } from './messages.js';
 // passed (def.licence, js/missions.js finish()) opens something in the open world for good, e.g. 'paraglider': the free
 // flight (js/paraglide-free.js). They go with the progress into the cloud save (js/account-merge.js) and count no points.
 
-export const PROGRESS_KEY = 'slopdavos-progress';
+export const PROGRESS_KEY = KEYS.progress;
 export const PROGRESS_VERSION = 1;
 export const MEDALS = ['bronze', 'silver', 'gold']; // worst to best
 export const MEDAL_POINTS = { bronze: 100, silver: 250, gold: 500 };
@@ -77,7 +78,7 @@ export function totalPoints(progress) {
 /** What all the missions together are worth (everything in gold) */
 export const maxPoints = (missions) => missions.length * (FIRST_CLEAR_POINTS + MEDAL_POINTS.gold);
 
-/** A fresh progress from the best times (slopdavos-mission-best: { [id or id@variant]: ms }) */
+/** A fresh progress from the best times (KEYS.bestTimes: { [id or id@variant]: ms }) */
 export function progressFromBestTimes(best, missions) {
   const progress = emptyProgress();
   for (const def of missions) {

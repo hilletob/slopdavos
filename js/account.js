@@ -1,13 +1,14 @@
 import { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SDK, LOGIN_PROVIDERS } from './account-config.js';
 import { OWNER_KEY, ownedByOther, clearLocalSave } from './account-merge.js';
+import { KEYS } from './storage-keys.js';
 
 // js/account.js
 // The session of the optional player account (Supabase Auth, signed in by a full page redirect with PKCE: a popup is not
 // dependable in the installed fullscreen app). The SDK is loaded on demand, so a guest's start stays as it was.
 // auth/callback.html finishes the redirect, on a page of its own so that the city is built only once.
 
-export const SESSION_KEY = 'slopdavos-session';
-export const RETURN_KEY = 'slopdavos-login-return';
+export const SESSION_KEY = KEYS.session;
+export const RETURN_KEY = KEYS.loginReturn;
 
 export const isConfigured = (url = SUPABASE_URL, key = SUPABASE_KEY) => !!url && !!key;
 

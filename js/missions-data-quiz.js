@@ -13,6 +13,7 @@
 // The world frame is js/davos-frame.js: x = E − 2782500, z = 1185500 − N; heading = atan2(dx, dz).
 
 import { msg } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
 /** The round's line in the HUD: the question asked */
 export const questionText = (n, of) => msg('Question {n} of {of}', 'Frage {n} von {of}', { n, of });
@@ -37,7 +38,7 @@ export const QUIZ_MAX_SCORE = QUIZ.weights.reduce((a, w) => a + w * QUIZ.points,
 /** The table a run is started for (js/quiz-session.js sets it round manager.start(), js/missions-quiz.js takes it at set-up): the manager knows nothing of it */
 export const quizHandoff = { table: null };
 
-const SEEN_KEY = 'slopdavos-quiz-seen';
+const SEEN_KEY = KEYS.quizSeen;
 /** The questions this device has had (ids, the newest last), so that the next round brings others */
 export function seenQuestions(storage = globalThis.localStorage) {
   try { const v = JSON.parse(storage?.getItem(SEEN_KEY) || '[]'); return Array.isArray(v) ? v.filter((id) => typeof id === 'string') : []; } catch { return []; }

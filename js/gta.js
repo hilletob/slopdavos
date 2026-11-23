@@ -14,6 +14,7 @@ import { t } from './i18n.js';
 import { msg } from './messages.js';
 import { missionAllowsTakeover } from './hijack.js';
 import { el } from './dom.js';
+import { KEYS, readJson } from './storage-keys.js';
 
 // js/gta.js
 // The GTA mode: the player is a pedestrian who gets into the vehicles standing about the valley (F, or G; in the snow
@@ -38,7 +39,7 @@ import { el } from './dom.js';
 // of, they stand where they were left until the player is far away. The quads at their stands (js/gta-quads.js): "Get
 // on the quad"; left somewhere, a quad is brought back to its stand once the player is far away.
 
-const STATE_KEY = 'slopdavos-gta';
+const STATE_KEY = KEYS.gta;
 const STATE_VERSION = 1;
 const VEHICLES = Object.keys(VEHICLE_LABELS); // (the modes one gets into: car, cyclist, helicopter, snowcat)
 // Stand-ins drawn round the camera (the mobile profile: fewer and nearer, to keep the draw calls down)
@@ -51,7 +52,7 @@ const ROAD_KINDS_OFF = new Set(['footway', 'path', 'track', 'steps', 'cycleway',
 
 /** Has the GTA mode been played here before (its parked vehicles saved)? */
 export function hasGtaState() {
-  try { return JSON.parse(localStorage.getItem(STATE_KEY))?.version === STATE_VERSION; } catch { return false; }
+  return readJson(STATE_KEY)?.version === STATE_VERSION;
 }
 
 export function buildGta({ scene, controllerManager: cm, touchControls, actions = null, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null, traffic = null, vbd = null, trafficBodies = null, audio = null }) {

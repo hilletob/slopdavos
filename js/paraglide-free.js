@@ -14,6 +14,7 @@ import { LICENCE_ID, LAUNCH_RULE, FREE_THERMALS, freeThermals, weatherAir, launc
 import * as THREE from 'three/webgpu';
 import { el } from './dom.js';
 import { msg } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
 const feature = PARAGLIDE_FEATURES.paraglider;
 const PACK_AFTER = 2.6; // s on the ground after the landing: the wing folded, walking on
@@ -30,8 +31,8 @@ const REFUSALS = {
 const GLYPH = '⌒';
 
 const touch = () => document.body.classList.contains('touch-enabled');
-const signedIn = () => { try { return !!globalThis.localStorage?.getItem('slopdavos-session'); } catch { return false; } };
-const BEST_KEY = 'slopdavos-free-flight-best'; // (the longest free flight on this device, m: a guest's own best)
+const signedIn = () => { try { return !!globalThis.localStorage?.getItem(KEYS.session); } catch { return false; } };
+const BEST_KEY = KEYS.freeFlightBest; // (the longest free flight on this device, m: a guest's own best)
 const localBest = () => { try { return +globalThis.localStorage?.getItem(BEST_KEY) || 0; } catch { return 0; } };
 const keepBest = (m) => { try { globalThis.localStorage?.setItem(BEST_KEY, String(m)); } catch { /* */ } };
 

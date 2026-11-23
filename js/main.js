@@ -90,8 +90,9 @@ import { buildFreeFlight } from './paraglide-free.js';
 import { GTA_START } from './vehicle-depots.js';
 import { VEHICLE_SPECS } from './vehicle-specs.js';
 import { DirectLighting, watchShaderModules, previousGpuLog } from './gpu-diagnostics.js';
+import { KEYS, readJson, writeJson } from './storage-keys.js';
 
-// Saved player state (localStorage 'slopdavos-player-state'); older versions are ignored
+// Saved player state (localStorage KEYS.playerState); older versions are ignored
 const SAVE_VERSION = 7; // 7: new starts for every player (controllers.js PLAYER_STARTS: the cyclist by the Seehof Seeli, the pedestrian at the Eisstadion, the Rega over the Jakobshornbahn, the groomer on the Bündawiese); 6: the VW T3 on the Dischmastrasse; 4: Davos (saves from before the buildings stood on the terrain could start inside one)
 
 // The game (js/gta.js): on foot, into the vehicles that stand about. A first visit starts on foot by the Bahnhof
@@ -99,7 +100,7 @@ const SAVE_VERSION = 7; // 7: new starts for every player (controllers.js PLAYER
 const FIRST_START = GTA_START;
 // A page leaving for good (leavePage: a teleport's reload, the login) leaves this mark for the page it loads: it waits
 // MOVE_BREATH ms before building
-const MOVING_KEY = 'slopdavos-moving', MOVE_BREATH = 2500, GONE_BREATH = 6000;
+const MOVING_KEY = KEYS.moving, MOVE_BREATH = 2500, GONE_BREATH = 6000;
 /** The breath (ms) the page that left asked for, 0 when none did */
 const movedHere = () => { try { const m = sessionStorage.getItem(MOVING_KEY); if (m) sessionStorage.removeItem(MOVING_KEY); return Number(m) || 0; } catch { return 0; } };
 const FRESH_GTA = !hasGtaState();
@@ -107,15 +108,15 @@ const FRESH_GTA = !hasGtaState();
 // js/main.js
 // Main entry point for Davos in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
 
-// Start-up breadcrumbs (localStorage 'slopdavos-boot'): the stage reached and any error, kept until the first frame.
+// Start-up breadcrumbs (localStorage KEYS.boot): the stage reached and any error, kept until the first frame.
 // A phone that kills the tab mid-start (iOS does, without a message) shows on its next start where the last one ended.
-const BOOT_KEY = 'slopdavos-boot';
+const BOOT_KEY = KEYS.boot;
 // (the stage carries the ?qset=skip:... setting along: "compile 3/40 terrain [skip: landmarks+lights]")
 const SKIP_TAG = skipLabel() ? ` [skip: ${skipLabel()}]` : '';
 const boot = {
-  previous: (() => { try { return JSON.parse(localStorage.getItem(BOOT_KEY)); } catch { return null; } })(),
+  previous: readJson(BOOT_KEY),
   state: { stage: 'start' + SKIP_TAG, skip: skipLabel(), at: new Date().toISOString(), ua: navigator.userAgent, errors: [] },
-  save() { try { localStorage.setItem(BOOT_KEY, JSON.stringify(this.state)); } catch { /* storage may be off */ } },
+  save() { writeJson(BOOT_KEY, this.state); }, // (storage may be off)
   finished: false,
   stage(label) { if (this.finished) return; this.state.stage = label + SKIP_TAG; this.save(); },
   error(message) { if (this.finished) return; if (this.state.errors.length < 5) this.state.errors.push(String(message).slice(0, 600)); this.save(); },
@@ -239,7 +240,7 @@ async function initApp() {
   // The part of the valley built in detail (the mobile profile: QUALITY.worldRadius around where the player starts)
   {
     let start = FIRST_START; // (a first visit starts on foot or by bike, see below)
-    if (!FRESH_GTA) try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
+    if (!FRESH_GTA) try { const s = JSON.parse(localStorage.getItem(KEYS.playerState)); const p = s?.version === SAVE_VERSION && s.entities?.[s.activeMode]; if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) start = p; } catch { /* (no storage) */ }
     setWorldCenter(start.x, start.z);
     if (WORLD.radius !== Infinity) console.info(`[world] detail within ${WORLD.radius} m of ${Math.round(start.x)}, ${Math.round(start.z)}`);
   }
@@ -383,7 +384,7 @@ async function initApp() {
   let swissStream = null;
   let buildingsSettled = false;
   try {
-    const savedSpawn = FRESH_GTA ? null : (() => { try { const s = JSON.parse(localStorage.getItem('slopdavos-player-state')); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
+    const savedSpawn = FRESH_GTA ? null : (() => { try { const s = JSON.parse(localStorage.getItem(KEYS.playerState)); return s?.version === SAVE_VERSION ? s.entities?.[s.activeMode] : null; } catch { return null; } })();
     // The SWISSIMAGE orthophotos stream onto the terrain chunks meanwhile, nearest first
     drapeTerrainOrthophotos(cityGrid.terrainMeshes || [], { center: Number.isFinite(savedSpawn?.x) ? savedSpawn : FIRST_START })
       .then((n) => console.info(`[swissimage] ${n} terrain chunks draped`))
@@ -466,7 +467,7 @@ async function initApp() {
   // from an older version) starts by bike on the Talstrasse by the Seehof Seeli (controllers.js PLAYER_STARTS).
   let restored = false;
   try {
-    const saved = JSON.parse(localStorage.getItem('slopdavos-player-state'));
+    const saved = JSON.parse(localStorage.getItem(KEYS.playerState));
     if (saved?.version === SAVE_VERSION) {
       restored = true;
       for (const mode of Object.keys(controllerManager.entities)) {
@@ -496,7 +497,7 @@ async function initApp() {
       const entities = Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
         x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading
       }]));
-      localStorage.setItem('slopdavos-player-state', JSON.stringify({ version: SAVE_VERSION, activeMode: controllerManager.activeMode, entities }));
+      localStorage.setItem(KEYS.playerState, JSON.stringify({ version: SAVE_VERSION, activeMode: controllerManager.activeMode, entities }));
     } catch { /* Storage may be disabled or full. */ }
   }
 

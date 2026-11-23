@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { SUPABASE_SDK, LOGIN_PROVIDERS } from '../js/account-config.js';
 import { hasStoredSession, safeReturnPath, callbackUrl, isConfigured, SESSION_KEY } from '../js/account.js';
+import { KEYS } from '../js/storage-keys.js';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const html = read('play.html');
@@ -78,6 +79,7 @@ test('a first visit is asked only from js/start.js, under the key the choice is 
   const start = read('js/start.js');
   assert.match(start, /await import\('\.\/start-choice\.js'\)/);
   assert.doesNotMatch(start, /^import /m);
-  assert.match(read('js/start-choice.js'), /CHOICE_KEY = 'slopdavos-start-choice'/);
+  assert.match(read('js/start-choice.js'), /CHOICE_KEY = KEYS\.startChoice/);
+  assert.equal(KEYS.startChoice, 'slopdavos-start-choice');
   for (const key of ['slopdavos-start-choice', 'slopdavos-progress', 'slopdavos-player-state']) assert.ok(start.includes(`'${key}'`), key);
 });

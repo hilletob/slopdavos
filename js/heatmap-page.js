@@ -3,6 +3,7 @@ import { HEAT_CELL, HEAT_ORIGIN, HEAT_SIZE, HEAT_GROUPS } from './heat-trail.js'
 import { LIVE_TOPIC, LIVE_EVENT } from './live-beacon.js';
 import { createView, drawGround, drawLabels, scaleBar } from './heatmap-map.js';
 import { GROUP_COLOURS, paintHeat as paintCells, fetchHeat, receiveDot, expireDots, drawDots as paintDots } from './heat-view.js';
+import { KEYS } from './storage-keys.js';
 
 // js/heatmap-page.js
 // The public heat map (heatmap.html): the map of Davos (js/heatmap-map.js), on it where the players have gone (the
@@ -10,7 +11,7 @@ import { GROUP_COLOURS, paintHeat as paintCells, fetchHeat, receiveDot, expireDo
 // js/heat-trail.js) and where players are right now (the dots of js/live-beacon.js, a Realtime broadcast, nothing of it
 // stored). Two canvases: the map with the heat, drawn when the view or the data changes, and the dots above it.
 
-const LANG_KEY = 'slopdavos-language';
+const LANG_KEY = KEYS.language;
 const REFRESH = 5 * 60000; // ms: the heat anew
 const START_BOX = [-3600, -4300, 4200, 4600]; // (the valley from Wolfgang to Frauenkirch)
 const TEXT = {

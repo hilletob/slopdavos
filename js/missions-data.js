@@ -58,6 +58,7 @@ import { FONDUE_MISSIONS } from './missions-data-fondue.js'; // the Drupal Mount
 //       medal into points), colour / icon: the mission's pin in the world and on the map (js/missions-world.js),
 //     pin: { x, z } where the pin stands when it is not the start (default: `start`) }
 // (the medal limits: gold = bonusMs, the time a clean run makes; silver ~ +35-50 %, a run with a detour or a retry;
+import { KEYS } from './storage-keys.js';
 // bronze ~ double, any run that gets there. Estimated from the legs: the Rega's 2 x 2.6 km / 2 x 6.4 km at the H145's
 // ~60 m/s (the scripted test flights), the patrol car's ~7 km at ~80 km/h, the 1.9 km Loipe at the snowcat's pace with
 // a few turns, four shells with the launcher's reload and flight time)
@@ -69,7 +70,7 @@ import { FONDUE_MISSIONS } from './missions-data-fondue.js'; // the Drupal Mount
 
 export const SAMPLE_STEP = 10; // m between two samples of a Loipe
 export const GROOM_RADIUS = 2.5; // m: a sample counts as groomed with a tiller pass this close
-export const BEST_TIMES_KEY = 'slopdavos-mission-best';
+export const BEST_TIMES_KEY = KEYS.bestTimes;
 export const GRAVITY = 9.81;
 
 // --- Geometry helpers ------------------------------------------------------------------------------------------------

@@ -4,8 +4,9 @@
 // stands beside the English where they are made, and translate() finds it there before any pattern below. The jetpack
 // demo is made that way (js/missions-data-jetpack.js); the patterns for the other missions are still here.
 import { germanOf, madeOf, germanFrom } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
-const STORAGE_KEY = 'slopdavos-language';
+const STORAGE_KEY = KEYS.language;
 const pairs = [
   ['Initializing WebGPURenderer & TSL Shaders...', 'WebGPU-Renderer und TSL-Shader werden initialisiert …'],
   ['Getting the city ready…', 'Die Stadt wird vorbereitet …'],

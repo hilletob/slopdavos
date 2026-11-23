@@ -1,6 +1,7 @@
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { isConfigured, signIn, signOut, deleteAccount, currentUser, enabledProviders } from './account.js';
 import { emailSignIn } from './account-email.js';
+import { KEYS } from './storage-keys.js';
 
 // js/account-ui.js
 // The account button in the toolbar and its popover (index.html). Started after the first frame by js/main.js.
@@ -63,7 +64,7 @@ export async function startAccount({ save, leaving, missionActive, pause, progre
 
   /** The missions' texts written for the player (js/personal-text.js): on unless switched off here */
   const aiTextItem = () => {
-    const key = 'slopdavos-ai-text';
+    const key = KEYS.aiText;
     const on = () => { try { return localStorage.getItem(key) !== 'off'; } catch { return false; } };
     const label = () => `Personal texts: ${on() ? 'on' : 'off'}`;
     const b = item(label(), (name) => {

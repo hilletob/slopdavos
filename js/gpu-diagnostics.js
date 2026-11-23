@@ -5,8 +5,9 @@
 //    shader; the lamps, shop windows and headlights then glow by their emissive materials and sprites alone)
 //  - watchShaderModules(): every shader module the device makes, numbered, with its WGSL length, a hash and the object
 //    and material it was built for, as a breadcrumb (localStorage, so the next start can say which one was the last),
-//    uncaptured GPU errors (the compiler's complaints among them), and the WGSL of the last module ('slopdavos-last-wgsl') for the Web Inspector.
+//    uncaptured GPU errors (the compiler's complaints among them), and the WGSL of the last module (KEYS.lastWgsl) for the Web Inspector.
 import * as THREE from 'three/webgpu';
+import { KEYS, readJson, writeJson } from './storage-keys.js';
 
 /** A lights node that leaves the point and spot lights out of the shaders */
 class DirectLightsNode extends THREE.LightsNode {
@@ -32,18 +33,18 @@ export function hashText(text) {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-const LOG_KEY = 'slopdavos-gpu';
-const WGSL_KEY = 'slopdavos-last-wgsl';
+const LOG_KEY = KEYS.gpuLog;
+const WGSL_KEY = KEYS.lastWgsl;
 
 /** What the last start logged (shader modules, GPU errors), or null */
 export function previousGpuLog() {
-  try { return JSON.parse(localStorage.getItem(LOG_KEY)); } catch { return null; }
+  return readJson(LOG_KEY);
 }
 
 /**
  * Wraps renderer.backend.device.createShaderModule (WebGPU only). `stage(label)` is called before every module,
  * `error(message)` for compiler errors, a module that could not be made, uncaptured GPU errors and a lost device.
- * Unlike the start-up breadcrumbs the log ('slopdavos-gpu') stays after the first frame: shaders compiled while
+ * Unlike the start-up breadcrumbs the log (KEYS.gpuLog) stays after the first frame: shaders compiled while
  * playing are logged too. Returns the log (also window.__slopdavosShaders).
  */
 export function watchShaderModules(renderer, { stage = () => {}, error = () => {}, keepWGSL = true } = {}) {
@@ -51,7 +52,7 @@ export function watchShaderModules(renderer, { stage = () => {}, error = () => {
   const log = { at: new Date().toISOString(), modules: 0, last: [], errors: [], lost: null, limits: null };
   globalThis.__slopdavosShaders = log;
   if (!device?.createShaderModule) return log;
-  const save = () => { try { localStorage.setItem(LOG_KEY, JSON.stringify(log)); } catch { /* storage may be off */ } };
+  const save = () => writeJson(LOG_KEY, log); // (storage may be off)
   const fail = (message) => {
     message = String(message).slice(0, 600);
     if (log.errors.length >= 12) return; // (a dead device fails every call after: the first ones tell)

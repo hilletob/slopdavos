@@ -1,13 +1,14 @@
 import { LOGIN_PROVIDERS } from './account-config.js';
 import { signIn, enabledProviders } from './account.js';
 import { emailSignIn } from './account-email.js';
+import { KEYS } from './storage-keys.js';
 
 // js/guest-gate.js
 // A guest plays GUEST_LIMIT_MS without an account; then the game stops and asks for a sign-in, with no way past it (js/account-ui.js
 // starts this for a guest only). The time is kept on the device, so a reload does not give it back. A running mission is
 // let finish first. Signed out again later, the time is long gone: the question comes at once.
 
-export const GUEST_TIME_KEY = 'slopdavos-guest-ms';
+export const GUEST_TIME_KEY = KEYS.guestTime;
 export const GUEST_LIMIT_MS = 300000; // (five minutes)
 const TICK = 1000; // ms
 const MAX_STEP = 2000; // ms counted for one tick at most (a sleeping device, a throttled tab)

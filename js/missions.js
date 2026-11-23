@@ -51,6 +51,7 @@ import { SAMD_FEATURES } from './missions-samd.js';
 import { PARSENN_FEATURES } from './missions-parsenn.js';
 import { FONDUE_FEATURES } from './missions-fondue.js';
 import { el } from './dom.js';
+import { KEYS } from './storage-keys.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -679,7 +680,7 @@ class MissionRun {
    *  `summary`: the result's extra lines. */
   personalise(node, moment, source, summary = []) {
     let wanted = false;
-    try { wanted = signedIn() && !this.hooks.race && !!source && globalThis.localStorage?.getItem('slopdavos-ai-text') !== 'off'; } catch { /* (no storage) */ }
+    try { wanted = signedIn() && !this.hooks.race && !!source && globalThis.localStorage?.getItem(KEYS.aiText) !== 'off'; } catch { /* (no storage) */ }
     if (!wanted) return node;
     const waiting = el('p', 'mission-dialog-text mission-dialog-writing');
     waiting.setAttribute('role', 'status');

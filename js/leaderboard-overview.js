@@ -3,13 +3,14 @@ import { FREE_FLIGHT_BOARD, freeFlightText } from './missions-data-paraglide.js'
 import { fetchBoard, fetchPoints } from './leaderboard.js';
 import { el } from './dom.js';
 import { boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
+import { KEYS } from './storage-keys.js';
 
 // js/leaderboard-overview.js
 // All the leaderboards, the second tab of the missions' dialog (js/missions.js): the overall list of the missions' points
 // (from the cloud saves) and every mission's list (times, or scores for a mission judged by points), each with the top
 // and the lines around the player. One list at a time; "All leaderboards" leads to the lists to choose from, with a search.
 
-const LAST_KEY = 'slopdavos-leaderboard-last'; // (the list picked last time, a convenience only)
+const LAST_KEY = KEYS.leaderboardLast; // (the list picked last time, a convenience only)
 
 /** The lists: the overall points first, then every mission in the game's order, by time and by points */
 export function overviewTabs(missions = MISSIONS) {

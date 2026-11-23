@@ -1,3 +1,4 @@
+import { KEYS } from './storage-keys.js';
 // js/frame-guard.js
 // What keeps a fault from freezing the game without a word. An exception in a frame's update otherwise repeats every frame:
 // the page's frame loop goes on, nothing is drawn and the picture stands still. The guard reports it, keeps it for the next
@@ -5,8 +6,8 @@
 // so the player is saved and the page reloads, once in a while: if it happens again at once, a message offers the reload.
 // The DOM and the storage come in as arguments (tests/frame-guard.test.mjs).
 
-export const FRAME_ERROR_KEY = 'slopdavos-frame-error';
-export const LOST_KEY = 'slopdavos-gpu-lost-at';
+export const FRAME_ERROR_KEY = KEYS.frameError;
+export const LOST_KEY = KEYS.gpuLostAt;
 export const SHOW_AFTER = 30; // failed frames in a row before the player is told
 export const RELOAD_GAP = 120000; // ms: no second automatic reload within this
 

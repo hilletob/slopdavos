@@ -2,6 +2,7 @@ import { dialogHead } from './missions.js';
 import { makeCode, cleanCode, codeFits, guestId, displayName, MAX_PLAYERS } from './race-protocol.js';
 import { RaceSession } from './race-session.js';
 import { el } from './dom.js';
+import { KEYS } from './storage-keys.js';
 
 // js/race-ui.js
 // The lobby of a race (js/race-session.js): opened from a mission's intro ("Race together": a new room with a code of its
@@ -11,7 +12,7 @@ import { el } from './dom.js';
 // the ?race= parameter stays in the URL until the player leaves, so that a reload comes back to the room.
 
 const OVERLAY_ID = 'race-overlay';
-export const NAME_KEY = 'slopdavos-race-name';
+export const NAME_KEY = KEYS.raceName;
 export const RACE_PARAM = 'race';
 
 /** The link to the room: this page with only ?race=<CODE> (`param`: another kind of room, js/quiz-ui.js ?quiz=) */

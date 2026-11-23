@@ -1,4 +1,5 @@
 import { heatGroup } from './heat-trail.js';
+import { KEYS } from './storage-keys.js';
 
 // js/live-beacon.js
 // The player as a dot on the public live map (heatmap.html): every few seconds the place and the group of the way of
@@ -10,7 +11,7 @@ import { heatGroup } from './heat-trail.js';
 
 export const LIVE_TOPIC = 'live:davos';
 export const LIVE_EVENT = 'pos';
-export const LIVE_KEY = 'slopdavos-live';
+export const LIVE_KEY = KEYS.live;
 const MOVING_EVERY = 2000; // ms
 const STANDING_EVERY = 6000; // ms
 const MOVED = 2; // m since the last message: under way

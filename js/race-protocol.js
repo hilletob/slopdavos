@@ -1,3 +1,4 @@
+import { KEYS } from './storage-keys.js';
 // js/race-protocol.js
 // The pure logic of a race between players (js/race-session.js runs it, js/race-net.js carries it over Supabase Realtime):
 // the room code, the snapshots a player sends of their vehicle and how a receiver plays them back (a short delay, then
@@ -165,7 +166,7 @@ export function countdownText(releaseAt, now) {
 
 /** A guest's id for the room: random, kept for the tab (a reload joins again as the same player) */
 export function guestId(storage, random = Math.random) {
-  const KEY = 'slopdavos-race-guest';
+  const KEY = KEYS.raceGuest;
   try {
     const kept = storage?.getItem(KEY);
     if (kept && /^g-[a-z0-9]{8,}$/.test(kept)) return kept;

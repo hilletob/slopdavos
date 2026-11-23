@@ -3,6 +3,7 @@ import { getClient, hasStoredSession } from './account.js';
 import { missionMedals } from './missions-progress.js';
 import { currentSession } from './play-stats.js';
 import { readCharacter } from './player-character.js';
+import { KEYS } from './storage-keys.js';
 
 // js/personal-text.js
 // A mission's briefing and its closing words, written for this player by a language model
@@ -16,8 +17,8 @@ import { readCharacter } from './player-character.js';
 // writer's notes about the player are read by the function from the database. The text comes back in the language asked
 // for, so it is kept out of the translation (js/i18n.js: .ai-text).
 
-export const AI_TEXT_KEY = 'slopdavos-ai-text'; // 'off': switched off in the account menu
-const CACHE_KEY = 'slopdavos-ai-texts'; // (sessionStorage: a briefing opened again asks no second time)
+export const AI_TEXT_KEY = KEYS.aiText; // 'off': switched off in the account menu
+const CACHE_KEY = KEYS.aiTexts; // (sessionStorage: a briefing opened again asks no second time)
 const CACHE_MAX = 24;
 const TIMEOUT = 15000; // ms
 const EVENTS_MAX = 8;

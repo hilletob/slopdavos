@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { MEDALS, PROGRESS_KEY as GAME_PROGRESS_KEY, readProgress } from '../js/missions-progress.js';
 import { mergeProgress, mergeBestTimes, mergeSaves, applySave, readLocalSave, canonical, ownedByOther, clearLocalSave, fromRow, cleanProgress, PROGRESS_KEY, WORLD_KEYS, WORLD_AT_KEY, OWNER_KEY } from '../js/account-merge.js';
+import { KEYS } from '../js/storage-keys.js';
 
 const storage = (entries = {}) => {
   const map = new Map(Object.entries(entries));
@@ -94,8 +95,8 @@ test('the migration protects the saves', () => {
 test('js/start.js reads the session where js/account.js keeps it, and the page starts through it', () => {
   const start = readFileSync(new URL('../js/start.js', import.meta.url), 'utf8');
   const account = readFileSync(new URL('../js/account.js', import.meta.url), 'utf8');
-  const key = /SESSION_KEY = '([^']+)'/;
-  assert.equal(start.match(key)[1], account.match(key)[1]);
+  assert.equal(start.match(/SESSION_KEY = '([^']+)'/)[1], KEYS.session);
+  assert.match(account, /SESSION_KEY = KEYS\.session/);
   assert.match(start, /late\.abort\(\)/, 'a late answer writes nothing into a running game');
   assert.doesNotMatch(start, /^import /m, 'a guest loads nothing else');
 });

@@ -19,6 +19,7 @@ import {
 } from './missions-data-local.js';
 import { el } from './dom.js';
 import { msg } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
 // js/missions-local.js
 // The runtime of the eight missions at real places of Davos (js/missions-data-local.js has their definitions and the
@@ -1533,7 +1534,7 @@ const WATERSLIDE_FEATURE = {
 // 8. Paint a Kirchner
 // =====================================================================================================================
 const PW = 720, PH = 480, TPL_W = 192, TPL_H = 128;
-const GALLERY_KEY = 'slopdavos-kirchner-gallery';
+const GALLERY_KEY = KEYS.gallery;
 const readGallery = () => { try { return JSON.parse(localStorage.getItem(GALLERY_KEY) || '[]') || []; } catch { return []; } };
 const BG = [244, 239, 228];
 

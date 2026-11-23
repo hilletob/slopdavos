@@ -1,3 +1,4 @@
+import { KEYS } from './storage-keys.js';
 // js/mem-hud.js
 // ?memhud=1: a small read-out for a real phone, where no profiler reaches. js/main.js imports this module only with the
 // switch in the URL, so that without it nothing of this is loaded, hooked or drawn. Shown at the left below the top bar,
@@ -9,7 +10,7 @@
 // A tab that gets closed takes its read-out with it, so the last line goes to localStorage every few seconds, and the
 // next start with the switch shows it below ("last run"): what the numbers were shortly before a crash.
 
-const LAST_KEY = 'slopdavos-memhud';
+const LAST_KEY = KEYS.memHud;
 const SAVE_EVERY = 5; // s
 
 const mb = (bytes) => (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0);
@@ -119,7 +120,7 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
 
   // The last fault of a frame (js/frame-guard.js), of this run or an earlier one, and any error the page reports
   let fault = null;
-  try { fault = localStorage.getItem('slopdavos-frame-error'); } catch { /* storage off */ }
+  try { fault = localStorage.getItem(KEYS.frameError); } catch { /* storage off */ }
   addEventListener('error', (e) => { fault = `${e.message} @ ${String(e.filename).split('/').pop()}:${e.lineno}`; });
   addEventListener('unhandledrejection', (e) => { fault = `unhandled: ${e.reason?.message || e.reason}`.slice(0, 300); });
 
@@ -132,7 +133,7 @@ export function startMemHud({ renderer, scene, state = () => ({}) }) {
     const { season = '?', winterScenery = '?' } = state();
     const minutes = Math.floor((now - started) / 60000);
     if (now - cpuAt >= 5000) { cpuAt = now; cpuBytes = cpuVertexBytes(scene); }
-    try { fault = localStorage.getItem('slopdavos-frame-error') || fault; } catch { /* storage off */ }
+    try { fault = localStorage.getItem(KEYS.frameError) || fault; } catch { /* storage off */ }
     const lines = [
       `fps ${fps} (low ${seconds.length ? Math.min(...seconds) : fps}) up ${minutes} min`,
       `js heap ${heap == null ? 'n/a' : `${mb(heap)} MB (peak ${mb(peak.heap)})`}`,

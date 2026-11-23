@@ -1,5 +1,6 @@
 import { minuteAtHeight, CIVIL_HEIGHT } from './solar.js';
 import { msg } from './messages.js';
+import { KEYS } from './storage-keys.js';
 
 // js/game-clock.js
 // The game's own time: the day number and the time of day, and from them the season. No three.js and no DOM in here
@@ -155,7 +156,7 @@ export function fastForwardTarget(kind, total) {
   return today > total ? today : lightAt(dayOf(total) + 1, rising);
 }
 
-const STORAGE_KEY = 'slopdavos-clock';
+const STORAGE_KEY = KEYS.clock;
 const STORAGE_VERSION = 1;
 const SAVE_EVERY = 10; // real seconds
 // A first visit starts on the first summer day in the morning: the longest way to the first snow, which on the mobile
