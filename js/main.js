@@ -67,6 +67,7 @@ import { setupPopovers, setupFigureMenu, setupCredits, blurClickedButtons } from
 import { createLoadingScreen } from './loading-screen.js';
 import { createLocationSign } from './hud-location.js';
 import { bindRadioBadge, radioLogo } from './hud-radio.js';
+import { bindKeyBar } from './hud-keybar.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -689,34 +690,8 @@ async function initApp() {
   // Boosted top speeds in km/h (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedKmh = { person: 30, car: 130, cyclist: 69, rhb: 60, helicopter: 188, snowcat: 25 };
 
-  // The key bar: what the register lists now; a switch's state only recolours its key (no fresh rise-in)
-  let hintsShown = '';
-  function renderHints() {
-    if (!elControlsHint) return;
-    const hints = actions.hints();
-    const shown = hints.map((h) => `${h.kbd.join('+')}|${h.label}`).join(',');
-    if (shown === hintsShown) {
-      elControlsHint.childNodes.forEach((item, i) => item.classList?.toggle('is-on', !!hints[i]?.on));
-      return;
-    }
-    hintsShown = shown;
-    const items = hints.map(({ kbd, label, on }) => {
-      const item = document.createElement('span');
-      item.className = on ? 'hint is-on' : 'hint';
-      for (const key of kbd) {
-        const k = document.createElement('kbd');
-        k.textContent = key;
-        item.appendChild(k);
-      }
-      const text = document.createElement('span');
-      text.className = 'hint-label';
-      text.textContent = label;
-      item.appendChild(text);
-      return item;
-    });
-    elControlsHint.replaceChildren(...items);
-  }
-  actions.subscribe(renderHints);
+  // The key bar at the bottom (js/hud-keybar.js)
+  const renderHints = bindKeyBar(elControlsHint, actions);
 
   // A mission's own vehicle in the cluster at the bottom right (js/missions.js run.vehiclePanel): its name, its speed
   // (m/s; false: no speed shown), the speed meter's full scale (km/h), where it is (the altitude and the street), and

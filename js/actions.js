@@ -3,7 +3,7 @@
 // beam, the groomer's beacon and tiller, getting in and out (js/gta.js), the wing (js/paraglide-free.js) and whatever
 // a mission adds (a crane's hook, a blower's chute, the escort's blue light). An action is described once, with its
 // key, how it is used (a tap, a hold, a switch), its icon and its gamepad slot; the keyboard (bindKeyboard below), the
-// key hints at the bottom (js/main.js renderHints), the touch buttons (js/touch-controls.js) and the gamepad
+// key hints at the bottom (js/hud-keybar.js), the touch buttons (js/touch-controls.js) and the gamepad
 // (js/gamepad-controls.js) all read the same list.
 //
 // The actions come in layers (the vehicle's, the GTA mode's, a mission's): the layers above are listed after the ones
