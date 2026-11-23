@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { parseTerrain, gridHeight } from '../js/terrain-grid.js';
 import { lonLatToWorld } from '../js/davos-frame.js';
 import { polygons, bbox as ringBox } from './osm-geometry.mjs';
+import { STREET_KINDS, streetWidth } from './road-widths.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -32,9 +33,7 @@ const osm = JSON.parse(fs.readFileSync(path.join(DIR, 'data', 'cache', 'osm_davo
 
 const KINK_SPAN = 8, SIGMA = 8, CLUSTER = 25;
 const LIMIT = { kink: 0.08, bump: 0.35, tilt: 0.10 };
-const KINDS = /^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street|service)$/;
-const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5 };
-const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
+const KINDS = STREET_KINDS;
 const isOn = (v) => !!v && v !== 'no';
 const h = (x, z) => gridHeight(grid, x, z);
 const held = HELD_FILE ? fs.readFileSync(HELD_FILE) : null;
@@ -65,7 +64,7 @@ for (const e of osm.elements) {
   if (e.type !== 'way' || !e.geometry || !KINDS.test(t.highway || '') || t.area === 'yes') continue;
   if (isOn(t.bridge) || (isOn(t.tunnel) && t.tunnel !== 'building_passage') || t.covered === 'yes' || (parseFloat(t.layer) || 0) < 0) continue;
   const base = t.highway.replace(/_link$/, '');
-  const width = parseFloat(t.width) || Math.max(WIDTH[base] ?? 3, (parseFloat(t.lanes) || LANES[base] || 1) * 3);
+  const width = streetWidth(t, base);
   const half = width / 2;
   const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
   let s = 0;

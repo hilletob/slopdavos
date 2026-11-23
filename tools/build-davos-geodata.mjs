@@ -14,6 +14,7 @@ import { FRAME, WORLD_BOUNDS, lonLatToWorld, lv95ToWorld } from '../js/davos-fra
 import { parseTerrain, gridHeight } from '../js/terrain-grid.js';
 import { findUnderpasses } from './underpass.mjs';
 import { isDrivableTunnel } from '../js/tunnel-profile.js';
+import { STREET_WIDTH, STREET_LANES } from './road-widths.mjs';
 import { toWorld, flat, geomPts, inFrame, ringArea, bbox, bboxInFrame, rdp, cleanRing, polygons, clipToFrame } from './osm-geometry.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -128,8 +129,8 @@ function boxCrossings(p, q, len, left, right, m) {
 function segmentMeetsBox(p, q, len, left, right, m) { return boxCrossings(p, q, len, left, right, m).length > 0; }
 
 // --- Roads & railways ---------------------------------------------------------------------------------------------------
-const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5, pedestrian: 6, cycleway: 2.5, footway: 2, path: 1.5, steps: 2.5, track: 3 };
-const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
+const WIDTH = { ...STREET_WIDTH, pedestrian: 6, cycleway: 2.5, footway: 2, path: 1.5, steps: 2.5, track: 3 };
+const LANES = STREET_LANES;
 const DRIVABLE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'living_street']);
 const RAIL = /^(rail|light_rail|tram|subway|funicular|narrow_gauge)$/;
 // The ways on foot and the farm and forest tracks (js/city-grid.js lays them as level benches, js/path-bench.js): what

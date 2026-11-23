@@ -19,6 +19,7 @@ import { polygons, bbox as ringBox } from './osm-geometry.mjs';
 import { lv95ToWgs84 } from '../js/swiss-projection.js';
 import { buildLine, routePoint } from '../js/rhb-route.js';
 import { findUnderpasses, approachFrom } from './underpass.mjs';
+import { STREET_KINDS, streetWidth } from './road-widths.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUT = process.argv[2] || path.join(DIR, '..', 'data', 'davos-terrain.bin');
@@ -402,9 +403,7 @@ stage('3-railway');
 {
   const STEP = 2, SIGMA = 6, BANK = 1.5, EASE = 4, MAX_MOVE = 8, MAX_CONFLICT = 2.5, CONFLICT = 1.5, MAX_BUILDING = 2.5, MAX_BUILDING_CUT = 3;
   const ROUNDS = 16, MAX_GIVE = 3, MAX_ROAD_FILL = 4;
-  const KINDS = /^(motorway|trunk|primary|secondary|tertiary)(_link)?$|^(residential|unclassified|living_street|service)$/;
-  const WIDTH = { motorway: 14, trunk: 12, primary: 10, secondary: 8, tertiary: 7, residential: 6, unclassified: 6, living_street: 5, service: 3.5 };
-  const LANES = { motorway: 4, trunk: 4, primary: 2, secondary: 2, tertiary: 2, residential: 2, unclassified: 2, living_street: 1, service: 1 };
+  const KINDS = STREET_KINDS;
   const isOn = (v) => !!v && v !== 'no';
   const groundAt = (x, z) => { const { E, N } = worldToLv95(x, z); return heightAt(E, N); };
   const n = cols * rows;
@@ -457,7 +456,7 @@ stage('3-railway');
       if (e.type !== 'way' || !e.geometry || !KINDS.test(t.highway || '') || t.area === 'yes') continue;
       if (isOn(t.bridge) || (isOn(t.tunnel) && t.tunnel !== 'building_passage') || t.covered === 'yes' || (parseFloat(t.layer) || 0) < 0) continue;
       const base = t.highway.replace(/_link$/, '');
-      const width = parseFloat(t.width) || Math.max(WIDTH[base] ?? 3, (parseFloat(t.lanes) || LANES[base] || 1) * 3);
+      const width = streetWidth(t, base);
       const half = width / 2, rank = rankOf(base);
       const pts = e.geometry.map((p) => lonLatToWorld(p.lon, p.lat)), S = [];
       let s = 0;
