@@ -1,7 +1,8 @@
 import { MISSIONS, formatTime, scoreText } from './missions-data.js';
 import { FREE_FLIGHT_BOARD, freeFlightText } from './missions-data-paraglide.js';
 import { fetchBoard, fetchPoints } from './leaderboard.js';
-import { el, boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
+import { el } from './dom.js';
+import { boardList, compareText, listKind, pointsGap } from './leaderboard-ui.js';
 
 // js/leaderboard-overview.js
 // All the leaderboards, the second tab of the missions' dialog (js/missions.js): the overall list of the missions' points

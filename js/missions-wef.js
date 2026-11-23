@@ -9,6 +9,7 @@ import {
   ESCORT, ESCORT_ROUTE, WEF_GATES, ROADBLOCK, PICKUP, DROPOFF, escortRadio, escortBlocked, escortDelay, escortScore, roadblockPush, projectRoute, trailAt,
   MARCH, MARCH_ROUTE, MARCH_RHYTHM, MARCH_SLOGANS, FENCE, RALLY, marchCall, marchChoose, chantQuality, marchScore, yieldStep
 } from './missions-data-wef.js';
+import { el } from './dom.js';
 
 // js/missions-wef.js
 // The runtime of the WEF week's two missions (js/missions-data-wef.js has their definitions and logic):
@@ -26,7 +27,6 @@ import {
 // cars are solid bodies for the traffic too (hooks.trafficBodies, like the trams). Everything is built on entry and
 // disposed with the run (js/missions.js disposeTree).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const setText = (node, text) => { if (node.textContent !== t(text)) setLocalizedText(node, text); };
 

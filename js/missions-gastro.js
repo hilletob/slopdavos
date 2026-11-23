@@ -7,6 +7,7 @@ import {
   FLAEMMLI, createFlaemmli, flaemmliStep, flaemmliPress, flaemmliRelease, flaemmliGauge, flaemmliSway, flaemmliScore,
   PIZZA_ORDERS, PIZZA_STOPS, TOPPINGS, createPizzaShop, pizzaShopStep, pizzaPick, pizzaHeatStep, pizzaCarryStep, pizzaScore
 } from './missions-data-gastro.js';
+import { el } from './dom.js';
 
 // js/missions-gastro.js
 // The runtime of the three gastro missions (js/missions-data-gastro.js has their definitions and the games' pure
@@ -20,7 +21,6 @@ import {
 //    the van with a roof sign, the box in the player's arms and a heat bar (the carrying: js/missions-data-local.js).
 // Everything is built on demand and disposed with the run. The games run on the mission's frame time (dt).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const LIFT = 410; // m: the rooms float this high above their door (out of sight of the town)

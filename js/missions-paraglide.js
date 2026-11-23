@@ -19,8 +19,8 @@ import { QUALITY } from './quality.js';
 import { t } from './i18n.js';
 import { touchLabel } from './missions-ice.js';
 import { PG, LAUNCH, FIELD, THERMALS, H0, stepFlight, flightScore, thermalCentre, windAt, onGround } from './missions-data-paraglide.js';
+import { el } from './dom.js';
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const touch = () => !!globalThis.document?.body?.classList.contains('touch-enabled');

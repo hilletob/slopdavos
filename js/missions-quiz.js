@@ -9,6 +9,7 @@ import {
   QUIZ, GIGI, QUIZ_BOTS, quizHandoff, pickQuestions, seenQuestions, noteQuestions, tableSeats, createRound, roundPhase, lockGuess, cutWaiting,
   hasGuessed, questionResult, tableStandings, gigiLine, parseGuess, formatNumber
 } from './missions-data-quiz.js';
+import { el } from './dom.js';
 
 // js/missions-quiz.js
 // The runtime of "Gigi's guessing round" (js/missions-data-quiz.js has the questions, the points, the regulars and the
@@ -24,7 +25,6 @@ import {
 // The card's texts are translated here at each render (tr), numbers written as the language does: the observer of
 // js/i18n.js leaves the card alone (.player-name on its root), the names in it stay as typed.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const isTouch = () => document.body.classList.contains('touch-enabled') || matchMedia('(pointer: coarse)').matches;
 const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '');

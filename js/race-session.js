@@ -5,6 +5,7 @@ import {
 } from './race-protocol.js';
 import { joinRace } from './race-net.js';
 import { createGhost, PLAYER_COLOURS } from './race-ghosts.js';
+import { el } from './dom.js';
 
 // js/race-session.js
 // A race between players on one mission (first: the quad ride from Heldstab, js/missions-data-rural.js, any mission with
@@ -18,7 +19,6 @@ import { createGhost, PLAYER_COLOURS } from './race-ghosts.js';
 // and the race's buttons into the run's end dialog; detach() when the run is torn down (a leave, unless the host just
 // started the next race).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const PING_SAMPLES = 6, PING_GAP_MS = 350;
 const GRID_ACROSS = 1.4, GRID_BACK = 3.2; // m: the grid at the start, two abreast
 

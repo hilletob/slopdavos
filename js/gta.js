@@ -12,6 +12,7 @@ import {
 import { createTakeover } from './gta-takeover.js';
 import { t } from './i18n.js';
 import { missionAllowsTakeover } from './hijack.js';
+import { el } from './dom.js';
 
 // js/gta.js
 // The GTA mode: the player is a pedestrian who gets into the vehicles standing about the valley (F, or G; in the snow
@@ -51,8 +52,6 @@ const ROAD_KINDS_OFF = new Set(['footway', 'path', 'track', 'steps', 'cycleway',
 export function hasGtaState() {
   try { return JSON.parse(localStorage.getItem(STATE_KEY))?.version === STATE_VERSION; } catch { return false; }
 }
-
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 export function buildGta({ scene, controllerManager: cm, touchControls, actions = null, selectMode, rhb, missions = null, mapSystem = null, savePlayerState = null, traffic = null, vbd = null, trafficBodies = null, audio = null }) {
   cm.gtaParkedLook = true;

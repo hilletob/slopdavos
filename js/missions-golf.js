@@ -6,6 +6,7 @@ import {
   accuracyLabel, METER, toPar, formatToPar, GREEN_SLOPE_BOOST, PUTT_MAX,
   landingFor, shotTable, powerFor, carryAt, windAgainstAim, shotReport, alongAim
 } from './missions-data-golf.js';
+import { el } from './dom.js';
 
 // js/missions-golf.js
 // The golf mission's runtime (js/missions-data-golf.js has its definition and the pure game logic: the surfaces, the
@@ -19,7 +20,6 @@ import {
 //          as ever) or takes the cart (C: the camera swings over to the ball).
 // Everything is built when the mission starts and goes with the run (its group, its DOM, the controllers' hooks).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const smooth = (t) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const live = (run) => run.phase === 'ready' || run.phase === 'running';

@@ -11,6 +11,7 @@ import {
   ZAMBONI, createZamboniIce, resetZamboniIce, createMachine, stepMachine, stepConditioner, stepFilm, iceShare, bandShare,
   puddleArea, machineWorld, inTunnel
 } from './missions-data-zamboni.js';
+import { el } from './dom.js';
 
 // js/missions-zamboni.js
 // The runtime of js/missions-data-zamboni.js (ZAMBONI_FEATURES, merged into js/missions.js FEATURES):
@@ -31,7 +32,6 @@ import {
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const hash = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const HL = RINK.halfL, HW = RINK.halfW, G = ZAMBONI.gate;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);

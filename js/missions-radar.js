@@ -6,6 +6,7 @@ import { BODY_SPECS, buildCarGeometry, createLoftedCarMaterial } from './actor-m
 import {
   RADAR, FINES, LASER_SPOT, TRIPOD, AIM_HEADING, STOP_S, ROAD_LENGTH, STREAM, roadFrame, brakeSpeed, chooseDriver, laserTarget, createStream, stepStream
 } from './missions-data-radar.js';
+import { el } from './dom.js';
 
 // js/missions-radar.js
 // The runtime of the police speed check (js/missions-data-radar.js; RADAR_FEATURES merged into js/missions.js FEATURES):
@@ -22,7 +23,6 @@ import {
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const mat = (color, o = {}) => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.55, ...o });
 const stepId = (run) => run.def.objectives[run.index]?.id;
 const live = (run) => run.phase === 'ready' || run.phase === 'running';

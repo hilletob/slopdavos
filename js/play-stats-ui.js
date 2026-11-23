@@ -1,11 +1,11 @@
 import { currentStats, totals, TRAVEL_KINDS } from './play-stats.js';
+import { el } from './dom.js';
 
 // js/play-stats-ui.js
 // The player's own statistics (js/play-stats.js) in a dialog, opened from the account menu: the play time and the ways of
 // travel, each with its time, its distance and a bar. All devices of a signed-in player together.
 
 const OVERLAY_ID = 'play-stats-overlay';
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 /** A duration: "45 s", "12 min", "3 h 05 min" */
 export function durationText(ms) {

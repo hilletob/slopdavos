@@ -10,6 +10,7 @@ import { QUALITY } from './quality.js';
 import { t, setLocalizedText } from './i18n.js';
 import { gameClock } from './game-clock.js';
 import { missionOpen, nightVariantOpen, closedText, nextOpening } from './mission-windows.js';
+import { el } from './dom.js';
 
 // js/missions-world.js
 // The missions in the open world (js/missions.js builds it with the manager): a pin at every mission's start — a
@@ -24,7 +25,6 @@ import { missionOpen, nightVariantOpen, closedText, nextOpening } from './missio
 const PIN_RADIUS = QUALITY.mobile ? 500 : 800; // m: the markers drawn round the player
 const BEAM_HEIGHT = QUALITY.mobile ? 18 : 26;
 const ICON_PX = 128;
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const ARROW = 'M12 2.5 19 20l-7-4-7 4z';
 
 // --- The icons (the sprites' canvases and the map's pins share them) -------------------------------------------------

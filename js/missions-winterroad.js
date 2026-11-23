@@ -4,6 +4,7 @@ import { surfaceHeight } from './terrain.js';
 import { particles, createToast } from './missions-work.js';
 import { TYRES, SPIN, CHAINS, CHAIN_STEPS, stepTraction, slopePull, needleAt } from './missions-data-winterroad.js';
 import { t } from './i18n.js';
+import { el } from './dom.js';
 
 // js/missions-winterroad.js
 // The runtime of winter driving (js/missions-data-winterroad.js has the definitions and the pure logic; js/missions.js
@@ -18,7 +19,6 @@ import { t } from './i18n.js';
 //                 with it), the chains' rattle (a loop of clicks, faster with the wheels), the strain over 50 km/h.
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const objectiveId = (run) => run.def.objectives[run.index]?.id;
 const HALF_BASE = 1.23; // m: half the T3's wheelbase, over which the grade is read

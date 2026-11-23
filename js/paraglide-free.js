@@ -12,6 +12,7 @@ import { OWN_CONTROLS_CLASS } from './missions-manager.js';
 import { PARAGLIDE_FEATURES } from './missions-paraglide.js';
 import { LICENCE_ID, LAUNCH_RULE, FREE_THERMALS, freeThermals, launchSpot, createFlight, onGround, FREE_FLIGHT_BOARD, freeFlightEntry, freeFlightText } from './missions-data-paraglide.js';
 import * as THREE from 'three/webgpu';
+import { el } from './dom.js';
 
 const feature = PARAGLIDE_FEATURES.paraglider;
 const PACK_AFTER = 2.6; // s on the ground after the landing: the wing folded, walking on
@@ -26,7 +27,6 @@ const REFUSALS = {
 };
 const GLYPH = '⌒';
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const touch = () => document.body.classList.contains('touch-enabled');
 const signedIn = () => { try { return !!globalThis.localStorage?.getItem('slopdavos-session'); } catch { return false; } };
 const BEST_KEY = 'slopdavos-free-flight-best'; // (the longest free flight on this device, m: a guest's own best)

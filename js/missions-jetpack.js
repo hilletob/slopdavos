@@ -20,8 +20,8 @@ import { ParticleBatch } from './missions-fx.js';
 import { poseHarness, bonePoint, walkerShadow, saveWalker, restoreWalker } from './missions-paraglide.js';
 import { drapeRing, RING_DEPTH } from './missions-props.js';
 import { JP, GATES, PAD, START, TOWN_GATES, stepJet, gatePoint, coursePoints, jetWorld } from './missions-data-jetpack.js';
+import { el } from './dom.js';
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const touch = () => !!globalThis.document?.body?.classList.contains('touch-enabled');

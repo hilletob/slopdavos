@@ -8,6 +8,7 @@ import {
   SNOW, SLF, HARDNESS, GRAINS, DANGER, createSnowGame, snowTempAt, snowTest, snowWrite, snowGrain, snowTap, snowPick, snowDanger, snowClose, snowStep, seededRandom,
   slfNote, slfTime, snowpackFromSlf
 } from './missions-data-expert.js';
+import { el } from './dom.js';
 
 // js/missions-expert.js
 // The runtime of the two expert missions (js/missions-data-expert.js has their definitions and the games' pure logic):
@@ -21,7 +22,6 @@ import {
 // emptied at teardown); the games run on the mission's frame time. The canvases' texts call t(): the DOM observer can't see them.
 
 const W = 560, H = 480;
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };

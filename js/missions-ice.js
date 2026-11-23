@@ -6,6 +6,7 @@ import {
   RINK, HOCKEY, rinkLocal, rinkWorld, rinkHeadingLocal, rinkHeadingWorld, clampToRink, stepPenalty, crossingY, PENALTY_RESULT_TEXT,
   SHEET, CURLING, sheetLocal, sheetWorld, sheetHeading, throwStone, stepStones, settleStones, curlingScore, stonePoints, curlingSpeed
 } from './missions-data-ice.js';
+import { el } from './dom.js';
 
 // js/missions-ice.js
 // The ice missions' runtime (js/missions-data-ice.js has their definitions and the pure game logic), as features of
@@ -23,7 +24,6 @@ import {
 //                sweeps behind the stone; its own camera
 // Everything is built when the mission starts and goes with the run (its group, its DOM, the controllers' hooks).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 

@@ -1,11 +1,10 @@
 import { emailFits, codeFits, sendEmailCode, verifyEmailCode, ownerConflict, takeOverDevice, signOut } from './account.js';
+import { el } from './dom.js';
 
 // js/account-email.js
 // Signing in with an email address and a one-time code (js/account.js), for the first-visit question (js/start-choice.js)
 // and the account menu (js/account-ui.js). Three steps in one small form: the address, the code, and, when this device
 // holds another account's save, the same question as auth/callback.html.
-
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 /** @param {object} o
  *  @param {(text: string) => void} o.say shows a status line ('' hides it)

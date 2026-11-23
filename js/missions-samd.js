@@ -8,6 +8,7 @@ import { cheerArms } from './missions-sport.js';
 import {
   ROOF, ROLES, SPIT, yardToWorld, eyeAt, clampAim, startHock, releaseHock, setDuck, hockLevel, stepBreak, comboMult
 } from './missions-data-samd.js';
+import { el } from './dom.js';
 
 // js/missions-samd.js
 // The runtime of the long break on the SAMD's roof (js/missions-data-samd.js; SAMD_FEATURES merged into js/missions.js
@@ -25,7 +26,6 @@ import {
 // given back when the break ends or the run is torn down.
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
 const isTouch = () => document.body.classList.contains('touch-enabled') || matchMedia('(pointer: coarse)').matches;

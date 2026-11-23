@@ -8,6 +8,7 @@ import {
   SHOE, createShoer, shoeStep, shoeRest, shoeTap, beatNeedle, onPackedLine, packedShare, shoeScore,
   CAST, CAST_STAGES, createCastGame, castStep, castPickLeg, castPickLength, castConfirm, castInk, castGaps, castLumps, padShare, wrapSpeed, wetWindow
 } from './missions-data-care.js';
+import { el } from './dom.js';
 
 // js/missions-care.js
 // The runtime of the two gentle jobs (js/missions-data-care.js has their definitions and the pure logic): js/missions.js
@@ -18,7 +19,6 @@ import {
 //  - castRoom: the plaster room on a canvas over the view, the walker waiting at the door (as js/missions-resort.js waxBench).
 // Everything is built on demand and goes with the run's group or its cleanups; the games run on the mission's frame time.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };

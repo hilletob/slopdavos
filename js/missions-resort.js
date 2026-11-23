@@ -12,6 +12,7 @@ import {
   WAX, WAXES, createWaxBench, waxPick, waxStep, ironHeat, ironBand, waxFor, skiMelted,
   MARSHAL, ZONES, marshalZones, zoneFree, createMarshal, marshalStep, marshalGesture, marshalActive, marshalCarPose
 } from './missions-data-resort.js';
+import { el } from './dom.js';
 
 // js/missions-resort.js
 // The runtime of the three resort jobs (js/missions-data-resort.js has their definitions and the games' pure logic):
@@ -23,7 +24,6 @@ import {
 //    into the bays js/parking.js left free, green arrows over the free bays.
 // Everything is built on demand and disposed with the run; the games run on the mission's frame time (dt).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'running' || run.phase === 'ready';
 const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };

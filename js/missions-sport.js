@@ -14,6 +14,7 @@ import {
   BOARD, SECTORS, DART, scoreDart, swayAt, throwDart, createX01, x01Dart,
   BOWL, BOWL_SIGMA, SKATE, bowlSurface, floorEdge, createBoarder, stepBoarder, boarderSpeed, addTrick, comboValue, comboMultiplier, skateTotal, bowlToWorld, bowlHeadingToWorld, SCHUESSLA
 } from './missions-data-sport.js';
+import { el } from './dom.js';
 
 // js/missions-sport.js
 // The sport missions' runtime (js/missions-data-sport.js has their definitions and the pure game logic), as features of
@@ -34,7 +35,6 @@ import {
 //               pose from js/missions-ice.js tilted onto the wall), the board, the trick HUD, its camera
 // Everything is built when the mission starts and goes with the run (its group, its DOM, the controllers' hooks).
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const fmtSec = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(1).padStart(4, '0')}`; };

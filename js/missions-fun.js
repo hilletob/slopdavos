@@ -10,6 +10,7 @@ import {
   GONDOLA, GONDOLA_PIECES, rotateCells, pieceCells, createGondola, gondolaMove, gondolaRotate, gondolaDrop, gondolaDepart, gondolaStep, gondolaCabinScore, gondolaScore, gondolaPersons,
   RHB_DRIVE, createRhbDrive, rhbDriveStep, rhbLimitAt, rhbDriveScore
 } from './missions-data-fun.js';
+import { el } from './dom.js';
 
 // js/missions-fun.js
 // The runtime of the fun missions (js/missions-data-fun.js has their definitions and the games' pure logic):
@@ -27,7 +28,6 @@ import {
 // The keys are taken in the mission's capture listener (they never reach the walking pedestrian); on touch screens
 // the games have their own buttons and drag on the view.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const INTERIOR_LIFT = 400; // m: the interiors float this high above their door (out of sight of the town)
 
 // --- Shared: styles, geometry, people ---------------------------------------------------------------------------------

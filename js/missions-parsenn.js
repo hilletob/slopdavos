@@ -21,8 +21,8 @@ import {
   PB, SECTIONS, parsennLines, createDrive, driveStep, driveLine, driveLimit, toBoard, nextLimit, leverStep, toggleDoors,
   soundHorn, emergencyBrake, setTimelapse, driveScore, fmtClock, fmtError
 } from './missions-data-parsenn.js';
+import { el } from './dom.js';
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const live = (run) => run.phase === 'ready' || run.phase === 'running';
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const SWALLOW = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyB', 'KeyX', 'KeyT', 'KeyG', 'KeyE', 'KeyQ', 'KeyC', 'ShiftLeft', 'ShiftRight']);

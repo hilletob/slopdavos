@@ -1,6 +1,7 @@
 import { dialogHead } from './missions.js';
 import { makeCode, cleanCode, codeFits, guestId, displayName, MAX_PLAYERS } from './race-protocol.js';
 import { RaceSession } from './race-session.js';
+import { el } from './dom.js';
 
 // js/race-ui.js
 // The lobby of a race (js/race-session.js): opened from a mission's intro ("Race together": a new room with a code of its
@@ -12,7 +13,6 @@ import { RaceSession } from './race-session.js';
 const OVERLAY_ID = 'race-overlay';
 export const NAME_KEY = 'slopdavos-race-name';
 export const RACE_PARAM = 'race';
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 /** The link to the room: this page with only ?race=<CODE> (`param`: another kind of room, js/quiz-ui.js ?quiz=) */
 export function raceLink(code, href = location.href, param = RACE_PARAM) {

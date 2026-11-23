@@ -17,6 +17,7 @@ import {
   SLIDE, slideLength, slideCenterline, createRider, stepRider, slideAt, thetaEq,
   KIRCHNER, KIRCHNER_PALETTE, kirchnerIndex, nearestPalette, gridMode, templateEdges, scorePainting
 } from './missions-data-local.js';
+import { el } from './dom.js';
 
 // js/missions-local.js
 // The runtime of the eight missions at real places of Davos (js/missions-data-local.js has their definitions and the
@@ -33,7 +34,6 @@ import {
 // Everything is built on demand and disposed with the run (the phone keeps nothing it does not need). The games run on
 // the mission's frame time (dt), never on a clock of their own.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const LIFT = 420; // m: the stages float this high above their door
 const live = (run) => run.phase === 'running' || run.phase === 'ready';

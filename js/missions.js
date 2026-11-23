@@ -50,6 +50,7 @@ import { ZAMBONI_FEATURES } from './missions-zamboni.js';
 import { SAMD_FEATURES } from './missions-samd.js';
 import { PARSENN_FEATURES } from './missions-parsenn.js';
 import { FONDUE_FEATURES } from './missions-fondue.js';
+import { el } from './dom.js';
 
 // js/missions.js
 // Missions: timed tasks in the city (js/missions-data.js has their definitions and the pure progress logic). In the
@@ -67,7 +68,6 @@ import { FONDUE_FEATURES } from './missions-fondue.js';
 const WORLD_WAIT_RADIUS = 600; // m: the streamed town's cells round the start built before the stopwatch is armed
 const PERSONAL_WAIT = 10000; // ms: how long a dialog waits for the text written for the player before it shows the mission's own
 const WORLD_WAIT_MAX_MS = 25000; // (a cell that never comes, e.g. a builder failed: the mission starts anyway)
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 /** The head every dialog shares (css/style.css: .mission-dialog-head): the kicker and the title, the × at the top right
  *  (js/race-ui.js builds its lobby with it) */

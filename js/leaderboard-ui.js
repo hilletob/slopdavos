@@ -1,10 +1,9 @@
 import { fetchBoard } from './leaderboard.js';
+import { el } from './dom.js';
 
 // js/leaderboard-ui.js
 // A list in a mission's intro and end dialog, and the lists of the overview (js/leaderboard-overview.js). textContent only,
 // and .player-name keeps js/i18n.js off the players' names.
-
-export const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 
 /** A gap between two times: seconds below a minute, else mm:ss.d */
 export const timeGap = (ms, format) => (ms < 60000 ? `${(Math.max(0, ms) / 1000).toFixed(1)} s` : format(ms));

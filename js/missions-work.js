@@ -17,6 +17,7 @@ import {
   CRANE, CRANE_WING, createCraneSite, craneSurface, createCrane, stepCrane, stepCraneLoad, craneHookAction, craneNextMove, craneHook, craneTrolley, craneWind, swingOf,
   LOADER, TIP_SPOT, createLoaderRoute, createLoaderGrid, createLoaderTruck, stepLoaderTruck, stepChute, shedInBend, tipPose, stepTip, blowerHitsTruck, depositHeap, inRingXZ
 } from './missions-data-work.js';
+import { el } from './dom.js';
 
 // js/missions-work.js
 // The runtime of the eight work missions (js/missions-data-work.js has their definitions and the pure logic; js/missions.js
@@ -43,7 +44,6 @@ import {
 //                   load tipped at the Davosersee.
 // Everything is built for the run and goes with its group (js/missions.js disposes it); the maps are plain arrays.
 
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text != null) e.textContent = text; return e; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapPi = (a) => { a %= Math.PI * 2; if (a > Math.PI) a -= Math.PI * 2; else if (a < -Math.PI) a += Math.PI * 2; return a; };
 const hash = (i) => { let x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
