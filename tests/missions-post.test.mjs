@@ -9,11 +9,12 @@ import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { lonLatToWorld } from '../js/davos-frame.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-post.js is three.js-free: the boxes, the hold and a bot over the round run on synthetic frames)
 
 const DT = 1 / 20;
-const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
+const frame = frameWith({ mode: 'car', dt: DT });
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
 const segDist = (px, pz, ax, az, bx, bz) => {
   const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz;

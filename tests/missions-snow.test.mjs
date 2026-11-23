@@ -8,10 +8,11 @@ import {
 } from '../js/missions-data-snow.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-snow.js is three.js-free: the gates, the tricks and the checkpoints run on synthetic moves here)
 
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 
 test('the three mountain missions are listed, complete and in their seasons', () => {
   for (const m of SNOW_MISSIONS) {

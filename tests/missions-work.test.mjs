@@ -18,10 +18,11 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { PARKING_DATA } from '../js/parking-data.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-work.js is three.js-free: the maps, the vehicles' work and the bots run on synthetic frames here)
 
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 const DT = 1 / 30;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const clamp1 = (v, a, b) => (v < a ? a : v > b ? b : v);

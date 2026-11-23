@@ -12,6 +12,7 @@ import {
   chooseFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll, TIPSY, schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK
 } from '../js/missions-data-fondue.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // tests/missions-fondue.test.mjs
 // The Drupal Mountain Camp's Fondue Night (js/missions-data-fondue.js is three.js-free): the places, the figure of
@@ -25,7 +26,7 @@ const inRing = (r, x, z) => {
   return c;
 };
 const inBuilding = (x, z) => DAVOS_DATA.buildings.some((b) => Math.abs(b.ring[0] - x) < 200 && Math.abs(b.ring[1] - z) < 200 && inRing(b.ring, x, z));
-const frame = (o = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 1 / 60, t: 1000, ...o });
+const frame = frameWith({ dt: 1 / 60, t: 1000 });
 /** A stroke into the pot, the pot's own time running with it: { eights, events: { eight: n, … }, g } */
 function feed(pts, g = createStir()) {
   const events = {};

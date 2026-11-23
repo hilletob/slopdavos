@@ -9,10 +9,11 @@ import { missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { SHOPS_DATA } from '../js/shops-data.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-pharmacy.js is three.js-free: the round, the bumps and a bot riding it run on synthetic frames here)
 
-const frame = (over = {}) => ({ mode: 'cargobike', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 1 / 30, t: 0, ...over });
+const frame = frameWith({ mode: 'cargobike', dt: 1 / 30 });
 const DT = 1 / 30;
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
 const near = (b, x, z, r) => Math.abs(b.ring[0] - x) < r && Math.abs(b.ring[1] - z) < r;

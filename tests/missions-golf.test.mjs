@@ -10,12 +10,12 @@ import {
 import { GOLF } from '../js/golf-data.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
+import { frameWith, near } from './helpers/frames.mjs';
 
 // tests/missions-golf.test.mjs — the golf mission's pure logic (js/missions-data-golf.js): the surfaces from the OSM
 // polygons, the ball's flight, bounce and roll on synthetic ground, the putt and the cup, the round and its score.
 
-const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''} ${a} ≈ ${b} ± ${eps}`);
-const frame = (o = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, verticalSpeed: 0, agl: 0, dt: 1 / 60, t: 0, night: false, ...o });
+const frame = frameWith({ verticalSpeed: 0, agl: 0, dt: 1 / 60, night: false });
 const flat = { heightAt: () => 0, surfaceAt: () => 'fairway' };
 const shot = (club, power, o = {}, env = flat) => {
   const b = createBall(0, 0, 0, o.lie || 'tee');

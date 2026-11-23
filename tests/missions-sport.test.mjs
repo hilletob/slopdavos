@@ -12,12 +12,12 @@ import {
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { recordCompletion, emptyProgress } from '../js/missions-progress.js';
+import { frameWith, near } from './helpers/frames.mjs';
 
 // tests/missions-sport.test.mjs — the sport missions' pure logic (js/missions-data-sport.js): the Davos Nordic course
 // and race, the cross-country skier, the minigolf lanes and ball, the dartboard and 301, the skate bowl. No three.js.
 
-const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''} ${a} ≈ ${b} ± ${eps}`);
-const frame = (o = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, verticalSpeed: 0, agl: 0, dt: 1 / 60, t: 0, night: false, ...o });
+const frame = frameWith({ verticalSpeed: 0, agl: 0, dt: 1 / 60, night: false });
 
 test('the sport missions are listed, complete and score by points', () => {
   assert.deepEqual(SPORT_MISSIONS.map((m) => m.id), ['davos-nordic', 'minigolf-waldhaus', 'ice-minigolf', 'darts-bar', 'skate-bowl']);

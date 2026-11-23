@@ -9,9 +9,10 @@ import { BEER, BEER_STOPS, seededRandom } from '../js/missions-data-local.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { medalFor, missionMedals, missionPin } from '../js/missions-progress.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-gastro.js is three.js-free: both games run on synthetic frames here)
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 const DT = 1 / 30;
 
 /** A player of the bar: aims for the middle of each window with a reaction error of `sigma` (on the gauge, gaussian) */

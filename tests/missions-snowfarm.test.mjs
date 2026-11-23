@@ -11,11 +11,12 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 const DT = 1 / 30;
 const S = SNOWFARM;
 const route = createSnowfarmRoute();
-const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, tillerRaised: false, tillerLift: 0, ...over });
+const frame = frameWith({ mode: 'car', dt: DT, tillerRaised: false, tillerLift: 0 });
 const distSeg = (px, pz, ax, az, bx, bz) => {
   const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L2));
   return Math.hypot(ax + dx * t - px, az + dz * t - pz);

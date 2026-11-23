@@ -3,17 +3,8 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { Vector3 } = require('./helpers/three-stubs.cjs');
 
-class Vector3 {
-  constructor(x = 0, y = 0, z = 0) { this.set(x, y, z); }
-  set(x, y, z) { Object.assign(this, { x, y, z }); return this; }
-  applyMatrix4({ elements: e }) {
-    const { x, y, z } = this;
-    return this.set(e[0] * x + e[4] * y + e[8] * z + e[12],
-      e[1] * x + e[5] * y + e[9] * z + e[13],
-      e[2] * x + e[6] * y + e[10] * z + e[14]);
-  }
-}
 class SpotLight {
   constructor(color, intensity, distance, angle, penumbra, decay) {
     Object.assign(this, { color, intensity, distance, angle, penumbra, decay });

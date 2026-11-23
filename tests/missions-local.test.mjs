@@ -12,9 +12,10 @@ import {
 } from '../js/missions-data-local.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals, missionPin } from '../js/missions-progress.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-local.js is three.js-free: the eight games run on synthetic frames here)
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 const run = (def) => ({ def, state: def.createState() });
 
 test('the eight local missions are registered with their pins apart, scored by time or points', () => {

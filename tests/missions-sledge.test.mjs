@@ -9,10 +9,11 @@ import { riderSpeed, pointAt } from '../js/missions-data-snow.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-sledge.js is three.js-free: the sledge runs on synthetic slopes here, the bot on the real terrain)
 
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 const slope = (grade) => (x, z) => -grade * z; // downhill along +z
 const DT = 1 / 120;
 

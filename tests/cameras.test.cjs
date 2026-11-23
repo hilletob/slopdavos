@@ -4,18 +4,9 @@ const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const { flatTerrainImports } = require('./helpers/flat-terrain.cjs');
+const { Vector3 } = require('./helpers/three-stubs.cjs');
 
 const source = readFileSync(join(__dirname, '../js/cameras.js'), 'utf8');
-
-class Vector3 {
-  constructor(x = 0, y = 0, z = 0) { this.set(x, y, z); }
-  set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
-  copy(v) { return this.set(v.x, v.y, v.z); }
-  add(v) { return this.set(this.x + v.x, this.y + v.y, this.z + v.z); }
-  sub(v) { return this.set(this.x - v.x, this.y - v.y, this.z - v.z); }
-  subVectors(a, b) { return this.copy(a).sub(b); }
-  lerp(v, t) { return this.set(this.x + (v.x - this.x) * t, this.y + (v.y - this.y) * t, this.z + (v.z - this.z) * t); }
-}
 
 class PerspectiveCamera {
   constructor(fov, aspect) {

@@ -10,9 +10,10 @@ import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { medalFor, missionMedals, missionPin } from '../js/missions-progress.js';
 import { rollHairstyle, HAIRSTYLE } from '../js/pedestrians.js';
 import { readFileSync } from 'node:fs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-bars.js is three.js-free: both games run on synthetic frames here)
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 const DT = 1 / 30;
 const gauss = (rand) => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
 

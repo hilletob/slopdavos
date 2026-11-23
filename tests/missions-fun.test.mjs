@@ -12,10 +12,11 @@ import { medalFor, recordCompletion, emptyProgress, missionPin, START_RADIUS } f
 import { BERGBAHNEN } from '../js/bergbahnen-data.js';
 import { lonLatToWorld } from '../js/davos-frame.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-fun.js is three.js-free: the games' logic runs on synthetic frames here)
 
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: 0.1, t: 0, ...over });
+const frame = frameWith();
 
 test('the fun missions are registered, scored by points, their medals ascending', () => {
   for (const m of FUN_MISSIONS) {

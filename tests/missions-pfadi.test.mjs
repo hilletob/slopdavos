@@ -11,10 +11,11 @@ import { WORLD_BOUNDS } from '../js/davos-frame.js';
 import { TLM_TREES } from '../js/tlm-trees-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-pfadi.js is three.js-free: the steps run on synthetic frames, a bot plays the whole camp)
 const DT = 1 / 60;
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
+const frame = frameWith({ dt: DT });
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
 const forests = TLM_TREES.areas.filter((a) => a.kind === 'forest' && a.rings[0].some((v, i) => i % 2 === 0 && Math.abs(v - 840) < 800 && Math.abs(a.rings[0][i + 1] + 232) < 800));
 const inForest = (x, z) => forests.some((a) => { let c = false; for (const r of a.rings) if (inRing(r, x, z)) c = !c; return c; });

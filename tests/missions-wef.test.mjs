@@ -11,9 +11,10 @@ import { seededRandom } from '../js/missions-data-local.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { medalFor, missionMedals, missionPin } from '../js/missions-progress.js';
+import { frameWith } from './helpers/frames.mjs';
 
 const DT = 1 / 30;
-const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, blueLight: true, ...over });
+const frame = frameWith({ mode: 'car', dt: DT, blueLight: true });
 
 function inRing(x, z, ring) {
   let c = false;

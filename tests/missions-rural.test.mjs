@@ -9,9 +9,10 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor, missionMedals } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { SHOPS_DATA } from '../js/shops-data.js';
+import { frameWith } from './helpers/frames.mjs';
 
 const DT = 1 / 30;
-const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
+const frame = frameWith({ mode: 'car', dt: DT });
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
 const near = (b, x, z, R = 300) => { const r = b.ring; for (let i = 0; i < r.length; i += 2) if (Math.abs(r[i] - x) < R && Math.abs(r[i + 1] - z) < R) return true; return false; };
 const inBuilding = (x, z) => DAVOS_DATA.buildings.some((b) => near(b, x, z) && inRing(b.ring, x, z));

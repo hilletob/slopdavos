@@ -11,13 +11,14 @@ import { MISSIONS, getMission } from '../js/missions-data.js';
 import { medalFor } from '../js/missions-progress.js';
 import { WORLD_BOUNDS } from '../js/davos-frame.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-splitboard.js is three.js-free: the skinner and the board run on synthetic slopes here, the bots on the
 // real terrain)
 const DT = 1 / 60;
 const DEG = Math.PI / 180;
 const slope = (deg, dir = 0) => (x, z) => Math.tan(deg * DEG) * (Math.sin(dir) * x + Math.cos(dir) * z); // uphill along `dir`
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
+const frame = frameWith({ dt: DT });
 
 test('the tour is listed, in winter, on foot, its lines within the map, from the Strelapass to the summit and down to the Stafelalp', () => {
   const m = SPLITBOARD_MISSION;

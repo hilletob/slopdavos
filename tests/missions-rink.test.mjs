@@ -11,9 +11,10 @@ import { medalFor } from '../js/missions-progress.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { readFileSync } from 'node:fs';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 const DT = 1 / 30;
-const frame = (over = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 0, ...over });
+const frame = frameWith({ dt: DT });
 const cellOf = (g, x, z) => { const p = RINK.frame.toGrid(x, z); return Math.floor(p.v / g.cell) * g.cols + Math.floor(p.u / g.cell); };
 
 test('fresh ice: one mission in the list, on the Seehof Seeli, in winter, with its feature and vehicle', () => {

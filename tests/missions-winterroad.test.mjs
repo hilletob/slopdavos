@@ -10,11 +10,12 @@ import { routePoint } from '../js/missions-data-work.js';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
+import { frameWith } from './helpers/frames.mjs';
 
 // (js/missions-data-winterroad.js is three.js-free: the van's wheels, the drive along the routes and the chains run on
 // synthetic frames here, the clean runs' times on the real terrain)
 const DT = 1 / 30;
-const frame = (over = {}) => ({ mode: 'car', x: 0, y: 0, z: 0, heading: 0, speed: 0, dt: DT, t: 1000, ...over });
+const frame = frameWith({ mode: 'car', dt: DT, t: 1000 });
 
 test('two winter drives in the list, in winter, in the van, with their features and icons', () => {
   assert.deepEqual(WINTERROAD_MISSIONS.map((m) => m.id), ['summer-tyres-flueela', 'snow-chains-clavadel']);

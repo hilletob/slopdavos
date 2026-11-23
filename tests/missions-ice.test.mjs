@@ -9,12 +9,12 @@ import {
 } from '../js/missions-data-ice.js';
 import { MISSIONS, getMission, relativeBearing } from '../js/missions-data.js';
 import { medalFor, recordCompletion, emptyProgress } from '../js/missions-progress.js';
+import { frameWith, near } from './helpers/frames.mjs';
 
 // tests/missions-ice.test.mjs — the ice missions' pure logic (js/missions-data-ice.js): the skater, the 400 m track's
 // lap count and its infield, the penalty's goalie, the curling stones and their score. No three.js.
 
-const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''} ${a} ≈ ${b} ± ${eps}`);
-const frame = (o = {}) => ({ mode: 'person', x: 0, y: 0, z: 0, heading: 0, speed: 0, verticalSpeed: 0, agl: 0, dt: 1 / 60, t: 0, night: false, ...o });
+const frame = frameWith({ verticalSpeed: 0, agl: 0, dt: 1 / 60, night: false });
 
 test('the ice missions are listed, complete and on the ice', () => {
   for (const m of ICE_MISSIONS) {
