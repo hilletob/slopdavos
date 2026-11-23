@@ -65,6 +65,7 @@ import { markWorldReady } from './world-ready.js';
 import { precompileShaders } from './shader-warmup.js';
 import { setupPopovers, setupFigureMenu, setupCredits, blurClickedButtons } from './hud-dialogs.js';
 import { createLoadingScreen } from './loading-screen.js';
+import { createLocationSign } from './hud-location.js';
 import { QUALITY, setBackend, skipped, skipLabel, setWorldCenter, inWorld, WORLD } from './quality.js';
 import { releaseUploadedGeometry, releasedGeometryStats, compactStaticGeometry, keepPipelinesOfReleasedObjects, flattenDraws, flatDrawStats, dropShaderModules, shaderModuleStats } from './gpu-memory.js';
 import { isWinter, onSeasonChange, setSeason, setWinterBlend } from './season.js';
@@ -860,50 +861,8 @@ async function initApp() {
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
 
-  // Where you are: the place's name over its street corner, drawn as a pair of NYC street-name signs
-  const roadNames = new Set(ROADS.map((r) => r.name));
-  const placeNames = new Set(NYC_LANDMARKS.map((l) => l.name));
-  let locationText = '';
-  function renderLocation(label) {
-    if (!elLocation || label === locationText) return;
-    locationText = label;
-    let place = '';
-    let streets = label;
-    const split = label.indexOf(' · ');
-    if (split >= 0) {
-      place = label.slice(0, split);
-      streets = label.slice(split + 3);
-    } else if (placeNames.has(label) || (!label.includes(' & ') && !roadNames.has(label))) {
-      place = label;
-      streets = '';
-    }
-    const nodes = [];
-    if (place) {
-      const el = document.createElement('div');
-      el.className = 'location-place';
-      el.textContent = place;
-      nodes.push(el);
-    }
-    if (streets) {
-      const row = document.createElement('div');
-      row.className = 'location-signs';
-      if (streets.startsWith('near ')) {
-        streets = streets.slice(5);
-        const near = document.createElement('span');
-        near.className = 'location-near';
-        near.textContent = 'near';
-        row.appendChild(near);
-      }
-      for (const name of streets.split(' & ')) {
-        const sign = document.createElement('span');
-        sign.className = 'street-sign';
-        sign.textContent = name;
-        row.appendChild(sign);
-      }
-      nodes.push(row);
-    }
-    elLocation.replaceChildren(...nodes);
-  }
+  // Where you are: the place's name over its street corner (js/hud-location.js)
+  const renderLocation = createLocationSign(elLocation, { roads: ROADS.map((r) => r.name), places: NYC_LANDMARKS.map((l) => l.name) });
 
   function teleportTo(x, z, heading = Math.PI) {
     const destination = controllerManager.teleportActiveTo(x, z, heading);
