@@ -1091,9 +1091,6 @@ function createFacadeBoxes(material, boxes) {
   return mesh;
 }
 
-/**
- * Chrysler Building & Architectural Stainless-Steel Crown TSL Material
- */
 const _carPaintCache = new Map();
 
 /**

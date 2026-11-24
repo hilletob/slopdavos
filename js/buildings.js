@@ -287,11 +287,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const seed = (source.styleSeed || source.id).split('').reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) | 0, 701);
       rand = mulberry32(seed);
       const tone = rand();
-      const updated = source.accuracyArea === 'mitte' || source.accuracyArea === 'ringbahn';
-      const colourName = source.colour?.trim().toLowerCase();
-      const facadeColour = updated && colourName && (/^#[0-9a-f]{6}$/.test(colourName) || THREE.Color.NAMES[colourName] !== undefined) ? new THREE.Color(colourName) : null;
-      const warmMasonry = facadeColour && facadeColour.r > facadeColour.b * 1.4;
-      const modern = !warmMasonry && ['office', 'commercial', 'hotel', 'retail'].includes(source.kind) && (height > 30 || tone > 0.72);
+      const modern = ['office', 'commercial', 'hotel', 'retail'].includes(source.kind) && (height > 30 || tone > 0.72);
       const matIndex = modern ? 3 + Math.floor(rand() * 3) : Math.floor(rand() * 3);
       const detail = { id: source.id, name: source.name, cx, cz, ...bounds, district: districtAt(cx, cz), maxH: height,
         cornices: [], hvacUnits: [],
@@ -310,11 +306,11 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           // courtyard normals point into the hole instead.
           const normalSign = ringIndex ? -direction : direction;
           const nx = dz / length * normalSign, nz = -dx / length * normalSign;
-          const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestMappedRoad(x + nx * 3, z + nz * 3, 35) : null;
-          const shop = !updated && road && road.distance < road.width / 2 + 13 && !['church', 'cathedral', 'school', 'university', 'civic'].includes(source.kind);
+          const road = ringIndex === 0 && length > 6 && base < 0.5 ? nearestMappedRoad(x + nx * 3, z + nz * 3, 35) : null;
+          const shop = road && road.distance < road.width / 2 + 13 && !['church', 'cathedral', 'school', 'university', 'civic'].includes(source.kind);
           const face = ringIndex ? WALL_KINDS.rear : shop ? WALL_KINDS.shop : WALL_KINDS.entry;
           if (drawn) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
-            ry, tone, facadeColour, facadeLevels: source.facadeLevels, faces: [WALL_KINDS.blankStone, WALL_KINDS.blankStone, face, face] });
+            ry, tone, facadeLevels: source.facadeLevels, faces: [WALL_KINDS.blankStone, WALL_KINDS.blankStone, face, face] });
           if (base < 1) {
             const hx = length / 2, hz = thickness / 2, cs = Math.cos(ry), sn = Math.sin(ry);
             const ex = Math.abs(cs) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(cs) * hz;

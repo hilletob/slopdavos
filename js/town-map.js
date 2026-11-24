@@ -73,7 +73,7 @@ const AREA_LABELS = [
 ];
 // New neighbourhood labels follow their actual clipped district geometry.
 for (const area of GEO.town?.meta.areas || []) {
-  if (!area.labelPoint || area.areaKm2 < 0.15 || ['mitte','kreuzberg','friedrichshain','charlottenburg','tiergarten'].includes(area.id)) continue;
+  if (!area.labelPoint || area.areaKm2 < 0.15) continue;
   AREA_LABELS.push([area.name.toLocaleUpperCase('de-DE'), ...area.labelPoint, 0]);
 }
 
