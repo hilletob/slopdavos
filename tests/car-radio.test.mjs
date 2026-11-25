@@ -158,3 +158,16 @@ test('a station without a signal says so and is tried again later', () => {
   radio.sync();
   assert.equal(el.log.filter((l) => l.startsWith('play')).length, plays + 1);
 });
+
+test('a game held still (the guest gate) lets the stream go, and neither a tap nor a step brings it back', () => {
+  const { radio, el } = make();
+  radio.sync();
+  assert.equal(el.paused, false);
+  radio.hold();
+  assert.equal(el.paused, true);
+  assert.equal(radio.playing, null);
+  radio.step(1);
+  rest(radio);
+  radio.sync();
+  assert.equal(el.paused, true, 'no stream while held');
+});

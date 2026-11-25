@@ -49,6 +49,7 @@ export class CarRadio {
     this.direct = direct ?? (typeof location !== 'undefined' && new URLSearchParams(location.search).get('radio') === 'direct');
     this.index = 0; // the chosen station (the first one, Radio Grischa, until another is)
     this.enabled = true; // the switch
+    this.held = false; // the game stands still (the guest gate): no stream, whatever else is wanted
     this.playing = null; // the station whose stream the element holds
     this.status = 'off'; // 'off' | 'tuning' | 'on' | 'error'
     this.holdUntil = 0;
@@ -106,9 +107,16 @@ export class CarRadio {
     else this.step(1);
   }
 
+  /** The game stands still (its loop, which calls sync(), too): the stream goes and stays gone */
+  hold() {
+    this.held = true;
+    clearTimeout(this.timer);
+    this.stop();
+  }
+
   /** Whether a stream should run now, and which */
   wanted() {
-    if (!this.on || !this.available() || this.audio?.enabled === false) return null;
+    if (this.held || !this.on || !this.available() || this.audio?.enabled === false) return null;
     if (typeof document !== 'undefined' && document.hidden) return null;
     return this.station;
   }

@@ -96,6 +96,10 @@ class CityAudioSystem {
     this.supported = !!(globalThis.AudioContext || globalThis.webkitAudioContext);
     this.enabled = true;
     try { this.enabled = localStorage.getItem(KEYS.sound) !== 'off'; } catch { /* Private browsing. */ }
+    // iOS: a media element (the radio's live stream, js/car-radio.js) plays in the 'playback' session, which ignores
+    // the ring/silent switch and takes the Web Audio along with it; 'ambient' keeps the whole page silent with the
+    // switch, as a game's sound is, and lets other apps' music play on (Safari 16.4+; elsewhere there is no such thing)
+    try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch { /* Not settable here. */ }
     const smallDevice = navigator.hardwareConcurrency <= 4 || matchMedia('(pointer: coarse)').matches;
     this.limits = smallDevice ? { motors: 6, sirens: 1, events: 5 } : { motors: 8, sirens: 2, events: 8 };
     this.motors = new Map();

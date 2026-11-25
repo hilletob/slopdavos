@@ -1184,7 +1184,7 @@ async function initApp() {
           leaving: leavePage,
           missionActive: () => missions.active,
           // (a guest's free time is up, js/guest-gate.js: the game stands still behind the sign-in)
-          pause: () => { renderer.setAnimationLoop(null); audioSystem.suspend(); document.exitPointerLock?.(); },
+          pause: () => { renderer.setAnimationLoop(null); audioSystem.suspend(); radio.hold(); document.exitPointerLock?.(); },
           progress: globalThis.__slopdavosProgress,
           heat: publicTrail ? heatTrail : null
         })).catch(() => { /* the game goes on without it */ });
