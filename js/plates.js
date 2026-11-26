@@ -227,6 +227,11 @@ function drawPlate(ctx, plate, x, y, w, h, rear) {
   plateText(ctx, plate.text, x + bw + (w - bw - right) / 2, y + h / 2, h * 0.72, w - bw - right - h * 0.3);
 }
 
+/** One plate (as plateList()'s) drawn into any canvas: the snow haul's tipper paints its model's plates with it */
+export function paintPlate(ctx, plate, x, y, w, h, rear) { drawPlate(ctx, plate, x, y, w, h, rear); }
+/** `redraw` once Graubünden's arms are decoded (until then its shield is the simplified one); nothing if they are */
+export function onPlateArms(redraw) { if (!grArms) armsWaiting.push(redraw); }
+
 let atlas = null;
 // The atlas texture (shared, with mipmaps); null outside a browser
 export function plateAtlasTexture() {
