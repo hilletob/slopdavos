@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
+import { loadPersonModel } from './person-models.js';
+import { loadPersonClips } from './person-clips.js';
 import { surfaceHeight } from './terrain.js';
 import {
   SHOTS, createShots, shotsStep, shotsAction, shotsGauge, shotsSway, shotsScore,
@@ -42,9 +44,17 @@ const STYLE = `
 .gs-act{pointer-events:auto;touch-action:manipulation;border:0;border-radius:999px;min-height:56px;min-width:210px;padding:12px 26px;font:800 18px Inter,system-ui,sans-serif;color:#fff;background:linear-gradient(180deg,#ef4657,#b3142a);box-shadow:0 6px 18px rgba(179,20,42,.45)}
 .gs-act:active{transform:scale(.97);filter:brightness(1.2)}
 .gs-act[disabled]{opacity:.35}
-.gs-caramel{height:10px;margin-top:6px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden}
+.gs-gauge.in .gs-zone{background:#57e08a;box-shadow:0 0 12px rgba(87,224,138,.75)}
+.gs-caramel{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;font-weight:700;color:#f0c987}
 .gs-caramel[hidden]{display:none}
+.gs-caramel i{flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden}
 .gs-caramel span{display:block;height:100%;transform-origin:left;background:linear-gradient(90deg,#f4ecd8,#e0a64a 60%,#a8611c)}
+.gs-steps{display:flex;justify-content:center;gap:3px;margin-bottom:7px}
+.gs-steps[hidden]{display:none}
+.gs-step{display:flex;align-items:center;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:700;color:rgba(255,255,255,.5);white-space:nowrap;transition:background .2s,color .2s}
+.gs-step.done{color:#8fe3ad}
+.gs-step.done.bad{color:#ff9d9d}
+.gs-step.on{background:#ffe14f;color:#201a00}
 .gs-act.held{filter:brightness(1.35);transform:scale(.97)}
 .gs-veil{position:fixed;inset:0;z-index:37;pointer-events:none;background:radial-gradient(circle at 50% 45%,rgba(120,10,20,0) 42%,rgba(90,6,16,.8) 100%)}
 .gs-pizza{width:min(560px,calc(100vw - 12px))}
@@ -64,6 +74,7 @@ const STYLE = `
 body.gs-indoor .gta-prompt,body.gs-indoor .touch-use,body.gs-indoor .mission-prompt,body.gs-indoor #touch-controls,body.gs-indoor .hud-bottom-left,body.gs-indoor .hud-bottom-right{display:none!important}
 body.gs-indoor:not(.touch-enabled) .gs-hud{bottom:var(--keybar-clear,54px)}
 @media (hover:none){.gs-top kbd{display:none}}
+@media (max-width:560px){.gs-step:not(.on){padding:0;width:8px;height:8px;align-self:center;background:currentColor}.gs-step:not(.on) b{display:none}}
 @media (max-width:520px){.gs-board{flex-direction:column;gap:6px}.gs-board canvas{width:clamp(84px,14vh,120px)}.gs-tops{width:100%;flex:none}.gs-top{font-size:10.5px}}
 `;
 function addStyle(run) {
@@ -111,33 +122,94 @@ function textPlane(text, w, h, { fg = '#fff', bg = '#000', font = '900 110px Int
   tex.colorSpace = THREE.SRGBColorSpace;
   return meshOf(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ map: tex }));
 }
-/** A soft round glow on a plane (a small radial texture, tinted by the material's colour) */
-function glow(w, h, color, opacity) {
+/** A soft glow on a plane (a small texture, tinted by the material's colour): round, or `rise` a light from below */
+function glow(w, h, color, opacity, rise = false) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
-  const c = canvas.getContext('2d'), r = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  const c = canvas.getContext('2d'), r = rise ? c.createLinearGradient(0, 64, 0, 0) : c.createRadialGradient(32, 32, 0, 32, 32, 32);
   r.addColorStop(0, '#fff'); r.addColorStop(0.35, '#777'); r.addColorStop(1, '#000');
   c.fillStyle = r; c.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return meshOf(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ color, map: tex, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
+/** A glow lying flat (the light a lamp or a flame throws on the counter) */
+function pool(size, color, opacity) { const m = glow(size, size, color, opacity); m.rotation.x = -Math.PI / 2; return m; }
+/** A plane with a picture drawn on a canvas: draw(c, w, h) */
+function drawnPlane(w, h, px, draw, opts = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = px; canvas.height = Math.max(16, Math.round(px * (h / w)));
+  draw(canvas.getContext('2d'), canvas.width, canvas.height);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return meshOf(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ map: tex, ...opts }));
+}
+/** Boards with their grain, the joints between them and the lamps' light in the middle (a counter's top, a panelled wall) */
+function drawWood(c, w, h, { base, dark, light, boards = 4, along = true, shine = 0.5, seed = 3 }) {
+  let r = seed * 9301 + 49297;
+  const rnd = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  c.fillStyle = base; c.fillRect(0, 0, w, h);
+  const n = boards, size = (along ? h : w) / n, len = along ? w : h;
+  for (let b = 0; b < n; b++) {
+    c.globalAlpha = 0.1 + rnd() * 0.16; c.fillStyle = rnd() < 0.5 ? dark : light;
+    if (along) c.fillRect(0, b * size, w, size); else c.fillRect(b * size, 0, size, h);
+    for (let i = 0; i < 26; i++) { // the grain: long thin streaks
+      const at = b * size + rnd() * size, from = rnd() * len, run = len * (0.15 + rnd() * 0.5);
+      c.globalAlpha = 0.05 + rnd() * 0.12; c.fillStyle = rnd() < 0.6 ? dark : light;
+      if (along) c.fillRect(from, at, run, 1 + rnd() * 1.5); else c.fillRect(at, from, 1 + rnd() * 1.5, run);
+    }
+    c.globalAlpha = 0.55; c.fillStyle = dark;
+    if (along) c.fillRect(0, b * size, w, 2); else c.fillRect(b * size, 0, 2, h);
+  }
+  c.globalAlpha = 1;
+  if (shine > 0) {
+    const g = c.createRadialGradient(w / 2, h * 0.55, 0, w / 2, h * 0.55, w * 0.42);
+    g.addColorStop(0, `rgba(255,214,160,${shine * 0.3})`); g.addColorStop(1, 'rgba(255,214,160,0)');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+    const v = c.createLinearGradient(0, 0, w, 0);
+    v.addColorStop(0, 'rgba(0,0,0,.5)'); v.addColorStop(0.3, 'rgba(0,0,0,0)'); v.addColorStop(0.7, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.5)');
+    c.fillStyle = v; c.fillRect(0, 0, w, h);
+  }
+}
 
-/** People standing about: the instanced crowd the pubs of js/missions-sport.js use, self-lit by its colour */
+/** People standing about: the instanced crowd the pubs of js/missions-sport.js use, self-lit by its colour. A spot with
+ *  `figure` (an id of js/player-figure.js FIGURES: the people the player chooses from) is one of those once its model
+ *  is loaded, standing as they do (the mocap idle); until then, and without one, the lofted figure. */
 function makeCrowd(spots, group) {
   const crowd = new PersonCrowd(spots.length, { farDistance: 40, castShadow: false });
   for (const m of crowd.meshes) { m.receiveShadow = false; m.material.emissiveNode = m.material.colorNode; group.add(m); }
   const people = spots.map((s, i) => {
     const rig = new PersonRig({ seed: ((i + 3) * 0.6180339) % 1, female: !!s.female, hair: (i * 0.37) % 1, girth: 1 + (i % 3) * 0.08, scale: 1, ...s.look });
     rig.reset(s.x, s.z, s.yaw, () => 0);
-    return { rig, ...s };
+    return { rig, own: null, ...s };
   });
-  return { crowd, people };
+  const c = { crowd, people, figures: [] };
+  for (const id of new Set(spots.map((s) => s.figure).filter(Boolean))) {
+    Promise.all([loadPersonModel(id), loadPersonClips().catch(() => null)]).then(([model, clips]) => {
+      let top = group;
+      while (top.parent) top = top.parent;
+      if (!top.isScene) return; // (the room is gone)
+      const mine = people.filter((p) => p.figure === id);
+      // (its own copy of the geometry: the room's disposal frees it, the cached one stays the player's)
+      const own = new PersonCrowd(mine.length, { farDistance: Infinity, castShadow: false, dress: { model: { ...model, geometry: model.geometry.clone() } } });
+      for (const m of own.meshes) { m.receiveShadow = false; m.material.emissiveNode = m.material.colorNode; group.add(m); }
+      for (const p of mine) {
+        p.own = own;
+        p.rig.setBuild({ scale: model.scale, female: model.female });
+        if (clips) p.rig.setClips(clips.idle(model.female));
+      }
+      c.figures.push(own);
+    }).catch((e) => console.warn('[missions-gastro] figure', id, e));
+  }
+  return c;
 }
 function poseCrowd(c, dt, pose = null) {
   c.crowd.begin();
-  for (const p of c.people) { p.rig.update(dt, p.x, p.z, p.yaw, () => 0); pose?.(p); c.crowd.add(p.rig, 0); }
+  for (const f of c.figures) f.begin();
+  for (const p of c.people) { p.rig.update(dt, p.x, p.z, p.yaw, () => 0); pose?.(p); (p.own || c.crowd).add(p.rig, 0); }
   c.crowd.end();
+  for (const f of c.figures) f.end();
 }
 
 // --- A room high above the door --------------------------------------------------------------------------------------
@@ -209,6 +281,26 @@ function blip(run, kind = 'pock') {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'good' ? 0.22 : 0.09));
   o.connect(g); o.start(t); o.stop(t + 0.25);
 }
+/** A soft rush while something is poured (`kind` 'sugar' | 'pour', null: quiet); `st` keeps what sounds */
+function holdNoise(run, st, kind) {
+  if (st.noiseKind === kind) return;
+  st.noiseKind = kind;
+  const a = run.hooks.audio, ctx = a?.context;
+  if (st.noise) {
+    try { st.noise.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03); st.noise.src.stop(ctx.currentTime + 0.2); } catch { /* (the context is gone) */ }
+    st.noise = null;
+  }
+  if (!kind || !a || !a.enabled || !ctx || ctx.state !== 'running' || !a.mix) return;
+  const n = ctx.sampleRate, buf = ctx.createBuffer(1, n, n), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+  const f = ctx.createBiquadFilter();
+  if (kind === 'sugar') { f.type = 'highpass'; f.frequency.value = 3800; } else { f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = 1.4; }
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.setTargetAtTime(kind === 'sugar' ? 0.07 : 0.2, ctx.currentTime, 0.04);
+  src.connect(f).connect(g).connect(a.mix); src.start();
+  st.noise = { src, g };
+}
 function flashPop(node, last) {
   node.textContent = popText(last); // (with its points after two spaces, in both languages)
   node.className = `gs-pop${last.good ? '' : ' bad'}`;
@@ -222,38 +314,175 @@ function flashPop(node, last) {
 const COUNTER_Y = 1.08, GLASS_H = 0.075;
 const WOOD = 0x3c2214, DARK = 0x3a2416;
 const LOOKS = {
-  exbar: { wall: 0x1d2a4a, beam: 0x10141f, name: 'EX BAR', fg: '#59c8ff', bg: '#070b16', lamp: 0x3aa8ff, halo: 0x2a7cff },
-  rot: { wall: 0x7a1a1f, beam: DARK, name: 'ROT LIECHTLI', fg: '#ff4a55', bg: '#190a08', lamp: 0xff2c36, halo: 0xff2030 },
+  exbar: { wall: 0x1d2a4a, beam: 0x10141f, name: 'EX BAR', fg: '#59c8ff', bg: '#070b16', lamp: 0x3aa8ff, halo: 0x2a7cff, top: { base: '#2b2f3a', dark: '#11131a', light: '#59607a' }, lampAt: { x: 1.15, y: 2.33, z: -0.9 } },
+  // (the pub's name is its lamp: the red light hangs low over the counter, in the view from the stool)
+  rot: { wall: 0x7a1a1f, beam: DARK, name: 'ROT LIECHTLI', fg: '#ff4a55', bg: '#190a08', lamp: 0xff2c36, halo: 0xff2030, top: { base: '#5a2f1c', dark: '#24110a', light: '#9a6238' }, lampAt: { x: 0.95, y: 1.74, z: -0.72 }, decor: 'rot' },
   // (the Berghotel Schatzalp's Stübli: the Fondue Night's Flämmli, js/missions-fondue.js)
-  schatzalp: { wall: 0x8a5a32, beam: 0x4a2c16, name: 'SCHATZALP', fg: '#ffe3a8', bg: '#2a1608', lamp: 0xffb45a, halo: 0xffa040 }
+  schatzalp: { wall: 0x8a5a32, beam: 0x4a2c16, name: 'SCHATZALP', fg: '#ffe3a8', bg: '#2a1608', lamp: 0xffb45a, halo: 0xffa040, top: { base: '#7a5230', dark: '#3a2212', light: '#c79a62' }, lampAt: { x: 1.05, y: 1.8, z: -0.72 }, decor: 'stuebli' }
 };
+const BAR = { W: 7, D: 6, H: 2.9 };
+/** A bottle on the back bar: body, shoulder, neck, cap and a paper label (i: which one of the row) */
+function bottleParts(x, y, z, i) {
+  const cols = [0x2e6b2a, 0x7a3b12, 0xd8c47a, 0x3a1a0a, 0xa8d0e0, 0x5a1020, 0x1f3a5a, 0xc98a2a];
+  const col = cols[(i * 5 + (i >> 2)) % cols.length], r = 0.03 + ((i * 7) % 5) * 0.003, h = 0.15 + ((i * 3) % 4) * 0.022, neck = 0.05 + ((i * 5) % 3) * 0.015;
+  const square = i % 7 === 3 ? 4 : 10;
+  return [
+    cyl(r, r, h, x, y + h / 2, z, col, square), cyl(0.011, r, 0.035, x, y + h + 0.0175, z, col, square), cyl(0.011, 0.011, neck, x, y + h + 0.035 + neck / 2, z, col, 8),
+    cyl(0.013, 0.013, 0.014, x, y + h + 0.035 + neck + 0.007, z, i % 3 ? 0x1a1a1a : 0xc9a13a, 8),
+    cyl(r + 0.0012, r + 0.0012, h * 0.42, x, y + h * 0.45, z, [0xf0e6cc, 0xe8d9a0, 0x1c1c1c, 0xd9d2c0][i % 4], square)
+  ];
+}
 /** The room, the counter, the back bar with its bottles, the name and the lamp: `look` from LOOKS */
-function buildBar(group, parts, look) {
-  const W = 7, D = 6, H = 2.9, hw = W / 2, hd = D / 2, WALL = look.wall;
+function buildBar(group, parts, look, logo = null) {
+  const { W, D, H } = BAR, hw = W / 2, hd = D / 2, WALL = look.wall;
   const room = [
     box(W, 0.1, D, 0, -0.05, 0, 0x2a1810),
     box(W, H, 0.2, 0, H / 2, -hd - 0.1, WALL), box(W, H, 0.2, 0, H / 2, hd + 0.1, WALL),
     box(0.2, H, D, -hw - 0.1, H / 2, 0, WALL), box(0.2, H, D, hw + 0.1, H / 2, 0, WALL),
     box(W, 0.2, D, 0, H + 0.1, 0, 0x180c08),
     ...[-2, 0, 2].map((z) => box(W, 0.2, 0.18, 0, H - 0.1, z, look.beam)),
-    // the counter across the room, its top and the back bar behind the landlord
+    // the counter across the room with its panelled front and a brass rail, and the back bar behind the landlord
     box(5.2, COUNTER_Y - 0.05, 0.7, -0.3, (COUNTER_Y - 0.05) / 2, -0.25, WOOD), box(5.3, 0.05, 0.8, -0.3, COUNTER_Y - 0.025, -0.25, 0x5a3320),
-    box(5.2, 2.3, 0.3, -0.3, 1.15, -hd + 0.2, DARK), box(5, 0.03, 0.26, -0.3, 1.25, -hd + 0.38, 0x7a5230), box(5, 0.03, 0.26, -0.3, 1.7, -hd + 0.38, 0x7a5230)
+    ...[-2.4, -1.35, -0.3, 0.75, 1.8].map((x) => box(0.9, 0.7, 0.02, x, 0.5, 0.11, 0x4a2a18)),
+    (() => { const g = new THREE.CylinderGeometry(0.018, 0.018, 5.1, 8); g.rotateZ(Math.PI / 2); g.translate(-0.3, 0.22, 0.2); return paint(g, 0xc9a13a); })(),
+    box(5.2, 2.3, 0.3, -0.3, 1.15, -hd + 0.2, DARK), box(5, 0.03, 0.3, -0.3, 1.25, -hd + 0.42, 0x7a5230), box(5, 0.03, 0.3, -0.3, 1.7, -hd + 0.42, 0x7a5230),
+    box(5, 0.035, 0.012, -0.3, 1.252, -hd + 0.572, 0xb08a4a), box(5, 0.035, 0.012, -0.3, 1.702, -hd + 0.572, 0xb08a4a),
+    // a till and a stack of saucers at the back of the counter
+    box(0.3, 0.2, 0.26, -2.2, 1.365, -hd + 0.45, 0x26262a), box(0.24, 0.1, 0.02, -2.2, 1.4, -hd + 0.585, 0x9fd6b8),
+    ...[0, 1, 2, 3, 4].map((i) => cyl(0.06, 0.05, 0.007, 1.95, COUNTER_Y + 0.004 + i * 0.008, -0.42, 0xf4f1ea, 16)),
+    cyl(0.03, 0.025, 0.05, 1.95, COUNTER_Y + 0.066, -0.42, 0xf7f4ee, 14)
   ];
   group.add(solid(room));
-  const bottleCols = [0x2e6b2a, 0x7a3b12, 0xd8c47a, 0x3a1a0a, 0xa8d0e0, 0x5a1020];
+  // the counter's top: boards along the bar, the lamps' light on them
+  const top = drawnPlane(5.3, 0.8, 1024, (c, w, h) => drawWood(c, w, h, { ...look.top, boards: 4, shine: 0.6 }));
+  top.rotation.x = -Math.PI / 2;
+  top.position.set(-0.3, COUNTER_Y + 0.0012, -0.25);
+  group.add(top);
+  // the bottles: two shelves, lit from below
   const bottles = [];
-  for (let i = 0; i < 28; i++) { const shelf = i % 2, x = -2.4 + (i >> 1) * 0.34; bottles.push(cyl(0.035, 0.045, 0.27, x, 1.4 + shelf * 0.45, -hd + 0.38, bottleCols[i % 6], 6)); }
+  for (let i = 0; i < 44; i++) {
+    const shelf = i % 2, x = -2.0 + (i >> 1) * 0.2 + (shelf ? 0.05 : 0);
+    if (shelf === 0 && x < -1.9) continue; // (the till stands there)
+    bottles.push(...bottleParts(x, 1.265 + shelf * 0.45, -hd + 0.44, i));
+  }
   group.add(solid(bottles));
-  // the name over the back bar and the lamp
+  for (const y of [1.265, 1.715]) {
+    const back = glow(5, 0.4, look.halo, 0.42, true);
+    back.position.set(-0.3, y + 0.2, -hd + 0.356);
+    group.add(back);
+  }
+  // the name over the back bar and the lamp on its cord, its light on the counter
   const sign = textPlane(look.name, 2.4, 0.36, { bg: look.bg, fg: look.fg });
   sign.position.set(-0.3, 2.42, -hd + 0.36);
   group.add(sign);
-  group.add(solid([cyl(0.1, 0.14, 0.14, 1.15, 2.33, -0.9, look.lamp, 12), box(0.015, 0.45, 0.015, 1.15, 2.65, -0.9, 0x111111)]));
+  const L = look.lampAt;
+  group.add(solid([cyl(0.05, 0.15, 0.13, L.x, L.y, L.z, look.lamp, 14), cyl(0.02, 0.05, 0.03, L.x, L.y + 0.08, L.z, 0x2a2a2a, 10), box(0.012, H - L.y - 0.09, 0.012, L.x, (H + L.y + 0.09) / 2, L.z, 0x111111)]));
+  const bulb = meshOf(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshBasicNodeMaterial({ color: 0xfff0e0 }));
+  bulb.position.set(L.x, L.y - 0.06, L.z);
+  group.add(bulb);
   const halo = glow(1.1, 1.1, look.halo, 0.3);
-  halo.position.set(1.15, 2.33, -0.88);
+  halo.position.set(L.x, L.y - 0.03, L.z + 0.02);
   group.add(halo);
   parts.halo = halo;
+  const lit = pool(1.5, look.halo, 0.22);
+  lit.position.set(L.x, COUNTER_Y + 0.003, Math.max(L.z, -0.45));
+  group.add(lit);
+  if (look.decor === 'rot') decorRot(group, look);
+  else if (look.decor === 'stuebli') decorStuebli(group, look, logo, parts);
+}
+/** The Rot Liechtli: red velvet in folds along the walls, a slate with the house's drink, a string of small red lights */
+function decorRot(group, look) {
+  const { W, D, H } = BAR, hw = W / 2, hd = D / 2, folds = [];
+  for (let i = 0; i < 40; i++) {
+    const z = -hd + 0.08 + i * 0.15, col = i % 2 ? 0x8f2026 : 0x5c1217;
+    folds.push(box(0.07, H - 0.2, 0.09, -hw + 0.035, H / 2 - 0.1, z, col), box(0.07, H - 0.2, 0.09, hw - 0.035, H / 2 - 0.1, z, col));
+  }
+  for (let i = 0; i < 8; i++) folds.push(box(0.09, H - 0.2, 0.07, 2.42 + i * 0.15, H / 2 - 0.1, -hd + 0.035, i % 2 ? 0x8f2026 : 0x5c1217));
+  folds.push(box(W, 0.14, 0.12, 0, H - 0.27, -hd + 0.06, 0x3a0c10), box(0.12, 0.14, D, -hw + 0.06, H - 0.27, 0, 0x3a0c10), box(0.12, 0.14, D, hw - 0.06, H - 0.27, 0, 0x3a0c10));
+  group.add(solid(folds));
+  // the slate on the back bar's upper shelf
+  const slate = drawnPlane(0.5, 0.36, 512, (c, w, h) => {
+    c.fillStyle = '#16181a'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#8a5a32'; c.lineWidth = 22; c.strokeRect(0, 0, w, h);
+    c.fillStyle = '#f4efe2'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = '900 92px Georgia, serif'; c.fillText('Flämmli', w / 2, h * 0.34);
+    c.font = '700 44px Georgia, serif'; c.fillStyle = '#ff9aa0'; c.fillText('Espresso · Zucker', w / 2, h * 0.6);
+    c.fillText('Williams · Feuer', w / 2, h * 0.78);
+  });
+  slate.position.set(2.05, 1.92, -hd + 0.6);
+  slate.rotation.x = -0.14;
+  group.add(slate);
+  // small red lights along the upper shelf's edge
+  const dots = [], halos = new THREE.Group();
+  for (let i = 0; i < 17; i++) {
+    const x = -2.7 + i * 0.3;
+    dots.push(cyl(0.012, 0.012, 0.016, x, 1.672, -hd + 0.585, i % 2 ? 0xff5a4a : 0xffb060, 6));
+    const h = glow(0.16, 0.16, i % 2 ? look.halo : 0xffa040, 0.3);
+    h.position.set(x, 1.672, -hd + 0.6);
+    halos.add(h);
+  }
+  group.add(solid(dots), halos);
+}
+/** The Schatzalp's Stübli: Arve panelling, a window on the night, a candle; the camp's logo on a pennant and a table tent */
+function decorStuebli(group, look, logo, parts) {
+  const { W, D, H } = BAR, hw = W / 2, hd = D / 2;
+  const panel = (w, x, z, ry) => {
+    const m = drawnPlane(w, H, 1024, (c, cw, ch) => {
+      drawWood(c, cw, ch, { base: '#9a6a3c', dark: '#4a2c14', light: '#d2a468', boards: Math.round(w / 0.28), along: false, shine: 0, seed: Math.round(w * 10 + x) });
+      c.fillStyle = 'rgba(40,20,8,.55)'; c.fillRect(0, ch * 0.62, cw, ch * 0.02); // (the dado rail's shadow)
+      const g = c.createLinearGradient(0, 0, 0, ch);
+      g.addColorStop(0, 'rgba(0,0,0,.45)'); g.addColorStop(0.45, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.4)');
+      c.fillStyle = g; c.fillRect(0, 0, cw, ch);
+    });
+    m.position.set(x, H / 2, z);
+    m.rotation.y = ry;
+    group.add(m);
+  };
+  panel(D, -hw + 0.004, 0, Math.PI / 2);
+  panel(D, hw - 0.004, 0, -Math.PI / 2);
+  panel(W, 0, -hd + 0.004, 0);
+  // a window beside the back bar: the valley's lights under the Jakobshorn at night, snow on the bars
+  const view = drawnPlane(0.95, 0.95, 512, (c, w, h) => {
+    const sky = c.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#0a1230'); sky.addColorStop(1, '#27406e');
+    c.fillStyle = sky; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#fff';
+    for (let i = 0; i < 40; i++) c.fillRect((i * 97) % w, (i * 53) % (h * 0.5), 2, 2);
+    c.fillStyle = '#c9d6ea'; c.beginPath(); c.moveTo(0, h * 0.62);
+    for (const [x, y] of [[0.18, 0.4], [0.3, 0.5], [0.46, 0.3], [0.6, 0.47], [0.78, 0.36], [1, 0.55]]) c.lineTo(x * w, y * h);
+    c.lineTo(w, h); c.lineTo(0, h); c.fill();
+    c.fillStyle = '#16233f'; c.fillRect(0, h * 0.74, w, h * 0.26);
+    for (let i = 0; i < 46; i++) { c.fillStyle = i % 3 ? '#ffd27a' : '#fff2c8'; c.fillRect((i * 71) % w, h * 0.78 + ((i * 37) % (h * 0.18)), 4, 3); }
+    c.fillStyle = '#5a3a1e'; c.fillRect(w / 2 - 8, 0, 16, h); c.fillRect(0, h / 2 - 8, w, 16);
+    c.lineWidth = 26; c.strokeStyle = '#5a3a1e'; c.strokeRect(0, 0, w, h);
+    c.fillStyle = '#f2f5fa'; c.fillRect(13, h / 2 - 16, w - 26, 9); c.fillRect(13, h - 24, w - 26, 12);
+  });
+  view.position.set(2.9, 1.55, -hd + 0.012);
+  group.add(view);
+  // a candle on the counter (its flame: parts.candle, flickering in after())
+  const CX = -0.36, CZ = -0.3;
+  group.add(solid([cyl(0.045, 0.055, 0.012, CX, COUNTER_Y + 0.006, CZ, 0xc9a13a, 14), cyl(0.012, 0.016, 0.03, CX, COUNTER_Y + 0.027, CZ, 0xc9a13a, 10), cyl(0.011, 0.011, 0.11, CX, COUNTER_Y + 0.097, CZ, 0xf3ead2, 10)]));
+  const candle = meshOf(new THREE.ConeGeometry(0.008, 0.035, 8), new THREE.MeshBasicNodeMaterial({ color: 0xffc46a, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+  candle.position.set(CX, COUNTER_Y + 0.172, CZ);
+  const candleHalo = glow(0.34, 0.34, 0xffa040, 0.34);
+  candleHalo.position.set(CX, COUNTER_Y + 0.17, CZ + 0.01);
+  const candlePool = pool(0.7, 0xffa040, 0.2);
+  candlePool.position.set(CX, COUNTER_Y + 0.0035, CZ);
+  group.add(candle, candleHalo, candlePool);
+  parts.candle = { flame: candle, halo: candleHalo, pool: candlePool };
+  if (!logo) return;
+  // the camp's logo (white, on the camp's navy): a pennant over the back bar, a table tent on the counter
+  const tex = new THREE.TextureLoader().load(logo);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const A = 417 / 168;
+  const pennant = meshOf(new THREE.PlaneGeometry(1.5, 1.5 / A), new THREE.MeshBasicNodeMaterial({ map: tex, transparent: true }));
+  pennant.position.set(1.95, 2.38, -hd + 0.37);
+  const cloth = solid([box(1.7, 1.5 / A + 0.2, 0.01, 1.95, 2.38, -hd + 0.36, 0x16245a)]);
+  const tent = meshOf(new THREE.PlaneGeometry(0.15, 0.15 / A), new THREE.MeshBasicNodeMaterial({ map: tex, transparent: true }));
+  tent.position.set(0.52, COUNTER_Y + 0.047, -0.2);
+  tent.rotation.x = -0.3;
+  const card = solid([(() => { const g = new THREE.BoxGeometry(0.17, 0.09, 0.003); g.rotateX(-0.3); g.translate(0.52, COUNTER_Y + 0.045, -0.203); return paint(g, 0x16245a); })()]);
+  group.add(cloth, pennant, card, tent);
 }
 /** A flame on a lathe with its bright core and a glow (a group; its .flame, .core, .glow, .mat) */
 const FLAME_GEO = () => new THREE.LatheGeometry([[0.012, 0], [0.021, 0.018], [0.018, 0.042], [0.009, 0.072], [0, 0.1]].map(([x, y]) => new THREE.Vector2(x, y)), 10);
@@ -262,12 +491,23 @@ function makeFlame(colour = 0x4f9dff) {
   const mat = new THREE.MeshBasicNodeMaterial({ color: colour, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const coreMat = new THREE.MeshBasicNodeMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const geo = FLAME_GEO();
-  const flame = meshOf(geo, mat), core = meshOf(geo, coreMat);
+  const tipMat = new THREE.MeshBasicNodeMaterial({ color: 0xffa23a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const flame = meshOf(geo, mat), core = meshOf(geo, coreMat), tip = meshOf(geo, tipMat);
   const halo = glow(0.28, 0.28, colour, 0.25);
   halo.position.y = 0.05;
-  g.add(flame, core, halo);
-  Object.assign(g, { flame, core, halo, mat });
+  g.add(flame, core, tip, halo);
+  Object.assign(g, { flame, core, tip, halo, mat });
   return g;
+}
+/** A flame lives: it leans and licks, its orange tip a beat behind the blue body (after its scale is set) */
+function lick(fg, t, wild = 0) {
+  const a = 0.07 + 0.1 * wild;
+  fg.flame.rotation.set(a * Math.sin(t * 9.1 + 1), 0, a * (Math.sin(t * 7.3) + 0.5 * Math.sin(t * 17.1)));
+  fg.core.rotation.set(a * 0.5 * Math.sin(t * 9.1 + 0.6), 0, a * 0.5 * Math.sin(t * 7.3 - 0.4));
+  const f = fg.flame.scale;
+  fg.tip.scale.set(f.x * 0.62, f.y * (1.16 + 0.12 * Math.sin(t * 23) + 0.3 * wild), f.z * 0.62);
+  fg.tip.rotation.set(a * 1.5 * Math.sin(t * 9.1 + 0.3), 0, a * 1.5 * Math.sin(t * 7.3 - 0.7));
+  fg.tip.material.opacity = 0.16 + 0.3 * wild + 0.06 * Math.sin(t * 31);
 }
 /** The lighter, its small flame on top */
 function makeLighter() {
@@ -279,14 +519,12 @@ function makeLighter() {
   lighter.visible = false;
   return lighter;
 }
-/** The empties: one geometry, shown as the evening goes on */
+/** The empties, shown as the evening goes on */
 function makeEmpties(group, n, x0) {
-  const emptyMat = new THREE.MeshBasicNodeMaterial({ color: 0xc8e4f2, transparent: true, opacity: 0.4, depthWrite: false });
-  const emptyGeo = new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 10, 1, true);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const m = meshOf(emptyGeo, emptyMat);
-    m.position.set(x0 + (i % 3) * 0.075, COUNTER_Y + GLASS_H / 2, -0.04 - Math.floor(i / 3) * 0.08);
+    const m = makeShotGlass(0, false);
+    m.position.set(x0 + (i % 3) * 0.075, COUNTER_Y, -0.04 - Math.floor(i / 3) * 0.08);
     m.visible = false;
     group.add(m);
     out.push(m);
@@ -294,13 +532,20 @@ function makeEmpties(group, n, x0) {
   return out;
 }
 /** The shot glass, open, see-through: a group with its .spirit */
-function makeShotGlass(spiritColour = 0xd9a12b) {
+const GLASS = {
+  wall: () => new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 18, 1, true).translate(0, GLASS_H / 2, 0),
+  foot: () => new THREE.CylinderGeometry(0.0195, 0.0185, 0.014, 18).translate(0, 0.007, 0),
+  rim: () => new THREE.TorusGeometry(0.024, 0.0011, 5, 24).rotateX(Math.PI / 2).translate(0, GLASS_H, 0),
+  shine: () => new THREE.CylinderGeometry(0.0243, 0.0193, GLASS_H * 0.8, 3, 1, true, 0.5, 0.32).translate(0, GLASS_H / 2, 0)
+};
+function makeShotGlass(spiritColour = 0xd9a12b, withSpirit = true) {
   const glass = new THREE.Group();
-  const glassMesh = meshOf(new THREE.CylinderGeometry(0.024, 0.019, GLASS_H, 14, 1, true), new THREE.MeshBasicNodeMaterial({ color: 0xbfe0f0, transparent: true, opacity: 0.32, depthWrite: false }));
-  glassMesh.position.y = GLASS_H / 2;
-  const spirit = meshOf(new THREE.CylinderGeometry(0.0215, 0.019, GLASS_H * 0.72, 12), new THREE.MeshBasicNodeMaterial({ color: spiritColour, transparent: true, opacity: 0.85 }));
-  spirit.position.y = GLASS_H * 0.36;
-  glass.add(glassMesh, spirit);
+  const see = (color, opacity, extra = {}) => new THREE.MeshBasicNodeMaterial({ color, transparent: true, opacity, depthWrite: false, ...extra });
+  glass.add(meshOf(GLASS.wall(), see(0xbfe0f0, 0.14, { side: THREE.DoubleSide })), meshOf(GLASS.foot(), see(0xd6ecf6, 0.42)),
+    meshOf(GLASS.rim(), see(0xffffff, 0.75)), meshOf(GLASS.shine(), see(0xffffff, 0.28)));
+  if (!withSpirit) return glass;
+  const spirit = meshOf(new THREE.CylinderGeometry(0.0212, 0.0193, GLASS_H * 0.6, 14).translate(0, 0.014 + GLASS_H * 0.3, 0), new THREE.MeshBasicNodeMaterial({ color: spiritColour, transparent: true, opacity: 0.85 }));
+  glass.add(spirit);
   glass.spirit = spirit;
   return glass;
 }
@@ -321,6 +566,7 @@ function poseShotFlame(fg, level, t, camera) {
   fg.mat.color.copy(_flameCol);
   fg.halo.material.color.copy(_flameCol);
   fg.halo.quaternion.copy(camera.quaternion);
+  lick(fg, t, clamp((L - 0.72) / 0.28, 0, 1));
 }
 /** A flame by its strength (Flämmli): small and yellow when weak, a tall blue one when strong, orange tips when wild */
 function poseStrength(fg, f, t, camera, scale = 1) {
@@ -335,9 +581,15 @@ function poseStrength(fg, f, t, camera, scale = 1) {
   fg.halo.material.color.copy(_flameCol);
   fg.halo.material.opacity = 0.12 + 0.25 * clamp(f, 0, 1);
   fg.halo.quaternion.copy(camera.quaternion);
+  lick(fg, t, clamp((f - 0.8) / 0.2, 0, 1));
 }
+/** The landlord behind the counter and two guests at it: their figures (js/player-figure.js FIGURES) */
+const barPeople = ([landlord, her, him]) => [
+  { x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35, figure: landlord },
+  { x: 1.35, z: 0.42, yaw: -1.9, female: true, figure: her }, { x: -1.55, z: 0.5, yaw: 1.9, figure: him }
+];
 /** The HUD of a bar game: the pop, a card with a line, a label, a gauge (and a caramel bar), one big button */
-function barHud(run, firstButton) {
+function barHud(run, firstButton, stepNames = null) {
   addStyle(run);
   const hud = el('div', 'gs-hud');
   hud.hidden = true;
@@ -347,10 +599,15 @@ function barHud(run, firstButton) {
   const label = el('div');
   const gauge = el('div', 'gs-gauge'), zone = el('span', 'gs-zone'), needle = el('span', 'gs-needle');
   gauge.append(zone, needle);
-  const caramel = el('div', 'gs-caramel'), caramelFill = el('span');
-  caramel.append(caramelFill);
+  const caramel = el('div', 'gs-caramel'), caramelTrack = el('i'), caramelFill = el('span');
+  caramelTrack.append(caramelFill);
+  caramel.append(el('b', null, 'Caramel'), caramelTrack);
   caramel.hidden = true;
-  card.append(line, label, gauge, caramel);
+  // (a game of several steps a round shows them in a row: the one at hand, the ones done)
+  const steps = el('div', 'gs-steps');
+  steps.hidden = !stepNames;
+  const stepNodes = (stepNames || []).map((name) => { const n = el('span', 'gs-step'); n.append(el('b', null, name)); steps.append(n); return n; });
+  card.append(steps, line, label, gauge, caramel);
   const act = el('button', 'gs-act', firstButton);
   act.type = 'button';
   hud.append(pop, card, act);
@@ -358,7 +615,7 @@ function barHud(run, firstButton) {
   veil.hidden = true;
   document.body.append(veil, hud);
   run.cleanups.push(() => { hud.remove(); veil.remove(); });
-  return { hud, pop, line, label, gauge, zone, needle, caramel, caramelFill, act, veil };
+  return { hud, pop, line, label, gauge, zone, needle, caramel, caramelFill, act, veil, stepNodes };
 }
 function showGauge(ui, gauge) {
   setText(ui.label, gauge.label);
@@ -367,6 +624,7 @@ function showGauge(ui, gauge) {
     ui.zone.style.left = `${gauge.lo * 100}%`; ui.zone.style.width = `${(gauge.hi - gauge.lo) * 100}%`;
     ui.needle.style.left = `${gauge.value * 100}%`;
   }
+  ui.gauge.classList.toggle('in', gauge.value !== null && gauge.value >= gauge.lo && gauge.value <= gauge.hi);
   ui.act.disabled = !gauge.button;
   setText(ui.act, gauge.button || '…');
 }
@@ -407,7 +665,7 @@ const shots = {
     sh.room = new Room(run, run.def.interior.door, (group) => {
       buildBar(group, parts, LOOKS.exbar);
       const glass = makeShotGlass(0x7a2a10), fg = makeFlame();
-      fg.position.y = GLASS_H * 0.74;
+      fg.position.y = GLASS_H * 0.78;
       glass.add(fg);
       glass.position.set(0, COUNTER_Y, 0.02);
       group.add(glass);
@@ -415,7 +673,7 @@ const shots = {
       group.add(parts.lighter);
       parts.empties = makeEmpties(group, SHOTS.rounds, 0.14);
       Object.assign(parts, { glass, fg });
-      sh.crowd = makeCrowd([{ x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35 }, { x: 1.35, z: 0.42, yaw: -1.9, female: true }, { x: -1.55, z: 0.5, yaw: 1.9 }], group);
+      sh.crowd = makeCrowd(barPeople(['m04', 'f01', 'm02']), group);
     });
     run.state.game = createShots(11);
     run.state.inside = true;
@@ -478,16 +736,47 @@ const CUP = { x: -0.03, z: 0.03, r: 0.032, h: 0.055 }, SHOT = { x: 0.11, z: 0.09
 const SUGAR_AT = { x: -0.17, z: -0.02 }, BOTTLE_AT = { x: 0.2, z: -0.07 };
 const COFFEE = new THREE.Color(0x3a1e0e), SUGAR_WHITE = new THREE.Color(0xf6f1e4), CARAMEL = new THREE.Color(0x9a5414), WILLIAMS = new THREE.Color(0xf2ead0);
 const _c = new THREE.Color();
+const STEPS_SHOWN = ['sugar', 'sip', 'williams', 'light', 'flambe', 'ready', 'smother', 'drink'];
+const STEP_NAMES = ['Sugar', 'Sip', 'Williams', 'Light it', 'Flambé', 'Pour over', 'Smother', 'Ex'];
+const HAND_YAW = 0.6;
+const LIFT_T = 0.85; // s the glass takes from the counter to the lips, stuck to the palm
+const ease = (k) => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
+const mix = (a, b, k) => a + (b - a) * k;
+/** The hand: a palm, four fingers a little bent, the thumb, the wrist out of a sleeve (its origin: the palm's middle) */
+function makeHand() {
+  const SKIN = 0xe0ac8a, SHADE = 0xcf9878;
+  const limb = (r, len, tilt, yaw, x, y, z, col) => { const g = new THREE.CapsuleGeometry(r, len, 4, 8); g.rotateX(-Math.PI / 2 + tilt); g.rotateY(yaw); g.translate(x, y, z); return paint(g, col); };
+  const palm = new THREE.SphereGeometry(1, 14, 8);
+  palm.scale(0.038, 0.012, 0.041); palm.computeVertexNormals();
+  const parts = [paint(palm, SKIN)];
+  [[-0.027, 0.036, 0.1], [-0.009, 0.046, 0.03], [0.009, 0.043, -0.03], [0.026, 0.032, -0.1]].forEach(([x, len, yaw]) => {
+    parts.push(limb(0.0078, len, -0.16, yaw, x, -0.003, -0.038 - len / 2, SKIN), limb(0.0072, len * 0.45, -0.5, yaw, x - yaw * 0.06, -0.012, -0.045 - len * 1.12, SHADE));
+  });
+  parts.push(limb(0.009, 0.03, -0.1, 0.75, -0.046, -0.003, -0.012, SKIN));
+  // (the forearm comes level from the drinker's side: HAND_YAW turns the whole hand, so that it does not hide the glass)
+  parts.push(limb(0.021, 0.1, 0.05, 0, 0, -0.004, 0.088, SKIN), limb(0.031, 0.5, 0.05, 0, 0, -0.02, 0.4, 0x2f3d55), limb(0.033, 0.012, 0.05, 0, 0, -0.008, 0.15, 0x3a4a66));
+  const hand = solid(parts);
+  hand.visible = false;
+  return hand;
+}
 function buildFlaemmliSet(group, parts, rounds = FLAEMMLI.rounds) {
-  // the saucer and the cup (white porcelain, open at the top: a lathe, its inside dark)
-  const saucer = solid([cyl(0.058, 0.05, 0.008, 0, 0.004, 0, 0xf4f1ea, 20)]);
-  const cupOut = [[0.022, 0], [CUP.r - 0.004, 0.006], [CUP.r, CUP.h * 0.6], [CUP.r + 0.002, CUP.h], [CUP.r - 0.003, CUP.h], [CUP.r - 0.005, 0.01], [0, 0.008]];
-  const cupGeo = new THREE.LatheGeometry(cupOut.map(([x, y]) => new THREE.Vector2(x, y)), 22);
+  // the saucer with its spoon and the cup (white porcelain, open at the top: a lathe, its inside dark)
+  const saucerGeo = new THREE.LatheGeometry([[0, 0.003], [0.03, 0.003], [0.05, 0.007], [0.06, 0.012], [0.058, 0.0135], [0.032, 0.006], [0, 0.006]].map(([x, y]) => new THREE.Vector2(x, y)), 26);
+  const spoon = [(() => { const g = new THREE.BoxGeometry(0.004, 0.0015, 0.05); g.rotateY(0.5); g.translate(0.046, 0.014, 0.012); return paint(g, 0xc8ccd2); })(),
+    (() => { const g = new THREE.SphereGeometry(1, 8, 6); g.scale(0.007, 0.002, 0.01); g.computeVertexNormals(); g.rotateY(0.5); g.translate(0.033, 0.014, -0.012); return paint(g, 0xdadde2); })()];
+  const saucer = meshOf(mergeGeometries([paint(saucerGeo, 0xf4f1ea), ...spoon]), new THREE.MeshBasicNodeMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  const cupOut = [[0.02, 0.006], [0.023, 0.003], [CUP.r - 0.005, 0.008], [CUP.r - 0.001, 0.02], [CUP.r, CUP.h * 0.6], [CUP.r + 0.002, CUP.h - 0.002], [CUP.r + 0.0015, CUP.h], [CUP.r - 0.002, CUP.h], [CUP.r - 0.003, CUP.h * 0.6], [CUP.r - 0.006, 0.014], [0, 0.011]];
+  const cupGeo = new THREE.LatheGeometry(cupOut.map(([x, y]) => new THREE.Vector2(x, y)), 28);
   const cupMesh = meshOf(paint(cupGeo, 0xf7f4ee), new THREE.MeshBasicNodeMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-  const handle = solid([(() => { const t = new THREE.TorusGeometry(0.014, 0.004, 6, 12, Math.PI * 1.2); t.rotateZ(-Math.PI * 0.6); t.translate(CUP.r + 0.006, CUP.h * 0.55, 0); return paint(t, 0xf7f4ee); })()]);
-  // what is in the cup: one disc (coffee, then Williams), the sugar heap (a cone), the flame
-  const fill = meshOf(new THREE.CircleGeometry(CUP.r - 0.006, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: COFFEE }));
-  const heap = meshOf(new THREE.ConeGeometry(CUP.r - 0.008, 0.02, 16), new THREE.MeshBasicNodeMaterial({ color: SUGAR_WHITE }));
+  const handle = solid([(() => { const t = new THREE.TorusGeometry(0.014, 0.0038, 8, 16, Math.PI * 1.2); t.rotateZ(-Math.PI * 0.6); t.translate(CUP.r + 0.006, CUP.h * 0.55, 0); return paint(t, 0xf7f4ee); })()]);
+  // what is in the cup: one disc (coffee, then Williams) with the espresso's crema round its edge, the sugar heap (a
+  // rounded cone), the flame
+  const fill = meshOf(new THREE.CircleGeometry(CUP.r - 0.004, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: COFFEE }));
+  const crema = meshOf(new THREE.RingGeometry(CUP.r - 0.011, CUP.r - 0.004, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: 0xa8713a, transparent: true, opacity: 0.9 }));
+  crema.position.y = 0.0006;
+  fill.add(crema);
+  const heapGeo = new THREE.LatheGeometry([[CUP.r - 0.007, -0.01], [CUP.r - 0.012, -0.004], [0.012, 0.004], [0.005, 0.009], [0, 0.01]].map(([x, y]) => new THREE.Vector2(x, y)), 18);
+  const heap = meshOf(heapGeo, new THREE.MeshBasicNodeMaterial({ color: SUGAR_WHITE }));
   const cupFlame = makeFlame();
   const cup = new THREE.Group();
   cup.add(saucer);
@@ -496,23 +785,38 @@ function buildFlaemmliSet(group, parts, rounds = FLAEMMLI.rounds) {
   cup.add(bowl);
   cup.position.set(CUP.x, COUNTER_Y, CUP.z);
   group.add(cup);
+  // the espresso's steam, and the smoke of a flame gone out: three wisps
+  const steam = [0, 1, 2].map(() => { const m = glow(0.06, 0.09, 0xffffff, 0); m.visible = false; group.add(m); return m; });
+  // the light the flames throw on the counter
+  const cupPool = pool(0.62, 0x4f9dff, 0), shotPool = pool(0.42, 0x4f9dff, 0);
+  cupPool.position.set(CUP.x, COUNTER_Y + 0.004, CUP.z);
+  shotPool.position.set(SHOT.x, COUNTER_Y + 0.004, SHOT.z);
+  group.add(cupPool, shotPool);
   // the sugar dispenser: a glass body with sugar in it and a steel spout; its stream
   const sugar = new THREE.Group();
-  sugar.add(meshOf(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 14, 1, true).translate(0, 0.05, 0), new THREE.MeshBasicNodeMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, depthWrite: false })));
-  sugar.add(solid([cyl(0.027, 0.027, 0.055, 0, 0.0285, 0, 0xf2eee4, 14), cyl(0.031, 0.031, 0.012, 0, 0.106, 0, 0xb8bec6, 14), cyl(0.006, 0.01, 0.03, 0.018, 0.125, 0, 0xb8bec6, 8)]));
-  const sugarStream = meshOf(new THREE.CylinderGeometry(0.0025, 0.0025, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xffffff }));
+  sugar.add(meshOf(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 18, 1, true).translate(0, 0.05, 0), new THREE.MeshBasicNodeMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.3, depthWrite: false })));
+  sugar.add(solid([cyl(0.027, 0.027, 0.055, 0, 0.0285, 0, 0xf2eee4, 16), cyl(0.031, 0.031, 0.004, 0, 0.002, 0, 0xb8bec6, 16), cyl(0.0315, 0.031, 0.006, 0, 0.103, 0, 0xb8bec6, 16), cyl(0.012, 0.031, 0.016, 0, 0.114, 0, 0xc6ccd4, 16), cyl(0.005, 0.009, 0.03, 0.018, 0.128, 0, 0xb8bec6, 8)]));
+  const sugarStream = meshOf(new THREE.CylinderGeometry(0.0016, 0.0032, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xffffff }));
   sugarStream.visible = false;
   group.add(sugarStream);
   sugar.position.set(SUGAR_AT.x, COUNTER_Y, SUGAR_AT.z);
   group.add(sugar);
-  // the Williams: a tall clear bottle, the pear-yellow label, a dark cap; its stream
+  // the Williams: a tall clear bottle with the pear schnapps in it, the pear-yellow label, a dark cap; its stream
   const bottle = new THREE.Group();
-  bottle.add(meshOf(new THREE.CylinderGeometry(0.035, 0.037, 0.2, 16).translate(0, 0.1, 0), new THREE.MeshBasicNodeMaterial({ color: 0xe8f0e0, transparent: true, opacity: 0.55, depthWrite: false })));
-  bottle.add(solid([cyl(0.0372, 0.0372, 0.07, 0, 0.09, 0, 0xd8c23a, 16), cyl(0.012, 0.03, 0.05, 0, 0.225, 0, 0xe0e8dc, 12), cyl(0.0125, 0.0125, 0.03, 0, 0.26, 0, 0x2a2a2a, 10)]));
-  const label = textPlane('WILLIAMS', 0.065, 0.026, { bg: '#d8c23a', fg: '#3a2a08', font: '900 120px Inter, Arial, sans-serif' });
-  label.position.set(0, 0.09, 0.0375);
+  bottle.add(meshOf(new THREE.CylinderGeometry(0.035, 0.037, 0.2, 18).translate(0, 0.1, 0), new THREE.MeshBasicNodeMaterial({ color: 0xe8f0e0, transparent: true, opacity: 0.42, depthWrite: false })));
+  bottle.add(meshOf(new THREE.CylinderGeometry(0.0355, 0.0375, 0.18, 3, 1, true, 0.55, 0.3).translate(0, 0.1, 0), new THREE.MeshBasicNodeMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false })));
+  bottle.add(solid([cyl(0.031, 0.033, 0.12, 0, 0.066, 0, 0xf3ecc8, 16), cyl(0.0372, 0.0372, 0.07, 0, 0.09, 0, 0xd8c23a, 18), cyl(0.012, 0.035, 0.05, 0, 0.225, 0, 0xe0e8dc, 14), cyl(0.012, 0.012, 0.03, 0, 0.262, 0, 0xe0e8dc, 12), cyl(0.0132, 0.0132, 0.022, 0, 0.286, 0, 0x2a2a2a, 10)]));
+  const label = drawnPlane(0.066, 0.06, 256, (c, w, h) => {
+    c.fillStyle = '#e4cf48'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#7a8a2a'; c.beginPath(); c.ellipse(w / 2, h * 0.36, w * 0.13, h * 0.2, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(w / 2, h * 0.22, w * 0.075, h * 0.12, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#3a2a08'; c.fillRect(w / 2 - 2, h * 0.04, 4, h * 0.1);
+    c.font = '900 44px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('WILLIAMS', w / 2, h * 0.72, w * 0.9);
+    c.font = '700 22px Georgia, serif'; c.fillText('Birnenbrand · 40 %', w / 2, h * 0.9, w * 0.9);
+  });
+  label.position.set(0, 0.09, 0.0376);
   bottle.add(label);
-  const pourStream = meshOf(new THREE.CylinderGeometry(0.003, 0.003, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xf6eed6, transparent: true, opacity: 0.8 }));
+  const pourStream = meshOf(new THREE.CylinderGeometry(0.003, 0.0022, 1, 6).translate(0, -0.5, 0), new THREE.MeshBasicNodeMaterial({ color: 0xf6eed6, transparent: true, opacity: 0.8 }));
   pourStream.visible = false;
   group.add(pourStream);
   bottle.position.set(BOTTLE_AT.x, COUNTER_Y, BOTTLE_AT.z);
@@ -520,31 +824,25 @@ function buildFlaemmliSet(group, parts, rounds = FLAEMMLI.rounds) {
   // the shot glass, its flame
   const shot = makeShotGlass(0xd99a3a);
   const shotFlame = makeFlame();
-  shotFlame.position.y = GLASS_H * 0.74;
+  shotFlame.position.y = GLASS_H * 0.78;
   shot.add(shotFlame);
   shot.position.set(SHOT.x, COUNTER_Y, SHOT.z);
   group.add(shot);
-  // the hand: a palm with four fingers and a thumb, skin-coloured, held flat over the glass
-  const SKIN = 0xe0ac8a;
-  const hand = solid([
-    box(0.072, 0.016, 0.075, 0, 0, 0, SKIN),
-    ...[-0.026, -0.0087, 0.0087, 0.026].map((x, i) => { const long = i === 1 || i === 2 ? 0.012 : 0; return box(0.0155, 0.014, 0.05 + long, x, -0.001, -0.062 - long / 2, SKIN); }),
-    box(0.017, 0.014, 0.04, 0.045, -0.002, -0.01, SKIN), box(0.05, 0.02, 0.035, 0, 0.002, 0.052, 0xd49c7c)
-  ]);
-  hand.visible = false;
+  const hand = makeHand();
   group.add(hand);
   const lighter = makeLighter();
   group.add(lighter);
-  Object.assign(parts, { cup, bowl, fill, heap, cupFlame, sugar, sugarStream, bottle, pourStream, shot, shotFlame, hand, lighter });
+  Object.assign(parts, { cup, bowl, fill, crema, heap, cupFlame, steam, cupPool, shotPool, sugar, sugarStream, bottle, pourStream, shot, shotFlame, hand, lighter });
   parts.empties = makeEmpties(group, rounds, 0.24).map((m) => { m.position.z += 0.1; return m; });
 }
 
 // (a mission other than the Rot Liechtli's sets `flaemmli: { look, rounds }` on its definition, the Fondue Night one round
 // in the Schatzalp's Stübli; its objective 'flaemmli' ends with the game, and the room goes with the next objective)
 const flaemmliSpec = (run) => ({ look: 'rot', rounds: FLAEMMLI.rounds, leave: false, ...run.def.flaemmli });
+const FL_STATE = () => ({ seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false, wide: 1, sipK: 0, sugarK: 0, bottleK: 0, smokeT: 0, prevStep: null, marks: {} });
 const flaemmli = {
   setup(run) {
-    const fl = run.fl = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a Flämmli'), seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false };
+    const fl = run.fl = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a Flämmli', STEP_NAMES), noise: null, noiseKind: null, ...FL_STATE() };
     const up = (e) => { if (fl.down) { e?.preventDefault?.(); flaemmli.release(run); } };
     run.listen(fl.ui.act, 'pointerdown', (e) => { e.preventDefault(); try { fl.ui.act.setPointerCapture(e.pointerId); } catch { /* (a synthetic event) */ } flaemmli.press(run); });
     run.listen(fl.ui.act, 'pointerup', up);
@@ -556,14 +854,18 @@ const flaemmli = {
     run.listen(window, 'blur', () => flaemmli.release(run));
     run.actions([{ kind: 'hint', kbd: ['Space', 'Enter'], label: 'the red button (held: keep the key down)', when: () => !!fl.room }]);
   },
-  reset(run) {
+  leave(run) {
     const fl = run.fl;
+    holdNoise(run, fl, null);
     fl.room?.dispose(); fl.room = null;
     fl.ui.hud.hidden = true; fl.ui.veil.hidden = true;
-    Object.assign(fl, { seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false });
+  },
+  reset(run) {
+    flaemmli.leave(run);
+    Object.assign(run.fl, FL_STATE());
     if (run.state) { run.state.game = null; run.state.inside = false; }
   },
-  teardown(run) { run.fl.room?.dispose(); run.fl.room = null; },
+  teardown(run) { flaemmli.leave(run); },
   ownControls: (run) => !!run.fl.room, // (at the bar: js/missions.js hides the game's controls)
   key(run, e) {
     if (!run.fl.room || !gameKey(e.code)) return;
@@ -578,9 +880,9 @@ const flaemmli = {
     if (!what) return;
     blip(run, what === 'light' || what === 'pour' || what === 'wild' ? 'fwoosh' : what === 'miss' ? 'bad' : 'pock');
     if (what === 'swirl' || what === 'wild') fl.swirlT = 0.45;
-    if (what === 'pour') fl.pourT = 0.6;
+    if (what === 'pour') fl.pourT = 0.7;
     if (what === 'smother') fl.handT = 0.3;
-    if (what === 'drink') fl.lift = 0.6;
+    if (what === 'drink') fl.lift = LIFT_T;
   },
   release(run) {
     const fl = run.fl, g = run.state?.game;
@@ -592,49 +894,74 @@ const flaemmli = {
     const fl = run.fl, spec = flaemmliSpec(run);
     const parts = fl.parts = {};
     fl.room = new Room(run, run.def.interior.door, (group) => {
-      buildBar(group, parts, LOOKS[spec.look] || LOOKS.rot);
+      buildBar(group, parts, LOOKS[spec.look] || LOOKS.rot, run.def.logo || null);
       buildFlaemmliSet(group, parts, spec.rounds);
-      fl.crowd = makeCrowd([{ x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35 }, { x: 1.35, z: 0.42, yaw: -1.9, female: true }, { x: -1.55, z: 0.5, yaw: 1.9 }], group);
+      fl.crowd = makeCrowd(barPeople(spec.look === 'schatzalp' ? ['m02', 'f04', 'm04'] : ['m02', 'f02', 'm04']), group);
     });
     run.state.game = createFlaemmli(11, spec.rounds);
     run.state.inside = true;
     fl.ui.hud.hidden = false;
+    fl.wide = 1; fl.prevStep = null; fl.marks = {};
   },
   update(run, ctx, dt) {
     const fl = run.fl;
     const here = run.def.objectives[run.index]?.id === 'flaemmli';
     if (!fl.room && here && live(run)) flaemmli.enter(run);
     // (a mission that goes on after the Flämmli: out of the room with the next objective)
-    if (fl.room && !here && flaemmliSpec(run).leave) { fl.room.dispose(); fl.room = null; fl.ui.hud.hidden = true; fl.ui.veil.hidden = true; return; }
+    if (fl.room && !here && flaemmliSpec(run).leave) { flaemmli.leave(run); return; }
     const g = run.state?.game;
     if (!fl.room || !g) return;
     const before = g.step;
     flaemmliStep(g, dt);
     fl.swayT += dt;
-    for (const k of ['swirlT', 'pourT', 'handT', 'lift']) if (fl[k] > 0) fl[k] = Math.max(0, fl[k] - dt);
+    for (const k of ['swirlT', 'pourT', 'handT', 'lift', 'smokeT']) if (fl[k] > 0) fl[k] = Math.max(0, fl[k] - dt);
     if ((before === 'flambe' || before === 'ready' || before === 'smother') && (g.step === 'pause' || g.step === 'light')) blip(run, 'bad');
     if (g.last && g.last.seq !== fl.seq) { fl.seq = g.last.seq; flashPop(fl.ui.pop, g.last); if (g.last.good) blip(run, 'good'); }
   },
   after(run, ctx, dt) {
     const fl = run.fl;
-    if (!live(run)) fl.ui.hud.hidden = true;
+    if (!live(run)) { fl.ui.hud.hidden = true; holdNoise(run, fl, null); }
     fl.ui.veil.hidden = !fl.room || run.phase === 'aborted' || !run.state?.game?.drinks;
     if (!fl.room || run.phase === 'aborted') return;
     const g = run.state.game, p = fl.parts;
     if (!g) return;
-    const F = FLAEMMLI, step = g.step, cam = ctx.camera;
-    // the camera: closer than at the Ex Bar, the cup and the shot glass in the middle of the view
+    const F = FLAEMMLI, step = g.step, cam = ctx.camera, t = g.t;
+    // a step is left: how it went (the row of steps), and a flame that went out leaves its smoke over the cup
+    if (step !== fl.prevStep) {
+      const was = fl.prevStep;
+      if (was) fl.marks[was] = !g.last || g.last.good;
+      if ((was === 'flambe' || was === 'ready') && (step === 'light' || step === 'pause' || step === 'drink')) fl.smokeT = 1.5;
+      if (step === 'order') fl.marks = {};
+      fl.prevStep = step;
+    }
+    // the camera: the room from the stool while ordering and between the rounds (the name, the lamp, the guests); then
+    // close, the cup and the shot glass in the middle of the view
     const portrait = window.innerHeight > window.innerWidth;
     const s = flaemmliSway(fl.swayT, g.drinks);
-    fl.room.camera(cam, { x: 0.03 + s.x, y: 1.4 + s.y, z: portrait ? 1.05 : 0.72 }, { x: 0.03 + s.lookX, y: COUNTER_Y + (portrait ? 0.16 : 0.1) + s.lookY, z: -0.1 }, s.roll);
+    fl.wide += (((step === 'order' || step === 'pause') && fl.lift <= 0 ? 1 : 0) - fl.wide) * Math.min(1, dt * 2.4); // (the glass is downed up close)
+    const w = ease(fl.wide);
+    fl.room.camera(cam,
+      { x: 0.03 + s.x - 0.1 * w, y: mix(1.4, 1.58, w) + s.y, z: mix(portrait ? 1.05 : 0.72, portrait ? 2.5 : 1.75, w) },
+      { x: 0.03 + s.lookX - 0.2 * w, y: mix(COUNTER_Y + (portrait ? 0.1 : 0.02), 1.55, w) + s.lookY, z: mix(-0.1, -1.6, w) }, s.roll);
     poseCrowd(fl.crowd, dt);
     p.halo.quaternion.copy(cam.quaternion);
     p.halo.material.opacity = 0.26 + 0.05 * Math.sin(fl.swayT * 1.7);
+    if (p.candle) {
+      const k = 1 + 0.16 * Math.sin(fl.swayT * 11) + 0.1 * Math.sin(fl.swayT * 23.7);
+      p.candle.flame.scale.set(1, k, 1);
+      p.candle.flame.rotation.z = 0.12 * Math.sin(fl.swayT * 6.1);
+      p.candle.halo.quaternion.copy(cam.quaternion);
+      p.candle.halo.material.opacity = 0.26 + 0.08 * k;
+      p.candle.pool.material.opacity = 0.12 + 0.07 * k;
+    }
     const served = step !== 'order' && step !== 'pause';
-    const before = (a) => ['serve', 'sugar', 'sip', 'williams', 'light', 'flambe', 'ready', 'smother', 'drink'].indexOf(step) <= ['serve', 'sugar', 'sip', 'williams', 'light', 'flambe', 'ready', 'smother', 'drink'].indexOf(a);
+    const ORDER = ['serve', ...STEPS_SHOWN], at = ORDER.indexOf(step);
+    const before = (a) => at <= ORDER.indexOf(a);
     const gauge = flaemmliGauge(g);
-    // the set comes with the order and goes with the pause (the landlord clears it)
+    // the set comes with the order (the landlord pushes it over the counter) and goes with the pause (he clears it)
+    const slide = step === 'serve' ? -(1 - ease(g.stepT / F.serve)) * 0.24 : 0;
     p.cup.visible = served || fl.lift > 0;
+    p.cup.position.z = CUP.z + slide;
     p.sugar.visible = served && before('sip');
     p.bottle.visible = served && before('light');
     p.shot.visible = served || fl.lift > 0;
@@ -643,71 +970,109 @@ const flaemmli = {
     p.heap.visible = served && sugarAmt > 0.03 && !before('serve');
     const heapK = clamp(sugarAmt / 0.6, 0.15, 1.5);
     p.heap.scale.set(Math.min(1, 0.5 + heapK * 0.5), heapK, Math.min(1, 0.5 + heapK * 0.5));
-    p.heap.position.y = 0.008 + 0.01 * heapK;
-    const car = (step === 'flambe' || step === 'ready' || step === 'smother') ? clamp(g.caramel, 0, 1) : 0;
+    p.heap.position.y = 0.012 + 0.01 * heapK;
+    const flaming = step === 'flambe' || step === 'ready' || step === 'smother';
+    const car = flaming ? clamp(g.caramel, 0, 1) : 0;
     p.heap.material.color.copy(_c.copy(SUGAR_WHITE).lerp(CARAMEL, car));
+    // (the caramel bubbles as it comes)
+    if (flaming && car > 0.2) p.heap.scale.y *= 1 + 0.07 * car * Math.sin(t * 19);
     let level = 0, col = COFFEE;
     if (step === 'serve' || step === 'sugar') level = 0.8;
     else if (step === 'sip') level = 0.8 * (1 - clamp(gauge.value / F.hold.sip.zone[1], 0, 1)) + 0.05;
     else if (step === 'williams') { const left = clamp((F.hold.sip.zone[0] - g.sip) / F.hold.sip.zone[0], 0, 1) * 0.8; level = left + gauge.value * 0.45; col = left > 0.05 && gauge.value < 0.2 ? COFFEE : WILLIAMS; }
     else if (step === 'light' || step === 'flambe' || step === 'ready') { level = 0.08 + g.williams * 0.4 * clamp(g.fuel, 0, 1); col = WILLIAMS; }
     p.fill.visible = served && level > 0.04 && step !== 'smother' && step !== 'drink';
-    p.fill.position.y = 0.008 + (CUP.h - 0.012) * clamp(level, 0, 1);
+    p.fill.position.y = 0.012 + (CUP.h - 0.016) * clamp(level, 0, 1);
     p.fill.material.color.copy(col === WILLIAMS ? _c.copy(WILLIAMS).lerp(CARAMEL, car) : col);
-    // the sip: the cup lifted to the lips while held
-    const sipping = step === 'sip' && g.holding;
+    p.crema.visible = col === COFFEE;
+    // what is held eases into place: the cup to the lips, the dispenser and the bottle over the cup
+    const sipping = step === 'sip' && g.holding, sugaring = step === 'sugar' && g.holding, wPour = step === 'williams' && g.holding;
+    const toward = (key, on, rate) => { fl[key] += ((on ? 1 : 0) - fl[key]) * Math.min(1, dt * rate); return ease(fl[key]); };
+    const sipK = toward('sipK', sipping, 9), sugarK = toward('sugarK', sugaring, 12), bottleK = toward('bottleK', wPour, 12);
     const pouring = fl.pourT > 0;
-    p.bowl.position.set(0, sipping ? 0.17 : 0, sipping ? 0.26 : 0);
-    p.bowl.rotation.set(sipping ? -0.9 : 0, 0, 0);
-    if (pouring) { // the cup over the shot glass, tipped
-      const k = 1 - fl.pourT / 0.6;
-      p.bowl.position.set((SHOT.x - CUP.x) * Math.min(1, k * 2.5), 0.09 * Math.sin(Math.min(1, k * 2.5) * Math.PI / 2), (SHOT.z - CUP.z) * Math.min(1, k * 2.5));
-      p.bowl.rotation.set(0, 0, -1.6 * Math.sin(Math.min(1, k * 1.6) * Math.PI / 2));
+    // the sip: the cup lifted to the lips while held, tipped further as it empties
+    p.bowl.position.set(0, 0.17 * sipK, 0.26 * sipK);
+    p.bowl.rotation.set(-(0.55 + 0.5 * (step === 'sip' ? gauge.value : 0)) * sipK, 0, 0);
+    let pourK = 0;
+    if (pouring) { // the cup over the shot glass, tipped: its lip over the glass
+      pourK = 1 - fl.pourT / 0.7;
+      const go = ease(pourK * 2.6) * ease((1 - pourK) * 5 + 0.2), tip = ease(pourK * 1.9) * ease((1 - pourK) * 5);
+      p.bowl.position.set((SHOT.x - CUP.x - 0.058) * go, 0.125 * go, (SHOT.z - CUP.z) * go);
+      p.bowl.rotation.set(0, 0, -1.6 * tip);
     } else if (fl.swirlT > 0) { // a swirl: a small circle
       const k = fl.swirlT / 0.45;
-      p.bowl.position.x += 0.006 * k * Math.sin(k * 14); p.bowl.position.z += 0.006 * k * Math.cos(k * 14);
-      p.bowl.rotation.z = 0.12 * k * Math.sin(k * 14); p.bowl.rotation.x = 0.12 * k * Math.cos(k * 14);
+      p.bowl.position.x += 0.008 * k * Math.sin(k * 14); p.bowl.position.z += 0.008 * k * Math.cos(k * 14);
+      p.bowl.rotation.z = 0.14 * k * Math.sin(k * 14); p.bowl.rotation.x = 0.14 * k * Math.cos(k * 14);
     }
     // the sugar dispenser: tipped over the cup while held
-    const sugaring = step === 'sugar' && g.holding;
     // (tipped about its foot: the spout's tip, 0.14 m up, comes to lie 0.127 m to the side and 0.058 m lower)
-    p.sugar.position.set(sugaring ? CUP.x - 0.127 : SUGAR_AT.x, COUNTER_Y + (sugaring ? 0.145 : 0), sugaring ? CUP.z : SUGAR_AT.z);
-    p.sugar.rotation.z = sugaring ? -2.0 : 0;
-    p.sugarStream.visible = sugaring;
-    if (sugaring) { p.sugarStream.position.set(CUP.x, COUNTER_Y + 0.087, CUP.z); p.sugarStream.scale.y = 0.06; }
+    p.sugar.position.set(mix(SUGAR_AT.x, CUP.x - 0.127, sugarK), COUNTER_Y + 0.145 * sugarK, mix(SUGAR_AT.z, CUP.z, sugarK) + slide);
+    p.sugar.rotation.z = -2.0 * sugarK - (sugaring ? 0.03 * Math.sin(t * 26) : 0); // (shaken a little as it runs)
+    p.sugarStream.visible = sugaring && sugarK > 0.8;
+    if (p.sugarStream.visible) { const j = 1 + 0.35 * Math.sin(t * 47); p.sugarStream.position.set(CUP.x + 0.002 * Math.sin(t * 26), COUNTER_Y + 0.087, CUP.z); p.sugarStream.scale.set(j, 0.062, j); }
     // the Williams: tipped over the cup while held
-    const wPour = step === 'williams' && g.holding;
     // (tipped about its foot: the neck's end, 0.275 m up, comes to lie 0.26 m to the side and 0.09 m lower)
-    p.bottle.position.set(wPour ? CUP.x + 0.26 : BOTTLE_AT.x, COUNTER_Y + (wPour ? 0.18 : 0), wPour ? CUP.z : BOTTLE_AT.z);
-    p.bottle.rotation.z = wPour ? 1.9 : 0;
-    p.pourStream.visible = wPour;
-    if (wPour) { p.pourStream.position.set(CUP.x, COUNTER_Y + 0.09, CUP.z); p.pourStream.scale.y = 0.06; }
-    // the cup's flame
+    p.bottle.position.set(mix(BOTTLE_AT.x, CUP.x + 0.275, bottleK), COUNTER_Y + 0.19 * bottleK, mix(BOTTLE_AT.z, CUP.z, bottleK) + slide);
+    p.bottle.rotation.z = 1.9 * bottleK;
+    p.pourStream.visible = (wPour && bottleK > 0.8) || (pouring && pourK > 0.3 && pourK < 0.86);
+    if (p.pourStream.visible) {
+      if (wPour) { p.pourStream.position.set(CUP.x, COUNTER_Y + 0.094, CUP.z); p.pourStream.scale.set(1, 0.066, 1); p.pourStream.material.color.copy(WILLIAMS); }
+      else { p.pourStream.position.set(SHOT.x, COUNTER_Y + 0.105, SHOT.z); p.pourStream.scale.set(1.3, 0.085, 1.3); p.pourStream.material.color.copy(_c.copy(WILLIAMS).lerp(CARAMEL, 0.7)); }
+    }
+    // the cup's flame, its light on the counter
     const burning = step === 'flambe' || step === 'ready';
-    p.cupFlame.visible = burning || (pouring && g.step === 'smother');
-    if (p.cupFlame.visible) { p.cupFlame.position.y = CUP.h * 0.5; p.cupFlame.rotation.z = -p.bowl.rotation.z; poseStrength(p.cupFlame, burning ? g.flame : 0.5, g.t, cam, 1.25); }
+    p.cupFlame.visible = burning || (pouring && step === 'smother' && pourK < 0.8);
+    if (p.cupFlame.visible) { p.cupFlame.position.y = CUP.h * 0.5; p.cupFlame.rotation.z = -p.bowl.rotation.z; poseStrength(p.cupFlame, burning ? g.flame : 0.5, t, cam, 1.25); }
+    p.cupPool.material.opacity = burning ? (0.1 + 0.3 * clamp(g.flame, 0, 1)) * (1 + 0.12 * Math.sin(t * 29)) : 0;
+    if (burning) p.cupPool.material.color.copy(p.cupFlame.mat.color);
+    // the steam of the hot espresso; the smoke of a flame gone out
+    const hot = step === 'serve' || step === 'sugar' ? 1 : step === 'sip' ? 1 - clamp(gauge.value / F.hold.sip.zone[1], 0, 1) : 0;
+    const smoke = fl.smokeT / 1.5, wisp = Math.max(hot * (1 - sipK), smoke);
+    p.steam.forEach((m, i) => {
+      m.visible = wisp > 0.02 && p.cup.visible;
+      if (!m.visible) return;
+      const ph = (fl.swayT * (smoke > 0 ? 0.8 : 0.42) + i / 3) % 1;
+      m.position.set(CUP.x + 0.014 * ph * Math.sin(fl.swayT * 1.7 + i * 2.1), COUNTER_Y + CUP.h + 0.012 + ph * (smoke > 0 ? 0.2 : 0.13), CUP.z + slide);
+      m.scale.setScalar((0.6 + ph * 1.3) * (smoke > 0 ? 1.5 : 1));
+      m.material.opacity = wisp * (smoke > 0 ? 0.3 : 0.17) * Math.sin(Math.PI * ph);
+      m.quaternion.copy(cam.quaternion);
+    });
     // the lighter swings over the cup
     p.lighter.visible = step === 'light';
     if (p.lighter.visible) p.lighter.position.set(CUP.x + (gauge.value - 0.5) * 0.4, COUNTER_Y + CUP.h + 0.05, CUP.z);
     // the shot glass: empty, then burning; the hand over it; downed
-    p.shot.spirit.visible = (step === 'smother' && !pouring) || step === 'drink';
-    p.shotFlame.visible = step === 'smother' && !pouring;
-    if (p.shotFlame.visible) poseStrength(p.shotFlame, 0.45 + 0.25 * g.heat, g.t, cam, 0.7);
+    const poured = (step === 'smother' && (!pouring || pourK > 0.5)) || step === 'drink';
+    p.shot.spirit.visible = poured;
+    p.shotFlame.visible = step === 'smother' && poured && fl.handT <= 0;
+    if (p.shotFlame.visible) poseStrength(p.shotFlame, 0.45 + 0.25 * g.heat, t, cam, 0.7 * (pouring ? ease((pourK - 0.5) * 4) : 1));
+    p.shotPool.material.opacity = p.shotFlame.visible ? (0.16 + 0.14 * g.heat) * (1 + 0.12 * Math.sin(t * 31)) : 0;
+    if (p.shotFlame.visible) p.shotPool.material.color.copy(p.shotFlame.mat.color);
     const handOn = step === 'drink' || fl.handT > 0;
     p.hand.visible = (step === 'smother' && !pouring) || handOn;
+    p.hand.rotation.set(0, HAND_YAW, 0);
     if (p.hand.visible) {
-      const hover = step === 'smother' ? 0.1 - 0.03 * g.heat : 0;
-      const k = fl.handT > 0 ? fl.handT / 0.3 : 0;
-      p.hand.position.set(SHOT.x, COUNTER_Y + GLASS_H + 0.009 + (handOn ? 0.15 * k : hover), SHOT.z + 0.025);
+      // (it hovers lower as the glass warms, then claps down)
+      const hover = step === 'smother' ? 0.11 - 0.035 * g.heat + 0.004 * Math.sin(t * 5) : 0;
+      const k = fl.handT > 0 ? ease(fl.handT / 0.3) : 0;
+      p.hand.position.set(SHOT.x, COUNTER_Y + GLASS_H + 0.011 + (handOn ? 0.11 * k : hover), SHOT.z + 0.012);
     }
-    if (fl.lift > 0) { // the glass with the hand on it to the lips
-      const k = 1 - fl.lift / 0.6;
-      p.shot.position.set(SHOT.x, COUNTER_Y + Math.sin(Math.min(1, k * 1.4) * Math.PI / 2) * 0.2, SHOT.z + k * 0.3);
-      p.shot.rotation.x = -k * 1.7;
-      p.shot.spirit.visible = k < 0.6;
-      p.hand.visible = false;
-    } else { p.shot.position.set(SHOT.x, COUNTER_Y, SHOT.z); p.shot.rotation.x = 0; }
+    p.shot.position.set(SHOT.x, COUNTER_Y, SHOT.z + slide);
+    p.shot.rotation.set(0, 0, 0);
+    if (fl.lift > 0) { // the glass sticks to the palm: lifted off the counter on it, shown round, then to the lips
+      const k = 1 - fl.lift / LIFT_T, up = ease(k / 0.4), tip = ease((k - 0.45) / 0.55);
+      const a = -1.75 * tip, y = COUNTER_Y + 0.13 * up + 0.1 * tip, z = SHOT.z + 0.34 * tip;
+      const x = SHOT.x + (k < 0.45 ? 0.006 * Math.sin(k * 60) * (1 - up * 0.5) : 0); // (a little shake: it holds)
+      p.shot.position.set(x, y, z);
+      p.shot.rotation.x = a;
+      p.shot.spirit.visible = k < 0.75;
+      // (the palm on the rim, turning with the glass about its foot)
+      const oy = GLASS_H + 0.011, oz = 0.012;
+      p.hand.visible = true;
+      p.hand.position.set(x, y + oy * Math.cos(a) - oz * Math.sin(a), z + oy * Math.sin(a) + oz * Math.cos(a));
+      p.hand.rotation.x = a;
+    }
     if (fl.shown !== g.drinks) { fl.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
+    holdNoise(run, fl, sugaring ? 'sugar' : wPour ? 'pour' : null);
     // the HUD
     const ui = fl.ui;
     setText(ui.line, barRoundLine(g.round, g.rounds, flaemmliScore(g), g.strikes, F.strikes));
@@ -715,6 +1080,13 @@ const flaemmli = {
     ui.act.classList.toggle('held', !!g.holding);
     ui.caramel.hidden = gauge.caramel === null;
     if (gauge.caramel !== null) ui.caramelFill.style.transform = `scaleX(${gauge.caramel})`;
+    const now = STEPS_SHOWN.indexOf(step);
+    ui.stepNodes.forEach((n, i) => {
+      const id = STEPS_SHOWN[i], done = id in fl.marks && i !== now;
+      n.classList.toggle('on', i === now);
+      n.classList.toggle('done', done);
+      n.classList.toggle('bad', done && !fl.marks[id]);
+    });
     ui.veil.style.opacity = `${clamp(g.drinks / F.rounds, 0, 1) * 0.85}`; // (one Flämmli sways one third as much)
   }
 };

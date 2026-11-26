@@ -138,7 +138,7 @@ function buildKongress(run) {
   // a few of the camp at the door, turned to whoever comes up the forecourt
   const people = new THREE.Group();
   people.position.set(KONGRESS_DOOR.x, y, KONGRESS_DOOR.z);
-  const spots = [[-2.6, 0.9, 0.5], [-1.5, 0.2, 0.2], [1.9, 0.5, -0.3], [3.0, 1.2, -0.6]].map(([x, z, yawK], i) => ({ x, z, yaw: yawK, female: i % 2 === 1 }));
+  const spots = [[-2.6, 0.9, 0.5], [-1.5, 0.2, 0.2], [1.9, 0.5, -0.3], [3.0, 1.2, -0.6]].map(([x, z, yawK], i) => ({ x, z, yaw: yawK, female: i % 2 === 1, figure: ['m04', 'f04', 'm02', 'f01'][i] })); // (the player's figures: js/player-figure.js)
   const crowd = makeCrowd(spots, people);
   run.group.add(people);
   return crowd;
@@ -163,7 +163,7 @@ function buildTable(run) {
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 6).translate(0, 0.9, 0.13), new THREE.MeshBasicNodeMaterial({ color: 0x5aa8ff }));
   top.castShadow = pot.castShadow = true;
   g.add(top, leg, burner, pot, fill, handle, flame);
-  const spots = [[-0.95, -0.25, 1.3], [0.2, -1.0, -0.2], [0.95, 0.35, -1.9]].map(([x, z, yaw], i) => ({ x, z, yaw, female: i === 1 }));
+  const spots = [[-0.95, -0.25, 1.3], [0.2, -1.0, -0.2], [0.95, 0.35, -1.9]].map(([x, z, yaw], i) => ({ x, z, yaw, female: i === 1, figure: ['m04', 'f02', 'm02'][i] }));
   const crowd = makeCrowd(spots, g);
   run.group.add(g);
   return { crowd, flame };

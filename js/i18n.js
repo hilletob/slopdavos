@@ -886,6 +886,8 @@ const pairs = [
   ['Golden caramel: pour it into the shot glass, still burning!', 'Goldenes Caramel: brennend ins Shotglas leeren!'], ['Pour it over', 'Ins Shotglas leeren'],
   ['Smother it with your palm: when the glass is warm, not hot', 'Mit der Hand ersticken: wenn das Glas warm ist, nicht heiss'], ['Hand on the glass', 'Hand aufs Glas'],
   ['Hopp: down it!', 'Hopp: ex!'],
+  // (the row of steps over the gauge, js/missions-gastro.js; 'Williams', 'Ex' and 'Caramel' are the same in both)
+  ['Sugar', 'Zucker'], ['Sip', 'Schluck'], ['Flambé', 'Flambieren'], ['Pour over', 'Umgiessen'], ['Smother', 'Ersticken'],
   ['A proper heap', 'Ein rechter Haufen'], ['Perfect heap of sugar!', 'Perfekter Zuckerberg!'], ['A bit stingy with the sugar', 'Etwas geizig mit dem Zucker'], ['A sugar mountain', 'Ein Zuckergebirge'], ['A sugar mountain: it spills!', 'Ein Zuckergebirge: es läuft über!'],
   ['Espresso down, sugar stays', 'Espresso weg, Zucker bleibt'], ['Just the sugar left!', 'Nur noch der Zucker drin!'], ['Coffee left in the cup: the flame will struggle', 'Kaffee im Tassli: die Flamme wird kämpfen'], ['Swallowed half the sugar', 'Den halben Zucker mitgetrunken'], ['Swallowed half the sugar: it spills!', 'Den Zucker mitgetrunken: alles weg!'],
   ['A good splash', 'Ein guter Schluck'], ['Exactly two centilitres!', 'Genau zwei Zentiliter!'], ['Not much Williams: it burns off fast', 'Wenig Williams: der brennt schnell ab'], ['Generous: it will burn wild', 'Grosszügig: das brennt wild'], ['Generous: it will burn wild: it spills!', 'Zu grosszügig: es läuft über!'],
