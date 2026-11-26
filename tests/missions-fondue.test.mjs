@@ -4,20 +4,23 @@ import { readFileSync } from 'node:fs';
 import { MISSIONS, getMission } from '../js/missions-data.js';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { medalFor } from '../js/missions-progress.js';
-import { createSledge, stepSledge, botInput, SLEDGE_CRASH_MS } from '../js/missions-data-sledge.js';
-import { pointAt } from '../js/missions-data-snow.js';
+import { createSledge, stepSledge, projectOnRun, laneAt, bendAt, DRIFT, SLEDGE_CRASH_MS } from '../js/missions-data-sledge.js';
+import { pointAt, riderSpeed, travelHeading } from '../js/missions-data-snow.js';
+import { createFlaemmli } from '../js/missions-data-gastro.js';
 import {
-  FONDUE_MISSION, FONDUE_MISSIONS, FONDUE_START, KONGRESS_DOOR, SCHATZALP_ARRIVAL, FONDUE_TABLE, SCHLITTEL_RUN, schlittelCourse,
-  STIR, createStir, stirPoint, stirLift, stirStep, stirGauge, fondueStir, lemniscate, circleStroke,
-  chooseFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll, TIPSY, schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK
+  FONDUE_MISSION, FONDUE_MISSIONS, FONDUE_START, KONGRESS_DOOR, SCHATZALP_ARRIVAL, FONDUE_TABLE, SCHLITTEL_RUN, schlittelCourse, smoothRun,
+  STIR, createStir, stirPoint, stirLift, stirStep, stirGauge, fondueStir, lemniscate, circleStroke, SHORTCUTS, LANE,
+  flaemmliEffect, effectWord, settleFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll, driftInput, assistInput, laneBot, driftBot, passShortcut, TIPSY,
+  schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK
 } from '../js/missions-data-fondue.js';
 import { loadI18n } from './helpers/dom-stub.mjs';
 import { frameWith } from './helpers/frames.mjs';
 
 // tests/missions-fondue.test.mjs
 // The Drupal Mountain Camp's Fondue Night (js/missions-data-fondue.js is three.js-free): the places, the figure of
-// eight told from circles and scribbles with strokes as a pointer would bring them, the Flämmli's choice, a bot down the
-// Schatzalp's sled run on the real terrain with and without effect, the whole evening with synthetic frames, its German.
+// eight told from circles and scribbles with strokes as a pointer would bring them, the Flämmli's effect by its Williams,
+// the smoothed run and its shortcuts, the drift, bots down the Schatzalp's sled run on the real terrain with and without
+// the shortcuts and the Flämmli's effect, the whole evening with synthetic frames, its German.
 
 const DT = 1 / 120;
 const inRing = (r, x, z) => {
@@ -43,7 +46,9 @@ test('the Fondue Night is listed: on foot, in winter, in the evening, with its l
   assert.equal(getMission('fondue-night-schatzalp'), m);
   assert.ok(MISSIONS.includes(m) && FONDUE_MISSIONS.includes(m));
   assert.equal(m.mode, 'person'); assert.equal(m.season, 'winter'); assert.equal(m.time, 'evening');
-  assert.deepEqual(m.features, ['fondueNight']);
+  assert.deepEqual(m.features, ['fondueNight', 'flaemmli']);
+  assert.deepEqual(m.flaemmli, { look: 'schatzalp', rounds: 1, leave: true });
+  assert.equal(m.interior.door, FONDUE_TABLE);
   assert.equal(m.board, 'fondue-night-schatzalp-1');
   assert.ok(m.medals.gold < m.medals.silver && m.medals.silver < m.medals.bronze);
   assert.equal(m.bonusMs, m.medals.gold);
@@ -61,7 +66,18 @@ test('the places stand outside every building, the run is the mapped sled run', 
   const c = schlittelCourse();
   assert.equal(SCHLITTEL_RUN.length, 176 * 2);
   assert.ok(c.length > 2200 && c.length < 2320, `${c.length}`);
-  assert.ok(c.bends.length >= 25, `${c.bends.length} bends`);
+  assert.ok(c.bends.filter((b) => !b.berm).length >= 25, `${c.bends.length} bends`);
+  // (the smoothed line keeps to the mapped ways' bench: within 1.2 m of them, and no corner left in it)
+  const raw = { ...schlittelCourse(), pts: SCHLITTEL_RUN };
+  const mapped = (x, z) => { let best = Infinity; for (let i = 2; i < SCHLITTEL_RUN.length; i += 2) { const ax = SCHLITTEL_RUN[i - 2], az = SCHLITTEL_RUN[i - 1], ux = SCHLITTEL_RUN[i] - ax, uz = SCHLITTEL_RUN[i + 1] - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz))); best = Math.min(best, Math.hypot(x - ax - ux * t, z - az - uz * t)); } return best; };
+  for (let i = 0; i < c.pts.length; i += 2) assert.ok(mapped(c.pts[i], c.pts[i + 1]) < 1.25, `point ${i / 2}`);
+  assert.ok(raw && smoothRun().length === c.pts.length);
+  let turn = 0;
+  for (let i = 4; i < c.pts.length; i += 2) {
+    const h0 = Math.atan2(c.pts[i - 2] - c.pts[i - 4], c.pts[i - 1] - c.pts[i - 3]), h1 = Math.atan2(c.pts[i] - c.pts[i - 2], c.pts[i + 1] - c.pts[i - 1]);
+    turn = Math.max(turn, Math.abs(Math.atan2(Math.sin(h1 - h0), Math.cos(h1 - h0))));
+  }
+  assert.ok(turn < 0.6, `the sharpest corner between two 2 m steps: ${turn} rad`);
   for (let i = 0; i < SCHLITTEL_RUN.length; i += 2) assert.ok(SCHLITTEL_RUN[i] > -1500 && SCHLITTEL_RUN[i] < -900 && SCHLITTEL_RUN[i + 1] > -1100 && SCHLITTEL_RUN[i + 1] < 250, `node ${i / 2} between the Schatzalp and Davos Platz`);
   for (let i = 0; i < SCHLITTEL_RUN.length; i += 2) assert.ok(!inBuilding(SCHLITTEL_RUN[i], SCHLITTEL_RUN[i + 1]), `node ${i / 2}`);
 });
@@ -121,16 +137,26 @@ test('circles split the cheese, scribbles and dawdling make no eight, standing s
   assert.match(stirGauge(st.stir).hint, /Caught on the bottom/);
 });
 
-test('the Flämmli: one choice, and with effect the horns answer late and pull to a side', () => {
+test('the Flämmli: one round in the Stübli, its effect by the Williams poured, none if it was not drunk', () => {
+  const g = createFlaemmli(11, 1);
+  assert.equal(g.rounds, 1);
+  assert.equal(flaemmliEffect(g), 0, 'nothing drunk yet');
+  assert.equal(flaemmliEffect({ ...g, drinks: 1, williams: 0.1 }), 0.15, 'a drop of Williams: a little effect');
+  const good = flaemmliEffect({ ...g, drinks: 1, williams: 0.6 }), strong = flaemmliEffect({ ...g, drinks: 1, williams: 0.95 });
+  assert.ok(good > 0.5 && good < 0.8 && strong === 1, `${good} ${strong}`);
+  assert.deepEqual([0, 0.2, good, strong].map(effectWord), ['none', 'mild', 'good', 'strong']);
   const st = FONDUE_MISSION.createState();
-  assert.equal(flaemmliParams(st.choice).track, SCHLITTEL_TRACK, 'the run\'s own track before the choice');
-  assert.ok(chooseFlaemmli(st, true)); assert.equal(st.choice, 'tipsy');
-  assert.ok(!chooseFlaemmli(st, false), 'chosen once'); assert.equal(st.choice, 'tipsy');
-  const P = flaemmliParams('tipsy');
-  const N = flaemmliParams('sober');
-  assert.ok(P.on.maxSpeed > N.on.maxSpeed && P.track.tipG > N.track.tipG && P.on.drag < N.on.drag, 'bolder');
-  assert.ok(N.track.netSlide && P.track.netSlide && N.track.half < 2.6, 'the narrow run of the bench');
-  const a = createTipsy(), b = createTipsy();
+  assert.ok(!settleFlaemmli(st) && st.effect === null, 'no game yet');
+  st.game = { ...g, drinks: 1, williams: 0.6, done: true };
+  assert.ok(settleFlaemmli(st)); assert.equal(st.effect, good);
+  st.game.williams = 0.95;
+  assert.ok(!settleFlaemmli(st) && st.effect === good, 'settled once');
+  // the sledge after it: bolder by the effect
+  const N = flaemmliParams(0), P = flaemmliParams(1), M = flaemmliParams(good);
+  assert.ok(P.on.maxSpeed > M.on.maxSpeed && M.on.maxSpeed > N.on.maxSpeed && P.track.tipG > N.track.tipG && P.on.drag < N.on.drag, 'bolder');
+  assert.equal(N.track.half, SCHLITTEL_TRACK.half); assert.ok(N.track.netSlide && N.track.walls, 'soft banks along the run');
+  assert.equal(flaemmliParams(good), M, 'the same numbers each time');
+  const a = createTipsy(1), b = createTipsy(1);
   let first = null;
   for (let i = 0; i < 600; i++) {
     const x = tipsyInput({ steer: 1, tuck: 1, brake: i > 300 ? 1 : 0 }, DT, a), y = tipsyInput({ steer: 1, tuck: 1, brake: i > 300 ? 1 : 0 }, DT, b);
@@ -139,46 +165,122 @@ test('the Flämmli: one choice, and with effect the horns answer late and pull t
     assert.ok(x.steer >= -1 && x.steer <= 1 && x.brake >= 0 && x.brake <= 1);
   }
   assert.ok(first.steer < 0.2, 'late');
-  const c = createTipsy();
-  let drift = 0;
-  for (let i = 0; i < 1200; i++) drift = Math.max(drift, Math.abs(tipsyInput({ steer: 0 }, DT, c).steer));
-  assert.ok(drift > 0.05 && drift < 0.3, `${drift}`);
-  assert.ok(Math.abs(tipsyRoll(1.7)) <= TIPSY.roll * 1.45);
+  const pull = (k) => { const c = createTipsy(k); let d = 0; for (let i = 0; i < 1200; i++) d = Math.max(d, Math.abs(tipsyInput({ steer: 0 }, DT, c).steer)); return d; };
+  assert.ok(pull(1) > 0.05 && pull(1) < 0.3 && pull(0.3) < pull(1) * 0.5, `${pull(1)}`);
+  assert.ok(Math.abs(tipsyRoll(1.7)) <= TIPSY.roll * 1.45 && Math.abs(tipsyRoll(1.7, 0.3)) < Math.abs(tipsyRoll(1.7)));
+  assert.equal(tipsyInput({ steer: 1, brake: 1, drift: true }, DT, createTipsy(0.5)).drift, true, 'the drift goes through');
 });
 
-test('a bot down the Schatzalp run on its bench: there without and with effect, on the keys too, faster with it', async () => {
+test('the shortcuts: lanes down through the forest between stacked hairpins, the trees out of them, a snow wall at each foot', async () => {
+  const { groundHeight } = await import('../js/terrain.js');
+  const c = schlittelCourse();
+  assert.equal(c.lanes.length, SHORTCUTS.length);
+  // (js/city-grid.js keeps the forest out of the lanes: its aisles are these)
+  const grid = readFileSync(new URL('../js/city-grid.js', import.meta.url), 'utf8');
+  const aisles = JSON.parse(grid.match(/export const SLED_AISLES = (\[.*\]);/)[1]);
+  c.lanes.forEach((L, i) => {
+    assert.deepEqual(aisles[i], [L.ax, L.az, L.bx, L.bz].map((v) => Math.round(v * 10) / 10), `aisle ${i}`);
+    assert.ok(L.len > 14 && L.len < 46 && L.s1 - L.s0 - L.len > 90, `lane ${i}: ${L.len} m for ${L.s1 - L.s0} m of run`);
+    // (all the way downhill, and not along another leg of the run)
+    let prev = groundHeight(L.ax, L.az);
+    for (let t = 0.1; t <= 0.9; t += 0.1) {
+      const x = L.ax + L.ux * t * L.len, z = L.az + L.uz * t * L.len, g = groundHeight(x, z);
+      assert.ok(g < prev + 0.3, `lane ${i} climbs at ${t}`);
+      prev = Math.min(prev, g);
+      if (t > 0.25 && t < 0.75) assert.ok(Math.abs(projectOnRun(c, x, z).d) > 4, `lane ${i} runs along the run at ${t}`);
+    }
+    for (const [x, z] of L.trees) { const p = laneAt(L, x, z); assert.ok(p.t > 0.2 && p.t < 0.8 && Math.abs(p.d) < L.half - 1, `a spruce in lane ${i}`); }
+    // the snow wall below, on the side away from the lane, and no net where the lane leaves or arrives
+    const wall = bendAt(c, L.s1);
+    assert.ok(wall?.berm && wall.side === -L.from, `the wall at lane ${i}'s foot`);
+    for (let s = L.s0 - 8; s <= L.s0 + 10; s += 2) { const b = bendAt(c, s); assert.ok(!b || b.side !== L.side, `a net across lane ${i}'s top at ${s}`); }
+    for (let s = L.s1 - LANE.wall[0]; s <= L.s1 + LANE.wall[1]; s += 2) assert.ok(c.bends.every((b) => b.berm || s < b.s0 || s > b.s1 || b.side !== L.from), `a net across lane ${i}'s foot at ${s}`);
+  });
+  // the checkpoints cut out by a shortcut count as passed
+  const st = FONDUE_MISSION.createState();
+  const L = c.lanes[1], before = st.cps.findIndex((cp) => cp.s > L.s0);
+  st.next = before;
+  passShortcut(st, L.s1);
+  assert.ok(st.cps[st.next].s > L.s1 && st.cps[st.next - 1].s <= L.s1 + 2 && st.skipped === null);
+});
+
+test('the drift: S with A/D at speed slides the tail out, turns tighter, does not tip, and lets go with a push', async () => {
+  const { groundHeight, trodHeight } = await import('../js/terrain.js');
+  const c = schlittelCourse(), height = schlittelHeight(trodHeight, groundHeight), P = flaemmliParams(0);
+  assert.equal(driftInput({ steer: 1, brake: 1 }).drift, true);
+  assert.equal(driftInput({ steer: 0.2, brake: 1 }).drift, false, 'braking straight is braking');
+  assert.equal(driftInput({ steer: 1, brake: 0.3 }).drift, false);
+  // (on a straight stretch at 50 km/h: full lock and the brake, 0.8 s, then let go)
+  const turnOf = (drift) => {
+    const sl = createSledge(c, height, 612), r = sl.rider;
+    const h = r.heading; r.vx = Math.sin(h) * 14; r.vz = Math.cos(h) * 14;
+    let ev = null, maxTip = 0, slip = 0;
+    for (let i = 0; i < 96; i++) { const e = stepSledge(sl, { steer: 1, brake: 1, drift }, DT, height, c, P.track, P); ev ??= e === 'crash' ? e : null; maxTip = Math.max(maxTip, sl.tip); slip = Math.max(slip, Math.abs(Math.atan2(Math.sin(r.heading - travelHeading(r, r.heading)), Math.cos(r.heading - travelHeading(r, r.heading))))); }
+    const turned = Math.abs(Math.atan2(Math.sin(r.heading - h), Math.cos(r.heading - h))), speed = riderSpeed(r);
+    const out = stepSledge(sl, { steer: 0, brake: 0, drift: false }, DT, height, c, P.track, P);
+    return { turned, speed, after: riderSpeed(r), out, maxTip, slip, boosts: sl.boosts };
+  };
+  const heel = turnOf(false), drift = turnOf(true);
+  assert.ok(drift.turned > heel.turned * 1.25, `drift ${drift.turned} rad, the heel ${heel.turned}`);
+  assert.ok(drift.slip > DRIFT.slip && heel.slip < drift.slip, 'the tail out');
+  assert.equal(drift.maxTip, 0, 'no tip while it slides');
+  assert.ok(drift.after > heel.speed + 1, `out of the hairpin faster than the heels braked round it: ${drift.after} ${heel.speed}`);
+  assert.equal(drift.out, 'boost'); assert.equal(drift.boosts, 1);
+  assert.ok(drift.after > drift.speed + DRIFT.boost[0] * 0.9, `${drift.speed} → ${drift.after}`);
+});
+
+test('bots down the Schatzalp run: there with and without the shortcuts and the Flämmli, the shortcuts worth it, the medals by them', async () => {
   const { groundHeight, trodHeight } = await import('../js/terrain.js');
   const course = schlittelCourse();
   const height = schlittelHeight(trodHeight, groundHeight);
-  // (the bench's gaps where the mapped ways join are bridged: no pit along the line)
-  for (let s = 6; s < course.length; s += 2) {
-    const a = pointAt(course.pts, s - 2), b = pointAt(course.pts, s);
-    assert.ok(Math.abs(height(b.x, b.z) - height(a.x, a.z)) < 1, `a step at ${s} m`);
+  // (the snow is smooth along the line: no step, and no kink a sledge would take off at)
+  let prev = null, prev2 = null;
+  for (let s = 0; s < course.length; s += 2) {
+    const p = pointAt(course.pts, s), y = height(p.x, p.z);
+    if (prev !== null) assert.ok(Math.abs(y - prev) < 1, `a step at ${s} m`);
+    if (prev2 !== null) assert.ok(Math.abs(prev2 - 2 * prev + y) < 0.15, `a kink at ${s - 2} m`);
+    prev2 = prev; prev = y;
   }
-  const ride = (choice, margin, keys = false) => {
-    const sl = createSledge(course, height, SCHLITTEL_START_S), mem = createTipsy(), P = flaemmliParams(choice);
+  const ride = (k, lanes, margin, keys = false, bot = laneBot) => {
+    const sl = createSledge(course, height, SCHLITTEL_START_S), mem = createTipsy(k), P = flaemmliParams(k);
     let s = 0, n = 0, held = {};
-    while (s < 400 && sl.proj.s < course.length - 3) {
-      let input = sl.crashT > 0 ? {} : botInput(sl, course, { margin, tipG: P.track.tipG, maxSpeed: P.on.maxSpeed });
+    while (s < 400 && !(sl.proj.s >= course.length - 3 && !sl.lane)) {
+      let input = sl.crashT > 0 ? {} : bot(sl, course, { lanes, margin, tipG: P.track.tipG, maxSpeed: P.on.maxSpeed });
       // (on the keys: full lock or nothing, decided ten times a second)
       if (keys) { if (n++ % 12 === 0) held = { steer: Math.abs(input.steer || 0) > 0.3 ? Math.sign(input.steer) : 0, tuck: input.tuck ? 1 : 0, brake: input.brake ? 1 : 0 }; input = sl.crashT > 0 ? {} : held; }
-      if (choice === 'tipsy') input = tipsyInput(input, DT, mem);
+      input = assistInput(driftInput(input), sl, course); // (the game's assist, as in js/missions-fondue.js)
+      if (k) input = tipsyInput(input, DT, mem);
       stepSledge(sl, input, DT, height, course, P.track, P);
       s += DT;
     }
-    return { ms: s * 1000 + sl.crashes * SLEDGE_CRASH_MS, there: sl.proj.s >= course.length - 3, crashes: sl.crashes };
+    return { ms: s * 1000 + sl.crashes * SLEDGE_CRASH_MS, there: sl.proj.s >= course.length - 3, crashes: sl.crashes, shortcuts: sl.shortcuts };
   };
-  const sober = ride('sober', 0.7), tipsy = ride('tipsy', 0.7);
-  assert.ok(sober.there && tipsy.there, 'both at the finish');
-  assert.equal(sober.crashes, 0); assert.equal(tipsy.crashes, 0);
-  assert.ok(sober.ms > 160000 && sober.ms < 210000, `${sober.ms}`);
-  assert.ok(tipsy.ms < sober.ms - 5000 && tipsy.ms > sober.ms - 25000, `with effect ${tipsy.ms}, without ${sober.ms}`);
-  // nobody is held at a net or under the bench: every way of driving gets there
-  for (const choice of ['sober', 'tipsy']) for (const margin of [0.6, 0.82]) for (const keys of [false, true]) assert.ok(ride(choice, margin, keys).there, `${choice} ${margin} ${keys ? 'keys' : ''}`);
-  // (the evening before the ride: some 40 s)
+  const plain = ride(0, false, 0.7), cut = ride(0, true, 0.75), bold = ride(0.65, false, 0.7), boldCut = ride(0.65, true, 0.7);
+  assert.ok(plain.there && cut.there && bold.there && boldCut.there, `all at the finish: ${JSON.stringify([plain, cut, bold, boldCut])}`);
+  assert.equal(cut.shortcuts, SHORTCUTS.length); assert.equal(cut.crashes, 0);
+  assert.ok(plain.ms > 150000 && plain.ms < 200000, `${plain.ms}`);
+  assert.ok(cut.ms < plain.ms - 20000, `the shortcuts ${cut.ms}, the run ${plain.ms}`);
+  assert.ok(bold.ms < plain.ms - 5000, `with a Flämmli ${bold.ms}, without ${plain.ms}`);
+  // (a driver who drifts the hairpins instead of braking for them: there, and faster)
+  const drifty = ride(0, false, 0.85, false, driftBot);
+  assert.ok(drifty.there && drifty.ms < plain.ms, `drifting ${JSON.stringify(drifty)}, braking ${plain.ms}`);
+  assert.ok(boldCut.ms < plain.ms && boldCut.crashes <= 1, `with a Flämmli and the shortcuts (the late horns among the spruces) ${JSON.stringify(boldCut)}`);
+  // nobody is held at a net, a wall or under the bench: every way of driving gets there
+  for (const k of [0, 1]) for (const lanes of [false, true]) { const r = ride(k, lanes, 0.82, true); assert.ok(r.there, `${k} ${lanes} keys ${JSON.stringify(r)}`); }
+  // a beginner: W held, nothing else, the assist steers and brakes: there, never into a net or over
+  {
+    const sl = createSledge(course, height, SCHLITTEL_START_S), P = flaemmliParams(0);
+    let s = 0;
+    while (s < 400 && !(sl.proj.s >= course.length - 3 && !sl.lane)) { stepSledge(sl, assistInput(driftInput(sl.crashT > 0 ? {} : { tuck: 1 }), sl, course), DT, height, course, P.track, P); s += DT; }
+    assert.ok(sl.proj.s >= course.length - 3 && s < 200, `W alone: ${s} s`);
+    assert.equal(sl.crashes, 0, `${sl.crashes} crashes (${sl.last})`);
+    assert.equal(sl.shortcuts, 0, 'no shortcut taken by mistake');
+    assert.equal(medalFor(s * 1000 + sl.crashes * SLEDGE_CRASH_MS + 70000, FONDUE_MISSION.medals), 'silver');
+  }
+  // (the evening before the ride: some 70 s)
   const m = FONDUE_MISSION.medals;
-  assert.equal(medalFor(sober.ms + 40000, m), 'gold', 'a clean careful run without effect just makes gold');
-  assert.equal(medalFor(ride('sober', 0.7, true).ms + 2 * SLEDGE_CRASH_MS + 40000, m), 'silver', 'on the keys with two crashes: silver');
+  assert.equal(medalFor(cut.ms + 70000, m), 'gold', `a clean ride with the shortcuts: gold (${cut.ms})`);
+  assert.equal(medalFor(plain.ms + 70000, m), 'silver', 'a clean careful ride on the run alone: silver');
   assert.ok(medalFor(300000, m), 'a slow evening still earns a medal');
 });
 
@@ -199,9 +301,11 @@ test('the whole evening with synthetic frames, and what the panel says on the wa
   for (const p of lemniscate(9, 2)) { fondueStir(st, 1 / 60); stirPoint(st.stir, p.u, p.v, p.t); }
   v = step(2, at);
   assert.ok(v.done); assert.equal(v.progress, 1);
-  assert.ok(!step(3, at).done);
-  chooseFlaemmli(st, true);
+  v = step(3, at);
+  assert.ok(!v.done); assert.match(v.text, /Stübli/);
+  st.game = { ...createFlaemmli(11, 1), drinks: 1, williams: 0.62, score: 310, done: true };
   assert.ok(step(3, at).done);
+  assert.equal(effectWord(st.effect), 'good');
   // on the terrace still: the ride waits, no checkpoint is taken there
   v = step(4, at);
   assert.ok(!v.done); assert.match(v.text, /To the sledges/); assert.equal(st.next, 0);
@@ -216,7 +320,8 @@ test('the whole evening with synthetic frames, and what the panel says on the wa
   assert.equal(st.penaltyMs, 0);
   const lines = m.summary(st);
   assert.match(lines[0], /^8 figure eights · nothing caught$/);
-  assert.match(lines[1], /^Flämmli with effect · 0 crashes · top speed 0 km\/h$/);
+  assert.equal(lines[1], 'Flämmli 310 pts · effect good');
+  assert.equal(lines[2], '0 crashes · 0 of 3 shortcuts · 0 drift boosts · top speed 0 km/h');
 });
 
 test('the Fondue Night speaks German', async () => {
@@ -234,13 +339,17 @@ test('the Fondue Night speaks German', async () => {
     says(m.objectives[1].check(frame({ x: FONDUE_TABLE.x + 43, z: FONDUE_TABLE.z }), m.createState()).text, 'The fondue table on the terrace · 43 m', 'Der Fonduetisch auf der Terrasse · 43 m');
     says(stirGauge({ ...createStir(), eights: 5 }).text, 'Figure eights 5/8', 'Achten 5/8');
     says(stirGauge({ ...createStir(), eights: 5, strikes: 2 }).text, 'Figure eights 5/8 · caught 2× (+16 s)', 'Achten 5/8 · 2× angebrannt (+16 s)');
-    const evening = (stir, choice, crashes, kmh) => m.summary({ ...m.createState(), stir: { ...createStir(), ...stir }, choice, crashes, topSpeed: kmh / 3.6 });
-    const [clean, tipsy] = evening({ eights: 8 }, 'tipsy', 1, 84);
+    const evening = (stir, effect, crashes, kmh, more = {}) => m.summary({ ...m.createState(), stir: { ...createStir(), ...stir }, game: { ...createFlaemmli(11, 1), score: 312 }, effect, crashes, topSpeed: kmh / 3.6, ...more });
+    const [clean, tipsy, ride] = evening({ eights: 8 }, 0.9, 1, 84, { shortcuts: 2, boosts: 1 });
     says(clean, '8 figure eights · nothing caught', '8 Achten · nichts angebrannt');
-    says(tipsy, 'Flämmli with effect · 1 crash (+5 s) · top speed 84 km/h', 'Flämmli mit Wirkung · 1 Sturz (+5 s) · Höchsttempo 84 km/h');
-    const [caught, sober] = evening({ eights: 8, strikes: 1, circles: 3 }, 'sober', 0, 79);
+    says(tipsy, 'Flämmli 312 pts · effect strong', 'Flämmli 312 Pkt. · Wirkung stark');
+    says(ride, '1 crash (+5 s) · 2 of 3 shortcuts · 1 drift boost · top speed 84 km/h', '1 Sturz (+5 s) · 2 von 3 Abkürzungen · 1 Drift-Schub · Höchsttempo 84 km/h');
+    const [caught, cold, ride2] = evening({ eights: 8, strikes: 1, circles: 3 }, 0, 0, 79, { boosts: 4 });
     says(caught, '8 figure eights · caught on the bottom 1× (+8 s) · 3 circles', '8 Achten · 1× angebrannt (+8 s) · 3-mal im Kreis gerührt');
-    says(sober, 'Flämmli without effect · 0 crashes · top speed 79 km/h', 'Flämmli ohne Wirkung · 0 Stürze · Höchsttempo 79 km/h');
+    says(cold, 'Flämmli 312 pts · effect none', 'Flämmli 312 Pkt. · Wirkung keine');
+    says(ride2, '0 crashes · 0 of 3 shortcuts · 4 drift boosts · top speed 79 km/h', '0 Stürze · 0 von 3 Abkürzungen · 4 Drift-Schübe · Höchsttempo 79 km/h');
+    says(evening({}, 0.6, 0, 0)[1], 'Flämmli 312 pts · effect good', 'Flämmli 312 Pkt. · Wirkung gut');
+    says(evening({}, null, 0, 0)[1], 'A Flämmli in the Stübli · 312 pts', 'Ein Flämmli im Stübli · 312 Pkt.');
     // every line the panel can show at the table
     const st = m.createState();
     for (const last of [null, 'eight', 'circle', 'splash', 'slow', 'burnt']) { st.stir.last = last; const h = stirGauge(st.stir).hint; assert.notEqual(t(h), h, h); }
@@ -249,6 +358,12 @@ test('the Fondue Night speaks German', async () => {
     st.riding = true;
     const v = m.objectives[4].check(frame({ x: st.cps[0].x, z: st.cps[0].z + 40 }), st);
     assert.notEqual(t(v.hint), v.hint, v.hint);
-    for (const s of ['Smooth!', 'It splits: cross the middle!', 'Too wild!', 'Too slow!', `Caught! +${STIR.burnMs / 1000} s`, 'With effect', 'Without effect', 'creamy', 'catching', 'The valley sways: steer early!', 'A Flämmli with effect. To the sledges!', 'A Flämmli without effect. To the sledges!']) assert.notEqual(t(s), s, s);
+    for (const more of [{ laneAhead: true }, { onLane: true }, { crashT: 1, why: 'tree' }]) { const h = m.objectives[5].check(frame({ x: 0, z: 0 }), { ...st, ...more }).hint; assert.notEqual(t(h), h, h); }
+    st.game = createFlaemmli(11, 1);
+    const fl = m.objectives[3].check(here, st);
+    for (const s of [fl.text, fl.hint]) assert.notEqual(t(s), s, s);
+    for (const s of ['Smooth!', 'It splits: cross the middle!', 'Too wild!', 'Too slow!', `Caught! +${STIR.burnMs / 1000} s`, 'creamy', 'catching', 'The valley sways: steer early!', 'W to go: the sledge keeps to the run by itself', 'The Flämmli went cold. To the sledges!', 'A mild Flämmli. To the sledges!', 'A good Flämmli. To the sledges!', 'A strong Flämmli. To the sledges!',
+      'Drift boost!', 'Big drift boost!', 'Mega drift boost!', 'Spun round: no boost', 'Deep snow!', 'Shortcut!', 'SHORTCUT', 'Into a tree!', 'Into the Stübli …',
+      'steer', 'brake · with A/D: drift, let go: boost', 'duck · push off']) assert.notEqual(t(s), s, s);
   } finally { setLanguage('en'); }
 });

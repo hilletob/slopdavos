@@ -135,6 +135,10 @@ The VBD bus model `assets/models/citaro-530.glb` is “Low Poly Mercedes-Benz Ci
 recoloured in the VBD livery at runtime. The app loads `assets/models/citaro-530-lite.glb`, the same model with its
 tyres replaced by plain cylinders (`node tools/build-citaro-lite.mjs`).
 
+The tipper of the snow-haul mission, `assets/models/dump-truck.glb`, is “Man Tga dump truck” by
+zairiq-zairiq-123-pixar-cars-bfdi (https://sketchfab.com/3d-models/man-tga-dump-truck-6e9329c43a3542d5a47b5d40d6c0a086),
+licensed under CC BY 4.0, packed into one GLB by `node tools/build-dump-truck.mjs`.
+
 The people's motion-captured stances (`assets/models/person-clips.bin`: idling, talking, listening, writing a ticket)
 and the player's figures (`assets/models/rocketbox-*.glb`, chosen in the menu, js/player-figure.js) come from the
 Microsoft Rocketbox Avatar Library (https://github.com/microsoft/Microsoft-Rocketbox), MIT License, © Microsoft

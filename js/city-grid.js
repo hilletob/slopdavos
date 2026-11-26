@@ -28,6 +28,8 @@ import { GOLF } from './golf-data.js';
 import { SKI_PISTES } from './ski-pistes-data.js';
 import { BERGBAHNEN } from './bergbahnen-data.js';
 import { SPECIES_INDEX as TREE, SPECIES_HEIGHT, plantedTree, plantedAt } from './trees.js';
+// (the sled run's forest aisles, js/missions-data-fondue.js: [x0, z0, x1, z1] each)
+export const SLED_AISLES = [[-1328.5, -51.6, -1304.8, -36], [-1215.7, -138.5, -1209.8, -95], [-1265.5, 177.5, -1248.1, 214.1]];
 import { QUALITY, REGION_ALL } from './quality.js';
 import { indexGeometry } from './gpu-memory.js';
 import { withoutTraced } from './ground-markings-area.js';
@@ -1052,8 +1054,17 @@ async function buildMappedCityGrid(scene) {
   // The minigolf at the Hotel Waldhuus (js/missions-data-sport.js MINIGOLF_PATH: x 388–424, z −182…−165) stands on
   // open meadow: no tree or shrub on its lanes, nor within 4 m round them
   const onMinigolf = (x, z) => x > 384 && x < 428 && z > -186 && z < -161;
+  // The three aisles cut through the forest between the stacked hairpins of the Schatzalp's sled run (the Fondue Night's
+  // shortcuts, js/missions-data-fondue.js SHORTCUTS; tests/missions-fondue.test.mjs keeps the two in step): no tree
+  // within SLED_AISLE m of their lines, the mission plants its own young spruces in them
+  const SLED_AISLE = 6;
+  const onSledAisle = (x, z) => SLED_AISLES.some(([ax, az, bx, bz]) => {
+    if (x < Math.min(ax, bx) - SLED_AISLE || x > Math.max(ax, bx) + SLED_AISLE || z < Math.min(az, bz) - SLED_AISLE || z > Math.max(az, bz) + SLED_AISLE) return false;
+    const ux = bx - ax, uz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz)));
+    return Math.hypot(x - ax - ux * t, z - az - uz * t) < SLED_AISLE;
+  });
   const clearSite = (x, z, margin) => {
-    if (waterAt(x, z) || onPlayArea(x, z) || onMinigolf(x, z) || onFunicular(x, z) || onPiste(x, z)) return false;
+    if (waterAt(x, z) || onPlayArea(x, z) || onMinigolf(x, z) || onFunicular(x, z) || onPiste(x, z) || onSledAisle(x, z)) return false;
     // (nearestRoads allocates its answer: asked only where some road comes that close at all)
     if (roadCloserThan(x, z, 12, margin) && nearestRoads(x, z, 12).some(q => q.dist < q.road.w / 2 + margin)) return false;
     const block = blockAt(x, z);

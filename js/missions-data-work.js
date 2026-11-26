@@ -1267,8 +1267,8 @@ export const LOADER = {
   packing: 0.09, // m³ on the bed per m³ blown (the fluff packs down; scaled so a bed is about 140 m of road)
   capacity: 14, // m³
   minLoad: 0.3, // of the capacity: less, and the truck is not worth sending
-  bed: { halfW: 1.15, halfL: 2.6, back: 1.2 }, // the load bed: its middle `back` m behind the truck's centre
-  truckBody: { halfW: 1.25, halfL: 4.35 },
+  bed: { halfW: 1.18, halfL: 2.72, back: 0.94 }, // the load bed: its middle `back` m behind the truck's centre (the model's, js/missions-work.js TIPPER)
+  truckBody: { halfW: 1.25, halfL: 3.75 },
   swapReach: 11, // m: from the blower to the truck's door
   shedLat: 3.6, shedRate: 0.3, // m/s²: past this sideways pull in a bend the load sheds, m³/s per m/s²
   tip: { raiseS: 2.2, emptyS: 3.2, fallFrom: 0.45 }, // s to raise the bed, s to empty it, from which raise the load slides

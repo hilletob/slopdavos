@@ -1,6 +1,7 @@
 import { msg } from './messages.js';
-import { buildCheckpoints, updateCheckpoints, pointAt } from './missions-data-snow.js';
-import { createCourse, runHeading, projectOnRun, sledgeSection, SLEDGE_PARAMS, SLEDGE_OFF_PARAMS, SLEDGE_TRACK, SLEDGE_CRASH_MS } from './missions-data-sledge.js';
+import { buildCheckpoints, updateCheckpoints, pointAt, riderSpeed } from './missions-data-snow.js';
+import { createCourse, runHeading, runCurvature, projectOnRun, sledgeSection, laneAt, botInput, DRIFT, SLEDGE_PARAMS, SLEDGE_OFF_PARAMS, SLEDGE_TRACK, SLEDGE_CRASH_MS } from './missions-data-sledge.js';
+import { flaemmliScore } from './missions-data-gastro.js';
 
 // js/missions-data-fondue.js
 // The Fondue Night of the Drupal Mountain Camp (drupalmountaincamp.ch: 2 to 4 March 2027 in the Davos Congress Centre;
@@ -62,10 +63,75 @@ export const SCHLITTEL_RUN = [
   -1144.7,139.3,-1134.5,119.7,-1128.5,112.3,-1119.4,105.7,-1100.7,95,-1092.3,88,-1088.5,86.3,-1083.7,86.2,
   -1074.5,87.6,-1068.7,87.1,-1061.9,84.1,-1053.2,78.2,-1019.2,48.4,-998.5,33.6,-976,14,-973.4,12.3
 ];
+// The line the sledge follows: the mapped ways' corners rounded off (every 2 m, a weighted mean over ±4 m, twice), no more
+// than 1.2 m from them, so that the run is drawn and ridden as a smooth line instead of a polygon of 13 m chords
+export const SMOOTH = { step: 2, reach: 2, passes: 2 };
+export function smoothRun(pts = SCHLITTEL_RUN, { step, reach, passes } = SMOOTH) {
+  const L = createCourse(pts).length;
+  let p = [];
+  for (let s = 0; s < L; s += step) { const q = pointAt(pts, s); p.push([q.x, q.z]); }
+  const e = pointAt(pts, L); p.push([e.x, e.z]);
+  for (let k = 0; k < passes; k++) {
+    const q = p.map((a) => a.slice());
+    for (let i = 1; i < p.length - 1; i++) {
+      let sx = 0, sz = 0, n = 0;
+      for (let j = Math.max(0, i - reach); j <= Math.min(p.length - 1, i + reach); j++) { const w = reach + 1 - Math.abs(i - j); sx += p[j][0] * w; sz += p[j][1] * w; n += w; }
+      q[i] = [sx / n, sz / n];
+    }
+    p = q;
+  }
+  return p.flat().map((v) => Math.round(v * 100) / 100);
+}
+
+// --- The shortcuts ----------------------------------------------------------------------------------------------------------
+// Three places where the run's hairpins lie stacked in the forest, one leg 20–45 m below the other: a lane straight down
+// the slope from the leg above to the leg below saves 150-200 m of hairpins (found on the smoothed run: a lane 14–45 m long
+// between points 50+ m apart along the run, falling all the way, not along another leg, leaving the run within 70° of
+// its way and meeting it below within 92°). Marked at the top with two flags, a packed track down through the trees,
+// and at the foot a snow wall on the run's far side that catches a sledge coming across.
+export const SHORTCUTS = [[753, 926], [1158, 1355], [1668, 1868]];
+export const LANE = { half: 2.1, wall: [7, 10] }; // (m either side of the lane's line; the snow wall from 7 m before to 10 m after its foot)
+// (the young spruces in each lane, the obstacles: [t along it, d m off its line (+ left), height m]; the forest's own trees
+// stand back from the lanes, js/city-grid.js SLED_AISLES)
+export const LANE_TREES = [[[0.45, 0.7, 2.6]], [[0.3, -0.8, 3.2], [0.72, 0.8, 2.4]], [[0.36, 0.9, 2.8], [0.72, -0.7, 3]]];
+
+const leftOf = (c, s, x, z) => { const p = pointAt(c.pts, s), h = runHeading(c, s, 3); return Math.sign((x - p.x) * Math.cos(h) - (z - p.z) * Math.sin(h)) || 1; };
+/** The bends' nets cut away over [a, b] on `side` (the gap where a lane leaves or arrives) */
+function cutNets(bends, a, b, side) {
+  const out = [];
+  for (const bd of bends) {
+    if (bd.side !== side || bd.s1 < a || bd.s0 > b) { out.push(bd); continue; }
+    if (bd.s0 < a - 2) out.push({ ...bd, s1: a });
+    if (bd.s1 > b + 2) out.push({ ...bd, s0: b });
+  }
+  return out;
+}
+/** The lanes of `SHORTCUTS` on the course, its bends with the gaps and snow walls they need */
+function addLanes(c) {
+  c.lanes = SHORTCUTS.map(([s0, s1], i) => {
+    const a = pointAt(c.pts, s0), b = pointAt(c.pts, s1), len = Math.hypot(b.x - a.x, b.z - a.z), ux = (b.x - a.x) / len, uz = (b.z - a.z) / len;
+    // (a trunk's radius by its height: 0.2 m and more)
+    const trees = LANE_TREES[i].map(([t, d, h]) => [a.x + ux * t * len + uz * d, a.z + uz * t * len - ux * d, 0.12 + 0.04 * h, h]);
+    return { s0, s1, ax: a.x, az: a.z, bx: b.x, bz: b.z, len, ux, uz, half: LANE.half, trees };
+  });
+  let bends = c.bends;
+  for (const L of c.lanes) {
+    // (the side of the run the lane leaves on, and the side it comes in from below)
+    const out = leftOf(c, L.s0, L.ax + L.ux * 6, L.az + L.uz * 6), from = leftOf(c, L.s1, L.ax, L.az);
+    bends = cutNets(bends, L.s0 - 10, L.s0 + 12, out);
+    bends = cutNets(bends, L.s1 - LANE.wall[0] - 4, L.s1 + LANE.wall[1] + 4, from);
+    bends = cutNets(bends, L.s1 - LANE.wall[0], L.s1 + LANE.wall[1], -from);
+    // the snow wall: a bend with no net (js/missions-data-sledge.js: it takes any speed)
+    bends.push({ s0: L.s1 - LANE.wall[0], s1: L.s1 + LANE.wall[1], side: -from, radius: Infinity, berm: true });
+    L.side = out; L.from = from;
+  }
+  c.bends = bends.sort((p, q) => p.s0 - q.s0);
+  return c;
+}
 let course = null;
-/** The sled run prepared like the horn sledge's (its arc lengths, its bends) */
-export const schlittelCourse = () => (course ??= createCourse(SCHLITTEL_RUN, { half: 2.2 }));
-export const schlittelCheckpoints = () => buildCheckpoints(SCHLITTEL_RUN, 150, 90);
+/** The sled run prepared like the horn sledge's (its arc lengths, its bends), on the smoothed line, with its shortcuts */
+export const schlittelCourse = () => (course ??= addLanes(createCourse(smoothRun(), { half: 2.2 })));
+export const schlittelCheckpoints = () => buildCheckpoints(schlittelCourse().pts, 150, 90);
 
 // --- Stirring: the figure of eight -----------------------------------------------------------------------------------------
 // What tells an eight from a circle is the sign of the turn: round a circle the stroke turns one way for ever, through an
@@ -237,29 +303,51 @@ export function circleStroke(n, period, { scale = 0.6, rate = 60, t0 = 0 } = {})
   return out;
 }
 
-// --- The Flämmli: with or without effect -----------------------------------------------------------------------------------
-// A Kafi with a schnapps lit on top. With effect the two on the sledge are bolder and the head is not quite clear: the
-// sledge runs faster (ducked lower, the heels lighter on the snow) and answers late, drifting to one side and the other,
-// and the view sways. A time credit would not do: the leaderboard takes no time under the measured one
+// --- The Flämmli: its effect on the ride ------------------------------------------------------------------------------------
+// The Flämmli is made in the Schatzalp's Stübli as in the Rot Liechtli (js/missions-data-gastro.js, one round: sugar, the
+// espresso off the sugar, the Williams, alight, swirled to caramel, into the glass, smothered, down). What it does to the
+// ride is the Williams poured: a little and the head stays nearly clear; a good splash and the two on the sledge are
+// bolder (it runs faster: ducked lower, the heels lighter on the snow) but the head is not quite clear (the horns answer
+// late, the sledge pulls to one side and the other, the view sways); a generous one and all of that more. A Flämmli not
+// drunk (the round lost) does nothing. A time credit would not do: the leaderboard takes no time under the measured one
 // (supabase/migrations/*_all_leaderboards.sql submit_run), so the effect has to be won on the run.
 export const TIPSY = {
-  lag: 0.15, // s: how late the horns answer
+  lag: 0.15, // s: how late the horns answer (at full effect)
   brakeLag: 0.1, // s: the heels too
   drift: [0.1, 0.9, 0.05, 2.3], // the pull to one side: two slow swings (amplitude, rad/s)
   roll: 0.085 // rad: how far the view sways
 };
-// (bolder: ducked lower and the heels lighter on the snow, the two hanging further out in the bends)
-export const TIPSY_PARAMS = { ...SLEDGE_PARAMS, mu: 0.034, drag: 0.0028, tuckDrag: 0.0021, maxSpeed: 26 };
+/** The effect (0-1) of the Flämmli made: by the Williams poured (its gauge 0-1, the green 0.5-0.7), none if not drunk */
+export function flaemmliEffect(g) {
+  if (!g || !g.drinks) return 0;
+  return clamp(0.15 + (g.williams - 0.2) * 1.25, 0.15, 1);
+}
+/** A word for the effect: 'none' | 'mild' | 'good' | 'strong' */
+export const effectWord = (k) => (k <= 0 ? 'none' : k < 0.45 ? 'mild' : k < 0.8 ? 'good' : 'strong');
+const lerp = (a, b, k) => a + (b - a) * k;
 // (the run is a 3 m track laid as a bench in the slope, js/path-bench.js: narrower than the horn sledge's 5 m run, with
 // the ground falling away behind it. So the run is narrower here and its nets stand closer; a sledge at a net is set back
 // onto the run and slides along the net, js/missions-data-sledge.js netSlide)
-export const SCHLITTEL_TRACK = { ...SLEDGE_TRACK, half: 2.2, netGap: 0.8, netSlide: true };
-export const TIPSY_TRACK = { ...SCHLITTEL_TRACK, tipG: 0.95 };
-/** The sledge's numbers on this run after the Flämmli: { on, off, track } for stepSledge */
-export const flaemmliParams = (choice) => (choice === 'tipsy' ? { on: TIPSY_PARAMS, off: SLEDGE_OFF_PARAMS, track: TIPSY_TRACK } : { on: SLEDGE_PARAMS, off: SLEDGE_OFF_PARAMS, track: SCHLITTEL_TRACK });
+// It is forgiving: soft snow banks along all of it (walls: no leaving the run but at a shortcut), a sledge that stands
+// more before it tips, nets that catch rather than throw (a crash only far over 40 km/h straight into one)
+export const SCHLITTEL_TRACK = { ...SLEDGE_TRACK, half: 2.8, netGap: 0.6, netSlide: true, walls: true, netCrash: 12, tipG: 1.05, tipRate: 1.2, tipWarn: 0.3 };
+// (the shortcuts' packed track through the forest: slower than the run, far faster than the deep snow beside it)
+export const LANE_PARAMS = { ...SLEDGE_PARAMS, mu: 0.085, drag: 0.004, tuckDrag: 0.0032, grip: 6 };
+const paramsCache = new Map();
+/** The sledge's numbers on this run after a Flämmli of effect k (0-1): { on, off, lane, drift, track } for stepSledge.
+ *  At full effect: less friction and drag, 26 m/s at most instead of 22, a sledge that stands 1.2 g instead of 1.05 */
+export function flaemmliParams(k = 0) {
+  const key = Math.round(clamp(k, 0, 1) * 20);
+  if (paramsCache.has(key)) return paramsCache.get(key);
+  const e = key / 20;
+  const on = { ...SLEDGE_PARAMS, mu: lerp(SLEDGE_PARAMS.mu, 0.034, e), drag: lerp(SLEDGE_PARAMS.drag, 0.0028, e), tuckDrag: lerp(SLEDGE_PARAMS.tuckDrag, 0.0021, e), maxSpeed: lerp(SLEDGE_PARAMS.maxSpeed, 26, e) };
+  const P = { on, off: SLEDGE_OFF_PARAMS, lane: { ...LANE_PARAMS, maxSpeed: on.maxSpeed }, drift: DRIFT, track: { ...SCHLITTEL_TRACK, tipG: lerp(SCHLITTEL_TRACK.tipG, 1.2, e) } };
+  paramsCache.set(key, P);
+  return P;
+}
 // (the ride begins a few metres down the way, on the bench: its first metre is a step up from the ground before it)
 export const SCHLITTEL_START_S = 4;
-export const SCHLITTEL_SNOW = { flat: 2, bank: 0.5 };
+export const SCHLITTEL_SNOW = { flat: 3, bank: 0.5 };
 /**
  * The snow the sledge runs on: the run's bench (level across: `trodHeight` along the run's line, sampled every 2 m),
  * `flat` m to either side, and from there a bank of snow falling away at `bank` m per m until it meets the ground — no
@@ -273,8 +361,17 @@ export function schlittelHeight(trodHeight, groundHeight, c = schlittelCourse())
   const top = (from, to) => { let m = -Infinity; for (let i = Math.max(0, from); i <= Math.min(n - 1, to); i++) m = Math.max(m, raw[i]); return m; };
   const filled = new Float64Array(n);
   for (let i = 0; i < n; i++) filled[i] = Math.max(raw[i], Math.min(i ? top(i - 3, i - 1) : Infinity, i < n - 1 ? top(i + 1, i + 3) : Infinity));
-  // (and the bench's own ledges, a metre down within two, eased over ±4 m: a sledge would take off at each)
-  for (let i = 0; i < n; i++) { let sum = 0, k = 0; for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { sum += filled[j]; k++; } line[i] = sum / k; }
+  // (and the bench's ledges and dips eased: a mean over ±6 m, held over the bench (the bench never stands out of the
+  // snow), again and again until it settles: the hollows fill, the crests stay where the bench has them)
+  line.set(filled);
+  const tmp = new Float64Array(n);
+  for (let pass = 0; pass < 40; pass++) {
+    for (let i = 0; i < n; i++) { let sum = 0, k = 0; for (let j = Math.max(0, i - 3); j <= Math.min(n - 1, i + 3); j++) { sum += line[j]; k++; } tmp[i] = Math.max(filled[i], sum / k); }
+    line.set(tmp);
+  }
+  // (a last mean over ±2 m without the hold: the crests rounded by a few centimetres)
+  for (let i = 0; i < n; i++) { let sum = 0, k = 0; for (let j = Math.max(0, i - 1); j <= Math.min(n - 1, i + 1); j++) { sum += line[j]; k++; } tmp[i] = sum / k; }
+  line.set(tmp);
   const proj = {};
   return (x, z) => {
     const g = groundHeight(x, z);
@@ -287,76 +384,163 @@ export function schlittelHeight(trodHeight, groundHeight, c = schlittelCourse())
   };
 }
 
-export function chooseFlaemmli(state, withEffect) {
-  if (state.choice) return false;
-  state.choice = withEffect ? 'tipsy' : 'sober';
+/** The Flämmli is down (or lost): its effect on the ride, once */
+export function settleFlaemmli(state) {
+  if (state.effect !== null || !state.game?.done) return false;
+  state.effect = flaemmliEffect(state.game);
   return true;
 }
 
-export const createTipsy = () => ({ steer: 0, brake: 0, t: 0 });
-/** What reaches the sledge of the driver's input after a Flämmli with effect (mem: createTipsy()) */
+export const createTipsy = (k = 1) => ({ steer: 0, brake: 0, t: 0, k });
+/** What reaches the sledge of the driver's input after a Flämmli of effect mem.k (mem: createTipsy(k)) */
 export function tipsyInput(input, dt, mem) {
   mem.t += dt;
-  const [a1, w1, a2, w2] = TIPSY.drift;
-  mem.steer += ((input.steer || 0) - mem.steer) * (1 - Math.exp(-dt / TIPSY.lag));
-  mem.brake += ((input.brake || 0) - mem.brake) * (1 - Math.exp(-dt / TIPSY.brakeLag));
-  const drift = a1 * Math.sin(mem.t * w1) + a2 * Math.sin(mem.t * w2 + 0.7);
+  const k = mem.k, [a1, w1, a2, w2] = TIPSY.drift;
+  mem.steer += ((input.steer || 0) - mem.steer) * (1 - Math.exp(-dt / Math.max(0.01, TIPSY.lag * k)));
+  mem.brake += ((input.brake || 0) - mem.brake) * (1 - Math.exp(-dt / Math.max(0.01, TIPSY.brakeLag * k)));
+  const drift = k * (a1 * Math.sin(mem.t * w1) + a2 * Math.sin(mem.t * w2 + 0.7));
   // (the heels fully off the snow once they are let go: a trace of brake left for ever would keep the sledge from being
   // pushed off again, js/missions-data-snow.js stepRider pushes only with no brake at all)
-  return { steer: clamp(mem.steer + drift, -1, 1), tuck: input.tuck || 0, brake: mem.brake < 0.03 ? 0 : clamp(mem.brake, 0, 1) };
+  return { steer: clamp(mem.steer + drift, -1, 1), tuck: input.tuck || 0, brake: mem.brake < 0.03 ? 0 : clamp(mem.brake, 0, 1), drift: !!input.drift };
 }
-/** The view's roll (rad) t s into the ride */
-export const tipsyRoll = (t) => TIPSY.roll * (Math.sin(t * 0.9) + 0.45 * Math.sin(t * 2.3 + 0.7));
+/** The view's roll (rad) t s into the ride after a Flämmli of effect k */
+export const tipsyRoll = (t, k = 1) => k * TIPSY.roll * (Math.sin(t * 0.9) + 0.45 * Math.sin(t * 2.3 + 0.7));
+/**
+ * The steering assist: with no key the sledge follows the run by itself (to a point on the run ahead, as the bots do);
+ * a key steers, the assist adds a little; a key near a shortcut's top, on a shortcut and in a drift the driver alone.
+ */
+export const ASSIST = { free: 0.9, keyed: 0.3, look: [6, 0.8], margin: 1.1, brake: 0.7 };
+export function assistInput(input, sl, c) {
+  if (!sl || sl.crashT > 0 || sl.drift || input.drift) return input;
+  const s = sl.proj.s, own = input.steer || 0;
+  // (on a shortcut, with no key: down its line)
+  if (sl.lane) {
+    if (Math.abs(own) >= 0.05) return input;
+    const L = sl.lane, r = sl.rider, p = laneAt(L, r.x, r.z), t = Math.min(1.1, p.t + 6 / L.len);
+    const want = Math.atan2(L.ax + L.ux * t * L.len - r.x, L.az + L.uz * t * L.len - r.z);
+    return { ...input, steer: clamp(Math.atan2(Math.sin(want - r.heading), Math.cos(want - r.heading)) * 2.4, -1, 1) * ASSIST.free };
+  }
+  // (before a shortcut's top a key is the driver's own: to take it, or not)
+  if (Math.abs(own) >= 0.05 && c.lanes?.some((L) => s > L.s0 - 25 && s < L.s0 + 6)) return input;
+  const r = sl.rider, sp = riderSpeed(r), tgt = pointAt(c.pts, Math.min(c.length, s + Math.max(ASSIST.look[0], sp * ASSIST.look[1])));
+  const err = Math.atan2(Math.sin(Math.atan2(tgt.x - r.x, tgt.z - r.z) - r.heading), Math.cos(Math.atan2(tgt.x - r.x, tgt.z - r.z) - r.heading));
+  const help = clamp(err * 2.4, -1, 1);
+  // (and the brake: far too fast for the bend ahead and not braking, the heels go down a little by themselves)
+  const brake = input.brake ? input.brake : botInput(sl, c, { margin: ASSIST.margin, tipG: SCHLITTEL_TRACK.tipG }).brake * ASSIST.brake;
+  return { ...input, brake, steer: Math.abs(own) < 0.05 ? help * ASSIST.free : clamp(own + help * ASSIST.keyed, -1, 1) };
+}
+/** The keys' drift: the brake held down with the horns pulled (S with A/D; the touch stick down and to a side) */
+export const driftInput = (input) => ({ ...input, drift: input.drift ?? ((input.brake || 0) >= 0.6 && Math.abs(input.steer || 0) >= 0.4) });
+
+/**
+ * A driver who drifts the hairpins (the tests: the drift is worth it): into a bend tighter than 14 m at speed it pulls the
+ * horns and holds the brake until the sledge points down the run again, then lets go for the push; else laneBot.
+ */
+export function driftBot(sl, c, opts = {}) {
+  const base = laneBot(sl, c, opts);
+  if (sl.lane || sl.crashT > 0 || (opts.lanes !== false && c.lanes.some((l) => sl.proj.s > l.s0 - 16 && sl.proj.s < l.s0 + 3))) return base;
+  const r = sl.rider, sp = riderSpeed(r), s = sl.proj.s;
+  let k = 0;
+  for (let d = 0; d <= 12; d += 2) { const q = runCurvature(c, Math.min(c.length, s + d), 6); if (Math.abs(q) > Math.abs(k)) k = q; }
+  const err = Math.atan2(Math.sin(runHeading(c, Math.min(c.length, s + 7), 3) - r.heading), Math.cos(runHeading(c, Math.min(c.length, s + 7), 3) - r.heading));
+  if (sl.drift) return Math.abs(err) < (opts.exit ?? 0.3) || sp < DRIFT.minSpeed * 0.7 ? { steer: 0, tuck: 0, brake: 0, drift: false } : { steer: Math.sign(err), tuck: 0, brake: 1, drift: true };
+  if (sp > DRIFT.minSpeed + 0.5 && Math.abs(k) > 1 / 16 && (base.brake > 0 || Math.abs(err) > (opts.entry ?? 0.35))) return { steer: Math.sign(k), tuck: 0, brake: 1, drift: true };
+  return { ...base, drift: false };
+}
+
+/**
+ * A driver down the run who takes the shortcuts (the medals' calibration, the tests): botInput on the run; near a lane's
+ * top it heads for the lane, on the lane it steers down its line round the trees, and brakes for the run at its foot.
+ */
+export function laneBot(sl, c, opts = {}) {
+  const r = sl.rider, sp = riderSpeed(r), s = sl.proj.s;
+  const L = sl.lane || (opts.lanes !== false ? c.lanes.find((l) => s > l.s0 - 16 && s < l.s0 + 3) : null);
+  if (!L) return { ...botInput(sl, c, opts), drift: false }; // (it brakes for the bends: driftBot drifts them)
+  const p = laneAt(L, r.x, r.z);
+  // (the line to follow: past the next tree ahead on the side with more room)
+  let off = 0, nextT = Infinity;
+  for (const [x, z, rad] of L.trees) { const q = laneAt(L, x, z); if (q.t > p.t - (rad + 0.5) / L.len && q.t < p.t + 14 / L.len && q.t < nextT) { nextT = q.t; off = q.d > 0 ? -1.2 : 1.2; } }
+  const t = Math.min(1.15, Math.max(p.t, -0.1) + Math.max(5, sp * 0.6) / L.len);
+  const tx = L.ax + L.ux * t * L.len + L.uz * off, tz = L.az + L.uz * t * L.len - L.ux * off;
+  const want = Math.atan2(tx - r.x, tz - r.z);
+  const err = Math.atan2(Math.sin(want - r.heading), Math.cos(want - r.heading));
+  // (slow enough at the foot to turn onto the run below, and through the trees)
+  const left = (1 - p.t) * L.len, tree = opts.treeSpeed ?? 8;
+  const vMax = Math.min(nextT < Infinity || p.t < 0.1 ? tree + (p.t < 0.1 ? 2 : 0) : Infinity, Math.sqrt((opts.footSpeed ?? 6) ** 2 + 2 * 3 * Math.max(0, left - 3)));
+  const brake = sp > vMax ? 1 : 0;
+  return { steer: clamp(err * 2.4, -1, 1), tuck: brake ? 0 : 1, brake, drift: false };
+}
 
 // --- The mission -----------------------------------------------------------------------------------------------------------
 const near = (ctx, p, r = p.r) => Math.hypot(ctx.x - p.x, ctx.z - p.z) <= r;
 // (the run's two parts: the hairpins below the Schatzalp, the forest road down to the village)
 const SECTIONS = [
-  { id: 'upper', title: 'The upper hairpins', toS: 1100, tip: 'Brake (S) before a hairpin, then steer through it with A/D' },
-  { id: 'village', title: 'Down to Davos Platz', toS: Infinity, tip: 'Duck low (W) on the straights, brake for the bends' }
+  { id: 'upper', title: 'The upper hairpins', toS: 1100, tip: 'Hairpins: hold S with A/D to drift, let go of S for a push' },
+  { id: 'village', title: 'Down to Davos Platz', toS: Infinity, tip: 'Duck low (W) on the straights, drift through the hairpins' }
 ];
-/** A part of the run, waiting for the sledge while the player still stands on the terrace */
+const SHORTCUT_HINT = 'A shortcut: leave the run between the flags, down through the trees';
+/** A part of the run, waiting for the sledge while the player still stands on the terrace; on the way the shortcuts' hints */
 const rideSection = (spec) => {
   const section = sledgeSection(spec);
   return {
     ...section,
     check(ctx, state) {
       if (!state.riding) return { done: false, progress: 0, text: 'To the sledges at the top of the run …', target: null, hint: null };
-      return section.check(ctx, state);
+      const v = section.check(ctx, state);
+      if (state.crashT > 0 && state.why === 'tree') v.hint = msg('Into a tree! +{s} s, back on the run', 'In einen Baum! +{s} s, zurück auf die Bahn', { s: SLEDGE_CRASH_MS / 1000 });
+      else if (state.crashT <= 0 && state.onLane) v.hint = 'Through the trees: brake (S) before the run below';
+      else if (state.crashT <= 0 && !state.skipped && state.laneAhead) v.hint = SHORTCUT_HINT;
+      return v;
     }
   };
+};
+/** After a shortcut: the checkpoints it cut out count as passed (the run's below its foot) */
+export function passShortcut(state, s1) {
+  while (state.cps[state.next] && state.cps[state.next].s <= s1 + 2) state.next++;
+  state.skipped = null;
+}
+const EFFECT_DE = { none: 'keine', mild: 'leicht', good: 'gut', strong: 'stark' };
+const flaemmliLine = (state) => {
+  const k = state.effect;
+  if (k === null) return msg('A Flämmli in the Stübli · {pts} pts', 'Ein Flämmli im Stübli · {pts} Pkt.', { pts: flaemmliScore(state.game) });
+  return msg('Flämmli {pts} pts · effect {w}', (p) => `Flämmli ${p.pts} Pkt. · Wirkung ${EFFECT_DE[p.w]}`, { pts: flaemmliScore(state.game), w: effectWord(k) });
 };
 
 export const FONDUE_MISSION = {
   id: FONDUE_ID,
   title: 'Fondue Night on the Schatzalp',
-  intro: 'Drupal Mountain Camp, open source on top of the world, and tonight is the classic: Fondue Night. Meet the camp at the Kongresszentrum, ride up to the Schatzalp and stir the fondue: draw a figure of eight through the pot with the mouse or your finger. Round in circles and the cheese splits, dawdle and it catches on the bottom. Then a Flämmli, with or without effect, your choice: with it the sledge runs faster, but the horns answer late and the valley sways. And then down the sled run to Davos Platz on a horn sledge, 2.3 km of hairpins by torchlight, against the clock. Each crash costs 5 s.',
+  intro: 'Drupal Mountain Camp, open source on top of the world, and tonight is the classic: Fondue Night. Meet the camp at the Kongresszentrum, ride up to the Schatzalp and stir the fondue: draw a figure of eight through the pot with the mouse or your finger. Round in circles and the cheese splits, dawdle and it catches on the bottom. Then a Flämmli in the Stübli, made the Bündner way with one button: the more Williams you pour, the bolder the ride: the sledge runs faster, but the horns answer late and the valley sways. And then down the sled run to Davos Platz on a horn sledge, 2.2 km of hairpins by torchlight, against the clock: hold S with A/D to drift through a hairpin and let go of S for a push, and where the flags stand, cut down through the forest. Each crash costs 5 s.',
   mode: 'person',
   season: 'winter',
   time: 'evening',
-  features: ['fondueNight'],
+  features: ['fondueNight', 'flaemmli'],
+  // (the Flämmli: js/missions-gastro.js's, one round in the Berghotel's Stübli, the room gone with the next objective)
+  flaemmli: { look: 'schatzalp', rounds: 1, leave: true },
+  interior: { door: FONDUE_TABLE },
   props: [],
   colour: '#0678be',
   icon: 'fondue',
   logo: './assets/logos/drupal-mountain-camp.webp',
-  // (the evening before the ride takes some 40 s: 35 m to the door, the cut, 43 m to the table, eight eights at two
-  // seconds each, the choice, the cut; a script doing each step at once got to the sledge in 28 s. The ride, botInput
-  // down the real run on its bench (tests/missions-fondue.test.mjs): without effect a careful clean one 3:08-3:18, a bold
-  // one 2:58; with effect 2:48-3:02, 10-16 s faster for the same care. A bot on the keys, full lock or nothing ten times
-  // a second, 3:03-3:28 either way)
-  bonusMs: 230 * 1000,
-  medals: { gold: 230000, silver: 265000, bronze: 340000 },
+  // (the evening before the ride takes some 70 s: 35 m to the door, the cut, 43 m to the table, eight eights at two
+  // seconds each, the Flämmli's round (some 30 s), the cut)
+  // (the evening before the ride some 70 s. The ride, tests/missions-fondue.test.mjs's bots on the real run: on the run
+  // alone, braking for the bends, 2:58-3:00; drifting them 2:45; with the three shortcuts, slowing for their spruces,
+  // 2:30; W held alone and the assist steering and braking, 2:31; the shortcuts with the assist, 2:07-2:13. Gold wants
+  // the shortcuts, a clean ride on the assist alone is silver)
+  bonusMs: 205 * 1000,
+  medals: { gold: 205000, silver: 240000, bronze: 340000 },
   finish: 'Davos Platz, the runners scrape over the last ice. The fondue held, the Flämmli is still warm in your belly. See you at the next session, on top of the world.',
   start: FONDUE_START,
   pin: { x: FONDUE_START.x, z: FONDUE_START.z },
   createState() {
     return {
-      arrived: false, stir: createStir(), choice: null, riding: false,
+      arrived: false, stir: createStir(), game: null, inside: false, effect: null, riding: false, onLane: false, laneAhead: false, shortcuts: 0, boosts: 0, trees: 0,
       cps: schlittelCheckpoints(), next: 0, skipped: null, crashes: 0, nets: 0, penaltyMs: 0, crashT: 0, why: null, tip: 0, off: false, topSpeed: 0
     };
   },
   update(ctx, state) {
-    if (state.riding && ctx.mode === 'person') updateCheckpoints(state, ctx.x, ctx.z, 9);
+    settleFlaemmli(state);
+    if (state.riding && ctx.mode === 'person' && !state.onLane) updateCheckpoints(state, ctx.x, ctx.z, 9);
   },
   summary(state) {
     const g = state.stir;
@@ -365,10 +549,11 @@ export const FONDUE_MISSION = {
         (p) => `${p.n} Achten · ${p.c ? `${p.c}× angebrannt (+${p.s} s)` : 'nichts angebrannt'}${p.k ? ` · ${p.k}-mal im Kreis gerührt` : ''}`,
         { n: g.eights, caught: g.strikes ? ` · caught on the bottom ${g.strikes}× (+${(g.strikes * STIR.burnMs) / 1000} s)` : ' · nothing caught',
           circles: g.circles ? ` · ${g.circles} ${g.circles === 1 ? 'circle' : 'circles'}` : '', c: g.strikes, s: (g.strikes * STIR.burnMs) / 1000, k: g.circles }),
-      msg('Flämmli {effect} · {n} {crashes}{pen} · top speed {v} km/h',
-        (p) => `Flämmli ${p.tipsy ? 'mit' : 'ohne'} Wirkung · ${p.n} ${p.n === 1 ? 'Sturz' : 'Stürze'}${p.pen} · Höchsttempo ${p.v} km/h`,
-        { effect: state.choice === 'tipsy' ? 'with effect' : 'without effect', tipsy: state.choice === 'tipsy', n: state.crashes, crashes: state.crashes === 1 ? 'crash' : 'crashes',
-          pen: state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '', v: Math.round(state.topSpeed * 3.6) })
+      flaemmliLine(state),
+      msg('{n} {crashes}{pen} · {c} of {of} shortcuts · {b} {boosts} · top speed {v} km/h',
+        (p) => `${p.n} ${p.n === 1 ? 'Sturz' : 'Stürze'}${p.pen} · ${p.c} von ${p.of} Abkürzungen · ${p.b} ${p.b === 1 ? 'Drift-Schub' : 'Drift-Schübe'} · Höchsttempo ${p.v} km/h`,
+        { n: state.crashes, crashes: state.crashes === 1 ? 'crash' : 'crashes', pen: state.crashes ? ` (+${(state.crashes * SLEDGE_CRASH_MS) / 1000} s)` : '',
+          c: state.shortcuts, of: SHORTCUTS.length, b: state.boosts, boosts: state.boosts === 1 ? 'drift boost' : 'drift boosts', v: Math.round(state.topSpeed * 3.6) })
     ];
   },
   objectives: [
@@ -400,9 +585,11 @@ export const FONDUE_MISSION = {
     },
     {
       id: 'flaemmli',
-      title: 'A Flämmli: with or without effect?',
+      title: 'A Flämmli in the Stübli',
+      allowModes: ['person'],
       check(ctx, state) {
-        return { done: state.choice !== null, progress: null, text: 'With effect: a faster sledge, late horns, a swaying valley', target: null, hint: 'Choose your Flämmli' };
+        if (!state.game) return { done: false, progress: 0, text: 'Into the Stübli …', target: null, hint: null };
+        return { done: state.effect !== null, progress: state.game.done ? 1 : 0, text: flaemmliLine(state), target: null, hint: 'More Williams, a bolder ride: faster, but late horns and a swaying valley' };
       }
     },
     ...SECTIONS.map(rideSection)

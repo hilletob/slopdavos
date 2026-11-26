@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight, surfaceHeight } from './terrain.js';
 import { PersonCrowd, PersonRig, rollHairstyle } from './pedestrians.js';
 import { DAVOS_DATA } from './davos-geodata.js';
@@ -1554,44 +1555,81 @@ const towerCrane = {
 
 // =====================================================================================================================
 // 8. Carting the snow: the blower of mission 2 fills the tipper driving alongside, the player takes the truck to the lake
-function buildTipperModel(material) {
+// The tipper is a real mesh, assets/models/dump-truck.glb (tools/build-dump-truck.mjs), from "Man Tga dump truck" by
+// zairiq-zairiq-123-pixar-cars-bfdi (https://sketchfab.com/3d-models/man-tga-dump-truck-6e9329c43a3542d5a47b5d40d6c0a086),
+// CC BY 4.0: a three-axle truck with a dropside bed, in cm, its front at +z, its parts as nodes (the bed `platform` with
+// its origin on the hinge at the tail, the tail board `platform_door` hinged at its top, the ram `hydraulic_part1` on the
+// chassis and its rod `hydraulic_part2` under the bed, the six wheels centred on their axles). Scaled by TIPPER.scale
+// (its wheels 0.52 m, the body 7.45 m long; LOADER.bed and LOADER.truckBody of js/missions-data-work.js are measured on it).
+const TIPPER_URL = new URL('../assets/models/dump-truck.glb', import.meta.url);
+export const TIPPER = {
+  scale: 1.28,
+  hinge: { y: 1.037, z: -2.706 }, // m in the model (×scale): the bed's hinge
+  bed: { halfW: 0.92, z0: -0.15, z1: 4.1, floor: 0.1 }, // m in the bed's frame (×scale): inside the walls, the floor
+  wheelR: 0.4074 // m (×scale)
+};
+let tipperModel = null;
+const loadTipper = () => (tipperModel ||= new GLTFLoader().loadAsync(TIPPER_URL.href));
+const _ramA = new THREE.Vector3(), _ramB = new THREE.Vector3();
+
+function buildTipperModel() {
   const g = new THREE.Group();
   g.name = 'SnowTipper';
-  const blue = 0x2c5f9e, dark = 0x26282b;
-  const B = boxBatch();
-  B.add(2.3, 0.4, 8.2, dark, 0, 0.95, 0); // the chassis
-  B.add(2.45, 2.15, 2, 0xf07d1a, 0, 2.05, 3.1); // the cab
-  B.add(2.2, 0.9, 0.05, 0x223040, 0, 2.55, 4.11);
-  for (const x of [1.23, -1.23]) B.add(0.05, 0.8, 1.3, 0x223040, x, 2.55, 3.3);
-  B.add(0.6, 0.12, 0.25, 0xffb300, 0, 3.2, 2.7);
-  g.add(B.mesh(material, 'TipperCab'));
-  // the bed tips round its hinge at the tail
+  const S = TIPPER.scale;
+  // the bed tips round its hinge at the tail; the model's bed is moved into it once loaded
   const bed = new THREE.Group();
-  const hinge = { y: 1.25, z: -LOADER.bed.back - LOADER.bed.halfL - 0.2 };
-  bed.position.set(0, hinge.y, hinge.z);
-  const C = boxBatch();
-  const L = LOADER.bed.halfL * 2, Wd = LOADER.bed.halfW * 2 + 0.1, mid = 0.2 + L / 2;
-  C.add(Wd, 0.14, L, blue, 0, 0.07, mid);
-  for (const x of [Wd / 2, -Wd / 2]) C.add(0.08, 1.1, L, blue, x, 0.65, mid);
-  C.add(Wd, 1.3, 0.1, blue, 0, 0.75, mid + L / 2); // the front wall
-  C.add(Wd, 0.5, 0.08, 0x214b7d, 0, 0.32, mid - L / 2); // the tail board's lower half
-  bed.add(C.mesh(material, 'TipperBed'));
-  // the load: a dome that grows with the fill
-  const heapGeo = mergeGeometries([new THREE.BoxGeometry(Wd - 0.2, 0.9, L - 0.2).translate(0, 0.45, 0).toNonIndexed(), new THREE.SphereGeometry(1, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale((Wd - 0.2) / 2, 0.75, (L - 0.2) / 2).translate(0, 0.9, 0).toNonIndexed()].map((p) => { p.deleteAttribute('uv'); return p; }));
+  bed.position.set(0, TIPPER.hinge.y * S, TIPPER.hinge.z * S);
+  g.add(bed);
+  // the load: a dome that grows with the fill, between the bed's walls
+  const Wd = TIPPER.bed.halfW * 2 * S, L = (TIPPER.bed.z1 - TIPPER.bed.z0) * S, mid = ((TIPPER.bed.z0 + TIPPER.bed.z1) / 2) * S;
+  const heapGeo = mergeGeometries([new THREE.BoxGeometry(Wd, 0.9, L).translate(0, 0.45, 0).toNonIndexed(), new THREE.SphereGeometry(1, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(Wd / 2, 0.75, L / 2).translate(0, 0.9, 0).toNonIndexed()].map((p) => { p.deleteAttribute('uv'); return p; }));
   const heap = new THREE.Mesh(heapGeo, mat(0xeef2f8, { roughness: 0.95 }));
   heap.name = 'TipperLoad';
-  heap.position.set(0, 0.14, mid);
+  heap.position.set(0, TIPPER.bed.floor * S, mid);
   heap.scale.set(1, 0.01, 1);
   heap.castShadow = true;
   bed.add(heap);
-  g.add(bed);
   const wheels = [];
-  for (const [x, z] of [[1.08, 2.8], [-1.08, 2.8], [1.08, -1.6], [-1.08, -1.6], [1.08, -2.8], [-1.08, -2.8]]) { const w = wheel(0.52, 0.38); w.position.set(x, 0.52, z); g.add(w); wheels.push({ mesh: w, r: 0.52, front: z > 0 }); }
-  return {
-    group: g, wheels, bed, heap, heapMid: mid,
-    drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.4, grip: 6.5, cornering: 4.6 },
-    dims: { halfW: LOADER.truckBody.halfW, halfL: LOADER.truckBody.halfL, top: 3.3, mass: 18000 }, chase: [14, 4.6], label: 'Tipper'
+  const model = {
+    group: g, wheels, bed, heap, heapMid: mid, door: null, ram: null,
+    drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.0, grip: 6.5, cornering: 4.6 },
+    dims: { halfW: LOADER.truckBody.halfW, halfL: LOADER.truckBody.halfL, top: 3.5, mass: 18000 }, chase: [14, 4.6], label: 'Tipper',
+    /** The bed raised by `angle` (rad): the tail board hangs, the ram follows the bed */
+    tilt(angle) {
+      bed.rotation.x = -angle;
+      if (model.door) model.door.rotation.x = angle;
+      const r = model.ram;
+      if (!r) return;
+      g.updateMatrixWorld(true);
+      // the cylinder (its mesh along -z) points at the rod's foot, the rod (along +z) back at the cylinder's
+      r.cyl.parent.worldToLocal(r.rod.getWorldPosition(_ramB));
+      _ramA.copy(r.cyl.position);
+      r.cyl.rotation.set(Math.atan2(_ramB.y - _ramA.y, -(_ramB.z - _ramA.z)), 0, 0);
+      const len = _ramB.distanceTo(_ramA);
+      r.rod.parent.worldToLocal(r.cyl.getWorldPosition(_ramA));
+      r.rod.rotation.set(Math.atan2(-(_ramA.y - r.rod.position.y), _ramA.z - r.rod.position.z), 0, 0);
+      r.rod.scale.z = Math.max(1, (len - r.cylLen + 10) / r.rodLen); // (the rod runs out of the cylinder)
+    }
   };
+  loadTipper().then((gltf) => {
+    const root = gltf.scene.clone(true);
+    root.scale.setScalar(S);
+    const parts = {};
+    root.traverse((o) => {
+      if (o.name) parts[o.name] = o;
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    });
+    g.add(root);
+    g.updateMatrixWorld(true);
+    bed.attach(parts.platform);
+    model.door = parts.platform_door;
+    model.ram = { cyl: parts.hydraulic_part1, rod: parts.hydraulic_part2, cylLen: 136, rodLen: 95 }; // (cm: their meshes' lengths)
+    for (const name of ['wheel_front_left', 'wheel_front_right', 'wheel_back_axis1_left', 'wheel_back_axis1_right', 'wheel_back_axis2_left', 'wheel_back_axis2_right']) {
+      wheels.push({ mesh: parts[name], r: TIPPER.wheelR * S, front: name.startsWith('wheel_front') });
+    }
+    model.tilt(-bed.rotation.x);
+  }).catch((err) => console.warn('[snow-haul] tipper model:', err));
+  return model;
 }
 
 const snowLoad = {
@@ -1606,8 +1644,7 @@ const snowLoad = {
       colour: (h, k, out) => (h < 0.08 ? out.copy(ASPHALT).lerp(SNOW, clamp(h / 0.08, 0, 1)) : out.copy(SNOW)).multiplyScalar(0.93 + 0.07 * hash(k))
     });
     run.group.add(mesh.mesh);
-    const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.65 });
-    const tipper = buildTipperModel(material);
+    const tipper = buildTipperModel();
     run.group.add(tipper.group);
     // the snow already on the shore, and what this load adds to it
     const dump = new THREE.Mesh(new THREE.ConeGeometry(6, 3, 14).translate(0, 1.2, 0), mat(0xe6ebf2, { roughness: 0.95 }));
@@ -1651,7 +1688,7 @@ const snowLoad = {
     w.keyHold = w.touchHold = false;
     w.tipper.heap.scale.set(1, 0.01, 1);
     w.tipper.heap.position.z = w.tipper.heapMid;
-    w.tipper.bed.rotation.x = 0;
+    w.tipper.tilt(0);
     w.dump.scale.setScalar(0.45);
     w.toast.hide();
     snowLoad.poseTruck(run, 0, cm);
@@ -1750,7 +1787,7 @@ const snowLoad = {
     // the load and the bed
     const P = w.tipper;
     P.heap.scale.y = Math.max(0.01, (st.load / LOADER.capacity));
-    P.bed.rotation.x = -st.raise * 0.9;
+    P.tilt(st.raise * 0.9);
     P.heap.position.z = P.heapMid - (st.raise > LOADER.tip.fallFrom ? (1 - st.load / Math.max(0.01, st.load + st.tipped)) * 1.6 : 0);
     w.dump.scale.setScalar(0.45 + 0.35 * clamp(st.tipped / LOADER.capacity, 0, 1));
     w.mesh.update(dt);
@@ -1791,7 +1828,8 @@ const snowLoad = {
     w.spawnAcc += (out / Math.max(dt, 1e-3)) * 7 * dt;
     while (w.spawnAcc >= 1) {
       w.spawnAcc--;
-      const a = { x: car.position.x - Math.sin(h) * 4.6, y: car.position.y + 1.8, z: car.position.z - Math.cos(h) * 4.6 };
+      const tail = LOADER.truckBody.halfL + 0.2;
+      const a = { x: car.position.x - Math.sin(h) * tail, y: car.position.y + 1.8, z: car.position.z - Math.cos(h) * tail };
       const b = { x: a.x - Math.sin(h) * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 2, y: car.position.y - 0.3, z: a.z - Math.cos(h) * (1.5 + Math.random() * 3) + (Math.random() - 0.5) * 2 };
       lump(pb, a, b, 0.55 + Math.random() * 0.2, { size: 0.5, grow: 0.6 });
     }

@@ -3,14 +3,15 @@ import { groundHeight, trodHeight, surfaceHeight } from './terrain.js';
 import { setWorldCenter } from './quality.js';
 import { t as tr } from './i18n.js';
 import { logoImage, drawLogo } from './logos.js';
-import { pointAt } from './missions-data-snow.js';
+import { pointAt, riderSpeed } from './missions-data-snow.js';
 import { runHeading } from './missions-data-sledge.js';
 import { sledgeSetup, sledgeMount, sledgeUnmount, sledgeUpdate, sledgeAfter, sledgeToast } from './missions-sledge.js';
 import { el, live, swallow, blip, makeCrowd, poseCrowd } from './missions-gastro.js';
 import {
-  STIR, stirPoint, stirLift, stirGauge, fondueStir, chooseFlaemmli, flaemmliParams, createTipsy, tipsyInput, tipsyRoll,
-  schlittelCourse, schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK, KONGRESS_DOOR, SCHATZALP_ARRIVAL, FONDUE_TABLE
+  STIR, stirPoint, stirLift, stirGauge, fondueStir, flaemmliParams, createTipsy, tipsyInput, tipsyRoll, driftInput, assistInput, effectWord, passShortcut,
+  schlittelCourse, schlittelHeight, SCHLITTEL_START_S, SCHLITTEL_TRACK, SCHLITTEL_SNOW, LANE, KONGRESS_DOOR, SCHATZALP_ARRIVAL, FONDUE_TABLE
 } from './missions-data-fondue.js';
+import { DRIFT } from './missions-data-sledge.js';
 
 // js/missions-fondue.js
 // The runtime of the Drupal Mountain Camp's Fondue Night (js/missions-data-fondue.js has its definition and the pure
@@ -18,9 +19,12 @@ import {
 //   fondueNight — the camp's banner on the Kongresszentrum's south front and two flags at its entrance, a few of the
 //                 camp waiting there; the cut up to the Schatzalp; the table on the terrace with the caquelon; the pot
 //                 from above on a canvas, the fork drawn through it with the mouse or a finger (pointer events, the
-//                 stroke handed to stirPoint); the Flämmli's two buttons; the cut to the top of the sled run and the
-//                 ride on the horn sledge of js/missions-sledge.js (sledgeSetup / sledgeMount), with torches along the
-//                 run and, after a Flämmli with effect, late horns and a swaying view.
+//                 stroke handed to stirPoint); the cut to the top of the sled run and the ride on the horn sledge of
+//                 js/missions-sledge.js (sledgeSetup / sledgeMount): the run's packed snow drawn as one smooth ribbon on
+//                 the height the sledge rides, torches along it, the shortcuts' flags, tracks and snow walls; the drift's
+//                 charge on the HUD's meter; a camera that follows the sledge's own track (never into the slope or the
+//                 trees beside it); after a Flämmli with effect, late horns and a swaying view.
+//   flaemmli    — the Flämmli itself is js/missions-gastro.js's (the Rot Liechtli's game, one round in the Stübli).
 // Everything is built for the run and goes with its group and its cleanups: nothing of it stays at the Kongress.
 // The logo is the camp's (assets/logos/drupal-mountain-camp.webp, see assets/logos/SOURCES.md); the banner is drawn
 // here round it, in the colours of the camp's 2027 pictures.
@@ -166,12 +170,12 @@ function buildTable(run) {
 }
 
 /** Torches down the run, every 25 m on one side and the other: the poles and the flames, two instanced meshes */
-function buildTorches(run, course) {
+function buildTorches(run, course, height) {
   const spots = [];
   for (let s = 12, k = 0; s < course.length - 4; s += 25, k++) {
     const p = pointAt(course.pts, s), h = runHeading(course, s, 3), side = k % 2 ? 1 : -1;
     const x = p.x + Math.cos(h) * (SCHLITTEL_TRACK.half + 1.1) * side, z = p.z - Math.sin(h) * (SCHLITTEL_TRACK.half + 1.1) * side;
-    spots.push([x, trodHeight(x, z), z]);
+    spots.push([x, height(x, z), z]);
   }
   const m = new THREE.Matrix4();
   const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 5).translate(0, 0.65, 0), new THREE.MeshStandardNodeMaterial({ color: 0x3a2a1c, roughness: 0.8 }), spots.length);
@@ -253,24 +257,178 @@ function drawPot(c, fd, g, now) {
   c.font = '700 12px Inter, system-ui, sans-serif'; c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText(tr('creamy'), bx, by - 6);
   c.textAlign = 'right'; c.fillText(tr('catching'), bx + bw, by - 6);
 }
-/** The Flämmli on its card: the cup, the schnapps alight on top */
-function drawCup(c, now) {
-  c.clearRect(0, 0, 200, 150);
-  for (let k = 0; k < 3; k++) {
-    const w = 26 - k * 7, h = 44 - k * 10 + Math.sin(now * (9 + k * 3) + k) * 5;
-    c.fillStyle = ['rgba(60,130,255,.55)', 'rgba(120,180,255,.75)', 'rgba(230,240,255,.9)'][k];
-    c.beginPath(); c.moveTo(100 - w, 62); c.quadraticCurveTo(100 + Math.sin(now * 7 + k) * 6, 62 - h * 1.5, 100 + w, 62); c.closePath(); c.fill();
+// --- The run's snow, the shortcuts ---------------------------------------------------------------------------------------
+/** Packed snow with the runners' grooves: across the texture's width (u) the run's width, along it (v) 8 m */
+function snowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 256;
+  const c = canvas.getContext('2d');
+  c.fillStyle = '#e6edf4'; c.fillRect(0, 0, 128, 256);
+  let r = 7;
+  const rnd = () => { r = (r * 16807) % 2147483647; return r / 2147483647; };
+  for (let i = 0; i < 900; i++) { c.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '150,170,195'},${0.06 + rnd() * 0.1})`; c.fillRect(rnd() * 128, rnd() * 256, 1 + rnd() * 3, 2 + rnd() * 8); }
+  // (the grooves of the runners, a pair either side of the middle, and the shoulders a little rougher)
+  for (const x of [44, 52, 76, 84]) { c.fillStyle = 'rgba(120,140,170,.16)'; c.fillRect(x, 0, 3, 256); }
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(0, 0, 14, 256); c.fillRect(114, 0, 14, 256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+/** A ribbon along a line: `at(i)` gives station i's point and its direction (x, z, h), `n` stations, `us` the offsets across */
+function ribbon(n, us, at, height, lift, vScale) {
+  const pos = new Float32Array(n * us.length * 3), uv = new Float32Array(n * us.length * 2), idx = [];
+  let v = 0, px = null, pz = null;
+  for (let i = 0; i < n; i++) {
+    const { x, z, h } = at(i), lx = Math.cos(h), lz = -Math.sin(h);
+    if (px !== null) v += Math.hypot(x - px, z - pz) / vScale;
+    px = x; pz = z;
+    us.forEach((u, j) => {
+      const k = i * us.length + j, X = x + lx * u, Z = z + lz * u;
+      pos[k * 3] = X; pos[k * 3 + 1] = height(X, Z) + lift; pos[k * 3 + 2] = Z;
+      uv[k * 2] = (u - us[0]) / (us[us.length - 1] - us[0]); uv[k * 2 + 1] = v;
+      if (i && j) { const a = k - us.length - 1, b = k - us.length, d = k - 1; idx.push(a, d, b, b, d, k); }
+    });
   }
-  c.fillStyle = '#f4f1ea'; c.beginPath(); c.moveTo(58, 60); c.lineTo(142, 60); c.lineTo(132, 122); c.quadraticCurveTo(100, 134, 68, 122); c.closePath(); c.fill();
-  c.strokeStyle = '#f4f1ea'; c.lineWidth = 9; c.beginPath(); c.arc(146, 86, 15, -Math.PI / 2, Math.PI / 2); c.stroke();
-  c.fillStyle = '#4a2c16'; c.beginPath(); c.ellipse(100, 61, 40, 7, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = '#d9d4c8'; c.beginPath(); c.ellipse(100, 134, 62, 9, 0, 0, Math.PI * 2); c.fill();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+/**
+ * The run's snow as the sledge rides it (S.height): one ribbon along the smoothed line over the bench and the snow banks
+ * beside it, so the bench's polygon of 13 m chords and its ledges are under it; the shortcuts' tracks down through the
+ * forest; at each lane's top two flags and a sign at the run's edge, at its foot the snow wall on the run's far side.
+ */
+function buildSnow(run, course, height) {
+  const tex = snowTexture();
+  const mat = new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const half = SCHLITTEL_SNOW.flat + 1.6, us = [-half, -half + 0.8, -2.2, -1.1, 0, 1.1, 2.2, half - 0.8, half];
+  const n = Math.ceil(course.length) + 1;
+  const run1 = new THREE.Mesh(ribbon(n, us, (i) => { const s = Math.min(course.length, i), p = pointAt(course.pts, s); return { x: p.x, z: p.z, h: runHeading(course, s, 1.5) }; }, height, 0.05, 8), mat);
+  run1.name = 'FondueSnowRun'; run1.receiveShadow = true; run1.frustumCulled = false;
+  run.group.add(run1);
+  const flagMat = new THREE.MeshBasicNodeMaterial({ color: 0xff7a1a, side: THREE.DoubleSide });
+  const poleMat = new THREE.MeshStandardNodeMaterial({ color: 0x2a2d33, roughness: 0.6 });
+  const pole = new THREE.CylinderGeometry(0.03, 0.03, 1.8, 5).translate(0, 0.9, 0), cloth = new THREE.PlaneGeometry(0.5, 0.34).translate(0.27, 1.6, 0);
+  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.16, 1.2, 6).translate(0, 0.6, 0), coneGeo = new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0);
+  const barkMat = new THREE.MeshStandardNodeMaterial({ color: 0x4a3222, roughness: 0.9 });
+  const needleMat = new THREE.MeshStandardNodeMaterial({ color: 0x1f3d26, roughness: 0.85 }), needleMat2 = new THREE.MeshStandardNodeMaterial({ color: 0x24462b, roughness: 0.85 });
+  const snowMat = new THREE.MeshStandardNodeMaterial({ color: 0xeef3f8, roughness: 0.9 });
+  for (const L of course.lanes) {
+    const steps = Math.ceil(L.len / 1.5) + 3;
+    const lane = new THREE.Mesh(ribbon(steps, [-L.half - 0.4, -L.half + 0.4, 0, L.half - 0.4, L.half + 0.4], (i) => {
+      const t = -0.08 + (i / (steps - 1)) * 1.08;
+      return { x: L.ax + L.ux * t * L.len, z: L.az + L.uz * t * L.len, h: Math.atan2(L.ux, L.uz) };
+    }, height, 0.06, 8), mat);
+    lane.name = 'FondueShortcut'; lane.receiveShadow = true; lane.frustumCulled = false;
+    run.group.add(lane);
+    // the flags either side of the way in
+    for (const side of [1, -1]) {
+      const t = 6 / L.len, x = L.ax + L.ux * t * L.len + L.uz * side * (L.half + 0.3), z = L.az + L.uz * t * L.len - L.ux * side * (L.half + 0.3);
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(pole, poleMat), new THREE.Mesh(cloth, flagMat));
+      g.position.set(x, height(x, z) - 0.05, z);
+      g.rotation.y = Math.atan2(L.ux, L.uz) + Math.PI / 2;
+      run.group.add(g);
+    }
+    // the sign at the run's edge before the way in, facing the sledges coming down
+    const s = L.s0 - 16, p = pointAt(course.pts, s), h = runHeading(course, s, 3), e = L.side * (SCHLITTEL_TRACK.half + 0.9);
+    const x = p.x + Math.cos(h) * e, z = p.z - Math.sin(h) * e;
+    const board = canvasTexture(256, 128, (c, w, hh) => {
+      c.fillStyle = '#ff7a1a'; c.fillRect(0, 0, w, hh);
+      c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = '900 34px Inter, Arial, sans-serif'; c.fillText(tr('SHORTCUT'), w / 2, 40, w - 16);
+      c.font = '900 60px Inter, Arial, sans-serif'; c.fillText(L.side > 0 ? '⬅' : '➡', w / 2, 92);
+    });
+    const sign = new THREE.Group();
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6).translate(0, 0.8, 0), poleMat);
+    const sb = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.45).translate(0, 1.55, 0), new THREE.MeshBasicNodeMaterial({ map: board.tex, color: 0xd0d0d0, side: THREE.DoubleSide }));
+    sign.add(sp, sb);
+    sign.position.set(x, height(x, z) - 0.05, z);
+    sign.rotation.y = h + Math.PI;
+    run.group.add(sign);
+    // the young spruces in the lane (its obstacles: js/missions-data-sledge.js laneStep), snow on their tiers
+    for (const [x, z, , ht] of L.trees) {
+      const tree = new THREE.Group();
+      tree.add(new THREE.Mesh(trunkGeo, barkMat));
+      for (let k = 0; k < 3; k++) {
+        const r = (0.95 - k * 0.25) * ht / 3, y = ht * (0.25 + k * 0.22), cone = new THREE.Mesh(coneGeo, k % 2 ? needleMat : needleMat2);
+        cone.scale.set(r, ht * 0.42, r); cone.position.y = y;
+        const cap = new THREE.Mesh(coneGeo, snowMat);
+        cap.scale.set(r * 0.82, ht * 0.18, r * 0.82); cap.position.y = y + ht * 0.2;
+        tree.add(cone, cap);
+      }
+      tree.position.set(x, height(x, z) - 0.1, z);
+      tree.rotation.y = x * 7.1;
+      tree.traverse((m) => { m.castShadow = true; });
+      run.group.add(tree);
+    }
+    // the snow wall at the foot: a rounded bank on the far side of the run below
+    const wall = course.bends.find((b) => b.berm && Math.abs(b.s0 + LANE.wall[0] - L.s1) < 1);
+    if (wall) {
+      const st = Math.ceil((wall.s1 - wall.s0) / 1) + 1, off = wall.side * (SCHLITTEL_TRACK.half + SCHLITTEL_TRACK.netGap);
+      const geo = ribbon(st, [-0.9, -0.45, 0, 0.45, 0.9].map((u) => off + u * wall.side), (i) => { const ss = wall.s0 + i, q = pointAt(course.pts, ss); return { x: q.x, z: q.z, h: runHeading(course, ss, 2) }; }, height, 0, 8);
+      // (raised in the middle: a bank 0.8 m high, its ends sloping down into the snow)
+      const pa = geo.attributes.position;
+      for (let i = 0; i < pa.count; i++) {
+        const row = Math.floor(i / 5), j = i % 5, end = Math.min(1, Math.min(row, st - 1 - row) / 3);
+        pa.setY(i, pa.getY(i) + [0.05, 0.6, 0.85, 0.6, 0.05][j] * end);
+      }
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat);
+      m.name = 'FondueSnowWall'; m.frustumCulled = false;
+      run.group.add(m);
+    }
+  }
+}
+
+// --- The camera on the ride -----------------------------------------------------------------------------------------------
+// The follow camera of js/cameras.js stands behind the sledge along its heading: in the hairpins of a run cut into the
+// slope that is in the slope or among the trees beside the run, and the view goes dark or into a trunk. On the ride the
+// camera follows the sledge's own track instead: it stands where the sledge was ~6.5 m back along the way it went (that
+// ground is clear), 2.4 m over the snow there, and higher still where the slope between it and the sledge would cut the
+// view (the inside of a hairpin), and looks at the sledge and a little ahead of it.
+const CAM = { back: 6.5, up: 2.4, look: 4, ease: 6 };
+function rideCamera(run, camera, dt) {
+  const fd = run.fd, S = run.sl, sl = S.sl, r = sl.rider, trail = fd.trail3;
+  const last = trail[trail.length - 1];
+  if (!last || Math.hypot(r.x - last.x, r.z - last.z) > 0.5) {
+    trail.push({ x: r.x, y: r.y, z: r.z });
+    if (trail.length > 80) trail.shift();
+  }
+  // (the point ~CAM.back m back along the track; before there is that much track, straight behind)
+  let need = CAM.back, bx = r.x - Math.sin(r.heading) * CAM.back, bz = r.z - Math.cos(r.heading) * CAM.back, by = r.y;
+  for (let i = trail.length - 1, px = r.x, pz = r.z; i >= 0; i--) {
+    const q = trail[i], d = Math.hypot(q.x - px, q.z - pz);
+    if (d >= need) { const k = need / d; bx = px + (q.x - px) * k; bz = pz + (q.z - pz) * k; by = q.y; break; }
+    need -= d; px = q.x; pz = q.z;
+  }
+  let cy = Math.max(by, S.height(bx, bz)) + CAM.up;
+  const ty = r.y + 0.9;
+  // (the slope between the camera and the sledge: the camera rises until it looks over it)
+  for (let k = 0.2; k < 0.95; k += 0.15) {
+    const x = bx + (r.x - bx) * k, z = bz + (r.z - bz) * k, g = Math.max(S.height(x, z), groundHeight(x, z)) + 0.6;
+    const line = cy + (ty - cy) * k;
+    if (g > line) cy += (g - line) / (1 - k);
+  }
+  const want = fd.camWant.set(bx, cy, bz);
+  const sp = riderSpeed(r), vx = sp > 1 ? r.vx / sp : Math.sin(r.heading), vz = sp > 1 ? r.vz / sp : Math.cos(r.heading);
+  const look = fd.camLook.set(r.x + vx * CAM.look, ty, r.z + vz * CAM.look);
+  const pos = fd.camPos;
+  if (!fd.camOn || pos.distanceTo(want) > 25) pos.copy(want);
+  else pos.lerp(want, 1 - Math.exp(-dt * CAM.ease));
+  fd.camOn = true;
+  camera.position.copy(pos);
+  camera.lookAt(look);
 }
 
 // --- The feature -----------------------------------------------------------------------------------------------------------
 const fondueNight = {
-  // (js/missions.js hides the game's own controls while this is true: at the pot and at the Flämmli)
-  ownControls: (run) => !!(run.fd?.potOpen || run.fd?.cupOpen),
+  // (js/missions.js hides the game's own controls while this is true: at the pot; the Flämmli has its own, js/missions-gastro.js)
+  ownControls: (run) => !!run.fd?.potOpen,
   setup(run) {
     const s = el('style'); s.textContent = STYLE; document.head.append(s);
     run.cleanups.push(() => { s.remove(); document.body.classList.remove('fd-hold'); });
@@ -287,25 +445,15 @@ const fondueNight = {
     const c2 = canvas.getContext('2d'); c2.scale(dpr, dpr);
     box.append(info, canvas);
     game.append(box);
-    // the Flämmli
-    const cup = el('div', 'fd-game'); cup.hidden = true;
-    const cupBox = el('div', 'fd-box');
-    const cupCanvas = el('canvas'); cupCanvas.width = 200; cupCanvas.height = 150; cupCanvas.style.cssText = 'width:200px;background:#1a1410;cursor:default';
-    const cupInfo = el('div', 'fd-card');
-    const row = el('div', 'fd-row');
-    const withBtn = el('button', 'fd-btn'); withBtn.type = 'button';
-    const withoutBtn = el('button', 'fd-btn sec'); withoutBtn.type = 'button';
-    row.append(withBtn, withoutBtn);
-    cupBox.append(cupCanvas, cupInfo, row);
-    cup.append(cupBox);
     const veil = el('div', 'fd-veil'); veil.hidden = true;
-    document.body.append(game, cup, veil);
-    run.cleanups.push(() => { game.remove(); cup.remove(); veil.remove(); });
+    document.body.append(game, veil);
+    run.cleanups.push(() => { game.remove(); veil.remove(); });
 
     const fd = run.fd = {
-      game, info, canvas, ctx: c2, cup, cupCanvas, cupCtx: cupCanvas.getContext('2d'), cupInfo, withBtn, withoutBtn, veil,
-      potOpen: false, cupOpen: false, held: false, down: false, fork: null, trail: [], pop: null, seq: 0, clock: 0,
+      game, info, canvas, ctx: c2, veil,
+      potOpen: false, held: false, down: false, fork: null, trail: [], pop: null, seq: 0, clock: 0,
       cut: null, tipsy: null, rideT: 0, rolled: 0,
+      trail3: [], camOn: false, camPos: new THREE.Vector3(), camWant: new THREE.Vector3(), camLook: new THREE.Vector3(),
       bubbles: Array.from({ length: 22 }, (_, i) => { const a = i * 2.399, r = Math.sqrt((i + 0.5) / 22); return [Math.cos(a) * r, Math.sin(a) * r, (i * 0.37) % 1]; }),
       kongress: buildKongress(run), table: buildTable(run)
     };
@@ -335,29 +483,53 @@ const fondueNight = {
     });
     run.listen(canvas, 'pointermove', (e) => { if (fd.potOpen) move(e); });
     for (const ev of ['pointerup', 'pointercancel']) run.listen(canvas, ev, () => { fd.down = false; if (run.state?.stir) stirLift(run.state.stir); });
-    run.listen(withBtn, 'click', () => fondueNight.choose(run, true));
-    run.listen(withoutBtn, 'click', () => fondueNight.choose(run, false));
 
     // the sledge and its run, the player still on foot (js/missions-sledge.js)
     const course = schlittelCourse();
-    sledgeSetup(run, { course, arches: [[SCHLITTEL_START_S + 4, 'START · FONDUE NIGHT · SCHATZALP', 0x0678be], [-2, 'ZIEL · FINISH · DAVOS PLATZ', 0xd42a20]], mounted: false, height: schlittelHeight(trodHeight, groundHeight), track: SCHLITTEL_TRACK });
-    buildTorches(run, course);
+    const height = schlittelHeight(trodHeight, groundHeight);
+    sledgeSetup(run, { course, arches: [[SCHLITTEL_START_S + 4, 'START · FONDUE NIGHT · SCHATZALP', 0x0678be], [-2, 'ZIEL · FINISH · DAVOS PLATZ', 0xd42a20]], mounted: false, height, track: SCHLITTEL_TRACK });
+    buildSnow(run, course, height);
+    buildTorches(run, course, height);
+    run.sl.onEvent = (ev, sl) => fondueNight.rideEvent(run, ev, sl);
+  },
+  /** The ride's own events (js/missions-data-sledge.js stepSledge): the drift, its boost, the shortcuts. true: handled */
+  rideEvent(run, ev, sl) {
+    const S = run.sl, st = run.state;
+    if (ev === 'boost') {
+      const n = sl.boostLevel;
+      sledgeToast(S.hud, tr(['Drift boost!', 'Big drift boost!', 'Mega drift boost!'][n - 1]), ['#7fd6ff', '#5ab8ff', '#b88cff'][n - 1], 1.1);
+      blip(run, 'good');
+      return true;
+    }
+    if (ev === 'spun') { sledgeToast(S.hud, tr('Spun round: no boost'), '#ffd27a', 1.2); return true; }
+    if (ev === 'drift' || ev === 'straight' || ev === 'lane' || ev === 'wall') return true;
+    if (ev === 'edge') { sledgeToast(S.hud, tr('Deep snow!'), '#ffd27a', 0.8); return true; }
+    if (ev === 'shortcut') {
+      if (st && sl.lastLane) passShortcut(st, sl.lastLane.s1);
+      sledgeToast(S.hud, tr('Shortcut!'), '#7dff9a', 1.2);
+      blip(run, 'good');
+      return true;
+    }
+    // (the snow wall at a shortcut's foot catches the sledge: no net, no toast)
+    if (ev === 'net' && !sl.lane && sl.proj && S.course.bends.some((b) => b.berm && sl.proj.s >= b.s0 && sl.proj.s <= b.s1)) return true;
+    return false;
   },
   reset(run) {
     const fd = run.fd;
     sledgeUnmount(run);
     run.sl.inputFilter = null; run.sl.params = null;
     fondueNight.hold(run, false);
-    fd.potOpen = fd.cupOpen = fd.down = false;
-    fd.game.hidden = fd.cup.hidden = true;
+    fd.potOpen = fd.down = false;
+    fd.game.hidden = true;
     fd.veil.hidden = true; fd.veil.classList.remove('on');
     fd.trail.length = 0; fd.fork = null; fd.pop = null; fd.seq = 0; fd.cut = null; fd.tipsy = null; fd.rideT = 0; fd.rolled = 0;
+    fd.trail3.length = 0; fd.camOn = false;
   },
   teardown(run) {
     fondueNight.hold(run, false);
-    run.fd.game.hidden = run.fd.cup.hidden = true;
+    run.fd.game.hidden = true;
   },
-  /** The walker stands still at the table (the pot and the cup have the pointer and the keys) */
+  /** The walker stands still at the table (the pot has the pointer and the keys) */
   hold(run, on) {
     const cm = run.hooks.controllerManager, fd = run.fd;
     if (on === fd.held) return;
@@ -374,14 +546,8 @@ const fondueNight = {
     blip(run, good ? 'good' : what === 'burnt' ? 'bad' : 'pock');
     if (what === 'burnt') run.audio?.thump?.();
   },
-  choose(run, withEffect) {
-    if (!run.fd.cupOpen || run.phase !== 'running') return;
-    if (chooseFlaemmli(run.state, withEffect)) blip(run, withEffect ? 'fwoosh' : 'good');
-  },
   key(run, e) {
-    const fd = run.fd;
-    if (fd.cupOpen && !e.repeat && (e.code === 'KeyF' || e.code === 'KeyG')) { swallow(e); fondueNight.choose(run, e.code === 'KeyF'); return; }
-    if ((fd.potOpen || fd.cupOpen) && (e.code === 'Space' || e.code === 'Enter' || e.code.startsWith('Key') || e.code.startsWith('Arrow'))) swallow(e);
+    if (run.fd.potOpen && (e.code === 'Space' || e.code === 'Enter' || e.code.startsWith('Key') || e.code.startsWith('Arrow'))) swallow(e);
   },
   /** A cut: the veil closes, `jump` moves the player behind it, the veil opens again */
   startCut(run, text, jump) {
@@ -420,33 +586,40 @@ const fondueNight = {
     if (!stirring && fd.potOpen) { fd.potOpen = false; fd.down = false; fd.game.hidden = true; }
     if (stirring && run.phase === 'running') { const ev = fondueStir(st, dt); if (ev) fondueNight.made(run, ev); }
     if (fd.pop) fd.pop.t -= dt;
-    // the Flämmli
-    const choosing = id === 'flaemmli';
-    if (choosing && !fd.cupOpen) { fd.cupOpen = true; fd.cup.hidden = false; fondueNight.hold(run, true); }
-    if (!choosing && fd.cupOpen) { fd.cupOpen = false; fd.cup.hidden = true; }
-    // to the sledges: a cut to the top of the run, onto the horn sledge
+    // to the sledges: a cut to the top of the run, onto the horn sledge (the Flämmli's effect with it)
     if ((id === 'upper' || id === 'village') && !st.riding && !fd.cut) {
-      fondueNight.startCut(run, st.choice === 'tipsy' ? 'A Flämmli with effect. To the sledges!' : 'A Flämmli without effect. To the sledges!', () => {
+      const k = st.effect || 0, word = effectWord(k);
+      fondueNight.startCut(run, { none: 'The Flämmli went cold. To the sledges!', mild: 'A mild Flämmli. To the sledges!', good: 'A good Flämmli. To the sledges!', strong: 'A strong Flämmli. To the sledges!' }[word], () => {
         const hooks = run.hooks, S = run.sl, p0 = pointAt(S.course.pts, SCHLITTEL_START_S);
         fondueNight.hold(run, false);
         if (hooks.world) setWorldCenter(p0.x, p0.z);
-        S.params = flaemmliParams(st.choice);
-        fd.tipsy = st.choice === 'tipsy' ? createTipsy() : null;
-        S.inputFilter = fd.tipsy ? (input, d) => tipsyInput(input, d, fd.tipsy) : null;
-        sledgeMount(run, SCHLITTEL_START_S, { wait: true });
+        S.params = flaemmliParams(k);
+        fd.tipsy = k > 0 ? createTipsy(k) : null;
+        // (the keys' drift: S with A/D held at speed; then the Flämmli's late horns)
+        S.inputFilter = (input, d) => { const i = assistInput(driftInput(input), S.sl, S.course); return fd.tipsy ? tipsyInput(i, d, fd.tipsy) : i; };
+        sledgeMount(run, SCHLITTEL_START_S, { wait: true, hints: [[['A', 'D'], 'steer'], [['S'], 'brake · with A/D: drift, let go: boost'], [['W'], 'duck · push off']] });
         hooks.cameraSystem?.resetForTeleport?.();
         st.riding = true;
         fd.rideT = 0;
-        if (fd.tipsy) sledgeToast(S.hud, tr('The valley sways: steer early!'), '#ffd27a', 2.6);
+        fd.trail3.length = 0; fd.camOn = false;
+        sledgeToast(S.hud, tr(k >= 0.45 ? 'The valley sways: steer early!' : 'W to go: the sledge keeps to the run by itself'), '#ffd27a', 3);
       });
     }
-    if (st.riding) fd.rideT += dt;
+    if (st.riding) {
+      fd.rideT += dt;
+      const sl = run.sl.sl;
+      if (sl) {
+        st.onLane = !!sl.lane; st.shortcuts = sl.shortcuts; st.boosts = sl.boosts; st.trees = sl.trees;
+        const s = sl.proj.s;
+        st.laneAhead = !sl.lane && run.sl.course.lanes.some((L) => s > L.s0 - 70 && s < L.s0 + 2);
+      }
+    }
   },
   after(run, ctx, dt) {
     const fd = run.fd, st = run.state;
-    // (over: the pot and the cup away, and a cut that was under way with its veil — `update` no longer runs to end it)
+    // (over: the pot away, and a cut that was under way with its veil — `update` no longer runs to end it)
     const over = run.phase === 'done' || run.phase === 'aborted' || run.phase === 'failed';
-    if (over && (fd.potOpen || fd.cupOpen)) { fd.potOpen = fd.cupOpen = false; fd.game.hidden = fd.cup.hidden = true; fondueNight.hold(run, false); }
+    if (over && fd.potOpen) { fd.potOpen = false; fd.game.hidden = true; fondueNight.hold(run, false); }
     if (over && fd.cut) { fd.cut = null; fd.veil.classList.remove('on'); fd.veil.hidden = true; }
     sledgeAfter(run);
     // the people at the door and at the table (whichever is near)
@@ -459,20 +632,28 @@ const fondueNight = {
       const line = `<b>${tr(v.text)}</b><br>${tr(v.hint)}`;
       if (fd.info._t !== line) { fd.info._t = line; fd.info.innerHTML = line; }
     }
-    if (fd.cupOpen) {
-      drawCup(fd.cupCtx, fd.clock);
-      const line = tr('A Kafi with a schnapps alight on top. With effect: the sledge runs faster, but the horns answer late and the valley sways. Without: all as it is.');
-      if (fd.cupInfo._t !== line) {
-        fd.cupInfo._t = line; fd.cupInfo.textContent = line;
-        fd.withBtn.innerHTML = `${tr('With effect')}<kbd>F</kbd>`; fd.withoutBtn.innerHTML = `${tr('Without effect')}<kbd>G</kbd>`;
+    const S = run.sl, sl = S.sl;
+    if (sl && st?.riding && (run.phase === 'running' || run.phase === 'done') && ctx.camera) {
+      // the camera on the sledge's own track (the follow camera only, and not while the player turns it)
+      const cs = run.hooks.cameraSystem;
+      if (cs?.activePresetId === 'chase' && !cs.isDragging && !(cs.userOrbitTimer > 0)) rideCamera(run, ctx.camera, dt);
+      else fd.camOn = false;
+      // the drift's charge on the HUD's meter (where the tilt is otherwise)
+      const hud = S.hud;
+      if (sl.drift) {
+        const c = sl.drift.charge, lv = DRIFT.levels, level = c >= lv[2] ? 3 : c >= lv[1] ? 2 : c >= lv[0] ? 1 : 0;
+        hud.fill.style.width = `${Math.round(Math.min(1, c / lv[2]) * 100)}%`;
+        hud.fill.style.background = ['#9fb3c8', '#7fd6ff', '#5ab8ff', '#b88cff'][level];
       }
-    }
+      const label = hud.box.children[1], want = tr(sl.drift ? 'Drift' : 'Tilt');
+      if (label && label.textContent !== want) label.textContent = want;
+    } else fd.camOn = false;
     // after a Flämmli with effect the view sways (after the camera is placed for the frame, as js/missions-fx.js's shake)
     if (fd.tipsy && st?.riding && run.phase === 'running' && ctx.camera) {
-      fd.rolled = tipsyRoll(fd.rideT) * Math.min(1, fd.rideT / 2);
+      fd.rolled = tipsyRoll(fd.rideT, fd.tipsy.k) * Math.min(1, fd.rideT / 2);
       ctx.camera.rotateZ(fd.rolled);
       ctx.camera.updateMatrixWorld();
-    }
+    } else if (fd.camOn) ctx.camera.updateMatrixWorld();
   }
 };
 

@@ -334,10 +334,11 @@ export const FLAEMMLI_STEPS = {
   pause: { label: 'Next round …', button: null }
 };
 
-export function createFlaemmli(seed = 11) {
+/** A Flämmli evening of `rounds` rounds (the Rot Liechtli's three; the Fondue Night's one at the Schatzalp) */
+export function createFlaemmli(seed = 11, rounds = FLAEMMLI.rounds) {
   const rand = seededRandom(seed);
   return {
-    t: 0, round: 1, step: 'order', stepT: 0, rand, holding: false, value: 0, sweepT: 0, tries: 0,
+    rounds, t: 0, round: 1, step: 'order', stepT: 0, rand, holding: false, value: 0, sweepT: 0, tries: 0,
     // the round's cup: sugar, sip and pour as judged on their gauges; the flambé
     sugar: 0, sip: 0, williams: 0, flame: 0, fuel: 1, fuelS: 10, caramel: 0, lit: false, relit: 0, gustIn: 3, gustT: 0, greenT: 0, burnT: 0, heat: 0,
     drinks: 0, strikes: 0, score: 0, perfect: 0, roundPts: 0, log: [], last: null, seq: 0, done: false, cutOff: false
@@ -470,8 +471,8 @@ export function flaemmliStep(g, dt) {
     if (g.heat >= 1) { g.heat = 1; fStrike(g, 'Too long: the shot glass cracks!'); }
   } else if (g.step === 'pause' && g.stepT >= F.pause) {
     if (g.strikes >= F.strikes) { g.cutOff = true; g.done = true; }
-    else if (g.round >= F.rounds) {
-      if (g.drinks >= F.rounds) { g.score += F.points.allRounds; fSay(g, `All ${F.rounds} down!`, F.points.allRounds, true); }
+    else if (g.round >= g.rounds) {
+      if (g.rounds > 1 && g.drinks >= g.rounds) { g.score += F.points.allRounds; fSay(g, `All ${g.rounds} down!`, F.points.allRounds, true); }
       g.done = true;
     } else {
       g.round++;

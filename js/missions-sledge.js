@@ -153,6 +153,7 @@ function buildRun(run, course, arches, T = SLEDGE_TRACK, height = groundHeight) 
   // the nets on the outside of the bends: one ribbon, 1.1 m high, posts every 4 m
   const pos = [], uv = [], idx = [], posts = [];
   for (const b of course.bends) {
+    if (b.berm) continue; // (a snow wall, no net: the mission builds it)
     const off = b.side * (T.half + T.netGap);
     let u = 0, prev = null;
     for (let s = b.s0; s <= b.s1 + 1e-6; s += 2) {
@@ -268,7 +269,7 @@ export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES
   const partner = new PersonRig({ seed: 0.4142, female: true, hair: 0.8, girth: 0.98, scale: 0.96 });
   run.sl = {
     course, sledge, crowd, partner, person, sl: null, hud: buildHud(run), roll: 0, steerSide: 1, warned: false, mounted: false,
-    inputFilter: null, params: null, offHints: null, wait: false, height, track,
+    inputFilter: null, params: null, offHints: null, wait: false, height, track, onEvent: null,
     saved: { chaseDistance: person.chaseDistance, chaseHeight: person.chaseHeight }
   };
   if (!mounted) { sledge.visible = false; for (const m of crowd.meshes) m.visible = false; run.sl.hud.box.style.display = 'none'; }
@@ -286,7 +287,7 @@ export function sledgeSetup(run, { course = createCourse(), arches = HORN_ARCHES
 
 /** The player onto the sledge at arc length s of the run, at rest (a mission's start, a restart, the Fondue Night's ride).
  *  `wait`: the sledge stays put until the driver steers, ducks or brakes (a ride begun in the middle of a mission) */
-export function sledgeMount(run, s = 0, { wait = false } = {}) {
+export function sledgeMount(run, s = 0, { wait = false, hints = null } = {}) {
   const cm = run.hooks.controllerManager;
   const S = run.sl;
   S.sl = createSledge(S.course, S.height, s);
@@ -308,7 +309,7 @@ export function sledgeMount(run, s = 0, { wait = false } = {}) {
   if (!S.mounted) {
     S.mounted = true;
     // (the key bar says what the keys do on the sledge; the touch stick steers, brakes and ducks the same way)
-    S.offHints = run.hints([[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
+    S.offHints = run.hints(hints || [[['A', 'D'], 'steer · lean'], [['S'], 'brake (with A/D: tight turn)'], [['W'], 'duck · push off']]);
     run.vehiclePanel({ label: 'Horn sledge', topSpeedKmh: 80 }); // (the cluster at the bottom right, js/main.js: the person's speed)
   }
   S.roll = 0;
@@ -411,9 +412,11 @@ const hornSledge = {
   },
   event(run, ev) {
     const S = run.sl, st = run.state, sl = S.sl;
+    // (a mission's own events first: the Fondue Night's drifts and shortcuts, js/missions-fondue.js; true: handled)
+    if (S.onEvent?.(ev, sl)) return;
     if (ev === 'crash') {
       if (st) { st.penaltyMs += SLEDGE_CRASH_MS; st.why = sl.last; }
-      showToast(S.hud, sl.last === 'net' ? 'Into the net!' : sl.last === 'lost' ? 'Off the run!' : 'Tipped over!', '#ff8f80', 2);
+      showToast(S.hud, sl.last === 'net' ? 'Into the net!' : sl.last === 'lost' ? 'Off the run!' : sl.last === 'tree' ? 'Into a tree!' : 'Tipped over!', '#ff8f80', 2);
       S.hud.toast.append(Object.assign(document.createElement('div'), { textContent: `+${SLEDGE_CRASH_MS / 1000} s`, style: 'font:650 15px system-ui,sans-serif;opacity:.9' }));
       run.audio?.thump?.();
     } else if (ev === 'net') {

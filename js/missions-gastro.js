@@ -223,7 +223,9 @@ const COUNTER_Y = 1.08, GLASS_H = 0.075;
 const WOOD = 0x3c2214, DARK = 0x3a2416;
 const LOOKS = {
   exbar: { wall: 0x1d2a4a, beam: 0x10141f, name: 'EX BAR', fg: '#59c8ff', bg: '#070b16', lamp: 0x3aa8ff, halo: 0x2a7cff },
-  rot: { wall: 0x7a1a1f, beam: DARK, name: 'ROT LIECHTLI', fg: '#ff4a55', bg: '#190a08', lamp: 0xff2c36, halo: 0xff2030 }
+  rot: { wall: 0x7a1a1f, beam: DARK, name: 'ROT LIECHTLI', fg: '#ff4a55', bg: '#190a08', lamp: 0xff2c36, halo: 0xff2030 },
+  // (the Berghotel Schatzalp's Stübli: the Fondue Night's Flämmli, js/missions-fondue.js)
+  schatzalp: { wall: 0x8a5a32, beam: 0x4a2c16, name: 'SCHATZALP', fg: '#ffe3a8', bg: '#2a1608', lamp: 0xffb45a, halo: 0xffa040 }
 };
 /** The room, the counter, the back bar with its bottles, the name and the lamp: `look` from LOOKS */
 function buildBar(group, parts, look) {
@@ -476,7 +478,7 @@ const CUP = { x: -0.03, z: 0.03, r: 0.032, h: 0.055 }, SHOT = { x: 0.11, z: 0.09
 const SUGAR_AT = { x: -0.17, z: -0.02 }, BOTTLE_AT = { x: 0.2, z: -0.07 };
 const COFFEE = new THREE.Color(0x3a1e0e), SUGAR_WHITE = new THREE.Color(0xf6f1e4), CARAMEL = new THREE.Color(0x9a5414), WILLIAMS = new THREE.Color(0xf2ead0);
 const _c = new THREE.Color();
-function buildFlaemmliSet(group, parts) {
+function buildFlaemmliSet(group, parts, rounds = FLAEMMLI.rounds) {
   // the saucer and the cup (white porcelain, open at the top: a lathe, its inside dark)
   const saucer = solid([cyl(0.058, 0.05, 0.008, 0, 0.004, 0, 0xf4f1ea, 20)]);
   const cupOut = [[0.022, 0], [CUP.r - 0.004, 0.006], [CUP.r, CUP.h * 0.6], [CUP.r + 0.002, CUP.h], [CUP.r - 0.003, CUP.h], [CUP.r - 0.005, 0.01], [0, 0.008]];
@@ -534,9 +536,12 @@ function buildFlaemmliSet(group, parts) {
   const lighter = makeLighter();
   group.add(lighter);
   Object.assign(parts, { cup, bowl, fill, heap, cupFlame, sugar, sugarStream, bottle, pourStream, shot, shotFlame, hand, lighter });
-  parts.empties = makeEmpties(group, FLAEMMLI.rounds, 0.24).map((m) => { m.position.z += 0.1; return m; });
+  parts.empties = makeEmpties(group, rounds, 0.24).map((m) => { m.position.z += 0.1; return m; });
 }
 
+// (a mission other than the Rot Liechtli's sets `flaemmli: { look, rounds }` on its definition, the Fondue Night one round
+// in the Schatzalp's Stübli; its objective 'flaemmli' ends with the game, and the room goes with the next objective)
+const flaemmliSpec = (run) => ({ look: 'rot', rounds: FLAEMMLI.rounds, leave: false, ...run.def.flaemmli });
 const flaemmli = {
   setup(run) {
     const fl = run.fl = { room: null, parts: null, crowd: null, ui: barHud(run, 'Order a Flämmli'), seq: 0, swayT: 0, shown: 0, swirlT: 0, pourT: 0, handT: 0, lift: 0, down: false };
@@ -584,20 +589,23 @@ const flaemmli = {
     if (flaemmliRelease(g)) blip(run, 'pock');
   },
   enter(run) {
-    const fl = run.fl;
+    const fl = run.fl, spec = flaemmliSpec(run);
     const parts = fl.parts = {};
     fl.room = new Room(run, run.def.interior.door, (group) => {
-      buildBar(group, parts, LOOKS.rot);
-      buildFlaemmliSet(group, parts);
+      buildBar(group, parts, LOOKS[spec.look] || LOOKS.rot);
+      buildFlaemmliSet(group, parts, spec.rounds);
       fl.crowd = makeCrowd([{ x: window.innerHeight > window.innerWidth ? -0.42 : -0.72, z: -1.15, yaw: 0.35 }, { x: 1.35, z: 0.42, yaw: -1.9, female: true }, { x: -1.55, z: 0.5, yaw: 1.9 }], group);
     });
-    run.state.game = createFlaemmli(11);
+    run.state.game = createFlaemmli(11, spec.rounds);
     run.state.inside = true;
     fl.ui.hud.hidden = false;
   },
   update(run, ctx, dt) {
     const fl = run.fl;
-    if (!fl.room && run.def.objectives[run.index]?.id === 'flaemmli' && live(run)) flaemmli.enter(run);
+    const here = run.def.objectives[run.index]?.id === 'flaemmli';
+    if (!fl.room && here && live(run)) flaemmli.enter(run);
+    // (a mission that goes on after the Flämmli: out of the room with the next objective)
+    if (fl.room && !here && flaemmliSpec(run).leave) { fl.room.dispose(); fl.room = null; fl.ui.hud.hidden = true; fl.ui.veil.hidden = true; return; }
     const g = run.state?.game;
     if (!fl.room || !g) return;
     const before = g.step;
@@ -702,12 +710,12 @@ const flaemmli = {
     if (fl.shown !== g.drinks) { fl.shown = g.drinks; p.empties.forEach((m, i) => { m.visible = i < g.drinks; }); }
     // the HUD
     const ui = fl.ui;
-    setText(ui.line, barRoundLine(g.round, F.rounds, flaemmliScore(g), g.strikes, F.strikes));
+    setText(ui.line, barRoundLine(g.round, g.rounds, flaemmliScore(g), g.strikes, F.strikes));
     showGauge(ui, gauge);
     ui.act.classList.toggle('held', !!g.holding);
     ui.caramel.hidden = gauge.caramel === null;
     if (gauge.caramel !== null) ui.caramelFill.style.transform = `scaleX(${gauge.caramel})`;
-    ui.veil.style.opacity = `${clamp(g.drinks / F.rounds, 0, 1) * 0.85}`;
+    ui.veil.style.opacity = `${clamp(g.drinks / F.rounds, 0, 1) * 0.85}`; // (one Flämmli sways one third as much)
   }
 };
 

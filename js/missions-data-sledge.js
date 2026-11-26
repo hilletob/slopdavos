@@ -167,7 +167,7 @@ export function createSledge(course, height, s = 0) {
   const p = pointAt(course.pts, s);
   const heading = runHeading(course, s);
   const r = createRider(p.x, height(p.x, p.z), p.z, heading);
-  return { rider: r, tip: 0, latG: 0, crashT: 0, crashes: 0, nets: 0, offT: 0, netT: 0, proj: projectOnRun(course, p.x, p.z), last: null };
+  return { rider: r, tip: 0, latG: 0, crashT: 0, crashes: 0, nets: 0, offT: 0, netT: 0, proj: projectOnRun(course, p.x, p.z), last: null, lane: null, resetS: null, drift: null, boosts: 0, shortcuts: 0, trees: 0 };
 }
 
 /** Puts the sledge back on the run at arc length s, at rest, along the run */
@@ -178,9 +178,87 @@ export function resetSledge(sl, course, height, s) {
   r.vx = r.vy = r.vz = 0;
   r.heading = runHeading(course, s);
   r.airborne = false; r.air = null; r.crashT = 0; r.lean = 0; r.brake = 0; r.tuck = 0; r.omega = 0;
-  sl.tip = 0; sl.latG = 0; sl.crashT = 0;
+  sl.tip = 0; sl.latG = 0; sl.crashT = 0; sl.lane = null; sl.drift = null; sl.resetS = null;
   projectOnRun(course, p.x, p.z, -1, sl.proj);
 }
+
+// --- Shortcuts and drifts (the Fondue Night's run, js/missions-data-fondue.js; the Rinerhorn's has neither) -------------
+// A shortcut: a lane straight down through the forest from the run at arc length s0 to the run further down at s1,
+// course.lanes: [{ s0, s1, ax, az, bx, bz, len, ux, uz (its direction), half (m either side of its line), trees:
+// [[x, z, r]] }]. On it the sledge is neither off the run nor lost, its snow is `params.lane`; its edges are the forest's
+// deep snow (the sledge is set back inside and loses speed), its trees stop it (a crash, back on the run past the lane's
+// top). It
+// ends on the run below, where a snow wall (a bend with `berm`, on the run's far side) catches a sledge coming across.
+/** Where (x, z) lies along a lane: { t (0 at its top, 1 at its foot), d (m off its line, + left) } */
+export function laneAt(lane, x, z, out = {}) {
+  const dx = x - lane.ax, dz = z - lane.az;
+  out.t = (dx * lane.ux + dz * lane.uz) / lane.len;
+  out.d = dx * lane.uz - dz * lane.ux;
+  return out;
+}
+const _lp = {};
+/** The lane the sledge rides on, if any: taken where it leaves the run at a lane's top, given up at its foot */
+function followLane(sl, course, T, x, z) {
+  const lanes = course.lanes;
+  if (!lanes) return null;
+  if (sl.lane) {
+    const L = sl.lane, p = laneAt(L, x, z, _lp);
+    if (p.t >= 1 || (p.t > 0.75 && Math.abs(projectOnRun(course, x, z, -1, {}).d) <= T.half + (T.walls ? T.netGap + 0.5 : 0))) { sl.lastLane = L; sl.lane = null; sl.shortcuts++; sl.last = 'shortcut'; return 'out'; }
+    if (p.t < -0.1) { sl.lane = null; return null; } // (back up onto the run it left)
+    return L;
+  }
+  if (Math.abs(sl.proj.d) <= T.half - 0.4) return null;
+  for (const L of lanes) {
+    if (Math.abs(sl.proj.s - L.s0) > 14 || (T.walls && sl.wantSide !== L.side)) continue; // (with banks: only steered into)
+    const p = laneAt(L, x, z, _lp);
+    if (p.t > -0.05 && p.t < 0.45 && Math.abs(p.d) <= L.half) { sl.lane = L; sl.last = 'lane'; return 'in'; }
+  }
+  return null;
+}
+
+/**
+ * The drift (params.drift, input.drift: the brake held with the horns pulled, at speed): the heels dig in on one side,
+ * the runners let go and the sledge swings its tail out, turning far tighter than it carves, and no tip while it slides.
+ * Held long enough with the tail out, letting go of the brake straightens it with a push (the boost), by how long it slid.
+ */
+export const DRIFT = {
+  minSpeed: 5, // m/s (18 km/h): slower, S with A/D is the heel's pivot
+  brake: 0.2, // what is left of the brake while it slides (the heels dig in on one side)
+  grip: 2.2, turnRate: 2.1, maxLatG: 3.2, // the runners while it slides: little grip, a fast swing
+  slip: 0.12, // rad of slide angle before it charges
+  levels: [0.25, 0.6, 1.1], // s of charge for each level of boost (a hairpin drifted through takes ~0.5 s)
+  boost: [1.5, 2.6, 3.8], // m/s the push at each level
+  spin: 1.9 // rad: slid round further than this, it spins out (no boost)
+};
+function driftStep(sl, input, dt, P, D) {
+  const r = sl.rider, sp = riderSpeed(r);
+  const want = !!input.drift && !r.airborne && Math.abs(input.steer || 0) > 0.3;
+  if (!sl.drift) {
+    if (!want || sp < D.minSpeed) return null;
+    sl.drift = { t: 0, charge: 0, side: Math.sign(input.steer), slip: 0 };
+    return 'drift';
+  }
+  const dr = sl.drift;
+  const slip = Math.abs(wrapPi(r.heading - travelHeading(r, r.heading)));
+  dr.slip = slip;
+  dr.t += dt;
+  if (want && sp >= D.minSpeed * 0.6) {
+    if (slip > D.slip) dr.charge += dt;
+    return null;
+  }
+  // let go: the boost by the charge, along where the sledge points, if it did not spin round
+  sl.drift = null;
+  let level = 0;
+  for (let i = 0; i < D.levels.length; i++) if (dr.charge >= D.levels[i]) level = i + 1;
+  if (!level || slip > D.spin || r.airborne) return slip > D.spin ? 'spun' : 'straight';
+  const v = sp + D.boost[level - 1], fx = Math.sin(r.heading), fz = Math.cos(r.heading);
+  const k = Math.min(P.maxSpeed * 1.15, v);
+  r.vx = fx * k; r.vz = fz * k;
+  sl.boosts++;
+  sl.boostLevel = level;
+  return 'boost';
+}
+const driftParams = (P, D) => (P._drift ??= { ...P, grip: D.grip, turnRate: D.turnRate, maxLatG: D.maxLatG });
 
 /**
  * One step of the sledge (dt <= ~1/60 s). input: { steer (-1..1, + left), tuck (0..1, W: duck / push off), brake (0..1,
@@ -196,33 +274,49 @@ export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK, para
     const k = Math.exp(-dt * 4);
     r.vx *= k; r.vy *= k; r.vz *= k;
     r.x += r.vx * dt; r.z += r.vz * dt; r.y = height(r.x, r.z);
-    if (sl.crashT <= 0) { resetSledge(sl, course, height, sl.proj.s - 6); return 'back'; }
+    if (sl.crashT <= 0) { resetSledge(sl, course, height, sl.resetS ?? sl.proj.s - 6); return 'back'; }
     return null;
   }
-  const proj = projectOnRun(course, r.x, r.z, sl.proj.i ?? -1, sl.proj);
+  // (on a shortcut the run nearest may be any of the legs it cuts across: searched all along it)
+  const proj = projectOnRun(course, r.x, r.z, sl.lane ? -1 : sl.proj.i ?? -1, sl.proj);
+  const laneEv = followLane(sl, course, T, r.x, r.z), lane = sl.lane;
   const touching = sl.netT > 0; // (against a net a moment ago)
   if (touching) sl.netT -= dt;
-  const off = Math.abs(proj.d) > T.half;
+  const off = !lane && Math.abs(proj.d) > T.half;
   sl.offT = off ? sl.offT + dt : 0;
-  const steer = clamp(input.steer || 0, -1, 1), brake = clamp(input.brake || 0, 0, 1), tuck = clamp(input.tuck || 0, 0, 1);
-  const landing = stepRider(r, { steer, tuck, brake, spin: 0, flip: 0, grab: false }, dt, height, off ? (params?.off || SLEDGE_OFF_PARAMS) : (params?.on || SLEDGE_PARAMS));
+  let steer = clamp(input.steer || 0, -1, 1), brake = clamp(input.brake || 0, 0, 1);
+  // (the side the driver steers to, held a moment: a bank opens at a shortcut only to a sledge steered that way)
+  if (Math.abs(steer) > 0.3) { sl.wantSide = Math.sign(steer); sl.wantT = 0.8; } else if ((sl.wantT -= dt) <= 0) sl.wantSide = 0;
+  const tuck = clamp(input.tuck || 0, 0, 1);
+  let P = lane ? (params?.lane || params?.off || SLEDGE_OFF_PARAMS) : off ? (params?.off || SLEDGE_OFF_PARAMS) : (params?.on || SLEDGE_PARAMS);
+  const D = params?.drift;
+  const driftEv = D ? driftStep(sl, input, dt, P, D) : null;
+  if (sl.drift) { brake = D.brake; P = driftParams(P, D); }
+  const landing = stepRider(r, { steer, tuck, brake, spin: 0, flip: 0, grab: false }, dt, height, P);
   // a heel dragged in the snow: the sledge pivots round it (slow, and it brakes: stepRider has the brake)
-  if (!r.airborne && brake > 0 && steer) r.heading += steer * brake * T.heelTurn * dt;
+  if (!r.airborne && brake > 0 && steer && !sl.drift) r.heading += steer * brake * T.heelTurn * dt;
   if (landing && landing.quality === 'crash') { r.crashT = 0; return crash(sl, 'landing'); }
+  if (lane) {
+    const ev = laneStep(sl, lane, dt, height);
+    if (ev) return ev;
+  }
   // tipping: the lateral acceleration of the turn over what the sledge stands
   const speed = riderSpeed(r);
   sl.latG = r.airborne ? 0 : (r.omega * speed) / SNOW_GRAVITY;
-  const over = Math.abs(sl.latG) - T.tipG;
+  // (sliding in a drift the runners do not bite: nothing to tip it)
+  const over = sl.drift ? -1 : Math.abs(sl.latG) - T.tipG;
   sl.tip = over > 0 ? sl.tip + over * T.tipRate * dt : Math.max(0, sl.tip - dt * T.tipRecover);
   sl.tipSide = Math.sign(sl.latG) || sl.tipSide || 1;
   if (sl.tip >= 1) return crash(sl, 'tip');
   // the nets on the outside of the bends
+  if (lane) return driftEv || (laneEv === 'in' ? 'lane' : null);
+  const outEv = laneEv === 'out' ? 'shortcut' : null; // (off a shortcut this step: said whatever else happens)
   const p2 = projectOnRun(course, r.x, r.z, proj.i, sl.proj);
   const bend = bendAt(course, p2.s);
   if (bend && p2.d * bend.side > T.half + T.netGap) {
-    // (the speed into the net: across the run)
+    // (the speed into the net: across the run; a snow wall at a shortcut's foot takes any speed, js/missions-data-fondue.js)
     const vAcross = Math.abs(r.vx * p2.tz - r.vz * p2.tx);
-    if (vAcross > T.netCrash) return crash(sl, 'net');
+    if (vAcross > T.netCrash && !bend.berm && !outEv) return crash(sl, 'net');
     // stopped by the net: back against it, the speed along the run kept in part
     // (T.netSlide, a run on a bench with the slope falling away behind its nets: set back onto the run's edge, and still
     // against the net a moment later the sledge slides along it at its speed instead of losing 40 % of it every step,
@@ -234,11 +328,53 @@ export function stepSledge(sl, input, dt, height, course, T = SLEDGE_TRACK, para
     r.vx = p2.tx * along * keep; r.vz = p2.tz * along * keep; r.vy = 0;
     r.heading = Math.atan2(p2.tx, p2.tz);
     sl.last = 'net';
-    if (slide) { sl.netT = 0.5; if (touching) return null; }
+    if (slide) { sl.netT = 0.5; if (touching) return outEv; }
     sl.nets++;
-    return 'net';
+    return outEv || 'net';
   }
+  // (T.walls, the Fondue Night's run: soft snow banks along all of it, at the nets' line; a sledge at one is set back
+  // inside and slides on along the run, turned a little its way, no crash. Where a shortcut leaves, the bank is open)
+  if (T.walls && Math.abs(p2.d) > T.half + T.netGap && !laneGap(course, p2, sl.wantSide)) {
+    const side = Math.sign(p2.d), edge = side * (T.half + T.netGap - 0.05);
+    r.x = p2.x + p2.tz * edge; r.z = p2.z - p2.tx * edge; r.y = Math.max(r.y, height(r.x, r.z));
+    const along = r.vx * p2.tx + r.vz * p2.tz, k = Math.exp(-dt * (along >= 0 ? 0.6 : 6)); // (a rub along it: a little speed a second)
+    r.vx = p2.tx * along * k; r.vz = p2.tz * along * k;
+    const runH = Math.atan2(p2.tx, p2.tz);
+    if (!sl.drift) r.heading += wrapPi(runH - r.heading) * Math.min(1, dt * 8);
+    const first = !(sl.wallT > 0);
+    sl.wallT = 0.4;
+    if (first) { sl.last = 'wall'; return outEv || 'wall'; }
+    return outEv;
+  }
+  if (sl.wallT > 0) sl.wallT -= dt;
   if (Math.abs(p2.d) > T.lostAt) return crash(sl, 'lost');
+  return outEv || driftEv;
+}
+/** Where a shortcut leaves the run: no bank on that side, for a sledge steered that way */
+const laneGap = (course, p, side) => side !== 0 && !!course.lanes?.some((L) => Math.abs(p.s - L.s0) < 12 && Math.sign(p.d) === L.side && side === L.side);
+
+/** On a shortcut: its trees stop the sledge (a crash, back to the lane's top), its edges keep it in (the deep snow beside) */
+function laneStep(sl, L, dt, height) {
+  const r = sl.rider;
+  for (const [x, z, rad] of L.trees || []) {
+    const dx = r.x - x, dz = r.z - z;
+    if (dx * dx + dz * dz < (rad + 0.35) ** 2) {
+      sl.trees++;
+      sl.resetS = L.s0 + 10; // (back on the run past the lane's top: the shortcut lost, and 5 s)
+      return crash(sl, 'tree');
+    }
+  }
+  const p = laneAt(L, r.x, r.z, _lp);
+  if (Math.abs(p.d) > L.half) {
+    // (set back inside, the speed across the lane gone and some of the rest)
+    const e = Math.sign(p.d) * (L.half - 0.05);
+    r.x = L.ax + L.ux * p.t * L.len + L.uz * e; r.z = L.az + L.uz * p.t * L.len - L.ux * e; r.y = Math.max(r.y, height(r.x, r.z));
+    const along = r.vx * L.ux + r.vz * L.uz, k = Math.exp(-dt * 2.5);
+    r.vx = L.ux * along * k; r.vz = L.uz * along * k;
+    if (!sl.drift) r.heading += wrapPi(Math.atan2(L.ux, L.uz) - r.heading) * Math.min(1, dt * 8);
+    if (!sl.edgeT) { sl.edgeT = 0.4; sl.last = 'edge'; return 'edge'; }
+  }
+  if (sl.edgeT) sl.edgeT = Math.max(0, sl.edgeT - dt);
   return null;
 }
 
@@ -247,6 +383,7 @@ function crash(sl, why) {
   sl.crashes++;
   sl.last = why;
   sl.tip = 0;
+  sl.drift = null;
   const r = sl.rider;
   r.vx *= 0.35; r.vy *= 0.35; r.vz *= 0.35;
   return 'crash';
