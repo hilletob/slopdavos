@@ -1569,7 +1569,58 @@ export const TIPPER = {
   wheelR: 0.4074 // m (×scale)
 };
 let tipperModel = null;
-const loadTipper = () => (tipperModel ||= new GLTFLoader().loadAsync(TIPPER_URL.href));
+const loadTipper = () => (tipperModel ||= new GLTFLoader().loadAsync(TIPPER_URL.href).then((gltf) => { grisonsPlates(gltf); return gltf; }));
+
+// The model's plates are a foreign "VIS HF 66": painted over in its colour atlas (512 px, drawn at twice that) with a
+// Graubünden plate, GR 7270 (Davos's postcode). Their places in the atlas (px) and how they are mapped: the front one
+// turned half round, the rear one upside down; the rear one carries the Swiss and the cantonal shields.
+const PLATES = [
+  { x: 179, y: 354, w: 51, h: 13, turn: true, shields: false },
+  { x: 153, y: 475, w: 37, h: 11, flip: true, shields: true }
+];
+function grisonsPlates(gltf) {
+  let tex = null;
+  gltf.scene.traverse((o) => { if (o.isMesh && o.material?.name === 'dumper_truck_main_color') tex = o.material.map; });
+  const img = tex?.image;
+  if (!img || typeof document === 'undefined') return;
+  const K = 2, c = document.createElement('canvas');
+  c.width = img.width * K; c.height = img.height * K;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  for (const p of PLATES) {
+    const w = p.w * K, h = p.h * K;
+    ctx.save();
+    ctx.translate((p.x + p.w / 2) * K, (p.y + p.h / 2) * K);
+    if (p.turn) ctx.rotate(Math.PI);
+    if (p.flip) ctx.scale(1, -1);
+    ctx.fillStyle = '#1b1b1b'; ctx.fillRect(-w / 2, -h / 2, w, h); // (the plate's black rim)
+    ctx.fillStyle = '#f4f4f0'; ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+    let x0 = -w / 2 + 3, x1 = w / 2 - 3;
+    if (p.shields) {
+      const sh = h - 6, sw = sh * 0.8, y = -sh / 2;
+      // the Swiss shield (red, the white cross) at the left
+      ctx.fillStyle = '#d52b1e'; ctx.fillRect(x0, y, sw, sh);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x0 + sw * 0.4, y + sh * 0.2, sw * 0.2, sh * 0.6); ctx.fillRect(x0 + sw * 0.2, y + sh * 0.4, sw * 0.6, sh * 0.2);
+      // Graubünden's at the right: the Grey League (black and white), the House of God (the ibex on blue and gold, as blue
+      // over gold) and the Ten Jurisdictions (the blue and gold cross)
+      const gx = x1 - sw;
+      ctx.fillStyle = '#111'; ctx.fillRect(gx, y, sw / 2, sh / 2);
+      ctx.fillStyle = '#fff'; ctx.fillRect(gx + sw / 2, y, sw / 2, sh / 2);
+      ctx.fillStyle = '#1f4f9c'; ctx.fillRect(gx, y + sh / 2, sw / 2, sh / 2);
+      ctx.fillStyle = '#f2c200'; ctx.fillRect(gx + sw / 2, y + sh / 2, sw / 2, sh / 2);
+      x0 += sw + 2; x1 -= sw + 2;
+    }
+    ctx.fillStyle = '#111';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.round(h * 0.78)}px "Helvetica Neue", Arial, sans-serif`;
+    const text = 'GR 7270', tw = ctx.measureText(text).width, room = x1 - x0;
+    if (tw > room) ctx.scale(room / tw, 1);
+    ctx.fillText(text, ((x0 + x1) / 2) * (tw > room ? tw / room : 1), 1);
+    ctx.restore();
+  }
+  tex.image = c;
+  tex.needsUpdate = true;
+}
 const _ramA = new THREE.Vector3(), _ramB = new THREE.Vector3();
 
 function buildTipperModel() {
