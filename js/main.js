@@ -70,6 +70,9 @@ import { buildWeber } from './weber.js';
 import { buildMigrosDorf } from './migros-dorf.js';
 import { buildSparDorf } from './spar-dorf.js';
 import { buildBubenbrunnen } from './bubenbrunnen.js';
+import { buildParsennbahnTal } from './parsennbahn-tal.js';
+import { buildFeuerwehrDorf } from './feuerwehr-dorf.js';
+import { buildParsennGada } from './parsenn-gada.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -405,6 +408,9 @@ async function initApp() {
   const migrosDorf = skipped('migrosDorf') ? { colliders: [] } : buildMigrosDorf(scene); // the Migros Davos Dorf: the shop front on the Promenade, the orange M (guessed: no photo shows its walls) (js/migros-dorf.js)
   const sparDorf = skipped('sparDorf') ? { colliders: [] } : buildSparDorf(scene); // the Spar Davos Dorf: the red block on the Bahnhofstrasse, the corner house with SPAR over its porch, its glass bands and canopy, the houses behind (js/spar-dorf.js)
   const bubenbrunnen = skipped('bubenbrunnen') ? { colliders: [] } : buildBubenbrunnen(scene); // the Bubenbrunnen before St. Theodul: the sandstone basin, the carved block with the boys under its cap (js/bubenbrunnen.js)
+  const parsennbahnTal = skipped('parsennbahnTal') ? { colliders: [] } : buildParsennbahnTal(scene); // the Parsennbahn's valley station by hand (js/parsennbahn-tal.js)
+  const feuerwehrDorf = skipped('feuerwehrDorf') ? { colliders: [] } : buildFeuerwehrDorf(scene); // the Feuerwehrdepot Dorf by hand (js/feuerwehr-dorf.js)
+  const parsennGada = skipped('parsennGada') ? { colliders: [] } : buildParsennGada(scene); // the Parsenn Gada's house by hand (js/parsenn-gada.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -474,7 +480,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...parsennbahnTal.colliders, ...feuerwehrDorf.colliders, ...parsennGada.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }

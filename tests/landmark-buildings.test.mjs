@@ -96,7 +96,8 @@ test('the Natureisbahn: a 400 m track round the pitch, ~18 000 m² of ice with t
 });
 
 test('the replaced swissBUILDINGS3D buildings are picked out by their surveyed centres, nothing else nearby', () => {
-  assert.equal(LANDMARK_EXCLUSIONS.length, 13);
+  // (the Parsennbahn's valley station excludes its own: js/parsennbahn-tal.js)
+  assert.equal(LANDMARK_EXCLUSIONS.length, 12);
   for (const e of LANDMARK_EXCLUSIONS) assert.ok(e.r > 0 && e.r <= 2);
   // the arena's centre lies under its roof; the complex's centres inside or next to its parts
   assert.ok(stadiumRoofHeight(EISSTADION.exclude[0].x, EISSTADION.exclude[0].z) > 20);

@@ -7,7 +7,7 @@ import { fade, litWindow, nightGlow, worldNoise } from './building-kit.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import {
-  EISSTADION, KONGRESS, EISBAHN, PARSENN, DORF, PLATZ, ARKADEN, PLATFORMS, PLATFORM_RISE, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
+  EISSTADION, KONGRESS, EISBAHN, DORF, PLATZ, ARKADEN, PLATFORMS, PLATFORM_RISE, LANDMARK_EXCLUSIONS, stadiumVerge, stadiumFacets, stadiumRoofHeight, trackOutline,
   ringPoints, pointInRing
 } from './landmark-buildings-data.js';
 
@@ -26,8 +26,6 @@ import {
 //    under their solar panels; the outdoor pool and the slide's helix
 //  - the Natureisbahn: ice over the track, the pitch and the court in winter (the summer's sports ground is the
 //    vector ground's, js/vector-ground.js, traced from the same photograph as the ice's outline)
-//  - the Parsennbahn's valley station in Davos Dorf: white walls with red window frames and red-white bands, the glazed
-//    shop on the ground floor, its lettering, banner, entrance sign and roof flags from one small canvas atlas
 // All of it merged into one mesh per material (24 draw calls in all); the facades' detail (boards, mullions, windows,
 // panels) is drawn by the materials from the walls' uv (metres along the wall, metres over the ground), not modelled,
 // and fades to its mean colour with distance. Windows glow at dusk and night like the other buildings'
@@ -97,7 +95,6 @@ function simpleMaterials() {
   M.copper = plain([0.42, 0.17, 0.08], 0.5, 0.6);
   M.arenaTrim = plain([0.025, 0.024, 0.023], 0.6, 0.3);
   M.metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a8f94, roughness: 0.45, metalness: 0.7 });
-  M.parsenn = windowed([0.71, 0.71, 0.69], 3.2, 0.24, 0.72, 0.85, 0.4);
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
     const map = parsennAtlas();
@@ -267,44 +264,7 @@ function materials() {
   }
   // The arena's trims (the verges, the fascia over the glass band): near-black metal
   M.arenaTrim = new THREE.MeshStandardNodeMaterial({ color: 0x1c1b1a, roughness: 0.55, metalness: 0.4 });
-  // The Parsennbahn's valley station: white render; on every upper floor (3.2 m) a band of narrow portrait windows
-  // (0.85 × 1.5 m in bays of 1.45 m, a red frame and a red centre mullion each, now and then a closed pier so that the
-  // band runs in groups of two to six) over red-white-red stripes at the floor line; the street fronts (uv.y + 2000)
-  // glazed on the ground floor (the shop, lit at night) under a light fascia. At night the render is floodlit from the
-  // street (the photograph: a warm white wall, not the sky's blue) and the windows glow warm
-  {
-    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0 });
-    const front = step(1500, V), v0 = V.sub(front.mul(2000)), plain = step(v0, -500), v = v0.add(plain.mul(1000));
-    const ground = step(v, 4.2), shop = front.mul(ground).mul(step(0.25, v));
-    const fascia = front.mul(step(4.2, v)).mul(step(v, 4.9));
-    const fl = v.sub(5.15).div(3.2), fv = fract(fl).mul(3.2);
-    // the stripes: red 0–0.2, white, red 0.3–0.42 over every floor line (and the band under the first floor)
-    const stripes = step(fv, 0.42).mul(float(1).sub(step(0.2, fv).mul(step(fv, 0.3))));
-    const band = step(4.9, v).mul(stripes).max(step(4.9, v).mul(step(v, 5.15)));
-    const bay = floor(U.div(1.45)), bu = fract(U.div(1.45)).mul(1.45);
-    const pier = step(hash(bay.mul(13.7).add(5.1)), 0.22);
-    const box = (pad) => step(0.3 - pad, bu).mul(step(bu, 1.15 + pad)).mul(step(0.78 - pad, fv)).mul(step(fv, 2.3 + pad));
-    const upper = float(1).sub(plain).mul(float(1).sub(shop)).mul(float(1).sub(fascia)).mul(step(1.0, v)).mul(float(1).sub(pier));
-    const centre = smoothstep(0.045, 0.03, abs(bu.sub(0.725))).mul(near);
-    const win = box(0).mul(upper), frame = box(0.1).mul(upper).sub(win).max(win.mul(centre));
-    const mullion = smoothstep(0.455, 0.47, abs(fract(U.div(2.4)).sub(0.5))).max(smoothstep(0.04, 0.02, abs(v.sub(2.9)))).mul(shop);
-    const white = mix(vec3(0.66, 0.66, 0.64), vec3(0.76, 0.76, 0.74), weather);
-    const red = vec3(0.52, 0.015, 0.02);
-    let c = mix(white, red, band.max(frame));
-    c = mix(c, vec3(0.5, 0.5, 0.49), fascia);
-    const glass = win.mul(float(1).sub(frame));
-    c = mix(c, vec3(0.02, 0.025, 0.03), glass);
-    c = mix(c, mix(vec3(0.05, 0.06, 0.065), vec3(0.18, 0.18, 0.18), mullion), shop);
-    m.colorNode = c;
-    m.roughnessNode = mix(float(0.85), float(0.1), glass.max(shop.mul(float(1).sub(mullion))));
-    m.metalnessNode = shop.mul(float(1).sub(mullion)).mul(0.5);
-    const night = smoothstep(0.6, 1.3, iGlow);
-    const shopLight = vec3(1.0, 0.84, 0.64).mul(smoothstep(0.45, 1.1, iGlow).mul(0.42));
-    const flood = c.mul(vec3(1.0, 0.9, 0.76)).mul(night.mul(0.26)).mul(float(1).sub(glass)).mul(float(1).sub(shop));
-    m.emissiveNode = lit(bay, floor(fl), 23, 0.5).mul(glass).mul(glow.mul(1.2)).add(shopLight.mul(shop).mul(float(1).sub(mullion))).add(flood);
-    M.parsenn = m;
-  }
-  // Its lettering, banner, signs and flags: one canvas atlas (js/landmark-buildings.js parsennAtlas), lit at night
+  // The stations' and the arena's signs: one canvas atlas (parsennAtlas), lit at night
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
     const map = parsennAtlas();
@@ -531,16 +491,13 @@ function materials() {
   return M;
 }
 
-// The Parsennbahn station's lettering, in one small canvas (logical 512 × 256 px; half that on the mobile profile): the
-// texts as plain type (the trademarks of Davos Klosters Bergbahnen AG are not reproduced, see assets/logos/SOURCES.md)
+// The stations' and the arena's signs, in one small canvas (logical 512 × 256 px; half that on the mobile profile): the
+// RhB's name plates (white on blue), the red "Rhätische Bahn" plate, the kiosk's, a platform clock, the arena's
+// lettering over its doors. (It held the Parsennbahn station's lettering too, which js/parsennbahn-tal.js draws now.)
 const PARSENN_ATLAS = {
-  W: 512, H: 512,
-  davos: [0, 0, 512, 72], banner: [0, 72, 512, 48], logo: [0, 120, 256, 64], entrance: [256, 120, 256, 64],
-  flag: [0, 184, 448, 72], metal: [448, 184, 64, 72],
-  // the stations' and the arena's signs (the lower half): the RhB's name plates (white on blue), the red "Rhätische Bahn"
-  // plate, the kiosk's, a platform clock, the arena's lettering over its doors
-  dorfName: [0, 256, 256, 48], platzName: [256, 256, 256, 48], rhb: [0, 304, 256, 48], kiosk: [256, 304, 256, 48],
-  clock: [0, 352, 96, 96], arena: [96, 352, 416, 40]
+  W: 512, H: 256,
+  dorfName: [0, 0, 256, 48], platzName: [256, 0, 256, 48], rhb: [0, 48, 256, 48], kiosk: [256, 48, 256, 48],
+  clock: [0, 96, 96, 96], arena: [96, 96, 416, 40]
 };
 function parsennAtlas() {
   const A = PARSENN_ATLAS, s = Math.max(0.5, QUALITY.atlasScale ?? 1);
@@ -551,21 +508,6 @@ function parsennAtlas() {
   g.scale(s, s);
   const box = ([x, y, w, h], bg) => { g.fillStyle = bg; g.fillRect(x, y, w, h); };
   const text = (t, x, y, font, col, align = 'center') => { g.font = font; g.fillStyle = col; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(t, x, y); };
-  const BLUE = '#1d5fae', RED = '#d0101e';
-  box(A.davos, '#f2f2ef');
-  text('DAVOS KLOSTERS', 256, 26, '800 34px Arial, Helvetica, sans-serif', '#1b1c1e');
-  text('mountains', 256, 56, 'italic 300 24px Arial, Helvetica, sans-serif', '#1b1c1e');
-  box(A.banner, '#e9e8e4');
-  text('EIN HOCH AUF DAS TIEF', 256, 97, '800 34px Arial, Helvetica, sans-serif', '#141414');
-  box(A.logo, BLUE);
-  text('parsenn', 128, 150, '700 46px Arial, Helvetica, sans-serif', '#ffffff');
-  box(A.entrance, '#f6f6f4');
-  box([256, 172, 256, 12], BLUE);
-  text('parsenn', 384, 146, '700 44px Arial, Helvetica, sans-serif', BLUE);
-  box(A.flag, '#f4f4f2');
-  box([0, 244, 448, 12], BLUE);
-  text('Parsenn', 214, 214, '800 52px Arial, Helvetica, sans-serif', RED);
-  box(A.metal, '#a4a9ad');
   const NAVY = '#1c2f6b';
   for (const [r, name] of [[A.dorfName, 'Davos Dorf'], [A.platzName, 'Davos Platz']]) {
     box(r, NAVY);
@@ -573,17 +515,17 @@ function parsennAtlas() {
     text(name, r[0] + r[2] / 2, r[1] + r[3] / 2 + 1, '600 26px Arial, Helvetica, sans-serif', '#ffffff');
   }
   box(A.rhb, '#c8102e');
-  text('Rhätische Bahn', 128, 329, '700 28px Arial, Helvetica, sans-serif', '#ffffff');
+  text('Rhätische Bahn', 128, 73, '700 28px Arial, Helvetica, sans-serif', '#ffffff');
   box(A.kiosk, '#3aa8dc');
-  text('k kiosk', 384, 329, '700 30px Arial, Helvetica, sans-serif', '#ffffff');
+  text('k kiosk', 384, 73, '700 30px Arial, Helvetica, sans-serif', '#ffffff');
   box(A.clock, '#30343a');
-  g.fillStyle = '#f6f6f4'; g.beginPath(); g.arc(48, 400, 44, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f6f6f4'; g.beginPath(); g.arc(48, 144, 44, 0, Math.PI * 2); g.fill();
   g.strokeStyle = '#111111'; g.lineCap = 'butt';
-  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.lineWidth = i % 3 ? 2 : 4; g.beginPath(); g.moveTo(48 + Math.sin(a) * 34, 400 - Math.cos(a) * 34); g.lineTo(48 + Math.sin(a) * 41, 400 - Math.cos(a) * 41); g.stroke(); }
-  g.lineWidth = 4; g.beginPath(); g.moveTo(48, 400); g.lineTo(48 + 20, 400 - 12); g.stroke();
-  g.lineWidth = 3; g.beginPath(); g.moveTo(48, 400); g.lineTo(48 - 6, 400 - 31); g.stroke();
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.lineWidth = i % 3 ? 2 : 4; g.beginPath(); g.moveTo(48 + Math.sin(a) * 34, 144 - Math.cos(a) * 34); g.lineTo(48 + Math.sin(a) * 41, 144 - Math.cos(a) * 41); g.stroke(); }
+  g.lineWidth = 4; g.beginPath(); g.moveTo(48, 144); g.lineTo(48 + 20, 144 - 12); g.stroke();
+  g.lineWidth = 3; g.beginPath(); g.moveTo(48, 144); g.lineTo(48 - 6, 144 - 31); g.stroke();
   box(A.arena, '#1a1817');
-  text('FANSHOP      KRISTALL CLUB      SEKTOR N      VIP NORD', 304, 372, '700 17px Arial, Helvetica, sans-serif', '#e9e6df');
+  text('FANSHOP      KRISTALL CLUB      SEKTOR N      VIP NORD', 304, 116, '700 17px Arial, Helvetica, sans-serif', '#e9e6df');
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -902,64 +844,6 @@ function buildKongress(B, colliders) {
       arm.translate(S.x, g + y, S.z);
       B.add('metal', arm);
     }
-  }
-}
-
-// --- Parsennbahn, Talstation Davos Dorf ----------------------------------------------------------------------------------
-function buildParsenn(B, colliders) {
-  const P = PARSENN;
-  const parts = P.parts.map((p) => ({ ...p, pts: ringPoints(p.ring) }));
-  const baseY = Math.min(...parts.map((p) => minGround(p.pts)));
-  const isFront = (n) => P.fronts.some(([fx, fz]) => n[0] * fx + n[1] * fz > 0.75);
-  for (const part of parts) {
-    const { pts } = part, roofAt = (i) => baseY + (part.roof ? part.roof[i] : part.h);
-    // the roof (flat, or sloping from corner to corner), gravel like the others
-    const tris = THREE.ShapeUtils.triangulateShape(pts.map(([x, z]) => new THREE.Vector2(x, z)), []);
-    for (const [i, j, k] of tris) B.tri('roofGravel', [pts[i][0], roofAt(i), pts[i][1]], [pts[j][0], roofAt(j), pts[j][1]], [pts[k][0], roofAt(k), pts[k][1]], pts[i], pts[j], pts[k], [0, 1, 0]);
-    let u = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const j = (i + 1) % pts.length, a = pts[i], b = pts[j], n = outward(pts, a, b), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const front = part.kind !== 'west' && part.kind !== 'hall' && isFront(n);
-      const gEdge = Math.min(groundHeight(a[0], a[1]), groundHeight(b[0], b[1]));
-      // a parapet on the flat roofs
-      const ta = roofAt(i) + (part.roof ? 0.15 : 0.45), tb = roofAt(j) + (part.roof ? 0.15 : 0.45);
-      B.wall('parsenn', a[0], a[1], b[0], b[1], gEdge - 1, gEdge - 1, ta, tb, n, u, gEdge - (front ? 2000 : 0));
-      wallCollider(colliders, a, b, gEdge - 1, Math.max(ta, tb));
-      u += L;
-    }
-  }
-  // Lettering and signs: plates just off the walls (centre c, outward normal n, width w, from y0 to y1 over the ground)
-  const plate = (c, n, w, y0, y1, rect, off = 0.08) => {
-    const r = [n[1], -n[0]], [u0, u1, vb, vt] = atlasUV(rect);
-    const x = c[0] + n[0] * off, z = c[1] + n[1] * off, g = baseY;
-    const L = [x - r[0] * w / 2, z - r[1] * w / 2], R = [x + r[0] * w / 2, z + r[1] * w / 2];
-    B.quad('parsennSigns', [L[0], g + y0, L[1]], [R[0], g + y0, R[1]], [R[0], g + y1, R[1]], [L[0], g + y1, L[1]], [u0, vb], [u1, vb], [u1, vt], [u0, vt], [n[0], 0, n[1]]);
-  };
-  const edge = ([a, b], t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-  const normalOf = ([a, b]) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return [-dz / l, dx / l]; };
-  const outer = (seg) => { const n = normalOf(seg); return P.fronts.some(([fx, fz]) => n[0] * fx + n[1] * fz > 0.75) ? n : [-n[0], -n[1]]; };
-  const nMain = outer(P.endMain), nWing = outer(P.endWing);
-  plate(edge(P.endMain, 0.5), nMain, 7.4, 10.3, 11.34, PARSENN_ATLAS.davos);
-  plate(edge(P.endWing, 0.5), nWing, 7.6, 4.3, 5.01, PARSENN_ATLAS.banner);
-  // the blue "parsenn" sign on the wing's corner, and the entrance from the Promenade (blue-white, over the doors)
-  const corner = [[674.2, -1450.3], [677.4, -1454.5]];
-  plate(edge(corner, 0.5), outer(corner), 3.4, 6.2, 7.05, PARSENN_ATLAS.logo);
-  const prom = [[654.6, -1419.5], [676.0, -1449.0]];
-  plate(edge(prom, 0.78), outer(prom), 3.6, 4.2, 5.1, PARSENN_ATLAS.entrance, 0.12);
-  // The tall flags on the main block's roof, in a row behind its end: pole, and the banner hanging from a crossbar
-  const [mu0, mu1, mvb, mvt] = atlasUV(PARSENN_ATLAS.metal), mu = (mu0 + mu1) / 2, mv = (mvb + mvt) / 2;
-  const metal = (geo) => { const uvs = geo.attributes.uv; for (let i = 0; i < uvs.count; i++) uvs.setXY(i, mu, mv); B.add('parsennSigns', geo); };
-  const [a, b] = P.endMain, d = [(b[0] - a[0]), (b[1] - a[1])], dl = Math.hypot(d[0], d[1]); d[0] /= dl; d[1] /= dl;
-  const roof = baseY + P.parts[0].h, [fu0, fu1, fvb, fvt] = atlasUV(PARSENN_ATLAS.flag);
-  for (const t of [0.14, 0.32, 0.5, 0.68, 0.86]) {
-    const p = edge(P.endMain, t), x = p[0] - nMain[0] * 2.2, z = p[1] - nMain[1] * 2.2, top = roof + 9.5;
-    metal(new THREE.CylinderGeometry(0.045, 0.07, top - roof, 6).translate(x, (roof + top) / 2, z));
-    metal(new THREE.BoxGeometry(0.04, 0.04, 1.0).lookAt(new THREE.Vector3(d[0], 0, d[1])).translate(x + d[0] * 0.5, top - 0.25, z + d[1] * 0.5));
-    const q0 = [x + d[0] * 0.06, z + d[1] * 0.06], q1 = [x + d[0] * 0.98, z + d[1] * 0.98], y0 = top - 5.0, y1 = top - 0.25;
-    // the text runs down the banner (along the atlas row): u from the top, v across, its foot at the pole (one sheet,
-    // both sides drawn)
-    B.quad('parsennSigns', [q0[0], y1, q0[1]], [q1[0], y1, q1[1]], [q1[0], y0, q1[1]], [q0[0], y0, q0[1]],
-      [fu0, fvb], [fu0, fvt], [fu1, fvt], [fu1, fvb], [nMain[0], 0, nMain[1]]);
   }
 }
 
@@ -1395,7 +1279,6 @@ export function buildLandmarkBuildings(scene) {
   buildEisstadion(B, colliders);
   buildKongress(B, colliders);
   buildEisbahn(B);
-  buildParsenn(B, colliders);
   buildDorf(B, colliders);
   buildPlatz(B, colliders);
   buildArkaden(B, colliders);
