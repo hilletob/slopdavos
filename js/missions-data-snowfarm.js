@@ -57,7 +57,7 @@ export const SNOWFARM = {
   pin: { x: 1680, z: -1678 },
   // the tipper: its bed's middle `bedBack` m behind the truck's centre; the windrow drops `dropBack` m behind the centre,
   // as wide as the bed
-  truck: { halfW: 1.25, halfL: 4.35, bedBack: 1.2, dropBack: 4.9, dropHalfL: 0.5, dropHalfW: 1.15, speed: 9.5 },
+  truck: { halfW: 1.25, halfL: 3.75, bedBack: 0.94, dropBack: 4.2, dropHalfL: 0.5, dropHalfW: 1.05, speed: 9.5 }, // (measured on the MAN: js/missions-work.js TIPPER)
   flow: 6.1, // m³ a second out of the raised bed (the right pace, 5 m/s, lays 35 cm over the Loipe once spread)
   capacity: 512, // m³ in a full bed (the old snow, not to scale: a real load is ~15 m³; ~420 m of Loipe at the right pace)
   loadS: 16, // s for the loader to fill the bed

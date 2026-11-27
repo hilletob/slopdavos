@@ -1608,9 +1608,13 @@ function grisonsPlates(gltf) {
 
 const _ramA = new THREE.Vector3(), _ramB = new THREE.Vector3();
 
-function buildTipperModel() {
+/**
+ * The tipper (the snow haul's here, js/missions-snowfarm.js's too): `opts` overrides its name, drive, dims, chase and
+ * the load's colour; `ready` resolves with the model's nodes by name once it is loaded
+ */
+export function buildTipperModel(opts = {}) {
   const g = new THREE.Group();
-  g.name = 'SnowTipper';
+  g.name = opts.name || 'SnowTipper';
   const S = TIPPER.scale;
   // the bed tips round its hinge at the tail; the model's bed is moved into it once loaded
   const bed = new THREE.Group();
@@ -1619,7 +1623,7 @@ function buildTipperModel() {
   // the load: a dome that grows with the fill, between the bed's walls
   const Wd = TIPPER.bed.halfW * 2 * S, L = (TIPPER.bed.z1 - TIPPER.bed.z0) * S, mid = ((TIPPER.bed.z0 + TIPPER.bed.z1) / 2) * S;
   const heapGeo = mergeGeometries([new THREE.BoxGeometry(Wd, 0.9, L).translate(0, 0.45, 0).toNonIndexed(), new THREE.SphereGeometry(1, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(Wd / 2, 0.75, L / 2).translate(0, 0.9, 0).toNonIndexed()].map((p) => { p.deleteAttribute('uv'); return p; }));
-  const heap = new THREE.Mesh(heapGeo, mat(0xeef2f8, { roughness: 0.95 }));
+  const heap = new THREE.Mesh(heapGeo, mat(opts.load ?? 0xeef2f8, { roughness: 0.95 }));
   heap.name = 'TipperLoad';
   heap.position.set(0, TIPPER.bed.floor * S, mid);
   heap.scale.set(1, 0.01, 1);
@@ -1630,6 +1634,7 @@ function buildTipperModel() {
     group: g, wheels, bed, heap, heapMid: mid, door: null, ram: null,
     drive: { speed: 12.5, reverseSpeed: 3.2, acceleration: 1.5, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.0, grip: 6.5, cornering: 4.6 },
     dims: { halfW: LOADER.truckBody.halfW, halfL: LOADER.truckBody.halfL, top: 3.5, mass: 18000 }, chase: [14, 4.6], label: 'Tipper',
+    ready: null,
     /** The bed raised by `angle` (rad): the tail board hangs, the ram follows the bed */
     tilt(angle) {
       bed.rotation.x = -angle;
@@ -1647,7 +1652,10 @@ function buildTipperModel() {
       r.rod.scale.z = Math.max(1, (len - r.cylLen + 10) / r.rodLen); // (the rod runs out of the cylinder)
     }
   };
-  loadTipper().then((gltf) => {
+  if (opts.drive) model.drive = opts.drive;
+  if (opts.dims) model.dims = opts.dims;
+  if (opts.chase) model.chase = opts.chase;
+  model.ready = loadTipper().then((gltf) => {
     const root = gltf.scene.clone(true);
     root.scale.setScalar(S);
     const parts = {};
@@ -1664,7 +1672,9 @@ function buildTipperModel() {
       wheels.push({ mesh: parts[name], r: TIPPER.wheelR * S, front: name.startsWith('wheel_front') });
     }
     model.tilt(-bed.rotation.x);
-  }).catch((err) => console.warn('[snow-haul] tipper model:', err));
+    return parts;
+  });
+  model.ready.catch((err) => console.warn('[tipper] model:', err));
   return model;
 }
 

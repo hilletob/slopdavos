@@ -7,6 +7,7 @@ import {
   stepTiller, coveredShare, groomedShare, nearestGap, nearestUngroomed
 } from './missions-data-snowfarm.js';
 import { routePoint } from './missions-data-work.js';
+import { buildTipperModel } from './missions-work.js';
 
 // js/missions-snowfarm.js
 // The runtime of Snowfarming (js/missions-data-snowfarm.js has the definitions and the pure logic; js/missions.js takes
@@ -99,111 +100,28 @@ function wheelMesh(r, w, dual, material) {
   return m;
 }
 
-// --- The tipper: a three-axle municipal lorry with an orange cab and a grey tipping bed ------------------------------------
-const TIPPER = { frontAxle: 2.85, rearAxles: [-1.55, -2.95], r: 0.53, hinge: { y: 1.38, z: -4.15 }, bed: { l: 5.65, w: 2.42, side: 1.15 } };
+// --- The tipper: the snow haul's MAN (js/missions-work.js buildTipperModel, assets/models/dump-truck.glb) -----------------
+// with the old snow's grey load, an amber beacon on the cab's roof and its body on springs (the wheels not)
 function buildFarmTipper() {
-  const g = new THREE.Group();
-  g.name = 'SnowfarmTipper';
-  const material = vcMat();
-  const orange = 0xe8731c, dark = 0x26282b, black = 0x141517, steel = 0x8f969c, glass = 0x26323d, white = 0xeeeeea;
-  const C = new Parts();
-  // the chassis, the fuel tank and the toolbox, the mudguards
-  C.box(1.0, 0.32, 8.2, dark, 0, 0.92, -0.05);
-  for (const x of [0.62, -0.62]) C.box(0.12, 0.42, 7.9, dark, x, 0.96, -0.1);
-  C.cyl(0.32, 1.1, 0x9ea4a9, 1.0, 0.82, 0.95, 'z', 12);
-  C.box(0.45, 0.5, 0.9, dark, -1.0, 0.85, 0.95);
-  for (const [z, l] of [[TIPPER.frontAxle, 1.25], [(TIPPER.rearAxles[0] + TIPPER.rearAxles[1]) / 2, 2.75]]) for (const x of [1.08, -1.08]) C.box(0.62, 0.06, l, black, x, 1.18, z);
-  // the cab (forward control): its body, the dark band of the windows, the windscreen, the grille, the bumper
-  C.box(2.48, 1.55, 2.15, orange, 0, 1.92, 3.18);
-  C.box(2.5, 0.95, 2.0, orange, 0, 3.1, 3.12);
-  C.box(2.52, 0.1, 2.17, white, 0, 2.62, 3.18); // (the white band round it)
-  C.box(2.22, 0.86, 0.06, glass, 0, 3.08, 4.13);
-  for (const x of [1.255, -1.255]) { C.box(0.04, 0.78, 1.05, glass, x, 3.1, 3.55); C.box(0.04, 0.62, 0.7, glass, x, 3.12, 2.6); }
-  C.box(1.7, 0.55, 0.05, 0x3a3c40, 0, 1.75, 4.27);
-  for (let i = 0; i < 5; i++) C.box(1.6, 0.04, 0.06, 0x55585c, 0, 1.55 + i * 0.1, 4.29);
-  C.box(2.5, 0.38, 0.3, black, 0, 1.12, 4.25);
-  C.box(2.56, 0.12, 2.1, dark, 0, 3.62, 3.12); // the roof's edge
-  C.box(1.1, 0.16, 0.5, 0x3a3c40, 0, 3.74, 2.4); // the roof's air vent
-  // the lamps (white in front, the indicators amber)
-  for (const x of [0.92, -0.92]) { C.box(0.36, 0.18, 0.05, 0xfff3d0, x, 1.38, 4.29); C.box(0.14, 0.12, 0.05, 0xffa21a, x * 1.18, 1.38, 4.29); }
-  // the mirrors on their arms
-  for (const s of [1, -1]) { C.box(0.5, 0.05, 0.05, black, s * 1.45, 3.35, 3.9); C.box(0.08, 0.55, 0.3, black, s * 1.7, 3.15, 3.9); }
-  // the steps under the doors
-  for (const x of [1.15, -1.15]) { C.box(0.3, 0.05, 0.6, steel, x, 1.0, 3.0); C.box(0.3, 0.05, 0.6, steel, x, 1.35, 3.0); }
-  // the exhaust stack behind the cab, the hydraulic ram in front of the bed (it grows with the tipping)
-  C.cyl(0.08, 1.6, steel, -1.0, 3.0, 1.95, 'y', 10);
-  // the tail lights and the underrun bar
-  for (const x of [1.05, -1.05]) C.box(0.35, 0.16, 0.06, 0x9e1a14, x, 0.98, -4.2);
-  C.box(2.3, 0.14, 0.1, dark, 0, 0.62, -4.15);
-  const body = C.mesh(material, 'TipperBody');
-  g.add(body);
-  // the bed tips about its hinge at the tail
-  const bed = new THREE.Group();
-  bed.position.set(0, TIPPER.hinge.y, TIPPER.hinge.z);
-  const B = new Parts();
-  const L = TIPPER.bed.l, W = TIPPER.bed.w, H = TIPPER.bed.side, z0 = 0.12, mid = z0 + L / 2;
-  B.box(W, 0.14, L, steel, 0, 0.07, mid);
-  for (const s of [1, -1]) {
-    B.box(0.07, H, L, steel, s * W / 2, H / 2 + 0.07, mid);
-    B.box(0.12, 0.1, L + 0.05, 0x6f767c, s * (W / 2 + 0.03), H + 0.07, mid); // (the top rail)
-    for (let i = 0; i < 6; i++) B.box(0.1, H, 0.09, 0x6f767c, s * (W / 2 + 0.04), H / 2 + 0.07, z0 + 0.3 + (i * (L - 0.6)) / 5); // (the side posts)
-  }
-  B.box(W, H + 0.35, 0.1, steel, 0, (H + 0.35) / 2 + 0.07, z0 + L); // the front wall
-  B.box(W, 0.08, 0.75, 0x6f767c, 0, H + 0.42, z0 + L + 0.3); // the cab guard over the cab's back
-  for (const z of [0.8, 2.2, 3.6, 5.0]) B.box(W + 0.1, 0.16, 0.12, dark, 0, -0.06, z0 + z * (L / 5.65)); // (cross members under the floor)
-  bed.add(B.mesh(material, 'TipperBed'));
-  // the tailgate hangs from its top hinge; it swings out when the bed is up
-  const gate = new THREE.Group();
-  gate.position.set(0, H + 0.07, z0 - 0.02);
-  const G = new Parts();
-  G.box(W - 0.04, H, 0.08, 0x7c848a, 0, -H / 2, 0);
-  G.box(W - 0.04, 0.08, 0.1, orange, 0, -H + 0.12, -0.02);
-  G.box(W - 0.04, 0.08, 0.1, orange, 0, -0.12, -0.02);
-  gate.add(G.mesh(material, 'TipperGate'));
-  bed.add(gate);
-  // the load: old snow, grey-white with bits of wood chips, a dome that grows with the fill
-  const heapGeo = mergeGeometries([
-    new THREE.BoxGeometry(W - 0.16, 0.9, L - 0.2, 1, 1, 1).translate(0, 0.45, 0).toNonIndexed(),
-    new THREE.SphereGeometry(1, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale((W - 0.16) / 2, 0.85, (L - 0.2) / 2).translate(0, 0.9, 0).toNonIndexed()
-  ].map((p) => { p.deleteAttribute('uv'); return p; }));
-  // (the lumps: the dome's vertices pushed about a little)
-  const hp = heapGeo.attributes.position;
-  for (let i = 0; i < hp.count; i++) if (hp.getY(i) > 0.95) hp.setY(i, hp.getY(i) + (hash(Math.round(hp.getX(i) * 7) * 31 + Math.round(hp.getZ(i) * 5)) - 0.5) * 0.25);
-  heapGeo.computeVertexNormals();
-  const heap = new THREE.Mesh(heapGeo, mat(0xd6d3cc, { roughness: 0.95 }));
-  heap.name = 'TipperLoad';
-  heap.position.set(0, 0.14, mid);
-  heap.scale.set(1, 0.01, 1);
-  heap.castShadow = true;
-  bed.add(heap);
-  g.add(bed);
-  // the ram: from the chassis up to the bed's front; scaled to the bed's lift
-  const ram = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1, 10).translate(0, 0.5, 0), mat(0xc9ccd0, { metalness: 0.7, roughness: 0.3 }));
-  ram.position.set(0, 1.1, 1.5);
-  g.add(ram);
-  // the amber beacon on the cab's roof
+  const m = buildTipperModel({
+    name: 'SnowfarmTipper', load: 0xd6d3cc,
+    drive: { speed: S.truck.speed, reverseSpeed: 3.2, acceleration: 1.6, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.0, grip: 6.5, cornering: 4.6 },
+    dims: { halfW: S.truck.halfW, halfL: S.truck.halfL, top: 3.5, mass: 18000 }, chase: [14, 4.6]
+  });
   const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.2, 12), mat(0xffb300, { emissive: 0xff8f00, emissiveIntensity: 0.4, roughness: 0.3 }));
-  beacon.position.set(0.7, 3.8, 3.5);
-  g.add(beacon);
-  // the wheels: a single pair in front, two axles of twins behind
-  const wheels = [];
-  const wmat = vcMat({ roughness: 0.85 });
-  for (const [z, dual] of [[TIPPER.frontAxle, false], [TIPPER.rearAxles[0], true], [TIPPER.rearAxles[1], true]]) {
-    for (const s of [1, -1]) {
-      const w = wheelMesh(TIPPER.r, dual ? 0.62 : 0.38, dual, wmat);
-      w.position.set(s * (dual ? 0.98 : 1.04), TIPPER.r, z);
-      g.add(w);
-      wheels.push({ mesh: w, r: TIPPER.r, front: !dual });
-    }
-  }
-  return {
-    group: g, wheels, bed, gate, heap, heapMid: mid, ram, beacon,
-    // (on the springs: the body, the bed, the ram and the beacon sit lower under the load and bounce, the wheels do not)
-    sprung: [body, bed, ram, beacon].map((o) => ({ o, y: o.position.y })),
-    anim: { bed: 0, bedV: 0, gate: 0, gateV: 0, sq: 0, sqV: 0, fill: 0, acc: 0, speed: 0, raised: false },
-    drive: { speed: S.truck.speed, reverseSpeed: 3.2, acceleration: 1.6, powerSpeed: 6, rolling: 0.25, drag: 0.0009, coast: 0.5, brake: 6, wheelbase: 4.45, grip: 6.5, cornering: 4.6 },
-    dims: { halfW: S.truck.halfW, halfL: S.truck.halfL, top: 3.85, mass: 18000 }, chase: [14, 4.8], label: 'Tipper'
-  };
+  beacon.position.set(0.75, 3.04, 2.2);
+  m.group.add(beacon);
+  // (on the springs: the cab and the chassis, the bed, the ram's cylinder and the beacon sit lower under the load and
+  // bounce; `k` turns metres into the node's parent's units)
+  const sprung = [{ o: m.bed, y: m.bed.position.y, k: 1 }, { o: beacon, y: beacon.position.y, k: 1 }];
+  m.ready.then((parts) => {
+    const v = new THREE.Vector3();
+    for (const o of [parts.body_main_1, parts.hydraulic_part1]) sprung.push({ o, y: o.position.y, k: 1 / o.parent.getWorldScale(v).y });
+  }, () => {});
+  return Object.assign(m, {
+    beacon, sprung,
+    anim: { bed: 0, bedV: 0, gate: 0, gateV: 0, sq: 0, sqV: 0, fill: 0, acc: 0, speed: 0, raised: false }
+  });
 }
 VEHICLES.snowfarmTipper = buildFarmTipper;
 
@@ -478,7 +396,7 @@ const snowfarm = {
     w.cycle = 0; w.wasEmpty = false; w.wasFull = false; w.shareT = 0; w.dumped = 0;
     const v = run.vehicle;
     if (v?.bed) {
-      v.bed.rotation.x = 0; v.gate.rotation.x = 0; v.heap.scale.set(1, 0.01, 1); v.heap.position.z = v.heapMid;
+      v.tilt(0); v.heap.scale.set(1, 0.01, 1); v.heap.position.z = v.heapMid;
       Object.assign(v.anim, { bed: 0, bedV: 0, gate: 0, gateV: 0, sq: 0, sqV: 0, fill: 0, acc: 0, speed: 0, raised: false });
       for (const s of v.sprung) s.o.position.y = s.y;
     }
@@ -585,21 +503,15 @@ const snowfarm = {
       spring(A, 'sq', -0.11 * (A.fill / S.capacity) - 0.02 * ease(st.raise), 70, 0.22, step);
       A.sq = clamp(A.sq, -0.3, 0.12);
     }
-    for (const s of v.sprung) s.o.position.y = s.y + A.sq;
-    v.bed.rotation.x = -A.bed;
-    v.gate.rotation.x = A.bed + A.gate; // (relative to the bed: it hangs, plus its swing)
+    for (const s of v.sprung) s.o.position.y = s.y + A.sq * s.k;
+    v.tilt(A.bed); // (the bed, and the ram after it)
+    if (v.door) v.door.rotation.x = A.bed + A.gate; // (the tail board, relative to the bed: it hangs, plus its swing)
     const f = A.fill / S.capacity;
     v.heap.scale.y = Math.max(0.01, f);
     v.heap.visible = f > 0.002;
     // (the load slides back to the tail as the bed empties, more the higher the bed: no jump where the snow starts running)
     v.heap.position.z = v.heapMid - easeIn(0.25, 0.85, A.bed / 0.5) * (1 - f) * 1.6;
-    {
-      // (the ram from the chassis to the bed's front: its length as the bed rises)
-      const a = A.bed, fz = TIPPER.hinge.z + Math.cos(a) * (TIPPER.bed.l + 0.12) - v.ram.position.z, fy = v.bed.position.y + Math.sin(a) * (TIPPER.bed.l + 0.12) - v.ram.position.y;
-      v.ram.scale.y = Math.max(0.3, Math.hypot(fz, fy));
-      v.ram.rotation.x = Math.atan2(fz, fy);
-      v.beacon.material.emissiveIntensity = ctx.mode === 'car' ? 0.5 + 0.7 * Math.max(0, Math.sin(performance.now() / 110)) : 0.15;
-    }
+    v.beacon.material.emissiveIntensity = ctx.mode === 'car' ? 0.5 + 0.7 * Math.max(0, Math.sin(performance.now() / 110)) : 0.15;
   },
   /**
    * The snow running out under the swung-open tailgate: lumps that leave the tail with the truck's own speed and a
@@ -611,12 +523,12 @@ const snowfarm = {
     const A = run.vehicle?.anim, sp = car.speed || 0, vx = sx * sp, vz = sz * sp;
     const onset = easeIn(S.runFrom, S.runFrom + 0.3, st.raise); // (the stream swells as the bed goes on up)
     const gap = A ? clamp(A.bed + A.gate, 0.15, 0.9) * 0.8 : 0.5; // (the opening under the gate)
-    const groundY = surfaceHeight(car.position.x - sx * 5, car.position.z - sz * 5);
+    const groundY = surfaceHeight(car.position.x - sx * 4.3, car.position.z - sz * 4.3);
     w.spillAcc += Math.min(70, (out / Math.max(dt, 1e-3)) * 8) * onset * dt;
     while (w.spillAcc >= 1) {
       w.spillAcc--;
-      const side = (Math.random() - 0.5) * 2.1;
-      _a.x = car.position.x - sx * 4.35 + sz * side; _a.z = car.position.z - sz * 4.35 - sx * side;
+      const side = (Math.random() - 0.5) * 1.9;
+      _a.x = car.position.x - sx * 3.5 + sz * side; _a.z = car.position.z - sz * 3.5 - sx * side; // (the bed's tail)
       _a.y = car.position.y + 1.2 + (A?.sq || 0) + Math.random() * gap;
       const T = 0.32 + Math.random() * 0.14, back = 0.3 + Math.random() * 0.9;
       _b.x = _a.x + vx * T - sx * back + sz * side * 0.12; _b.z = _a.z + vz * T - sz * back - sx * side * 0.12;
@@ -628,7 +540,7 @@ const snowfarm = {
     w.dustAcc += 11 * onset * dt;
     while (w.dustAcc >= 1) {
       w.dustAcc--;
-      const side = (Math.random() - 0.5) * 2.4, back = 4.8 + Math.random() * 1.2;
+      const side = (Math.random() - 0.5) * 2.4, back = 4.1 + Math.random() * 1.2;
       dust(pb, car.position.x - sx * back + sz * side, groundY + 0.3, car.position.z - sz * back - sx * side, vx * 0.25, vz * 0.25, { size: 0.7, grow: 2.4, life: 1.5, alpha: 0.3 });
     }
   },
