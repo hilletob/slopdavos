@@ -12,12 +12,15 @@ const here = path.dirname(new URL(import.meta.url).pathname), root = path.resolv
 const { DAVOS_DATA } = await import(root + 'js/davos-geodata.js');
 const inRing = (r, x, z) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) if ((r[i + 1] > z) !== (r[j + 1] > z) && x < (r[j] - r[i]) * (z - r[i + 1]) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; return c; };
 const centre = (r) => { let x = 0, z = 0; const n = r.length / 2; for (let i = 0; i < r.length; i += 2) { x += r[i] / n; z += r[i + 1] / n; } return [x, z]; };
+const { SHOPS_DATA } = await import(root + 'js/shops-data.js');
 const template = fs.readFileSync(path.join(here, '../brief-template.md'), 'utf8');
 for (const arg of process.argv.slice(2)) {
   const [slug, id, force] = arg.split(':');
   const b = DAVOS_DATA.buildings.find((x) => x.id === id);
+  // (a building OSM gives no name: the name of the hotel or shop js/shops-data.js places inside it)
+  const name = b.name || SHOPS_DATA.find((p) => inRing(b.ring, p.x, p.z) && ['hotel', 'restaurant', 'school'].includes(p.kind))?.name || slug;
   const D = JSON.parse(fs.readFileSync(`recv/${slug}.json`, 'utf8'));
-  console.log(`\n## ${slug} ${b.name || ''} (${id})`);
+  console.log(`\n## ${slug} ${name} (${id})`);
   const chosen = [];
   for (const o of D) {
     const p = o.tris.flatMap((t) => [[t[0], t[2]], [t[3], t[5]], [t[6], t[8]]]);
@@ -40,9 +43,9 @@ for (const arg of process.argv.slice(2)) {
   console.log('  ' + execFileSync('node', [here + '/osm-gap.mjs', `recv/${slug}.sel.json`, id]).toString().trim().split('\n').pop());
   const fn = 'build' + slug.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('');
   const survey = chosen.map((o) => `${o.u} batch ${o.b}`).join(', ');
-  const brief = template.replace(/\{\{REPO\}\}/g, root.replace(/\/$/, '')).replace(/\{\{NAME\}\}/g, b.name || slug).replace(/\{\{ADDRESS\}\}/g, 'Davos').replace(/\{\{OSM\}\}/g, id)
+  const brief = template.replace(/\{\{REPO\}\}/g, root.replace(/\/$/, '')).replace(/\{\{NAME\}\}/g, name).replace(/\{\{ADDRESS\}\}/g, 'Davos').replace(/\{\{OSM\}\}/g, id)
     .replace(/\{\{SLUG_UPPER\}\}/g, slug.replace(/-/g, '_').toUpperCase()).replace(/\{\{SLUG\}\}/g, slug).replace(/\{\{FN\}\}/g, fn)
-    .replace(/\{\{GREP\}\}/g, (b.name || slug).split(' ').slice(-1)[0]).replace(/\{\{DIR\}\}/g, path.resolve(`buildings/${slug}`) + '/')
+    .replace(/\{\{GREP\}\}/g, name.split(' ').slice(-1)[0]).replace(/\{\{DIR\}\}/g, path.resolve(`buildings/${slug}`) + '/')
     .replace(/\{\{SURVEY\}\}/g, survey).replace(/\{\{OSM_FILE\}\}/g, 'osm.txt').replace('(under "## ' + slug + '")', '');
   fs.writeFileSync(`prompt-${slug}.txt`, brief);
   console.log(`  → prompt-${slug}.txt (still to write: {{PHOTO_NOTE}}, {{NOTE}}; the address)`);

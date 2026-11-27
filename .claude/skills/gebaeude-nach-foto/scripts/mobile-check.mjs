@@ -20,6 +20,7 @@ const main = fs.readFileSync(root + 'js/main.js', 'utf8');
 const all = [...main.matchAll(/: (build\w+)\(scene\); \/\/ .*?\(js\/([\w-]+)\.js\)/g)].map((m) => [m[2], m[1]])
   .filter(([slug]) => fs.existsSync(root + `js/${slug}-data.js`));
 const wanted = process.argv.slice(2);
+for (const w of wanted) if (!all.some(([s]) => s === w)) { console.log(`? ${w}: not wired in js/main.js yet (wire.mjs first)`); process.exitCode = 1; }
 let bad = 0;
 for (const [slug, fn] of all.filter(([s]) => !wanted.length || wanted.includes(s))) {
   const mod = await import(root + `js/${slug}.js`);
@@ -46,4 +47,4 @@ for (const [slug, fn] of all.filter(([s]) => !wanted.length || wanted.includes(s
   console.log(`${full.size ? '✖' : '✔'} ${slug}: ${meshes} meshes, ${Math.round(tris)} triangles, ${(pixels / 1e6).toFixed(2)} Mpx of canvas` +
     (full.size ? ` — full shaders on the phone: ${[...full].join(', ')}` : ''));
 }
-process.exitCode = bad ? 1 : 0;
+if (bad) process.exitCode = 1;
