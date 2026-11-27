@@ -33,14 +33,20 @@ export const ETTINGER_SPORT = {
     { id: 'block', top: 7.79, line: 7.5, ground: 1.2,
       ring: [[615.4, -1393.1], [615.8, -1392.5], [627.3, -1384.4], [628.3, -1384.3], [629.3, -1384.4], [630.4, -1385.0], [637.5, -1395.1], [638.2, -1394.6],
         [641.5, -1399.4], [627.1, -1409.4], [621.7, -1401.7], [620.9, -1402.3], [615.4, -1394.3], [615.3, -1393.6]] },
-    // the shop wing along the Promenade and the hall behind it in the slope, one roof
+    // the shop wing along the Promenade and the hall behind it in the slope, one roof. The hall's back round the house
+    // w117138549 is that house's OpenStreetMap outline (`hallBack` below), not the survey's: OSM draws the house 1–1.5 m further
+    // into the hall than swissBUILDINGS3D does, and its walls (js/buildings.js raises them from OSM) stood inside the
+    // hall then, a strip from either wall, where one wall pushed a player back through the other. So the two meet.
     { id: 'wing', top: 4.66, line: 1.2, ground: 1.2,
-      ring: [[629.8, -1425.3], [629.8, -1427.9], [631.7, -1429.9], [631.6, -1431.1], [645.0, -1421.7], [645.6, -1421.9], [653.4, -1416.5], [641.5, -1399.4],
-        [627.1, -1409.4], [621.7, -1401.7], [620.9, -1402.3], [609.9, -1409.9], [617.7, -1421.0], [618.9, -1421.2], [621.8, -1418.9], [625.0, -1419.2],
-        [625.5, -1419.8], [626.7, -1419.9], [628.2, -1421.9], [628.2, -1423.2]] },
-    // the small box at the neighbour's north corner (closed)
+      ring: [[632.87, -1430.21], [645.0, -1421.7], [645.6, -1421.9], [653.4, -1416.5], [641.5, -1399.4],
+        [627.1, -1409.4], [621.7, -1401.7], [620.9, -1402.3], [609.9, -1409.9], [616.75, -1419.65],
+        [619.4, -1419.8], [621.7, -1417.8], [625.5, -1417.9], [625.8, -1418.4], [627.3, -1418.4], [629.3, -1421.2], [629.1, -1422.7],
+        [631.0, -1424.3], [630.9, -1427.4], [632.8, -1429.4]] },
+    // the small box at the neighbour's north corner (closed; it lies within OSM's outline of that house, out of reach)
     { id: 'shed', top: 4.66, line: 1.2, ground: 1.2, windows: false, ring: [[626.6, -1433.8], [627.0, -1434.3], [628.4, -1433.3], [626.6, -1433.0]] }
   ],
+  // The house whose OSM outline the hall's back follows (between the two points where OSM's walls cross the survey's)
+  hallBack: 'w117138549',
   // The walls by what they show (a, b as in the part's ring, either way round)
   fronts: {
     // the shop wing on the Promenade (its south-east wall): plinth, glazing, awning, fascia with the lettering

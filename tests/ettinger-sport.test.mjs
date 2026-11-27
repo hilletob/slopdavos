@@ -4,6 +4,7 @@ import {
   ETTINGER_SPORT as E, balconyFrame, frontFrame, groundOutlines, isWall, offsetRing, onWall, outwardRing, part, partAt, pointInRing, ringArea2, wallFrame
 } from '../js/ettinger-sport-data.js';
 import { VALLEY } from '../js/missions-data-parsenn.js';
+import { DAVOS_DATA } from '../js/davos-geodata.js';
 
 test('the volumes: outlines of some size, the floors adding up to the surveyed roofs', () => {
   for (const p of E.parts) {
@@ -93,6 +94,60 @@ test('the player\'s walls: the surveyed outlines at the ground, the balcony left
       d = Math.min(d, Math.hypot(VALLEY.x - qx, VALLEY.z - qz));
     }
     assert.ok(d > 1, `${p.id}: ${d.toFixed(1)} m from the pin`);
+  }
+});
+
+test('the hall meets the house behind it: its back on that house\'s OSM walls, none of it inside them', () => {
+  // (js/buildings.js raises the house's walls from OSM: inside the hall they made a strip between two walls, each
+  // pushing a player back through the other)
+  const b = DAVOS_DATA.buildings.find((q) => q.id === E.hallBack);
+  const house = [];
+  for (let i = 0; i < b.ring.length; i += 2) house.push([b.ring[i], b.ring[i + 1]]);
+  const wing = part('wing').ring;
+  const distToRing = (ring, x, z) => {
+    let d = Infinity;
+    for (let i = 0; i < ring.length; i++) {
+      const F = wallFrame(ring[i], ring[(i + 1) % ring.length]);
+      const s = Math.max(0, Math.min(F.len, (x - F.a[0]) * F.u[0] + (z - F.a[1]) * F.u[1]));
+      const [qx, qz] = onWall(F, s);
+      d = Math.min(d, Math.hypot(x - qx, z - qz));
+    }
+    return d;
+  };
+  // no stretch of the hall within the house (a 0.25 m grid, the shared walls left aside)
+  let inside = 0;
+  for (let x = 605; x < 660; x += 0.25) {
+    for (let z = -1440; z < -1395; z += 0.25) {
+      if (pointInRing(wing, x, z) && pointInRing(house, x, z) && distToRing(house, x, z) > 0.05) inside++;
+    }
+  }
+  assert.equal(inside, 0, `${inside} points of the hall inside the house`);
+  // the hall's back on the house's walls: ten of its corners and the two crossings
+  const onHouse = wing.filter(([x, z]) => distToRing(house, x, z) < 0.02);
+  assert.ok(onHouse.length >= 12, `${onHouse.length} corners on the house's walls`);
+  // a player 0.6 m inside a wall of the hall's back is pushed out of it, not held between two walls
+  const wall = (a, c) => { const F = wallFrame(a, c); return F.len < 0.3 ? null : F; };
+  const walls = [...wing.map((a, i) => wall(a, wing[(i + 1) % wing.length])), ...house.map((a, i) => wall(a, house[(i + 1) % house.length]))].filter(Boolean);
+  const push = (x, z, list, r = 0.48) => {
+    for (const F of list) {
+      const s = Math.max(0, Math.min(F.len, (x - F.a[0]) * F.u[0] + (z - F.a[1]) * F.u[1]));
+      const off = (x - F.a[0]) * F.n[0] + (z - F.a[1]) * F.n[1];
+      if (s <= 0 || s >= F.len || Math.abs(off) >= r + 0.22) continue;
+      const depth = r + 0.22 - Math.abs(off), sg = Math.sign(off) || 1;
+      x += F.n[0] * sg * depth; z += F.n[1] * sg * depth;
+    }
+    return [x, z];
+  };
+  const ring = outwardRing(wing);
+  for (let i = 0; i < ring.length; i++) {
+    const F = wallFrame(ring[i], ring[(i + 1) % ring.length]);
+    const [mx, mz] = onWall(F, F.len / 2);
+    if (F.len < 2 || distToRing(house, mx, mz) > 0.02) continue;
+    const [x, z] = onWall(F, F.len / 2, -0.6);
+    for (const list of [walls, [...walls].reverse()]) {
+      const [px, pz] = push(x, z, list);
+      assert.ok(Math.hypot(px - x, pz - z) > 0.05, `a wall of the hall's back at ${mx.toFixed(1)}/${mz.toFixed(1)}`);
+    }
   }
 });
 

@@ -39,7 +39,7 @@ test('the named walls are walls of the outlines, facing their sides', () => {
   assert.ok(wallOf('east').n[0] > 0.85, 'the car park\'s side faces east');
 });
 
-test('one tall storey under a low roof: the eaves over the Promenade, the ridge the survey\'s roof', () => {
+test('one tall storey under a flat roof: the eaves over the Promenade', () => {
   const W = wallOf('west');
   for (const s of [1, 13, 25]) assert.ok(Math.abs(groundHeight(...onWall(W, s, 1)) - S.floor) < 0.4, 'the floor on the Promenade\'s level');
   // the soffit over the front 4.5–5 m over the Promenade, the eaves' edge out over the pavement at least 4 m up
@@ -48,9 +48,9 @@ test('one tall storey under a low roof: the eaves over the Promenade, the ridge 
   assert.ok(soffit(R.eaves.front) - street > 4.0);
   assert.ok(S.glass < soffit(0) && S.glass - S.floor > 4, 'a shop\'s tall storey of glass');
   assert.ok(S.floor + S.transom < S.glass - 1);
-  // the ridge: the survey's roof (4.29), along the front over the house's middle; a low pitch
-  assert.equal(roofTop(R.ridgeO), 4.29);
-  assert.ok(R.pitch > 0.1 && R.pitch < 0.3);
+  // flat: the same top over the front and the back
+  assert.equal(R.pitch, 0);
+  assert.equal(roofTop(0), roofTop(R.back));
   assert.ok(R.ridgeO < R.back / 3 && R.ridgeO > (2 * R.back) / 3);
   // the roof's outline covers every wall with its eaves
   const W2 = wallOf('west'), O = roofOutline().map(([s, o]) => onWall(W2, s, o));

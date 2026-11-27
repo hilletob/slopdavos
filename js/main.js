@@ -76,6 +76,13 @@ import { buildParsennGada } from './parsenn-gada.js';
 import { buildTalstrasseBlock } from './talstrasse-block.js';
 import { buildTalstrasseChalet } from './talstrasse-chalet.js';
 import { buildEttingerSport } from './ettinger-sport.js';
+import { buildSeeliPark } from './seeli-park.js';
+import { buildHardRockHotel } from './hard-rock-hotel.js';
+import { buildTinzenblick } from './tinzenblick.js';
+import { buildPauluskirche } from './pauluskirche.js';
+import { buildSchweizerhaus } from './schweizerhaus.js';
+import { buildFegDavos } from './feg-davos.js';
+import { buildPischaTerminal } from './pischa-terminal.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -417,6 +424,13 @@ async function initApp() {
   const talstrasseBlock = skipped('talstrasseBlock') ? { colliders: [] } : buildTalstrasseBlock(scene); // the block on the Talstrasse by hand (js/talstrasse-block.js)
   const talstrasseChalet = skipped('talstrasseChalet') ? { colliders: [] } : buildTalstrasseChalet(scene); // the chalet on the Talstrasse by hand (js/talstrasse-chalet.js)
   const ettingerSport = skipped('ettingerSport') ? { colliders: [] } : buildEttingerSport(scene); // the house of Ettinger Sport by hand (js/ettinger-sport.js)
+  const seeliPark = skipped('seeliPark') ? { colliders: [] } : buildSeeliPark(scene); // the Seehof Seeli's park (js/seeli-park.js)
+  const hardRockHotel = skipped('hardRockHotel') ? { colliders: [] } : buildHardRockHotel(scene); // the Hard Rock Hotel complex by hand (js/hard-rock-hotel.js)
+  const tinzenblick = skipped('tinzenblick') ? { colliders: [] } : buildTinzenblick(scene); // the Tinzenblick by hand (js/tinzenblick.js)
+  const pauluskirche = skipped('pauluskirche') ? { colliders: [] } : buildPauluskirche(scene); // the Pauluskirche by hand (js/pauluskirche.js)
+  const schweizerhaus = skipped('schweizerhaus') ? { colliders: [] } : buildSchweizerhaus(scene); // the Schweizerhaus by hand (js/schweizerhaus.js)
+  const fegDavos = skipped('fegDavos') ? { colliders: [] } : buildFegDavos(scene); // the Freie Evangelische Gemeinde's church by hand (js/feg-davos.js)
+  const pischaTerminal = skipped('pischaTerminal') ? { colliders: [] } : buildPischaTerminal(scene); // the Pischa terminal by hand (js/pischa-terminal.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -486,7 +500,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...parsennbahnTal.colliders, ...feuerwehrDorf.colliders, ...parsennGada.colliders, ...talstrasseBlock.colliders, ...talstrasseChalet.colliders, ...ettingerSport.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...parsennbahnTal.colliders, ...feuerwehrDorf.colliders, ...parsennGada.colliders, ...talstrasseBlock.colliders, ...talstrasseChalet.colliders, ...ettingerSport.colliders, ...seeliPark.colliders, ...hardRockHotel.colliders, ...tinzenblick.colliders, ...pauluskirche.colliders, ...schweizerhaus.colliders, ...fegDavos.colliders, ...pischaTerminal.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }

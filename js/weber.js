@@ -17,8 +17,8 @@ export { WEBER };
 // window in a white surround with a brown frame in every bay of every floor (drawn by the wall's material from its uv:
 // metres along the wall from its middle, metres up the floors' grid), the crescent moon, the baker, "Weber" and the cup
 // painted on the block's front towards the Parsenn, the bakery's and the café's shop fronts on the Promenade with their
-// lettering, the restaurant's low annex, the back in white with arched windows and balconies on white posts, the
-// garage's workshop windows under a canopy on the lane. Six meshes: two plasters, the roofs, the glazing, the trim
+// lettering, the restaurant's low annex, the back in white with arched windows and balconies on white posts, the low
+// block's wall against the neighbour's AVIA garage closed. Six meshes: two plasters, the roofs, the glazing, the trim
 // (one vertex-coloured mesh) and the decals (one canvas atlas).
 
 excludeBuildings(WEBER.exclude);
@@ -254,7 +254,7 @@ function buildPart(B, p) {
 }
 
 // A shop front: a plinth, the glazing between two piers up to y1, the fascia with its lettering, the floors over it;
-// the bakery's door, the garage's canopy
+// the bakery's door, a canopy where the front has one
 function buildFront(B, p, F, front, bucket, hi) {
   const base = WEBER.base, line = p.line, pier = 0.5;
   // (the ground floor's top: the lowest floor's foot at least 3 m over the ground)

@@ -12,8 +12,8 @@ import { MIGROS_DORF, glassFoot, groundStretches, onWall, outwardRing, panes, ro
 export { MIGROS_DORF };
 
 // The house of the Migros in Davos Dorf rebuilt by hand (js/migros-dorf-data.js), standing in for its swissBUILDINGS3D
-// volumes, which the streamed tiles drew as white blocks with the town houses' windows: one tall storey under a low
-// pitched roof whose ridge runs along the Promenade, its deep eaves with a brown timber soffit and fascia all round; on
+// volumes, which the streamed tiles drew as white blocks with the town houses' windows: one tall storey under a flat
+// roof, its deep eaves with a brown timber soffit and fascia all round; on
 // the Promenade the shop's glazing between two piers of rough stone (dark posts, a transom at the doors' height, blinds
 // behind the upper panes), the glass doors in the left third with the name in orange letters over them; the other sides
 // closed white walls on a stone plinth, a staff door on the lane, the delivery gate in brown boards on the car park.

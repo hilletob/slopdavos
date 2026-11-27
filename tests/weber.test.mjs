@@ -61,9 +61,48 @@ test('the shop fronts lie on their walls as the outward rings run them, facing t
     assert.ok(f.y1 < p.line - WEBER.storey, `${f.id}: the glazing under the first floor`);
     if (f.fascia) assert.ok(f.fascia[0] > f.y1 && f.fascia[1] < p.line - WEBER.storey + 0.01);
   }
-  // the bakery's and the café's face the Promenade (west-north-west), the garage's the lane (east-south-east)
+  // the bakery's and the café's face the Promenade (west-north-west)
   const n = (id) => { const f = WEBER.fronts.find((q) => q.id === id); return wallFrame(f.a, f.b).n; };
-  assert.ok(n('bakery')[0] < -0.7 && n('cafe')[0] < -0.7 && n('garage')[0] > 0.7);
+  assert.ok(n('bakery')[0] < -0.7 && n('cafe')[0] < -0.7);
+});
+
+test('the low block meets the AVIA garage\'s L next door: the shared wall closed, the outlines neither crossing nor overlapping', async () => {
+  const { TALSTRASSE_BLOCK: T } = await import('../js/talstrasse-block-data.js');
+  // (the front with big windows under a canopy in the photographs of 2013 is the L's: no shop front nor canopy here)
+  const [[a, b]] = WEBER.closed;
+  assert.ok(isWall(part('garage').ring, a, b));
+  assert.ok(T.parts.some((p) => p.ring.some((q) => near(q, a))), 'the L\'s corner at the closed wall\'s end');
+  assert.ok(!WEBER.fronts.some((f) => f.canopy || segDist(f.a[0], f.a[1], a, b) < 0.1 || segDist(f.b[0], f.b[1], a, b) < 0.1));
+  assert.deepEqual(wallStretches(a, b), [{ from: 0, to: Math.hypot(b[0] - a[0], b[1] - a[1]), windows: false }]);
+  assert.deepEqual(wallStretches(b, a).map((st) => st.windows), [false]);
+  // the L's west wall on that wall's line, the whole of it within it
+  const L = T.parts.find((p) => p.id === 'garage').ring;
+  const onClosed = L.filter((q) => segDist(q[0], q[1], a, b) < 0.01);
+  assert.ok(onClosed.length >= 2 && onClosed.some((q) => near(q, a)));
+  // no point of an outline of either house inside the other's (a 0.1 m grid round the shared walls, the walls left aside)
+  const theirs = T.parts.map((p) => p.ring), ours = groundOutlines();
+  let n = 0;
+  for (let x = 638; x < 664; x += 0.1) {
+    for (let z = -1368; z < -1338; z += 0.1) {
+      if (!theirs.some((r) => pointInRing(r, x, z)) || !ours.some((r) => pointInRing(r, x, z))) continue;
+      if (wallDist([...theirs, ...ours], x, z) > 0.02) n++;
+    }
+  }
+  assert.equal(n, 0, `${n} points inside both houses`);
+  // no wall of either crossing one of the other's
+  const cross = (p, q, r, s) => {
+    const d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0]);
+    if (Math.abs(d) < 1e-9) return false;
+    const t = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d, u = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+    return t > 0.002 && t < 0.998 && u > 0.002 && u < 0.998;
+  };
+  for (const r1 of ours) for (const r2 of theirs) {
+    for (let i = 0; i < r1.length; i++) {
+      for (let j = 0; j < r2.length; j++) {
+        assert.ok(!cross(r1[i], r1[(i + 1) % r1.length], r2[j], r2[(j + 1) % r2.length]), `${r1[i]} → ${r1[(i + 1) % r1.length]} across ${r2[j]} → ${r2[(j + 1) % r2.length]}`);
+      }
+    }
+  }
 });
 
 test('the painting lies on the block\'s front towards the Parsenn, on its stretch without windows, over the annex', () => {

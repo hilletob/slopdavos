@@ -14,7 +14,10 @@
 // crescent moon, a baker, "Weber" in script and a cup painted on its west half, windows on its east half, and before it
 // the restaurant's low pink annex with "Restaurant" on its fascia. 534421814226074 and 1896954003806616 (2013, from
 // the lane to the south) show the back: the block's south-west wall white with balconies on white posts and arched
-// windows, the garage's front with its big windows under a canopy, the wing's pink south end. The Promenade's fronts
+// windows, the wing's pink south end. The low white front with its big windows under a canopy and a red band in those
+// photographs, "Garage Graf" on it, faces the camera (south-south-west): it is the AVIA garage's, the low L of the house
+// next door (js/talstrasse-block-data.js), not the east-south-east wall of the low block here, which stands against the
+// L's west wall (from 644.1/−1345.0 on; the survey's batches meet there): that wall is closed. The Promenade's fronts
 // (the bakery's and the café's) and the block's east walls are guessed: no photo shows them.
 import { outwardRing, ringArea2, wallFrame, onWall, pointInRing } from './spital-data.js';
 
@@ -40,22 +43,24 @@ export const WEBER = {
     { id: 'wing', top: 4.47, line: 3.6, skin: 'pink',
       ring: [[635.4, -1369.1], [624.3, -1350.2], [631.8, -1345.6], [632.4, -1346.5], [638.5, -1356.9], [643.4, -1365.0], [642.6, -1365.6], [642.0, -1364.7],
         [636.4, -1368.5]] },
-    // the garage's block on the lane (its two roofs of 3.07 and 3.16 as one), the workshop's windows under a canopy
+    // the low block behind the wing (its two roofs of 3.07 and 3.16 as one; `garage` after the photographs' Garage Graf,
+    // which is the neighbour's), its east-south-east wall against the AVIA garage's L from 644.1/−1345.0 on
     { id: 'garage', top: 3.1, line: 2.5, skin: 'white',
-      ring: [[641.0, -1340.2], [655.3, -1362.5], [654.8, -1362.8], [652.4, -1359.1], [643.1, -1355.3]] },
+      ring: [[641.0, -1340.2], [644.1, -1345.0], [655.3, -1362.5], [654.8, -1362.8], [652.4, -1359.1], [643.1, -1355.3]] },
     // the low parts between the wing and the garage
     { id: 'link', top: 3.16, line: 2.5, skin: 'white', ring: [[643.4, -1365.0], [642.6, -1365.6], [638.2, -1358.3], [643.1, -1355.3]] },
     { id: 'back', top: 3.85, line: 3.0, skin: 'white', ring: [[629.9, -1346.9], [635.8, -1343.3], [643.1, -1355.3], [637.1, -1358.9]] }
   ],
   // The shop fronts on the ground floor (a on the left for someone standing before the wall): glazing between piers from
-  // over the ground (`plinth` m, 0.35 if not given) up to `y1`, a fascia with the lettering from f0 to f1. The bakery's on the block's Promenade
-  // front with the door the mission walks to (js/missions-data-local.js WEBER) `door` m along it; the café's along the
-  // wing; the garage's workshop windows on the lane under its canopy
+  // over the ground (`plinth` m, 0.35 if not given) up to `y1`, a fascia with the lettering from f0 to f1, a canopy if
+  // given. The bakery's on the block's Promenade front with the door the mission walks to (js/missions-data-local.js
+  // WEBER) `door` m along it; the café's along the wing
   fronts: [
     { id: 'bakery', a: [643.0, -1380.6], b: [635.4, -1369.1], y1: -0.75, fascia: [-0.6, 0.15], name: 'bakery', door: 5.62, doorHalf: 0.75 },
-    { id: 'cafe', a: [635.4, -1369.1], b: [624.3, -1350.2], y1: -0.75, fascia: [-0.6, 0.1], name: 'cafe', door: 8.0, doorHalf: 0.75 },
-    { id: 'garage', a: [641.0, -1340.2], b: [655.3, -1362.5], y1: -1.15, plinth: 0.8, canopy: { y: -0.75, out: 1.1 } }
+    { id: 'cafe', a: [635.4, -1369.1], b: [624.3, -1350.2], y1: -0.75, fascia: [-0.6, 0.1], name: 'cafe', door: 8.0, doorHalf: 0.75 }
   ],
+  // Walls without windows (a, b either way round): the low block's against the AVIA garage's L (js/talstrasse-block-data.js)
+  closed: [[[644.1, -1345.0], [655.3, -1362.5]]],
   // The painting on the block's front towards the Parsenn (the east end a): the stretch of it kept free of windows on
   // every floor, the painting over the floors above the annex
   mural: { a: [653.6, -1373.5], b: [643.0, -1380.6], clear: [7.4, 12.76], s0: 7.45, s1: 12.48, y0: 1.2, y1: 12.4 },
@@ -89,10 +94,13 @@ export function clearStretches(a, b) {
   return [];
 }
 
-/** A wall cut into its stretches: [{ from, to, windows }] (the clear ones without windows) */
+/** Is a → b (either way round) one of the closed walls? */
+export const isClosed = (a, b) => WEBER.closed.some(([p, q]) => sameWall({ a: p, b: q }, a, b) !== 0);
+
+/** A wall cut into its stretches: [{ from, to, windows }] (the clear ones without windows; a closed wall all of it) */
 export function wallStretches(a, b, windows = true) {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  if (!windows) return [{ from: 0, to: len, windows: false }];
+  if (!windows || isClosed(a, b)) return [{ from: 0, to: len, windows: false }];
   const out = [];
   let at = 0;
   for (const [c0, c1] of clearStretches(a, b)) {

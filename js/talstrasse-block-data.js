@@ -6,8 +6,10 @@
 // Sources: swissBUILDINGS3D (tile 11/1752/1021, batches 6, 11, 2 and 18): the block, a flat roof at y 16.72 over a near
 // square of 16 m from its floor on −5.45 (batch 6, inside OpenStreetMap's footprint w117012205 to a metre); the low
 // L round its south-west and north-west sides, a flat roof at 2.56 (batch 11; its north-west leg stands on the strip
-// OpenStreetMap gives to the Weber's house w117012220, between the block and the Weber's garage, whose front it meets:
-// js/weber-data.js); a sloped slab along the block's south-east wall, from the ground at its south end to −2.4 at its
+// OpenStreetMap gives to the Weber's house w117012220, between the block and the Weber's low block, whose closed
+// east-south-east wall its west wall meets, and its north end against the Weber's block's corner, cut at its walls:
+// js/weber-data.js. The 2013 photographs of the Weber's back show the L's own front here: "Garage Graf", big windows
+// under a canopy, the red band); a sloped slab along the block's south-east wall, from the ground at its south end to −2.4 at its
 // north end (batches 2 and 18, the same slab twice: its top and its sides), taken for a covered ramp. Heights in the
 // world frame (y = m a.s.l. − 1558, js/davos-frame.js). The ground: the forecourt on the south-west at y −4.9 to −5.4,
 // the yard on the north-east at −4.5 to −4.9.
@@ -38,9 +40,11 @@ export const TALSTRASSE_BLOCK = {
     { id: 'block', top: 16.72,
       ring: [[664.2, -1356.7], [668.5, -1354.0], [667.8, -1352.8], [672.2, -1349.9], [663.6, -1336.7], [650.5, -1345.1], [659.0, -1358.4], [663.5, -1355.5]] },
     // the L round the block's south-west and north-west sides: the shop on the ground floor, a floor over it, its roof
-    // the terrace before the block's first floor
+    // the terrace before the block's first floor. Its north end, which the survey ran 0.5 m into the Weber's block
+    // (js/weber-data.js), cut at that block's walls (the corner 652.6/−1357.7 and where its walls cross the L's)
     { id: 'garage', top: 2.56,
-      ring: [[644.1, -1345.0], [661.7, -1333.7], [663.6, -1336.7], [650.5, -1345.1], [659.0, -1358.4], [659.3, -1358.2], [660.1, -1359.4], [655.3, -1362.5]] }
+      ring: [[644.1, -1345.0], [661.7, -1333.7], [663.6, -1336.7], [650.5, -1345.1], [659.0, -1358.4], [659.3, -1358.2], [660.1, -1359.4], [655.68, -1362.25],
+        [652.6, -1357.7], [652.34, -1357.87]] }
   ],
   // The block's front towards the forecourt (south-west; a on the left for someone standing before it): glazing over
   // the garage's roof, a balcony with a glass balustrade at each floor from the second up, white end walls `end` m wide
@@ -59,7 +63,7 @@ export const TALSTRASSE_BLOCK = {
     { id: 'yard-east', a: [672.2, -1349.9], b: [667.8, -1352.8], sill: 0.9, head: 2.9, windows: [[2.6, 1.9]], doors: [] },
     { id: 'yard-door', a: [668.5, -1354.0], b: [664.2, -1356.7], sill: 0.9, head: 2.9, windows: [], doors: [[2.5, 1.15, 2.3, 'house']] },
     // the garage's north end on the lane by the Weber's house
-    { id: 'garage-north', a: [660.1, -1359.4], b: [655.3, -1362.5], sill: 0.9, head: 2.9, windows: [[2.85, 1.9]], doors: [] }
+    { id: 'garage-north', a: [660.1, -1359.4], b: [655.68, -1362.25], sill: 0.9, head: 2.9, windows: [[2.85, 1.9]], doors: [] }
   ],
   // The red-pink band under the garage's roof's edge, the coping over it (m under / over the roof)
   band: { y0: -0.36, y1: 0, out: 0.12, coping: 0.07, copingOut: 0.2 },

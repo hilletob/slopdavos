@@ -1,20 +1,20 @@
 // The house of the Migros in Davos Dorf (on the Promenade, south of the Weber's; js/migros-dorf.js): its two volumes
-// under one low pitched roof with deep timber eaves, the shop's glazed front on the Promenade between two stone piers,
+// under one flat roof with deep timber eaves, the shop's glazed front on the Promenade between two stone piers,
 // the entrance, the staff door and the delivery gate on the other sides, the lettering. Pure data and frame maths,
 // shared by the browser module and the tests.
 //
 // Sources: swissBUILDINGS3D (tile 11/1752/1021, batches 22 and 9): two flat roofs, the main block at y 4.29 (an L round
 // the east block) and the east block at 4.09, each a prism from its floor (−5.3 and −5.8, the lowest ground under them)
-// to its roof; heights in the world frame (y = m a.s.l. − 1558, js/davos-frame.js). The tiles' flat roofs stand for
-// the house's pitched roof: 4.29 is taken for its ridge. The ground: the Promenade along the west front at y −3.6 to
+// to its roof; heights in the world frame (y = m a.s.l. − 1558, js/davos-frame.js). The tiles' roofs stand 7.9 m over
+// the Promenade, where the photograph shows one storey of 5 m: the roof is laid at the photograph's height. The ground: the Promenade along the west front at y −3.6 to
 // −3.7, the lane on the south falling from −3.7 to −5.8, the car park on the east at −5.0 to −5.3, the north side from
 // −3.6 at its west end to −5.0. OpenStreetMap's footprint is w117012298 (up to 1.1 m off the surveyed walls);
 // OpenStreetMap places the Migros (n797682885) in it, near the Promenade.
 // The look after the user's photograph of the Promenade's front (the Weber's pink wall on its left, the north): one
 // tall storey of shop glazing along the whole front, dark posts, a transom at the doors' height, blinds behind the upper
 // panes; the glass doors in the left third with "MIGROS" in orange letters over them; a pier of rough grey-brown stone
-// at each corner, the south one the full height; a very low pitched roof, its ridge along the front, with deep eaves
-// and a brown timber soffit and fascia; no upper floor. Mapillary's street views (CC BY-SA, 2013 and 2025) do not show
+// at each corner, the south one the full height; a flat roof with deep eaves and a brown timber soffit and fascia
+// (the user: "Migros Dorf hat ein Flachdach"); no upper floor. Mapillary's street views (CC BY-SA, 2013 and 2025) do not show
 // the house (the near shops and the low house w117012205 stand before it). The north, east and south sides are
 // guessed: closed white walls on a stone plinth, a staff door on the lane, the delivery gate in brown boards on the car
 // park.
@@ -38,12 +38,12 @@ export const MIGROS_DORF = {
     { id: 'main', ring: [[639.6, -1320.25], [644.5, -1332.4], [620.5, -1342.0], [610.6, -1317.3], [623.1, -1312.3], [628.1, -1324.8]] },
     { id: 'east', ring: [[637.5, -1306.6], [642.5, -1319.1], [639.6, -1320.25], [628.1, -1324.8], [623.1, -1312.3]] }
   ],
-  // The roof, laid out in the Promenade front's frame (s along it from its north end, o out of it: < 0 inside): the
-  // ridge along the front at o = `ridgeO`, `ridge` high on its top; each side falls `pitch` m per metre; `thick` the
+  // The roof, laid out in the Promenade front's frame (s along it from its north end, o out of it: < 0 inside): flat,
+  // its top `ridge` high (`pitch` 0; the planes still meet on the line o = `ridgeO`); `thick` the
   // eaves' depth from the top to the soffit. Its outline: the house's (the east block reaching 3.1 m further back on the
   // south half) with the eaves out over it, `front` over the Promenade, `side` at the ends and the back
   roof: {
-    ridge: 4.29, ridgeO: -13.45, pitch: 0.2, thick: 0.35,
+    ridge: 1.65, ridgeO: -13.45, pitch: 0, thick: 0.5,
     eaves: { front: 1.8, side: 1.2 },
     // the house's extent in that frame: s from 0 to `len`, o down to `back` (the main block's back) and `backEast`
     // (the east block's) from `jog` on
