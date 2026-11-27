@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { pointInRing } from '../js/spital-data.js';
 
-const MODULES = ['samd', 'seehof', 'kirchner-museum', 'central-sporthotel', 'ameron', 'schweizerhof', 'hilton-garden-inn'];
+const MODULES = ['samd', 'seehof', 'kirchner-museum', 'central-sporthotel', 'ameron', 'schweizerhof', 'hilton-garden-inn', 'meierhof', 'montana', 'sport-hotel-parsenn', 'symondpark', 'buendnerhof', 'hotel-post-morosani'];
 
 test('each building rebuilt by hand gives its outlines for the walls', async () => {
   const ctx = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });

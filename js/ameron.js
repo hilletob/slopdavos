@@ -103,8 +103,7 @@ function materials() {
 const ATLAS_SIZE = [1024, 512];
 export const ATLAS = {
   name: [0, 0, 1024, 240], // the name over the east wing's roof (14 × 3.4 m) and on the parapet (5.4 × 1.2 m)
-  canopy: [0, 248, 512, 76], // the board on the entrance's canopy (4.4 × 0.65 m)
-  shop: [520, 248, 504, 76] // the shop's name on the fascia (5.2 × 0.76 m)
+  canopy: [0, 248, 512, 76] // the board on the entrance's canopy (4.4 × 0.65 m)
 };
 
 function atlasTexture() {
@@ -122,11 +121,6 @@ function atlasTexture() {
     g.fillStyle = '#e2cf9e';
     g.font = '600 50px Georgia, "Times New Roman", serif';
     g.fillText('A M E R O N', w / 2, h / 2 + 2, w - 30);
-  });
-  cell('shop', (w, h) => {
-    g.fillStyle = '#ff6a00';
-    g.font = 'bold 66px Helvetica, Arial, sans-serif';
-    g.fillText('MIGROS', w / 2, h / 2 + 3, w - 20);
   });
   return canvasTexture(c);
 }
@@ -191,14 +185,12 @@ function buildPart(B, p) {
   flatRoof(B, ring, p.top);
 }
 
-// The east front on the Promenade: the shop's doors under a canopy, its name on the fascia, the garage's gate
+// The east front on the Promenade: the shop's doors under a canopy, the garage's gate
 function buildPromenade(B) {
   const Pm = AMERON.promenade, F = wallFrame(Pm.a, Pm.b), D = Pm.doors, K = D.canopy, foot = part('east').floor;
   for (let s = D.s - D.w / 2; s <= D.s + D.w / 2 + 0.01; s += D.w / 4) B.box('trim', F, s - 0.06, s + 0.06, 0, 0.1, foot, D.y1, C.bronze);
   B.box('trim', F, D.s - D.w / 2 - 0.06, D.s + D.w / 2 + 0.06, 0, 0.1, D.y1 - 0.12, D.y1, C.bronze);
   B.box('trim', F, D.s - K.w / 2, D.s + K.w / 2, 0, K.out, K.y, K.y + K.thick, C.fascia, { top: 'roof' });
-  const S = Pm.sign;
-  B.decal(F, S.s - S.w / 2, S.s + S.w / 2, 0.13, S.y0, S.y1, 'shop');
   // the gate: a dark opening in the glazing's line, its slats
   const G = Pm.gate;
   B.box('trim', F, G.s - G.w / 2 - 0.25, G.s + G.w / 2 + 0.25, 0, 0.08, G.y0, G.y1 + 0.25, C.fascia);

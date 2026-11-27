@@ -9,11 +9,11 @@
 // path on the west at 7–10. OpenStreetMap's footprint is w116881206 (its south wall runs some 2.4 m inside the surveyed
 // one: the walls that stand out of it are colliders here).
 // Mapillary's street views (2013–2015, CC BY-SA) show the site only while it was built: the pit from the west, the
-// scaffolded east front on the Promenade with the builders' banners ("Opening December 2015", "Hier entsteht Ihre neue
-// Migros"). The look is drawn in the language of such hotels: warm pale plaster, tall French windows in bronze frames
-// with a larch panel beside each, a glass rail across their foot, balconies towards the valley (south); the shop's
-// glazing round the ground floor under a dark fascia; the name over the roof of the east wing and on the parapet over
-// the street. The sides and the details are guessed.
+// scaffolded east front on the Promenade with the builders' banners ("Opening December 2015"; the one for the new
+// Migros meant the SymondPark across the street, js/symondpark.js). The look is drawn in the language of such hotels:
+// warm pale plaster, tall French windows in bronze frames with a larch panel beside each, a glass rail across their
+// foot, balconies towards the valley (south); the shop's glazing round the ground floor under a dark fascia; the name
+// over the roof of the east wing and on the parapet over the street. The sides and the details are guessed.
 import { outwardRing, ringArea2, wallFrame, onWall, pointInRing } from './spital-data.js';
 import { bays } from './seehof-data.js';
 
@@ -53,12 +53,11 @@ export const AMERON = {
     parapet: { s: 43.0, w: 5.4, y0: 25.95, y1: 27.15 },
     entrance: { s: 43.0, w: 4.4, y0: 3.9, y1: 6.25, canopy: { w: 8.0, out: 3.0, y: 6.3, thick: 0.3 } }
   },
-  // The east front on the Promenade (a → b, south to north): the shop's doors under a canopy, its name on the fascia;
+  // The east front on the Promenade (a → b, south to north): the shop's doors under a canopy (whose shop: unknown, no name);
   // the garage's gate where the service lane enters (js/davos-geodata.js: 389 −737)
   promenade: {
     a: [388.7, -729.3], b: [386.8, -751.2],
     doors: { s: 16.0, w: 6.0, y1: 4.9, canopy: { w: 9.0, out: 2.0, y: 4.95, thick: 0.25 } },
-    sign: { s: 16.0, w: 5.2, y0: 5.72, y1: 6.48 },
     gate: { s: 8.3, w: 4.6, y0: 2.1, y1: 4.7 }
   },
   // The balconies towards the valley: a slab, a glass rail, one before every window of the south faces at these floors'

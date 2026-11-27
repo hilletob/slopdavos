@@ -49,6 +49,12 @@ import { buildSeehof } from './seehof.js';
 import { buildAmeron } from './ameron.js';
 import { buildSchweizerhof } from './schweizerhof.js';
 import { buildHiltonGardenInn } from './hilton-garden-inn.js';
+import { buildMeierhof } from './meierhof.js';
+import { buildMontana } from './montana.js';
+import { buildSportHotelParsenn } from './sport-hotel-parsenn.js';
+import { buildSymondPark } from './symondpark.js';
+import { buildBuendnerhof } from './buendnerhof.js';
+import { buildHotelPostMorosani } from './hotel-post-morosani.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -360,9 +366,15 @@ async function initApp() {
   const kirchnerMuseum = skipped('kirchnerMuseum') ? { colliders: [] } : buildKirchnerMuseum(scene); // the Kirchner Museum: four cubes in frosted glass round the low hall (js/kirchner-museum.js)
   const centralSporthotel = skipped('centralSporthotel') ? { colliders: [] } : buildCentralSporthotel(scene); // the Central Sporthotel: the arched podium, the tower with its balconies (js/central-sporthotel.js)
   const seehof = skipped('seehof') ? { colliders: [] } : buildSeehof(scene); // the Hotel Seehof: the old hotel with its mansard and tower, the new wing over the glazed hall (js/seehof.js)
-  const ameron = skipped('ameron') ? { colliders: [] } : buildAmeron(scene); // the AMERON Mountain Hotel: plaster and larch over the Migros' glazed ground floor (js/ameron.js)
+  const ameron = skipped('ameron') ? { colliders: [] } : buildAmeron(scene); // the AMERON Mountain Hotel: plaster and larch over the shops' glazed ground floor (js/ameron.js)
   const schweizerhof = skipped('schweizerhof') ? { colliders: [] } : buildSchweizerhof(scene); // the Hotel Schweizerhof Morosani: white plaster and timber windows over the Promenade's arcade, the house south of it (js/schweizerhof.js)
   const hiltonGardenInn = skipped('hiltonGardenInn') ? { colliders: [] } : buildHiltonGardenInn(scene); // the Hilton Garden Inn: larch battens and stepping loggias on the street, the low building west of it (js/hilton-garden-inn.js)
+  const meierhof = skipped('meierhof') ? { colliders: [] } : buildMeierhof(scene); // the Hotel Meierhof: the old house on the Promenade with its oriel and gable, the name down its front (js/meierhof.js)
+  const montana = skipped('montana') ? { colliders: [] } : buildMontana(scene); // the Hotel Montana: the gables and jerkinheads, the arched row, the bar and the Stube on the street (js/montana.js)
+  const sportHotelParsenn = skipped('sportHotelParsenn') ? { colliders: [] } : buildSportHotelParsenn(scene); // the Sport Hotel Parsenn: white plaster under the saddle roofs, the name in script on the Promenade gable, the restaurant (js/sport-hotel-parsenn.js)
+  const symondpark = skipped('symondpark') ? { colliders: [] } : buildSymondPark(scene); // SymondPark: the screen of bars round the Migros and its restaurant (js/symondpark.js)
+  const buendnerhof = skipped('buendnerhof') ? { colliders: [] } : buildBuendnerhof(scene); // the Hotel Bündnerhof: pink plaster, the name over the entrance, the balconies and the glazed hall on the west (js/buendnerhof.js)
+  const hotelPostMorosani = skipped('hotelPostMorosani') ? { colliders: [] } : buildHotelPostMorosani(scene); // the Hotel Post Morosani: the cream old block with its friezes, the gilt POSTHOTEL on the roof, the restaurant on the north (js/hotel-post-morosani.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -432,7 +444,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }

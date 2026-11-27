@@ -66,7 +66,6 @@ test('the named walls: the east face over the east wing, the street face, the Pr
   const spans = [[P.doors.s - P.doors.canopy.w / 2, P.doors.s + P.doors.canopy.w / 2], [P.gate.s - P.gate.w / 2, P.gate.s + P.gate.w / 2]];
   for (const [s0, s1] of spans) assert.ok(s0 > 0.3 && s1 < E.len - 0.3, 'within the front');
   assert.ok(spans[0][0] > spans[1][1] || spans[1][0] > spans[0][1], 'the shop\'s doors and the gate apart');
-  assert.ok(P.sign.y0 >= part('east').shop.fascia[0] && P.sign.y1 <= part('east').shop.fascia[1], 'the shop\'s name on its fascia');
   // (the service lane enters by the gate)
   const [gx, gz] = onWall(E, P.gate.s);
   assert.ok(Math.hypot(gx - 389, gz - -737) < 2);
