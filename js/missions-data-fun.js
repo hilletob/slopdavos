@@ -1080,8 +1080,9 @@ export const FOOSBALL_MINI_MISSION = {
   title: 'The small table at La Onda',
   intro: 'Beside the big table at the Bar La Onda stands a small one: two rods a side, a defence of two and an attack of three, a short field and a quick game. You play red from the left: W / S or the mouse slide your rod (1-2 pick one, Q back to automatic), Space or a click shoots when the bar under your rod turns green. First to five goals wins.',
   table: 'mini',
-  // (its own pin: 20 m along the Obere Strasse from the big table's, the same door)
-  start: { x: FOOSBALL_MISSION.start.x + 18.4, z: FOOSBALL_MISSION.start.z - 7.8, heading: -2.0 },
+  // (its own pin on the Obere Strasse's edge, some 30 m from the big table's, the same door; it stood inside the house
+  // w123384644, which js/obere-strasse-2.js now walls)
+  start: { x: -463.5, z: -325.0, heading: -2.0 },
   medals: { gold: 450, silver: 300, bronze: 100 },
   colour: '#ffb02e',
   finish: 'Fast hands on the small table: the regulars want a rematch on the big one.',

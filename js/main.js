@@ -83,6 +83,28 @@ import { buildPauluskirche } from './pauluskirche.js';
 import { buildSchweizerhaus } from './schweizerhaus.js';
 import { buildFegDavos } from './feg-davos.js';
 import { buildPischaTerminal } from './pischa-terminal.js';
+import { buildClubHotel } from './club-hotel.js';
+import { buildBristol } from './bristol.js';
+import { buildHofmaenner } from './hofmaenner.js';
+import { buildEuropeBlock } from './europe-block.js';
+import { buildPromenadeMansard } from './promenade-mansard.js';
+import { buildClubHotelTower } from './club-hotel-tower.js';
+import { buildGkbPlatz } from './gkb-platz.js';
+import { buildDischmaRowA } from './dischma-row-a.js';
+import { buildDischmaRowB } from './dischma-row-b.js';
+import { buildSchulenPlatz } from './schulen-platz.js';
+import { buildPromenadePlatz } from './promenade-platz.js';
+import { buildPromenadeDorf } from './promenade-dorf.js';
+import { buildPromenadeNord } from './promenade-nord.js';
+import { buildPromenadeMitte } from './promenade-mitte.js';
+import { buildTalstrasse2 } from './talstrasse-2.js';
+import { buildTalstrasse1 } from './talstrasse-1.js';
+import { buildTalstrasse3 } from './talstrasse-3.js';
+import { buildTalstrasse4 } from './talstrasse-4.js';
+import { buildMattastrasse1 } from './mattastrasse-1.js';
+import { buildMattastrasse2 } from './mattastrasse-2.js';
+import { buildObereStrasse2 } from './obere-strasse-2.js';
+import { buildObereStrasse1 } from './obere-strasse-1.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -431,6 +453,28 @@ async function initApp() {
   const schweizerhaus = skipped('schweizerhaus') ? { colliders: [] } : buildSchweizerhaus(scene); // the Schweizerhaus by hand (js/schweizerhaus.js)
   const fegDavos = skipped('fegDavos') ? { colliders: [] } : buildFegDavos(scene); // the Freie Evangelische Gemeinde's church by hand (js/feg-davos.js)
   const pischaTerminal = skipped('pischaTerminal') ? { colliders: [] } : buildPischaTerminal(scene); // the Pischa terminal by hand (js/pischa-terminal.js)
+  const clubHotel = skipped('clubHotel') ? { colliders: [] } : buildClubHotel(scene); // the Club Hotel by hand (js/club-hotel.js)
+  const bristol = skipped('bristol') ? { colliders: [] } : buildBristol(scene); // the Bristol by hand (js/bristol.js)
+  const hofmaenner = skipped('hofmaenner') ? { colliders: [] } : buildHofmaenner(scene); // the house of Sport Hofmänner by hand (js/hofmaenner.js)
+  const europeBlock = skipped('europeBlock') ? { colliders: [] } : buildEuropeBlock(scene); // the Hotel Europe's block by hand (js/europe-block.js)
+  const promenadeMansard = skipped('promenadeMansard') ? { colliders: [] } : buildPromenadeMansard(scene); // the house with the mansard on the Promenade by hand (js/promenade-mansard.js)
+  const clubHotelTower = skipped('clubHotelTower') ? { colliders: [] } : buildClubHotelTower(scene); // the Club Hotel's tower by hand (js/club-hotel-tower.js)
+  const gkbPlatz = skipped('gkbPlatz') ? { colliders: [] } : buildGkbPlatz(scene); // the Graubündner Kantonalbank in Davos Platz by hand (js/gkb-platz.js)
+  const dischmaRowA = skipped('dischmaRowA') ? { colliders: [] } : buildDischmaRowA(scene); // the houses along the Dischmastrasse, first row, by hand (js/dischma-row-a.js)
+  const dischmaRowB = skipped('dischmaRowB') ? { colliders: [] } : buildDischmaRowB(scene); // the houses along the Dischmastrasse, outer row, by hand (js/dischma-row-b.js)
+  const schulenPlatz = skipped('schulenPlatz') ? { colliders: [] } : buildSchulenPlatz(scene); // the school buildings of Davos Platz by hand (js/schulen-platz.js)
+  const promenadePlatz = skipped('promenadePlatz') ? { colliders: [] } : buildPromenadePlatz(scene); // the houses along the Promenade in Davos Platz by hand (js/promenade-platz.js)
+  const promenadeDorf = skipped('promenadeDorf') ? { colliders: [] } : buildPromenadeDorf(scene); // the houses along the Promenade in Davos Dorf by hand (js/promenade-dorf.js)
+  const promenadeNord = skipped('promenadeNord') ? { colliders: [] } : buildPromenadeNord(scene); // the houses along the Promenade between the Bristol and the Seehof by hand (js/promenade-nord.js)
+  const promenadeMitte = skipped('promenadeMitte') ? { colliders: [] } : buildPromenadeMitte(scene); // the houses along the middle of the Promenade by hand (js/promenade-mitte.js)
+  const talstrasse2 = skipped('talstrasse2') ? { colliders: [] } : buildTalstrasse2(scene); // the houses along the Talstrasse in Davos Platz west by hand (js/talstrasse-2.js)
+  const talstrasse1 = skipped('talstrasse1') ? { colliders: [] } : buildTalstrasse1(scene); // the houses along the Talstrasse round the Sportzentrum by hand (js/talstrasse-1.js)
+  const talstrasse3 = skipped('talstrasse3') ? { colliders: [] } : buildTalstrasse3(scene); // the houses along the Talstrasse from the Sportzentrum to Bünda by hand (js/talstrasse-3.js)
+  const talstrasse4 = skipped('talstrasse4') ? { colliders: [] } : buildTalstrasse4(scene); // the houses along the Talstrasse from Bünda to Davos Dorf by hand (js/talstrasse-4.js)
+  const mattastrasse1 = skipped('mattastrasse1') ? { colliders: [] } : buildMattastrasse1(scene); // the houses along the Mattastrasse in Davos Platz by hand (js/mattastrasse-1.js)
+  const mattastrasse2 = skipped('mattastrasse2') ? { colliders: [] } : buildMattastrasse2(scene); // the houses along the Mattastrasse from the Kurpark to the Golf Club by hand (js/mattastrasse-2.js)
+  const obereStrasse2 = skipped('obereStrasse2') ? { colliders: [] } : buildObereStrasse2(scene); // the houses along the Obere Strasse from the arthausHOTEL to the Post by hand (js/obere-strasse-2.js)
+  const obereStrasse1 = skipped('obereStrasse1') ? { colliders: [] } : buildObereStrasse1(scene); // the houses along the Obere Strasse from the Club Hotel to the Kurpark by hand (js/obere-strasse-1.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -500,7 +544,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...parsennbahnTal.colliders, ...feuerwehrDorf.colliders, ...parsennGada.colliders, ...talstrasseBlock.colliders, ...talstrasseChalet.colliders, ...ettingerSport.colliders, ...seeliPark.colliders, ...hardRockHotel.colliders, ...tinzenblick.colliders, ...pauluskirche.colliders, ...schweizerhaus.colliders, ...fegDavos.colliders, ...pischaTerminal.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...hotelAltePost.colliders, ...hausFrohsinn.colliders, ...schneidersChalet.colliders, ...pischa.colliders, ...weber.colliders, ...migrosDorf.colliders, ...sparDorf.colliders, ...bubenbrunnen.colliders, ...parsennbahnTal.colliders, ...feuerwehrDorf.colliders, ...parsennGada.colliders, ...talstrasseBlock.colliders, ...talstrasseChalet.colliders, ...ettingerSport.colliders, ...seeliPark.colliders, ...hardRockHotel.colliders, ...tinzenblick.colliders, ...pauluskirche.colliders, ...schweizerhaus.colliders, ...fegDavos.colliders, ...pischaTerminal.colliders, ...clubHotel.colliders, ...bristol.colliders, ...hofmaenner.colliders, ...europeBlock.colliders, ...promenadeMansard.colliders, ...clubHotelTower.colliders, ...gkbPlatz.colliders, ...dischmaRowA.colliders, ...dischmaRowB.colliders, ...schulenPlatz.colliders, ...promenadePlatz.colliders, ...promenadeDorf.colliders, ...promenadeNord.colliders, ...promenadeMitte.colliders, ...talstrasse2.colliders, ...talstrasse1.colliders, ...talstrasse3.colliders, ...talstrasse4.colliders, ...mattastrasse1.colliders, ...mattastrasse2.colliders, ...obereStrasse2.colliders, ...obereStrasse1.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }
