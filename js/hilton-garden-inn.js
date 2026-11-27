@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
 import { QUALITY } from './quality.js';
@@ -24,6 +25,8 @@ excludeBuildings([HILTON.exclude]);
 // building, whose surveyed front stands before OpenStreetMap's, where the board would hang)
 SHOP_EXCLUSIONS.add(HILTON.osm);
 SHOP_EXCLUSIONS.add('n2503295134');
+// (its colliders stand on every surveyed wall, OSM's stood 2.3 m out in the north yard: none of OSM's, js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(HILTON.osm, []);
 
 const S = HILTON.storey, D = HILTON.depth, BASE = HILTON.base, TOP = HILTON.top, ROOF = HILTON.roofLevel;
 // v of a wall: metres up the floors' grid (a floor at every multiple of the storey from the first floor, which is at

@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
@@ -19,6 +20,8 @@ export { KIRCHNER_MUSEUM } from './kirchner-museum-data.js';
 // vertex-coloured mesh: plinths, ledges, copings, the door) and the decals (one canvas atlas).
 
 excludeBuildings([KM.exclude]);
+// (the player's walls on the cubes and the hall, not on OSM's outline: js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(KM.osm, [...KM.cubes.map((c) => c.ring), KM.hall.ring]);
 
 const S = KM.skin, H = KM.hall;
 

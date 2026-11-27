@@ -1,11 +1,12 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
 import { SHOP_EXCLUSIONS } from './shops.js';
 import { Builder, atlasCanvas, canvasTexture, decalMaterial, fade, flatRoof, litWindow, nightGlow, twoTones, windowGrid, worldNoise } from './building-kit.js';
-import { SCHWEIZERHOF, arcadePieces, bays, onWall, outwardRing, part, wallFrame } from './schweizerhof-data.js';
+import { SCHWEIZERHOF, arcadePieces, bays, onWall, outwardRing, part, wallFrame, groundOutlines } from './schweizerhof-data.js';
 
 export { SCHWEIZERHOF };
 
@@ -23,6 +24,9 @@ export { SCHWEIZERHOF };
 
 excludeBuildings([SCHWEIZERHOF.exclude]);
 SHOP_EXCLUSIONS.add(SCHWEIZERHOF.osm);
+// (the player's walls on the surveyed volumes, not on OSM's outline: js/landmarks.js; the band's wall over the arcade
+// stands on the shop front, where one walks under it)
+SURVEYED_FOOTPRINTS.set(SCHWEIZERHOF.osm, groundOutlines());
 
 const S = SCHWEIZERHOF;
 // v of a wall: metres up its grid, a floor's top at every multiple of the storey (the part's `line` at 40 of them);

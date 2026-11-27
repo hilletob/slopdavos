@@ -150,3 +150,12 @@ export function bays(len, bay, winHalf) {
 }
 
 export { outwardRing, ringArea2, wallFrame, onWall, pointInRing };
+
+/** The outlines the walls stand on at the ground (js/landmarks.js SURVEYED_FOOTPRINTS): the volumes, the band's wall over
+ * the arcade moved back onto the shop front */
+export function groundOutlines() {
+  const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.06;
+  const { wall, front } = SCHWEIZERHOF.arcade;
+  return SCHWEIZERHOF.parts.map((p) => p.id !== SCHWEIZERHOF.arcade.part ? p.ring
+    : p.ring.map((q) => near(q, wall[0]) ? front[0] : near(q, wall[1]) ? front[1] : q));
+}

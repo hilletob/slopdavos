@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, max, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
@@ -23,6 +24,8 @@ export { CENTRAL };
 
 excludeBuildings([CENTRAL.exclude]);
 SHOP_EXCLUSIONS.add(CENTRAL.osm);
+// (the player's walls on the surveyed volumes standing on the ground, not on OSM's outline: js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(CENTRAL.osm, CENTRAL.parts.filter((p) => p.from === undefined).map((p) => p.ring));
 
 const STOREY = CENTRAL.storey, BAY = 2.8;
 const PS = CENTRAL.podium.storey, PBAY = 3.3;

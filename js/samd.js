@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
 import { groundHeight } from './terrain.js';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
@@ -18,6 +19,8 @@ export { SAMD };
 // (one vertex-coloured mesh) and the lettering (one canvas atlas). The long break on its roof is js/missions-samd.js.
 
 excludeBuildings([SAMD.exclude]);
+// (the player's walls on the surveyed volumes and the porch, not on OSM's outline: js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(SAMD.osm, [...SAMD.parts.map((p) => p.ring), SAMD.porch.ring]);
 
 const BAY = 2.9; // a window's bay along a wall
 const STOREY = SAMD.storey;

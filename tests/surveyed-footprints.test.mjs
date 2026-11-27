@@ -1,0 +1,39 @@
+// The buildings rebuilt by hand put the player's walls on their surveyed outlines (js/landmarks.js SURVEYED_FOOTPRINTS,
+// read by js/buildings.js): OpenStreetMap's outline stood up to 3 m before or behind their walls.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DAVOS_DATA } from '../js/davos-geodata.js';
+import { pointInRing } from '../js/spital-data.js';
+
+const MODULES = ['samd', 'seehof', 'kirchner-museum', 'central-sporthotel', 'ameron', 'schweizerhof', 'hilton-garden-inn'];
+
+test('each building rebuilt by hand gives its outlines for the walls', async () => {
+  const ctx = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
+  globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx, style: {} }) };
+  const { SURVEYED_FOOTPRINTS } = await import('../js/landmarks.js');
+  for (const m of MODULES) await import(`../js/${m}.js`);
+  assert.equal(SURVEYED_FOOTPRINTS.size, MODULES.length);
+  for (const [id, outlines] of SURVEYED_FOOTPRINTS) {
+    const b = DAVOS_DATA.buildings.find((x) => x.id === id);
+    assert.ok(b, `${id} is an OpenStreetMap building`);
+    for (const ring of outlines) {
+      assert.ok(ring.length >= 3, id);
+      for (const [x, z] of ring) assert.ok(Number.isFinite(x) && Number.isFinite(z), id);
+      // (near the building it stands in for)
+      const [x, z] = ring[0];
+      assert.ok(Math.hypot(x - b.ring[0], z - b.ring[1]) < 150, `${id} outline near its footprint`);
+    }
+  }
+});
+
+test("the Schweizerhof's arcade stays open: its wall stands on the shop front, not over the pavement", async () => {
+  const { SCHWEIZERHOF, groundOutlines } = await import('../js/schweizerhof-data.js');
+  const { front, wall } = SCHWEIZERHOF.arcade;
+  const band = groundOutlines()[SCHWEIZERHOF.parts.findIndex((p) => p.id === SCHWEIZERHOF.arcade.part)];
+  assert.ok(band.some((q) => q === front[0]) && band.some((q) => q === front[1]));
+  // a step out of the shop front towards the street (under the band) lies outside every outline
+  const mx = (front[0][0] + front[1][0]) / 2, mz = (front[0][1] + front[1][1]) / 2;
+  const ox = (wall[0][0] + wall[1][0]) / 2, oz = (wall[0][1] + wall[1][1]) / 2;
+  const p = [mx + (ox - mx) * 0.5, mz + (oz - mz) * 0.5];
+  for (const ring of groundOutlines()) assert.ok(!pointInRing(ring, p[0], p[1]));
+});

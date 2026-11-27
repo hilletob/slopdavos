@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, positionWorld, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
@@ -18,6 +19,8 @@ export { SEEHOF };
 // walls, the roofs, the glass, the trim (one vertex-coloured mesh) and the decals (one canvas atlas).
 
 excludeBuildings([SEEHOF.exclude]);
+// (the player's walls on the surveyed volumes, not on OSM's outline: js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(SEEHOF.osm, SEEHOF.parts.map((p) => p.ring));
 
 // v of a wall: metres up its grid, a floor's top at every multiple of the storey (the part's `line` at 40 of them);
 // closed walls carry v − CLOSED

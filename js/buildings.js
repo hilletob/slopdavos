@@ -31,7 +31,7 @@ import {
   WALL_KINDS
 } from './tsl-materials.js';
 import { mappedPoints, mappedBounds, mappedPolygonGeometry, nearestMappedRoad, mappedSpatialGroups, mappedGeometryGroups } from './mapped-geometry.js';
-import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
+import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS, SURVEYED_FOOTPRINTS } from './landmarks.js';
 import { UNSURVEYED_BUILDINGS } from './unsurveyed-buildings-data.js';
 import { surfaceHeight } from './terrain.js';
 import { QUALITY } from './quality.js';
@@ -294,6 +294,23 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         footprints: [{ x0: bounds.minX, x1: bounds.maxX, z0: bounds.minZ, z1: bounds.maxZ, h: height, tone, pts: poly, holes }],
         sourceHeight: source.h, sourceHeightKind: source.heightSource };
       if (base < 1) interiors.push({ minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minZ, maxZ: bounds.maxZ, maxY: height, ring: poly, holes, id: source.id });
+      // (a building rebuilt by hand on its survey: its walls' colliders on the surveyed outlines, js/landmarks.js)
+      const surveyed = SURVEYED_FOOTPRINTS.get(source.id);
+      if (surveyed && base < 1) for (const outline of surveyed) {
+        const ring = outline.map(([x, z]) => ({ x, z }));
+        if (ring.length < 3) continue;
+        const b = mappedBounds(ring);
+        interiors.push({ ...b, maxY: height, ring, holes: [], id: source.id });
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i], c = ring[(i + 1) % ring.length];
+          const dx = c.x - a.x, dz = c.z - a.z, length = Math.hypot(dx, dz);
+          if (length < 0.3) continue;
+          const x = (a.x + c.x) / 2, z = (a.z + c.z) / 2, ry = -Math.atan2(dz, dx);
+          const hx = length / 2, hz = 0.22, cs = Math.cos(ry), sn = Math.sin(ry);
+          const ex = Math.abs(cs) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(cs) * hz;
+          colliders.push({ minX: x - ex, maxX: x + ex, minZ: z - ez, maxZ: z + ez, maxY: height, obb: { cx: x, cz: z, hx, hz, cs, sn } });
+        }
+      }
       for (const [ringIndex, ring] of [poly, ...holes].entries()) {
         const direction = Math.sign(signedArea(ring)) || 1;
         for (let i = 0; i < ring.length; i++) {
@@ -311,7 +328,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           const face = ringIndex ? WALL_KINDS.rear : shop ? WALL_KINDS.shop : WALL_KINDS.entry;
           if (drawn) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
             ry, tone, facadeLevels: source.facadeLevels, faces: [WALL_KINDS.blankStone, WALL_KINDS.blankStone, face, face] });
-          if (base < 1) {
+          if (base < 1 && !surveyed) {
             const hx = length / 2, hz = thickness / 2, cs = Math.cos(ry), sn = Math.sin(ry);
             const ex = Math.abs(cs) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(cs) * hz;
             colliders.push({ minX: x - ex, maxX: x + ex, minZ: z - ez, maxZ: z + ez, maxY: height,

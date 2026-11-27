@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, float, floor, fract, hash, mix, smoothstep, step, uv, vec3 } from 'three/tsl';
+import { SURVEYED_FOOTPRINTS } from './landmarks.js';
+import { groundHeight } from './terrain.js';
 import { excludeBuildings } from './swissbuildings3d.js';
 import { QUALITY } from './quality.js';
 import { SIMPLE_SKINS } from './landmark-buildings.js';
@@ -23,6 +25,8 @@ export { AMERON };
 
 excludeBuildings(AMERON.exclude);
 SHOP_EXCLUSIONS.add(AMERON.osm);
+// (the player's walls on the surveyed volumes, not on OSM's outline, which stood 3 m out in the north yard: js/landmarks.js)
+SURVEYED_FOOTPRINTS.set(AMERON.osm, AMERON.parts.map((p) => p.ring));
 
 const STOREY = AMERON.storey, BAY = AMERON.bay, WIN = AMERON.win, PANEL = AMERON.panel;
 // v of a wall: metres up the floors' grid, a floor's top at every multiple of STOREY (the part's `line` at 40 of them);
@@ -79,7 +83,7 @@ function materials() {
     m.emissiveNode = litWindow(bay, storey.add(half.mul(3.3)), 29, { share: 0.55, late: 0.15, tone: twoTones([1.0, 0.76, 0.48], [0.96, 0.9, 0.78], 0.7) }).mul(pane).mul(mix(float(1), float(0.45), curtain)).mul(glow.mul(1.1));
     M.plaster = m;
   }
-  // The shop's and the restaurant's glazing: bronze mullions every 1.5 m, a transom 2.6 m up, lit at night
+  // The shop's and the restaurant's glazing: bronze mullions every 1.5 m, a transom 2.6 m up, a few panes lit at night
   {
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.1, metalness: 0.8 });
     const mu = abs(fract(U.div(1.5)).sub(0.5));
@@ -88,7 +92,8 @@ function materials() {
     m.colorNode = mix(mix(vec3(0.05, 0.065, 0.075), vec3(0.12, 0.14, 0.15), paneId), vec3(...BRONZE), frame);
     m.roughnessNode = mix(float(0.1), float(0.6), frame);
     m.metalnessNode = mix(float(0.8), float(0.3), frame);
-    m.emissiveNode = vec3(1.0, 0.88, 0.7).mul(float(1).sub(frame)).mul(paneId.mul(0.3).add(0.7)).mul(glow.mul(0.5));
+    // (at night the shop is shut: a faint glow behind most panes, the shop window's lights behind some)
+    m.emissiveNode = vec3(1.0, 0.86, 0.66).mul(float(1).sub(frame)).mul(mix(float(0.03), float(0.3), step(0.7, paneId))).mul(glow);
     M.glass = m;
   }
   return M;
@@ -147,6 +152,13 @@ function glass(B, F, y0, y1) {
   B.quad('glass', P(0, y0), P(F.len, y0), P(F.len, y1), P(0, y1), [[0, 0], [F.len, 0], [F.len, y1 - y0], [0, y1 - y0]]);
 }
 
+// The highest ground along a wall, half a metre out of it
+function groundAlong(F) {
+  let hi = -Infinity;
+  for (let s = 0; s <= F.len + 0.01; s += Math.max(0.5, F.len / Math.ceil(F.len / 2))) hi = Math.max(hi, groundHeight(...onWall(F, s, 0.5)));
+  return hi;
+}
+
 // A volume: its walls from the base up to its roof (the shop's glazing or a plinth, the hotel's floors, the parapet),
 // the coping round its roof, the roof
 function buildPart(B, p) {
@@ -156,17 +168,22 @@ function buildPart(B, p) {
     if (F.len < 0.05) continue;
     if (isClosed(a, b)) plaster(B, F, p.line, base, p.top, false);
     else {
-      if (p.shop) {
-        const foot = p.floor + 0.3, [f0, f1] = p.shop.fascia;
+      // Where the slope rises along a wall (the west and the north yard stand up to 7 m over the Promenade), the glazing
+      // and the windows begin over the highest ground along it: under that a closed plinth, not panes cut by the ground
+      const hi = groundAlong(F) + 0.25;
+      const fromY = hi <= p.from - WIN.lo ? p.from : p.from + Math.ceil((hi - p.from - WIN.lo) / STOREY) * STOREY;
+      if (p.shop && hi < p.from - 1.6) {
+        const foot = Math.max(p.floor + 0.3, hi), [f0, f1] = p.shop.fascia;
         plaster(B, F, p.line, base, foot, false);
         glass(B, F, foot, p.from);
         B.box('trim', F, 0, F.len, 0, 0.12, f0, f1, C.fascia);
-      } else plaster(B, F, p.line, base, p.from, false);
-      if (isGlazed(p, a, b)) {
-        glass(B, F, p.from, p.glazed.y1);
+      } else plaster(B, F, p.line, base, Math.min(fromY, p.line), false);
+      if (isGlazed(p, a, b) && hi < p.glazed.y1 - 1.6) {
+        glass(B, F, Math.max(p.from, hi), p.glazed.y1);
+        if (hi > p.from) plaster(B, F, p.line, p.from, hi, false);
         B.box('trim', F, 0, F.len, 0, 0.1, p.glazed.y1 - 0.12, p.glazed.y1 + 0.05, C.bronze);
         plaster(B, F, p.line, p.glazed.y1, p.line, true);
-      } else plaster(B, F, p.line, p.from, p.line, true);
+      } else if (fromY < p.line) plaster(B, F, p.line, fromY, p.line, true);
       plaster(B, F, p.line, p.line, p.top, false);
     }
     B.box('trim', F, -0.05, F.len + 0.05, -0.3, 0.06, p.top - 0.12, p.top + 0.14, C.coping);
