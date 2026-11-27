@@ -196,7 +196,7 @@ function makeCrowd(spots, group) {
       for (const m of own.meshes) { m.receiveShadow = false; m.material.emissiveNode = m.material.colorNode; group.add(m); }
       for (const p of mine) {
         p.own = own;
-        p.rig.setBuild({ scale: model.scale, female: model.female });
+        p.rig.setBuild({ scale: model.scale * (p.tall || 1), female: model.female }); // (`tall`: two of one figure differ by their height)
         if (clips) p.rig.setClips(clips.idle(model.female));
       }
       c.figures.push(own);
@@ -204,6 +204,9 @@ function makeCrowd(spots, group) {
   }
   return c;
 }
+/** A figure for the i-th person of a room: the women and the men of FIGURES in turn */
+const WOMEN = ['f01', 'f04', 'f02'], MEN = ['m02', 'm04'];
+const figureOf = (female, i = 0) => (female ? WOMEN[i % WOMEN.length] : MEN[i % MEN.length]);
 function poseCrowd(c, dt, pose = null) {
   c.crowd.begin();
   for (const f of c.figures) f.begin();
@@ -1242,7 +1245,7 @@ const pizzaRun = {
     const pz = run.pz;
     pz.room = new Room(run, run.def.interior.door, (group) => {
       buildKitchen(group);
-      pz.crowd = makeCrowd([{ x: 1.7, z: -1.6, yaw: 0.3, female: true }], group);
+      pz.crowd = makeCrowd([{ x: 1.7, z: -1.6, yaw: 0.3, female: true, figure: 'f01' }], group);
     });
     run.state.shop = createPizzaShop();
     run.state.inside = true;
@@ -1306,4 +1309,4 @@ const pizzaRun = {
 
 export const GASTRO_FEATURES = { shots, flaemmli, pizzaRun };
 // (the indoor framework, for js/missions-bars.js)
-export { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, Room, blip, flashPop };
+export { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, figureOf, Room, blip, flashPop };

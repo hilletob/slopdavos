@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { rollHairstyle } from './pedestrians.js';
 import { t, setLocalizedText } from './i18n.js';
 import { raiseArm } from './missions-fun.js';
-import { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, Room, blip, flashPop } from './missions-gastro.js';
+import { el, clamp, live, swallow, gameKey, addStyle, paint, box, cyl, solid, meshOf, textPlane, glow, makeCrowd, poseCrowd, figureOf, Room, blip, flashPop } from './missions-gastro.js';
 import {
   NAGELN, NAGELN_RIVALS, NAGELN_LINEUPS, createNageln, nagelnStep, nagelnPress, nagelnGauge, nagelnLine,
   BARISTA, DRINKS, RUSH, REGULARS, TABLE_FOLK, STATIONS, STATION_INFO, drinkById, orderText, createBarista, baristaStep, baristaAction, baristaPick, baristaGauge
@@ -235,8 +235,8 @@ const nageln = {
     ng.room = new Room(run, run.def.interior.door, (group) => {
       buildTijuana(group, parts);
       const spots = [
-        ...RIVAL_IDS.map((id, i) => ({ id, name: NAGELN_RIVALS[id].name, x: BENCH[i].x, z: BENCH[i].z, yaw: Math.PI, female: NAGELN_RIVALS[id].female, look: lookOf(NAGELN_RIVALS[id].hairRoll, NAGELN_RIVALS[id].female) })),
-        ...BYSTANDERS.map((b, i) => ({ id: `crowd${i}`, name: '', x: b.x, z: b.z, yaw: b.yaw, female: b.female, look: lookOf(b.hairRoll, b.female) }))
+        ...RIVAL_IDS.map((id, i) => ({ id, name: NAGELN_RIVALS[id].name, x: BENCH[i].x, z: BENCH[i].z, yaw: Math.PI, female: NAGELN_RIVALS[id].female, figure: figureOf(NAGELN_RIVALS[id].female, i), tall: { hans: 1.07, flurin: 0.95 }[id], look: lookOf(NAGELN_RIVALS[id].hairRoll, NAGELN_RIVALS[id].female) })),
+        ...BYSTANDERS.map((b, i) => ({ id: `crowd${i}`, name: '', x: b.x, z: b.z, yaw: b.yaw, female: b.female, figure: figureOf(b.female, i + 1), look: lookOf(b.hairRoll, b.female) }))
       ];
       ng.crowd = makeCrowd(spots, group);
     });
@@ -499,11 +499,11 @@ const barista = {
     br.room = new Room(run, run.def.interior.door, (group) => {
       buildKafi(group, parts);
       const spots = [
-        ...Object.entries(REGULARS).map(([id, r]) => ({ id, name: r.name, ...r.seat, seat: r.seat, female: r.female, look: lookOf(r.hairRoll, r.female) })),
-        ...Object.entries(TABLE_FOLK).map(([id, r]) => ({ id, name: r.name, ...r.seat, seat: r.seat, female: r.female, look: lookOf(r.hairRoll, r.female) })),
+        ...Object.entries(REGULARS).map(([id, r], i) => ({ id, name: r.name, ...r.seat, seat: r.seat, female: r.female, figure: figureOf(r.female, i), look: lookOf(r.hairRoll, r.female) })),
+        ...Object.entries(TABLE_FOLK).map(([id, r], i) => ({ id, name: r.name, ...r.seat, seat: r.seat, female: r.female, figure: figureOf(r.female, i + 1), look: lookOf(r.hairRoll, r.female) })),
         ...RUSH.filter((g) => !g.regular).map((g, i) => {
           const female = i % 2 === 1;
-          return { id: `guest${g.id}`, name: '', x: QUEUE_OUT.x, z: QUEUE_OUT.z, yaw: 0, seat: null, female, look: lookOf(SEATS_LOOK[i % SEATS_LOOK.length], female) };
+          return { id: `guest${g.id}`, name: '', x: QUEUE_OUT.x, z: QUEUE_OUT.z, yaw: 0, seat: null, female, figure: figureOf(female, i >> 1), look: lookOf(SEATS_LOOK[i % SEATS_LOOK.length], female) };
         })
       ];
       br.crowd = makeCrowd(spots, group);

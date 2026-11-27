@@ -490,13 +490,13 @@ const victoria = {
     vc.room = new Room(run, run.def.interior.door, (group) => {
       if (id === 'housekeeping') {
         buildHotelRoom(group, parts, s.hk.room);
-        vc.crowd = makeCrowd([window.innerHeight > window.innerWidth ? { x: 1.4, z: 1.7, yaw: -2.4, female: true } : { x: 0.6, z: -2.0, yaw: -0.59, female: true }], group); // (the Gouvernante, by the window; in portrait by the door, out of the narrow view)
+        vc.crowd = makeCrowd([window.innerHeight > window.innerWidth ? { x: 1.4, z: 1.7, yaw: -2.4, female: true, figure: 'f02' } : { x: 0.6, z: -2.0, yaw: -0.59, female: true, figure: 'f02' }], group); // (the Gouvernante, by the window; in portrait by the door, out of the narrow view)
       } else if (id === 'kitchen') {
         buildKitchen(group, parts);
-        vc.crowd = makeCrowd([{ x: -2.2, z: -1.5, yaw: 0.5 }, { x: 1.8, z: -1.9, yaw: -0.5, female: true }], group);
+        vc.crowd = makeCrowd([{ x: -2.2, z: -1.5, yaw: 0.5, figure: 'm02' }, { x: 1.8, z: -1.9, yaw: -0.5, female: true, figure: 'f01' }], group);
       } else {
         buildLaundry(group, parts);
-        vc.crowd = makeCrowd([{ x: 3.1, z: -1.9, yaw: -2.2, female: true }], group);
+        vc.crowd = makeCrowd([{ x: 3.1, z: -1.9, yaw: -2.2, female: true, figure: 'f04' }], group);
       }
     });
     vc.key = key;
