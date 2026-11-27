@@ -118,9 +118,12 @@ export function snowyRoof(base, roofMask) {
 }
 
 // A water material frozen over in winter where it lies still: the lakes (at or above the Davosersee's level, the
-// frame's y = 0) take snowy grey ice; the Landwasser below the lake keeps running. Wraps the material's nodes in place.
-export function freezeWater(material, { all = false } = {}) {
-  const still = all ? float(1) : smoothstep(-1.5, -0.5, positionWorld.y);
+// frame's y = 0) take snowy grey ice; the Landwasser below the lake keeps running. `still`: a node, 1 where the water
+// is still wherever it lies (the town's water, js/city-grid.js: an attribute from js/terrain.js stillWater; the
+// Seehof Seeli lies 3 m under the lake, and is skated on all winter). Wraps the material's nodes in place.
+export function freezeWater(material, { all = false, still: stillNode = null } = {}) {
+  const byHeight = smoothstep(-1.5, -0.5, positionWorld.y);
+  const still = all ? float(1) : stillNode ? max(byHeight, stillNode) : byHeight;
   const ice = winter.mul(still);
   const blotch = SIMPLE() ? float(0.5) : mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
   const iceColour = mix(vec3(0.42, 0.47, 0.52), vec3(0.8, 0.84, 0.9), blotch);

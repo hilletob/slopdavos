@@ -5,6 +5,8 @@ import { QUALITY } from './quality.js';
 import { tunnelProfile, openRuns, runRects, isDrivableTunnel } from './tunnel-profile.js';
 import { funicularTunnels } from './funicular-track.js';
 import { createBenches } from './path-bench.js';
+import { inFlatRing } from './ring.js';
+import { ringBounds, ringDistance } from './ground-geometry.js';
 
 // Zurich's relief for the engine (which was written for a flat Manhattan at y = 0).
 //  - groundHeight(x, z): the bare-earth surface (swissALTI3D, data/davos-terrain.bin, with the bridgeheads raised and
@@ -501,6 +503,164 @@ const waterLevel = () => WATER_LEVEL || (WATER_LEVEL = (() => {
 })());
 export const waterSurfaceHeight = (x, z) => gridHeight(waterLevel(), x, z);
 export const releaseWaterLevel = () => { WATER_LEVEL = null; };
+
+// --- The water bodies' edges: what the mapped water (DAVOS_DATA.water) is like at its shore, still or running, and where
+// a pond lies level in the survey, the natural bank js/city-grid.js draws round it instead of a quay wall (plain
+// functions of the rings and a ground, js/vector-ground.js asks onMappedWater) ---------------------------------------
+//
+// Still water is a lake, a pond or a reservoir by its OSM kind, or a named natural=water (the Seehof Seeli in Davos Dorf
+// carries no water=* tag; the Landwasser's pieces through the town are unnamed natural=water and run). Still water
+// freezes in winter wherever it lies (js/season.js freezeWater; the rest by its height, so that the rivers run).
+//
+// The natural bank: swissALTI3D holds a pond's surface level, the banks rising from it. A small still water whose survey
+// is level inside it (its lowest tenth and its median within BANK.flat) and whose banks hold it all round (the ground out to
+// BANK.reach metres from the shore no more than BANK.hold below that level) is drawn flat at that level; the terrain under it is
+// carved as a shelving bed (BANK.depth under the level at the shore, BANK.slope deeper a metre out) instead of 2.5 m straight down,
+// and a short apron of water, falling away under the bank, fills the strip between the shore and where the drawn
+// ground (an 8 m grid: its triangles run from the bed's nodes to the bank's) comes up out of the water. No quay wall.
+// The rest keeps the old way: draped on the lowest ground round it (waterSurfaceHeight, above), quay walls round.
+export const BANK = {
+  maxArea: 20000, // m²: ponds and small lakes (the Davosersee keeps its quays)
+  flat: 0.3, // m between the survey's lowest tenth inside the water and its median
+  hold: 0.15, // m the bank may lie under the level
+  reach: 6, // m from the shore the bank is checked to
+  lift: 0.02, // m the water lies over the surveyed level
+  depth: 0.15, slope: 0.1, maxCut: 2.5, // the bed: m under the level at the shore, m deeper a metre out, at most this cut
+  apron: 3, apronFall: 0.3, // the apron: m out from the shore, m it falls by there
+  stones: 9 // m of shore a stone (about)
+};
+
+const STILL_KINDS = /^(lake|pond|reservoir)$/;
+/** Still water (a lake, pond or reservoir, or a named natural=water), not running */
+export const stillWater = (w) => STILL_KINDS.test(w.kind || '') || (w.kind === 'water' && !!w.name);
+
+/** The area of a flat [x, z, …] ring (m²) */
+export function ringArea(ring) {
+  let a = 0;
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) a += ring[j] * ring[i + 1] - ring[i] * ring[j + 1];
+  return Math.abs(a / 2);
+}
+
+/** In the water body (its ring, not its islands)? */
+export const inWaterBody = (w, x, z) => inFlatRing(w.ring, x, z) && !(w.holes || []).some((h) => inFlatRing(h, x, z));
+
+/** Distance from (x, z) to the water body's shore (its ring and its islands') */
+export function shoreDistance(w, x, z) {
+  let d = ringDistance(w.ring, x, z);
+  for (const h of w.holes || []) d = Math.min(d, ringDistance(h, x, z));
+  return d;
+}
+
+/**
+ * Each stretch of the shore every `step` metres: { x, z, nx, nz } (the point and the unit normal out of the water), the
+ * islands' shores included
+ */
+export function shorePoints(w, step = 2) {
+  const out = [];
+  for (const ring of [w.ring, ...(w.holes || [])]) {
+    for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+      const ax = ring[j], az = ring[j + 1], dx = ring[i] - ax, dz = ring[i + 1] - az, len = Math.hypot(dx, dz);
+      if (len < 0.05) continue;
+      const n = Math.max(1, Math.ceil(len / step));
+      for (let k = 0; k < n; k++) {
+        const x = ax + dx * (k + 0.5) / n, z = az + dz * (k + 0.5) / n;
+        let nx = -dz / len, nz = dx / len;
+        if (inWaterBody(w, x + nx * 0.05, z + nz * 0.05)) { nx = -nx; nz = -nz; }
+        out.push({ x, z, nx, nz });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The natural bank of a water body, or null where it keeps the quay walls: { level (the surveyed surface, y), box }.
+ * `groundAt(x, z)`: the surveyed ground (js/terrain.js groundHeight).
+ */
+export function naturalBank(w, groundAt) {
+  if (!stillWater(w) || !w.ring || w.ring.length < 6) return null;
+  const area = ringArea(w.ring);
+  if (area > BANK.maxArea) return null;
+  const box = ringBounds(w.ring);
+  const step = Math.min(2, Math.max(0.5, Math.sqrt(area) / 10)), inside = [];
+  for (let x = box[0] + step / 2; x < box[2]; x += step) for (let z = box[1] + step / 2; z < box[3]; z += step) if (inWaterBody(w, x, z)) inside.push(groundAt(x, z));
+  if (inside.length < 8) return null;
+  inside.sort((a, b) => a - b);
+  const level = inside[Math.floor(inside.length * 0.1)];
+  if (inside[inside.length >> 1] - level > BANK.flat) return null;
+  for (const p of shorePoints(w, 2)) {
+    for (let o = 0; o <= BANK.reach; o += 1.5) {
+      const x = p.x + p.nx * o, z = p.z + p.nz * o;
+      if (o > 0 && inWaterBody(w, x, z)) continue;
+      if (groundAt(x, z) < level - BANK.hold) return null;
+    }
+  }
+  return { level, box };
+}
+
+/** Metres to sink the terrain's node at (x, z), height `y`, inside a water body with a natural bank: down to its bed */
+export function bedCut(w, bank, x, z, y) {
+  const bed = bank.level - BANK.depth - BANK.slope * shoreDistance(w, x, z);
+  return Math.min(BANK.maxCut, Math.max(0, y - bed));
+}
+
+/**
+ * The apron round a water body with a natural bank: triangles as a flat [x, y, z, …] list, each facing up, from the
+ * shore at the water's height out and down under the bank
+ */
+export function apronTriangles(w, bank) {
+  const out = [], y0 = bank.level + BANK.lift, y1 = y0 - BANK.apronFall, A = BANK.apron;
+  const tri = (a, b, c) => {
+    // (up: (b − a) × (c − a) has a positive y, in a frame whose z runs south)
+    const cross = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    if (Math.abs(cross) < 1e-6) return;
+    if (cross > 0) out.push(...a, ...b, ...c); else out.push(...a, ...c, ...b);
+  };
+  for (const ring of [w.ring, ...(w.holes || [])]) {
+    const n = ring.length / 2, outs = [];
+    // each edge's outward normal (out of the water)
+    for (let i = 0; i < n; i++) {
+      const ax = ring[i * 2], az = ring[i * 2 + 1], bx = ring[((i + 1) % n) * 2], bz = ring[((i + 1) % n) * 2 + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.05) { outs.push(null); continue; }
+      let nx = -(bz - az) / len, nz = (bx - ax) / len;
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+      if (inWaterBody(w, mx + nx * 0.05, mz + nz * 0.05)) { nx = -nx; nz = -nz; }
+      outs.push([nx, nz]);
+      const a = [ax, y0, az], b = [bx, y0, bz], a2 = [ax + nx * A, y1, az + nz * A], b2 = [bx + nx * A, y1, bz + nz * A];
+      tri(a, b, b2); tri(a, b2, a2);
+    }
+    // the corners between two edges' strips
+    for (let i = 0; i < n; i++) {
+      const p = outs[(i + n - 1) % n], q = outs[i];
+      if (!p || !q) continue;
+      const x = ring[i * 2], z = ring[i * 2 + 1];
+      tri([x, y0, z], [x + p[0] * A, y1, z + p[1] * A], [x + q[0] * A, y1, z + q[1] * A]);
+    }
+  }
+  return out;
+}
+
+/** A few stones along a natural bank, at the waterline: [{ x, y, z, r, yaw }] (deterministic) */
+export function bankStones(w, bank, groundAt) {
+  const out = [];
+  const hash = (x, z, s) => { const v = Math.sin(x * 12.9898 + z * 78.233 + s) * 43758.5453; return v - Math.floor(v); };
+  for (const p of shorePoints(w, BANK.stones)) {
+    if (hash(p.x, p.z, 1) < 0.35) continue;
+    const o = 0.1 + hash(p.x, p.z, 2) * 0.6, x = p.x + p.nx * o, z = p.z + p.nz * o;
+    out.push({ x, z, y: Math.max(bank.level, groundAt(x, z)) - 0.08, r: 0.22 + hash(p.x, p.z, 3) * 0.3, yaw: hash(p.x, p.z, 4) * Math.PI * 2 });
+  }
+  return out;
+}
+
+// --- Where the mapped water is, for the vector ground (js/vector-ground.js: no yard traced over a pond) ---------------
+let waterIndex = null;
+/** On any of `water`'s bodies (a box test first) */
+export function onMappedWater(water, x, z) {
+  if (!waterIndex || waterIndex.water !== water) waterIndex = { water, boxes: water.filter((w) => w.ring?.length >= 6).map((w) => ({ w, b: ringBounds(w.ring) })) };
+  for (const { w, b } of waterIndex.boxes) if (x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3] && inWaterBody(w, x, z)) return true;
+  return false;
+}
 
 /**
  * Per-node depths by which the drawn terrain sinks under the ground layers laid on it: the survey has kerb- and

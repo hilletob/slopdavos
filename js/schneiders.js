@@ -16,7 +16,7 @@ export { SCHNEIDERS };
 // metres up the floors' grid), red shutters beside them from the second floor up, wrought-iron grilles over the first
 // floor's, painted quoins at the corners and a painted frieze under the eaves; the wall dormer over the middle of the
 // north-east slope, the chimneys, the dark timber in the gables' apexes and the deep verges with their bargeboards; on
-// the Promenade the shop front in dark timber with its glazing and doors under the awning ("CONFISERIE · TEA-ROOM"),
+// the Promenade the shop front in dark timber with its glazing and doors under the awning ("CONFISERIE"),
 // "Schneider's" in gilt letters on the wall over it, the timber balconies stacked by the west corner; the low annex
 // with its garage door at the east corner. Five meshes: the walls, the roofs, the glass, the trim (one vertex-coloured
 // mesh) and the decoration (one canvas atlas).
@@ -190,7 +190,7 @@ function atlasTexture() {
     g.fillStyle = '#3b2416'; g.fillText(t, w / 2, h / 2 - 2, w - 60);
   };
   cell('valanceA', valance('C O N F I S E R I E'));
-  cell('valanceB', valance('T E A - R O O M'));
+  cell('valanceB', valance('')); // (the TEA-ROOM is the pavilion's next door, js/schneiders-chalet.js)
   cell('name', (w, h) => {
     g.font = 'italic 600 132px Georgia, "Times New Roman", serif';
     g.fillStyle = GOLD_DARK; g.fillText('Schneider\'s', w / 2 + 3, h / 2 + 5, w - 40);

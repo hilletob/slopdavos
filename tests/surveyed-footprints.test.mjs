@@ -5,14 +5,15 @@ import assert from 'node:assert/strict';
 import { DAVOS_DATA } from '../js/davos-geodata.js';
 import { pointInRing } from '../js/spital-data.js';
 
-const MODULES = ['samd', 'seehof', 'kirchner-museum', 'central-sporthotel', 'ameron', 'schweizerhof', 'hilton-garden-inn', 'meierhof', 'montana', 'sport-hotel-parsenn', 'symondpark', 'buendnerhof', 'hotel-post-morosani', 'grischa', 'casa-bellina', 'st-theodul', 'turmhotel-victoria', 'gredighaus', 'villa-vecchia', 'schneiders'];
+const MODULES = ['samd', 'seehof', 'kirchner-museum', 'central-sporthotel', 'ameron', 'schweizerhof', 'hilton-garden-inn', 'meierhof', 'montana', 'sport-hotel-parsenn', 'symondpark', 'buendnerhof', 'hotel-post-morosani', 'grischa', 'casa-bellina', 'st-theodul', 'turmhotel-victoria', 'gredighaus', 'villa-vecchia', 'schneiders', 'hotel-alte-post', 'haus-frohsinn', 'schneiders-chalet', 'weber', 'migros-dorf', 'spar-dorf'];
 
 test('each building rebuilt by hand gives its outlines for the walls', async () => {
   const ctx = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
   globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx, style: {} }) };
   const { SURVEYED_FOOTPRINTS } = await import('../js/landmarks.js');
   for (const m of MODULES) await import(`../js/${m}.js`);
-  assert.equal(SURVEYED_FOOTPRINTS.size, MODULES.length);
+  // (one entry a module at least: a module may also register a neighbour its survey holds)
+  assert.ok(SURVEYED_FOOTPRINTS.size >= MODULES.length);
   for (const [id, outlines] of SURVEYED_FOOTPRINTS) {
     const b = DAVOS_DATA.buildings.find((x) => x.id === id);
     assert.ok(b, `${id} is an OpenStreetMap building`);

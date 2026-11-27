@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, float, mx_noise_float, normalize, positionWorld, smoothstep } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { polygonGeometry } from './golf.js';
-import { drapeOverlay } from './terrain.js';
+import { drapeOverlay, onMappedWater } from './terrain.js';
 import { cutTriangles } from './terrain-grid.js';
 import { DAVOS_DATA } from './davos-geodata.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
@@ -137,9 +137,30 @@ function withoutTrackBed(g) {
   return out;
 }
 
+// Nor does a surface lie on the mapped water: the photo's ice or still water reads as a grey yard to the tracer (a yard
+// of 200 m² lay on the Seehof Seeli, others on the Landwasser), whose triangles over it go (the drape's are 4 m at most;
+// the bank, drawn as the terrain, takes the rest)
+function withoutWater(g) {
+  const p = g.attributes.position.array, n = p.length / 9, keep = [];
+  for (let t = 0; t < n; t++) {
+    const o = t * 9, x = (p[o] + p[o + 3] + p[o + 6]) / 3, z = (p[o + 2] + p[o + 5] + p[o + 8]) / 3;
+    if (!onMappedWater(DAVOS_DATA.water, x, z)) keep.push(t);
+  }
+  if (keep.length === n) return g;
+  const out = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(g.attributes)) {
+    const s = a.itemSize, arr = new a.array.constructor(keep.length * 3 * s);
+    keep.forEach((t, k) => arr.set(a.array.subarray(t * 3 * s, (t + 1) * 3 * s), k * 3 * s));
+    out.setAttribute(name, new THREE.BufferAttribute(arr, s, a.normalized));
+  }
+  g.dispose();
+  out.computeBoundingSphere(); out.computeBoundingBox();
+  return out;
+}
+
 function surfaceGeometry(s, heading) {
   const flat = polygonGeometry(s.ring, s.holes || []);
-  const g = withoutTrackBed(drapeOverlay(flat, { maxEdge: SURFACE_EDGE, lift: SURFACE_LIFT }));
+  const g = withoutWater(withoutTrackBed(drapeOverlay(flat, { maxEdge: SURFACE_EDGE, lift: SURFACE_LIFT })));
   flat.dispose();
   const p = g.attributes.position, n = p.count;
   const kind = new Float32Array(n).fill(GROUND_KINDS[s.kind].index), edge = new Float32Array(n), dir = new Float32Array(n * 2);

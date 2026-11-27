@@ -18,7 +18,7 @@ for (const arg of process.argv.slice(2)) {
   const [slug, id, force] = arg.split(':');
   const b = DAVOS_DATA.buildings.find((x) => x.id === id);
   // (a building OSM gives no name: the name of the hotel or shop js/shops-data.js places inside it)
-  const name = b.name || SHOPS_DATA.find((p) => inRing(b.ring, p.x, p.z) && ['hotel', 'restaurant', 'school'].includes(p.kind))?.name || slug;
+  const name = b.name || SHOPS_DATA.find((p) => inRing(b.ring, p.x, p.z) && ['hotel', 'restaurant', 'school', 'supermarket', 'bakery', 'cafe'].includes(p.kind))?.name || slug;
   const D = JSON.parse(fs.readFileSync(`recv/${slug}.json`, 'utf8'));
   console.log(`\n## ${slug} ${name} (${id})`);
   const chosen = [];

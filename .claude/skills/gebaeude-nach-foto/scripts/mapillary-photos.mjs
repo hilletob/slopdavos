@@ -1,4 +1,4 @@
-// usage (from a scratchpad folder): node mapillary-photos.mjs <slug> <osm id> [max] → ./buildings/<slug>/photos/*.jpg + photos.txt (where each
+// usage (from a scratchpad folder): node mapillary-photos.mjs <slug> <osm id | x,z[,radius]> [max] → ./buildings/<slug>/photos/*.jpg + photos.txt (where each
 // was taken, its heading): the Mapillary street photos looking at a building, spread over the sides, from the cache
 // tools/data/cache/mapillary/images.json (its thumbnail URLs are signed and expire: then a fresh one from the Graph API
 // with MAPILLARY_TOKEN from .env.local)
@@ -12,10 +12,12 @@ const { DAVOS_DATA } = await import(root + 'js/davos-geodata.js');
 const imgs = JSON.parse(fs.readFileSync(root + 'tools/data/cache/mapillary/images.json', 'utf8'));
 const lv = (lat, lon) => { const p = (lat * 3600 - 169028.66) / 10000, l = (lon * 3600 - 26782.5) / 10000;
   return [2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3 - 2782500, 1185500 - (1200147.07 + 308807.95 * p + 3745.25 * l * l + 76.63 * p * p - 194.56 * l * l * p + 119.79 * p ** 3)]; };
-const b = DAVOS_DATA.buildings.find((x) => x.id === id), r = b.ring;
+// (`id` an OSM building's, or a place without one: "x,z[,radius]", a pond, a fountain)
+const at = /^-?[\d.]+,-?[\d.]+/.test(id) ? id.split(',').map(Number) : null;
+const b = at ? { name: `the place ${at[0]} ${at[1]}`, ring: [at[0], at[1]] } : DAVOS_DATA.buildings.find((x) => x.id === id), r = b.ring;
 let cx = 0, cz = 0; const n = r.length / 2;
 for (let i = 0; i < r.length; i += 2) { cx += r[i] / n; cz += r[i + 1] / n; }
-const rad = Math.max(...Array.from({ length: n }, (_, i) => Math.hypot(r[2 * i] - cx, r[2 * i + 1] - cz)));
+const rad = at ? (at[2] ?? 6) : Math.max(...Array.from({ length: n }, (_, i) => Math.hypot(r[2 * i] - cx, r[2 * i + 1] - cz)));
 // MAPILLARY_TOKEN from the repo's .env.local (gitignored), never printed
 const token = (() => { try { return (fs.readFileSync(root + '.env.local', 'utf8').match(/^MAPILLARY_TOKEN=(.+)$/m) || [])[1]?.trim(); } catch { return null; } })();
 async function fresh(id) {

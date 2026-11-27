@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { attribute } from 'three/tsl';
 import {
   blockAt,
   TOWN_DATA,
@@ -37,6 +38,7 @@ import { busBaySegments } from './bus-bays.js';
 import { FRAME } from './davos-frame.js';
 import { isBenched } from './path-bench.js';
 import { PATH_BENCHES } from './terrain.js';
+import { BANK, stillWater, naturalBank, inWaterBody, bedCut, apronTriangles, bankStones } from './terrain.js';
 import { buildTerrainMeshes, carveRoads, drapeOverlay, displaceGeometry, groundHeight, waterSurfaceHeight, deckHeight, deckHalfWidth, pierClear, addRaisedSidewalk, RAISED_SIDEWALK_TOP, OVERPASSES } from './terrain.js';
 import { inFlatRing as inRing } from './ring.js';
 
@@ -63,7 +65,8 @@ function cityMaterials() {
   const curbMat = snowyStreet(createCurbMaterial(), { cover: 0.95, top: true });
   // (the road bridges' slabs, parapets and piers and the overpasses' abutments: cast concrete)
   const concreteMat = snowyStreet(new THREE.MeshStandardNodeMaterial({ color: 0x8c8b84, roughness: 0.96 }), { cover: 0.95, top: true });
-  const waterMat = freezeWater(createWaterMaterial());
+  // (`waterStill` on the water's vertices: 1 on still water, which freezes wherever it lies, js/terrain.js)
+  const waterMat = freezeWater(createWaterMaterial(), { still: attribute('waterStill', 'float') });
   const lawnMat = createParkLawnMaterial(false);
   const pavingMat = snowyStreet(createParkPavingMaterial(), { cover: 0.9 });
   const paintMat = snowyStreet(createRoadPaintMaterial(), { paint: true });
@@ -932,6 +935,41 @@ function quayWalls(rings) {
   return g;
 }
 
+// The water's vertices tell its material whether it is still (js/season.js freezeWater): every water geometry has them
+function withWaterStill(g, still) {
+  g.setAttribute('waterStill', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(still), 1));
+  return g;
+}
+// The apron round a natural bank's pond (js/terrain.js apronTriangles), with the water's attributes
+function apronGeometry(flat) {
+  const g = new THREE.BufferGeometry(), n = flat.length / 3;
+  const normal = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) { normal[i * 3 + 1] = 1; uv[i * 2] = flat[i * 3]; uv[i * 2 + 1] = -flat[i * 3 + 2]; }
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(flat), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+// The stones at the natural banks' waterline: low, flattened lumps of the curbs' granite, one geometry
+function stoneGeometry(stones) {
+  if (!stones.length) return null;
+  const lump = new THREE.IcosahedronGeometry(1, 0).toNonIndexed(), lp = lump.attributes.position.array;
+  const position = new Float32Array(stones.length * lp.length), uv = new Float32Array(stones.length * lp.length / 3 * 2);
+  stones.forEach((s, k) => {
+    const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+    for (let v = 0; v < lp.length; v += 3) {
+      const lx = lp[v] * s.r * 1.3, ly = lp[v + 1] * s.r * 0.55, lz = lp[v + 2] * s.r, o = k * lp.length + v;
+      position[o] = s.x + lx * c - lz * sn; position[o + 1] = s.y + ly; position[o + 2] = s.z + lx * sn + lz * c;
+    }
+  });
+  lump.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+
 async function buildMappedCityGrid(scene) {
   const group = new THREE.Group();
   group.name = 'TownGround';
@@ -943,20 +981,35 @@ async function buildMappedCityGrid(scene) {
   // their surfaces (the lowest ground around, see terrain.js) show over a dark bed. The water is built for the whole
   // valley on either profile (the lake, the ponds and the mapped river beds: a few thousand triangles).
   const waterCollector = makeCollector();
+  const banked = []; // the water bodies with a natural bank: { w, bank } (their beds, below)
   {
     const { collect } = waterCollector;
     const water = (TOWN_DATA.water || []).filter(w => w.ring?.length >= 6);
+    const stones = [];
     for (const feature of water) {
       const ring = mappedPoints(feature.ring), holes = (feature.holes || []).map(mappedPoints);
+      const still = stillWater(feature) ? 1 : 0;
+      // A pond or small lake that the survey holds level, its banks rising all round (the Seehof Seeli, the mountain
+      // tarns): flat at its surveyed level, a short apron under the bank and a few stones at the waterline, no quay wall
+      const bank = naturalBank(feature, groundHeight);
+      if (bank) {
+        banked.push({ w: feature, bank });
+        const y = bank.level + BANK.lift;
+        collect(withWaterStill(mappedPolygonGeometry(ring, holes, y), still), waterMat, { world: true });
+        collect(withWaterStill(apronGeometry(apronTriangles(feature, bank)), still), waterMat, { world: true });
+        stones.push(...bankStones(feature, bank, groundHeight));
+        continue;
+      }
       // The lake is level; the Limmat and the Sihl fall a few metres across the city and follow their surface
       let lo = Infinity, hi = -Infinity;
       for (const p of ring) { const h = waterSurfaceHeight(p.x, p.z); lo = Math.min(lo, h); hi = Math.max(hi, h); }
-      collect(hi - lo < 0.4 ? mappedPolygonGeometry(ring, holes, lo + 0.04)
-        : drapeOverlay(mappedPolygonGeometry(ring, holes, 0), { surface: 'water', maxEdge: 12, lift: 0.04 }), waterMat, { world: true });
+      collect(withWaterStill(hi - lo < 0.4 ? mappedPolygonGeometry(ring, holes, lo + 0.04)
+        : drapeOverlay(mappedPolygonGeometry(ring, holes, 0), { surface: 'water', maxEdge: 12, lift: 0.04 }), still), waterMat, { world: true });
       // Quay walls: from below the water line up to the bank, every <= 4 m so that both ends follow the terrain
       // (one geometry per shore, not one per piece: thousands of BoxGeometries would be garbage a moment later)
       collect(quayWalls([ring, ...holes]), curbMat, { world: true });
     }
+    collect(stoneGeometry(stones), curbMat, { world: true });
   }
   group.add(...await mergeCollections(waterCollector));
   // The streets and the rest of the ground layers: the whole valley at once on the desktop profile; on the mobile
@@ -1176,7 +1229,15 @@ async function buildMappedCityGrid(scene) {
     }
   }
   await buildPause();
-  const terrainMeshes = buildTerrainMeshes(sidewalkMat, { carve: (x, z) => (waterAt(x, z) ? 2.5 : 0) });
+  // (under the water 2.5 m down; under a natural bank's pond its shelving bed, js/terrain.js)
+  const bedOf = (x, z) => {
+    for (const { w, bank } of banked) {
+      const b = bank.box;
+      if (x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3] && inWaterBody(w, x, z)) return bedCut(w, bank, x, z, groundHeight(x, z));
+    }
+    return 2.5;
+  };
+  const terrainMeshes = buildTerrainMeshes(sidewalkMat, { carve: (x, z) => (waterAt(x, z) ? bedOf(x, z) : 0) });
   for (const mesh of terrainMeshes) {
     if (group.children[0]) mesh.userData.sharesPipelineWith = group.children[0];
     group.add(mesh);
