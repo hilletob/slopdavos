@@ -59,6 +59,9 @@ import { buildGrischa } from './grischa.js';
 import { buildCasaBellina } from './casa-bellina.js';
 import { buildStTheodul } from './st-theodul.js';
 import { buildTurmhotelVictoria } from './turmhotel-victoria.js';
+import { buildGredighaus } from './gredighaus.js';
+import { buildVillaVecchia } from './villa-vecchia.js';
+import { buildSchneiders } from './schneiders.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -383,6 +386,9 @@ async function initApp() {
   const casaBellina = skipped('casaBellina') ? { colliders: [] } : buildCasaBellina(scene); // the Casa Bellina: glazed balconies with their sun blinds stepping along the street (js/casa-bellina.js)
   const stTheodul = skipped('stTheodul') ? { colliders: [] } : buildStTheodul(scene); // St. Theodul: the white church with its porch of three arches, the tower with its dials and onion (js/st-theodul.js)
   const turmhotelVictoria = skipped('turmhotelVictoria') ? { colliders: [] } : buildTurmhotelVictoria(scene); // the Turmhotel Victoria: the round tower with its striped shutters and helm, the balconies on the south front, the staff door (js/turmhotel-victoria.js)
+  const gredighaus = skipped('gredighaus') ? { colliders: [] } : buildGredighaus(scene); // the Gredighaus: cream plaster with terracotta strips, the name over the canopy, the shops on the Promenade (js/gredighaus.js)
+  const villaVecchia = skipped('villaVecchia') ? { colliders: [] } : buildVillaVecchia(scene); // the Villa Vecchia, the Gemeindehaus: striped shutters, the painted arms and the name on the east front (js/villa-vecchia.js)
+  const schneiders = skipped('schneiders') ? { colliders: [] } : buildSchneiders(scene); // Schneider's: cream plaster, red shutters, the timber balconies and the shop front on the Promenade (js/schneiders.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -452,7 +458,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...ameron.colliders, ...schweizerhof.colliders, ...hiltonGardenInn.colliders, ...meierhof.colliders, ...montana.colliders, ...sportHotelParsenn.colliders, ...symondpark.colliders, ...buendnerhof.colliders, ...hotelPostMorosani.colliders, ...grischa.colliders, ...casaBellina.colliders, ...stTheodul.colliders, ...turmhotelVictoria.colliders, ...gredighaus.colliders, ...villaVecchia.colliders, ...schneiders.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }

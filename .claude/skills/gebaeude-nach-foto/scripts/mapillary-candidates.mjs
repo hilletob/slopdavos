@@ -29,4 +29,6 @@ for (const b of DAVOS_DATA.buildings) {
 }
 out.sort((a, b) => (b.see > 5) * b.A - (a.see > 5) * a.A);
 console.log(out.length, 'named');
-for (const o of out.filter((o) => o.see > 5 && o.A > 300).slice(0, 70)) console.log([o.id, o.name, o.kind, o.cx, o.cz, o.A + 'm²', o.see + ' img', o.done].join(' | '));
+// `--todo`: only the ones still the generic block; `--min <m²>` (default 300)
+const todo = process.argv.includes('--todo'), mi = process.argv.indexOf('--min'), min = mi > 0 ? +process.argv[mi + 1] : 300;
+for (const o of out.filter((o) => o.see > 5 && o.A > min && (!todo || !o.done)).slice(0, 70)) console.log([o.id, o.name, o.kind, o.cx, o.cz, o.A + 'm²', o.see + ' img', o.done].join(' | '));
