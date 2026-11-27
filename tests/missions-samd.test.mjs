@@ -68,8 +68,8 @@ test('in still air a gob lands on the reticle; a full hock leaves the mouth slow
   const near = { ...yardToWorld(0, 3), y: 0 };
   const quick = predictGob(eye, near, 0, calm, flat), full = predictGob(eye, near, 1, calm, flat);
   assert.ok(full.t > quick.t + 0.2, `a hock falls longer: ${quick.t} → ${full.t}`);
-  // 23.35 m: from the mouth at 3.6 m/s down ~1.85 s, at 0.3 m/s ~2.15 s
-  assert.ok(Math.abs(quick.t - 1.85) < 0.05 && Math.abs(full.t - 2.15) < 0.05, `${quick.t} ${full.t}`);
+  // 20.65 m: from the mouth at 3.6 m/s down ~1.72 s, at 0.3 m/s ~2.03 s
+  assert.ok(Math.abs(quick.t - 1.72) < 0.05 && Math.abs(full.t - 2.03) < 0.05, `${quick.t} ${full.t}`);
   // far out it is lobbed: slower across than vMax, longer in the air
   const g = launchGob(eye, { ...yardToWorld(0, 31), y: 0 }, 1);
   assert.ok(Math.hypot(g.vx, g.vz) <= SPIT.vMax + 1e-9 && g.vy > 0 && g.T > 2.9);

@@ -42,6 +42,10 @@ import { buildLandmarkBuildings } from './landmark-buildings.js';
 import { buildPfadiheim } from './pfadiheim.js';
 import { buildParkedResurfacers } from './missions-rink.js';
 import { buildSpital } from './spital.js';
+import { buildSamd } from './samd.js';
+import { buildKirchnerMuseum } from './kirchner-museum.js';
+import { buildCentralSporthotel } from './central-sporthotel.js';
+import { buildSeehof } from './seehof.js';
 import { buildAltePost } from './alte-post.js';
 import { buildPostCoop } from './post-coop.js';
 import { buildStJohann } from './st-johann.js';
@@ -349,6 +353,10 @@ async function initApp() {
   const landmarkBuildings = skipped('landmarks') ? { colliders: [] } : buildLandmarkBuildings(scene); // Eisstadion, Kongresszentrum, eau-là-là, Natureisbahn (js/landmark-buildings.js)
   const pfadiheim = skipped('pfadiheim') ? { colliders: [] } : buildPfadiheim(scene); // the Pfadiheim Davos, after its photographs (js/pfadiheim.js)
   const spital = skipped('spital') ? { colliders: [] } : buildSpital(scene); // the Spital Davos: concrete, reliefs, the entrance hall (js/spital.js)
+  const samd = skipped('samd') ? { colliders: [] } : buildSamd(scene); // the SAMD's main building: white plaster, the stair tower with the name, the porch (js/samd.js)
+  const kirchnerMuseum = skipped('kirchnerMuseum') ? { colliders: [] } : buildKirchnerMuseum(scene); // the Kirchner Museum: four cubes in frosted glass round the low hall (js/kirchner-museum.js)
+  const centralSporthotel = skipped('centralSporthotel') ? { colliders: [] } : buildCentralSporthotel(scene); // the Central Sporthotel: the arched podium, the tower with its balconies (js/central-sporthotel.js)
+  const seehof = skipped('seehof') ? { colliders: [] } : buildSeehof(scene); // the Hotel Seehof: the old hotel with its mansard and tower, the new wing over the glazed hall (js/seehof.js)
   const altePost = skipped('altepost') ? { colliders: [] } : buildAltePost(scene); // the Alte Post at the Postplatz: the portal, the sgraffito (js/alte-post.js)
   const postCoop = skipped('postcoop') ? { colliders: [] } : buildPostCoop(scene); // the post office, the tower and the Coop at the Bahnhof Davos Platz (js/post-coop.js)
   const raetiaCenter = skipped('raetia') ? { colliders: [] } : buildRaetiaCenter(scene); // the Rätia Center on the Promenade: the zinc roof with its dormers, the copper band (js/raetia-center.js)
@@ -418,7 +426,7 @@ async function initApp() {
   if (skipped('buildings')) scene.remove(cityBlocks.group); // (the colliders stay)
   markInit('blocks');
   if (world) await world.settle(); // (the track bed and the car parks of the start's cells: their colliders below)
-  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
+  const allColliders = liftColliders([...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || []), ...parking.colliders, ...detailHouses.colliders, ...landmarkBuildings.colliders, ...pfadiheim.colliders, ...spital.colliders, ...samd.colliders, ...kirchnerMuseum.colliders, ...centralSporthotel.colliders, ...seehof.colliders, ...altePost.colliders, ...postCoop.colliders, ...raetiaCenter.colliders, ...belvedere.colliders, ...marienkirche.colliders, ...(world ? world.colliders() : [])]);
 
   const streetDetails = skipped('details')
     ? { footprints: [], signalIntersections: [], trees: [], knockablePosts: [], audioSignals: [], signalClock: { value: 0 }, update: null }

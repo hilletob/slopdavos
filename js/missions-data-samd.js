@@ -12,7 +12,7 @@ import { msg } from './messages.js';
 //              long break fills it. Two boarders, Gian (from the Prättigau, the quiet one with the aim) and Mätti (from
 //              Zürich, the mouth), slip up the stairs and through the roof hatch and lie at the parapet. Gian spits: the
 //              reticle on the yard is where a gob lands in still air; holding hocks a bigger one (slower out of the
-//              mouth, more points, it drifts less), letting go drops it. It falls two seconds from the 23 m roof, the
+//              mouth, more points, it drifts less), letting go drops it. It falls two seconds from the 20 m roof, the
 //              walkers walk on meanwhile (lead them) and the wind carries it (the arrow). A hit: a comic splat and a shout up at the
 //              roof; a run of hits multiplies the points. The dog, the Chindsgi kid from the Kindergarten Guggerbach
 //              round the corner and the Hausmutter of the boarding house cost points. Every hit makes the yard look up:
@@ -22,8 +22,8 @@ import { msg } from './messages.js';
 //
 // The frame (js/davos-frame.js: x = E − 2782500, z = 1185500 − N): the yard is laid out along the main building's north
 // facade (its segment from (−526.9, 76.2) to (−514.7, 81.1)): u along the facade towards the east-north-east, v out from
-// it over the yard. The roof's height over the yard is the swissBUILDINGS3D building as the game draws it (measured in
-// the browser: the eave over the yard's ground).
+// it over the yard. The roof is the west half of the six-storey block as js/samd.js builds it (js/samd-data.js
+// SAMD.roof): the boys lie at its edge, 20 m over the yard.
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(m))} m`);
@@ -36,15 +36,16 @@ const FL = Math.hypot(FACADE.bx - FACADE.ax, FACADE.bz - FACADE.az);
 export const ROOF = {
   x: (FACADE.ax + FACADE.bx) / 2, z: (FACADE.az + FACADE.bz) / 2, // (the facade segment's middle)
   U: { x: (FACADE.bx - FACADE.ax) / FL, z: (FACADE.bz - FACADE.az) / FL }, V: { x: (FACADE.bz - FACADE.az) / FL, z: -(FACADE.bx - FACADE.ax) / FL },
-  height: 22.8, // m: the top of the parapet over the yard's ground at the facade (measured in the game: the swissBUILDINGS3D block with its attic)
-  eyeBack: 0.6, eyeUp: 0.55, // m: the eye behind the parapet's edge and over the roof, lying at it
+  height: 20.1, // m: the roof's edge (js/samd-data.js SAMD.roof.top, y 9.4) over the yard's ground at the facade (y −10.7)
+  eyeBack: -0.3, eyeUp: 0.55, // m: the eye over the roof, lying at its edge with the head out over the yard (behind the edge the roof itself
+  // fills the view down: at 0.6 m back everything steeper than 42° is roof, and the yard's middle lies 48° down)
   duckDown: 0.45 // m: ducked, the head drops behind the parapet (and the eyes go up to the sky)
 };
 /** A point of the yard's frame in the world */
 export const yardToWorld = (u, v) => ({ x: ROOF.x + ROOF.U.x * u + ROOF.V.x * v, z: ROOF.z + ROOF.U.z * u + ROOF.V.z * v });
 /** A world point in the yard's frame */
 export const worldToYard = (x, z) => { const dx = x - ROOF.x, dz = z - ROOF.z; return { u: dx * ROOF.U.x + dz * ROOF.U.z, v: dx * ROOF.V.x + dz * ROOF.V.z }; };
-/** The eye at the parapet: over the facade's middle, a little behind the edge (ground: the yard's ground there) */
+/** The eye at the roof's edge: over the facade's middle, the head out over the yard (ground: the yard's ground there) */
 export function eyeAt(groundAt, ducked = false) {
   const p = yardToWorld(0, -ROOF.eyeBack);
   return { x: p.x, y: groundAt(ROOF.x, ROOF.z) + ROOF.height + ROOF.eyeUp - (ducked ? ROOF.duckDown : 0), z: p.z };
