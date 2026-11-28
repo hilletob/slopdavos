@@ -34,12 +34,13 @@ import {
 excludeBuildings(LANDMARK_EXCLUSIONS);
 
 // --- Materials (linear colours) ----------------------------------------------------------------------------------------------
-// The mobile profile (js/quality.js simpleMaterials): every skin in its mean colour, the windowed ones with a plain lit
-// band per floor at night, the roofs white in winter; no boards, mullions, noise or per-window hashes (a third of the
-// WGSL: ~8-9 KB each instead of ~22-26 KB, after an iPhone's GPU process died while compiling them).
+// The mobile profile (js/quality.js simpleMaterials): every skin in its mean colour, the windowed ones with a plain dark
+// window per bay and floor, lit at night (a band along the wall where a skin's windows are ribbons), the roofs white in
+// winter; no boards, mullions, noise or per-window hashes (a third of the WGSL: ~8-9 KB each instead of ~22-26 KB,
+// after an iPhone's GPU process died while compiling them).
 // Skins of one kind share one shader: a colour written into the node graph as a literal makes a program of its own
 // (two shader modules and a pipeline in Safari's GPU process, docs/gpu-memory.md), so the colours, the glow's strength
-// and the window bands' measures are the material's own uniforms (material.color, material.emissive, uniform()) and
+// and the windows' measures are the material's own uniforms (material.color, material.emissive, uniform()) and
 // the graphs are the same: SIMPLE_SKINS, also for js/pfadiheim.js.
 const linear = (rgb) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2]);
 export const SIMPLE_SKINS = {
@@ -60,10 +61,18 @@ export const SIMPLE_SKINS = {
     m.emissiveNode = materialEmissive.mul(nightGlow());
     return m;
   },
-  /** A wall with a lit band per floor (`h` m high, the band from `lo` to `hi` of it), windows only where v >= 0 */
-  windowed(rgb, h, lo, hi, roughness, strength) {
-    const V = uv().y, f = fract(V.div(uniform(h)));
-    const b = step(0, V).mul(step(uniform(lo), f)).mul(step(f, uniform(hi)));
+  /**
+   * A wall with its windows dark by day and lit from dusk on: a row per floor (`h` high in v, the window from `lo` to
+   * `hi` of it, none where v < 0) and a column per `bay` along u, the window `half` each side of its middle, the
+   * middles at u = `at` + k·bay (u is metres from the wall's middle on the Builder's walls and the street rows', so the
+   * bays lie symmetric about it, as the desktop's windowGrid lays them). `bay` 0: no columns, a band along the wall
+   * (ribbon windows, loggias, a screen). The measures are uniforms like the rest: one program for every wall.
+   */
+  windowed(rgb, h, lo, hi, roughness, strength, { bay = 2.6, half = 0.6, at = 0 } = {}) {
+    const U = uv().x, V = uv().y, f = fract(V.div(uniform(h)));
+    // (no columns: bay 1 with a window 1 each side covers every u: |d| <= 0.5)
+    const B = uniform(bay || 1), d = abs(fract(U.sub(uniform(at)).div(B).add(0.5)).sub(0.5)).mul(B);
+    const b = step(0, V).mul(step(uniform(lo), f)).mul(step(f, uniform(hi))).mul(step(d, uniform(bay ? half : 1)));
     const m = SIMPLE_SKINS.plain(rgb, roughness);
     m.colorNode = mix(materialColor, vec3(0.03, 0.035, 0.04), b);
     m.emissive = linear([1.0, 0.66, 0.36]).multiplyScalar(strength);
@@ -84,10 +93,12 @@ function simpleMaterials() {
   };
   const { plain, snowRoof: roof, glow: lit, windowed } = SIMPLE_SKINS;
   const M = {};
-  M.larch = windowed([0.3, 0.16, 0.07], 3.8, 0.35, 0.75, 0.82, 0.6);
-  M.concrete = windowed([0.23, 0.225, 0.21], 3.8, 0.38, 0.79, 0.9, 0.5);
-  M.darkwood = windowed([0.06, 0.034, 0.02], 3.6, 0.31, 0.71, 0.8, 0.5);
-  M.plaster = windowed([0.65, 0.65, 0.63], 2.9, 0.29, 0.81, 0.9, 0.4);
+  // (u here runs in metres from each wall's start: the larch's and the concrete's ribbon windows stay bands, the pool's
+  // and the hotel's punched windows are placed in their bays as materials() draws them)
+  M.larch = windowed([0.3, 0.16, 0.07], 3.8, 0.35, 0.75, 0.82, 0.6, { bay: 0 });
+  M.concrete = windowed([0.23, 0.225, 0.21], 3.8, 0.38, 0.79, 0.9, 0.5, { bay: 0 });
+  M.darkwood = windowed([0.06, 0.034, 0.02], 3.6, 0.31, 0.71, 0.8, 0.5, { bay: 3.0, half: 0.9, at: 1.5 });
+  M.plaster = windowed([0.65, 0.65, 0.63], 2.9, 0.29, 0.81, 0.9, 0.4, { bay: 3.1, half: 0.74, at: 1.05 });
   M.glass = lit([0.24, 0.28, 0.31], 0.08, 0.85, [1.0, 0.8, 0.58], 0.45);
   M.roofSolar = roof([0.1, 0.1, 0.11], 0.6, 0.2);
   M.roofGravel = roof([0.27, 0.26, 0.25], 0.92);

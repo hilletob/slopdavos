@@ -30,7 +30,7 @@ function materials() {
   M.roof = SIMPLE_SKINS.snowRoof([0.3, 0.295, 0.28], 0.92);
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.05 });
   if (QUALITY.simpleMaterials) {
-    M.plaster = SIMPLE_SKINS.windowed([0.4, 0.365, 0.29], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4);
+    M.plaster = SIMPLE_SKINS.windowed([0.4, 0.365, 0.29], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4, { bay: BAY, half: WIN.half });
     return M;
   }
   const near = fade(140, 420), fine = fade(20, 70);

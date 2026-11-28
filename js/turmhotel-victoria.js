@@ -44,8 +44,8 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colours, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.53], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35);
-    M.tower = SIMPLE_SKINS.windowed([0.56, 0.47, 0.46], T.storey, T.win.lo / T.storey, T.win.hi / T.storey, 0.9, 0.35);
+    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.53], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35, { bay: BAY, half: WIN.half });
+    M.tower = SIMPLE_SKINS.windowed([0.56, 0.47, 0.46], T.storey, T.win.lo / T.storey, T.win.hi / T.storey, 0.9, 0.35, { bay: towerBay(), half: T.win.at + T.win.half });
     return M;
   }
   const U = uv().x, V = uv().y;

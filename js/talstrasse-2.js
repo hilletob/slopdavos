@@ -46,7 +46,7 @@ function materials() {
   M.glass = SIMPLE_SKINS.glow([0.03, 0.036, 0.042], 0.1, 0.5, [1.0, 0.8, 0.56], 0.3);
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the houses' colours from the vertices, a lit band per floor at night)
-    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], S, WIN.lo / S, WIN.hi / S, 0.85, 0.3);
+    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], S, WIN.lo / S, WIN.hi / S, 0.85, 0.3, { bay: BAY, half: WIN.half });
     M.walls.vertexColors = true;
     return M;
   }

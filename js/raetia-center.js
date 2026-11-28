@@ -44,7 +44,7 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colours, a lit band per floor at night; the zinc roof is the roofs' mesh there)
-    M.wall = SIMPLE_SKINS.windowed(PLASTER, STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4);
+    M.wall = SIMPLE_SKINS.windowed(PLASTER, STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4, { bay: BAY, half: WIN.half });
     M.sheet = SIMPLE_SKINS.plain([1, 1, 1], 0.5, 0.5, { vertexColors: true });
     M.glass = SIMPLE_SKINS.glow([0.16, 0.2, 0.22], 0.08, 0.85, [1.0, 0.86, 0.66], 0.12);
     return M;

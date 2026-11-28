@@ -105,9 +105,9 @@ function materials() {
   M.decal = decalMaterial(atlasTexture());
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colours, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.light = SIMPLE_SKINS.windowed([0.12, 0.18, 0.5], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35);
-    M.deep = SIMPLE_SKINS.windowed([0.03, 0.045, 0.25], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.25);
-    M.white = SIMPLE_SKINS.windowed([0.52, 0.52, 0.5], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3);
+    M.light = SIMPLE_SKINS.windowed([0.12, 0.18, 0.5], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35, { bay: BAY, half: WIN.half });
+    M.deep = SIMPLE_SKINS.windowed([0.03, 0.045, 0.25], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.25, { bay: BAY, half: H.narrow });
+    M.white = SIMPLE_SKINS.windowed([0.52, 0.52, 0.5], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3, { bay: BAY, half: WIN.half });
     return M;
   }
   M.light = windowedWall(LIGHT, WIN.half, 31);

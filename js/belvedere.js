@@ -72,8 +72,8 @@ function materials() {
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colours, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
     const W = BELVEDERE.window, O = BELVEDERE.old;
-    M.wall = SIMPLE_SKINS.windowed(PLASTER, BELVEDERE.storey, W.lo / BELVEDERE.storey, W.hi / BELVEDERE.storey, 0.9, 0.4);
-    M.old = SIMPLE_SKINS.windowed(OLD_PLASTER, O.storey, O.window.lo / O.storey, O.window.hi / O.storey, 0.9, 0.4);
+    M.wall = SIMPLE_SKINS.windowed(PLASTER, BELVEDERE.storey, W.lo / BELVEDERE.storey, W.hi / BELVEDERE.storey, 0.9, 0.4, { bay: BELVEDERE.bay, half: W.half });
+    M.old = SIMPLE_SKINS.windowed(OLD_PLASTER, O.storey, O.window.lo / O.storey, O.window.hi / O.storey, 0.9, 0.4, { bay: O.bay, half: O.window.half });
     M.glass = SIMPLE_SKINS.glow([0.12, 0.17, 0.18], 0.08, 0.85, [1.0, 0.86, 0.66], 0.15);
     return M;
   }

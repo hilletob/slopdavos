@@ -42,7 +42,7 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.02 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the logs' mean colour, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.walls = SIMPLE_SKINS.windowed([0.17, 0.095, 0.055], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.3);
+    M.walls = SIMPLE_SKINS.windowed([0.17, 0.095, 0.055], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.3, { bay: BAY, half: WIN.half });
     return M;
   }
   const fine = fade(8, 28), near = fade(40, 160);

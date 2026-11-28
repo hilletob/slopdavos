@@ -89,8 +89,8 @@ function materials() {
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS; each house's colour
     // from the vertex colours)
-    M.plaster = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3);
-    M.timber = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.3);
+    M.plaster = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3, { bay: BAY, half: WIN.half });
+    M.timber = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.3, { bay: BAY, half: WIN.half });
     M.plaster.vertexColors = M.timber.vertexColors = true;
     return M;
   }

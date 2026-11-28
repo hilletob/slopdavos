@@ -38,8 +38,8 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colours, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.535], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4);
-    M.loggia = SIMPLE_SKINS.windowed([0.44, 0.4, 0.28], STOREY, L.rail / STOREY, L.open / STOREY, 0.85, 0.35);
+    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.535], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.4, { bay: BAY, half: WIN.half });
+    M.loggia = SIMPLE_SKINS.windowed([0.44, 0.4, 0.28], STOREY, L.rail / STOREY, L.open / STOREY, 0.85, 0.35, { bay: 0 });
     return M;
   }
   const U = uv().x, V = uv().y;

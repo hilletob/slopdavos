@@ -97,7 +97,7 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.02 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the plaster's mean colour, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.walls = SIMPLE_SKINS.windowed([0.4, 0.34, 0.19], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35);
+    M.walls = SIMPLE_SKINS.windowed([0.4, 0.34, 0.19], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.35, { bay: D.bay, half: WIN.single });
     M.gables = M.walls;
     return M;
   }

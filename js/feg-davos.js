@@ -44,7 +44,7 @@ function materials() {
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the stone's mean colour, a lit band at the windows' height at night, js/landmark-buildings.js
     // SIMPLE_SKINS)
-    M.walls = SIMPLE_SKINS.windowed([0.3, 0.28, 0.23], STOREY, WIN.lo / STOREY, (WIN.spring + WIN.half) / STOREY, 0.92, 0.15);
+    M.walls = SIMPLE_SKINS.windowed([0.3, 0.28, 0.23], STOREY, WIN.lo / STOREY, (WIN.spring + WIN.half) / STOREY, 0.92, 0.15, { bay: D.bay, half: WIN.half });
     return M;
   }
   const fine = fade(8, 28), near = fade(40, 160);

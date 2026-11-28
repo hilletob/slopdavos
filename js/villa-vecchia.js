@@ -42,7 +42,7 @@ function materials() {
   M.glass = SIMPLE_SKINS.glow([0.04, 0.05, 0.055], 0.15, 0.4, [1.0, 0.78, 0.5], 0.3);
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the mean colour, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.53], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3);
+    M.plaster = SIMPLE_SKINS.windowed([0.55, 0.55, 0.53], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.9, 0.3, { bay: BAY, half: WIN.half });
     return M;
   }
   const glow = nightGlow(), near = fade(30, 160), fine = fade(8, 28);

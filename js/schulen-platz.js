@@ -48,7 +48,7 @@ function materials() {
     // (the mobile profile: the mean colours, a faint band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
     for (const k of Object.keys(SKIN)) {
       const S = SKIN[k];
-      M[k] = SIMPLE_SKINS.windowed(S.mean, S.storey, S.lo / S.storey, S.hi / S.storey, 0.9, 0.1);
+      M[k] = SIMPLE_SKINS.windowed(S.mean, S.storey, S.lo / S.storey, S.hi / S.storey, 0.9, 0.1, { bay: S.bay, half: S.half });
     }
     M.glass = SIMPLE_SKINS.glow([0.08, 0.1, 0.11], 0.15, 0.6, [1.0, 0.86, 0.66], 0.3);
     return M;

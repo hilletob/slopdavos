@@ -211,3 +211,38 @@ test('raised ground: a piece stands at its own rise (a platform over a sidewalk)
   removeRaisedSidewalks('test-sidewalk'); removeRaisedSidewalks('test-platform');
   assert.equal(sidewalkRise(50007, 50005), 0);
 });
+
+test('the phone\'s windowed skin: windows per bay and floor, its measures uniforms, one node graph for every wall', async () => {
+  const { SIMPLE_SKINS } = await import('../js/landmark-buildings.js');
+  // (the graph's shape: each node's class and operator, its children in order; uniforms by kind, not value)
+  const shape = (root) => {
+    const seen = new Map(), uniforms = [];
+    const walk = (n) => {
+      if (seen.has(n)) return `#${seen.get(n)}`;
+      seen.set(n, seen.size);
+      if (n.isUniformNode) uniforms.push(n.value);
+      const kids = [];
+      for (const c of n.getChildren()) kids.push(walk(c));
+      const tag = n.isConstNode ? JSON.stringify(n.value) : typeof n.op === 'string' ? n.op : typeof n.method === 'string' ? n.method : '';
+      return `${n.constructor.name}[${n.isUniformNode ? 'u' : tag}](${kids.join(',')})`;
+    };
+    return { text: walk(root), uniforms };
+  };
+  const a = SIMPLE_SKINS.windowed([0.5, 0.48, 0.44], 3.1, 0.29, 0.77, 0.9, 0.4, { bay: 2.8, half: 0.6 });
+  const b = SIMPLE_SKINS.windowed([0.12, 0.18, 0.5], 2.85, 0.3, 0.8, 0.85, 0.25, { bay: 3.3, half: 0.95, at: 1.2 });
+  const c = SIMPLE_SKINS.windowed([1, 1, 1], 1, 0.3, 0.78, 0.9, 0.3, { bay: 0 }); // (a ribbon: a band, no columns)
+  const d = SIMPLE_SKINS.windowed([0.3, 0.3, 0.3], 3, 0.3, 0.8, 0.9, 0.3); // (the defaults)
+  const [A, B, C, D] = [a, b, c, d].map((m) => ({ colour: shape(m.colorNode), glow: shape(m.emissiveNode) }));
+  for (const X of [B, C, D]) {
+    assert.equal(X.colour.text, A.colour.text);
+    assert.equal(X.glow.text, A.glow.text);
+  }
+  // the measures are uniforms (the storey, the window's foot and head, the bay, its offset, the window's half width),
+  // the colours the material's own
+  for (const v of [3.1, 0.29, 0.77, 2.8, 0, 0.6]) assert.ok(A.colour.uniforms.includes(v), `uniform ${v}`);
+  for (const v of [3.3, 1.2, 0.95]) assert.ok(B.glow.uniforms.includes(v), `uniform ${v}`);
+  assert.ok(D.colour.uniforms.includes(2.6) && D.colour.uniforms.includes(0.6));
+  assert.ok(a.color.r === 0.5 && b.color.b === 0.5);
+  // without columns the window spans the bay whole: bay 1, half 1 (|d| <= 0.5 everywhere)
+  assert.equal(C.colour.uniforms.filter((v) => v === 1).length, 3); // (the storey 1, the bay, the half width)
+});

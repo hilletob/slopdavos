@@ -45,7 +45,7 @@ function materials() {
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: each house's colour from its vertices, a lit band per floor at night; v counts storeys,
     // js/landmark-buildings.js SIMPLE_SKINS)
-    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], 1, 0.3, 0.78, 0.9, 0.3);
+    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], 1, 0.3, 0.78, 0.9, 0.3, { bay: 2.8, half: 0.6 });
     M.walls.vertexColors = true;
     return M;
   }

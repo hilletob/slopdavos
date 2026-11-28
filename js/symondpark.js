@@ -43,7 +43,7 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: the screen's mean colour with a lit band per upper floor at night, the glass glowing faintly)
-    M.screen = SIMPLE_SKINS.windowed([0.15, 0.135, 0.115], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.25);
+    M.screen = SIMPLE_SKINS.windowed([0.15, 0.135, 0.115], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.85, 0.25, { bay: 0 });
     M.glass = SIMPLE_SKINS.glow([0.08, 0.095, 0.1], 0.15, 0.6, [1.0, 0.88, 0.7], 0.18);
     return M;
   }

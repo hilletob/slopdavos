@@ -77,7 +77,7 @@ function materials() {
   M.trim = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.02 });
   if (QUALITY.simpleMaterials) {
     // (the mobile profile: each house's plaster from its vertices, a lit band per floor at night, js/landmark-buildings.js SIMPLE_SKINS)
-    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.88, 0.3);
+    M.walls = SIMPLE_SKINS.windowed([1, 1, 1], STOREY, WIN.lo / STOREY, WIN.hi / STOREY, 0.88, 0.3, { bay: BAY, half: WIN.half });
     M.walls.vertexColors = true;
     M.glass = SIMPLE_SKINS.glow([0.05, 0.06, 0.07], 0.12, 0.5, [1.0, 0.8, 0.58], 0.25);
     return M;
