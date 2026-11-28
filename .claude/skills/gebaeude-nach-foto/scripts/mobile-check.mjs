@@ -10,10 +10,11 @@ const stub = () => new Proxy(function () {}, { get: (t, k) => (k === 'measureTex
 let canvases = [];
 globalThis.document = { createElement: () => { const c = { width: 0, height: 0, getContext: () => stub(), style: {} }; canvases.push(c); return c; } };
 const root = new URL('../../../../', import.meta.url).pathname;
-const { QUALITY } = await import(root + 'js/quality.js');
+const { QUALITY, QUALITY_PROFILES } = await import(root + 'js/quality.js');
 const { SIMPLE_SKINS } = await import(root + 'js/landmark-buildings.js');
 const THREE = await import('three/webgpu');
 QUALITY.simpleMaterials = true;
+QUALITY.atlasScale = QUALITY_PROFILES.mobile.atlasScale; // (js/building-kit.js canvasTexture: the atlases at half size)
 // (SIMPLE_SKINS' materials marked as they are made)
 for (const k of Object.keys(SIMPLE_SKINS)) { const f = SIMPLE_SKINS[k]; SIMPLE_SKINS[k] = (...a) => { const m = f(...a); m.userData.simpleSkin = k; return m; }; }
 const main = fs.readFileSync(root + 'js/main.js', 'utf8');
@@ -29,7 +30,8 @@ for (const [slug, fn] of all.filter(([s]) => !wanted.length || wanted.includes(s
   canvases = [];
   try { mod[fn](scene); } catch (e) { console.log(`? ${slug}: the build failed in Node (${e.message.split('\n')[0]}); look in the browser`); continue; }
   let meshes = 0, tris = 0;
-  const pixels = canvases.reduce((n, c) => n + c.width * c.height, 0);
+  const sources = new Set(canvases.map((c) => c.scaledFrom).filter(Boolean)); // (a drawn atlas sent on at half size)
+  const pixels = canvases.filter((c) => !sources.has(c)).reduce((n, c) => n + c.width * c.height, 0);
   const full = new Set(), seen = new Set();
   scene.traverse((o) => {
     if (!o.isMesh) return;

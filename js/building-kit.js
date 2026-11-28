@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { abs, attribute, float, floor, hash, mix, mx_noise_float, positionView, positionWorld, smoothstep, step, texture, time, uv, vec3 } from 'three/tsl';
 import { cityUniforms } from './tsl-materials.js';
 import { onWall } from './spital-data.js';
+import { QUALITY } from './quality.js';
 
 // The scaffolding the buildings rebuilt by hand share (js/spital.js, js/alte-post.js, js/raetia-center.js,
 // js/st-johann.js, js/belvedere.js, js/marienkirche.js; the night's threshold also js/landmark-buildings.js,
@@ -72,8 +73,18 @@ export function atlasCanvas(size, cells) {
   const cell = (key, draw) => { const [x, y, w, h] = cells[key]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); draw(w, h); g.restore(); };
   return { canvas, g, cell };
 }
-/** The canvas as a texture (sRGB, anisotropic) */
+/** The canvas as a texture (sRGB, anisotropic). On the mobile profile (QUALITY.atlasScale < 1) the atlas goes to the GPU
+ * at half its size: some fifty hand-built houses each bring one, up to 1024 × 512, which together took a good part of
+ * what the iPhone's GPU process may hold (js/quality.js); the lettering stays legible at half (nothing redraws these atlases after
+ * they are made) */
 export function canvasTexture(canvas) {
+  const scale = Math.max(0.5, QUALITY.atlasScale ?? 1);
+  if (scale < 1 && typeof document !== 'undefined' && canvas.width > 64) {
+    const half = document.createElement('canvas');
+    half.width = Math.round(canvas.width * scale); half.height = Math.round(canvas.height * scale);
+    const g = half.getContext('2d');
+    if (g?.drawImage) { g.imageSmoothingQuality = 'high'; g.drawImage(canvas, 0, 0, half.width, half.height); half.scaledFrom = canvas; canvas = half; }
+  }
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
