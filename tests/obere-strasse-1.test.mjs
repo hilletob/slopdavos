@@ -224,3 +224,78 @@ test('the row in Node: every vertex finite, four meshes, the phone\'s materials 
     assert.ok(tris < 15000, `${tris} triangles`);
   }
 });
+
+// The player's walls as js/buildings.js raises them on registered outlines (a box 0.44 m thick on every edge) and on the
+// OpenStreetMap outlines of the buildings round the row nobody registered; a walker (radius 0.48) pushed out of them one
+// after the other as js/controllers.js resolveHorizontalCollision does (the in-game probe's replay)
+const wallBoxes = (rings) => rings.flatMap((r) => r.map((a, i) => {
+  const c = r[(i + 1) % r.length], dx = c[0] - a[0], dz = c[1] - a[1], L = Math.hypot(dx, dz);
+  if (L < 0.3) return null;
+  const ry = -Math.atan2(dz, dx);
+  return { cx: (a[0] + c[0]) / 2, cz: (a[1] + c[1]) / 2, hx: L / 2, hz: 0.22, cs: Math.cos(ry), sn: Math.sin(ry) };
+}).filter(Boolean));
+function pushed(boxes, x, z, r = 0.48) {
+  let px = x, pz = z;
+  for (const b of boxes) {
+    const dx = px - b.cx, dz = pz - b.cz, lx = dx * b.cs - dz * b.sn, lz = dx * b.sn + dz * b.cs;
+    const qx = lx - Math.max(-b.hx, Math.min(b.hx, lx)), qz = lz - Math.max(-b.hz, Math.min(b.hz, lz)), d = Math.hypot(qx, qz);
+    if (d >= r) continue;
+    let nx = 0, nz = 0, depth;
+    if (d > 0) { nx = qx / d; nz = qz / d; depth = r - d; } else if (b.hx - Math.abs(lx) <= b.hz - Math.abs(lz)) { nx = lx <= 0 ? -1 : 1; depth = b.hx - Math.abs(lx) + r; } else { nz = lz <= 0 ? -1 : 1; depth = b.hz - Math.abs(lz) + r; }
+    px += (nx * b.cs + nz * b.sn) * depth; pz += (-nx * b.sn + nz * b.cs) * depth;
+  }
+  return Math.hypot(px - x, pz - z) > 0.05;
+}
+// (each outer wall of 2 m or more, as the in-game probe walks them: its outward side the one not inside the house)
+function probeWalls(rings, each) {
+  for (const ring of rings) {
+    const sg = Math.sign(ring.reduce((t, a, i) => { const b = ring[(i + 1) % ring.length]; return t + a[0] * b[1] - b[0] * a[1]; }, 0));
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 2) continue;
+      const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+      let nx = ((b[1] - a[1]) / L) * sg, nz = (-(b[0] - a[0]) / L) * sg;
+      const inside = (d) => rings.some((r) => pointInRing(r, mx + nx * d, mz + nz * d));
+      if (inside(0.5)) { nx = -nx; nz = -nz; }
+      if (inside(0.5)) continue;
+      each(mx, mz, nx, nz);
+    }
+  }
+}
+
+test('the player\'s walls: pushed out behind every outer wall, a free metre before it, the outlines round all the parts', () => {
+  const mine = new Set(IDS);
+  const all = HOUSES.flatMap((h) => groundOutlines(h));
+  const others = DAVOS_DATA.buildings.filter((b) => !mine.has(b.id) && b.ring[0] > -1030 && b.ring[0] < -720 && b.ring[1] > 0 && b.ring[1] < 720)
+    .map((b) => osmRing(b.id));
+  const every = wallBoxes([...all, ...others]);
+  let walls = 0;
+  for (const h of HOUSES) {
+    const own = wallBoxes(groundOutlines(h));
+    probeWalls(groundOutlines(h), (mx, mz, nx, nz) => {
+      walls++;
+      assert.ok(pushed(every, mx - nx * 0.6, mz - nz * 0.6), `${h.id}: free 0.6 m behind its wall at ${mx.toFixed(1)}, ${mz.toFixed(1)}`);
+      assert.ok(!pushed(own, mx + nx, mz + nz), `${h.id}: its own walls 1 m before its wall at ${mx.toFixed(1)}, ${mz.toFixed(1)}`);
+    });
+  }
+  assert.ok(walls > 100);
+  // (a house's union outline holds its parts: every corner inside or within 0.3 m of it)
+  const near = (ring, x, z) => {
+    if (pointInRing(ring, x, z)) return true;
+    const R = outwardRing(ring);
+    return R.some((a, i) => {
+      const F = wallFrame(a, R[(i + 1) % R.length]), s = Math.max(0, Math.min(F.len, (x - F.a[0]) * F.u[0] + (z - F.a[1]) * F.u[1]));
+      const [px, pz] = onWall(F, s);
+      return Math.hypot(px - x, pz - z) < 0.3;
+    });
+  };
+  for (const h of HOUSES.filter((q) => q.ground)) for (const p of h.parts) {
+    if (p.setback) continue;
+    for (const [x, z] of p.ring) assert.ok(h.ground.some((r) => near(r, x, z)), `${h.id}: a part's corner ${x}, ${z} outside its outline`);
+  }
+  // (no two houses' outlines reach into each other)
+  for (const h of HOUSES) for (const o of HOUSES) {
+    if (o === h) continue;
+    for (const r of groundOutlines(h)) for (const [x, z] of r) for (const t of groundOutlines(o)) assert.ok(!pointInRing(t, x, z) || near(t, x, z), `${h.id} inside ${o.id}`);
+  }
+});

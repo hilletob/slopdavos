@@ -67,7 +67,7 @@ const TW = { c: [-783.33, 248.43], u: [0.779, 0.627] };
  * a colour under yTop), `shutters`, `bay` (its bays' spacing as a share of BAY), `plinth` (the grey render along its
  * foot, m over the ground), `timber` ({ from, colour }: planks over `from`), `parts` ({ ring, top } flat-roofed;
  * { ring, roofs: [i] } under the house's pitched roofs; { ring: null, setback, top } a top floor set back from part 0),
- * `roofs` ({ a, b: the ridge's ends at the verges, y: the ridge, eaves, cL, cR: how far the eaves lie left and right of
+ * `ground` (the player's walls' outlines, the parts' union), `roofs` ({ a, b: the ridge's ends at the verges, y: the ridge, eaves, cL, cR: how far the eaves lie left and right of
  * a→b, hip: [h0, h1] or 'pyramid', skin }), `cones` ({ c, r, y0, y1 }: a turret's cone), `cornice` (an eaves slab round
  * the flat roofs: { out, thick, colour }), `balconies` ({ on: [a, b] a wall's segment, s0, s1, floors, depth, rail }).
  */
@@ -159,6 +159,8 @@ export const HOUSES = [
     // brown shutters, a dark eaves slab, guessed.
     id: 'w123384807', name: 'Haus Freia',
     exclude: [{ x: -935.3, z: 547.1, r: 3 }],
+    // (the player's walls on the parts' union: their overlapping rings left walls inside the house)
+    ground: [[[-920.1, 546.1], [-930.5, 541.0], [-941.1, 536.2], [-944.2, 535.3], [-950.6, 545.6], [-939.4, 552.9], [-937.0, 554.0], [-926.0, 559.0]]],
     floor: 1.46, base: 0.8, colour: C.ivory, shutters: SHUTTERS.brown, bay: 1.0, plinth: 0.4,
     parts: [
       { ring: [[-931.1, 541.1], [-933.7, 544.2], [-936.1, 549.4], [-937.0, 554.0], [-926.0, 559.0], [-920.1, 546.1]], top: 17.03 },
@@ -250,6 +252,8 @@ export const HOUSES = [
     // guessed.
     id: 'w97292472', name: 'the tall block',
     exclude: [{ x: -864.8, z: 459.8, r: 3 }],
+    ground: [[[-873.2, 449.5], [-881.0, 466.0], [-866.6, 472.9], [-862.3, 464.0], [-852.2, 469.6], [-848.3, 462.6], [-853.2, 459.8], [-857.56, 457.8],
+      [-855.9, 455.0], [-866.2, 449.0], [-869.9, 446.9], [-871.76, 450.18]]],
     floor: -0.15, base: -0.9, colour: C.pale, shutters: SHUTTERS.grey, bay: 1.0, plinth: 0.4,
     parts: [
       { ring: [[-873.2, 449.5], [-881.0, 466.0], [-866.6, 472.9], [-862.0, 463.4], [-858.7, 456.4], [-871.3, 450.4]], top: 22.52 },
@@ -329,6 +333,8 @@ export const HOUSES = [
     // 32.2, folded into the pyramid). No photograph: white render, grey shutters, guessed.
     id: 'w127671912', name: 'the block with the corner tower',
     exclude: [{ x: -787.9, z: 253.5, r: 3 }, { x: -783.7, z: 248.8, r: 3 }],
+    ground: [[[-791.4, 242.8], [-799.1, 252.0], [-795.2, 255.3], [-796.6, 257.0], [-787.9, 264.3], [-786.4, 262.5], [-784.4, 264.2], [-776.7, 255.1],
+      [-781.9, 250.8], [-780.1, 248.6], [-784.2, 245.3], [-785.9, 247.4]]],
     floor: 10.95, base: 10.3, colour: C.white, shutters: SHUTTERS.grey, bay: 1.0, plinth: 0.4,
     parts: [
       {
@@ -349,6 +355,8 @@ export const HOUSES = [
     // left out. No photograph: ivory render, brown shutters, glass balconies on the street, guessed.
     id: 'w123385338', name: 'the block north of the bend',
     exclude: [{ x: -789.0, z: 186.6, r: 3 }],
+    // (the core and the band in one outline: the band, 1.3–1.9 m wide, between two walls let the player in)
+    ground: [[[-797.0, 174.2], [-800.9, 189.4], [-801.2, 190.5], [-785.0, 199.3], [-784.0, 199.4], [-783.1, 199.0], [-782.3, 198.0], [-779.7, 178.7], [-781.0, 178.3]]],
     floor: 14.71, base: 14.1, colour: C.ivory, shutters: SHUTTERS.brown, bay: 1.0, plinth: 0.4,
     parts: [
       { ring: [[-797.0, 174.2], [-800.9, 189.4], [-787.8, 195.3], [-786.5, 195.3], [-783.7, 193.8], [-782.9, 192.9], [-781.0, 178.3]], top: 29.19 },
@@ -457,8 +465,11 @@ export function partTop(house, part, x, z) {
   for (const i of part.roofs) { const r = roofY(house.roofs[i], x, z); if (r !== null) y = Math.max(y, r - 0.06); }
   return Number.isFinite(y) ? y : Math.min(...part.roofs.map((i) => house.roofs[i].eaves));
 }
-/** The parts' outlines the player's walls stand on (js/landmarks.js SURVEYED_FOOTPRINTS): every part but a set-back top */
-export const groundOutlines = (house) => house.parts.filter((p) => !p.setback).map((p) => p.ring);
+/**
+ * The outlines the player's walls stand on (js/landmarks.js SURVEYED_FOOTPRINTS): the house's `ground` (its parts'
+ * union where their rings overlap or touch), else every part but a set-back top
+ */
+export const groundOutlines = (house) => house.ground || house.parts.filter((p) => !p.setback).map((p) => p.ring);
 /** Is a point inside one of the row's houses? */
 export const insideRow = (x, z) => HOUSES.some((h) => groundOutlines(h).some((r) => pointInRing(r, x, z)));
 
