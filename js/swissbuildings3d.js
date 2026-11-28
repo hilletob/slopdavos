@@ -10,6 +10,7 @@ import { groundHeight } from './terrain.js';
 import { snowyRoof } from './season.js';
 import { FACADES } from './facades-data.js';
 import { FACADE, gwrBuilding } from './gwr.js';
+import { hintAt, hintKind, hintStoreyHeight } from './facade-hints.js';
 import { QUALITY } from './quality.js';
 import { releaseImageAfterUpload } from './gpu-memory.js';
 import { orthophotoIndex, orthophotoAt, orthophotoCovers, orthophotoTexture, setOrthophotoUV, updateTerrainDetail } from './swissimage.js';
@@ -102,6 +103,17 @@ function measuredColor(f) {
   const r = f[0] / 255, g = f[1] / 255, b = f[2] / 255, l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   const k = Math.min(0.75, Math.max(0.06, l)) / Math.max(l, 1e-4);
   return color.setRGB((l + (r - l) * 0.75) * k, (l + (g - l) * 0.75) * k, (l + (b - l) * 0.75) * k);
+}
+// A colour read from photographs (sRGB 0-255) in the working space, its brightness kept under `max` (plaster in sun)
+function hintColor(c, max) {
+  color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+  const l = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  return l > max ? color.multiplyScalar(max / l) : color;
+}
+// The hint (js/facade-hints.js) for a surveyed building by its centre
+function hintOf(batchTable, b) {
+  const w = lonLatToWorld(batchTable.Longitude[b], batchTable.Latitude[b]);
+  return hintAt(w.x, w.z);
 }
 function roofColor(seed, pitched) {
   const r = hash(seed * 13 + 5), s = hash(seed * 3 + 11);
@@ -384,7 +396,7 @@ export function bakeTile(gltf, tile, stats) {
   // year; the entry nearest its surveyed centre) and storey height (0: the kind's default). The street-level images
   // come first: a mostly timber facade is a chalet (forced: r = -1), a plastered one never (its style number kept clear
   // of them, a register chalet becomes a town house)
-  const facadeOf = new Map();
+  const facadeOf = new Map(), hinted = new Map();
   for (const b of foot.keys()) {
     const seed = (egids[b] || 0) * 31 + b + (tile.seed || 0);
     const f = measured.get(b), height = top.get(b) - foot.get(b);
@@ -401,6 +413,15 @@ export function bakeTile(gltf, tile, stats) {
       if (f[3] < 20 && kind === FACADE.CHALET) kind = FACADE.TOWNHOUSE;
       if (f[3] < 20 && kind === FACADE.BARN) kind = FACADE.SHED;
     }
+    // A look read from street photographs (js/facade-hints.js) comes before both: its kind, its timber, its storeys
+    const h = batchTable.Latitude ? hintOf(batchTable, b) : null;
+    if (h) {
+      hinted.set(b, h);
+      kind = hintKind(h);
+      r = kind === FACADE.CHALET ? -1 : r < 0.5 && h.timber < 20 ? r + 0.5 : r;
+      storeyH = hintStoreyHeight(h, height) || storeyH;
+      stats.hinted = (stats.hinted || 0) + 1;
+    }
     facadeOf.set(b, [r, height, kind, storeyH]);
   }
   let minY = Infinity;
@@ -415,7 +436,9 @@ export function bakeTile(gltf, tile, stats) {
     const f = measured.get(b);
     style.set(facadeOf.get(b), i * 4);
     const roof = normalsY[i] > 0.35;
-    const c = roof ? roofColor(seed, normalsY[i] < 0.97) : f ? measuredColor(f) : facadeColor(seed, kinds[b] || '');
+    const h = hinted.get(b);
+    const c = roof ? (h?.roof && (normalsY[i] < 0.97 || h.roofKind === 'flat') ? hintColor(h.roof, 0.5) : roofColor(seed, normalsY[i] < 0.97))
+      : h ? hintColor(h.wall, 0.65) : f ? measuredColor(f) : facadeColor(seed, kinds[b] || '');
     colors[i * 4] = c.r * 255; colors[i * 4 + 1] = c.g * 255; colors[i * 4 + 2] = c.b * 255; colors[i * 4 + 3] = roof ? 255 : 0;
   }
   // The passages carved through (the funiculars' station halls)
